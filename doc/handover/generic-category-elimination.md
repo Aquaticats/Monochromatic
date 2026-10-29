@@ -231,7 +231,15 @@ User decisions taken during execution
     First coverage baseline frozen: `975ab54da3`.
   - `p-memoize`: upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
      ported in `21bff0aa78`.
-    User chose a full 9.0.0 port next; its subagent is in flight.
+    User chose a full 9.0.0 port next:
+     done in `ab6bf76143` (fork) and `aed44ff3c3` (sidecar, coverage baseline refrozen for the added functions only),
+     README fix `55ca780397`.
+    Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (8 files) pass;
+     the sidecar's `coverage-report.ts` lint errors are fixed.
+    `test:mutation` was not run (the subagent hand-mutated `dist` with 12 mutants, all caught).
+    Open notes:
+     `isCacheEnabled` is now `cache !== false` like upstream, so a falsy non-`false` `cache` fails, with no test pinning it;
+     `mimicBestEffort` swallows its caught error (`void error`) because the package has no logger dependency.
   - `p-map`: the lockfile moved the floating oracle from 7.0.8 to 7.1.1 (`755685da03`, 2026-10-14);
      the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
      (parity and coverage gates pass, confirmed by a rerun).
