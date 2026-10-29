@@ -3,7 +3,7 @@
  
  Derived from [`p-map`](https://github.com/sindresorhus/p-map) by Sindre
  Sorhus (MIT); see `LICENSES/MIT.txt` and this package's README for the full
- attribution. Scheduling semantics match `p-map` 7.0.8: up to `concurrency`
+ attribution. Scheduling semantics match `p-map` 7.1.1: up to `concurrency`
  mapper calls run at once over a synchronous or asynchronous input, results
  collect in input order, and `stopOnError`, the abort `signal`, and
  `pMapSkip` behave as upstream defines them.

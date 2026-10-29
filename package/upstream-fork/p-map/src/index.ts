@@ -3,7 +3,7 @@
  Sindre Sorhus (MIT): map over iterables with limited concurrency.
  
  Rewritten to this repository's TypeScript standards with the upstream
- `p-map` 7.0.8 iteration semantics preserved: up to `concurrency` mapper
+ `p-map` 7.1.1 iteration semantics preserved: up to `concurrency` mapper
  calls run at once,
  results collect in input order,
  `pMapSkip` drops a result,

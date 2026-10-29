@@ -4,7 +4,7 @@
  
  Derived from [`p-map`](https://github.com/sindresorhus/p-map) by Sindre
  Sorhus (MIT); see `LICENSES/MIT.txt` and this package's README for the full
- attribution. Streaming semantics match `p-map` 7.0.8: mapper calls stay
+ attribution. Streaming semantics match `p-map` 7.1.1: mapper calls stay
  within `concurrency`,
  resolved-but-unconsumed results stay within
  `backpressure`,
