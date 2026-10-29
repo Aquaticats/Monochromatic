@@ -671,7 +671,10 @@ shell = "node --input-type=module-typescript -e"
 run = """
 const { execFileSync } = await import('node:child_process')
 const { existsSync, mkdirSync } = await import('node:fs')
-execFileSync('podman', ['build', '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
+// cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
+const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
+execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
 const exe = process.env.MP_WIN_EXE ?? 'dist/music-player.exe'
 if (!existsSync(exe)) { throw new Error(`Windows exe not found at ${exe}. Build on x13-win then copy target/release/music-player.exe to ${exe}. Build task: //package/music-player/desktop-app:build`) }
 const out = 'dist/music-player-signed.exe'
