@@ -123,6 +123,7 @@ await describe({
         const state = await runPasses({ inputs, passes: 5, start: FRESH, },);
         expect(state.iteration,).toBe(5,);
         expect(await readFile(join(root, 'cgroup', 'cpu.max',), 'utf8',),).toBe('2800000 100000',);
+        expect(await readFile(join(root, 'cgroup', 'io.weight',), 'utf8',),).toBe('default 10',);
         expect(l.messages.warn,).toEqual([],);
         expect(l.messages.error,).toEqual([],);
         /**

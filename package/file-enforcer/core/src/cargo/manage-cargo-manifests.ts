@@ -105,14 +105,14 @@ async function enforceManifest(
  never descends into the deep gitignored `target/` trees (which vendor many
  dependency manifests); the fragment filter stays as a safety net.
  
- @param manifestGlobs - Bounded-depth discovery globs, for example `package/​*​/​*​/Cargo.toml`
+ @param manifestGlobs - Bounded-depth discovery globs, for example `package/*\/*\/Cargo.toml`
  
  @param spec - Plan builder describing every owned edit
  
  @example
  ```ts
  await manageCargoManifests({
-   manifestGlobs: ['package/​*​/​*​/Cargo.toml', 'package/​*​/​*​/​*​/Cargo.toml'],
+   manifestGlobs: ['package/*\/*\/Cargo.toml', 'package/*\/*\/*\/Cargo.toml'],
    spec,
  });
  ```

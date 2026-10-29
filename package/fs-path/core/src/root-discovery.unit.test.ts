@@ -456,7 +456,7 @@ await describe({
               cwd: import.meta.dirname,
               marker: packageNamed(OWN_PACKAGE_NAME,),
             },);
-            expect(root.endsWith('/fs-path',),).toBe(true,);
+            expect(root.endsWith('/fs-path/core',),).toBe(true,);
           },
         },),
         it({

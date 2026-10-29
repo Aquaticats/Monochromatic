@@ -974,9 +974,20 @@ Measured for the design:
 
 Remaining:
 
-1.  A cold `task-run rust:verify` from an empty cache (running at the time of writing).
+1.  A cold `task-run rust:verify` from an empty cache (running at the time of writing):
+     systemd unit `rust-verify-cold`, log `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
+    The API-rich cache it replaced is in `${HOME}/temp/agent/rust-catalog/cache-before-cold-run/`;
+     after the run, copy those files back over `.cache/rust-catalog-update/crates-io/` (API histories carry more fields).
 2.  Fix every pre-existing file-enforcer lint and type error
      (452 errors and 454 warnings measured before the move, mostly `src/toolchain/*`;
      `src/toolchain/plan.artifacts.ts` is `toolchain:update` output, so its findings are fixed in the renderer),
      committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
+    Order:
+    1.  `format:oxlint` autofix alone, one commit.
+    2.  Type errors (`src/toolchain/update.ts` `fetcher` parameters), then a baseline `test:unit` run.
+    3.  Leaf files by finding count, one commit each, following the idioms of the lint-clean
+         `package/dependency-catalog/cli-rust-update` for nullish unions, regex, sync calls, examples, and parameter docs.
+    4.  The two oversized plan data files (`plan.tools.ts` 1027 lines, generated `plan.artifacts.ts`)
+         change the loader and patcher contract and the global scope copy in `~/.config/monochromatic-dev/toolchain/`,
+         so their shape goes to the owner as a ranked question, not a silent redesign.
 3.  Close #1800.

@@ -289,6 +289,14 @@ type RepologyProject = {
 };
 
 /**
+ Manager name paired with that manager's package name, as `Object.entries` yields a project's repos.
+ */
+type RepoEntry = readonly [
+  string,
+  string,
+];
+
+/**
  Generates the TypeScript source for `packages.generated.ts`
  from filtered Repology project data, building one entry per project
  with {@link buildPCall}.
@@ -353,7 +361,7 @@ function buildPCall(project: RepologyProject,): string {
    */
   const managers = Object
     .entries(project.repos,)
-    .filter(function isSupported([manager,],): boolean {
+    .filter(function isSupported([manager,]: RepoEntry,): boolean {
       return SUPPORTED_MANAGERS.has(manager,);
     },);
 
@@ -361,7 +369,7 @@ function buildPCall(project: RepologyProject,): string {
    Check if all managers use the effname as package name
    */
   const allSameName = managers.every(
-    function matchesEffname([, pkgname,],): boolean {
+    function matchesEffname([, pkgname,]: RepoEntry,): boolean {
       return pkgname === project
         .effname;
     },
@@ -379,7 +387,7 @@ function buildPCall(project: RepologyProject,): string {
    Build yes array entries
    */
   const yesEntries = managers.map(
-    function formatEntry([manager, pkgname,],): string {
+    function formatEntry([manager, pkgname,]: RepoEntry,): string {
       if (pkgname === project
         .effname)
         return `'${manager}'`;

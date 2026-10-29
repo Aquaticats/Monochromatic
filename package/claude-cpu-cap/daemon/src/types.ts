@@ -25,6 +25,10 @@ export type Paths = Readonly<{
    */
   cgroupFile: string;
   /**
+   The `io.weight` file of the `claude-code-bash` cgroup.
+   */
+  ioWeightFile: string;
+  /**
    Directory of the hwmon class (`/sys/class/hwmon`).
    */
   hwmonRoot: string;

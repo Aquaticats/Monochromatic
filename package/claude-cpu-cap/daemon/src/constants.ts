@@ -34,6 +34,12 @@ export const PERIOD_USEC = 100_000;
 export const DEFAULT_THREADS = 30;
 
 /**
+ Default `io.weight` of the `claude-code-bash` cgroup (the kernel default is 100). It is a proportional share, so it only
+ matters while the NVMe is contended, and it takes effect only under the BFQ scheduler.
+ */
+export const DEFAULT_IO_WEIGHT = 10;
+
+/**
  Consecutive bad samples before a metric raises an alert (3 samples, 6 seconds).
  */
 export const BAD_AFTER_SAMPLES = 3;

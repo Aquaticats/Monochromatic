@@ -328,8 +328,8 @@ export async function overwriteIfNotExists(
  @example
  ```ts
  await overwriteEach({
-   destGlob: './dest/*​/*.md',
-   files: await cat('./src/*​/*.md'),
+   destGlob: './dest/*\/*.md',
+   files: await cat('./src/*\/*.md'),
  });
  ```
  */

@@ -93,6 +93,23 @@ fn garbage_marker_is_not_a_conclusion() {
     remove(root.as_path());
 }
 
+/// A marker that names an object the repository lacks is still a conclusion in progress.
+///  `rev-parse --verify` accepts it and the transaction then fails on the missing object;
+///  a batched `cat-file --batch-check` read reports such a marker as missing,
+///  which would silently turn a merge into a plain commit that drops the merge parent.
+///  This pins why the three markers are probed with `rev-parse --verify` and not read in one call.
+#[test]
+fn a_marker_naming_a_missing_object_is_still_a_conclusion() {
+    let root: PathBuf = fixture("capture-invocation-dangling-marker");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{}\n", "a".repeat(40))).expect("fixture");
+    assert_eq!(
+        resolve_conclusion_kind(&git_context(), repo.as_path(), false),
+        Ok(Conclusion::Merge)
+    );
+    remove(root.as_path());
+}
+
 /// The base is the target's commit now, and an unborn target starts from the empty tree.
 #[test]
 fn base_follows_the_target_and_unborn_uses_the_empty_tree() {

@@ -25,6 +25,19 @@ The package README has the install commands.
 It reads the thread count from `~/.config/claude-cpu-cap/threads` every 2 seconds
 and writes `<threads * 100000> 100000` into the cgroup's `cpu.max` when the value differs.
 
+## Disk I/O weight
+
+The same service writes `default 10` into the cgroup's `io.weight` (the kernel default is 100) whenever it differs.
+The weight is a share against sibling cgroups, so it costs nothing on an idle disk and only matters while the NVMe is
+contended. It takes effect only under the BFQ scheduler, which `/etc/udev/rules.d/61-nvme-bfq.rules` sets on `nvme0n1`;
+under `kyber` the file is accepted but ignored.
+Terminal scopes get the same weight from
+`~/.config/systemd/user/app-ghostty-surface-transient-.scope.d/10-io-weight.conf` (`IOWeight=10`), which covers other
+agent harnesses, builds and commits run from a terminal.
+Evidence and measurements: `doc/planning/agent-search-io-throttle.md`.
+To undo: delete the drop-in and run `systemctl --user daemon-reload`, and set `DEFAULT_IO_WEIGHT` in
+`package/claude-cpu-cap/daemon/src/constants.ts` to 100.
+
 ## Tone the cap down or up
 
 Write the new thread count to the file; the service applies it within seconds:

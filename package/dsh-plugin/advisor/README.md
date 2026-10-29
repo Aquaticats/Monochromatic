@@ -82,7 +82,9 @@ Selection prefers, in order:
 3. The variant fallback ranking supplied through the Stage 2b seam
    (`rankDefaultAdvisorCandidates` in the shared core): DSH ranks scoped
    candidates by largest `contextWindow`, then model `name`, then canonical
-   slug, with the observed windows recorded in the selection reason.
+   slug. The selection reason names only the winning window; the full
+   observed-window roster goes to the debug decision log, so model-visible
+   output never enumerates every scoped model.
 
 Default calls drop the current main model from the candidate scope before the
 ranking: exclusion matches route slugs and provider-independent identity

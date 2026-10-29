@@ -87,6 +87,10 @@ mod landing_crash;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// A process start that fails anywhere in a commit never strands the repository.
+#[path = "binary_fork_failure_tests.rs"]
+mod fork_failure;
+
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
 mod known_content;

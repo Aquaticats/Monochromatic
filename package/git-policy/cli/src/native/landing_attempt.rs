@@ -452,46 +452,13 @@ fn land_locked(
         ),
         LandingPayload::NormalizeOnly { .. } => None,
     };
-    reach(Phase::ObjectsMigrated)?;
-    let landed_tree: &str = match request.payload {
-        LandingPayload::Commit { landed_tree_oid, .. } | LandingPayload::NormalizeOnly { landed_tree_oid } => landed_tree_oid.as_str(),
+    let post: PathBuf = match record_landing(context, cwd, workspace, request, held, &expected_old, pack_name.as_ref()) {
+        Ok(post) => post,
+        Err(error) => {
+            discard_unrecorded_keep(capture.layout.object_directory.as_path(), workspace, pack_name.as_deref());
+            return Err(error);
+        }
     };
-    let pre_landing: PathBuf = workspace.directory.join(pre_landing_index_filename(request.attempt));
-    let post: PathBuf = workspace.directory.join(post_index_filename(request.attempt));
-    if let Err(error) = copy_index_with_timestamps(capture.layout.real_index_path.as_path(), pre_landing.as_path()) {
-        return Err(LandingError::Journal(format!("copying the real index to {} failed: {error}", pre_landing.display())));
-    }
-    compute_post_index(context, cwd, workspace, request, landed_tree, pre_landing.as_path(), post.as_path())?;
-    // The record below hands the directory to recovery, so the mark comes first, as the incumbent's does.
-    workspace.preserved = true;
-    let lock_identity = match held.lock.as_ref() {
-        Some(lock) => lock.identity().clone(),
-        None => return Err(LandingError::Journal(String::from("the real index lock is not held"))),
-    };
-    let record: LandingRecord = LandingRecord {
-        attempt: request.attempt,
-        operation: match request.payload {
-            LandingPayload::Commit { .. } => LandingOperation::Commit,
-            LandingPayload::NormalizeOnly { .. } => LandingOperation::NormalizeOnly,
-        },
-        expected_old: expected_old.clone(),
-        new_oid: match request.payload {
-            LandingPayload::Commit { new_oid, .. } => Some(new_oid.clone()),
-            LandingPayload::NormalizeOnly { .. } => None,
-        },
-        landed_tree_oid: landed_tree.to_string(),
-        pre_landing_index: artifact_identity(pre_landing.as_path())?,
-        post_index: artifact_identity(post.as_path())?,
-        lock: lock_identity,
-        pack_name: pack_name.clone(),
-        added_paths: request.added_paths.to_vec(),
-        selected_worktree_paths: request.selected_worktree_paths.to_vec(),
-    };
-    write_journal(
-        workspace.directory.as_path(),
-        landing_record_filename(request.attempt).as_str(),
-        encode_landing(&record).as_bytes(),
-    )?;
     if let LandingPayload::Commit { new_oid, .. } = request.payload {
         let pack: &str = pack_name.as_deref().unwrap_or("");
         if let Some(lost) = advance_target(context, cwd, workspace, request, held, new_oid.as_str(), &expected_old, pack)? {
@@ -599,6 +566,94 @@ fn compute_post_index(
         exact_private_index,
     };
     return compute_landing_post_index(context, cwd, &input).map_err(LandingError::Git);
+}
+
+/// What:
+///  The steps between the objects' migration and the landing record: the pre-landing index copy,
+///  the post-index, and the record itself.
+///  Returns the post-index path.
+/// Why:
+///   Until the record is written nothing but this process knows the pack's keep,
+///  so the caller removes the keep when any of these steps fails;
+///  after `preserved` is set, recovery owns the directory and removes the keep by its message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const post = await recordLanding({ gitPath, cwd, workspace, request, indexLock, expectedOld, packName });
+/// ```
+fn record_landing(
+    context: &GitContext,
+    cwd: &Path,
+    workspace: &mut LandingWorkspace,
+    request: &LandingRequest<'_>,
+    held: &Held,
+    expected_old: &Base,
+    pack_name: Option<&String>,
+) -> Result<PathBuf, LandingError> {
+    reach(Phase::ObjectsMigrated)?;
+    let capture: &InvocationCapture = request.capture;
+    let landed_tree: &str = match request.payload {
+        LandingPayload::Commit { landed_tree_oid, .. } | LandingPayload::NormalizeOnly { landed_tree_oid } => landed_tree_oid.as_str(),
+    };
+    let pre_landing: PathBuf = workspace.directory.join(pre_landing_index_filename(request.attempt));
+    let post: PathBuf = workspace.directory.join(post_index_filename(request.attempt));
+    if let Err(error) = copy_index_with_timestamps(capture.layout.real_index_path.as_path(), pre_landing.as_path()) {
+        return Err(LandingError::Journal(format!("copying the real index to {} failed: {error}", pre_landing.display())));
+    }
+    compute_post_index(context, cwd, workspace, request, landed_tree, pre_landing.as_path(), post.as_path())?;
+    // The record below hands the directory to recovery, so the mark comes first, as the incumbent's does.
+    workspace.preserved = true;
+    let lock_identity = match held.lock.as_ref() {
+        Some(lock) => lock.identity().clone(),
+        None => return Err(LandingError::Journal(String::from("the real index lock is not held"))),
+    };
+    let record: LandingRecord = LandingRecord {
+        attempt: request.attempt,
+        operation: match request.payload {
+            LandingPayload::Commit { .. } => LandingOperation::Commit,
+            LandingPayload::NormalizeOnly { .. } => LandingOperation::NormalizeOnly,
+        },
+        expected_old: expected_old.clone(),
+        new_oid: match request.payload {
+            LandingPayload::Commit { new_oid, .. } => Some(new_oid.clone()),
+            LandingPayload::NormalizeOnly { .. } => None,
+        },
+        landed_tree_oid: landed_tree.to_string(),
+        pre_landing_index: artifact_identity(pre_landing.as_path())?,
+        post_index: artifact_identity(post.as_path())?,
+        lock: lock_identity,
+        pack_name: pack_name.cloned(),
+        added_paths: request.added_paths.to_vec(),
+        selected_worktree_paths: request.selected_worktree_paths.to_vec(),
+    };
+    write_journal(
+        workspace.directory.as_path(),
+        landing_record_filename(request.attempt).as_str(),
+        encode_landing(&record).as_bytes(),
+    )?;
+    return Ok(post);
+}
+
+/// What:
+///  Removes the pack keep of a landing that failed before its record handed the directory to recovery.
+/// Why:
+///   The original failure is what the caller reports,
+///  so a keep that cannot be removed is a warning that names it; recovery's keep sweep by message still finds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!workspace.preserved && packName) await removePackKeep({ objectDirectory, packName }).catch(warn);
+/// ```
+fn discard_unrecorded_keep(objects: &Path, workspace: &LandingWorkspace, pack_name: Option<&str>) {
+    if workspace.preserved {
+        return;
+    }
+    let Some(pack) = pack_name else {
+        return;
+    };
+    if let Err(error) = remove_pack_keep(objects, pack) {
+        warn(TAG, format!("the pack keep of a landing that failed before its record could not be removed: {error}").as_str());
+    }
 }
 
 /// What:
