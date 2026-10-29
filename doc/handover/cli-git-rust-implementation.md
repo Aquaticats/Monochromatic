@@ -2914,6 +2914,15 @@ after a rebase made the local HEAD equal to a remote ancestor, the later push wa
 Release 0.2.11 committed as `a302d5ee8c` (the fuzz crate's `=0.2.10` pin now needs the bump too, so a release is four
 files); publish run 40847281021. The earlier `cargo-publish` push run 40845758673 for `4fc48e3bb1` failed: not mine,
 check whether 0.2.10 reached crates.io.
-Still owed: mutation campaign over the touched files (non-blocking): `push_stacking.rs`, `auto_push_reconcile.rs`,
-`command_push.rs`, `entry.rs`; queued decision for the user: the auto-push merge push runs no push-time policy.
+Release 0.2.11 outcome: publish run 40847281021 succeeded; crates.io shows 0.2.11 (09:09 UTC) and 0.2.10 (08:28 UTC), so
+the failed run 40845758673 did not stop 0.2.10. The released Linux archive passed the podman harness
+(`~/temp/agent/podman-1804-released/repro.log`): stacked explicit push exit 0 from a detached worktree, tracked-ref
+auto-push reconciled. Comment posted on issue 1804; the issue stays open for the auto-push policy decision below.
+`toolchain.lock.json` is modified and uncommitted (wrapper 0.2.10 to 0.2.11, and an unrelated pnpm 1.11.1 to 1.11.2);
+not mine to commit, the earlier pattern was a `chore(toolchain): install git-policy-cli <version>` commit. `mise upgrade`
+reports up to date because the lock already says 0.2.11; the host's `~/.cargo/bin/cli-git-native` (04:30 build) is
+older and `mise run toolchain:sync` is the sanctioned way to converge it.
+Mutation campaign running: unit `cli-git-mut-m1804`, files `push_stacking.rs`, `command_push.rs`, `auto_push_reconcile.rs`,
+`entry.rs` in that order, logs `~/temp/agent/m1804-mutation-<file>.log`; do not edit `src/native` while it runs.
+Queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
