@@ -1,3 +1,4 @@
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   describe,
   expect,
@@ -42,7 +43,7 @@ function rejectionOf(parameters: Readonly<{
     parseContainerLimitOptions(parameters,);
   }
   catch (error) {
-    return error instanceof Error ? error.message : String(error,);
+    return caughtValueText(error,);
   }
   return '';
 }

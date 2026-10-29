@@ -157,6 +157,11 @@ function isCpuCount(text: string): boolean {
  @param cpus - CPUs the container may use
 
  @returns microseconds of CPU time per period, rounded because floating point turns `0.1 * 100000` into `10000.000000000002`
+
+ @example
+ ```ts
+ const quota = cpuQuotaMicroseconds(1.5);
+ ```
  */
 export function cpuQuotaMicroseconds(cpus: number): number {
   return Math.round(cpus * cpuPeriodMicroseconds,);
@@ -168,6 +173,11 @@ export function cpuQuotaMicroseconds(cpus: number): number {
  @param limits - container limits
 
  @returns `['--memory=2g']` for the defaults
+
+ @example
+ ```ts
+ const bound = memoryArguments(defaultContainerLimits);
+ ```
  */
 export function memoryArguments(limits: ContainerLimits,): string[] {
   return [`--memory=${limits.memory}`,];
@@ -179,6 +189,11 @@ export function memoryArguments(limits: ContainerLimits,): string[] {
  @param limits - container limits
 
  @returns memory, CFS period and the quota derived from the CPUs
+
+ @example
+ ```ts
+ const bounds = buildLimitArguments(defaultContainerLimits);
+ ```
  */
 export function buildLimitArguments(limits: ContainerLimits,): string[] {
   return [
@@ -196,6 +211,11 @@ export function buildLimitArguments(limits: ContainerLimits,): string[] {
  @param withPidsLimit - whether the container has a process cap
 
  @returns memory, CPUs and, when capped, the process limit
+
+ @example
+ ```ts
+ const bounds = runLimitArguments({ limits: defaultContainerLimits, withPidsLimit: true });
+ ```
  */
 export function runLimitArguments({
   limits,
@@ -217,6 +237,11 @@ export function runLimitArguments({
  @param limits - container limits
 
  @returns the CPUs rounded down, at least one
+
+ @example
+ ```ts
+ const jobs = parallelJobs(defaultContainerLimits);
+ ```
  */
 export function parallelJobs(limits: ContainerLimits,): number {
   return Math.max(
@@ -224,6 +249,14 @@ export function parallelJobs(limits: ContainerLimits,): number {
     Math.floor(limits.cpus,),
   );
 }
+
+/**
+ One limit option as given on the command line.
+ */
+type GivenLimit = {
+  readonly flag: LimitFlag;
+  readonly value: string;
+};
 
 /**
  Whether an argument is one of the options this module reads.
@@ -245,7 +278,7 @@ function isLimitFlag(argument: string,): argument is LimitFlag {
 
  @param flag - option being read
 
- @param value - text after the option, absent or empty when the option ends the arguments
+ @param value - text after the option, empty when the option ends the arguments
 
  @returns the limits with that option applied
  */
@@ -256,14 +289,14 @@ function applyLimit({
 }: {
   readonly limits: ContainerLimits;
   readonly flag: LimitFlag;
-  readonly value?: string;
+  readonly value: string;
 },): ContainerLimits {
   /**
    Text the diagnostic quotes back.
    */
-  const got = ((value === undefined) || (value === '')) ? 'no value' : value;
+  const got = value === '' ? 'no value' : value;
   if (flag === '--memory') {
-    if ((value === undefined) || (!isMemorySize(value,)))
+    if (!isMemorySize(value,))
       throw new NativeVerificationError(`--memory must be a whole number of bytes with an optional unit b, k, m or g (for example 512m or 2g), got ${got}.`,);
     return {
       ...limits,
@@ -271,14 +304,14 @@ function applyLimit({
     };
   }
   if (flag === '--cpus') {
-    if ((value === undefined) || (!isCpuCount(value,)))
+    if (!isCpuCount(value,))
       throw new NativeVerificationError(`--cpus must be a number of CPUs from ${String(minimumCpus,)} with at most ${String(maximumCpuDecimals,)} decimals; fractions are allowed (for example 2 or 1.5), got ${got}.`,);
     return {
       ...limits,
       cpus: Number(value,),
     };
   }
-  if ((value === undefined) || (!isPositiveWholeNumber(value,)))
+  if (!isPositiveWholeNumber(value,))
     throw new NativeVerificationError(`--pids-limit must be a whole number of processes from 1 (for example 128), got ${got}.`,);
   return {
     ...limits,
@@ -326,9 +359,9 @@ export function parseContainerLimitOptions({
   readonly rest: readonly string[];
 } {
   /**
-   Limits with every option read so far applied.
+   Limit options in command-line order, each with its value.
    */
-  let limits = defaultContainerLimits;
+  const given: GivenLimit[] = [];
   /**
    Arguments that are not limit options.
    */
@@ -339,9 +372,13 @@ export function parseContainerLimitOptions({
      */
     const flag = options[index] ?? '';
     /**
-     The text after the option, absent when the option ends the arguments.
+     The text after the option, empty when the option ends the arguments.
      */
-    const value = options[index + 1];
+    const value = options[index + 1] ?? '';
+    /**
+     Whether the argument after the option exists.
+     */
+    const hasValue = (index + 1) < options.length;
     if (!isLimitFlag(flag,)) {
       if (leadingOnly) {
         rest.push(...options.slice(index,),);
@@ -349,20 +386,34 @@ export function parseContainerLimitOptions({
       }
       rest.push(
         flag,
-        ...(value === undefined ? [] : [value,]),
+        ...(hasValue ? [value,] : []),
       );
       continue;
     }
     if ((flag === '--pids-limit') && (!acceptPidsLimit))
       throw new NativeVerificationError('--pids-limit is not accepted by this task: its container has no process cap.',);
-    limits = applyLimit({
-      limits,
+    given.push({
       flag,
       value,
     },);
   }
   return {
-    limits,
+    limits: given.reduce(
+      function applyGiven(
+        limits,
+        {
+          flag,
+          value,
+        },
+      ) {
+        return applyLimit({
+          limits,
+          flag,
+          value,
+        },);
+      },
+      defaultContainerLimits,
+    ),
     rest,
   };
 }
