@@ -141,10 +141,14 @@ async function runCell(cell: (typeof CELLS)[number],): Promise<boolean> {
     monorepoRoot: MONOREPO_ROOT,
   },);
   /**
-   Fully tagged image reference for the cell's distro (CachyOS maps to its Docker Hub repository).
+   Distro half of the cell's `os` spec.
+   */
+  const { distro, } = parseOs(cell.os,);
+  /**
+   Fully tagged image reference for the cell's distro (CachyOS maps to the image chosen for the host CPU level).
    */
   const image = resolveImage({
-    distro: parseOs(cell.os,).distro,
+    distro,
     cachyosImage,
   },);
   console.log(
