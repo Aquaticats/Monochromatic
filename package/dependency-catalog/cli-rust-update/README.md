@@ -49,7 +49,14 @@ It edits `rust-catalog.toml` only to prune stale exclude selectors when the matc
 5.  Collects the registry versions that no lockfile held before (the union across all crates).
 6.  Checks each new version's `pubtime` from the crates.io sparse index against `minimumReleaseAge`,
      and its crates.io version history against the trust policy.
-7.  Keeps the new lockfiles only when nothing failed and it is not a dry run;
+7.  Sets aside a version the trust policy refuses, as pnpm's picker does:
+     every crate that locks it runs `cargo update --package <name>@<version> --precise <candidate>`
+     with the newest older release in the same caret class that was published before the cutoff,
+     is not yanked, and passes the trust policy against the full history.
+    Rounds repeat (at most 5, with 10 attempts per version and crate) because a move can lock new transitive versions,
+     and each move is printed as a warning.
+    A refusal with no workable candidate stays a finding.
+8.  Keeps the new lockfiles only when nothing failed and it is not a dry run;
      otherwise it restores every lockfile, so a refused version never stays in some crates and not others.
 
 With `minimumReleaseAgeStrict = false`,
