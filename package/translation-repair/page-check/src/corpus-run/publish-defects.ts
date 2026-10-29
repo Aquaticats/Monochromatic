@@ -3,6 +3,8 @@ import {
   lifecycleStamp,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Publish defects
@@ -29,6 +31,10 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // ("Add the comparison"), `source-reads-differently`, `source-reading-undecided` and `source-reading-not-compared`
 // (`source-ships-differences.ts`). A run always ships and every reading difference is reported, so a throw of that
 // comparison is a defect of the run, named by the last of them, and does not stop the entry.
+//
+// A PAGE WITH NO BODY IS REPORTED BY `pageWithoutBodyDefects`, read off the two texts like `archiveKeptDefects` reads
+// the artifact, and not through a check that throws. The page of an archive that held no body used to ship as 0 bytes
+// with no defect and no warning (B1046); an original with no body of its own is not a defect.
 
 /**
  A check at publish whose failure ships as a reported defect.
@@ -48,6 +54,7 @@ export type PublishCheck =
     | 'page-agreement'
     | 'page-footnotes'
     | 'page-source-unparseable'
+    | 'page-without-body'
     | 'source-reading-not-compared'
     | 'source-reading-undecided'
     | 'source-reads-differently';
@@ -214,6 +221,66 @@ export function archiveKeptDefects(
   return [{
     check: 'no-valid-wording',
     message: `entry ${entryId} kept the archive at ${sentences.join('; at ',)}`,
+  },];
+}
+
+/**
+ Reports a page that ships no body while its original has one.
+
+ READ OFF THE TEXTS, not caught from a check: the question is whether the page holds a block at all, which the parser
+ answers the same way for the page and the original, front matter and byte order mark left out of both. The
+ commitment is that a passage with no wording ships its original under a note, so a page with no block is a defect
+ of the slicing or the assembly, whatever the archive held.
+
+ @param entryId - entry the page belongs to
+
+ @param sourceText - whole original page
+
+ @param pageText - page that would be written
+
+ @returns One defect naming the original's block count, or none
+
+ @example
+ ```ts
+ const defects = pageWithoutBodyDefects({ entryId: 'BookshopCat', sourceText, pageText: '', },);
+ ```
+ */
+export function pageWithoutBodyDefects(
+  {
+    entryId,
+    sourceText,
+    pageText,
+  }: {
+    readonly entryId: string;
+    readonly sourceText: string;
+    readonly pageText: string;
+  },
+): readonly PublishDefect[] {
+  /**
+   Blocks of the original.
+   */
+  const { nodes: sourceBlocks, } = parseDocument({ text: sourceText, },);
+  if (sourceBlocks.length === 0)
+    return [];
+
+  /**
+   Blocks of the page.
+   */
+  const { nodes: pageBlocks, } = parseDocument({ text: pageText, },);
+  if (pageBlocks.length > 0)
+    return [];
+
+  return [{
+    check: 'page-without-body',
+    message: `entry ${entryId} ships a page with no body, where the original holds ${
+      String(sourceBlocks.length,)
+    } ${
+      wordForCount({
+        count: sourceBlocks.length,
+        one: 'block',
+        many: 'blocks',
+      },)
+    }`,
   },];
 }
 

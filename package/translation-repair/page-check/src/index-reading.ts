@@ -1,8 +1,9 @@
 //region Public index of the reading comparison and the fresh tails
 // The names the comparison of what a reader of the page sees with what a reader of the source sees, and the reading of the
 // text after a footnote on its own, give their siblings and their own tests, split out of `index.ts` to keep that file
-// under the line bound.
+// under the line bound. The report of a page with no body (`pageWithoutBodyDefects`) sits here for the same reason.
 
+export { pageWithoutBodyDefects, } from './corpus-run/publish-defects.ts';
 export { blockOpenerStarts, } from './corpus-run/source-ships-open-block.ts';
 export {
   openerStarts,

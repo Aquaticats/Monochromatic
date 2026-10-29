@@ -22,6 +22,7 @@ import {
 import {
   archiveKeptDefects,
   defectsLine,
+  pageWithoutBodyDefects,
   type PublishCheckStep,
   publishDefects,
   type WouldShipSource,
@@ -412,6 +413,53 @@ await describe({
               check: 'no-valid-wording',
               message: 'entry WhiskerCat kept the archive at slice 3, where the artifact records no reason',
             },],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: pageWithoutBodyDefects.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES A PAGE WITH NO BLOCK WHILE THE ORIGINAL HOLDS SOME, whether the page is empty, whitespace, a '
+            + 'byte order mark or front matter alone, saying how many blocks the original holds and nothing it quotes',
+          fn: async () => {
+            /**
+             Byte order mark a page may open with.
+             */
+            const mark = String.fromCodePoint(0xFE_FF,);
+            /**
+             Original of two blocks.
+             */
+            const sourceText = '---\nname: 猫\n---\n\n## 简介\n\n一只虎斑猫。\n';
+            for (const pageText of ['', '  \n\n', mark, '---\nname: Cat\n---\n', `${mark}---\nname: Cat\n---\n\n`,]) {
+              expect(pageWithoutBodyDefects({
+                entryId: 'WhiskerCat',
+                sourceText,
+                pageText,
+              },),).toStrictEqual([{
+                check: 'page-without-body',
+                message: 'entry WhiskerCat ships a page with no body, where the original holds 2 blocks',
+              },],);
+            }
+          },
+        },),
+        it({
+          name: 'SAYS NOTHING for a page that holds a block, and nothing for an original that holds none, since '
+            + 'no page can carry a body the original lacks',
+          fn: async () => {
+            expect(pageWithoutBodyDefects({
+              entryId: 'WhiskerCat',
+              sourceText: '## 简介\n\n一只虎斑猫。\n',
+              pageText: '## Description\n',
+            },),).toStrictEqual([],);
+            expect(pageWithoutBodyDefects({
+              entryId: 'WhiskerCat',
+              sourceText: '---\nname: 猫\n---\n',
+              pageText: '',
+            },),).toStrictEqual([],);
           },
         },),
       ],
