@@ -2,8 +2,8 @@
 
 ## Status
 
-Grilling finished on 2026-10-29, awaiting the repository owner's confirmation.
-Nothing is implemented.
+Grilling finished and the repository owner confirmed the design on 2026-10-29.
+Nothing is implemented, and the owner has not yet asked for implementation.
 This records the decisions the repository owner has answered and the defaults adopted from them.
 
 ## Request
@@ -138,4 +138,4 @@ These follow from the answers above and stay open to veto.
 ## Open
 
 None.
-The owner has not yet confirmed that the design is complete.
+The owner confirmed the design is complete.
