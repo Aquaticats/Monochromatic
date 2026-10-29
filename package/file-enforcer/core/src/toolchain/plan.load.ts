@@ -7,7 +7,8 @@
  (`doc/planning/mpm-global-toolchain-migration.md`), as import-free data
  modules; this loader is where they become the typed `ToolPlanEntry[]` the
  sync, status and update flows consume. Field validation lives in
- `plan.load.guards.ts`.
+ `plan.load.guards.ts`, and `options` validation in
+ `plan.load.guards.options.ts`.
 
  Node builtins only, so the entry points stay dependency-free.
  */
@@ -23,11 +24,11 @@ import {
   parseArtifacts,
   parseBins,
   parseEnv,
-  parseOptions,
   parseOs,
   parseRequest,
   parseRoute,
 } from './plan.load.guards.ts';
+import { parseOptions, } from './plan.load.guards.options.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Validation
