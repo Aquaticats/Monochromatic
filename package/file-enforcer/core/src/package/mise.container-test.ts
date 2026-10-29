@@ -20,18 +20,15 @@
  ```
  */
 
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
   type Combination,
   type UserContext,
 } from '@monochromatic-dev/test-harness-core-matrix/ts';
-import spawn from 'nano-spawn';
 import {
+  healReadableDirs,
   MAX_CAPTURED_OUTPUT_BYTES,
   PODMAN_BOUNDS,
   runContainerCell,
@@ -88,32 +85,17 @@ const CELLS: readonly {
 
 //region Run
 
-/**
- Directories the matrix test reads inside the container.
- */
-const READ_DIRS: readonly string[] = [
-  'package/module',
-  'package/file-enforcer/core/src',
-];
-
-// Rootless podman shows the mounted worktree as container-root-owned, so the
-// non-root cells can only read world-readable files; heal readability (read
-// and traverse bits only) for the directories the tests read.
-await Promise.all(READ_DIRS.map(
-  function healReadability(dir,): Promise<unknown> {
-    return spawn(
-      'chmod',
-      [
-        '-R',
-        'a+rX',
-        join(
-          MONOREPO_ROOT,
-          dir
-        ),
-      ],
-    );
-  },
-),);
+// The non-root cells read only world-readable files: heal this package's
+// sources and every workspace package it reaches.
+await healReadableDirs({
+  monorepoRoot: MONOREPO_ROOT,
+  packageDir: resolve(
+    import.meta.dirname,
+    '..',
+    '..',
+  ),
+  ownDirs: ['package/file-enforcer/core/src',],
+},);
 
 /**
  Runs one matrix cell in a bounded container and reports its output.
