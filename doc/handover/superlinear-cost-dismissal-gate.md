@@ -385,9 +385,13 @@ and safe to delete:
   thinking-block text,
   even mere summaries,
   never goes to an external provider.
+  The owner clarified the same day
+  that the constraint covers thinking text only:
+  every other kind of text,
+  code and diffs included,
+  may go to external models.
   The Luna direction stays open;
-  only routes that carry thinking text off this machine are ruled out,
-  and the owner corrected a wider reading the same day.
+  only routes that carry thinking text off this machine are ruled out.
 - Accepted by the owner 2026-10-29:
   `RG2`'s scope widened to any code consuming unbounded input,
   landed in `cf88f54ed8`
@@ -432,6 +436,13 @@ and safe to delete:
   First measured per-diff cost:
   195.5 s on a 106-line diff replay,
   and the reviewer demanded linearity proof even on the fix diff.
+- Built 2026-10-29 at the owner's "you already named work, why didn't you do it":
+  the ratio-proof helper,
+  `measureTwoSizeRatio` and `expectLinearTimeGrowth`
+  in `package/test-harness/core-expect`
+  (commit `d4988f4c9b`),
+  whose self-test shows a synthetic quadratic tripping the bound
+  while one-pass work passes it.
 
 ## Next action
 
@@ -464,9 +475,13 @@ Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
 (`RG2` already demands proof for unbounded input).
-The ratio-test gate stays ranked second
-as the regression tool for known exposing shapes;
-the Luna direction stays open under the thinking-text constraint.
+The ratio-proof helper is built
+(`measureTwoSizeRatio` and `expectLinearTimeGrowth`
+in `package/test-harness/core-expect`),
+so an author can land an exposing shape with a proof attached;
+what is left there is adoption,
+not code.
+The Luna direction stays open under the thinking-text constraint.
 
 ## Recall measurement results
 
