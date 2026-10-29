@@ -702,7 +702,12 @@ fn reach_phase(phase: Phase) -> Result<(), Bail> {
     });
 }
 
-/// Option reading, editor choice, settings and the staged-work path.
+/// Boolean settings, the editor choice and the markers of other operations, which need no repository.
 #[cfg(test)]
 #[path = "merge_isolation_tests.rs"]
 mod tests;
+
+/// The settings, the staged-work check and the first decisions of an attempt, each in a real repository.
+#[cfg(test)]
+#[path = "merge_isolation_repository_tests.rs"]
+mod repository_tests;
