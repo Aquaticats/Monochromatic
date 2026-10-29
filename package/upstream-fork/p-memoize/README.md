@@ -82,9 +82,11 @@ one key share a result.
 Concurrent calls with one key share one promise object,
  so the wrapped
 function runs once per key until that promise settles.
- The in-flight entry
-is dropped the moment the call settles,
- whether it fulfilled or rejected.
+ When the call settles,
+ fulfilled or rejected,
+ its in-flight entry is dropped
+if the entry still belongs to that call;
+ a clear in the meantime has already dropped it (see "Tracking upstream 9.0.0").
 
 #### shouldCache
 
