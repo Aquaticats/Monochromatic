@@ -855,5 +855,30 @@ The CI drift check (task 10) should include that oldest-cargo `cargo metadata` p
 - Name of the mise task and of its package
    (decided:
    a package bin under `package/dev-script/` run by a thin mise task).
-- Where the trust cache lives (a committed file or a CI cache);
-   a cold full verification is about 17 minutes at 1 request per second for 1024 names.
+- Decided (owner, 2026-10-29):
+   the trust cache is local and gitignored,
+   `.cache/rust-catalog-update/crates-io/<name>.json`,
+   holding per version only `num`,
+   `created_at`,
+   the publisher id,
+   the trusted-publishing repository,
+   and the declared repository;
+   CI restores and saves it with the pinned `actions/cache/restore` and `actions/cache/save` steps
+   that `.github/workflows/music-player-release.yml` already uses,
+   keyed on a hash of every `Cargo.lock` with a prefix restore key.
+  Measured 2026-10-29:
+   the 24 lockfiles hold 1024 registry crate names with 46,593 published versions
+   (local sparse-index cache; `clap` has the most, 462);
+   `https://crates.io/api/v1/crates/clap/versions` returns all 462 in one response (`meta.next_page` is null),
+   so a cold verification is 1024 requests,
+   about 17 minutes at 1 request per second.
+  GitHub removes cache entries "that have not been accessed in over 7 days",
+   so a cold run recurs after a quiet week.
+  Rejected:
+   a committed evidence file (about 4 to 5 MB estimated, regenerated on every update,
+   and CI would check the committed copy instead of crates.io)
+   and no cache (17 minutes on every run).
+- Re-probed 2026-10-29 on `cargo 1.101.0-nightly (3960fa69b 2026-10-12)`:
+   `cargo generate-lockfile --help` lists `--publish-time` and `cargo update --help` does not,
+   with or without `-Zunstable-options`,
+   so the update keeps full re-resolution through `generate-lockfile`.
