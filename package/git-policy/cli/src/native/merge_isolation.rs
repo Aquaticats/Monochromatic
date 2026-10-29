@@ -365,9 +365,11 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
     if !input.command.is_builtin() || input.command.word() != b"merge" {
         return Err(Bail::Forward(None));
     }
-    let (git_dir, root): (&Path, &Path) = match input.identity {
-        WorktreeIdentity::MainWorktree { git_dir, worktree_root, .. }
-        | WorktreeIdentity::LinkedWorktree { git_dir, worktree_root, .. } => (git_dir.as_path(), worktree_root.as_path()),
+    let (git_dir, root, common_dir): (&Path, &Path, &Path) = match input.identity {
+        WorktreeIdentity::MainWorktree { git_dir, worktree_root, common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { git_dir, worktree_root, common_dir, .. } => {
+            (git_dir.as_path(), worktree_root.as_path(), common_dir.as_path())
+        }
         _ => return Err(Bail::Forward(None)),
     };
     recover_under_lock(input, git_dir, root)?;
@@ -386,6 +388,8 @@ fn attempt(input: &IsolatedMergeInput<'_>) -> Result<IsolatedMerge, Bail> {
             real_git: input.real_git.to_path_buf(),
             overlay: input.overlay.to_vec(),
             global_prefix: input.command.arguments[..input.command.subcommand_index].to_vec(),
+            // The merge message passes through `git stripspace` and `git fmt-merge-msg` as input.
+            common_dir: Some(common_dir.to_path_buf()),
         },
     };
     let Some(reference) = shape.reference.to_str().map(String::from) else {
@@ -499,7 +503,12 @@ fn recover_under_lock(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pat
         _ => return Ok(()),
     };
     let place: RecoveryPlace = RecoveryPlace {
-        git: GitContext { real_git: input.real_git.to_path_buf(), overlay: input.overlay.to_vec(), global_prefix: Vec::new() },
+        git: GitContext {
+            real_git: input.real_git.to_path_buf(),
+            overlay: input.overlay.to_vec(),
+            global_prefix: Vec::new(),
+            common_dir: Some(common_dir.clone()),
+        },
         cwd: root.to_path_buf(),
         common_dir,
     };
