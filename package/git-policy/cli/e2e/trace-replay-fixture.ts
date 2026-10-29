@@ -18,6 +18,22 @@ import type { SeededRandom, } from './seeded-random-fixture.ts';
 //region Planning
 
 /**
+ First reference of a path in window order: whether the path pre-exists or the window adds it, and the change.
+ */
+type FirstReference = Readonly<{
+  kind: 'add' | 'existing';
+  change: ShapeChange
+}>;
+
+/**
+ Path identifier paired with its first reference, as a `Map` entry reads.
+ */
+type FirstReferenceEntry = readonly [
+  number,
+  FirstReference
+];
+
+/**
  One trace commit turned into worker operations.
  */
 export type TraceOperation = Readonly<{
@@ -173,10 +189,7 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
   /**
    First reference of each path in window order.
    */
-  const firstReference = new Map<number, Readonly<{
-    kind: 'add' | 'existing';
-    change: ShapeChange
-  }>>();
+  const firstReference = new Map<number, FirstReference>();
   window.forEach(function recordFirst(commit,) {
     commit.changes
       .forEach(function recordChange(change,) {
@@ -235,10 +248,10 @@ export function planTraceOperations(window: readonly CommitShape[],): Readonly<{
         },),),],
       };
     },),
-    seeds: [...firstReference,].filter(function existing([, reference,],) {
+    seeds: [...firstReference,].filter(function existing([, reference,]: FirstReferenceEntry,) {
       return reference.kind === 'existing';
     },)
-      .map(function seed([id, reference,],) {
+      .map(function seed([id, reference,]: FirstReferenceEntry,) {
         return {
           path: tracePath(id,),
           binary: reference.change
