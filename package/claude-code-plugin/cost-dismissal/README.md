@@ -1,4 +1,4 @@
-# thinking-dismissal
+# cost-dismissal
 
 Claude Code hook that shadow-records cost dismissals found in the session's
 thinking blocks,
@@ -48,8 +48,8 @@ and never contacts a provider.
 ## Where records land
 
 One JSONL line per event at
-`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`,
-overridable with `MONOCHROMATIC_THINKING_DISMISSAL_LOG` for tests.
+`~/.local/state/monochromatic/cost-dismissal/shadow.jsonl`,
+overridable with `MONOCHROMATIC_COST_DISMISSAL_LOG` for tests.
 
 ## Pattern
 

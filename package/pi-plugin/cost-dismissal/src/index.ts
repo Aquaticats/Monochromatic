@@ -35,9 +35,9 @@ import {
 } from './patterns.ts';
 
 /**
- Module logger for the pi thinking-dismissal shadow.
+ Module logger for the pi cost-dismissal shadow.
  */
-const logger = tagged({ tag: 'pi-thinking-dismissal', },);
+const logger = tagged({ tag: 'pi-cost-dismissal', },);
 
 //region Detection
 
@@ -271,7 +271,7 @@ function findSizeDismissal(unit: string,): readonly DismissalHit[] {
  Environment variable overriding the shadow log path,
  for tests and disposable runs.
  */
-const SHADOW_LOG_ENV = 'MONOCHROMATIC_THINKING_DISMISSAL_LOG' as const;
+const SHADOW_LOG_ENV = 'MONOCHROMATIC_COST_DISMISSAL_LOG' as const;
 
 /**
  One shadow record, appended per event.
@@ -325,7 +325,7 @@ type ShadowRecord = {
 
  @example
  ```ts
- shadowLogPath({}); // => '<home>/.local/state/monochromatic/thinking-dismissal/shadow.jsonl'
+ shadowLogPath({}); // => '<home>/.local/state/monochromatic/cost-dismissal/shadow.jsonl'
  ```
  */
 function shadowLogPath(env: ReadonlyDeep<NodeJS.ProcessEnv>,): string {
@@ -339,7 +339,7 @@ function shadowLogPath(env: ReadonlyDeep<NodeJS.ProcessEnv>,): string {
       '.local',
       'state',
       'monochromatic',
-      'thinking-dismissal',
+      'cost-dismissal',
       'shadow.jsonl',
     );
   }
@@ -485,7 +485,7 @@ function parseRecord(line: string,): ShadowRecord | typeof NOT_PARSED {
 //region Extension
 
 /**
- Pi thinking-dismissal extension:
+ Pi cost-dismissal extension:
  folds assistant prose for size dismissals
  and shadow-records them at the tool and turn boundaries.
 
@@ -497,10 +497,10 @@ function parseRecord(line: string,): ShadowRecord | typeof NOT_PARSED {
 
  @example
  ```json
- { "packages": ["/var/home/user/Monochromatic/package/pi-plugin/thinking-dismissal"] }
+ { "packages": ["/var/home/user/Monochromatic/package/pi-plugin/cost-dismissal"] }
  ```
  */
-export default function piThinkingDismissal(pi: ExtensionAPI,): void {
+export default function piCostDismissal(pi: ExtensionAPI,): void {
   /**
    Hits folded per session id.
    */
@@ -557,7 +557,7 @@ export default function piThinkingDismissal(pi: ExtensionAPI,): void {
         hits: hitsBySession.get(sessionId,) ?? [],
       },);
     } catch (error) {
-      logger.warn(`thinking-dismissal shadow skipped: ${String(error,)}`,);
+      logger.warn(`cost-dismissal shadow skipped: ${String(error,)}`,);
     }
   }
 

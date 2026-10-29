@@ -1,5 +1,5 @@
 /**
- Transcript tail reading for the thinking-dismissal hook.
+ Transcript tail reading for the cost-dismissal hook.
 
  Reads only the tail so a hook call stays fast on transcripts that grow
  without bound. Supports both transcript dialects:
@@ -26,7 +26,7 @@ type TranscriptRow = ReadonlyDeep<Record<string, unknown>>;
  Module logger for rows the reader skips,
  so a swallowed parse failure stays visible.
  */
-const loggerForRows = tagged({ tag: 'thinking-dismissal-transcript-read', },);
+const loggerForRows = tagged({ tag: 'cost-dismissal-transcript-read', },);
 
 /**
  Bytes of the transcript tail read per hook call,

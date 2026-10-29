@@ -1,5 +1,5 @@
 /**
- Type surface of the thinking-dismissal bundle.
+ Type surface of the cost-dismissal bundle.
  The implementation is plain JavaScript with JSDoc;
  this declaration exists so TypeScript consumers and the test resolve it.
  */
@@ -49,9 +49,9 @@ export declare function findSizeDismissal(
 ): readonly DismissalHit[];
 
 /**
- The `thinkingDismissal` projection unit registered on `ctx.sessionProjections`.
+ The `costDismissal` projection unit registered on `ctx.sessionProjections`.
  */
-export declare const thinkingDismissalProjection: {
+export declare const costDismissalProjection: {
   readonly key: string;
   readonly stateVersion: number;
   readonly init: () => DismissalState;

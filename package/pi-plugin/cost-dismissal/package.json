@@ -1,5 +1,5 @@
 {
-  "name": "@monochromatic-dev/pi-plugin-thinking-dismissal",
+  "name": "@monochromatic-dev/pi-plugin-cost-dismissal",
   "description": "Shadow-records cost dismissals found in pi sessions: assistant prose is folded for size-dismissal sentences and recorded at tool_call, tool_result and turn_end, locally and as metadata only",
   "type": "module",
   "private": true,
@@ -7,7 +7,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/pi-plugin/thinking-dismissal"
+    "directory": "package/pi-plugin/cost-dismissal"
   },
   "exports": {
     ".": {

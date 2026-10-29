@@ -306,12 +306,9 @@ export function changeToString({
    */
   const replacementDescriptor: PropertyDescriptor = {
     value: newToString,
-    // mutation-test-disable-next-line boolean -- `Function.prototype.toString` always carries full data-descriptor flags, so this fallback is unreachable on conforming runtimes
-    writable: TOSTRING_DESCRIPTOR.writable ?? false,
-    // mutation-test-disable-next-line boolean -- same unreachable fallback as `writable` above
-    enumerable: TOSTRING_DESCRIPTOR.enumerable ?? false,
-    // mutation-test-disable-next-line boolean -- same unreachable fallback as `writable` above
-    configurable: TOSTRING_DESCRIPTOR.configurable ?? false,
+    writable: Boolean(TOSTRING_DESCRIPTOR.writable,),
+    enumerable: Boolean(TOSTRING_DESCRIPTOR.enumerable,),
+    configurable: Boolean(TOSTRING_DESCRIPTOR.configurable,),
   };
 
   Object.defineProperty(

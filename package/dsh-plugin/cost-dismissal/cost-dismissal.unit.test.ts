@@ -6,11 +6,11 @@ import {
 
 import {
   findSizeDismissal,
-  thinkingDismissalProjection,
+  costDismissalProjection,
 } from './index.js';
 
 await describe({
-  name: 'thinking-dismissal dsh plugin',
+  name: 'cost-dismissal dsh plugin',
   children: [
     it({
       name: 'flags a sentence that carries cost and a dismissal together',
@@ -32,9 +32,9 @@ await describe({
     it({
       name: 'folds assistant prose into hits and counts, and ignores other events',
       fn: async () => {
-        const initial = thinkingDismissalProjection.init();
+        const initial = costDismissalProjection.init();
         verify(initial.textBlocks,).toBe(0,);
-        const folded = thinkingDismissalProjection.apply(initial, {
+        const folded = costDismissalProjection.apply(initial, {
           type: 'assistant/message',
           seq: 1,
           data: {
@@ -50,7 +50,7 @@ await describe({
         },);
         verify(folded.textBlocks,).toBe(2,);
         verify(folded.hits.length,).toBe(1,);
-        const untouched = thinkingDismissalProjection.apply(folded, {
+        const untouched = costDismissalProjection.apply(folded, {
           type: 'turn/start',
           seq: 2,
           data: {},

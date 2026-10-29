@@ -1,5 +1,5 @@
 /**
- Shared sentinel for JSONL parsing across the thinking-dismissal modules.
+ Shared sentinel for JSONL parsing across the cost-dismissal modules.
 
  Absence is modeled with {@link NOT_PARSED},
  never with a `| undefined` union.

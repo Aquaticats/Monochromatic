@@ -1,12 +1,12 @@
-# thinking-dismissal (DeepSeek Harness)
+# cost-dismissal (DeepSeek Harness)
 
 DeepSeek Harness plugin that shadow-records cost dismissals found in session
 thinking blocks,
 at `tools/pre-execute`,
 `tools/result`,
 and `agent/turn-stopping`.
-The Claude Code twin is the `cctd` hook of
-`package/claude-code-plugin/thinking-dismissal`;
+The Claude Code twin is the `cccd` hook of
+`package/claude-code-plugin/cost-dismissal`;
 both write one shared log.
 
 ## Why these events
@@ -41,8 +41,8 @@ and never contacts a provider.
 ## Where records land
 
 One JSONL line per event at
-`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`,
-overridable with `MONOCHROMATIC_THINKING_DISMISSAL_LOG` for tests.
+`~/.local/state/monochromatic/cost-dismissal/shadow.jsonl`,
+overridable with `MONOCHROMATIC_COST_DISMISSAL_LOG` for tests.
 
 ## Pattern
 

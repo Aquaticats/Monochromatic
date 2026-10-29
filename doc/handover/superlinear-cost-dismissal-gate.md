@@ -12,6 +12,12 @@ No `AGENTS.md` edit,
 decision doc,
 or code change came out of this work.
 
+## Name note
+
+The `thinking-dismissal` name was moved on 2026-10-29 and is now `cost-dismissal` (the `cctd` bin is now `cccd`,
+and the log directory is now `cost-dismissal`);
+the old text stays above for the record.
+
 ## Trigger
 
 The owner found a thinking block in an earlier session (`73f0639e`) that read:

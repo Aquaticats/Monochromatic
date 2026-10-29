@@ -1,5 +1,5 @@
 /**
- Vocabularies and sentinels for pi thinking-dismissal detection.
+ Vocabularies and sentinels for cost-dismissal detection.
 
  Kept apart from the matcher so the phrase lists can grow
  without touching scanning or recording code.
@@ -11,10 +11,12 @@
 
 /**
  Cost vocabulary: words that put algorithmic cost in scope.
+
  Calibrated against the two known dismissal blocks of session `73f0639e`
- and an 11-transcript negative sample;
+ and an 11-transcript negative sample,
  see `doc/handover/superlinear-cost-dismissal-gate.md`,
  heading `Local calibration, 2026-10-29`.
+ Stored lowercase; matching lowercases the sentence first.
  */
 const COST_TERMS: readonly string[] = [
   'o(n',

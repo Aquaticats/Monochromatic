@@ -16,6 +16,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  CACHE_DISABLED,
   pMemoize,
   pMemoizeClear,
 } from '../dist/final/neutral/index.mjs';
@@ -143,6 +144,14 @@ await describe({
           args: ['a'],
         },),).toBe(1,);
         expect(state.calls,).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'describes the caching-disabled marker for anyone who prints it',
+      fn: async () => {
+        expect(typeof CACHE_DISABLED,).toBe('symbol',);
+        expect(CACHE_DISABLED.description,).toBe('memoized function caches nothing',);
       },
     },),
   ],

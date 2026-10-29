@@ -1,4 +1,4 @@
-# pi-plugin-thinking-dismissal
+# pi-plugin-cost-dismissal
 
 Shadow-records cost dismissals found in pi sessions.
 
@@ -25,10 +25,10 @@ never reasoning text.
 ## Where records land
 
 The shared log of the whole detector family:
-`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`,
-overridable with `MONOCHROMATIC_THINKING_DISMISSAL_LOG`
-and written beside the Claude Code `cctd` hook
-and the DeepSeek Harness `thinking-dismissal` plugin.
+`~/.local/state/monochromatic/cost-dismissal/shadow.jsonl`,
+overridable with `MONOCHROMATIC_COST_DISMISSAL_LOG`
+and written beside the Claude Code `cccd` hook
+and the DeepSeek Harness `cost-dismissal` plugin.
 
 ## Installation
 
@@ -37,7 +37,7 @@ Add this package to global pi settings at `~/.pi/agent/settings.json`:
 ```json
 {
   "packages": [
-    "/var/home/user/Monochromatic/package/pi-plugin/thinking-dismissal"
+    "/var/home/user/Monochromatic/package/pi-plugin/cost-dismissal"
   ]
 }
 ```

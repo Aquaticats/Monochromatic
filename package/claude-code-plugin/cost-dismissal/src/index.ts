@@ -7,7 +7,7 @@
  blocks a stop.
  
  Thin shim; handler logic, parser, and writer live in
- `@monochromatic-dev/claude-code-plugin-source/handler/thinking-dismissal`.
+ `@monochromatic-dev/claude-code-plugin-source/handler/cost-dismissal`.
  This file exists so the standard tsdown build produces an installable plugin
  entry at `bundle/node/index.mjs` for Claude Code's marketplace install.
  
@@ -16,7 +16,7 @@
  // In .claude/settings.json hooks config:
  "Stop": [
    {
-     "hooks": [{ "type": "command", "command": "cctd" }]
+     "hooks": [{ "type": "command", "command": "cccd" }]
    }
  ]
  ```
@@ -25,14 +25,14 @@
  */
 
 import {
-  thinkingDismissalHandler,
-  thinkingDismissalParser,
-  thinkingDismissalWriter,
-} from '@monochromatic-dev/claude-code-plugin-source/handler/thinking-dismissal';
+  costDismissalHandler,
+  costDismissalParser,
+  costDismissalWriter,
+} from '@monochromatic-dev/claude-code-plugin-source/handler/cost-dismissal';
 import { runHookPlugin, } from '@monochromatic-dev/claude-code-plugin-source/runtime';
 
 await runHookPlugin({
-  parser: thinkingDismissalParser,
-  handler: thinkingDismissalHandler,
-  writer: thinkingDismissalWriter,
+  parser: costDismissalParser,
+  handler: costDismissalHandler,
+  writer: costDismissalWriter,
 },);

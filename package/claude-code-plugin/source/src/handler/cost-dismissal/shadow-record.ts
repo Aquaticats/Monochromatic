@@ -1,5 +1,5 @@
 /**
- Append-only shadow record of thinking-dismissal hits.
+ Append-only shadow record of cost-dismissal hits.
 
  The log lives on this machine and carries hashes and indexes only,
  never reasoning text.
@@ -23,20 +23,20 @@ import {
   join,
 } from 'node:path';
 
-import type { ThinkingDismissalHit, } from './detect.ts';
+import type { CostDismissalHit, } from './detect.ts';
 
 import { NOT_PARSED, } from './jsonl.ts';
 
 /**
  Module logger for shadow-record reads and writes.
  */
-const loggerForRecord = tagged({ tag: 'thinking-dismissal-record', },);
+const loggerForRecord = tagged({ tag: 'cost-dismissal-record', },);
 
 /**
  Environment variable overriding the shadow log path,
  for tests and disposable runs.
  */
-const SHADOW_LOG_ENV = 'MONOCHROMATIC_THINKING_DISMISSAL_LOG' as const;
+const SHADOW_LOG_ENV = 'MONOCHROMATIC_COST_DISMISSAL_LOG' as const;
 
 /**
  Log lines read back for de-duplication,
@@ -50,7 +50,7 @@ const SEEN_LOG_LINES = 512;
  Carries no reasoning text: the log lives on this machine,
  and everything recorded here is safe to read back as metadata.
  */
-type ThinkingDismissalRecord = {
+type CostDismissalRecord = {
   /**
    Session the stop belongs to.
    */
@@ -95,7 +95,7 @@ type ThinkingDismissalRecord = {
   /**
    Hits not recorded by an earlier stop of this session.
    */
-  readonly hits: readonly ThinkingDismissalHit[];
+  readonly hits: readonly CostDismissalHit[];
 };
 
 /**
@@ -111,10 +111,10 @@ type ThinkingDismissalRecord = {
  parseRecord('{"hits":[]}');
  ```
  */
-function parseRecord(line: string,): ThinkingDismissalRecord | typeof NOT_PARSED {
+function parseRecord(line: string,): CostDismissalRecord | typeof NOT_PARSED {
   try {
     /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing a machine-written log line after its parse succeeds */
-    return JSON.parse(line,) as ThinkingDismissalRecord;
+    return JSON.parse(line,) as CostDismissalRecord;
   } catch (error) {
     loggerForRecord.warn(`skipping an unparseable shadow line: ${String(error,)}`,);
     return NOT_PARSED;
@@ -130,7 +130,7 @@ function parseRecord(line: string,): ThinkingDismissalRecord | typeof NOT_PARSED
 
  @example
  ```ts
- shadowLogPath({}); // => '<home>/.local/state/monochromatic/thinking-dismissal/shadow.jsonl'
+ shadowLogPath({}); // => '<home>/.local/state/monochromatic/cost-dismissal/shadow.jsonl'
  ```
  */
 function shadowLogPath(env: ReadonlyDeep<NodeJS.ProcessEnv>,): string {
@@ -144,7 +144,7 @@ function shadowLogPath(env: ReadonlyDeep<NodeJS.ProcessEnv>,): string {
       '.local',
       'state',
       'monochromatic',
-      'thinking-dismissal',
+      'cost-dismissal',
       'shadow.jsonl',
     );
   }
@@ -222,7 +222,7 @@ async function appendShadowRecord(
     record,
     logPath,
   }: {
-    readonly record: ThinkingDismissalRecord;
+    readonly record: CostDismissalRecord;
     readonly logPath: string;
   },
 ): Promise<void> {
@@ -233,7 +233,7 @@ async function appendShadowRecord(
   /**
    Hits this record contributes, in block order.
    */
-  const fresh: ThinkingDismissalHit[] = [];
+  const fresh: CostDismissalHit[] = [];
   for (const hit of record.hits) {
     /**
      Deduplication key of the hit under this event,
@@ -248,7 +248,7 @@ async function appendShadowRecord(
   /**
    Record as written: the same metadata with only new hits.
    */
-  const written: ThinkingDismissalRecord = {
+  const written: CostDismissalRecord = {
     ...record,
     hits: fresh,
   };
@@ -263,7 +263,7 @@ async function appendShadowRecord(
   );
 }
 
-export type { ThinkingDismissalRecord, };
+export type { CostDismissalRecord, };
 
 export {
   appendShadowRecord,

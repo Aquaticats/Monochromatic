@@ -1,5 +1,9 @@
 # Standards-review gate shadow log
 
+> Name note:
+> `thinking-dismissal` was renamed to `cost-dismissal` on 2026-10-29;
+> entries keep their original text.
+
 Running record of shadow runs of the gate in `doc/runbook/standards-review-gate.md`.
 One entry per run,
 appended as runs happen.
@@ -1379,3 +1383,695 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   5ef6f9e4ceb3 (no code files):
   `docs(handover): record the mutation-test copy fix, the probe result and the running full mutation runs`
+- Skipped:
+  6e255fa209c7 (no code files):
+  `docs(audit): score the second wave of shadow entries`
+- Skipped:
+  b89c4c67ea74 (no code files):
+  `docs(handover): state of the evening: merge isolation on main, combined tree under verification, LFS and 1811 branches, open items`
+- Skipped:
+  2574f1303328 (no code files):
+  `docs(planning): record the config model, catalog, pnpr and toolchain-split answers for the Rust file-enforcer`
+- Skipped:
+  4caab15f2b4c (no code files):
+  `docs(planning): record browserslist-rs, per-user out-of-repo rules, and the dropped scanner step for the Rust file-enforcer`
+- Skipped:
+  332dfed35412 (no code files):
+  `docs(handover): record the local dismissal calibration and the scope correction`
+- Skipped:
+  6c89f8213969 (no code files):
+  `docs(handover): record the NMJ conversion of the git-policy mjs scripts and the unreachable peer`
+- Skipped:
+  c99862f6af0c (no code files):
+  `docs(planning): record crates, schema, mise quoting and mise PATH answers, and retract the package.json-derived PATH option`
+- Skipped:
+  f53d5c949428 (no code files):
+  `docs(planning): add the node_modules/.bin counts behind the PATH retraction`
+- Skipped:
+  533ed23205bb (no code files):
+  `docs(troubleshooting): record the glibc floor of CachyOS container binaries and the package differences met moving build images off Fedora`
+- Skipped:
+  682eed290af0 (no code files):
+  `docs(planning): restate the PATH retraction with the user correction: package.json cannot predict node_modules/.bin`
+- Skipped:
+  d9c31be95769 (no code files):
+  `docs(troubleshooting): prototype and verify a fix for pnpm's repeat install skipping a missing workspace link`
+- Skipped:
+  25a87a6fadb3 (no code files):
+  `docs(handover): record the full p-map and p-memoize mutation results and the zigbuild-for-now decision`
+- Skipped:
+  dc88d327e4d1 (no code files):
+  `docs(music-player-desktop-app): name issue 1814, which tracks replacing cargo-zigbuild, next to the zigbuild build path`
+- Skipped:
+  b1768f43ec05 (no code files):
+  `docs(troubleshooting): note that the owner adopted cargo-zigbuild for now and issue 1814 tracks its replacement`
+- Skipped:
+  9bcfe4c5ad87 (no code files):
+  `docs(troubleshooting): record when pnpm creates a package node_modules/.bin; planning skips empty .bin dirs in the mise PATH`
+- Skipped:
+  df6db94ab3d8 (no code files):
+  `docs(handover): record the survivor kill-or-justify work in flight`
+- Skipped:
+  4bb648e9b15c (no code files):
+  `docs(research): keep the toolchain split research; fix a positional reference in the pnpm .bin section`
+- Skipped:
+  c24bb7351843 (no code files):
+  `docs(troubleshooting): keep notes to the filer out of the pnpm issue draft so the fenced block is postable as written`
+- Skipped:
+  c24bb7351843 (no code files):
+  `docs(troubleshooting): keep notes to the filer out of the pnpm issue draft so the fenced block is postable as written`
+- Skipped:
+  916e59aad4e6 (no code files):
+  `docs(handover): LFS branch complete, two flaky tests on the combined tree, three agents running`
+- Date:
+  2026-10-29T15:39:42.884Z
+  Subject:
+  d5118824049d `refactor(upstream-fork-p-memoize): suppress the equivalent accessor-descriptor value check mutant in findMethod`
+  Input size:
+  `1 code files, 13 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  77.3 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in `findMethod` or `isObjectLike` for the supplied diff and excerpt. No new correctness, complexity, or applicable standards violations identified; aggregate lookup cost across callers cannot be assessed because call sites are not provided.
+    `````
+
+- Date:
+  2026-10-29T15:39:54.921Z
+  Subject:
+  6fb171e256fa `test(upstream-fork-p-memoize): select the shared-generation registry, clear thenable, and decorator receiver cases by file stem`
+  Input size:
+  `3 code files, 400 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  108.0 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `createScriptedThenable` (`p-memoize-clear.unit.test.ts`): **minor**, `LN3`. The added `unicorn/no-thenable` suppression has an inline rationale, but the change supplies no accompanying `.md` justification citing the linter source and linted value and establishing why configuration or an allow-list cannot satisfy the requirement.
+    
+    - `describe` (`memoizedCacheStore shared generation`, `memoized-cache-store.unit.test.ts`): **minor**, `ST2`. The new module contains imports and separate test cases without any `//region`/`//endregion` markers identifying their purposes.
+    
+    - `createScriptedThenable` and `clearWithResult`: **nit**, `TD6`. Their `@param` descriptions describe the supplied values rather than explaining why they are needed. `createScriptedThenable` also begins its `@returns` description with the article “The,” which the standard explicitly prohibits.
+    
+    No correctness or `RG2` complexity findings in the supplied changes. The added helpers perform bounded property/index operations, and the receiver iteration traverses a fixed literal list; no repeated unbounded helper traversal is evident.
+    `````
+
+- Skipped:
+  9574173b68cf (no code files):
+  `docs(planning): record the resolution file, the two bootstrap paths, and mpm-shadow bin-paths`
+- Skipped:
+  91a1dfa7474a (no code files):
+  `docs(handover): record the finished music-player follow-ups, issue 1815 and the run-quick/run-debug extension`
+- Skipped:
+  2ca214f838ef (no code files):
+  `docs(planning): record mpm outdated for npm and PyPI lookups and retract the drops-versions con`
+- Date:
+  2026-10-29T15:46:54.052Z
+  Subject:
+  21e72de5c063 `feat(music-player-desktop-app): build run-quick and run-debug in the container with cargo-zigbuild for glibc 2.39, as run does`
+  Input size:
+  `1 code files, 63 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  105.9 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `run-quick` (`containerCargo` call), **nit**, `LFF`: The new environment overrides use Podman’s short-form `-e` option twice, although `--env` is available. This violates the long-form CLI option requirement in both `mise.toml` and its mirrored `task.ts` command.
+    
+    No correctness, security, or unbounded-input complexity findings identified in the changed code.
+    `````
+
+- Skipped:
+  538379bc336d (no code files):
+  `docs(planning): record auto-sync-and-retry, the one-switch cutover, and the direct global plan conversion`
+- Skipped:
+  8c4a5f39e767 (no code files):
+  `docs(handover): record the cctd hook and the graduation hold`
+- Skipped:
+  850433ad7e60 (no code files):
+  `docs(planning): record mirror ownership and the adopted defaults awaiting outside review`
+- Skipped:
+  71944b7c4fb3 (no code files):
+  `docs(troubleshooting): link third-party citations to verified permalinks and state the poster's risk before any filing`
+- Date:
+  2026-10-29T15:55:38.109Z
+  Subject:
+  ee637f1b3b78 `feat(*): a Claude Code Stop hook shadow-records size dismissals in thinking`
+  Input size:
+  `12 code files, 2480 diff lines, capped at 2000`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  196.5 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys`: **major**, `RG2`. Every stop reads, splits, and filters the entire growing shadow log before selecting its last 512 lines. Across stops, this repeatedly traverses prior records and produces quadratic cumulative work; the final slice does not bound reading cost.
+    
+    - `parseRecord` (`transcript-read.ts`): **major**. Logging `String(error)` from `JSON.parse` can include fragments of the malformed input in the syntax-error message. This can copy reasoning text into logs, contradicting the hook’s metadata-only privacy contract.
+    
+    - `appendShadowRecord`: **major**. Deduplication keys omit `sessionId`, while `readRecordedKeys` collects hits from every session sharing the default log. Identical thinking blocks in separate sessions therefore suppress legitimate hits, contrary to the documented session-scoped behavior.
+    
+    - `readRecordedKeys`: **minor**. Previously recorded hits become eligible again once their original records leave the 512-line window. Zero-hit stops and unrelated sessions consume that window, so an unchanged transcript tail can eventually produce duplicate hit records.
+    
+    - `readThinkingBlocks`: **major**. A thinking-bearing JSONL row larger than `TAIL_BYTES` cannot survive this reader: its prefix is outside the buffer, and `slice(1)` discards its remaining suffix. Consequently, even the newest thinking block can be omitted entirely, without any indication that detection was incomplete.
+    
+    - `parseRecord` (both modules): **major**, `TY7`. Successful JSON parsing is treated as record-shape validation through unchecked casts. Valid JSON such as `null` subsequently throws during property access, abandoning the remaining transcript scan or preventing subsequent shadow appends when present in the log.
+    
+    - `createThinkingDismissalHandler` tests: **minor**, `TCV`. The suite does not exercise the nonzero-offset tail branch, transcript or shadow-log I/O failures, or valid JSON with invalid record shapes. Its current cases therefore leave consequential implementation branches uncovered.
+    
+    - `parseRecord` / `readRecordedKeys`: **minor**, `LG1`. These functions emit through module-level loggers without adding their function-name tags. Their failure diagnostics consequently omit the required function boundary.
+    
+    - `findSizeDismissal` / `createThinkingDismissalHandler` / `appendShadowRecord`: **minor**, `TQ2`. Their declarations are exported through trailing export lists rather than at declaration.
+    
+    No additional superlinear finding in `findSizeDismissal` or `sentencesOf`: the vocabularies are fixed, and sentence slices cover disjoint input ranges.
+    `````
+
+- Skipped:
+  15ff25595be1 (no code files):
+  `docs(planning): record the running outside review and the next steps for the Rust file-enforcer`
+- Skipped:
+  648586955684 (no code files):
+  `docs(troubleshooting-doc): say that the filing artifact is always drafted and the risk section governs what is said about filing`
+- Skipped:
+  c38a78cfb136 (no code files):
+  `docs(planning): record the self-critique of the Rust file-enforcer plan`
+- Skipped:
+  4eb54567a155 (no code files):
+  `docs(planning): withdraw the size and one-switch critique point per the user`
+- Skipped:
+  e3fec8398781 (no code files):
+  `docs(planning): next action is the outside reviews, then a root round on which files should exist`
+- Skipped:
+  2f3d98714cf0 (no code files):
+  `docs(troubleshooting): run the pnpm issue draft's reproduction as written, record it, and correct two claims in the draft`
+- Skipped:
+  ba5582e60c7e (no code files):
+  `docs(troubleshooting): record that run-quick and run-debug also build with cargo-zigbuild for glibc 2.39`
+- Date:
+  2026-10-29T16:04:32.169Z
+  Subject:
+  a1649fa56f6c `fix(*): the thinking-dismissal hook records at PreToolUse, not Stop`
+  Input size:
+  `4 code files, 316 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  153.5 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys` (major, **RG2**): Every tool call reads and splits the entire accumulated `shadow.jsonl` before selecting its last 512 lines. Because every invocation appends another line even with zero hits, N tool calls produce Θ(N²) cumulative log processing for fixed-size records, with memory usage proportional to the full log rather than the deduplication window.
+    
+    - `thinkingDismissalHandler` (major): The handler attaches the current `toolName` and `toolUseId` to newly discovered hits from the entire transcript tail, without establishing which thinking belongs to that call. By inspection, a dismissal in an earlier tool-free reply can therefore be attributed to the next unrelated tool call, undermining the action attribution introduced by this change.
+    
+    - `createThinkingDismissalHandler` (minor): Related documentation contradicts the migration: the module header still describes a `Stop` hook, and `ThinkingDismissalRecord` still describes per-stop records. The README’s “Why `PreToolUse`” paragraph also grammatically identifies `Stop` as the place to demand proof before an action runs, reversing the stated rationale.
+    
+    No blocker findings, or additional findings in the hook-type conversion or source/bundle consistency.
+    `````
+
+- Skipped:
+  5302c249395b (no code files):
+  `docs(handover): record zigbuild in run-quick and run-debug`
+- Skipped:
+  0c11590d66d5 (no code files):
+  `docs(handover): record the p-memoize survivor work and correct the claim that every survivor had run tests`
+- Skipped:
+  1fed0d393f6d (no code files):
+  `docs(research): keep the sol outside review of the Rust file-enforcer plan`
+- Skipped:
+  a2846b9ef6ae (no code files):
+  `docs(research): keep the astra outside review of the Rust file-enforcer plan`
+- Date:
+  2026-10-29T16:09:17.160Z
+  Subject:
+  f8dd9b3f0749 `test(upstream-fork-p-map): cover the InvalidKeyedInputError message for null and other inputs and its name`
+  Input size:
+  `1 code files, 57 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  31.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the added `InvalidKeyedInputError` test callbacks. The supplied changes show no evident correctness, complexity, or applicable `AGENTS.md` violations.
+    `````
+
+- Date:
+  2026-10-29T16:09:53.406Z
+  Subject:
+  d89c8ce63a91 `test(upstream-fork-p-map): pin the pMapStop symbol description and its difference from pMapSkip in a suite the sentinel file selects`
+  Input size:
+  `1 code files, 44 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  45.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `<module>` (`p-map-stop.unit.test.ts`): **nit**, **TD2**. The opening `/** ... @module */` block is file-level documentation before imports, not documentation immediately preceding a declaration. TD2 restricts TSDoc blocks to declarations.
+    
+    - `<module>` (`p-map-stop.unit.test.ts`): **nit**, **ST2**. The new file has no `//region`/`//endregion` markers identifying its logical sections and explaining their purpose.
+    
+    No correctness, security, or unbounded-input complexity findings in the supplied change. The built-artifact import is within the same package, so it does not violate **ST3**.
+    `````
+
+- Skipped:
+  79043ebcccb8 (no code files):
+  `docs(planning): record which outside review findings the repository confirms`
+- Skipped:
+  79043ebcccb8 (no code files):
+  `docs(planning): record which outside review findings the repository confirms`
+- Date:
+  2026-10-29T16:10:26.116Z
+  Subject:
+  3245bea5756b `test(upstream-fork-p-map): check that the streaming map yields in input order when preserveOrder is omitted`
+  Input size:
+  `1 code files, 58 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  70.5 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the added test’s `fn` or its `gated` mapper.
+    
+    No RG2 complexity violation is evident in the fixed two-element input. The implementations of `collect`, `createGate`, and `yieldTurn` were not supplied, so their internal complexity and scheduling guarantees remain unverified.
+    `````
+
+- Date:
+  2026-10-29T16:11:05.791Z
+  Subject:
+  8fe47e652253 `feat(*): the thinking-dismissal hook observes at three hook events`
+  Input size:
+  `4 code files, 576 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  171.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys`: **major**, `RG2`. Every event reads, splits, and filters the entire append-only shadow log before selecting its last 512 lines. Because every invocation also appends a record, processing n fixed-size events incurs Θ(n²) cumulative log-scanning work; the bounded transcript tail does not bound this helper’s cost.
+    
+    - `readRecordedKeys` / `appendShadowRecord`: **major**, correctness. Empty-hit records eventually push the original observation outside the last-512-record window, allowing an unchanged transcript’s same hit to be recorded again under the same event type. Registering additional events consumes this window faster and contradicts the newly documented once-per-event-type guarantee.
+    
+    - `createThinkingDismissalHandler` (`ThinkingDismissalInput` declaration/export): **minor**, `TQ2`. The newly public input type is declared without `export` and added to a trailing export list, violating the requirement to export at declaration.
+    
+    No additional findings in the event-union handling, Stop-specific omission of tool fields, or source/bundle consistency.
+    `````
+
+- Date:
+  2026-10-29T16:11:34.063Z
+  Subject:
+  15e29d6f63fc `refactor(upstream-fork-p-map): suppress the conditional mutant of the keyed options spread, which resolves to the same defaults`
+  Input size:
+  `1 code files, 13 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  101.1 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in `mapKeyed` for the supplied diff. The mutation-testing directive introduces no runtime or complexity changes, and no applicable `AGENTS.md` violation is demonstrated.
+    `````
+
+- Date:
+  2026-10-29T16:12:39.083Z
+  Subject:
+  d47af933c651 `test(upstream-fork-p-map): pull a done source once and fail on a nullish answer, in a suite the iterator file selects; refactor(upstream-fork-p-map): suppress the puller mutants that change no observable behavior, with the proofs`
+  Input size:
+  `2 code files, 279 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  180.5 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - **`isThenable`, `pullNext` | major:** The new mutation suppressions incorrectly treat bypassing `latchWhenSettled` as unobservable. An asynchronous iterator result whose `done` getter returns false on its first read and true on its second distinguishes these paths: the latch consumes the first read, while bypassing it lets the consumer see false and process an item instead of stopping.
+    
+    - **`countedSyncSource` | minor | ST9:** This new function takes two positional parameters, `values` and `count`. It is not an externally dictated callback, so it violates the requirement that functions with multiple parameters take one destructured object.
+    
+    - **`countedNext` | nit | WR5:** The new comment “proven present by the bound check above” refers to relative position. WR5 explicitly prohibits positional references in comments and requires naming the relevant symbol or condition.
+    
+    - **`identity` | nit | TD6:** The `@returns` description “The number” begins with an article and merely restates what is returned. TD6 requires article-free descriptions explaining purpose.
+    
+    - **Complexity:** No RG2 or ITR violation was identified in the supplied changes. The excerpt does not include `caughtValueText`, so its transitive cost remains unverified.
+    `````
+
+- Skipped:
+  7f5d73ab4549 (no code files):
+  `docs(research): keep the kimi outside review; planning records its additional findings`
+- Date:
+  2026-10-29T16:14:59.471Z
+  Subject:
+  0f1b7e349ee3 `test(upstream-fork-p-map): cover the streaming map's mapper slots, queue bookkeeping, shutdown gates and source protocol; refactor(upstream-fork-p-map): suppress the streaming map mutants that change no observable behavior, with the proofs`
+  Input size:
+  `5 code files, 984 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  217.0 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `fillWhenSettled` (`p-map-iterable.ts:398`) — **major**, `RG2`: The newly annotated loop scans all of `unfilledIndexes` for each `done` outcome. With permitted unbounded concurrency and outstanding pulls reporting `done` in descending index order, lower-index entries survive repeated scans, producing quadratic total work; this cost exists in the implementation being annotated, rather than being introduced by the comment.
+    
+    - `finiteCountedSource` (`p-map-iterable.shutdown.unit.test.ts:55`) — **minor**, `ST9`: This new helper takes two positional parameters instead of one destructured object. It is an ordinary fixture function, not a callback with an externally dictated signature.
+    
+    - `fn` for “drops the collected prefix of the queue once it is half of the queue” (`p-map-iterable.queue.unit.test.ts`) — **minor**, `AD4`: Computing `frontDrops` chains `getCalls()`, `map()`, and `filter()`. The standard explicitly prefers nested calls over method chaining.
+    
+    - `fillWhenSettled` and `runPull` (`p-map-iterable.ts`) — **nit**, `WR5`: Newly added suppression explanations refer to “the line above this loop” and “the catch below.” These are source-position references explicitly prohibited in comments.
+    
+    - `identity` (`p-map-iterable.source-protocol.unit.test.ts:42`) — **nit**, `TD6`: Its `@returns The element.` starts with an article and merely restates what is returned rather than explaining why.
+    
+    No additional functional-correctness, security, or stack-depth findings established from the supplied material.
+    `````
+
+- Date:
+  2026-10-29T16:15:26.192Z
+  Subject:
+  f38fcf5656dd `refactor(upstream-fork-p-map): suppress the concurrent map mutants that change no observable behavior, with the proofs`
+  Input size:
+  `1 code files, 100 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  297.5 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `executeRun` (nit, `LN6`): The new `mutation-test-disable-next-line array` directive sits between the `result` TSDoc and its declaration. The standard explicitly prohibits placing a `disable-next-line` directive between documentation and a documented declaration.
+    
+    No runtime-correctness or superlinear-complexity findings in the supplied excerpt. In `settleIfFinished`, pending indices retain increasing insertion order, so nonfinal checks inspect only the earliest pending entry; the full remaining scan and error/result passes occur only at settlement.
+    `````
+
+- Skipped:
+  affafc9bf888 (no code files):
+  `docs(troubleshooting): link the public pnpm reproduction repository and its two failing Actions runs from the issue draft`
+- Skipped:
+  1922238a7348 (no code files):
+  `docs(handover): record the DSH-side thinking-dismissal plugin`
+- Date:
+  2026-10-29T16:21:58.679Z
+  Subject:
+  08268f8f1b6b `feat(dsh-plugin): the thinking-dismissal shadow covers DeepSeek Harness sessions`
+  Input size:
+  `2 code files, 318 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  82.2 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - **`apply` | major | TCV, PKG**: The added test suite covers detection and projection folding but never calls the exported plugin initializer. Registration and recording at `tools/pre-execute`, `tools/result`, and `agent/turn-stopping`, which are the package’s advertised public behavior, remain untested in this suite.
+    
+    - **`<module>` (`package.json`) | minor | DM1**: The external dependency `zod` uses `"^4.6.7"` rather than the required `"catalog:"` dependency specification.
+    
+    - **`<module>` (`index.d.ts`) | nit | TD2**: The opening `/** ... */` block is a file-level description, not documentation directly preceding a declaration. TD2 reserves that syntax for declaration documentation.
+    
+    - **`<module>` (`index.d.ts`, `thinking-dismissal.unit.test.ts`) | minor | ST2**: Neither added TypeScript file marks its logical sections with the required explanatory `//region` and `//endregion` comments.
+    
+    No runtime-correctness or algorithmic-complexity findings can be established from the supplied material: it contains declarations and tests, but not the runtime implementations of `findSizeDismissal`, `thinkingDismissalProjection.apply`, or `apply`. In particular, helper traversal costs and the RG2 linear-time requirement cannot be verified.
+    `````
+
+- Skipped:
+  f0296cb5d807 (no code files):
+  `docs(troubleshooting-doc): add the readiness check and reshape the pnpm issue draft around prior art and pnpm's bug form`
+- Skipped:
+  7bbb65e77e35 (no code files):
+  `docs(handover): everything on main at b0624e8569, container gate running, release next`
+- Skipped:
+  412851b7b733 (no code files):
+  `docs(research): keep the per-output replacement research for the file-enforcer rewrite`
+- Skipped:
+  7b7f5092acd0 (no code files):
+  `docs(planning): record root-round answers for CLAUDE.md, skill mirrors, the rules file and JetBrains`
+- Skipped:
+  6e019931aa77 (no code files):
+  `docs(handover): record the p-map survivor result, the line-wide suppression gap, and a second correction`
+- Skipped:
+  ac3aac75ff47 (no code files):
+  `chore(git-policy/cli): release 0.4.0: merge beside staged changes, wait notices, native Git LFS upload, hooks off for real Git, scratch off /tmp`
+- Date:
+  2026-10-29T16:42:45.444Z
+  Subject:
+  b6f224be402a `refactor(upstream-fork-p-memoize): read the method descriptor's value directly so no suppression is needed in findMethod`
+  Input size:
+  `1 code files, 19 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  51.9 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    `findMethod`: No findings. Removing the conditional preserves descriptor lookup behavior and introduces no additional traversal or helper calls. No correctness, complexity, or `AGENTS.md` violations identified in the changed code.
+    `````
+
+- Skipped:
+  c43e56fa7603 (no code files):
+  `docs(planning): record licenses, browserslist, schema answers; withdraw the mise question pending source evidence`
+- Skipped:
+  e13ce53c22db (no code files):
+  `docs(troubleshooting-doc): iterate to a recommendation and test each copy of a proposed edit against its own release line`
+- Date:
+  2026-10-29T16:47:10.070Z
+  Subject:
+  af7dc97f2544 `fix(*): the dismissal detector measures overall dismissals, in both transcript dialects`
+  Input size:
+  `5 code files, 482 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  156.3 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `thinkingDismissalHandler` (major; `RG2`): Every event calls `appendShadowRecord`, whose `readRecordedKeys` helper reads and splits the entire growing shadow log before selecting its last 512 rows. Across N constant-size events this produces Θ(N²) cumulative work; the transcript tail limit does not bound this cross-call cost.
+    
+    - `claudeUnitsOf` (major; no dedicated tag): The function collects `item.text` without checking the row type or message role. Ordinary Claude user-message text is therefore counted as assistant output, allowing user-written cost dismissals to become shadow hits attributed to subsequent tool actions.
+    
+    - `codexUnitsOf` and `textsOf` (minor; `TY7`): Type assertions replace runtime shape validation: a response item with `payload: null`, or a summary containing `null`, throws during property access. These failures escape the row parser and reach the handler’s outer catch, discarding the entire observation rather than just the malformed row.
+    
+    - `codexUnitsOf` and `thinkingDismissalHandler` (minor; `TCV`): The supplied test addition exercises Codex summaries and assistant-message text, but provides no coverage for reasoning-content entries or the newly added missing-transcript branch. These distinct implementation paths remain unverified by the supplied tests.
+    
+    - `readTextUnits` (minor; `TQ2`): The renamed function and `TextScan` type are exported through trailing export lists rather than at their declarations, contrary to the explicit export-at-declaration standard.
+    
+    No source/bundle divergence found in the changed functions. No separate superlinear traversal found in the new text-extraction loops: they process each row’s own content, within the byte-capped transcript tail.
+    `````
+
+- Date:
+  2026-10-29T16:47:28.656Z
+  Subject:
+  a388cd059f74 `fix(dsh-plugin): the fold measures overall dismissals, reasoning and text alike`
+  Input size:
+  `2 code files, 40 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  83.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `thinkingDismissalProjection.apply` (unit test) — **minor**, **TCV**: The renamed test still obtains its only hit from a `reasoning` block; the ordinary `text` block contains only `"Done."`. An implementation that counts ordinary text blocks but never detects dismissals in them would pass, leaving assistant-prose detection without a positive regression test.
+    
+    - `thinkingDismissalProjection.apply` (`DismissalState` documentation) — **nit**, **DCK**: The state documentation still describes a “reasoning-block count,” although `textBlocks` now counts both reasoning and ordinary text in the changed test. The public state’s documented meaning is therefore inconsistent with its asserted behavior.
+    
+    - `findSizeDismissal` / `thinkingDismissalProjection.apply` — **No runtime-correctness or RG2 findings established from these excerpts**: Their implementations are not supplied, so runtime agreement with the renamed state field and end-to-end complexity across helper calls remain unverified.
+    `````
+
+- Date:
+  2026-10-29T16:47:44.613Z
+  Subject:
+  e179a0d72b04 `refactor(upstream-fork-p-memoize): drop the identical-prototype guard whose suppression also hid a killable mutant; narrow the name-descriptor suppression reason`
+  Input size:
+  `1 code files, 27 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  133.4 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `changePrototype` (major; no directly applicable tag): Removing the equality guard changes behavior for proxy targets, including callable proxies: `Reflect.setPrototypeOf` invokes their `setPrototypeOf` trap even when the requested prototype is already current. A throwing trap now makes a previously successful call fail, contradicting the new comment’s universal no-op claim.
+    
+    No findings in the `changeToString` comment change. No superlinear-time or unbounded-stack findings in the supplied changes.
+    `````
+
+- Skipped:
+  e5c011f36e93 (no code files):
+  `docs(troubleshooting): record that pnpm 11 and 12 skip dependents under --no-bail while the docs say all tasks finish`
+- Skipped:
+  6bd4da1d025f (no code files):
+  `docs(planning): record the two-file lock, first-version lookup, server-client concurrency and diff answers`
+- Skipped:
+  c021587aff15 (no code files):
+  `docs(handover): record the p-memoize split-lines round and the four suppressions still being verified`
+- Skipped:
+  60b708a6e156 (no code files):
+  `docs(troubleshooting): add the pnpm version matrix and the Node.js answer to the workspace-link draft`
+- Skipped:
+  a06ac4462ad9 (no code files):
+  `docs(planning): record the server follow-ups and the review fixes adopted for the Rust file-enforcer`
+- Skipped:
+  5448e0d16faa (no code files):
+  `docs(handover): record the four-runtime coverage and the overall-dismissals correction`
+- Date:
+  2026-10-29T16:54:23.113Z
+  Subject:
+  47c152f71a39 `chore(toolchain): adopt monochromatic-git-policy-cli 0.4.0 as toolchain:update resolves it`
+  Input size:
+  `2 code files, 176 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  21.0 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the supplied diff or changed-code excerpts.
+    
+    No RG2 complexity findings: the changes are declarative toolchain metadata and artifact entries; no functions, iteration, recursion, or helper calls changed.
+    `````
+
+- Skipped:
+  4620e74bac3a (no code files):
+  `docs(planning): point the deferred process-rule proposals at issue #1817`
+- Skipped:
+  bfef4611a08e (no code files):
+  `docs(troubleshooting): add the pnpm 11 prototype and its isolated-function harness result to the workspace-link doc`
+- Skipped:
+  25563262f485 (no code files):
+  `docs(handover): 0.4.0 released, adopted in production and verified live, mutation wave 1 invalid`
+- Date:
+  2026-10-29T16:57:19.769Z
+  Subject:
+  efa90b57bd63 `feat(pi-plugin): the thinking-dismissal shadow covers pi sessions`
+  Input size:
+  `4 code files, 1050 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  204.2 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `foldMessage`: **major**, RG2. Each matching message copies all previous session hits, producing Θ(M²) work for M one-hit messages. Spreading `findSizeDismissal(unit)` into `push` also expands unbounded hits into call arguments, risking an argument-limit failure.
+    
+    - `append`: **major**, RG2. Every event scans the complete session hit history, including previously deduplicated hits. One new hit and one event per turn produces Θ(T²) work across the `record`/`append` boundary.
+    
+    - `seed`: **major**, RG2. `readFile` and `split` traverse the entire growing log, not a bounded tail. Repeated extension loads rescan historical records, producing quadratic cumulative work when each run appends a record.
+    
+    - `unitsOfMessage`: **major**. No assistant-role check precedes accepting text blocks. User or tool-result content with the same block shape can therefore be recorded as assistant dismissals.
+    
+    - `recordIntent`, `recordCompletion`, `recordTurnEnd`, `seed`: **major**, PP2. Handlers discard recording promises, permitting overlapping writes and returning before persistence finishes. Because `seeded` becomes true before initialization completes, concurrent appends can bypass persisted deduplication.
+    
+    - `append`: **major**. Keys enter `seen` before directory creation and file append succeed. A transient write failure therefore causes subsequent events to suppress hits that were never persisted.
+    
+    - `parseRecord`: **major**, TY7. Successful JSON parsing is asserted to establish the record shape without runtime narrowing. A valid JSON line such as `{}` causes `seed` to iterate undefined `record.hits`, aborting initialization and leaving later records unprocessed.
+    
+    - `piThinkingDismissal`: **major**, PKG, TCV. The candidate supplies no tests for detection, event handling, deduplication, or failure branches. Its `verify:extension` task also invokes `src/mise.verify-extension.ts`, absent from the candidate.
+    
+    - `findSizeDismissal`, `unitsOfMessage`, pattern declarations: **minor**, TQ2. These use trailing export lists rather than exports at declaration.
+    
+    - `seed`, `parseRecord`, `record`: **minor**, LG1. Diagnostics reuse only the module logger without function-boundary tags.
+    
+    - `parseRecord`, `unitsOfMessage`: **minor**, LN3. Unsafe-assertion suppressions lack the required Markdown evidence documenting why configuration cannot resolve them.
+    
+    - `sentencesOf`, `hasTerm`: No asymptotic-complexity findings. Their scans cover disjoint sentence slices or a fixed-size vocabulary; the superlinear findings arise in accumulation and recording.
+    `````
+
+- Skipped:
+  475a384d852b (no code files):
+  `docs(troubleshooting): record the pnpm no-bail pull request state on the day it was opened`
+- Date:
+  2026-10-29T17:01:25.727Z
+  Subject:
+  25603427ffd0 `test(upstream-fork-p-memoize): pin the CACHE_DISABLED description, exported for built-artifact tests, and drop its suppression`
+  Input size:
+  `3 code files, 54 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  35.4 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the supplied changes regarding correctness, standards compliance, or test coverage. No unbounded-input traversal or cross-call complexity concerns identified.
+    `````
+
+- Date:
+  2026-10-29T17:01:41.348Z
+  Subject:
+  84c602b6a7d2 `test(upstream-fork-p-map): check that the abort listener is removed when the run settles and that a stop drops an earlier element still being read; refactor(upstream-fork-p-map): narrow the mutation suppressions of the concurrent and streaming maps to the families that have an equivalent mutant`
+  Input size:
+  `4 code files, 260 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  324.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `fillWhenSettled` (`package/upstream-fork/p-map/src/p-map-iterable.ts:397`), **major**, `RG2`: The pre-existing `done` branch scans every remaining `unfilledIndexes` entry while retaining earlier pending positions. When concurrency and backpressure scale with input, successive `done` outcomes settling from highest to lowest position repeatedly scan those retained entries, producing quadratic work rather than the required linear bound.
+    
+    No newly introduced runtime-correctness or test-specific findings in the supplied diff; the production edits only remove or narrow mutation-testing suppressions.
+    `````
+
+- Skipped:
+  f925613e65c3 (no code files):
+  `docs(handover): note the cost-dismissal rename beside the original names`
+- Date:
+  2026-10-29T17:01:55.690Z
+  Subject:
+  c9365744bb7e `refactor(upstream-fork-p-memoize): coerce the toString descriptor flags with Boolean instead of suppressing their unreachable fallbacks; state the verified proof for ignoreNonConfigurable`
+  Input size:
+  `2 code files, 34 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  52.2 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the reviewed changes to `changeToString` or `pMemoize`, including descriptor behavior and the revised mutation-suppression rationale.
+    
+    No RG2 complexity findings: neither change introduces input traversal or repeated calls to helpers that walk unbounded data.
+    `````

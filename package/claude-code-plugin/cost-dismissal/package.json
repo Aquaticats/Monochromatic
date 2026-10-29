@@ -1,16 +1,16 @@
 {
   "license": "LGPL-3.0-or-later",
-  "name": "@monochromatic-dev/claude-code-plugin-thinking-dismissal",
+  "name": "@monochromatic-dev/claude-code-plugin-cost-dismissal",
   "description": "Claude Code Stop hook that shadow-records size dismissals found in the session's thinking blocks, locally and as metadata only, so cost waved away in reasoning becomes measurable without any reasoning text leaving the machine.",
   "type": "module",
   "bin": {
-    "cctd": "./bundle/node/index.mjs"
+    "cccd": "./bundle/node/index.mjs"
   },
   "version": "0.0.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/claude-code-plugin/thinking-dismissal"
+    "directory": "package/claude-code-plugin/cost-dismissal"
   },
   "private": true,
   "sideEffects": true,

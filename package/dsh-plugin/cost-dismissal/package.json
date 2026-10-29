@@ -1,9 +1,9 @@
 {
-  "name": "@monochromatic-dev/dsh-plugin-thinking-dismissal",
+  "name": "@monochromatic-dev/dsh-plugin-cost-dismissal",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "DeepSeek Harness plugin that shadow-records cost dismissals found in session thinking blocks, locally and as metadata only, beside the Claude Code cctd hook.",
+  "description": "DeepSeek Harness plugin that shadow-records cost dismissals found in session assistant prose, locally and as metadata only, beside the Claude Code cccd hook.",
   "exports": {
     ".": "./index.js",
     "./locale/*.json": "./locale/*.json",

@@ -25,7 +25,7 @@ import {
  Carries a hash of the block and the sentence index instead of any text,
  since reasoning text stays on this machine.
  */
-type ThinkingDismissalHit = {
+type CostDismissalHit = {
   /**
    Pattern the sentence matches.
    */
@@ -58,7 +58,7 @@ type ThinkingDismissalHit = {
  // => [{ pattern: 'size-dismissal', blockHash: '...', sentenceIndex: 0 }]
  ```
  */
-function findSizeDismissal(block: string,): readonly ThinkingDismissalHit[] {
+function findSizeDismissal(block: string,): readonly CostDismissalHit[] {
   /**
    SHA-256 of the block, truncated, so records can locate it without text.
    */
@@ -75,7 +75,7 @@ function findSizeDismissal(block: string,): readonly ThinkingDismissalHit[] {
   /**
    Hits found so far.
    */
-  const hits: ThinkingDismissalHit[] = [];
+  const hits: CostDismissalHit[] = [];
   /**
    Sentences of the block, matched one at a time.
    */
@@ -110,6 +110,6 @@ function findSizeDismissal(block: string,): readonly ThinkingDismissalHit[] {
   return hits;
 }
 
-export type { ThinkingDismissalHit, };
+export type { CostDismissalHit, };
 
 export { findSizeDismissal, };
