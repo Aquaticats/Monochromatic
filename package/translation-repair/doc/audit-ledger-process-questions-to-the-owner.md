@@ -231,3 +231,41 @@ the handover and `status.md` were corrected the same day.
 Prevention:
 before naming an owner action,
 the lead checks the owner's rulings on that provider and whether any launch waits on it.
+
+## M320: a ruling that began "going forward" was read as covering work already done, and running work was stopped
+
+Status:
+happened on 2026-10-29 (UTC),
+recorded from the lead's notes.
+The owner answered the question of where finished rounds should land with "Branch only",
+and added:
+"Branch only,
+growing merges are acceptable.
+Only merge from rebased to main or main to rebased whenever I tell you."
+
+The lead measured which main commits each round that had merged main carried beyond the branch
+(`w363` 3,
+`w366` 23,
+`w367` 29,
+`w370` 17),
+concluded that none could land as it was,
+wrote a plan to redo each round on a fresh tree at the branch,
+and stopped gate g233 (on `1084f7adb3`) and sweep g232 (on `b47f95a5a8`).
+The owner then said:
+"They aren't unmergeable.
+I only said that applies going forward.
+Do not abandon any work."
+The plan was dropped,
+the gate restarted as g233b and the sweep as g232b.
+The notes name the cause:
+the lead read "going forward" as covering merges already made.
+
+Prevention:
+`mistake-prevention-questions-to-the-owner-and-rulings.md`,
+"Rulings read for the work they reach".
+
+Recurrence:
+M15,
+a fix started against a ruling,
+and M161,
+an owner action asked for against a ruling the owner had given.

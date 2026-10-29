@@ -167,3 +167,100 @@ M301,
 the same read made twice the same day,
 and M162,
 where a wait was replaced by counting the lines of a growing log.
+
+## M313: the output of a background command was read before the harness reported that it had finished, eight more times
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes,
+after M301 and M305 and the rule they tightened.
+
+The notes name eight reads that came too early since those two entries.
+Each is named here by the task or file the lead read:
+- the output of `bvolyk6xb`,
+  which the notes count as the fourth such read;
+- the output of `bhde0vtf3` and the file of `b2tmdhc5v`,
+  two reads of one stretch;
+- the output of `bdgo1zmt4`;
+- the output of `bnwokco8f`,
+  the commit that fixed the kept list of the temporary-directory scan,
+  which was empty when read
+  (the notes call it the fourth early read of that session);
+- the report of a dry run of the old-worktree retire,
+  which held partial output only;
+- the output of a search for the gate launch command,
+  which was empty;
+- the output of the unit that started the rotation sweep of round w376
+  (the notes call it the third early read of that stretch).
+
+The counts in the notes do not agree with each other
+(fourth,
+fourth
+and third),
+so this entry counts by task.
+A ninth read of the same stretch,
+of `bwi7tdrq6`,
+waited for its notice and is not counted.
+The notes say that nothing was acted on after the retire report or after the search.
+They give no cause beyond the habit:
+the rule was in force,
+and had been tightened once the same day in M305.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"How an agent waits".
+The rule of M301 and M305 stands,
+and gets one step where these eight showed a gap:
+the rule said when to read and gave nothing to check at the moment of reading.
+Written in this filing and not given by the notes:
+before an output file of a background command is opened,
+the turn names the task whose finish report it has seen,
+and with no such report the file stays closed,
+whatever kind of command it was
+(a search,
+a dry run or the start line of a unit).
+
+Recurrence:
+M305,
+three such reads in one day,
+M301,
+and M162,
+where a wait was replaced by counting the lines of a growing log.
+
+## M314: five commands of the lead's had no purpose but to pass time
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+While it waited for background work,
+the lead sent commands that waited for nothing:
+- a "placeholder" command that waited on its own shell's process id,
+  which the notes call a useless call;
+- a second one that waited on process id 1 with a bound of 120 seconds;
+- a third,
+  after a compaction,
+  `timeout 60 tail --pid=$$ ... 2>/dev/null || true`,
+  which also hid its own stderr (stopped as `bmlwwym8d`);
+- a fourth (`br0bvpdop`) that found its process id with `pgrep --exact git`,
+  which the rule on waiting for a process forbids (stopped);
+- a fifth that found its process id with `pgrep` as well (stopped at once).
+
+The lead's notes give the rule:
+never send a command whose only purpose is to pass time,
+and when waiting on notifications,
+end the turn or do queued work.
+Two agents made the same kind of wait in the same rounds (M321).
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"How an agent waits":
+the rule banned a loop of `pgrep` or `ps` calls and a Monitor,
+and did not say that one wait on a process id found by `pgrep` is the same fault,
+or that a wait on the shell's own process id never ends before its bound.
+Both are written there now,
+with the rule that a command whose only purpose is to pass time is not sent.
+
+Recurrence:
+M162,
+where a brief named no way to wait and its agent polled,
+and M301 and M305,
+reads of output made in place of waiting for the notice.
