@@ -3228,11 +3228,9 @@ Remove every terminal LF before adding one.
 Empty and binary-looking bytes stay unchanged.
 A file with CRLF content receives one terminal LF without normalizing interior line endings.
 
-Preserve these exclusion families exactly:
+Preserve these generated-output exclusion families exactly:
 
 ```text
-package/forbidden-strings/core.fuzz/seed/**
-package/test-fixture/toml-edit/src/**
 **/dist/final/node/**
 **/bundle/node/**
 ```
@@ -3243,8 +3241,10 @@ Only the value `unset` preserves a file:
 A package declares its exact-byte inputs in its own `.gitattributes`,
 for example `seed/** -text` beside a fuzz target,
 so the exemption moves with the package and no path list in this policy needs to follow it.
-The path families above are the directories that declare nothing;
-a family is removed when the directory it names declares `-text` for the same files.
+No package path is listed:
+fuzz seeds (`forbidden-strings/cli.fuzz`, `jsonc-edit/core-rust.fuzz`)
+and the toml-edit fixture sources (`package/test-fixture/toml-edit/.gitattributes`)
+are exempt through their own `-text` declarations.
 
 The attribute is read from the state the candidates were listed from, never from the worktree:
 

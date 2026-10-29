@@ -207,6 +207,31 @@ fn the_forbidden_strings_fuzz_sidecar_declaration_preserves_its_files() {
     remove(root.as_path());
 }
 
+/// The `.gitattributes` of `package/test-fixture/toml-edit`,
+///  which is why the policy names no fixture path:
+///  its byte-exact sources keep a missing or doubled final newline,
+///  while a file outside `src/` is still corrected.
+#[test]
+fn the_toml_edit_fixture_declaration_preserves_its_sources() {
+    let root: PathBuf = fixture("final-newline-attribute-toml-fixture");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let package: &str = "package/test-fixture/toml-edit";
+    write(
+        repo.as_path(),
+        ".gitattributes",
+        b"* text=auto eol=lf\n",
+    );
+    write(repo.as_path(), &format!("{package}/.gitattributes"), b"src/** -text\n");
+    write(repo.as_path(), &format!("{package}/src/no-final-newline.toml"), b"key = 1");
+    write(repo.as_path(), &format!("{package}/src/extra-final-newlines.toml"), b"key = 1\n\n");
+    write(repo.as_path(), &format!("{package}/README.md"), b"readme");
+    assert_eq!(
+        check(repo.as_path(), &add_all()),
+        PolicyOutcome::Findings(vec![finding(&format!("{package}/README.md"))])
+    );
+    remove(root.as_path());
+}
+
 /// A `text` attribute that is set,
 ///  or set to `auto`,
 ///  does not preserve the file: only an unset one does.
