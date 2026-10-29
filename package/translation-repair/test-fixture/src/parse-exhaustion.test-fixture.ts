@@ -30,7 +30,7 @@ type ParseSelection = {
 /**
  Whether a value holds a `parse` method.
 
- @param value - the value under test
+ @param value - value under test
 
  @returns Whether `parse` is a function on it
 
@@ -62,7 +62,7 @@ const PROCESSOR_PROTOTYPE: ParserHolder = (function prototypeOfProcessors(): Par
 /**
  A stack exhaustion as the engine raises it.
 
- @returns A fresh `RangeError` with the engine's message
+ @returns Fresh `RangeError` with the engine's message
 
  @example
  ```ts
@@ -77,7 +77,7 @@ export function engineExhaustion(): RangeError {
  A failure of the parser whose own refusal cannot be built: reading its message raises the engine's stack exhaustion, as
  building the refusal does with the stack nearly spent, so the exhaustion leaves the grammar's function raw.
 
- @returns A `RangeError` whose message reads as a stack exhaustion
+ @returns `RangeError` whose message reads as a stack exhaustion
 
  @example
  ```ts
@@ -209,7 +209,7 @@ function parseEndHookSet(
 
  @param built - tree the real parser built
 
- @returns A stand-in for a parsed root
+ @returns Stand-in for a parsed root
 
  @example
  ```ts
@@ -279,7 +279,7 @@ function treeThatExhaustsTheStack({ built, }: { readonly built: object; },): obj
 
  @param built - runs the real parser and gives the tree it built
 
- @returns The tree
+ @returns Tree
 
  @example
  ```ts
@@ -303,7 +303,7 @@ function returnsExhaustingTree({ built, }: { readonly built: () => unknown; },):
 
  @param selection - which parses are taken over
 
- @returns A disposable that puts the parser back
+ @returns Disposable that puts the parser back
 
  @example
  ```ts
@@ -356,7 +356,7 @@ function parserReplaced(
  stack too short to build the refusal produces. The call is synchronous and runs to its end before any other test
  step, so nothing else sees the replacement.
 
- @param run - the call under test
+ @param run - call under test
 
  @param selection - which parses raise, every one by default
 
@@ -395,7 +395,7 @@ export function withExhaustionFromParse<Result>(
  function says it has finished them by calling a hook last, which this function sets for the span of the call. The
  call is synchronous and runs to its end before any other test step.
 
- @param run - the call under test
+ @param run - call under test
 
  @param selection - which parses return the tree, every one by default
 
@@ -441,7 +441,7 @@ type Method = (
 /**
  Whether a value is a function.
 
- @param value - the value under test
+ @param value - value under test
 
  @returns Whether it can be called
 
@@ -460,13 +460,13 @@ function isMethod(value: unknown,): value is Method {
  that runs after the parse and reads no tree can be made to raise. The call is synchronous and the method is put back
  when it ends.
 
- @param owner - the object holding the method, such as `Array.prototype`
+ @param owner - object holding the method, such as `Array.prototype`
 
- @param method - the method's name
+ @param method - method's name
 
  @param applies - whether a call of the method, given its receiver and its first argument, raises
 
- @param run - the call under test
+ @param run - call under test
 
  @returns What the call returns
 

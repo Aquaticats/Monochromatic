@@ -44,7 +44,7 @@ class ReasonOrderError extends Error {
 
    @param vote - name of the choice field
 
-   @param order - the names in the order the reader found them
+   @param order - names in the order the reader found them
    */
   constructor(
     {
@@ -73,7 +73,7 @@ class ReasonOrderError extends Error {
 
  @param format - response format as a stage hands it to the client
 
- @returns The schema's own members
+ @returns Schema's own members
 
  @throws Error - when the format carries no object schema
 
@@ -220,7 +220,7 @@ export function expectReasonFirstInSchema(
 /**
  Requires a sheet's reply instruction to name the reason before the vote.
 
- @param text - the instruction, or the sheet it closes
+ @param text - instruction, or the sheet it closes
 
  @param reason - phrase naming the reason field in the instruction
 

@@ -129,7 +129,7 @@ const FIRST_SAMPLED_PATH = EXHAUSTIVE_PATH + 1;
 
  @param index - which of the paths of that length
 
- @returns The path
+ @returns Path
 
  @example
  ```ts
@@ -164,7 +164,7 @@ function pathAt(
 
  @param length - pieces in each path
 
- @returns The paths in a fixed order
+ @returns Paths in a fixed order
 
  @example
  ```ts
@@ -191,7 +191,7 @@ function pathsOfLength({ length, }: { readonly length: number; },): readonly str
 
  @param position - which of the sampled texts
 
- @returns The text: a prefix, the address with a path of three or four pieces,
+ @returns Text: a prefix, the address with a path of three or four pieces,
  and a suffix, all chosen by the position. The suffix moves fastest, then the
  prefix, then the path's length, each by its own count of positions, so every
  suffix meets every prefix and every length; chosen by the position's

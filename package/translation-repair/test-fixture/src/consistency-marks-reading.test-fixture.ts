@@ -151,11 +151,11 @@ const OPENING_RUN: ReadonlySet<string> = new Set(Array.from('*_~`(["“「『',)
  markup that a letter or a digit stands before, leading when it starts a run of opening markup that one stands after, free
  when neither or both. A mark with a letter or a digit directly beside it is not asked.
 
- @param text - the English
+ @param text - English
 
  @param at - offset of the mark
 
- @returns The kind the mark is read as
+ @returns Kind the mark is read as
 
  @example
  ```ts
@@ -225,7 +225,7 @@ type FoundMark = Omit<PageMark, 'proven'> & { readonly partnerOnly: boolean; };
  Whether a mark could have been opened by a quotation: it is a quotation character that pairs wherever it stands, or an
  apostrophe-like mark with no letter or digit directly before it.
 
- @param mark - the mark
+ @param mark - mark
 
  @returns Whether a trailing apostrophe-like mark after it could be its closer
 
@@ -244,7 +244,7 @@ function couldOpen({ mark, }: { readonly mark: FoundMark; },): boolean {
  Whether a mark could close a quotation: it is a quotation character that pairs wherever it stands, or an apostrophe-like
  mark with no letter or digit directly after it.
 
- @param mark - the mark
+ @param mark - mark
 
  @returns Whether a leading apostrophe-like mark before it could be its opener
 
@@ -263,9 +263,9 @@ function couldClose({ mark, }: { readonly mark: FoundMark; },): boolean {
  Every single mark, double quotation mark and corner bracket of an English,
  with what each is.
 
- @param text - the English
+ @param text - English
 
- @returns The marks in the order they stand
+ @returns Marks in the order they stand
 
  @example
  ```ts
@@ -378,9 +378,9 @@ export function pageMarksOf({ text, }: { readonly text: string; },): readonly Pa
  single mark with a letter or a digit on both sides is attached, and a proven
  apostrophe is a part of its word, so neither is loose.
 
- @param text - the English
+ @param text - English
 
- @returns The loose marks, one text per mark
+ @returns Loose marks, one text per mark
 
  @example
  ```ts
@@ -411,9 +411,9 @@ export function unprovenLooseMarksIn({ text, }: { readonly text: string; },): re
 /**
  The offsets of the single marks of an English that are attached to a word.
 
- @param text - the English
+ @param text - English
 
- @returns The offsets, in order
+ @returns Offsets, in order
 
  @example
  ```ts

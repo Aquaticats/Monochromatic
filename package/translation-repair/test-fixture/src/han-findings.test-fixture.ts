@@ -9,7 +9,7 @@
 
  @param title - title between the marks
 
- @returns The finding, word for word
+ @returns Finding, word for word
 
  @example
  ```ts
@@ -27,7 +27,7 @@ export function hanTitleFinding({ title, }: { readonly title: string; },): strin
 
  @param runs - refused runs, in the order the finding names them
 
- @returns The finding, word for word
+ @returns Finding, word for word
 
  @example
  ```ts

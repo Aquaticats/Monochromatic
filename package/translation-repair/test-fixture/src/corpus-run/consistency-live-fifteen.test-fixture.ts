@@ -149,7 +149,7 @@ const REFRAIN_BALLOTS = [
 
  @param reason - why the first reader could not locate it
 
- @returns The place as the file holds it
+ @returns Place as the file holds it
 
  @example
  ```ts

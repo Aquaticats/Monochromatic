@@ -28,7 +28,7 @@ const SPENT_DRAWS = 8;
 
  @param seed - what the generator starts from
 
- @returns A function that draws a number from zero up to one
+ @returns Function that draws a number from zero up to one
 
  @example
  ```ts
@@ -43,7 +43,7 @@ export function randomOf({ seed, }: { readonly seed: number; },): () => number {
   /**
    The next draw: a linear congruential step.
 
-   @returns A number from zero up to one
+   @returns Number from zero up to one
    */
   function draw(): number {
     state.a = ((state.a * GENERATOR_MULTIPLIER) + GENERATOR_INCREMENT) % GENERATOR_MODULUS;
@@ -59,7 +59,7 @@ export function randomOf({ seed, }: { readonly seed: number; },): () => number {
 
  @param options - what to pick from
 
- @param rand - the generator
+ @param rand - generator
 
  @returns One option
 
@@ -91,11 +91,11 @@ export function pickFrom<Option,>(
 /**
  Draws a whole number from zero up to a bound, which the generator states as a fraction of one.
 
- @param rand - the generator
+ @param rand - generator
 
  @param bound - exclusive upper bound
 
- @returns A whole number from zero to one less than the bound
+ @returns Whole number from zero to one less than the bound
 
  @example
  ```ts

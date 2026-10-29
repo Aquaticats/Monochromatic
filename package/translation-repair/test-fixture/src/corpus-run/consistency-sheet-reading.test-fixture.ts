@@ -39,7 +39,7 @@ type SheetBlock = {
 
  @param line - one line of a sheet
 
- @returns The label as a list of zero or one
+ @returns Label as a list of zero or one
 
  @example
  ```ts
@@ -78,7 +78,7 @@ function openingLabelOf({ line, }: { readonly line: string; },): readonly string
 /**
  The blocks of a sheet, in the order it shows them.
 
- @param sheet - the sheet a seat was shown
+ @param sheet - sheet a seat was shown
 
  @returns Each block with its label and the text under it
 
@@ -134,11 +134,11 @@ function blocksOf({ sheet, }: { readonly sheet: string; },): readonly SheetBlock
 /**
  The text under one fenced label of a sheet.
 
- @param sheet - the sheet a seat was shown
+ @param sheet - sheet a seat was shown
 
- @param label - the label of the block, such as `THE WORDS TO REPLACE`
+ @param label - label of the block, such as `THE WORDS TO REPLACE`
 
- @returns The block's text, empty when the sheet has no such block
+ @returns Block's text, empty when the sheet has no such block
 
  @example
  ```ts
@@ -163,9 +163,9 @@ export function sheetBlockOf({
 /**
  The current English paragraph a writer's sheet shows.
 
- @param sheet - the writer sheet a seat was shown
+ @param sheet - writer sheet a seat was shown
 
- @returns The paragraph, empty when the sheet shows none
+ @returns Paragraph, empty when the sheet shows none
 
  @example
  ```ts
@@ -183,9 +183,9 @@ export function currentParagraphOf({ sheet, }: { readonly sheet: string; },): st
  The candidates of a choice sheet with their texts and whether each is the
  paragraph as the page has it now.
 
- @param sheet - the choice sheet a seat was shown
+ @param sheet - choice sheet a seat was shown
 
- @returns The candidates in the order the sheet shows them
+ @returns Candidates in the order the sheet shows them
 
  @example
  ```ts
@@ -227,9 +227,9 @@ export function candidateTextsOf(
 /**
  The labels of the places a run-off sheet shows, in the order it shows them.
 
- @param sheet - the run-off sheet a seat was shown
+ @param sheet - run-off sheet a seat was shown
 
- @returns The finalists' labels
+ @returns Finalists' labels
 
  @example
  ```ts
@@ -260,9 +260,9 @@ export function finalistsOf({ sheet, }: { readonly sheet: string; },): readonly 
 /**
  The first label a run-off sheet's reply shape names, which is the first tied place.
 
- @param sheet - the run-off sheet a seat was shown
+ @param sheet - run-off sheet a seat was shown
 
- @returns The label
+ @returns Label
 
  @example
  ```ts
@@ -276,7 +276,7 @@ export function firstFinalistOf({ sheet, }: { readonly sheet: string; },): strin
 /**
  Which of the pass's questions a sheet asks.
 
- @param sheet - the sheet a seat was shown
+ @param sheet - sheet a seat was shown
 
  @returns `writer` for a sheet asking for a paragraph, `choice` for a sheet asking to choose among candidate
  paragraphs, `run-off` for a sheet asking to settle a tie among places, and `ballot` for the first round
@@ -305,7 +305,7 @@ export function sheetKindOf({ sheet, }: { readonly sheet: string; },): 'ballot' 
 /**
  Whether a sheet asks about the refrain rather than the repeated sentence.
 
- @param sheet - the sheet a judge was shown
+ @param sheet - sheet a judge was shown
 
  @returns Whether it shows a frame
 

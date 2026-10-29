@@ -29,7 +29,7 @@ export const MINIFIED_BUNDLE: string = 'function nap(){}\n';
  @param files - text of each file by its name in the build directory, none
  for an empty build directory
 
- @returns The package directory and its build directory, removed on dispose
+ @returns Package directory and its build directory, removed on dispose
 
  @example
  ```ts

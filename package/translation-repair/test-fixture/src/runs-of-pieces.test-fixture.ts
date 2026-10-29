@@ -10,7 +10,7 @@
 
  @param pieces - what a run is built of
 
- @returns The longer runs, in the order of the runs and, within one run, of the pieces
+ @returns Longer runs, in the order of the runs and, within one run, of the pieces
 
  @example
  ```ts

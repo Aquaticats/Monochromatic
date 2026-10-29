@@ -19,11 +19,11 @@ export type ElementReads = {
  A list whose element reads are counted: indexing, iteration and every array method read elements one by one, and each read
  adds one to the count. The list is the one given in every other respect.
 
- @param items - the elements the list holds
+ @param items - elements the list holds
 
- @param reads - the count this list adds its reads to, shared with other lists to count them together
+ @param reads - count this list adds its reads to, shared with other lists to count them together
 
- @returns A list with the same elements that counts its reads
+ @returns List with the same elements that counts its reads
 
  @example
  ```ts

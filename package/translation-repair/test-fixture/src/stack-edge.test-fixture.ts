@@ -53,7 +53,7 @@ function callFromDepth(
 
  @param run - function to call at that depth
 
- @returns The value it threw, absent value marked by the empty array when it
+ @returns Value it threw, absent value marked by the empty array when it
  returned
 
  @example
@@ -100,7 +100,7 @@ function doNothing(): unknown {
 /**
  Finds a depth no function can start from, by doubling.
 
- @returns A depth at which even a function that does nothing overflows
+ @returns Depth at which even a function that does nothing overflows
 
  @example
  ```ts

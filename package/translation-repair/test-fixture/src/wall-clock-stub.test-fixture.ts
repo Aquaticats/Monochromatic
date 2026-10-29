@@ -48,7 +48,7 @@ type WallClockStub = {
 
  @param atMs - reading the clock answers first
 
- @returns The stub, to step
+ @returns Stub, to step
 
  @example
  ```ts

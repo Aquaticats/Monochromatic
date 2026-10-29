@@ -116,7 +116,7 @@ const LONG_ANSWER_FRAMES = 120;
  A healthy long call: long, varied thinking, then a long, varied answer,
  with no sentence repeated, which no runaway or repetition guard may end.
 
- @returns The stream as the wire sends it
+ @returns Stream as the wire sends it
 
  @example
  ```ts

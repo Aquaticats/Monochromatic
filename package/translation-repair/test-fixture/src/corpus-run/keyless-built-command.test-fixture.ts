@@ -20,7 +20,7 @@ import { join, } from 'node:path';
 
  @param command - name of the built runner, which starts the line
 
- @returns The refusal line with its newline
+ @returns Refusal line with its newline
 
  @example
  ```ts

@@ -10,7 +10,7 @@
 
  @param failure - what the connection fails with while the body arrives
 
- @returns The response, whose `json()` rejects with the failure
+ @returns Response, whose `json()` rejects with the failure
 
  @example
  ```ts
@@ -32,7 +32,7 @@ export function bodyCutBy({ failure, }: { readonly failure: Error; },): Response
  The rejection the runtime's `fetch` raises for a header value it will not
  send, which quotes the value and carries no cause.
 
- @returns The rejection
+ @returns Rejection
 
  @example
  ```ts

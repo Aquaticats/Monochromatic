@@ -170,7 +170,7 @@ export function inventedEnvironment(
 
  @param event - one parsed line of the trace
 
- @returns The variable's name, empty where the event is no report of one
+ @returns Variable's name, empty where the event is no report of one
 
  @example
  ```ts
@@ -199,7 +199,7 @@ function reportedParam({ event, }: { readonly event: unknown; },): string {
 
  @param tracePath - file the children appended their trace to
 
- @returns The watched names any child held, sorted and without repeats
+ @returns Watched names any child held, sorted and without repeats
 
  @throws Error when a line of the trace is not JSON, or no child wrote one
 

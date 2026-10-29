@@ -55,7 +55,7 @@ type ScratchDir = {
  @param prefix - start of the directory's name, so a leftover shows which test
  made it
 
- @returns The directory, removed on scope exit
+ @returns Directory, removed on scope exit
 
  @example
  ```ts
@@ -174,7 +174,7 @@ export async function scratchDirWith<
  @param prepare - fills the directory, reading only its path, never its
  disposer, so it cannot remove the directory ahead of its own caller
 
- @returns The directory, removed on scope exit
+ @returns Directory, removed on scope exit
 
  @throws whatever `prepare` throws, after removing the directory
 
@@ -222,7 +222,7 @@ export async function scratchDirPrepared(
  @param names - file names to write, verbatim, so a case can write a name no
  reader should take
 
- @returns The directory, also as `dir`, removed on scope exit
+ @returns Directory, also as `dir`, removed on scope exit
 
  @throws whatever a write throws, after removing the directory
 

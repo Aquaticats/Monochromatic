@@ -11,7 +11,7 @@
 
  @param promise - call expected to reject
 
- @returns The rejection
+ @returns Rejection
 
  @throws Error when the promise resolves
 

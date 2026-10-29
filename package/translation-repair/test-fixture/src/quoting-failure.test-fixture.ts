@@ -14,7 +14,7 @@ export const WHISKER_KEY = 'whisker-key-7421';
  Builds an unmarked built-in failure whose message quotes the stand-in
  credential, so a line holding that credential has repeated the message.
 
- @returns A `TypeError` the way a runtime raises one for an unsendable header
+ @returns `TypeError` the way a runtime raises one for an unsendable header
 
  @example
  ```ts

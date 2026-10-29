@@ -21,7 +21,7 @@ import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts
 
  @param entryId - entry whose bracket (`[entry]`) a collected line holds
 
- @param run - the work, run inside whatever log context the caller sets
+ @param run - work, run inside whatever log context the caller sets
 
  @returns Lines from `console.info`, `console.warn`, `console.error` and `console.trace`, each holding `[entryId]`
 

@@ -13,7 +13,7 @@
 
  @param status - HTTP status of the response
 
- @returns The response
+ @returns Response
 
  @example
  ```ts

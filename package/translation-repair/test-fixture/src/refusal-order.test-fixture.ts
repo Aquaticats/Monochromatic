@@ -31,7 +31,7 @@ type RefusalOrder = {
 /**
  Makes the two refusals of one case.
 
- @returns A refusal that ends at once and one that ends after it
+ @returns Refusal that ends at once and one that ends after it
 
  @example
  ```ts

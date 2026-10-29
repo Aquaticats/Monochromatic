@@ -116,7 +116,7 @@ function entryOrder({ entries, }: { readonly entries: readonly ListedEntry[]; },
 
  @param listed - what the scan's inventory holds
 
- @returns The entries on each side the other lacks, and whether the two differ
+ @returns Entries on each side the other lacks, and whether the two differ
  only in order
 
  @throws Error, unreachable, when a listed entry's count is missing after
@@ -335,9 +335,9 @@ function isEntryList(value: RecordValue,): value is readonly ListedEntry[] {
 
  @param key - key read
 
- @param found - the scan's record, by key
+ @param found - scan's record, by key
 
- @param listed - the listed record, by key
+ @param listed - listed record, by key
 
  @returns One line per difference under the key, none where its values are
  equal
