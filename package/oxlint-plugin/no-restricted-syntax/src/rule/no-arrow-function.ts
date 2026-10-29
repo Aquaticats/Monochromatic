@@ -7,6 +7,7 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { readsEnclosingBinding, } from './arrow-enclosing-binding.ts';
 import { extractParamsText, } from './arrow-function-params.ts';
 
 /**
@@ -22,7 +23,10 @@ import { extractParamsText, } from './arrow-function-params.ts';
  list via {@link extractParamsText}. `export const` is similarly converted
  to `export function`. A type-annotated `const name: Type = (...) => ...` keeps
  its declaration and annotation and only the arrow becomes a named function
- expression, so contextual parameter types survive. Other contexts (callbacks, object properties)
+ expression, so contextual parameter types survive; so does a `const` outside a
+ statement list such as a `for` head. Arrows reading an enclosing `this`, `arguments`, `super`,
+ or `new.target`, and `let`/`var` bindings, are reported without a fix (see {@link readsEnclosingBinding}).
+ Other contexts (callbacks, object properties)
  are reported but not auto-fixed because naming them requires human judgment.
  
  @example
@@ -88,6 +92,25 @@ export const noArrowFunction: CreateOnceRule = {
               .declarations
               .length
               !== 1)
+        ) {
+          context.report({
+            node,
+            messageId: 'forbidden',
+          },);
+          return;
+        }
+
+        /**
+         Arrows that read an enclosing `this`, `arguments`, `super`, or `new.target`, and
+         `let`/`var` bindings, have no behavior-preserving rewrite: a `function` rebinds the
+         former, and a named function expression binds its own name, which changes
+         calls through a reassigned `let`/`var`. They are reported without a fix.
+         */
+        if (
+          readsEnclosingBinding(node,)
+            || (parent.parent
+              .kind
+              !== 'const')
         ) {
           context.report({
             node,
@@ -190,6 +213,27 @@ export const noArrowFunction: CreateOnceRule = {
             !== undefined);
 
         /**
+         Node that lists the statements holding the declaration, past an `export` wrapper.
+
+         A function declaration is only valid in a statement list, so a `const` in a
+         `for` head keeps its declaration and receives a named function expression too.
+         */
+        const statementListOwner = isExported ? grandparent.parent : grandparent;
+
+        /**
+         True when the declaration sits where a function declaration may stand.
+         */
+        const isInStatementList = (statementListOwner.type === 'Program')
+          || (statementListOwner.type === 'BlockStatement')
+          || (statementListOwner.type === 'StaticBlock')
+          || (statementListOwner.type === 'TSModuleBlock');
+
+        /**
+         True when the fix keeps the surrounding declaration and swaps only the arrow.
+         */
+        const replacesArrowOnly = isAnnotated || (!isInStatementList);
+
+        /**
          Export keyword prefix.
          */
         const exportPrefix = isExported ? 'export ' : '';
@@ -198,7 +242,7 @@ export const noArrowFunction: CreateOnceRule = {
           node,
           messageId: 'forbidden',
           fix(fixer: ForeignBorrowed<Fixer>,) {
-            return isAnnotated
+            return replacesArrowOnly
               ? fixer.replaceText(
                 node,
                 functionText,

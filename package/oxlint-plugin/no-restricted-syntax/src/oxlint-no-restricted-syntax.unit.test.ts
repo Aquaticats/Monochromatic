@@ -583,6 +583,71 @@ await describe({
             ].join('\n',),);
           },
         },),
+        it({
+          name: 'swaps only the arrow for a const in a for head, where a function declaration is invalid',
+          fn: async () => {
+            const source = [
+              'for (const step = () => 1; false;) { break; }',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'for (const step = function step() { return 1 }; false;) { break; }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'leaves arrows that read this, arguments, super, or new.target unfixed',
+          fn: async () => {
+            const source = [
+              'class Probe extends Base {',
+              '  method() {',
+              '    const readThis = () => this.value;',
+              '    const readArguments = () => arguments.length;',
+              '    const readSuper = () => super.value;',
+              '    const readNewTarget = () => new.target;',
+              '    const readThroughNestedArrow = () => () => this.value;',
+              '    const readInComputedClassKey = () => class { [this.key]() { return 1; } };',
+              '    return [readThis, readArguments, readSuper, readNewTarget, readThroughNestedArrow, readInComputedClassKey];',
+              '  }',
+              '}',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe(source,);
+          },
+        },),
+        it({
+          name: 'fixes an arrow whose this, arguments, and super reads sit in a nested function or class member',
+          fn: async () => {
+            const source = [
+              'const make = () => function inner() { return [this, arguments]; };',
+              'const build = () => class { value = this; method() { return super.value; } };',
+              'const named = () => ({ arguments: 1, }).arguments;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'function make() { return function inner() { return [this, arguments]; } }',
+              'function build() { return class { value = this; method() { return super.value; } } }',
+              'function named() { return ({ arguments: 1, }).arguments }',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'leaves let and var arrows unfixed because a named function expression changes reassigned calls',
+          fn: async () => {
+            const source = [
+              'let counter = () => 1;',
+              'var total = () => 2;',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe(source,);
+          },
+        },),
       ],
     },),
     describe({

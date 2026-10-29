@@ -296,7 +296,10 @@ const catalogEntries = Object.entries(catalog,);
  Classifies and processes each catalog entry for tightening.
  */
 const entrySummaries = await Promise.all(catalogEntries.map(
-  async function processEntry([name, value,],): Promise<CatalogSummary> {
+  async function processEntry([name, value,]: readonly [
+    string,
+    string,
+  ],): Promise<CatalogSummary> {
     /**
      Parsed range prefix and version, or `NOT_A_RANGE` if not a `>=` range.
      */
