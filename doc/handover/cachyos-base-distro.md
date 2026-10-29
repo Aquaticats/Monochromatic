@@ -60,12 +60,19 @@ Owner follow-ups the same day:
    `pnpmfile hook 'updateConfig' timed out after 30 seconds` at load average 58;
    rerun as unit `mutation-p-memoize-2`.
 
-## Queued for this session
+## Mutation-test runtime image and the work-tree copy
 
-- `package/mutation-test/cli/runtime/Containerfile` (`FROM fedora:latest`):
-   migrate after the running `mutation-p-memoize` and `mutation-p-map` systemd units finish,
-   because changing it changes the runtime image hash mid-run.
-  Then rebuild `mutation-test/cli` and run one package's `test:mutation` on the new image.
+- Runtime image on CachyOS: Containerfile committed, `image.ts` passes `--build-arg CACHYOS_IMAGE`
+   from the resolver and hashes the base image into the tag (lockfile change 3 lines).
+  Lint findings in `shards.ts`, `selection.ts`, `scratch-parent.ts` come from `2972f3c6a0` (another session).
+- Every shard copies the checkout into a 2 GiB tmpfs with rsync and fixed excludes;
+   the checkout is 14 GB after excludes (11 GB of ignored `.claude/worktrees`), so rsync exits 11 in every container.
+  The p-map run (55 of 55 shards failed) and the p-memoize rerun were stopped.
+  Copying only `git ls-files --cached --others --exclude-standard` is 804 MB.
+- In flight: a subagent passes that list to each shard and copies with `--files-from`,
+   then proves it with a narrow p-map run (`src/errors.ts`) on the CachyOS image.
+- Queued for this session after it lands:
+   full `test:mutation` runs of `upstream-fork/p-map` and `upstream-fork/p-memoize`, then survivor triage.
 
 ## Out of scope by owner choice
 
