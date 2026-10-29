@@ -212,12 +212,16 @@ export async function main(): Promise<void> {
       )
     }\n`,);
   } catch (error) {
+    /* oxlint-disable no-restricted-syntax/prefer-caught-value-text -- Node built-ins only, so caughtValueText cannot be imported: see ./bin-paths.lint-exemption.md */
+    /**
+     Text of the caught value for the one-line stderr diagnostic.
+     */
+    const text = Error.isError(error,)
+      ? error.message
+      : String(error,);
+    /* oxlint-enable no-restricted-syntax/prefer-caught-value-text */
     process.stderr
-      .write(`bin-paths: ${
-      Error.isError(error,)
-        ? error.message
-        : String(error,)
-    }\n`,);
+      .write(`bin-paths: ${text}\n`,);
     process.exitCode = 1;
   }
 }
