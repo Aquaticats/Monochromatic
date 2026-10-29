@@ -370,7 +370,7 @@ Error: Invalid task 'needs:missing'
 ### Tests continuing after build failure where required
 
 The acceptance boundary in
-`package/dev-script/task-util/src/build-and-test.unit.test.ts`
+`package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
 requires that a missing or failing package build
 still runs that package's tests.
 
@@ -1450,14 +1450,14 @@ for the scoring failure mode.
 Neither answer started migration.
 
 The reopened vet for the chosen candidate
- runs against Pants
- (maintenance and release provenance,
- license and dependency surface,
- production source for the consumed boundary,
- human-auditability overlay),
-and closes in
+ is closed with no disqualifying finding
+ in
 [`doc/audit/tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
-Then the `doc/decision/` record
+Remaining gate:
+ explicit adoption acceptance,
+ asked in
+[`doc/handover/task-slice-adoption.md`](../handover/task-slice-adoption.md),
+which unlocks the `doc/decision/` record
  and the migration of 1,811 task names,
 603 edges,
 and the `//package/<path>:<task>` call sites.
