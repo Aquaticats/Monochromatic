@@ -104,3 +104,82 @@ fn valueless_extension_reads_as_true_and_other_keys_are_skipped() {
     assert!(format.extensions.iter().all(|(name, _)| { return !name.starts_with("user"); }));
     remove(root.as_path());
 }
+
+/// For each configuration the format from the snapshot equals the format from Git's `--file` listing.
+#[test]
+fn the_snapshot_format_equals_the_file_format() {
+    let root: PathBuf = fixture("shadow-config-snapshot-format");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let context: GitContext = git_context();
+    for text in [
+        "[core]\n\trepositoryformatversion = 0\n",
+        "[core]\n\trepositoryformatversion = 1\n[extensions]\n\tnoop = true\n",
+        "[core]\n\trepositoryformatversion = 0\n\trepositoryformatversion = 1\n[extensions]\n\tworktreeConfig\n",
+        "[core]\n\tRepositoryFormatVersion = 1\n[Extensions]\n\tNoop = yes\n\tworktreeConfig = false\n",
+        "[user]\n\tname = Someone\n[core]\n\trepositoryformatversion = 1\n[extensions]\n\tnoop = a\n[extensions]\n\tnoop = b\n",
+        "",
+    ] {
+        std::fs::write(common.join("config"), text).expect("config");
+        let snapshot: ConfigSnapshot =
+            crate::config_snapshot::read_config_snapshot(&context, repo.as_path()).expect("snapshot");
+        let from_snapshot: RepositoryFormat = repository_format_from_snapshot(&snapshot).expect("no includes");
+        let from_file: RepositoryFormat = read_repository_format(&context, common.as_path()).expect("format");
+        assert_eq!(from_snapshot, from_file, "{text}");
+    }
+    remove(root.as_path());
+}
+
+/// Values that enter the snapshot from outside the common config file do not enter the format.
+#[test]
+fn entries_from_other_scopes_do_not_enter_the_snapshot_format() {
+    let root: PathBuf = fixture("shadow-config-snapshot-scopes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    let global: PathBuf = root.join("global");
+    std::fs::write(global.as_path(), "[extensions]\n\tfromglobal = yes\n").expect("global config");
+    let mut overlay = crate::test_support::isolated_overlay();
+    overlay.retain(|(name, _value)| { return name != "GIT_CONFIG_GLOBAL"; });
+    overlay.push((std::ffi::OsString::from("GIT_CONFIG_GLOBAL"), global.into_os_string()));
+    overlay.push((std::ffi::OsString::from("GIT_CONFIG_COUNT"), std::ffi::OsString::from("1")));
+    overlay.push((std::ffi::OsString::from("GIT_CONFIG_KEY_0"), std::ffi::OsString::from("extensions.fromenv")));
+    overlay.push((std::ffi::OsString::from("GIT_CONFIG_VALUE_0"), std::ffi::OsString::from("1")));
+    let context: GitContext = GitContext { overlay, ..git_context() };
+    let snapshot: ConfigSnapshot =
+        crate::config_snapshot::read_config_snapshot(&context, repo.as_path()).expect("snapshot");
+    assert!(snapshot.entries().iter().any(|entry| { return entry.key == "extensions.fromglobal"; }));
+    let from_snapshot: RepositoryFormat = repository_format_from_snapshot(&snapshot).expect("no includes");
+    let from_file: RepositoryFormat = read_repository_format(&context, common.as_path()).expect("format");
+    assert_eq!(from_snapshot, from_file);
+    assert!(from_snapshot.extensions.iter().all(|(name, _value)| { return !name.starts_with("from"); }));
+    remove(root.as_path());
+}
+
+/// An include of any kind, or a read made with global options, leaves the format to Git.
+#[test]
+fn includes_and_global_options_leave_the_format_to_git() {
+    let root: PathBuf = fixture("shadow-config-snapshot-includes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    std::fs::write(common.join("extra"), "[extensions]\n\tfromextra = 1\n").expect("extra");
+    let context: GitContext = git_context();
+    for text in [
+        "[include]\n\tpath = extra\n",
+        "[includeIf \"gitdir:/\"]\n\tpath = extra\n",
+        "[includeif \"gitdir:/nowhere/\"]\n\tpath = extra\n",
+    ] {
+        std::fs::write(common.join("config"), format!("[core]\n\trepositoryformatversion = 0\n{text}")).expect("config");
+        let snapshot: ConfigSnapshot =
+            crate::config_snapshot::read_config_snapshot(&context, repo.as_path()).expect("snapshot");
+        assert!(repository_format_from_snapshot(&snapshot).is_none(), "{text}");
+    }
+    std::fs::write(common.join("config"), "[core]\n\trepositoryformatversion = 0\n").expect("config");
+    let optioned: GitContext = GitContext {
+        global_prefix: vec![std::ffi::OsString::from("-c"), std::ffi::OsString::from("x.y=z")],
+        ..git_context()
+    };
+    let snapshot: ConfigSnapshot =
+        crate::config_snapshot::read_config_snapshot(&optioned, repo.as_path()).expect("snapshot");
+    assert!(repository_format_from_snapshot(&snapshot).is_none());
+    remove(root.as_path());
+}

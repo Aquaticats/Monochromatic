@@ -23,7 +23,7 @@ use super::shadow_git::{REPOSITORY_REDIRECT_VARIABLES, shadow_repository_path};
 /// Invocation capture.
 use super::capture_invocation::InvocationCapture;
 /// Format copy and config text.
-use super::shadow_config::{format_shadow_config, read_repository_format};
+use super::shadow_config::{format_shadow_config, read_repository_format, repository_format_from_snapshot};
 /// Entry links.
 use super::shadow_links::link_shadow_entries;
 /// Conclusion copy and ref snapshot.
@@ -148,7 +148,10 @@ pub fn create_shadow_repository(
     run_git_checked(context, &init)?;
     set_private_directory_mode(shadow.as_path())
         .map_err(|error| { return GitFailure(format!("protecting {} failed: {error}", shadow.display())); })?;
-    let format = read_repository_format(context, layout.common_dir.as_path())?;
+    let format = match layout.config_snapshot.as_ref().and_then(repository_format_from_snapshot) {
+        Some(from_snapshot) => from_snapshot,
+        None => read_repository_format(context, layout.common_dir.as_path())?,
+    };
     let config_text: String =
         format_shadow_config(&format, layout.common_dir.as_path(), layout.repository_root.as_path());
     overwrite_private(shadow.join("config").as_path(), config_text.as_bytes())
