@@ -583,6 +583,12 @@ Run this whenever the user asks whether a draft is ready,
    and a project that fixes bugs "in every affected version" needs the
    affected versions named.
     State which lines were tested and which were not.
+    When a report proposes one edit for several copies of a text
+   (versioned documentation pages, mirrors),
+   test each copy's claim against its own release line before accepting the scope:
+   a suggestion to fix every copy can be wrong for the older line.
+    Find the editable source too,
+   because a generated copy is overwritten by its generator.
 2. Read prior art in the code the bug touches.
     Search merged and closed pull requests and issues for the symbols,
    file names and error text involved,
@@ -631,9 +637,23 @@ Run this whenever the user asks whether a draft is ready,
    and make it public only when the user says so,
    because the repository carries the poster's name.
 8. State the verdict with its evidence.
-    Say "not ready" and list what is missing,
-   or say what the conditions for a recommendation are and that each was met,
-   with the risk to the poster written next to it.
+    When posting is technically allowed
+   (no rule, ban or trust list stops the poster),
+   "not ready" is not an end state:
+   close every missing item the agent can close,
+   re-run the check,
+   and iterate until the conditions for a recommendation are met,
+   then make the recommendation with the risk to the poster written next to it.
+    Missing items the agent can close include:
+   testing another maintained release line,
+   repairing a sandbox so a test suite means something,
+   and finding evidence for a form field
+   (for example showing the reproduction needs no runtime at all).
+    Stop short of a recommendation only for a blocker the agent cannot clear:
+   a field only the poster can answer,
+   a human re-run the user requires,
+   or a rule that forbids posting.
+    Name that blocker and what would clear it.
     Put any choice the user has to make in a question tool,
    not in prose.
 
