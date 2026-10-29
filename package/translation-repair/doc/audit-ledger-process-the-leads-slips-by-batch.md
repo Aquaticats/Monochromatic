@@ -499,3 +499,155 @@ M174) this repeats with a comparison added:
 the merged change is compared with each round's own change by a script over the changed files
 before the commit,
 and the result is in the message.
+
+## M295: a corrective commit comment waited for the branch to land
+
+Status:
+recorded on 2026-10-29 (UTC),
+after the owner asked
+"Why after landing?"
+of a corrective comment that had waited.
+
+A slip in a commit message was found,
+and the comment that corrects it was left until the branch that holds the commit had landed.
+Nothing in the correction depends on the landing:
+the comment is about what the message says of its own commit.
+The comments of round 8 were posted on 2026-10-29 (UTC):
+207181345 on `78fc0af4cf`,
+207181346 on `12a2a3ca39`
+and 207181348 on `3a7faed7af`
+(see "Round 8 at a glance" in the file of the footnote readings,
+round 8).
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Commit messages":
+after the message is checked against the diff,
+the comment is posted at once if the commit is on GitHub.
+
+Recurrence:
+M274,
+whose rule is that a claimed error in a message is checked against the diff before a comment is posted.
+
+## M297: a rotation sweep ran in the tree of the gate that was rebuilding `dist`
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Sweep g224 was started in `tr-g224` while gate g224 rebuilt `dist` in the same tree.
+Its salt-9 canary failed with `ERR_MODULE_NOT_FOUND`
+on `translation-repair-markup/dist/final/node/index.mjs`,
+a file of the `dist` that the gate was rebuilding.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools":
+a sweep runs beside a gate only in another worktree,
+and in the gate's own tree it runs after the gate ends.
+
+Recurrence:
+M63 and B366,
+the shared build directory,
+and M182,
+a rebuild of `dist` beside probes that read it.
+
+## M298: a gate ran on a merge of main that nobody had type-checked
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Gate g223 ran on the cooldown merge `b12cdc5d23`
+and went red in the type check of corpus-pass,
+in its oxlint run
+and in the unit tests of `pass-entry`.
+The merge had no conflict.
+The branch's begin-entry case at `pass-entry.unit.test.ts:1501` lacked `attempt`,
+and the stamps that main carried at `112f6274fc` (the stamps are `89c495264a`) had made it required.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools":
+after main is merged into a branch,
+`lint:types` runs on the merged head before a full gate.
+
+Recurrence:
+M294,
+a gate that scanned the tree before the merge of main.
+
+## M299: a case that failed under host load was not run alone before it was judged
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Gate g215 failed `run-client-create.unit.test.ts:480` under host load,
+and the case passed when it was run alone.
+The cause was in the test rig,
+which counted turns of the event loop;
+it was fixed in `df2350a6ee`.
+The entry of B965 records the incident and the cause,
+and it does not carry the rule that a red case is run alone first.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools":
+a red case is run alone before it is judged.
+
+Recurrence:
+B813,
+a real-clock wait that held in every run and was wrong in one.
+
+## M300: a brief named the root lint task, which does not apply the semantic-wrap configuration
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+The brief for round 8 named `mise run lint:monochromatic-lint -- <file>` as the Markdown check,
+and the round reported it clean on the ledger of the plain reading with tables and the containers.
+Gate g225 found two `semantic-line-breaks` findings at lines 716 and 717 of that file,
+which `a45783f7d3` fixed.
+The `markdown-lint-clean` case of `source-scan:test:unit` applies the semantic-wrap configuration,
+and the root task does not.
+
+Prevention:
+`mistake-prevention-docs-and-references.md`,
+"The Markdown linter":
+a brief names `mise run //package/translation-repair/source-scan:test:unit`.
+
+Recurrence:
+D35,
+where a one-time pass of the linter gated nothing.
+
+## M302: a branch was checked for two commits with one listing that names a branch holding either
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+The lead's first check before posting the comments of round 8 was `git branch --contains A --contains B`,
+which lists a branch that holds any one of the commits.
+The check that answers the question is one `git merge-base --is-ancestor <sha> origin/main` for each commit.
+
+Prevention:
+`mistake-prevention-commit-checks-and-figures-told-to-others.md`,
+"Which commits a branch holds".
+
+Recurrence:
+M2 and M12,
+which record a gate read by its exit code and not by its `[FAIL]` lines.
+
+## M303: a gate's time was told to a peer session unmeasured
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+The lead told a peer session that a gate takes about an hour,
+and had not measured it.
+Gate g223 took 24 m 47 s and gate g224 took 19 m 44 s,
+and the lead sent a correction.
+
+Prevention:
+`mistake-prevention-commit-checks-and-figures-told-to-others.md`,
+"Figures told to others".
+
+Recurrence:
+M288,
+which records a gate time that was read as a cost and not as a measurement.
