@@ -1,6 +1,6 @@
 [package]
-name = "search-shadow"
-version = "0.0.1"
+name = "monochromatic-search-shadow"
+version = "0.1.0"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/search-shadow/cli"
@@ -13,7 +13,6 @@ include = [
 ]
 keywords = ["ripgrep", "ioprio", "bfq", "shim"]
 license = "LGPL-3.0-or-later"
-publish = false
 readme = "README.md"
 repository = "https://github.com/Aquaticats/Monochromatic.git"
 description = "Shadows rg, grep and find: runs the real tool at the lowest best-effort disk priority and refuses repository-wide unrestricted ripgrep walks that stall the NVMe."
