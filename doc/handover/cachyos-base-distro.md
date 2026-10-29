@@ -56,14 +56,20 @@ Owner follow-ups the same day:
   Local reproduction of the IDE release gates passed (glibc 2.39, needed libraries match, bundle inspections pass).
   music-player `test:windows-gnu`: same 4 failed and 2 timed out as the recorded Fedora run.
 
-## In flight: music-player follow-ups (owner decisions 2026-10-29)
+## music-player follow-ups (owner decisions 2026-10-29)
 
-- `Containerfile.sign` still Fedora: build osslsigncode from source on CachyOS.
-- `run` fallback binary needs GLIBC_2.44: build it with cargo-zigbuild for glibc 2.39.
-- `verify:container`: three `unplayable_notification` tests need `XDG_RUNTIME_DIR` (since `438bc434e4`);
-   same tmpfs fix as nested-wayland-session.
-  One more failure, `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`,
-   fails identically on the old Fedora image.
+- `Containerfile.sign` on CachyOS, osslsigncode 2.14 built from the latest upstream release (`bf3cf4220f`, `8ff6727144`):
+   `sign:windows` signed a mingw-built PE with a throwaway PFX (`Signature verification: ok`).
+  Upstream publishes no checksum or signature for its source; TLS to github.com is the only check.
+  Not run: the PKCS#11 path (needs a real certificate) and `verify:signing`.
+- `run` fallback built with cargo-zigbuild for glibc 2.39 (`4723d28bc9`, `dc88d327e4`):
+   prints `music-player 0.1.13` on this glibc 2.43 host, newest symbol `GLIBC_2.39`.
+  Owner chose to extend it to `run-quick` and `run-debug`: subagent in flight.
+- `XDG_RUNTIME_DIR` tmpfs in container cargo runs (`26146d128a`): the three `unplayable_notification` tests pass.
+- `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis` fails on both images
+   and stops nextest before 267 tests: owner chose an issue, #1815.
+- Docs: `doc/troubleshooting/cachyos-container-binary-needs-newer-glibc-than-host.md`,
+   `doc/troubleshooting/cachyos-image-migration-package-differences.md` (`533ed23205`).
 - `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md` now name the Ubuntu 24.04 release image
    (monochromatic-ec, `8e843b1aa5`); remaining Fedora 41 mentions there are dated history notes.
 
