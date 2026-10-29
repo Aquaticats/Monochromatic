@@ -293,3 +293,66 @@ fn an_empty_layout_line_is_incomplete() {
     );
     assert_eq!(required_line(&lines, 0), Ok(String::from("/repo")));
 }
+
+/// A stand-in Git that logs each start and fails, so a read that starts Git shows in the log.
+fn logging_stand_in(root: &Path) -> (GitContext, PathBuf) {
+    let log: PathBuf = root.join("starts.log");
+    let path: PathBuf = root.join("stand-in");
+    let content: String = format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexit 99\n", log.display());
+    crate::test_support::executable(path.as_path(), content.as_bytes());
+    return (
+        GitContext { real_git: path, overlay: Vec::new(), global_prefix: Vec::new() },
+        log,
+    );
+}
+
+/// A snapshot parsed from `(scope, record)` pairs, read with or without global options.
+fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> ConfigSnapshot {
+    let mut bytes: Vec<u8> = Vec::new();
+    for (scope, record) in records {
+        bytes.extend_from_slice(scope.as_bytes());
+        bytes.push(0);
+        bytes.extend_from_slice(record.as_bytes());
+        bytes.push(0);
+    }
+    return ConfigSnapshot::parse(bytes.as_slice(), without_global_options).expect("a well-formed listing");
+}
+
+/// A snapshot without the ref storage key proves `files` with no Git start; every other snapshot asks Git.
+#[test]
+fn the_ref_format_comes_from_a_snapshot_that_proves_files_and_from_git_otherwise() {
+    let root: PathBuf = fixture("capture-invocation-ref-format-snapshot");
+    let (context, log) = logging_stand_in(root.as_path());
+    let proving: ConfigSnapshot = listing_snapshot(&[("local", "core.bare\nfalse")], true);
+    assert_eq!(resolve_ref_format_with(&context, root.as_path(), Some(&proving)), Ok(RefFormat::Files));
+    assert!(!log.exists(), "a proving snapshot started Git");
+    let naming: ConfigSnapshot = listing_snapshot(&[("local", "extensions.refstorage\nreftable")], true);
+    let optioned: ConfigSnapshot = listing_snapshot(&[("local", "core.bare\nfalse")], false);
+    for snapshot in [Some(&naming), Some(&optioned), None] {
+        let _ = resolve_ref_format_with(&context, root.as_path(), snapshot);
+    }
+    assert_eq!(
+        std::fs::read_to_string(log.as_path()).expect("log"),
+        "rev-parse --show-ref-format\n".repeat(3)
+    );
+    remove(root.as_path());
+}
+
+/// Real Git: the layout's ref format equals `rev-parse --show-ref-format` for files and reftable repositories.
+#[test]
+fn the_layout_ref_format_matches_rev_parse_for_files_and_reftable() {
+    let root: PathBuf = fixture("capture-invocation-ref-format-real");
+    let files: PathBuf = repository(root.as_path(), "files");
+    let reftable: PathBuf = root.join("reftable");
+    std::fs::create_dir(&reftable).expect("directory");
+    git(reftable.as_path(), &["init", "--quiet", "--ref-format=reftable"]);
+    git(reftable.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
+    let context: GitContext = git_context();
+    let for_files: InvocationLayout = capture_invocation_layout(&context, files.as_path(), false).expect("layout");
+    assert_eq!(for_files.ref_format, RefFormat::Files);
+    assert!(for_files.config_snapshot.is_some());
+    let for_reftable: InvocationLayout =
+        capture_invocation_layout(&context, reftable.as_path(), false).expect("layout");
+    assert_eq!(for_reftable.ref_format, RefFormat::Reftable);
+    remove(root.as_path());
+}

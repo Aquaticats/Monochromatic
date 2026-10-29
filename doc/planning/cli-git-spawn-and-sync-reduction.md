@@ -61,6 +61,15 @@ Measured process lifetimes of one commit (strace): `findmnt` 3 runs about 25 ms,
   entry of that name at all (any mode, because Git prints a hint for a non-executable file) and the configuration has
   no `hook.<name>.event` or `.command` key; any other shape keeps today's behavior. Saves up to four wrapper
   re-executions, four `git hook` runs and four synced lock candidates.
+  Done (slice S1): `package/git-policy/cli/src/native/hook_presence.rs` decides per event, `write_hook_dispatch`
+  writes only the entries whose event may have a hook, and `run_post_commit_hook` skips the author lookup, the lock
+  and `git hook run` for `post-commit` when no entry of that name exists when it comes due (looked up then, not at
+  planning, so a hook that `pre-commit` installs still runs). An error other than "not found" while looking keeps the
+  entry. The replay's `pre-commit` re-run is skipped when its entry was omitted. Parity:
+  `binary_hook_shim_tests.rs` runs a wrapped and a direct commit over fifteen shapes (no hooks, all executable, one
+  event, not executable, links, configuration hooks, relative, absolute, empty, missing and `-c` hooks paths,
+  disabled events, a linked worktree, a hook installed during the commit, a failing hook) and compares status,
+  output, hook log, message and tree.
 - `findmnt` (3 runs): the filesystem identity of `.git` and `index.lock`. To be replaced by `statx`, `/proc/self/mountinfo`
   and `/dev/disk/by-uuid` when the mapping is unambiguous; otherwise `findmnt` stays. Needs a check of how the
   identity is consumed before choosing (recorded below when read).
@@ -68,6 +77,26 @@ Measured process lifetimes of one commit (strace): `findmnt` 3 runs about 25 ms,
   (`core.hooksPath`, the four `hook.<event>.enabled` reads already batched, the maintenance keys, ref storage).
   Last value wins, `-c` and `GIT_CONFIG_*` values come last, bool canonicalized by Git's rules; `--type=path` values
   starting with `~` or `%(prefix)` fall back to a spawn.
+  Done (slice S3): `config_snapshot.rs` reads `git config --list -z --show-scope` once, in `capture_invocation_layout`,
+  and answers `core.hooksPath`, the four `hook.<event>.enabled` switches, the maintenance keys (bool-or-int text),
+  whether any `hook.<name>.event` or `.command` key exists, the files ref storage, and the shadow's repository
+  format. Any entry it does not model makes that lookup `Unhandled` and the caller starts Git for the key, as
+  before: a valueless or empty path, a path starting with `~`, `%(` or `:(`, a boolean or integer with a unit suffix,
+  a sign, a leading zero or hexadecimal, a bad boolean, text that is not UTF-8. `git config` formats every entry of
+  a key, so one unmodelled entry makes the whole key unhandled even when it is not the last. Details found by probe
+  on Git 2.56.0: listing order is precedence order (files, then `GIT_CONFIG_COUNT`, then `GIT_CONFIG_PARAMETERS`
+  with `-c` appended last, all in the `command` scope); `--type=bool` of `1k` is `true` and of `08` is fatal;
+  `--type=bool-or-int` of `007` prints `7`; `--type=path` of a valueless key is fatal.
+  Differential tests: `config_snapshot_tests.rs` draws 60 deterministic configurations over files, includes,
+  conditional includes, a global file, `GIT_CONFIG_COUNT`, `-c`, repeated and valueless keys and bad values, and
+  compares each lookup with `git config --type=<kind> --get`; it counts answered and declined lookups so a run
+  that declines everything fails.
+  Which consumers share the read: the plan (hooks path, switches, named hooks) always, because it reads with the
+  caller's global options as the snapshot does; the ref storage, the maintenance keys and the shadow format only
+  when the read carried no global options, because their original reads ignored the options or ran elsewhere.
+  The ref storage is proven `files` only when no entry names `extensions.refstorage`; any listing that names it
+  asks Git. The shadow format comes from the `local` scope only when no `include.path` or `includeIf.*.path` key
+  exists, because `git config --file config --list` reads that one file without includes.
 - Empty-tree object name: the hash of `tree 0` under the repository's object format (a constant per format) in place of
   `git hash-object -t tree --stdin`.
 - `symbolic-ref HEAD` (files ref storage): read `HEAD`; anything but `ref: <name>` or a full object name falls back.
@@ -341,6 +370,60 @@ Undamaged: completes.
 - `T/preparing.json`: empty sticks; half sticks; delete completes
 - `T/ref-updated.json`: empty sticks; half sticks; delete completes
 - `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
+## Results of the hook-entry and configuration-snapshot slices
+
+Method: `strace --follow-forks -e trace=execve,fsync,fdatasync,syncfs,sync_file_range` over one wrapped
+`git commit --quiet --message=x -- a.txt` of the debug build in a fresh repository with the host's Git 2.56.0,
+counting `execve` of `/usr/bin/git` (equal to the `| start ` lines of `GIT_TRACE2_PERF`, 52 in both) and sync calls;
+scratch script `measure.ts <binary> <scenario>` beside the repository's `attribute-commit.ts`.
+Before is the commit that preceded these slices; after is the branch tip.
+
+- No hooks: 52 to 43 Git starts, 42 to 38 sync calls, three wrapper re-executions as dispatcher entries to none.
+- One `pre-commit` hook: 52 to 44 Git starts, 42 to 39 sync calls.
+- All four hooks: 52 to 48 Git starts, 42 to 42 sync calls (the configuration reads are the only saving).
+- A configuration-defined hook: 52 to 48 Git starts, 42 to 42 sync calls.
+- A custom `core.hooksPath` holding one `commit-msg` hook: 52 to 44 Git starts, 42 to 39 sync calls.
+- `measure-fsync.ts` (an `--allow-empty` commit, no hooks): 41 to 37 sync calls.
+
+Permanent budget: `binary_hook_shim_tests.rs` fails a commit with no hooks that starts any hook runner or more than
+one `git config`, a commit with four hooks that does not start exactly four runners, and a commit with one hook that
+does not start exactly one.
+
+Known deviations, each accepted for the saving and each recorded here because it is not byte-for-byte what separate
+reads gave:
+
+- The snapshot is read when the commit begins, so the maintenance decision no longer sees a change that a hook or
+  another process makes to `maintenance.auto`, `gc.auto` or the detach keys during the commit. Example: a
+  `pre-commit` hook that runs `git config maintenance.auto false` used to stop that commit's maintenance run; it no
+  longer does. The hooks path and the switches were read just before preparation and are now read earlier by the
+  length of the policy pass.
+- An entry is omitted from a plan-time look at the hooks directory, so a `pre-commit`, `prepare-commit-msg` or
+  `commit-msg` hook created between planning and the native commit (milliseconds) does not run. `post-commit` is
+  looked up when it comes due and has no such gap.
+- A named hook (`hook.<name>.event`) is found from the real repository's configuration, while the dispatcher's
+  `git hook run` sees the shadow's configuration, which includes the real one. They differ only if a conditional
+  include matches the shadow's path and not the real one, for example a `gitdir:` pattern that names the shadow
+  directory; that include would define a hook the wrapper no longer starts.
+
+Found while probing and left unchanged: the dispatcher skips a user hook of an event with `hook.<event>.enabled=false`,
+while Git 2.56.0 runs a traditional hook whatever that switch says (it disables only hooks defined by name).
+`a_disabled_event_with_a_hook_is_still_skipped_by_the_wrapper` pins the wrapper's existing behavior.
+
+Refused, with the counterexample:
+
+- Using the snapshot for the ref storage whenever it names `extensions.refStorage`: with
+  `core.repositoryformatversion = 0` Git fails (`repo version is 0, but v1-only extension found`), and with the key
+  only in an included file Git prints `files`; the repository-format rules are Git's, so the key's presence asks Git.
+- Modelling `1k`, `-1`, `007`, `0x10` and `08`: `--type=bool` gives `true`, `true`, `true`, `true` and a fatal error;
+  `--type=bool-or-int` gives `1024`, `-1`, `7`, `16` and a fatal error; the numeric grammar is `strtoimax` base 0
+  with unit suffixes, so only `0` and digit strings from `1` to `9` are decided in Rust.
+- Reusing the snapshot for the consumers that ignore global options when the read carried a `-c`: the original reads
+  would not have seen the option, and a `-C` or `--git-dir` changes which repository is listed.
+
+Not done: the `git config --file config --list` of the shadow stays when the configuration includes another file;
+the `config --get` reads of the auto-push (`remote.<name>.push`, `commit.gpgsign`) are outside the commit path
+measured here; a commit made with global options (`git -c k=v commit`) still starts one read each for the ref
+storage, the maintenance keys and the shadow format, because those reads ignore the options or run elsewhere.
 
 ## Budgets
 

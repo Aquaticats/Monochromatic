@@ -22,6 +22,7 @@ fn layout(root: &Path) -> InvocationLayout {
         object_format: String::from("sha1"),
         empty_tree_oid: "4".repeat(40),
         invoked_at: String::from("2026-10-11T00:00:00.000Z"),
+        config_snapshot: None,
     };
 }
 
