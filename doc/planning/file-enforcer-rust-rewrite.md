@@ -1053,6 +1053,31 @@ and the advisor's corrections are folded in here.
   tested in the real sandbox with the toolchain present and missing.
 - The bootstrap runbook installs and verifies rustup before `cargo install`.
 
+#### Rules list: a trailing '?' marks the optional file
+
+Asked how the comma-separated list marks the file that may be missing;
+the user chose "Trailing '?' marks optional"
+over treating `.local.` names as optional (recommended after the advisor's note).
+An entry ending in `?` may be absent,
+every other entry must exist,
+and any read error other than absence fails;
+the environment variable uses the same syntax,
+and cli-git's JSONC array uses `{"path": ..., "optional": true}`.
+
+#### mpm files and file-enforcer's toolchain role: prototype first
+
+Re-asked who writes and checks `mpm.packages.toml` and `mpm.managers.toml`,
+with the consequence that file-enforcer could end up with no toolchain role;
+the user answered:
+"This is the 3rd time.
+Please make sure we're actually right this time,
+okay?
+And you have worktrees.
+You have podman.
+You can prototype."
+A throwaway prototype in a linked worktree and a podman container runs the real mpm and the candidate flows
+before the question returns.
+
 #### Process lessons: deferred to issue #1817
 
 Draft `AGENTS.md` rules for this round's slips
