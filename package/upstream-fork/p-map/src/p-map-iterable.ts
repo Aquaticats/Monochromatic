@@ -416,7 +416,6 @@ export function pMapIterable<Element, NewElement>(
           // and for a one-shot source, like a queue, it takes an item nobody is
           // going to ask for.
           if (state.isDone
-// mutation-test-disable-next-line conditional -- the puller answers any pull after the source reported `done` with a done marker without touching the source, and a spawned worker that gets it ends nothing earlier, so spawning once the source is done is unobservable
             || state.isIterableDone
 // mutation-test-disable-next-line equality -- `stopIndex` is the position of a pull that already started, and `index` is incremented when a pull starts, so a finite `stopIndex` is always below `index`
             || (state.index > state.stopIndex))
@@ -519,7 +518,7 @@ export function pMapIterable<Element, NewElement>(
               // element, while this element was being read or waiting for a
               // mapper slot, so drop it instead of doing work nobody will
               // consume.
-// mutation-test-disable-next-line conditional, logical, equality, block -- dropped-work path only: the consumer already left the iteration or the stream ends earlier, so whether the pending mapper runs changes no yielded value, error, or close
+// mutation-test-disable-next-line equality -- `stopIndex` is the position of a worker that already passed this check (the one whose mapper stopped, or whose read or mapper failed), so no worker still at this check has `currentIndex` equal to it
               if (state.isDone || (currentIndex > state.stopIndex)) {
 // mutation-test-disable-next-line boolean -- `holds` is read only by the catch below, and nothing after this assignment can throw before the return
                 holds.hasMapperSlot = false;
@@ -629,7 +628,6 @@ export function pMapIterable<Element, NewElement>(
          */
         using sourceShutdown: Disposable = {
           [Symbol.dispose]: function disposeSource(): void {
-// mutation-test-disable-next-line boolean -- dispose stop flag only: the consumer already left the iteration and the source close is gated separately
             state.isDone = true;
 
             if (!state.isIterableDone)
@@ -639,7 +637,6 @@ export function pMapIterable<Element, NewElement>(
         void sourceShutdown;
 
         /* oxlint-disable no-await-in-loop -- the consumer collects pulls one at a time, in yield order */
-// mutation-test-disable-next-line conditional, equality -- loop-shape only: the queue empties through the `done` outcome before the length check is reached
         while (state.headIndex < promises.length) {
           /**
            Oldest spawned pull's slot. Without `preserveOrder`, a filled slot

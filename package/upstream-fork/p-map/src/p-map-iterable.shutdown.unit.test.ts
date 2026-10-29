@@ -256,6 +256,51 @@ await describe({
     },),
 
     describe({
+      name: 'at a stop with preserveOrder false',
+      children: [
+        it({
+          name: 'drops an earlier element that is still being read once the stream ended',
+          fn: async () => {
+            const readGate = createGate();
+            /**
+             Values the mapper was called with.
+             */
+            const started: number[] = [];
+            /**
+             First element, which stays pending until the test releases its
+             gate.
+             */
+            async function heldElement(): Promise<number> {
+              await readGate.open;
+              return 0;
+            }
+            const results = await collect(pMapIterable({
+              iterable: [
+                heldElement(),
+                1,
+              ],
+              mapper: function stopAtOne(value: number,): number | typeof pMapStop {
+                started.push(value,);
+                return (value === 1)
+                  ? pMapStop
+                  : value;
+              },
+              options: {
+                concurrency: 2,
+                preserveOrder: false,
+              },
+            },),);
+            readGate.release();
+            await yieldTurn();
+
+            expect(results,).toEqual([],);
+            expect(started,).toEqual([1],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
       name: 'after a failure with preserveOrder false',
       children: [
         it({
