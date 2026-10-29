@@ -18,6 +18,32 @@ use std::process::{Command, Output};
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
+/// A sink a test reads after the code under test wrote its notices to a clone of it.
+#[derive(Clone, Default)]
+pub(crate) struct SharedSink(pub(crate) std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl SharedSink {
+    /// Everything written so far, as text.
+    pub(crate) fn text(&self) -> String {
+        let bytes: Vec<u8> = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        return String::from_utf8_lossy(bytes.as_slice()).into_owned();
+    }
+}
+
+/// Writes go to the shared buffer.
+impl std::io::Write for SharedSink {
+    /// Append the bytes.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
 /// How long the whole unit-test run may last before the watchdog ends it.
 /// The run takes under a minute, so a run past this limit has a test stuck behind something that never happens.
 const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);

@@ -138,3 +138,7 @@ mod push_environment;
 /// An explicit push that lost a race to another session: the merge is published through the executable's own push.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
+
+/// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
+#[path = "binary_wait_notice_tests.rs"]
+mod wait_notice;

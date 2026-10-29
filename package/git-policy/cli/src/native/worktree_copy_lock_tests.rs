@@ -3,6 +3,7 @@
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::worktree_copy_journal::ensure_journal_root;
+use crate::wait_progress::Cadence;
 use std::time::Duration;
 
 /// The published lock directory of a common directory.
@@ -294,6 +295,55 @@ fn waiter_names_a_live_holder_and_takes_the_lock_after_release() {
     remove(root.as_path());
 }
 
+/// A blocking acquisition behind a live holder names it at the start, repeats the line at every interval with the time
+///  waited and the limit, and ends at the limit with a refusal that names the holder and every way forward.
+#[cfg(unix)]
+#[test]
+fn a_long_wait_behind_a_live_holder_repeats_the_holder_line() {
+    let root: PathBuf = fixture("lock-waiter-repeat");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(common.as_path()).expect("common");
+    let held: WorktreeCopyLease = try_acquire_worktree_copy_lock(common.as_path())
+        .expect("attempt")
+        .expect("free");
+    let holder_pid: i64 = i64::from(std::process::id());
+    let common_for_thread: PathBuf = common.clone();
+    let (sender, receiver) = std::sync::mpsc::channel::<(Result<WorktreeCopyLease, WorktreeCopyError>, Vec<u8>)>();
+    std::thread::spawn(move || {
+        let mut stderr: Vec<u8> = Vec::new();
+        let outcome = acquire_worktree_copy_lock_with(
+            common_for_thread.as_path(),
+            &mut stderr,
+            Duration::from_millis(1_000),
+            Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(200) },
+        );
+        let _sent = sender.send((outcome, stderr));
+    });
+    let (outcome, stderr) = match receiver.recv_timeout(Duration::from_secs(10)) {
+        Ok(finished) => finished,
+        Err(_) => {
+            held.release().expect("released");
+            panic!("the wait did not end at its limit");
+        }
+    };
+    let text: String = String::from_utf8(stderr).expect("utf8");
+    let lines: Vec<&str> = text.lines().collect();
+    assert!(lines.len() >= 4, "the start and at least three repeats: {text}");
+    assert!(lines[0].starts_with(&format!("cli-git: waiting for PID {holder_pid},")), "{text}");
+    assert!(lines[0].contains("giving up after 1 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this)"), "{text}");
+    for line in &lines[1..] {
+        assert!(line.starts_with(&format!("cli-git: still waiting for PID {holder_pid},")), "{text}");
+        assert!(line.contains(" seconds; giving up after 1 seconds"), "{text}");
+    }
+    let refusal: String = outcome.expect_err("refused").0;
+    assert!(refusal.contains(&format!("for PID {holder_pid}")), "{refusal}");
+    assert!(refusal.contains("let that process finish and run the command again"), "{refusal}");
+    assert!(refusal.contains("check with `ps`"), "{refusal}");
+    assert!(refusal.contains("raise the limit"), "{refusal}");
+    held.release().expect("released");
+    remove(root.as_path());
+}
+
 /// A live holder that never releases ends a blocking acquisition at its limit,
 ///  with a refusal naming the holder, and leaves the holder's lock in place.
 #[cfg(unix)]
@@ -332,7 +382,7 @@ fn a_live_holder_past_the_limit_ends_the_wait_and_keeps_its_lock() {
         "{text}"
     );
     assert!(text.contains("CLI_GIT_LOCK_WAIT_SECONDS sets how long cli-git waits"), "{text}");
-    assert!(text.ends_with("cli-git left the lock in place."), "{text}");
+    assert!(text.contains("cli-git left the lock in place. To go on,"), "{text}");
     assert!(lock_of(common.as_path()).exists(), "the holder's lock stays");
     held.release().expect("released");
     remove(root.as_path());
@@ -376,6 +426,8 @@ fn a_wait_ends_when_the_lock_passes_to_another_owner() {
         lock_of(common.as_path()).as_path(),
         &waited_on,
         Duration::from_secs(5),
+        &mut Vec::<u8>::new(),
+        Cadence::standard(),
     )
     .expect("the lock is no longer the waited-on owner's");
     assert!(started.elapsed() < Duration::from_secs(4), "{:?}", started.elapsed());

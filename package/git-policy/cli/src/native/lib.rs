@@ -906,6 +906,12 @@ pub mod auto_push_record;
 /// Waiting for a lock a live process holds: a slow-wait notice naming the holder and a configurable backstop.
 pub mod live_lock;
 
+/// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
+pub mod wait_progress;
+
+/// A watcher for waits that block on a child process: notices at the cadence and the child stopped at the bound.
+pub mod child_watch;
+
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;
 

@@ -3472,3 +3472,17 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   and `cli-git-verify-merge-tests` (targets `~/temp/agent/target-merge-clippy`, `~/temp/agent/target-merge-tests`). When
   green: fast-forward the main checkout to the merge commit (`git merge --ff-only`, safe beside unrelated staged files), then
   merge the oxlint and scratch-location branches, one container gate, release, cleanup.
+
+## Issue 1811: waiting commits say what they wait for (branch `worktree-agent-a367b2612f424f68c`)
+
+- Done on the branch, not merged: every wait before the push stage prints a notice after a one second grace and at
+  `CLI_GIT_WAIT_NOTICE_SECONDS` (default 10); waits with a known holder print at once.
+  Sites: owner locks (repeat instead of one line), reservation (was silent for its whole 30 minute bound; now names the
+  holder and a queued commit's number), live and unproven `index.lock`, worktree-copy settlement, push lock, the Markdown
+  linter child, and (new `child_watch.rs`) the `git cat-file --batch` reader and the captured Git steps of a commit,
+  which now stop at `CLI_GIT_CHILD_WAIT_SECONDS` (default 1800).
+  Shared clock: `wait_progress.rs`; the bound refusals name the holder and every way forward.
+- Not bounded on purpose: Git commands that inherit the terminal (editor, hooks, user commands).
+  Not tested at binary level: the Git-step and object-reader bounds, because the wrapper always prefers
+  `/usr/bin/git` over a PATH stand-in; unit controls use stand-in programs.
+- Next: container gate and a release; read the crate version first.

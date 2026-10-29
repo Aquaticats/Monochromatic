@@ -420,12 +420,12 @@ fn the_evidence_line_names_the_lock_and_its_sources() {
 ///  a missing command is not invented.
 #[test]
 fn the_proven_holder_line_names_its_proof() {
-    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"));
+    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"), 1800);
     assert_eq!(
         descriptor,
-        "cli-git: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); cli-git waits until it releases the lock.\n"
+        "cli-git: waiting for PID 55 (git), which holds /repo/index.lock (proven by an open descriptor); giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.\n"
     );
-    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"));
+    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"), 1800);
     assert!(file.contains("waiting for PID 9, which holds"));
     assert!(file.contains("(proven by its Git lock PID file)"));
 }

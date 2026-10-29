@@ -228,6 +228,86 @@ fn a_reservation_held_past_the_limit_ends_the_wait() {
     remove(root.as_path());
 }
 
+/// A short cadence for the controls: a first notice after 60 ms and a repeat every 60 ms.
+const QUICK: Cadence = Cadence {
+    grace: Duration::from_millis(60),
+    interval: Duration::from_millis(60),
+};
+
+/// A transaction waiting behind a reservation holder prints a notice that names the holder, repeats it every interval,
+///  and ends at the limit with the holder named in the refusal.
+#[test]
+fn a_wait_behind_a_reservation_holder_names_it_and_repeats() {
+    let (root, registry) = registry_of("replay-reservation-notice-holder");
+    let first_directory: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
+    let second_directory: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
+    let mut holder: LandingReservation =
+        LandingReservation::open(registry.as_path(), first_directory.as_path(), FIRST, false);
+    assert!(holder.reserve(1).expect("granted"));
+    let waiter: LandingReservation =
+        LandingReservation::open(registry.as_path(), second_directory.as_path(), SECOND, false).with_cadence(QUICK);
+    let (failure, text) = finishes_in_time(move || {
+        let mut sink: Vec<u8> = Vec::new();
+        let failure: ReservationError = waiter
+            .await_slot_noticing(Duration::from_millis(500), &mut sink)
+            .expect_err("held past the limit");
+        return (failure, String::from_utf8(sink).expect("text"));
+    });
+    let holder_text: String = format!("still waiting for process {} to release the landing reservation", std::process::id());
+    assert!(text.matches(holder_text.as_str()).count() >= 3, "{text}");
+    assert!(text.contains("giving up after 0 seconds"), "{text}");
+    assert_eq!(text.matches("Hint:").count(), 1, "{text}");
+    assert!(matches!(failure, ReservationError::WaitTimedOut { holder_pid: Some(_), .. }), "{failure}");
+    holder.release().expect("released");
+    remove(root.as_path());
+}
+
+/// A transaction that waits for the grant behind an older request is told its number in line,
+///  and the notice says whose turn comes first.
+#[test]
+fn a_queued_requester_is_told_its_place_in_line() {
+    let (root, registry) = registry_of("replay-reservation-notice-place");
+    let older: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
+    std::fs::write(older.join(RESERVATION_REQUEST_FILENAME), reservation_request_bytes(1)).expect("older request");
+    let younger: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
+    let (failure, text, reservation) = finishes_in_time(move || {
+        let mut reservation: LandingReservation =
+            LandingReservation::open(registry.as_path(), younger.as_path(), SECOND, false).with_cadence(QUICK);
+        let mut sink: Vec<u8> = Vec::new();
+        let failure: ReservationError = reservation
+            .reserve_noticing(2, Duration::from_millis(500), &mut sink)
+            .expect_err("never first in line");
+        return (failure, String::from_utf8(sink).expect("text"), reservation);
+    });
+    assert!(text.matches("This is number 2 of 2 commits in line, so 1 will be served first.").count() >= 3, "{text}");
+    assert!(text.contains("still waiting for older commits to take the landing reservation"), "{text}");
+    assert!(matches!(failure, ReservationError::WaitTimedOut { holder_pid: None, .. }), "{failure}");
+    reservation.release().expect("released");
+    remove(root.as_path());
+}
+
+/// A wait that ends before the grace prints nothing.
+#[test]
+fn a_wait_that_ends_within_the_grace_prints_nothing() {
+    let (root, registry) = registry_of("replay-reservation-notice-quiet");
+    let first_directory: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
+    let second_directory: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
+    let mut holder: LandingReservation =
+        LandingReservation::open(registry.as_path(), first_directory.as_path(), FIRST, false);
+    assert!(holder.reserve(1).expect("granted"));
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(30));
+        return holder.release();
+    });
+    let waiter: LandingReservation = LandingReservation::open(registry.as_path(), second_directory.as_path(), SECOND, false)
+        .with_cadence(Cadence { grace: Duration::from_secs(30), interval: Duration::from_secs(30) });
+    let mut sink: Vec<u8> = Vec::new();
+    waiter.await_slot_noticing(Duration::from_secs(10), &mut sink).expect("released in time");
+    releaser.join().expect("releaser").expect("released");
+    assert!(sink.is_empty(), "{}", String::from_utf8_lossy(&sink));
+    remove(root.as_path());
+}
+
 /// A wait is over at its limit exactly, not before it.
 #[test]
 fn a_wait_is_over_at_its_limit_exactly() {
@@ -326,7 +406,9 @@ fn a_refused_wait_is_described_and_other_failures_keep_their_debug_text() {
     assert_eq!(
         ReservationError::WaitTimedOut { waited: Duration::from_millis(61_900), holder_pid: Some(77) }.to_string(),
         "gave up after waiting 61 seconds for the next landing slot because process 77 holds the reservation; \
-         CLI_GIT_LOCK_WAIT_SECONDS sets how long to wait, and nothing was taken from that process"
+         nothing was taken from that process. To go on, let it finish and run the command again, \
+         check with `ps` whether it is stuck and stop it if so, or raise the limit with \
+         CLI_GIT_LOCK_WAIT_SECONDS (seconds)"
     );
     assert!(
         ReservationError::WaitTimedOut { waited: Duration::from_secs(2), holder_pid: None }

@@ -490,6 +490,44 @@ fn a_waiting_commit_names_the_process_it_waits_for() {
     remove(&root);
 }
 
+/// A commit that keeps waiting behind a live push repeats its notice at the interval,
+///  each repeat naming the process, the branch, how long the wait has lasted and the limit.
+#[test]
+fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
+    let root = fixture("ap-waiting-repeat");
+    let (repo, _log) = repo_with_remote_and_pre_push(&root, 0);
+    let branch_output = git(&repo, &["symbolic-ref", "HEAD"]);
+    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_owned();
+    let mut git = push_git(&repo);
+    git.environment.push((
+        OsString::from(crate::bounded_push::LOCK_WAIT_VARIABLE),
+        OsString::from("3"),
+    ));
+    git.environment.push((
+        OsString::from(crate::wait_progress::NOTICE_INTERVAL_VARIABLE),
+        OsString::from("1"),
+    ));
+    let paths = crate::auto_push_single_flight::resolve_push_coordination_paths(&git, &branch)
+        .expect("paths");
+    let held = crate::owner_lock::acquire_owner_lock(
+        &paths.lock_directory,
+        crate::owner_lock::DEFAULT_POLL_DELAY,
+        &mut crate::owner_lock::SilentWait,
+    )
+    .expect("held");
+    let mut err: Vec<u8> = Vec::new();
+    let _result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
+    let shown = String::from_utf8_lossy(&err).into_owned();
+    let holder = format!("waiting for process {} to finish pushing {branch}", std::process::id());
+    let lines: Vec<&str> = shown.lines().filter(|line| { return line.contains(holder.as_str()); }).collect();
+    assert!(lines.len() >= 3, "the start and two repeats: {shown}");
+    assert!(!lines[0].contains("seconds so far"), "{shown}");
+    assert!(lines[1].contains("(1 seconds so far); giving up after 3 seconds"), "{shown}");
+    assert!(lines[2].contains("(2 seconds so far); giving up after 3 seconds"), "{shown}");
+    drop(held);
+    remove(&root);
+}
+
 /// A first push, one with no upstream yet, is never reconciled with a merge, even when the push destination resolves.
 #[test]
 fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {

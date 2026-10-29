@@ -30,7 +30,7 @@ use crate::bounded_child::{ChildFailure, ChildLimits};
 use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig};
 use crate::markdown_linter_output::{LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{executable, fixture, remove};
+use crate::test_support::{SharedSink, executable, fixture, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -305,7 +305,9 @@ fn each_failure_comes_back_with_its_reason() {
     assert_eq!(
         lint(&mut slow, root.as_path(), b"a.md", b"a\n"),
         Err(String::from(
-            "monochromatic-lint did not finish within 300 milliseconds and was stopped"
+            "monochromatic-lint did not finish within 300 milliseconds and was stopped; run the command again, \
+             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+             to off to skip the check"
         ))
     );
     let flood: PathBuf = stand_in(&root.join("flood"), "exec head -c 1000 /dev/zero");
@@ -383,7 +385,9 @@ fn child_failures_read_as_sentences() {
         ),
         (
             ChildFailure::TimedOut(Duration::from_secs(60)),
-            "monochromatic-lint did not finish within 60000 milliseconds and was stopped",
+            "monochromatic-lint did not finish within 60000 milliseconds and was stopped; run the command again, \
+             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+             to off to skip the check",
         ),
         (
             ChildFailure::TooLarge {
@@ -522,5 +526,30 @@ fn the_real_linter_meets_the_contract() {
             remaining: Vec::new(),
         })
     );
+    remove(root.as_path());
+}
+
+/// A linter run that takes long prints notices that name the linter and the file it checks, and still returns its result.
+#[test]
+fn a_linter_run_that_takes_long_names_the_file_it_checks() {
+    let root: PathBuf = fixture("linter-notices");
+    let slow: PathBuf = stand_in(&root.join("slow"), "sleep 0.5\ncat");
+    let sink: SharedSink = SharedSink::default();
+    let mut linter: ProcessLinter = process_linter(environment(slow.as_path(), &[]).as_slice(), LINTER_LIMITS, root.clone())
+        .with_notices(
+            crate::wait_progress::Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) },
+            Box::new(sink.clone()),
+        );
+    let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"docs/a.md", b"a\n");
+    assert!(run.is_ok(), "{run:?}");
+    let text: String = sink.text();
+    assert!(text.lines().count() >= 3, "{text}");
+    for line in text.lines() {
+        assert!(
+            line.starts_with("cli-git: still waiting for monochromatic-lint to check docs/a.md (process "),
+            "{text}"
+        );
+        assert!(line.contains("stopping it after 60 seconds"), "{text}");
+    }
     remove(root.as_path());
 }
