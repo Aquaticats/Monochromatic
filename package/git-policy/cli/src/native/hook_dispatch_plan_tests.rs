@@ -197,6 +197,69 @@ fn plans_read_real_git_configuration() {
     remove(root.as_path());
 }
 
+/// The inputs of a plan that only the configuration decides.
+fn plan_inputs<'a>(context: &'a GitContext, repository_root: &'a Path) -> HookPlanInputs<'a> {
+    return HookPlanInputs {
+        context,
+        cwd: repository_root,
+        global_arguments: &[],
+        common_directory: repository_root,
+        worktree_root: repository_root,
+        lease: "lease",
+        concurrent_commits: false,
+        inherited_lease_valid: false,
+        environment: &[],
+    };
+}
+
+/// The one batched read agrees with Git's own `--get` for every spelling of a switch:
+///  `False`, `no` and `0` disable, a valueless key and `true` enable,
+///  and the last of repeated values decides.
+#[test]
+fn event_switches_follow_git_spellings_and_the_last_value() {
+    let root: PathBuf = fixture("hook-plan-spellings");
+    let repository_root: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(
+        repository_root.join(".git").join("config"),
+        [
+            "[hook \"pre-commit\"]\n\tenabled = False\n",
+            "[hook \"commit-msg\"]\n\tenabled = no\n\tenabled = true\n",
+            "[hook \"post-commit\"]\n\tenabled = 0\n",
+            "[hook \"prepare-commit-msg\"]\n\tenabled\n",
+        ]
+        .concat(),
+    )
+    .expect("config");
+    let context: GitContext = git_context();
+    let plan: HookDispatchPlan =
+        compute_hook_dispatch_plan(&plan_inputs(&context, repository_root.as_path())).expect("plan");
+    assert_eq!(
+        plan.disabled_events,
+        vec![String::from("pre-commit"), String::from("post-commit")]
+    );
+    remove(root.as_path());
+}
+
+/// A repository with no switch disables nothing, and an unreadable switch stops planning with Git's message.
+#[test]
+fn missing_switches_disable_nothing_and_a_bad_switch_stops_planning() {
+    let root: PathBuf = fixture("hook-plan-switch-errors");
+    let repository_root: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let plan: HookDispatchPlan =
+        compute_hook_dispatch_plan(&plan_inputs(&context, repository_root.as_path())).expect("plan");
+    assert_eq!(plan.disabled_events, Vec::<String>::new());
+    git(repository_root.as_path(), &["config", "hook.post-commit.enabled", "false"]);
+    git(repository_root.as_path(), &["config", "hook.pre-commit.enabled", "maybe"]);
+    let Err(HookPlanError::ConfigRead(message)) =
+        compute_hook_dispatch_plan(&plan_inputs(&context, repository_root.as_path()))
+    else {
+        panic!("a bad switch must stop planning");
+    };
+    assert!(message.contains("bad boolean config value 'maybe'"), "{message}");
+    remove(root.as_path());
+}
+
 /// A relative `core.hooksPath` resolves under the worktree root, and an inherited valid lease skips the lock.
 #[test]
 fn plans_resolve_relative_hooks_paths_and_inherited_leases() {
