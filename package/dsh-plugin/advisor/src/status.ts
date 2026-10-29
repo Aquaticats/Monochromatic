@@ -234,14 +234,8 @@ export async function buildDshAdvisorStatus(
       .length
       === 0
       ? 'none'
-      : scope
-        .entries
-        .map(function mapEntry(
-          entry: ForeignBorrowed<ScopedAdvisorModel>,
-        ) {
-        return entry.canonicalSlug;
-      },)
-        .join(', ',)}`,
+      : String(scope.entries
+        .length,)}`,
     `Advisor request budget: ${
       String(options.config
         .maxAdvisorOutputTokens,)

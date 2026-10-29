@@ -364,14 +364,21 @@ Parsing uses `invocation.rawInput` trimmed (pi passes `args?.trim()`):
     Overlap can bill both requests; the set of completed reviewers is nondeterministic
     Credit exhaustion excludes that provider for the current call only;
     cancellation does not guarantee complete billing data
-    Scoped models: <canonical slugs|none>
-    Eligible Advisor models (>=<maxAdvisorOutputTokens> output tokens): <canonical slugs|none>
+    Scoped models: <count|none>
+    Advisor request budget: <maxAdvisorOutputTokens> output tokens, clamped to each route's advertised maximum
     Default model: <canonical slug|none>
     Default ranking: <ranking reason|none>
     Config: global=<path|absent> project=<path|absent>
     Context budget: <N> chars effective for default model, cap=<N chars|none>, <maxAdvisorOutputTokens> output tokens
     Prior Advisor results: included|omitted
     ```
+
+    The `Scoped models` line reports a count instead of a slug list,
+    so `/advisor status` never enumerates every scoped model.
+    The former `Eligible Advisor models (>=<maxAdvisorOutputTokens> output tokens)` line is gone:
+    commit `91edd0b719` retired the output-eligibility gate,
+    so every scoped model stays selectable
+    and the request budget line states the clamping rule.
 
     DSH adaptations inside those lines:
     `Scope source` reports the `llm.listProviders` catalog,
