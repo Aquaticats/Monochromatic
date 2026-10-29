@@ -566,6 +566,77 @@ and before marking a draft fileable.
    and tell the filer to check the live repository again on the day of
    posting.
 
+## Readiness check before anyone files
+
+Run this whenever the user asks whether a draft is ready,
+ and run it before marking any draft fileable.
+ Record each item with the date,
+ the commit or release it was checked against,
+ and what was observed.
+ An item that was not run is written as not run,
+ never as passed.
+
+1. Reproduce on the latest release and on every other maintained major line.
+    Read the release list,
+   not memory.
+    A bug on one line may be fixed or absent on another,
+   and a project that fixes bugs "in every affected version" needs the
+   affected versions named.
+    State which lines were tested and which were not.
+2. Read prior art in the code the bug touches.
+    Search merged and closed pull requests and issues for the symbols,
+   file names and error text involved,
+   not only the symptom words,
+   and read their descriptions in full.
+    A maintainer's stated reason for the current behavior changes the
+   framing:
+   the draft cites it and argues for narrowing it,
+   and does not present a documented decision as an oversight.
+3. Fit the target's intake.
+    Read its issue forms,
+   template configuration,
+   pull request template and contribution policy.
+    Note what is required,
+   which fields only the poster can answer
+   (a runtime version the reproduction never recorded is one),
+   whether blank issues are off,
+   and what the tracker says issues are for.
+    Never invent an answer for a field.
+    List those fields outside the fenced block.
+4. Read what automation does to a new filing:
+    triage bots,
+   auto-labelers,
+   auto-close and trust-list workflows.
+    Record what they do and what they ask the poster.
+5. Re-run the duplicate search and the trust-system search on the day,
+   with the queries written down,
+   and confirm the cited code still exists on the default branch.
+6. Run the draft's reproduction exactly as written,
+   with its own file layout and commands,
+   and record the output.
+    A similar layout run earlier does not count.
+7. Make the reproduction runnable by others.
+    "Reproduction" means a clean machine can run it and show the failure,
+   so a minimal repository with a CI workflow is the artifact,
+   not a README alone.
+    The workflow pins the tool to the tested version and verifies a
+   checksum,
+   runs the steps,
+   and fails on the step that asserts the expected behavior,
+   so a red run means the bug reproduced.
+    Link at least two runs,
+   read each step's conclusion and the log lines that show the reason,
+   and confirm the failure is on the asserting step and not the setup.
+    Create the repository private,
+   and make it public only when the user says so,
+   because the repository carries the poster's name.
+8. State the verdict with its evidence.
+    Say "not ready" and list what is missing,
+   or say what the conditions for a recommendation are and that each was met,
+   with the risk to the poster written next to it.
+    Put any choice the user has to make in a question tool,
+   not in prose.
+
 ## Upstream filing artifact format
 
 Keep the draft whatever the decision:
@@ -605,6 +676,15 @@ nothing to add),
 - If a filing artifact exists, the doc states the risk to the poster
   (see "Risk to the poster before any filing"),
    and any recommendation to file meets the conditions listed there.
+- The readiness check ran,
+   each item is recorded with a date and what was observed,
+   and every item that did not run says so.
+- The draft's own reproduction was run exactly as written,
+   and a clean-runner workflow reproduces it.
+- No claim is wider than what was read or run:
+   "only",
+   "never" and "always" appear only where the whole space was checked,
+   and two observations from different runs are not joined into one.
 - The harness reproduces the failure when run as written.
 - Every workaround names a tradeoff.
 - The 6-constraint subsection is present even when you decide to file,
