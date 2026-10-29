@@ -118,13 +118,48 @@ User decisions taken during execution
    until then 0.2.12 still lists the two paths,
    which is harmless.
 
+## Unit tests after the moves
+
+`test:unit` for every moved package
+ (`~/temp/agent/package-category-elimination/verify-tests.summary.txt`):
+ 60 passed,
+ 10 failed on the first run.
+- Stale pre-move `dist/` (tests import built output),
+   passing after a rebuild:
+   `env-local-json/core`,
+   `test-harness/core`,
+   `dependency-catalog/cli-cube`,
+   `monorepo-task/core-exec`,
+   `upstream-fork/matcher.fuzz` (after building `upstream-fork/matcher`).
+- Move-caused,
+   fixed:
+   `fs-path/core` root-discovery suffix,
+   and `test-harness/core-diagnostic` (`96886d4f54`:
+    the frame filter matched installed harness copies by bare old names such as `module-test/dist/`,
+    which carry no npm scope,
+    so the move script missed them).
+- Not from the move,
+   left open:
+   `upstream-fork/{conf,p-map,p-memoize}.fuzz` parity checks fail on the pre-move commit `113633b259^` too
+   (same p-memoize message,
+    "The cache Map can't be cleared");
+   `file-enforcer/core` `generate.unit.test.ts` expects `nightly-2026-10-28`,
+    which the toolchain update replaced.
+
 ## Open follow-ups
 
 - npm:
-   `module-logger` and `module-fs-path` (and the published shims) were renamed;
-   the user first-publishes the new names through `npm-publish.yml`
-   (input is now a package path such as `logger/core`),
-   then `npm deprecate` the old ones.
+   `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published
+   (the user ran `~/temp/agent/npm-first-publish/publish-renamed.sh`;
+    fs-path-core went through npm staged publishing,
+    shown as a `0.0.0-stage` placeholder until approved).
+  Its stage 3 failed because `npm trust` also needs `--allow-publish`.
+  Still to run:
+   `bash ~/temp/agent/npm-first-publish/finish-renamed.sh`
+   (trusted publisher for both,
+    `npm deprecate` of `module-logger` and `module-fs-path`,
+    `npm logout`;
+    the npm login token stays on disk until it runs).
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,
