@@ -395,7 +395,7 @@ export function pMapIterable<Element, NewElement>(
             // and a source like a queue may never answer them, so give their
             // slots back now instead of waiting on them.
             for (const unfilledIndex of unfilledIndexes)
-// mutation-test-disable-next-line equality -- the line above this loop already deleted `position` from `unfilledIndexes`, so no entry equals it
+// mutation-test-disable-next-line equality:>= -- the line above this loop already deleted `position` from `unfilledIndexes`, so no entry equals it
               if (unfilledIndex > position) {
                 unfilledIndexes.delete(unfilledIndex,);
                 fillSlot({ kind: 'done', },);
@@ -417,7 +417,7 @@ export function pMapIterable<Element, NewElement>(
           // going to ask for.
           if (state.isDone
             || state.isIterableDone
-// mutation-test-disable-next-line equality -- `stopIndex` is the position of a pull that already started, and `index` is incremented when a pull starts, so a finite `stopIndex` is always below `index`
+// mutation-test-disable-next-line equality:>= -- `stopIndex` is the position of a pull that already started, and `index` is incremented when a pull starts, so a finite `stopIndex` is always below `index`
             || (state.index > state.stopIndex))
             return;
 
@@ -573,7 +573,7 @@ export function pMapIterable<Element, NewElement>(
                   state.stopIndex,
                   currentIndex,
                 );
-// mutation-test-disable-next-line equality -- a pull that failed never reported `done`, so its own position cannot equal `doneIndex`
+// mutation-test-disable-next-line equality:<= -- a pull that failed never reported `done`, so its own position cannot equal `doneIndex`
               else if (currentIndex < state.doneIndex)
                 state.isDone = true;
 
