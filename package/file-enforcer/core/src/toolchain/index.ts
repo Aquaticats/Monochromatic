@@ -16,6 +16,7 @@ export {
 } from './exec.ts';
 export {
   rebuildExposure,
+  runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
   writeToolEnvFile,
