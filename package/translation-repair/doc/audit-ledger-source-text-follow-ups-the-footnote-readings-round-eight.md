@@ -21,8 +21,40 @@ whose sections "The residual classes" and "Stated limits after the re-check" nam
 
 ## Round 8 at a glance
 
-Every item had a red case that failed on `fd7f44c844` before its fix,
-and each fix is one commit after its red commit.
+Corrected on 2026-10-29 (UTC).
+This record first said that every item had a red case that failed on `fd7f44c844` before its fix,
+and that each fix is one commit after its red commit.
+What holds is narrower.
+Each red commit was made before its fix,
+and its message names the commit it failed on:
+`fd7f44c844` for `487cf98370` alone,
+and for the others the head just before them
+(`ba5a5b569c` on `2e302754be`,
+`08f93b475c` on `7cce751d38`,
+`520f4426dc` on `18924a613a`,
+`e9423b3c5a` on `91ca64ab14`,
+`91ca64ab14` on `646ccebe81`,
+`65e059ba9e` on `26d9014cca`
+and `86f3e3e72d` on `e9d5bf907f`).
+These items have no red case that failed on `fd7f44c844`:
+- B972,
+  the third pair:
+  the two texts of `a9b77b764e` read the same on `fd7f44c844`,
+  and its red was made by a temporary revert of the fix file (see B972).
+- B975:
+  the 29 texts of `78fc0af4cf` read the same on `fd7f44c844` and differ at `31f872e176`,
+  and the fix is four commits after one red commit;
+  `12a2a3ca39` then changed what the cases ask,
+  and 20 of the 29 failed at that commit.
+- B976:
+  the three cases of `db45d9f487` pass,
+  and the evidence is a mutant of the source that made all three fail.
+- B977:
+  the growth case of `3d49942409` was not red first (see B977).
+- B979:
+  the own tests of `3a7faed7af` for the new modules pass,
+  and have no red commit.
+
 The commits,
 in the order they were made,
 by item:
@@ -67,6 +99,13 @@ by item:
   the scans and the own tests:
   `3a7faed7af`.
 
+Three corrective commit comments were posted on GitHub on 2026-10-29 (UTC),
+as the lead reported;
+they are not in the repository.
+Comment 207181345 is on `78fc0af4cf` and corrects its red-first claim.
+Comment 207181346 is on `12a2a3ca39` and corrects its commit type and an unnamed change to the label-line check.
+Comment 207181348 is on `3a7faed7af` and corrects its commit type and ten unnamed exports.
+
 The search table (132260 texts) went from 125025 that read the same,
 1748 that differ,
 184 undecided and 5303 not compared,
@@ -85,10 +124,20 @@ and the page shows the address with its brackets where the source shows it alone
 The encoder reads the alternative text between the brackets of the image as inline content,
 writes the angle autolink and the code span as their own text,
 and reads an alternative text that runs over several lines of a container as it stands.
-The module is `source-ships-autolink.ts`,
+The module is `source-ships-image-alt.ts`,
 and the cases are in `source-ships-image-alt.unit.test.ts`
 (red `487cf98370` for the autolink and the code span,
 red `ba5a5b569c` for several lines in a container).
+Corrected on 2026-10-29 (UTC).
+This record first named `source-ships-autolink.ts` as the module.
+That file was added by `26d9014cca` (B973),
+and neither fix commit of B970 (`2e302754be`,
+`7cce751d38`) changes it.
+Both change `source-ships-image-alt.ts`,
+which `2e302754be` adds,
+and both also change `source-ships-encoding.ts`;
+`2e302754be` changes more files than these two,
+among them `source-ships-spans.ts` and test files.
 
 In the search there were 1295 differing texts of this class at `fd7f44c844` and none at the head.
 The pool text `![<https://example.net/a>](u.png)` at line 190 of `source-live-sample-pool.test-fixture.ts`
@@ -210,6 +259,10 @@ The causes and their fixes:
   (`cutAtTable` with `separatingEdits`,
   `tableRightAfter`) (`6d6e9ee363`).
   The helpers of the nested reading moved to `source-ships-nested-text.ts`.
+
+The messages of `6d6e9ee363` and `4a70e75162` say that their causes are recorded in the ledger.
+This file first exists in `63c198b42e`,
+so the causes of those two commits were written after the commits that cite them.
 
 After the fixes 25 of the 29 minimal texts read the same.
 Four stay limits:
@@ -397,7 +450,7 @@ On the cache versions,
 `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' fd7f44c844..HEAD` prints nothing,
 and its control on `c265e8df95~1..c265e8df95` prints `c265e8df95`.
 
-The slips of the round:
+The slips of the round (listed in M304):
 edits of repo files through `node --eval` and `sed`,
 one call that chained with `;`,
 large outputs read in full,
