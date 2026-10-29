@@ -396,6 +396,50 @@ no need for my review."
   and replaces the `.data.ts`.
 - The old file is backed up under `${HOME}/temp/agent` first.
 
+### Skill mirror owns its targets
+
+Asked 2026-10-29 how the mirror of `.agents/skills` into `.claude/skills` and `.factory/skills` decides deletions;
+the user chose "Mirror owns the targets".
+
+- Both targets are gitignored (`.gitignore:125-126`)
+  and held only the 10 mirrored skills plus `.agents-mirror-manifest.json` when asked.
+- Target contents equal `.agents/skills`;
+  any other entry is drift,
+  which `check` lists and `write` removes.
+- The manifest files go away.
+
+### Adopted defaults put to the user for confirmation
+
+Listed 2026-10-29 in the confirmation question;
+the user asked for an outside review before confirming.
+
+- CLI:
+  `file-enforcer write | check | watch`,
+  plus `user write | user check` for the per-user config;
+  global `--config` defaulting to `file-enforcer.config.jsonc` at the repo root;
+  unknown flags rejected.
+- Exit codes:
+  0 clean,
+  1 drift or rule failure,
+  2 bad command line or config (`package/mpm-shadow/cli/src/constants.rs:31-46` precedent).
+- Writes:
+  temp file then rename,
+  only when content differs;
+  no lock and no cache.
+- `watch`:
+  `notify` with a debouncer (both in `rust-catalog.toml`),
+  rerunning the rules whose declared inputs changed and reloading the config when it changes.
+- Distribution:
+  published to crates.io and installed by `mpm-shadow sync`,
+  like `monochromatic-lint` and `mpm-shadow`.
+- New dependencies each get a choosing-technology vet first:
+  `toml_edit`,
+  `browserslist-rs`,
+  `schemars`,
+  and an XML editor for the JetBrains rule.
+- At acceptance,
+  amend `doc/decision/monorepo-manager-all-rust.md` and `doc/decision/mpm-toolchain-adoption.md`.
+
 ### Adopted from the request and repository rules
 
 - Rust is approved for this tool by the request itself;
