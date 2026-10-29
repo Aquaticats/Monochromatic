@@ -41,6 +41,18 @@ Kernel documentation says `io.max` limits are enforced by blk-throttle on all de
 `io.weight` needs iocost or BFQ, and `ionice` priorities are honored only by BFQ and mq-deadline
 (docs.kernel.org/block/ioprio.html), so neither helps under `kyber` without a scheduler change that needs root.
 
+## Commits are a second I/O consumer
+
+While this note was committed, `ps` showed three concurrent shadow-repository `git commit` processes
+(two of them duplicates started by this session while the first was slow, one from another session).
+Each was in uninterruptible disk wait (`folio_wait_bit_common`) with a `git-lfs filter-process` child;
+one had read 340 MB (`rchar`) and 31 MB from disk (`read_bytes`) after 16 seconds.
+`package/git-policy/cli/SPEC.md` ("Private preparation") says the native commit runs on a complete private index
+with the whole worktree as `--work-tree`, and the repository tracks 19,252 files.
+The inference is that each commit stats most tracked files on a disk that delivers 20 to 100 cold reads per second;
+the number of files git actually stats during the commit is unmeasured (`GIT_TRACE2_PERF` on a shadow commit would show it).
+Throttling agent search alone leaves this load; the cgroup cap would need to cover the commit gate too.
+
 ## Proposals
 
 Ranking: A > B > C > D.
