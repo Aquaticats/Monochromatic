@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -110,7 +110,7 @@ async function makeRepo(catalogText: string,): Promise<AsyncDisposable & { reado
   /**
    Repository root.
    */
-  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'rust-catalog-update-',),);
   await mkdir(join(root, 'package/cli/a',), { recursive: true, },);
   await writeFile(join(root, 'rust-catalog.toml',), catalogText,);
   await writeFile(join(root, 'package/cli/a/Cargo.toml',), '[package]\nname = "a"\nversion = "0.1.0"\n\n[workspace]\n',);

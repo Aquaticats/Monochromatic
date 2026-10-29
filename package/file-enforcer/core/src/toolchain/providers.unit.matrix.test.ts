@@ -26,7 +26,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createServer, type Server, } from 'node:http';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 import {
   describe,
@@ -73,7 +73,7 @@ function makeFixture(): Fixture {
    Disposable fixture root, used as the fixture home.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-provider-',
   ),);
   /**

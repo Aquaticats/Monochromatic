@@ -12,7 +12,7 @@ const REMOTE_HOOK_MARKER: &str = "marker-from-receive-hook";
 
 /// Environment of every Git child in these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
-    return [
+    let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
         ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
@@ -26,6 +26,9 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         return (OsString::from(name), OsString::from(value));
     })
     .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
+    return environment;
 }
 
 /// Coordinator Git for a repository at `root`.
@@ -484,6 +487,53 @@ fn a_waiting_commit_names_the_process_it_waits_for() {
     assert!(shown.contains("gave up after waiting 1 seconds"), "{shown}");
     assert!(shown.contains(PUSH_FAILED_NOTE), "{shown}");
     drop(held);
+    remove(&root);
+}
+
+/// A commit that keeps waiting behind a live push repeats its notice at the interval,
+///  each repeat naming the process, the branch, how long the wait has lasted and the limit.
+///  The third notice makes the pusher let go, so the wait ends on that event and exactly three notices are out,
+///  however slowly the host runs the waiting commit.
+#[test]
+fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
+    let root = fixture("ap-waiting-repeat");
+    let (repo, _log) = repo_with_remote_and_pre_push(&root, 0);
+    let branch_output = git(&repo, &["symbolic-ref", "HEAD"]);
+    let branch = String::from_utf8_lossy(&branch_output.stdout).trim().to_owned();
+    let mut git = push_git(&repo);
+    git.environment.push((
+        OsString::from(crate::bounded_push::LOCK_WAIT_VARIABLE),
+        OsString::from("120"),
+    ));
+    git.environment.push((
+        OsString::from(crate::wait_progress::NOTICE_INTERVAL_VARIABLE),
+        OsString::from("1"),
+    ));
+    let paths = crate::auto_push_single_flight::resolve_push_coordination_paths(&git, &branch)
+        .expect("paths");
+    let held = crate::owner_lock::acquire_owner_lock(
+        &paths.lock_directory,
+        crate::owner_lock::DEFAULT_POLL_DELAY,
+        &mut crate::owner_lock::SilentWait,
+    )
+    .expect("held");
+    let shared = crate::test_support::SharedSink::default();
+    let mut err = crate::test_support::ActionSink::new(&shared, 3, move || { drop(held); });
+    let _result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
+    let shown = shared.text();
+    let holder = format!("waiting for process {} to finish pushing {branch}", std::process::id());
+    let lines: Vec<&str> = shown.lines().filter(|line| { return line.contains(holder.as_str()); }).collect();
+    // The wait ends on the third notice, but the lock is taken one attempt later, so a late tick may add a fourth.
+    assert!(lines.len() >= 3, "the start and two repeats: {shown}");
+    assert!(!lines[0].contains("seconds so far"), "{shown}");
+    // The repeats name the time waited, which only grows; its exact value depends on the host's speed.
+    let waited = |line: &str| -> u64 {
+        let tail = line.split('(').nth(1).expect("the time waited");
+        return tail.split(' ').next().expect("a number").parse().expect("whole seconds");
+    };
+    assert!(lines[1].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
+    assert!(lines[2].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
+    assert!(waited(lines[1]) >= 1 && waited(lines[2]) >= waited(lines[1]), "{shown}");
     remove(&root);
 }
 

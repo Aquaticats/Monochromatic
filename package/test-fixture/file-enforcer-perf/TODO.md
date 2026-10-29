@@ -43,9 +43,6 @@
 
 - The Containerfile installs sysbench via pacman on every build (cache miss).
   Pre-bake a base image with sysbench to speed up cold builds.
-- No pinned version for Node in the container.
-  The CachyOS `nodejs` package can change benchmark behavior across base-image updates.
-  Pin to a specific Node version for reproducibility.
 - The container mounts the entire monorepo as a volume.
   For more isolated benchmarks,
    copy only the necessary packages into the container.

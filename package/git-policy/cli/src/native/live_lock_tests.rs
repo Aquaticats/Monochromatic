@@ -2,8 +2,9 @@
 //!  and the notice a slow wait prints.
 
 use super::*;
-use crate::owner_lock::{OwnerLock, SilentWait, acquire_owner_lock};
+use crate::owner_lock::{OwnerLock, OwnerLockError, SilentWait, acquire_owner_lock, acquire_within};
 use crate::test_support::{fixture, remove};
+use crate::wait_progress::{Cadence, QueuePlace};
 use std::ffi::OsString;
 
 /// The limit follows the variable and falls back to the default for anything unusable.
@@ -37,13 +38,15 @@ fn a_non_text_limit_falls_back_to_the_default() {
 ///  and says where to change it.
 #[test]
 fn the_notice_names_the_holder_the_lock_and_both_durations() {
-    let line: String = slow_wait_line(
-        "the hook lock",
-        Path::new("/repo/.git/cli-git/hook.lock"),
-        Some(4242),
-        Duration::from_millis(5900),
-        Duration::from_secs(1800),
-    );
+    let line: String = slow_wait_line(&LockWaitFacts {
+        subject: "the hook lock",
+        lock_directory: Path::new("/repo/.git/cli-git/hook.lock"),
+        holder_pid: Some(4242),
+        waited: Duration::from_millis(5900),
+        limit: Duration::from_secs(1800),
+        place: None,
+        repeat: false,
+    });
     assert!(
         line.starts_with(
             "cli-git: still waiting for process 4242 to release the hook lock (/repo/.git/cli-git/hook.lock) \
@@ -53,16 +56,39 @@ fn the_notice_names_the_holder_the_lock_and_both_durations() {
         "{line}"
     );
     assert!(line.contains(" Hint: if you started another Git command"), "{line}");
-    let anonymous: String = slow_wait_line(
-        "the hook lock",
-        Path::new("/x"),
-        None,
-        Duration::from_secs(6),
-        Duration::from_secs(9),
-    );
+    let anonymous: String = slow_wait_line(&LockWaitFacts {
+        subject: "the hook lock",
+        lock_directory: Path::new("/x"),
+        holder_pid: None,
+        waited: Duration::from_secs(6),
+        limit: Duration::from_secs(9),
+        place: None,
+        repeat: false,
+    });
     assert!(
         anonymous.starts_with("cli-git: still waiting for another cli-git process to release"),
         "{anonymous}"
+    );
+}
+
+/// A repeat drops the hint, and a commit in line is told its number.
+#[test]
+fn a_repeat_drops_the_hint_and_a_queued_commit_learns_its_place() {
+    let facts: LockWaitFacts<'_> = LockWaitFacts {
+        subject: "the landing reservation",
+        lock_directory: Path::new("/repo/.git/cli-git-transactions/reservation.lock"),
+        holder_pid: Some(77),
+        waited: Duration::from_secs(25),
+        limit: Duration::from_secs(1800),
+        place: Some(QueuePlace { position: 2, waiting: 3 }),
+        repeat: true,
+    };
+    assert_eq!(
+        slow_wait_line(&facts),
+        "cli-git: still waiting for process 77 to release the landing reservation \
+         (/repo/.git/cli-git-transactions/reservation.lock) after 25 seconds; giving up after 1800 seconds \
+         (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place. \
+         This is number 2 of 3 commits in line, so 1 will be served first."
     );
 }
 
@@ -92,6 +118,71 @@ fn a_slow_wait_prints_one_line_naming_the_holder() {
     );
     assert!(text.contains("after 7 seconds"), "{text}");
     assert!(text.contains("giving up after 60 seconds"), "{text}");
+    drop(held);
+    remove(&root);
+}
+
+/// A notice that is told again prints a line each time, and only the first carries the hint.
+#[test]
+fn a_notice_told_again_prints_a_line_each_time_with_the_hint_once() {
+    let root: PathBuf = fixture("live-lock-notice-repeat");
+    let lock_directory: PathBuf = root.join("hook.lock");
+    let held: OwnerLock =
+        acquire_owner_lock(&lock_directory, DEFAULT_POLL_DELAY, &mut SilentWait).expect("held");
+    let mut sink: Vec<u8> = Vec::new();
+    let mut notice: HolderNotice<&mut Vec<u8>> = HolderNotice::new(
+        lock_directory.as_path(),
+        "the hook lock",
+        Duration::from_secs(60),
+        &mut sink,
+    );
+    notice.slow(Duration::from_secs(1));
+    notice.slow(Duration::from_secs(11));
+    notice.slow(Duration::from_secs(21));
+    drop(notice);
+    let text: String = String::from_utf8(sink).expect("text");
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    assert!(lines[0].contains("after 1 seconds") && lines[0].contains("Hint:"), "{text}");
+    assert!(lines[1].contains("after 11 seconds") && !lines[1].contains("Hint:"), "{text}");
+    assert!(lines[2].contains("after 21 seconds") && !lines[2].contains("Hint:"), "{text}");
+    drop(held);
+    remove(&root);
+}
+
+/// A wait behind a live holder prints the holder's line at the grace and at every interval,
+///  then gives up at its limit with a refusal that names the holder and every way forward.
+#[test]
+fn a_wait_behind_a_live_holder_repeats_its_line_and_ends_at_the_limit() {
+    let root: PathBuf = fixture("live-lock-bound");
+    let lock_directory: PathBuf = root.join("landing.lock");
+    let held: OwnerLock =
+        acquire_owner_lock(&lock_directory, DEFAULT_POLL_DELAY, &mut SilentWait).expect("held");
+    let mut sink: Vec<u8> = Vec::new();
+    let refusal: OwnerLockError = {
+        let mut notice: HolderNotice<&mut Vec<u8>> = HolderNotice::new(
+            lock_directory.as_path(),
+            "the landing lock",
+            Duration::from_millis(900),
+            &mut sink,
+        );
+        acquire_within(
+            lock_directory.as_path(),
+            Duration::from_millis(5),
+            &mut notice,
+            Duration::from_millis(900),
+            Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(200) },
+        )
+        .expect_err("a live holder outlasts the limit")
+    };
+    let text: String = String::from_utf8(sink).expect("text");
+    let holder: String = format!("waiting for process {} to release the landing lock", std::process::id());
+    assert!(text.matches(holder.as_str()).count() >= 3, "{text}");
+    let reason: String = refusal.to_string();
+    assert!(reason.contains(format!("process {} still holds", std::process::id()).as_str()), "{reason}");
+    assert!(reason.contains("let that process finish and run the command again"), "{reason}");
+    assert!(reason.contains("check with `ps`"), "{reason}");
+    assert!(reason.contains("CLI_GIT_LOCK_WAIT_SECONDS"), "{reason}");
     drop(held);
     remove(&root);
 }

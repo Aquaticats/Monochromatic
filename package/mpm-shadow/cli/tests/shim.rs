@@ -88,8 +88,8 @@ fn write_stale_copies(root: &Path) {
     fs::write(cache.join("monochromatic-lint-0.1.0.crate"), "").expect("write the old archive");
     fs::write(cache.join("monochromatic-lint-0.4.0.crate"), "").expect("write the current archive");
     fs::write(
-        cargo.join(".crates2.json"),
-        r#"{"installs":{"monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)":{}}}"#,
+        cargo.join(".crates.toml"),
+        "[v1]\n\"monochromatic-lint 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)\" = [\"monochromatic-lint\"]\n",
     )
     .expect("write the install record");
 }

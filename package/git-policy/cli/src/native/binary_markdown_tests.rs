@@ -395,3 +395,104 @@ fn the_post_commit_stage_finds_the_linter_on_the_invocations_path() {
     assert_eq!(runs.lines().last(), Some(landed.as_str()), "runs: {runs}");
     remove(&fixture);
 }
+
+/// The per-user scratch directory relative to `HOME`, where the linter's configuration lives.
+const SCRATCH_RELATIVE: &str = ".local/state/cli-git/scratch";
+
+/// Markdown work needs no system temporary directory: with `TMPDIR` naming a path that does not exist, an add and
+/// a direct check still run the linter, the linter's configuration file exists in the per-user scratch directory
+/// while the linter runs, and nothing is left there afterwards.
+#[test]
+fn the_linter_configuration_lives_in_the_per_user_scratch_directory() {
+    let fixture: Fixture = fixture("markdown-scratch-location");
+    let log: PathBuf = fixture.root.join("linter-config.log");
+    let program: PathBuf = fixture.root.join("recording-linter");
+    executable(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{log}'\nif [ -f \"${{1#--config=}}\" ]; then echo present >> '{log}'; \
+             else echo missing >> '{log}'; fi\ncat\n",
+            log = log.display()
+        )
+        .as_bytes(),
+    );
+    let path: OsString = path_with_linter(&fixture, program.as_path());
+    let repo: PathBuf = lfs_repository(&fixture, "\"warn\"");
+    std::fs::write(repo.join("a.md"), b"# T\n\nplain\n").expect("markdown");
+    let unusable: PathBuf = fixture.root.join("no-such-tmpdir");
+    let added: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
+            .current_dir(&repo)
+            .env("TMPDIR", &unusable)
+            .args(["add", "--", "a.md"]),
+        b"",
+    );
+    assert_eq!((added.code, String::from_utf8_lossy(&added.stderr).into_owned()), (Some(0), String::new()));
+    let checked: Observed = observe(
+        bounded(&fixture, fixture.root.join("bin/git").as_path(), path.as_os_str())
+            .current_dir(&repo)
+            .env("TMPDIR", &unusable)
+            .args(["cli-git", "check", "--", "a.md"]),
+        b"",
+    );
+    assert_eq!(checked.code, Some(0), "{}", String::from_utf8_lossy(&checked.stdout));
+    let scratch: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
+    let recorded: String = std::fs::read_to_string(&log).expect("linter runs");
+    let lines: Vec<&str> = recorded.lines().collect();
+    assert_eq!(lines.len(), 4, "two runs of two lines each: {recorded}");
+    let prefix: String = format!("--config={}/cli-git-markdown-", scratch.display());
+    for run in lines.chunks(2) {
+        let [config, state] = run else { panic!("a run records two lines: {recorded}") };
+        assert!(config.starts_with(prefix.as_str()) && config.ends_with(".jsonc"), "{config} under {prefix}");
+        assert_eq!(*state, "present", "the configuration exists while the linter runs: {recorded}");
+    }
+    let left: Vec<OsString> = std::fs::read_dir(&scratch)
+        .expect("the per-user scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
+    assert!(left.is_empty(), "nothing is left in {}: {left:?}", scratch.display());
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(&fixture);
+}
+
+/// A commit needs no system temporary directory either: with `TMPDIR` naming a path that does not exist the commit
+/// lands, the private scratch directory exists beside the repository's other private storage, and it is empty.
+#[test]
+fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
+    let fixture: Fixture = fixture("commit-scratch-location");
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":/usr/bin:/bin");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("base.txt"), b"base\n").expect("base");
+    git(&fixture, repo.as_path(), &["add", "--", "base.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = head(&fixture, repo.as_path());
+    std::fs::write(repo.join("doc.txt"), b"plain\n").expect("text");
+    git(&fixture, repo.as_path(), &["add", "--", "doc.txt"]);
+    let unusable: PathBuf = fixture.root.join("no-such-tmpdir");
+    let committed: Observed = observe(
+        bounded_for(
+            &fixture,
+            fixture.root.join("bin/git").as_path(),
+            path.as_os_str(),
+            COMMIT_BOUND_SECONDS,
+        )
+        .current_dir(&repo)
+        .env("TMPDIR", &unusable)
+        .args(["commit", "--quiet", "--message=doc", "--", "doc.txt"]),
+        b"",
+    );
+    assert_eq!(
+        (committed.code, String::from_utf8_lossy(&committed.stderr).into_owned()),
+        (Some(0), String::new())
+    );
+    assert_ne!(head(&fixture, repo.as_path()), base, "the commit landed");
+    let scratch: PathBuf = repo.join(".git").join("cli-git-scratch");
+    let left: Vec<OsString> = std::fs::read_dir(&scratch)
+        .expect("the repository scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
+    assert!(left.is_empty(), "nothing is left in {}: {left:?}", scratch.display());
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(&fixture);
+}

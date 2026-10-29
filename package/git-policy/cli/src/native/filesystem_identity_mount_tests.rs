@@ -211,13 +211,13 @@ fn findmnt_uuid_output(path: &Path) -> Option<std::process::Output> {
 /// The paths the differential test visits:
 /// well-known mount points,
 /// the package directory,
-/// the temporary directory,
+/// the fixture root,
 /// and any colon-separated list in `FS_IDENTITY_EXTRA_PATHS` (bind mounts,
 /// overlays and the like that a script sets up).
 fn differential_paths() -> Vec<std::path::PathBuf> {
     let mut paths: Vec<std::path::PathBuf> = [
         "/",
-        "/tmp",
+        "/dev/shm",
         "/proc",
         "/dev",
         "/run",
@@ -235,7 +235,7 @@ fn differential_paths() -> Vec<std::path::PathBuf> {
     .collect();
     paths.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")));
     paths.push(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"));
-    paths.push(std::env::temp_dir());
+    paths.push(crate::test_support::fixture_root());
     if let Ok(extra) = std::env::var("FS_IDENTITY_EXTRA_PATHS") {
         for item in extra.split(':').filter(|item: &&str| { return !item.is_empty(); }) {
             paths.push(std::path::PathBuf::from(item));

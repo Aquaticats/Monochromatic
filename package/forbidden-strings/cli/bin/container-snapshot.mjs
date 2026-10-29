@@ -16,14 +16,18 @@ import {
   rm,
   writeFile
 } from 'node:fs/promises';
-import {
-  homedir,
-  tmpdir
-} from 'node:os';
+import { homedir } from 'node:os';
 import {
   join,
   resolve
 } from 'node:path';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'forbidden-strings');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Failed setup or incomplete evidence never counts as a verification pass. */
 export class ScannerVerificationError extends Error {}
@@ -152,7 +156,7 @@ export async function snapshot({
   transform
 }) {
   const context = await mkdtemp(join(
-    tmpdir(),
+    scratchBase,
     'scanner-snapshot-'
   ));
   const evidenceRoot = resolve('target/verification');

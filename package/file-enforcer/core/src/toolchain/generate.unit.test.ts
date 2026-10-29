@@ -305,20 +305,29 @@ await describe({
               .filter(
               (line,) => line.startsWith('[mpm.overrides.'),
               );
+            /**
+             Plan tools that install through `cargo binstall`, the ones whose pin a shipped adapter would drop.
+             */
+            const cargoTools = ALL_TOOLS.filter(
+              (entry,) => entry.route === 'cargo-binstall',
+            );
+            expect(cargoTools.length,)
+              .toBeGreaterThan(0,);
             expect(
               headers.filter(
                 (line,) => !line.includes('.operations.'),
               )
                 .length,
             )
-              .toBe(17,);
+              .toBe(cargoTools.length,);
+            // Each definition declares an install and a remove operation.
             expect(
               headers.filter(
                 (line,) => line.includes('.operations.'),
               )
                 .length,
             )
-              .toBe(34,);
+              .toBe(cargoTools.length * 2,);
           },
         },),
         it({

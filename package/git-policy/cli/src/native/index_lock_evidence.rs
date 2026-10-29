@@ -23,6 +23,8 @@
 
 /// Open-holder scans.
 use super::index_lock_holders::{HolderEvidence, scan_platform_holders};
+/// The variable that sets how long the wait for a live holder lasts.
+use super::live_lock::LIVE_WAIT_VARIABLE;
 /// ISO timestamps for diagnostics.
 use super::iso_time::format_iso_milliseconds;
 /// Record writers.
@@ -525,17 +527,50 @@ pub fn describe_index_lock_evidence(evidence: &Evidence) -> String {
 ///  The one standard-error line naming a proven-alive holder.
 /// Why:
 ///   `provenHolderLine`:
-///  the wait is unbounded,
-///  so the person learns what it waits for.
+///  the person learns what the wait is for and where it gives up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function provenHolderLine({ verdict, lockPath }): string;
+/// function provenHolderLine({ verdict, lockPath, limitSeconds }): string;
 /// ```
-pub fn proven_holder_line(pid: i64, by_descriptor: bool, command: Option<&str>, lock_path: &Path) -> String {
+pub fn proven_holder_line(
+    pid: i64,
+    by_descriptor: bool,
+    command: Option<&str>,
+    lock_path: &Path,
+    limit_seconds: u64,
+) -> String {
     let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
     return format!(
-        "cli-git: waiting for {}, which holds {} (proven by {proof}); cli-git waits until it releases the lock.\n",
+        "cli-git: waiting for {}, which holds {} (proven by {proof}); giving up after {limit_seconds} seconds \
+         ({LIVE_WAIT_VARIABLE} changes this), leaving the lock in place.\n",
+        holder_name(pid, command),
+        lock_path.display()
+    );
+}
+
+/// What:
+///  The line that repeats while a proven-alive holder keeps the lock.
+/// Why:
+///   Each repeat names the holder, the proof, how long the wait has lasted and where it gives up,
+///  so a reader of the last line alone knows what is going on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function provenHolderProgressLine({ verdict, lockPath, waitedSeconds, limitSeconds }): string;
+/// ```
+pub fn proven_holder_progress_line(
+    pid: i64,
+    by_descriptor: bool,
+    command: Option<&str>,
+    lock_path: &Path,
+    waited_seconds: u64,
+    limit_seconds: u64,
+) -> String {
+    let proof: &str = if by_descriptor { "an open descriptor" } else { "its Git lock PID file" };
+    return format!(
+        "cli-git: still waiting for {}, which holds {} (proven by {proof}) after {waited_seconds} seconds; giving up \
+         after {limit_seconds} seconds ({LIVE_WAIT_VARIABLE} changes this), leaving the lock in place.\n",
         holder_name(pid, command),
         lock_path.display()
     );

@@ -736,7 +736,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.1.0",
+      "version": "0.1.1",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-mpm-shadow",

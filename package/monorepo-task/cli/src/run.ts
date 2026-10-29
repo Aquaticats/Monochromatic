@@ -82,9 +82,14 @@ const BODY_PRELUDE = `
 const { execFileSync, spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { existsSync, mkdirSync, chmodSync, readdirSync, statSync, mkdtempSync, readFileSync, globSync } = await import('node:fs')
-const { availableParallelism, homedir, tmpdir } = await import('node:os')
+const { availableParallelism, homedir } = await import('node:os')
 const { dirname, join, relative, resolve } = await import('node:path')
 const REPO_ROOT = process.env.TASK_REPO_ROOT
+const scratchBase = () => {
+  const base = join(REPO_ROOT, 'node_modules', '.monochromatic', 'task-scratch')
+  mkdirSync(base, { recursive: true })
+  return base
+}
 const runWorkspaceNode = (packagePath, entryName, entryArgs) => {
   const packageRoot = join(REPO_ROOT, packagePath)
   const built = join(packageRoot, 'dist', 'final', 'node', entryName + '.mjs')

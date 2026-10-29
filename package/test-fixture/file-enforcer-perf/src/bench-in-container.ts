@@ -13,7 +13,7 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -214,7 +214,7 @@ for (let warmIndex = 0; warmIndex < WARM_RUN_COUNT; warmIndex++) {
 // 1 source changed: modify one source file, invalidate its cache entry, re-run.
 // This mirrors what watch mode does: it knows exactly which file changed.
 /** Absolute path to the fixture root directory */
-const fixtureDir = join(tmpdir(), 'file-enforcer-perf',);
+const fixtureDir = join(scratchRoot(), 'file-enforcer-perf',);
 /** Path to the source file modified for the source-changed benchmark */
 const sourceFile = join(fixtureDir, 'src', 'pkg-00', 'docs', 'readme.md',);
 /** Original content of the source file before modification */

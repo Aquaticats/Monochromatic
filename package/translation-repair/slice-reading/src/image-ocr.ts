@@ -5,7 +5,6 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 import { promisify, } from 'node:util';
 
@@ -34,6 +33,7 @@ import {
 } from './local-program-failure.ts';
 import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Image OCR
 // READING A PICTURE WITHOUT ASKING A MODEL, which is the first thing to try and
 // on this corpus usually the last.
@@ -282,7 +282,7 @@ async function scratchDirectory(): Promise<ScratchDirectory> {
    Freshly made directory nothing else knows about.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'translation-repair-ocr-',
   ),);
 

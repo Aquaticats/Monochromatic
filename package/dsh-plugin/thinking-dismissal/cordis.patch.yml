@@ -1,0 +1,4 @@
+- insert:
+    - id: thinking-dismissal
+      name: '@monochromatic-dev/dsh-plugin-thinking-dismissal'
+      config: {}

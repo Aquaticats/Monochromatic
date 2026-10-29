@@ -106,11 +106,11 @@ fn judges_a_crate_sharing_a_name_prefix_on_its_own_versions() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writeRecord(cargoHome: string, key: string): void { fs.writeFileSync(path.join(cargoHome, '.crates2.json'), JSON.stringify({ installs: { [key]: {} } })); }
+/// function writeRecord(cargoHome: string, key: string): void { fs.writeFileSync(path.join(cargoHome, '.crates.toml'), JSON.stringify({ installs: { [key]: {} } })); }
 /// ```
 fn write_record(cargo_home: &Path, key: &str) {
     // `.expect("...")` unwraps a `Result` and, on error, stops the test with that message (tests may panic on purpose).
-    fs::write(cargo_home.join(".crates2.json"), format!("{{\"installs\":{{\"{key}\":{{}}}}}}")).expect("write the record");
+    fs::write(cargo_home.join(".crates.toml"), format!("[v1]\n\"{key}\" = [\"bin\"]\n")).expect("write the record");
 }
 
 /// What:     `fn write_entry(cargo_home: &Path, kind: &str, name: &str)` declares a helper that creates one cached copy:
@@ -176,7 +176,7 @@ fn deletes_nothing_when_the_registry_does_not_exist() {
 fn falls_back_to_the_newest_version_when_the_record_is_malformed() {
     let directory = scratch();
     let home: &Path = directory.path();
-    fs::write(home.join(".crates2.json"), "not json").expect("write the bad record");
+    fs::write(home.join(".crates.toml"), "not json").expect("write the bad record");
     assert!(installed_versions(home).is_empty());
     write_entry(home, "cache", "monochromatic-lint-0.1.0");
     write_entry(home, "cache", "monochromatic-lint-0.2.0");

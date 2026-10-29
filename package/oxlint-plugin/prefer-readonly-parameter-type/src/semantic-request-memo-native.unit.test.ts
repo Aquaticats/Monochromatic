@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -92,7 +92,7 @@ function openMemoizedProject({
   readonly source?: string;
 } = {},): MemoizedProject {
   /** Unique directory holding the project. */
-  const path = mkdtempSync(join(tmpdir(), 'semantic-request-memo-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'semantic-request-memo-',),);
   writeFileSync(
     join(path, 'tsconfig.json',),
     `${JSON.stringify({

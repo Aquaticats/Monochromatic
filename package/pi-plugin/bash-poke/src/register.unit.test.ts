@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, rm, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
@@ -187,7 +187,7 @@ await describe({
         it({
           name: 'registers the renderer and exactly two event handlers',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -202,7 +202,7 @@ await describe({
         it({
           name: 'leaves a hidden command to Pi',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -230,7 +230,7 @@ await describe({
         it({
           name: 'returns the placeholder immediately and pokes when the job exits',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -272,7 +272,7 @@ await describe({
         it({
           name: 'draws and then clears the progress widget around a job',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -299,7 +299,7 @@ await describe({
         it({
           name: 'cancels a running job on a lone escape and never pokes for it',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -333,7 +333,7 @@ await describe({
         it({
           name: 'leaves escape alone while Pi is in bash mode',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -373,7 +373,7 @@ await describe({
         it({
           name: 'leaves escape alone while the agent is streaming',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -410,7 +410,7 @@ await describe({
         it({
           name: 'registers no terminal listener outside the interactive TUI',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -429,7 +429,7 @@ await describe({
         it({
           name: 'rebuilds the binding when Pi replaces the session',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );
@@ -456,7 +456,7 @@ await describe({
         it({
           name: 'builds a binding on first use when no session start arrived',
           fn: async () => {
-            const tmp = await mkdtemp(join(tmpdir(), 'bash-poke-register-', ), );
+            const tmp = await mkdtemp(join(scratchRoot(), 'bash-poke-register-', ), );
             await using cleanup = {
               async [Symbol.asyncDispose](): Promise<void> {
                 await rm(tmp, { recursive: true, force: true, }, );

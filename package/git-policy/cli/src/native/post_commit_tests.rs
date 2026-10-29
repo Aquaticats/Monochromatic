@@ -18,7 +18,7 @@ const LANDED_CONTENT: &str = "landed content\n";
 
 /// Environment every query of these fixtures runs with.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
-    return [
+    let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
         ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
@@ -32,6 +32,9 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         return (OsString::from(name), OsString::from(value));
     })
     .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
+    return environment;
 }
 
 /// A repository with a baseline commit (`stable.txt`) and one landed commit that adds `landed.txt`.
@@ -427,11 +430,12 @@ fn with_markdown() -> PolicyConfig {
     return with_severity(PolicyId::MarkdownAutofix, Severity::Warn);
 }
 
-/// A PATH holding `bin` and the system programs.
+/// A PATH holding `bin` and the system programs, and a home beside `bin` for the linter's scratch directory.
 fn path_with(bin: &Path) -> Vec<(OsString, OsString)> {
     let mut path: OsString = bin.as_os_str().to_os_string();
     path.push(":/usr/bin:/bin");
-    return vec![(OsString::from("PATH"), path)];
+    let home: OsString = bin.parent().unwrap_or(bin).join("home").into_os_string();
+    return vec![(OsString::from("PATH"), path), (OsString::from("HOME"), home)];
 }
 
 /// A landed Markdown file is checked by the linter found on the invocation's PATH, not on an empty one.

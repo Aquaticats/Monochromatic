@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   createEventBus,
@@ -74,7 +74,7 @@ async function verifyBuiltExtension(): Promise<string> {
    Temporary HOME ensuring verification ignores user-global config.
    */
   const home = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-guardrail-home-',
   ),);
   /**

@@ -1,7 +1,8 @@
-//! What:     Reads cargo's install record (`<cargo home>/.crates2.json`) to learn which version of each crate is
+//! What:     Reads cargo's install record (`<cargo home>/.crates.toml`) to learn which version of each crate is
 //!           installed right now.
 //! Why:      The installed version is the one that was just provisioned, so every other cached version of that crate is
-//!           stale. Reading cargo's own record needs no knowledge of this repository's tool plan.
+//!           stale. `.crates.toml` is the file both `cargo install` and `cargo binstall` update; `.crates2.json` is
+//!           updated by cargo only, so after a binstall it still names the previous version.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,55 +39,42 @@ pub fn installed_versions(cargo_home: &Path) -> BTreeMap<String, String> {
     let mut versions: BTreeMap<String, String> = BTreeMap::new();
 
     // What:     `fs::read_to_string(...)` reads a whole file as text and returns a `Result` (`Ok(text)` or
-    //           `Err(error)`). `.join(".crates2.json")` appends the file name to the path. `let Ok(text) = ... else
+    //           `Err(error)`). `.join(".crates.toml")` appends the file name to the path. `let Ok(text) = ... else
     //           { ... };` binds `text` on success and runs the `else` block on failure; that block must leave the
     //           function (here with `return`).
     // Why:      No record means nothing is known as installed.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // let text; try { text = fs.readFileSync(path.join(cargoHome, '.crates2.json'), 'utf8'); } catch { return versions; }
+    // let text; try { text = fs.readFileSync(path.join(cargoHome, '.crates.toml'), 'utf8'); } catch { return versions; }
     // ```
-    let Ok(text) = fs::read_to_string(cargo_home.join(".crates2.json")) else {
+    let Ok(text) = fs::read_to_string(cargo_home.join(".crates.toml")) else {
         return versions;
     };
 
-    // What:     `serde_json::from_str::<serde_json::Value>(&text)` parses JSON text into a loosely typed value tree
-    //           (like `JSON.parse`); `::<serde_json::Value>` names the result type. `&text` lends the text.
-    // Why:      The record is JSON whose shape cargo owns; a loose tree reads only the part we need.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // let document; try { document = JSON.parse(text); } catch { return versions; }
-    // ```
-    let Ok(document) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return versions;
-    };
-
-    // What:     `document.get("installs")` looks up a key and returns an `Option`. `.and_then(|value| ...)` continues
-    //           only when the key exists; the `|value| ...` is a closure (Rust's `(value) => ...` arrow function) that
-    //           converts the value to a JSON object (also an `Option`). `let Some(installs) = ... else { return ... };`
-    //           unwraps it or leaves the function.
-    // Why:      Each key under `installs` reads like `"monochromatic-lint 0.4.0 (registry+https://...)"`.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const installs = document.installs; if (typeof installs !== 'object' || installs === null) return versions;
-    // ```
-    let Some(installs) = document.get("installs").and_then(|value| return value.as_object()) else {
-        return versions;
-    };
-
-    for key in installs.keys() {
-        // What:     `key.split_whitespace()` yields the key's space-separated words lazily; `.next()` takes the next
-        //           one as an `Option`. Two calls take the name then the version.
-        // Why:      The first word is the crate name and the second is its version.
+    for line in text.lines() {
+        // What:     Each install line looks like `"monochromatic-lint 0.4.0 (registry+https://...)" = ["bin"]`.
+        //           `line.strip_prefix('"')` removes a leading double quote and returns `Some(rest)`, or `None` when
+        //           the line does not start with one (the `[v1]` header and blank lines). `let Some(rest) = ... else
+        //           { continue; };` skips such lines. `rest.find('"')` returns `Some(index)` of the closing quote.
+        // Why:      The quoted key holds the crate name, the version and the source, separated by spaces; it never
+        //           contains a quote, so no TOML parser is needed.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // const [name, version] = key.split(/\s+/);
+        // const match = line.match(/^"([^"]+)"/); if (match === null) continue;
         // ```
-        let mut words = key.split_whitespace();
+        let Some(rest) = line.strip_prefix('"') else {
+            continue;
+        };
+        let Some(end) = rest.find('"') else {
+            continue;
+        };
+
+        // `rest[..end]` borrows the text before the closing quote; `split_whitespace()` yields its space-separated
+        // words lazily and `.next()` takes the next one as an `Option`. The first word is the crate name and the
+        // second is its version.
+        let mut words = rest[..end].split_whitespace();
         if let Some(name) = words.next()
             && let Some(version) = words.next()
         {

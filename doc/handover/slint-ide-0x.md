@@ -6091,9 +6091,30 @@ Package move and nightly toolchain, 2026-10-29 (after the release):
   Its release jobs in `.github/workflows/cargo-publish.yml` (`nws-build-binary` and the packaging after it) run on named `ubuntu-24.04` and `ubuntu-24.04-arm` runners
   and install the system libraries with the runner's package manager, not from the Containerfile image, so that change does not move the compositor release glibc (read from the workflow, not by a dry run).
 
+The image split landed (`265c55d90c` terminal, `fd1bd8caf8` ide), 2026-10-29:
+- The terminal image became a CachyOS development `Containerfile` and an Ubuntu 24.04 `Containerfile.release`;
+  the IDE has a release build image `FROM localhost/monochromatic/terminal-release` that `ide-release.yml` now builds in.
+- Dry run 40883876777 (head `cb30dfba68`) failed on arm64 only, at "Check the shared libraries and the glibc floor":
+  the arm64 executable linked in the Ubuntu image names `ld-linux-aarch64.so.1` besides the four expected libraries (x64 passed).
+  The loader is part of glibc, which `INSTALL.txt` already requires at 2.39 or newer, and the x64 list already names its loader,
+  so the arm64 list in the matrix of `.github/workflows/ide-release.yml` now names it too (`cb03f20350`, on `main` as `4f92c32f60`); `INSTALL.txt` and the README needed no change.
+  Not shown: which symbol makes the Ubuntu toolchain add the loader to the arm64 dynamic section (the executable was not kept to inspect).
+- Dry run 40887621364 on `4f92c32f60` passed, all jobs: both legs `FROM docker.io/library/ubuntu:24.04`, rustc 1.101.0-nightly (92ffebece 2026-10-28),
+  `needed` x64 `ld-linux-x86-64.so.2 libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6`, arm64 the same with `ld-linux-aarch64.so.1`,
+  newest glibc symbol 2.39 on both, same as the baseline run 40877021793.
+  `monochromatic-db` checked the run with `gh` and recorded it in `doc/handover/cachyos-base-distro.md`.
+- `monochromatic-db` plans no further terminal or ide image change and will send the hash of any it commits.
+- Compositor release dry run, `cargo-publish.yml` dispatched with `crate=monochromatic-nested-wayland-session` and `dry-run=true`, run 40892542795 on `cab3f212d7`: success.
+  The non-skipped jobs were `nws-detect`, `nws-release-state`, `nws-publish-crate` (the `cargo publish --dry-run` path),
+  and `nws-build-binary` for `aarch64-unknown-linux-gnu` on `ubuntu-24.04-arm` and `x86_64-unknown-linux-gnu` on `ubuntu-24.04`;
+  `nws-create-release` stayed skipped because it is gated on `!inputs.dry-run`.
+  This covers the new package path `package/nested-wayland-session/cli`; the compositor's version was not bumped, so no real release was made.
+  The dry run's archives (version 0.6.2, one-day artifacts), read with `objdump` after extracting each into its own directory:
+  the newest glibc symbol is 2.39 in both the x86_64 binary (19 symbol versions) and the aarch64 binary (10),
+  and both need only `libc.so.6`, `libgcc_s.so.1` and `libxkbcommon.so.0`.
+
 Next, in order:
-- Wait for that message; then dry-run `ide-release.yml` on the commit, check that the build runs in the Ubuntu 24.04 release image, the glibc floor step (2.39) and the recorded toolchain, and compare with the baseline run 40877021793; record the result here.
-- Before the next compositor release, dry-run the compositor release in `cargo-publish.yml` once, because the package path and the image changed since `monochromatic-nested-wayland-session-v0.6.2`.
+- If `monochromatic-db` sends a hash for a commit under `package/terminal` or `package/ide`, dry-run `ide-release.yml` on it and compare with run 40887621364 before any real release.
 - Release the next IDE version when there is a change worth shipping (bump `version` in `package/ide/app/Cargo.toml`, `task-run //package/ide/app:fetch`, dry run, then dispatch with `--ref main --field dry-run=false`).
 - The compositor needs no release now; its manifest is covered by the same generator fix.
 

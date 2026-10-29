@@ -21,10 +21,14 @@
 
 /// Building a Git child from an argument array and an overlay.
 use super::forwarding::git_command;
+/// The watched run that announces a step that takes long and stops it at the bound.
+use super::child_watch::{WatchTerms, output_watched};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
+/// The repository scratch directory the input file is made in.
+use super::scratch_location::prepare_repository_scratch;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::{RetryStart, START_RETRY_BUDGET, retry_refused_start_with};
+use super::start_retry::{START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
 use super::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
@@ -58,6 +62,11 @@ pub struct GitContext {
     ///  `--git-dir`,
     ///  `-c`).
     pub global_prefix: Vec<OsString>,
+    /// The repository's common Git directory,
+    ///  where the input file of a request that carries input is made (`cli-git-scratch` inside it);
+    ///  `None` where the repository is not yet known,
+    ///  and a request with input then fails naming the defect.
+    pub common_dir: Option<PathBuf>,
 }
 
 /// What:
@@ -225,23 +234,34 @@ pub fn command_text(arguments: &[OsString]) -> String {
 /// What:
 ///  An already unlinked private file holding `bytes`,
 ///  opened for reading.
+///  The file is made in the repository scratch directory of `common_dir`,
+///  never in the system temporary directory.
 /// Why:
 ///   Git may write output before it reads all its input;
 ///  feeding input from a file instead
 ///       of a pipe can never deadlock and needs no writer thread.
 ///  The name is removed at once,
-///       so nothing is left behind even after a crash.
+///       so nothing is left behind even after a crash,
+///  and a crash inside that moment leaves a file that the next preparation of the directory
+///       sweeps once it is a day old.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // child.stdin.end(input);
 /// ```
-fn input_file(bytes: &[u8]) -> std::io::Result<std::fs::File> {
+fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
+    let Some(common) = common_dir else {
+        return Err(std::io::Error::other(
+            "cli-git has no repository scratch directory for the input of this Git command: the command was started \
+             before the repository was known, which is a defect in cli-git",
+        ));
+    };
+    let directory: PathBuf = prepare_repository_scratch(common)?;
     let unique: String = match random_uuid() {
         Ok(id) => id,
         Err(error) => return Err(std::io::Error::other(error.0)),
     };
-    let path: PathBuf = std::env::temp_dir().join(format!("cli-git-input-{unique}"));
+    let path: PathBuf = directory.join(format!("cli-git-input-{unique}"));
     write_exclusive_scratch(path.as_path(), bytes)?;
     let file: std::io::Result<std::fs::File> = std::fs::File::open(&path);
     // The open handle keeps the bytes readable after the name is gone. If the platform refuses
@@ -455,16 +475,35 @@ fn run_git_pausing(
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+    return run_git_once_with(context, request, &WatchTerms::from_environment);
+}
+
+/// What:
+///  `run_git_once` with the notice cadence, the bound and the notice sink of its wait made by `terms`.
+/// Why:
+///   The production entry reads them from the environment;
+///  tests choose short ones and read the notices from a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runTransactionGitOnce({ gitPath, cwd, args, terms })
+/// ```
+fn run_git_once_with(
+    context: &GitContext,
+    request: &GitRequest,
+    terms: &dyn Fn() -> WatchTerms,
+) -> std::io::Result<GitOutput> {
     let mut command: Command = build_command(context, request);
     match &request.input {
         Some(bytes) => {
-            command.stdin(Stdio::from(input_file(bytes.as_slice())?));
+            command.stdin(Stdio::from(input_file(bytes.as_slice(), context.common_dir.as_deref())?));
         }
         None => {
             command.stdin(Stdio::null());
         }
     }
-    let output: std::process::Output = command.output_retrying()?;
+    let output: std::process::Output =
+        output_watched(&mut command, command_text(&request.arguments).as_str(), terms())?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,
@@ -487,21 +526,32 @@ pub fn run_git_checked(
     context: &GitContext,
     request: &GitRequest,
 ) -> Result<GitOutput, GitFailure> {
-    let output: GitOutput = match run_git(context, request) {
+    return checked_from(run_git(context, request), request.arguments.as_slice());
+}
+
+/// What:
+///  Turn the outcome of a run into the checked result:
+///  success needs a start and a zero exit, and each failure names the command.
+/// Why:
+///   A step stopped at its bound did start, and its own text already says which command and why;
+///  every other start failure and every non-zero exit is named here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
+/// ```
+fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+    let output: GitOutput = match outcome {
         Ok(finished) => finished,
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            return Err(GitFailure(error.to_string()));
+        }
         Err(error) => {
-            return Err(GitFailure(format!(
-                "{} could not start: {error}",
-                command_text(request.arguments.as_slice())
-            )));
+            return Err(GitFailure(format!("{} could not start: {error}", command_text(arguments))));
         }
     };
     if !output.succeeded() {
-        return Err(GitFailure(format!(
-            "{} failed: {}",
-            command_text(request.arguments.as_slice()),
-            output.error_text()
-        )));
+        return Err(GitFailure(format!("{} failed: {}", command_text(arguments), output.error_text())));
     }
     return Ok(output);
 }

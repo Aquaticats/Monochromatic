@@ -25,7 +25,6 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve,
@@ -39,6 +38,13 @@ import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image. */
 const imageTag = process.env
@@ -176,7 +182,7 @@ const [driver, ...driverArguments] = process.argv
 if ((driver === undefined) || (!isDriverName(driver)))
   throw new NativeVerificationError('Name one driver under native-interop/ in lowercase words and dashes.');
 await using context = await mkdtempDisposable(join(
-  tmpdir(),
+  scratchBase,
   'cli-git-native-interop-',
 ));
 const evidenceRoot = resolve('target/verification');

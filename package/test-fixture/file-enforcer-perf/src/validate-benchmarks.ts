@@ -15,6 +15,8 @@ import { join, } from 'node:path';
 import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core/ts';
 import spawn from 'nano-spawn';
 
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+
 /** Pattern to extract events per second from sysbench output */
 const SYSBENCH_EVENTS_PATTERN = /events per second:\s+([\d.]+)/;
 
@@ -149,7 +151,7 @@ export type IoBenchResult = {
  * @returns Elapsed time and file count
  */
 export async function runIoBenchmark(fileCount: number,): Promise<IoBenchResult> {
-  const ioDir = '/tmp/fe-io-bench';
+  const ioDir = join(scratchRoot(), 'fe-io-bench',);
 
   await rm(ioDir, { recursive: true, force: true, },);
   await mkdir(ioDir, { recursive: true, },);

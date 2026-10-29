@@ -107,6 +107,7 @@ fn an_alternate_index_takes_no_coordination() {
         real_git: PathBuf::from(REAL_GIT),
         overlay,
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let command: ResolvedCommand = command_in(repo.as_path(), &["add", "a.txt"]);
     let input: CoordinationInput<'_> = CoordinationInput {

@@ -17,6 +17,8 @@ fn phases_are_named_in_transaction_order() {
             "ref-updated",
             "index-installed",
             "race-lost",
+            "merge-intent",
+            "merge-applied",
         ]
     );
 }
@@ -33,7 +35,7 @@ fn kill_without_directory_parses() {
 /// A kill or pause marker with an absolute directory parses.
 #[test]
 fn kill_and_pause_with_absolute_directory_parse() {
-    let directory: PathBuf = std::env::temp_dir();
+    let directory: PathBuf = crate::test_support::fixture_root();
     let text: String = format!("landing-locked:kill:{}", directory.display());
     let signal = parse_phase_signal(&text).expect("valid kill");
     assert_eq!(signal.action, PhaseAction::Kill);
@@ -76,7 +78,7 @@ fn refusal_message_names_the_value_and_the_forms() {
     let error = parse_phase_signal("bogus:kill").expect_err("unknown phase");
     assert_eq!(
         error.to_string(),
-        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among capture-locked, preparation-done, landing-locked, objects-migrated, ref-updated, index-installed, race-lost."
+        "CLI_GIT_TEST_ONLY_PHASE_SIGNAL=\"bogus:kill\" is not <phase>:kill[:<absolute directory>] or <phase>:pause:<absolute directory> with a phase among capture-locked, preparation-done, landing-locked, objects-migrated, ref-updated, index-installed, race-lost, merge-intent, merge-applied."
     );
 }
 

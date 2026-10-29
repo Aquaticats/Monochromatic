@@ -24,9 +24,11 @@ ever fetched.
   and the prune is idempotent.
   A run that could not start prunes nothing.
 - Touches only crates whose name starts with `monochromatic-`.
-  For each, it keeps the version cargo's install record (`<cargo home>/.crates2.json`) names as installed,
+  For each, it keeps the version cargo's install record (`<cargo home>/.crates.toml`) names as installed,
   or the newest cached version when the record does not name the crate (a library crate such as
   `monochromatic-jsonc-edit`), and deletes every other cached archive and extracted source.
+  The record is `.crates.toml` because both `cargo install` and `cargo binstall` update it;
+  `.crates2.json` is updated by cargo only, so after a binstall it still names the previous version.
   A crate whose name extends another's (`monochromatic-lint-closure`) is judged on its own versions.
 - Reports each deletion on standard error as `mpm-shadow: deleted stale <path>`, and a deletion that fails as a warning;
   neither changes the exit code.

@@ -98,6 +98,9 @@ Rust documents `msvcrt` as the default C library of `x86_64-pc-windows-gnu`
  but it passed every test and imports only `api-ms-win-crt-*` DLLs and Windows system DLLs.
 MSYS2 deprecated its MINGW64 environment on 2026-03-15 (no new packages; UCRT64 or CLANG64 recommended).
 The Linux cross build uses Fedora's mingw64 packages, and its exe imports `msvcrt.dll`.
+(Since 2026-10-29 the cross image is CachyOS, whose mingw-w64 packages default to UCRT: the cross-built test executable
+ imports `api-ms-win-crt-*` DLLs, as the release asset does, read with `x86_64-w64-mingw32-objdump -p` in the image.
+ The sentence below describes the Fedora image.)
 So the Wine proof and the CI build use different C runtimes for the same target; the release asset below uses UCRT64.
 
 ## Consequences

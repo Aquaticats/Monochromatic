@@ -6,7 +6,6 @@ import {
   rm,
   writeFile
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve
@@ -14,6 +13,13 @@ import {
 import { spawnSync } from 'node:child_process';
 // The gate image runs the suite with the runner the git-policy/cli gate pins by version and checksum.
 import { copyNextest } from '../../../git-policy/cli/bin/native-nextest-snapshot.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'monochromatic-lint');
+makeScratchBase(scratchBase, { recursive: true });
+
 // Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image.
 const testImage = `localhost/monochromatic-lint-test:${process.env
   .MONOCHROMATIC_LINT_IMAGE_TAG
@@ -22,7 +28,7 @@ const [filter, ...extra] = process.argv
   .slice(2);
 if (extra.length > 0) throw new Error('Expected at most one nextest test-name filter');
 const context = await mkdtemp(join(
-  tmpdir(),
+  scratchBase,
   'monochromatic-lint-test-'
 ));
 const source = process.cwd();

@@ -1558,10 +1558,10 @@ const CARGO_WORKSPACE_BLOCK = `# Standalone crate: its own workspace root, so no
  
  @example
  ```ts
- console.log(CARGO_DYLINT_DIRS.includes('package/ide/app'));
+ console.log(CARGO_DYLINT_DIRS.has('package/ide/app'));
  ```
  */
-const CARGO_DYLINT_DIRS: readonly string[] = new Set([
+const CARGO_DYLINT_DIRS: ReadonlySet<string> = new Set([
   'package/ide/app',
   'package/linter/monochromatic-lint',
 ]);

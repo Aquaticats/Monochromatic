@@ -6,7 +6,7 @@ import {
 import {
   mkdtemp,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -128,7 +128,7 @@ await describe({
         it({
           name: 'returns the environment mise prints for a directory with no project key',
           fn: async () => {
-            const scratch = await mkdtemp(join(tmpdir(), 'stop-reminder-mise-',),);
+            const scratch = await mkdtemp(join(scratchRoot(), 'stop-reminder-mise-',),);
 
             const environment = await miseEnvironment(scratch,);
 
@@ -140,7 +140,7 @@ await describe({
         it({
           name: 'throws a missing-key error when the directory does not exist',
           fn: async () => {
-            const error = await caught(async () => miseEnvironment(join(tmpdir(), 'stop-reminder-no-such-dir', 'nested',),),);
+            const error = await caught(async () => miseEnvironment(join(scratchRoot(), 'stop-reminder-no-such-dir', 'nested',),),);
 
             expect(error,).toBeInstanceOf(LunaKeyMissingError,);
           },

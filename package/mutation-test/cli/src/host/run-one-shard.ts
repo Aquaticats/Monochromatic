@@ -1,9 +1,10 @@
 /**
- One shard container round trip: write manifest, run, read report.
+ One shard container round trip: write manifest and source file list, run,
+ read report.
  
  @example
  ```ts
- const report = await runOneShard({ manifest, image, repoRoot, resources, selinuxRelabel: false });
+ const report = await runOneShard({ manifest, sourceFileList, image, repoRoot, resources, selinuxRelabel: false });
  ```
  */
 
@@ -11,7 +12,6 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -21,11 +21,13 @@ import {
   runShardContainer,
   type ShardResources,
 } from './podman.ts';
+import { SOURCE_FILE_LIST_NAME, } from '../mounts.ts';
 import type {
   ShardManifest,
   ShardReport,
 } from '../shard-schema.ts';
 
+import { scratchParent, } from '../scratch-parent.ts';
 /**
  Module logger for shard round trips.
  */
@@ -40,7 +42,9 @@ const MANIFEST_FILE_NAME = 'shard-manifest.json';
  Runs one shard container, returning a synthetic all-unrun report when
  the container fails without producing a usable one.
  
- @param options - Manifest, image, and container parameters.
+ @param options - Manifest, source file list, image, and container
+ parameters; the list is written beside the manifest so the container
+ copies only those files into its work tree.
  
  @returns Shard report, real or synthetic.
  
@@ -53,6 +57,7 @@ const MANIFEST_FILE_NAME = 'shard-manifest.json';
  */
 export async function runOneShard(options: {
   manifest: ShardManifest;
+  readonly sourceFileList: string;
   readonly image: string;
   readonly repoRoot: string;
   readonly resources: ShardResources;
@@ -69,14 +74,14 @@ export async function runOneShard(options: {
    Host directory holding this shard's manifest.
    */
   const manifestDir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mutation-manifest-',
   ),);
   /**
    Host directory receiving this shard's report.
    */
   const reportDir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mutation-report-',
   ),);
   await writeFile(
@@ -89,6 +94,14 @@ export async function runOneShard(options: {
       null,
       2,
     )}\n`,
+    'utf8',
+  );
+  await writeFile(
+    join(
+      manifestDir,
+      SOURCE_FILE_LIST_NAME,
+    ),
+    options.sourceFileList,
     'utf8',
   );
 

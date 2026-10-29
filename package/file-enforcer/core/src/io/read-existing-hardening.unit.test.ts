@@ -7,7 +7,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { readExisting, } from '../../dist/final/node/index.mjs';
 
@@ -24,7 +24,7 @@ import { readExisting, } from '../../dist/final/node/index.mjs';
  ```
  */
 async function setup(prefix: string,): Promise<string> {
-  return mkdtemp(join(tmpdir(), prefix,),);
+  return mkdtemp(join(scratchRoot(), prefix,),);
 }
 
 /**

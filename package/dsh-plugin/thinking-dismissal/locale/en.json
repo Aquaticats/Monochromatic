@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Thinking dismissal shadow",
+    "description": "Shadow-records cost dismissals found in session thinking blocks, locally and as metadata only. A sentence that carries algorithmic cost together with a dismissal is recorded with a block hash and pattern id, never reasoning text."
+  }
+}

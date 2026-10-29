@@ -726,7 +726,9 @@ fn a_timeout_is_described_with_the_lock_and_the_holder() {
         }
         .to_string(),
         "gave up after waiting 661 seconds for the owner lock /repo/.git/cli-git/push.lock, \
-         which process 80782 still holds; the lock was left in place"
+         which process 80782 still holds; the lock was left in place. To go on, let that process finish and run the \
+         command again, check with `ps` whether it is stuck and stop it if so, or raise the limit with \
+         CLI_GIT_LOCK_WAIT_SECONDS (CLI_GIT_PUSH_LOCK_WAIT_SECONDS for the push lock)"
     );
     assert_eq!(
         OwnerLockError::WaitTimedOut {
@@ -736,7 +738,9 @@ fn a_timeout_is_described_with_the_lock_and_the_holder() {
         }
         .to_string(),
         "gave up after waiting 3 seconds for the owner lock /repo/.git/cli-git/push.lock, \
-         which a process whose record could not be read still holds; the lock was left in place"
+         which a process whose record could not be read still holds; the lock was left in place. To go on, let that \
+         process finish and run the command again, check with `ps` whether it is stuck and stop it if so, or raise \
+         the limit with CLI_GIT_LOCK_WAIT_SECONDS (CLI_GIT_PUSH_LOCK_WAIT_SECONDS for the push lock)"
     );
 }
 
@@ -767,7 +771,7 @@ impl WaitNotice for SlowCounter {
     }
 }
 
-/// A wait that outlasts the slow threshold sends exactly one slow notice,
+/// A wait that outlasts the grace sends exactly one slow notice while the interval has not passed,
 ///  after the first-moment notice,
 ///  and a wait that ends sooner sends none.
 #[cfg(target_os = "linux")]
@@ -797,7 +801,7 @@ fn a_slow_wait_sends_one_slow_notice() {
         Duration::from_millis(5),
         &mut counter,
         Duration::from_secs(20),
-        Duration::from_millis(100),
+        Cadence { grace: Duration::from_millis(100), interval: Duration::from_secs(60) },
     );
     killer.join().expect("the killer thread finishes");
     outcome
@@ -813,10 +817,110 @@ fn a_slow_wait_sends_one_slow_notice() {
         Duration::from_millis(5),
         &mut quick,
         Duration::from_secs(5),
-        Duration::from_millis(100),
+        Cadence { grace: Duration::from_millis(100), interval: Duration::from_secs(60) },
     )
     .expect("free");
     free.release().expect("release");
     assert_eq!((quick.waiting, quick.slow.len()), (0, 0));
     remove(&root);
+}
+
+/// Records every notice a wait sends and whether it announces itself at the start.
+struct RepeatCounter {
+    /// First-moment notices.
+    waiting: u32,
+    /// Slow-wait notices with the time each reported.
+    slow: Vec<Duration>,
+    /// Whether the first notice was printed at the start of the wait.
+    announces: bool,
+    /// The holder's end of the wait: when this many slow notices arrived, the notice itself stops and collects it,
+    ///  so the wait ends on that event and no later notice can fit in, however loaded the host is.
+    stop_after: usize,
+    /// The live holder, until the notice that ends the wait stops it.
+    holder: Option<Child>,
+}
+
+/// The counter records each call.
+impl WaitNotice for RepeatCounter {
+    /// Record the first moment.
+    fn waiting(&mut self) {
+        self.waiting += 1;
+    }
+
+    /// Record a repeat and tell the test when enough arrived.
+    fn slow(&mut self, waited: Duration) {
+        self.slow.push(waited);
+        if self.slow.len() == self.stop_after
+            && let Some(mut holder) = self.holder.take()
+        {
+            // Stopping and collecting the holder here is synchronous: the next attempt finds a dead owner and takes the
+            // lock before any further notice is due.
+            holder.kill().expect("kill");
+            holder.wait().expect("reap");
+        }
+    }
+
+    /// Whether the first notice came at the start.
+    fn announces_at_start(&self) -> bool {
+        return self.announces;
+    }
+}
+
+/// Holds a foreign lock with a live sleeper, waits on it with a repeat counter and ends the wait by killing the holder
+///  once `stop_after` slow notices arrived; the counter of the finished wait.
+#[cfg(target_os = "linux")]
+fn repeated_wait(name: &str, cadence: Cadence, announces: bool, stop_after: usize) -> RepeatCounter {
+    let root: PathBuf = fixture(name);
+    let lock_directory: PathBuf = root.join("push.lock");
+    let sleeper: Child = Command::new("sleep").arg("60").spawn().expect("sleeper");
+    let pid: i64 = i64::from(sleeper.id());
+    let identity: String = process_birth_identity(pid).expect("probe").expect("alive");
+    plant(lock_directory.as_path(), pid, identity.as_str(), "foreign");
+    let mut counter: RepeatCounter =
+        RepeatCounter { waiting: 0, slow: Vec::new(), announces, stop_after, holder: Some(sleeper) };
+    let outcome: Result<OwnerLock, OwnerLockError> = acquire_within(
+        lock_directory.as_path(),
+        Duration::from_millis(5),
+        &mut counter,
+        Duration::from_secs(30),
+        cadence,
+    );
+    outcome.expect("the dead holder's lock is taken").release().expect("release");
+    remove(&root);
+    return counter;
+}
+
+/// A wait that goes on sends a slow notice at the grace and again at every interval after it.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_long_wait_repeats_its_slow_notice_at_every_interval() {
+    let counter: RepeatCounter = repeated_wait(
+        "owner-lock-repeat",
+        Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) },
+        false,
+        3,
+    );
+    assert_eq!(counter.waiting, 1);
+    // The wait ends on the third notice, but one more attempt is needed to see the dead holder, and a tick may fall
+    // in that gap on a slow host: the count is a lower bound, and the times are lower bounds that no schedule breaks.
+    assert!(counter.slow.len() >= 3, "{:?}", counter.slow);
+    assert!(counter.slow[0] >= Duration::from_millis(60), "{:?}", counter.slow);
+    assert!(counter.slow[1] >= Duration::from_millis(120), "{:?}", counter.slow);
+    assert!(counter.slow[2] >= Duration::from_millis(180), "{:?}", counter.slow);
+}
+
+/// A notice that announced the wait at its start hears its first repeat one interval later, not after the grace.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_notice_that_announces_at_start_hears_the_first_repeat_one_interval_later() {
+    let counter: RepeatCounter = repeated_wait(
+        "owner-lock-announced",
+        Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(150) },
+        true,
+        1,
+    );
+    // The first repeat comes at the interval, not at the grace of 20 ms; a later tick may fall before the holder is
+    // seen dead, so the count is a lower bound.
+    assert!(!counter.slow.is_empty(), "{:?}", counter.slow);
+    assert!(counter.slow[0] >= Duration::from_millis(150), "{:?}", counter.slow);
 }

@@ -538,5 +538,29 @@ await describe({
         expect(Object.hasOwn(instance, name,),).toBe(true,);
       },
     },),
+
+    ...[
+      null,
+      undefined,
+      42,
+      'text',
+      true,
+      Symbol('primitive receiver of initializer',),
+    ].map(function mapReceiver(receiver,) {
+      return it({
+        name: `stands down when the initializer receiver is the primitive ${String(receiver,)}`,
+        fn: async () => {
+          const decoration = createFakeDecoration({
+            kind: 'method',
+            isPrivate: false,
+          },);
+          pMemoizeDecorator()(counterMethod, decoration.context,);
+
+          expect(function initializeWithPrimitive(): void {
+            decoration.initialize(receiver as unknown as CounterInstance,);
+          },).not.toThrow();
+        },
+      },);
+    },),
   ],
 },);

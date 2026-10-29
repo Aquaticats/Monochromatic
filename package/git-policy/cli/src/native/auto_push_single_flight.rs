@@ -24,9 +24,10 @@ use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
 use super::diagnostic_log::debug;
 use super::js_text::trim_javascript;
 use super::lfs_pre_push::with_lfs_hook;
-use super::owner_lock::{
-    DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_owner_lock_for,
-};
+use super::owner_lock::{DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_within};
+/// The invocation's environment values and the cadence of a wait's notices.
+use super::child_environment::environment_value;
+use super::wait_progress::{Cadence, NOTICE_INTERVAL_VARIABLE};
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -303,6 +304,7 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
         describe_arguments(arguments).as_str(),
         query_deadline(&git.environment),
         STOP_GRACE,
+        git.environment.as_slice(),
     );
 }
 
@@ -420,14 +422,25 @@ fn joined_outcome(record: LastPushedRecord) -> SingleFlightOutcome {
 /// onWait: () => void
 /// ```
 struct WaitObserver<'observer> {
-    /// Called once when the first acquisition attempt finds the lock held.
-    on_wait: &'observer mut dyn FnMut(),
+    /// Called with nothing when the first acquisition attempt finds the lock held,
+    ///  and with how long the wait has lasted at every notice interval after it.
+    on_wait: &'observer mut dyn FnMut(Option<std::time::Duration>),
 }
 
 impl WaitNotice for WaitObserver<'_> {
-    /// Forwards the wait to the observer.
+    /// Forwards the start of the wait to the observer.
     fn waiting(&mut self) {
-        (self.on_wait)();
+        (self.on_wait)(None);
+    }
+
+    /// Forwards a repeat of the wait to the observer.
+    fn slow(&mut self, waited: std::time::Duration) {
+        (self.on_wait)(Some(waited));
+    }
+
+    /// The first line is printed by `waiting`, so the repeats start one interval later.
+    fn announces_at_start(&self) -> bool {
+        return true;
     }
 }
 
@@ -449,6 +462,31 @@ pub fn run_single_flight_push(
     landed_oid: &str,
     push: &mut dyn FnMut() -> Result<PushAttempt, SingleFlightError>,
     on_wait: &mut dyn FnMut(),
+) -> Result<SingleFlightOutcome, SingleFlightError> {
+    return run_single_flight_push_repeating(git, branch_ref, landed_oid, push, &mut |waited| {
+        if waited.is_none() {
+            on_wait();
+        }
+    });
+}
+
+/// What:
+///  `run_single_flight_push` whose wait also reports each repeat of the notice:
+///  the observer gets nothing at the start of the wait and how long it has lasted at each repeat.
+/// Why:
+///   A commit that queues behind a long push keeps saying so at the notice interval,
+///  or the caller cannot tell it from a hung one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runSingleFlightPush({ gitPath, cwd, branchRef, landedOid, push, onWait, onStillWaiting });
+/// ```
+pub fn run_single_flight_push_repeating(
+    git: &PushGit,
+    branch_ref: &str,
+    landed_oid: &str,
+    push: &mut dyn FnMut() -> Result<PushAttempt, SingleFlightError>,
+    on_wait: &mut dyn FnMut(Option<std::time::Duration>),
 ) -> Result<SingleFlightOutcome, SingleFlightError> {
     let paths = resolve_push_coordination_paths(git, branch_ref)?;
     let before = read_record(&paths.record_path)?;
@@ -473,11 +511,14 @@ pub fn run_single_flight_push(
     }
     let mut observer = WaitObserver { on_wait };
     // A live holder that outlives its own push deadline is stuck; waiting forever behind it would stall every commit.
-    let lock: OwnerLock = acquire_owner_lock_for(
+    // The invocation's own environment sets how often the wait repeats its notice, as it sets the wait's limit.
+    let cadence: Cadence = Cadence::from_value(environment_value(&git.environment, NOTICE_INTERVAL_VARIABLE).as_deref());
+    let lock: OwnerLock = acquire_within(
         &paths.lock_directory,
         DEFAULT_POLL_DELAY,
         &mut observer,
         lock_wait_limit(&git.environment),
+        cadence,
     )
     .map_err(SingleFlightError::Lock)?;
     let after = read_record(&paths.record_path)?;

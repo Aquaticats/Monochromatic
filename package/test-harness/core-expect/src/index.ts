@@ -11,3 +11,14 @@ export type {
 } from './expect.ts';
 
 export { expectTypeOf, } from 'expect-type';
+
+export {
+  expectLinearTimeGrowth,
+  measureTwoSizeRatio,
+  TwoSizeRatioError,
+  TwoSizeRatioInputError,
+} from './two-size-ratio.ts';
+export type {
+  SizeTiming,
+  TwoSizeMeasurement,
+} from './two-size-ratio.ts';

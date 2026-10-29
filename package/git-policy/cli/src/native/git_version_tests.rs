@@ -75,6 +75,7 @@ fn fake_git(name: &str, line: &str) -> (PathBuf, GitContext) {
         real_git: path.clone(),
         overlay: crate::test_support::isolated_overlay(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     return (root, context);
 }
@@ -120,6 +121,7 @@ fn a_missing_git_is_refused() {
         real_git: root.join("no-such-git"),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let refusal: String = ask_git_version(&context).expect_err("a missing Git must be refused");
     assert!(refusal.contains("nothing ("));

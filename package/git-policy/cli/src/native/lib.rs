@@ -549,6 +549,11 @@ mod scanner_test_support;
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
+/// Where short-lived private files live:
+///  the per-user scratch directory and the repository scratch directory,
+///  never the system temporary directory.
+pub mod scratch_location;
+
 /// Compact JSON records read and written with the incumbent's `JSON` semantics.
 pub mod json_record;
 
@@ -862,6 +867,27 @@ pub mod index_writer_coordination;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
+/// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
+pub mod merge_options;
+
+/// The durable intent record of an isolated merge.
+pub mod merge_isolation_journal;
+
+/// The raw differences of an isolated merge and the worktree state of each changed path.
+pub mod merge_isolation_changes;
+
+/// Recovery of an isolated merge whose process died.
+pub mod merge_isolation_recovery;
+
+/// The commit message of an isolated merge.
+pub mod merge_isolation_message;
+
+/// The refusal findings of an isolated merge.
+pub mod merge_isolation_report;
+
+/// A true merge completed in isolation while the index holds staged changes.
+pub mod merge_isolation;
+
 /// The real index.lock a landing creates,
 ///  identifies and releases only while it is the same file.
 pub mod real_index_lock;
@@ -885,6 +911,12 @@ pub mod auto_push_record;
 
 /// Waiting for a lock a live process holds: a slow-wait notice naming the holder and a configurable backstop.
 pub mod live_lock;
+
+/// The shared clock of every wait notice: the grace, the repeat interval and a queued commit's place in line.
+pub mod wait_progress;
+
+/// A watcher for waits that block on a child process: notices at the cadence and the child stopped at the bound.
+pub mod child_watch;
 
 /// Read-only Git queries of the auto-push, each with a deadline and separate output streams.
 pub mod bounded_query;

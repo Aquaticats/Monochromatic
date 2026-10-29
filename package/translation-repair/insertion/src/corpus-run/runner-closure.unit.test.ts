@@ -13,7 +13,7 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -220,7 +220,7 @@ await describe({
          */
         const missing = await readRunnerClosure({
           entryPath: join(
-            tmpdir(),
+            scratchRoot(),
             'no-such-tabby-probe-anywhere.mjs',
           ),
         },);

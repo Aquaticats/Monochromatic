@@ -259,8 +259,13 @@ in production:
 a path column containing a two-character space run parses its tail as the version;
 `parseBinList` splits on `\n` while `readBinRow` guards other line terminators;
 `parseCargoBinstallList` normalizes `cargoVer` but not `binstallVer`.
-Not investigated here,
-recorded so they are not lost.
+Two are fixed in `c42e90ea02`:
+`splitRows` keeps every terminator-separated row in one pass,
+and both version columns normalize alike.
+The first is dropped:
+it would change `readBinRow`'s documented shortest-prefix contract,
+and the owner ruled on 2026-10-29
+that `file-enforcer` is dead and nothing new gets built on it.
 
 ## Open
 
@@ -336,9 +341,56 @@ so it needed the owner's authorization first.
 On 2026-10-29 the owner ruled thinking-block text off limits to external providers,
 even mere summaries,
 which blocks the replay-through-Luna shape as proposed.
-The direction stays open:
-the owner corrected a wider reading that day,
-and any detector it yields must keep thinking text on this machine.
+ The direction stays open:
+ the owner corrected a wider reading that day,
+ and any detector it yields must keep thinking text on this machine.
+
+### Local calibration, 2026-10-29
+
+The named experiment ran locally,
+in the shape the text rule allows
+(`dismissal-calibrate.ts` in the scratch directory):
+a rule detector flags a thinking block
+when one sentence carries both a cost term and a size-dismissal term.
+It caught both known dismissal blocks of session `73f0639e`
+(blocks 1201 and 1202),
+and flagged 128 of 48,252 thinking blocks
+across an 11-transcript negative sample
+(0.27 percent,
+an upper bound since flagged negatives are unreviewed).
+Scanning is local and stream-based;
+output carries session id,
+block index and pattern ids only,
+never thinking text.
+The shadow trigger is built
+(commit `ee637f1b3b`,
+then moved off `Stop` alone on the owner's steer):
+the `cctd` Claude Code hook
+of `package/claude-code-plugin/thinking-dismissal`,
+one handler registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `.claude/settings.local.json`,
+appending one metadata-only record per event to
+`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`.
+Each event sees a part of the turn the others miss:
+`PreToolUse` names the action a dismissal led to before it runs
+(and is where a graduated gate could demand a proof),
+`PostToolUse` proves the action ran,
+`Stop` sees turn-ending thinking with no tool call after it.
+Observations are kept once per event type,
+joinable on the block hash.
+It records and never denies.
+The DSH side is built
+(`package/dsh-plugin/thinking-dismissal`,
+installed in the `web` profile):
+ one handler-equivalent plugin folding reasoning blocks in a
+`ctx.sessionProjections` unit
+and recording at `tools/pre-execute`,
+`tools/result`,
+and `agent/turn-stopping`,
+writing the same shared log as `cctd`,
+so both agent runtimes are observed.
+Any Luna leg over non-thinking text stays open.
 
 ## Scratch artifacts
 
@@ -385,9 +437,13 @@ and safe to delete:
   thinking-block text,
   even mere summaries,
   never goes to an external provider.
+  The owner clarified the same day
+  that the constraint covers thinking text only:
+  every other kind of text,
+  code and diffs included,
+  may go to external models.
   The Luna direction stays open;
-  only routes that carry thinking text off this machine are ruled out,
-  and the owner corrected a wider reading the same day.
+  only routes that carry thinking text off this machine are ruled out.
 - Accepted by the owner 2026-10-29:
   `RG2`'s scope widened to any code consuming unbounded input,
   landed in `cf88f54ed8`
@@ -420,6 +476,84 @@ and safe to delete:
   (permitted,
   required by nothing,
   checked by nothing).
+- Built 2026-10-29 at the owner's "what are you even doing without a hook":
+  the mechanical trigger,
+  the local git config hook `hook.standards-review-shadow` on `post-commit`
+  starting `mise run shadow-review` in a detached systemd user unit,
+  with the runner living in the `shadow_review` var of `mise.no-env.toml`.
+  Reviewer route pinned to `openai/gpt-6.1-sol` through `pi`
+  after `pi`'s default route answered `402` `billing_error`
+  (`doc/troubleshooting/pi-advisor-provider-billing.md`),
+  and `--no-tools` is the recursion guard.
+  First measured per-diff cost:
+  195.5 s on a 106-line diff replay,
+  and the reviewer demanded linearity proof even on the fix diff.
+- Built 2026-10-29 at the owner's "you already named work,
+  why didn't you do it":
+  the ratio-proof helper,
+  `measureTwoSizeRatio` and `expectLinearTimeGrowth`
+  in `package/test-harness/core-expect`
+  (commit `d4988f4c9b`),
+  whose self-test shows a synthetic quadratic tripping the bound
+  while one-pass work passes it.
+- Ruled by the owner 2026-10-29:
+  `file-enforcer` is dead as of that day
+  and nothing new gets built on it,
+  which drops the third blind-review by-product
+  rather than changing `readBinRow`'s parse contract.
+- Corrected by the owner 2026-10-29:
+  fixing the repository's other superlinear sites
+  was never requested work,
+  so the tier-3 hit list stays a research artifact
+  and no site gets fixed without a separate request.
+- Ruled by the owner 2026-10-29:
+  graduation is premature ("Not yet"),
+  and the missing piece is a Claude Code hook,
+  which is now built as `cctd`
+  (commit `ee637f1b3b`).
+
+## Shadow runs so far
+
+Seventeen scored entries by 2026-10-29 evening,
+settled under the pre-registered rule:
+
+- Named superlinear cost (`yes`):
+  2 of 17.
+  The scratch-plumbing commit whose `scratchParent` re-walked the ancestor chain per command
+  (O(r x d)),
+  and the ratio helper's own commit,
+  whose three `RG2` findings were real enough to fix forward.
+- Cost gestured at as unverified,
+  never named (`partial`):
+  7 of 17.
+  The runner sends the diff only,
+  so a callee outside the diff draws a "remains unverified" hedge
+  instead of a cost finding.
+- Named nothing (`no`):
+  5 of 17.
+
+The determinism pair on `d4988f4c9b57` agrees at the verdict level
+(both runs named cost,
+and the `Math.min` spread finding and the O(n)-proof claim recurred),
+while run 2 found three defects run 1 missed
+(`repeats: 0` passing vacuously on `NaN`,
+thenable `run` outliving the timing call,
+verdict ignoring the spread),
+all fixed in `9d2deb9bf7`.
+Cost spread on the identical diff:
+332.7 s against 158.1 s.
+
+Design finding from the `partial` cluster:
+the corpus reviews that reached 6 of 8 saw whole files,
+these see diffs.
+Sending the touched files' text beside the diff
+landed as the runner improvement in `35e9853f82`,
+and a replay of `d4988f4c9b57` with it
+returned the union of both diff-only runs' findings
+(six major ones in 235.6 s),
+then named one more defect,
+a base timing below the resolution floor suppressing the ratio,
+fixed in `b3c6836984`.
 
 ## Next action
 
@@ -442,18 +576,23 @@ that everything runs as shadow
 and that no `AGENTS.md` rule backs it in that phase,
 since a mandate would not count as shadow.
 Next:
-run it on real candidate diffs as they appear
-and append each run to the log,
-which measures per-diff cost and determinism.
+the trigger is live,
+so runs accumulate on their own:
+score each `unjudged` entry `yes` or `no` as entries land,
+and watch the wall-clock column for per-diff cost.
 Graduation then goes back to the owner
 (`AGENTS.md` rule versus git-policy landing check).
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
 (`RG2` already demands proof for unbounded input).
-The ratio-test gate stays ranked second
-as the regression tool for known exposing shapes;
-the Luna direction stays open under the thinking-text constraint.
+The ratio-proof helper is built
+(`measureTwoSizeRatio` and `expectLinearTimeGrowth`
+in `package/test-harness/core-expect`),
+so an author can land an exposing shape with a proof attached;
+what is left there is adoption,
+not code.
+The Luna direction stays open under the thinking-text constraint.
 
 ## Recall measurement results
 

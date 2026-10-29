@@ -9,7 +9,7 @@ import {
   mkdtempSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -42,7 +42,7 @@ function makePlanDir(
    Disposable directory holding the two data modules.
    */
   const dir = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-plan-load-',
   ),);
   mkdirSync(

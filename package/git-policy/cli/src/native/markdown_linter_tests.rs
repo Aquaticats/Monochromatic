@@ -30,7 +30,7 @@ use crate::bounded_child::{ChildFailure, ChildLimits};
 use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig};
 use crate::markdown_linter_output::{LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{executable, fixture, remove};
+use crate::test_support::{ActionSink, SharedSink, executable, fixture, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -98,7 +98,8 @@ fn the_executable_linter_uses_the_measured_bounds() {
     );
     let linter: ProcessLinter = executable_linter(&[]);
     assert_eq!(linter.limits, LINTER_LIMITS);
-    assert!(linter.scratch.is_absolute(), "{:?}", linter.scratch);
+    // No directory is given: the per-user one is made from the environment when a candidate needs it.
+    assert_eq!(linter.scratch, None);
     assert_eq!(linter.environment, Vec::<(OsString, OsString)>::new());
 }
 
@@ -201,6 +202,59 @@ fn the_linter_gets_the_contract_arguments() {
     remove(root.as_path());
 }
 
+/// The executable's linter makes its configuration in the per-user scratch directory of its environment, never in the
+/// system temporary directory (the environment's `TMPDIR` names a path that does not exist), and removes it with the
+/// invocation.
+#[test]
+fn the_executable_linter_makes_its_configuration_in_the_per_user_scratch_directory() {
+    let root: PathBuf = fixture("linter-user-scratch");
+    let bin: PathBuf = stand_in(root.as_path(), RECORDING);
+    let record: PathBuf = root.join("record");
+    let top: PathBuf = root.join("top");
+    let home: PathBuf = root.join("home");
+    for directory in [&record, &top, &home] {
+        std::fs::create_dir(directory).expect("directory");
+    }
+    let unusable: PathBuf = root.join("no-such-tmpdir");
+    let mut linter: ProcessLinter = executable_linter(
+        environment(
+            bin.as_path(),
+            &[("RECORD", record.as_path()), ("HOME", home.as_path()), ("TMPDIR", unusable.as_path())],
+        )
+        .as_slice(),
+    );
+    assert_eq!(
+        lint(&mut linter, top.as_path(), b"a.md", b"source\n"),
+        Ok(LintRun { fixed: b"source\n".to_vec(), remaining: Vec::new() })
+    );
+    let arguments: Vec<u8> = std::fs::read(record.join("arguments")).expect("arguments");
+    let first: &[u8] = arguments.split(is_line_feed).next().expect("first argument");
+    let configuration: PathBuf = PathBuf::from(OsString::from_vec(first["--config=".len()..].to_vec()));
+    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    assert_eq!(configuration.parent(), Some(scratch.as_path()));
+    assert!(configuration.exists());
+    drop(linter);
+    assert!(!configuration.exists(), "the configuration leaves with the invocation");
+    assert_eq!(std::fs::read_dir(&scratch).expect("scratch").count(), 0, "nothing is left in the scratch directory");
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(root.as_path());
+}
+
+/// An environment with no state directory and no home makes the linter fail at the first candidate, naming the
+/// variables, rather than falling back to the system temporary directory; making the linter costs nothing.
+#[test]
+fn the_executable_linter_without_a_home_fails_at_the_first_candidate_naming_the_variables() {
+    let root: PathBuf = fixture("linter-no-home");
+    let bin: PathBuf = stand_in(root.as_path(), "cat");
+    let top: PathBuf = root.join("top");
+    std::fs::create_dir(&top).expect("top");
+    let mut linter: ProcessLinter = executable_linter(environment(bin.as_path(), &[]).as_slice());
+    let reason: String = lint(&mut linter, top.as_path(), b"a.md", b"source\n").expect_err("no scratch directory");
+    assert!(reason.contains("XDG_STATE_HOME") && reason.contains("HOME"), "{reason}");
+    assert!(reason.contains("never in the system temporary directory"), "{reason}");
+    remove(root.as_path());
+}
+
 /// The program found first is kept for the invocation:
 ///  once it is gone,
 ///  the next start
@@ -251,7 +305,9 @@ fn each_failure_comes_back_with_its_reason() {
     assert_eq!(
         lint(&mut slow, root.as_path(), b"a.md", b"a\n"),
         Err(String::from(
-            "monochromatic-lint did not finish within 300 milliseconds and was stopped"
+            "monochromatic-lint did not finish within 300 milliseconds and was stopped; run the command again, \
+             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+             to off to skip the check"
         ))
     );
     let flood: PathBuf = stand_in(&root.join("flood"), "exec head -c 1000 /dev/zero");
@@ -329,7 +385,9 @@ fn child_failures_read_as_sentences() {
         ),
         (
             ChildFailure::TimedOut(Duration::from_secs(60)),
-            "monochromatic-lint did not finish within 60000 milliseconds and was stopped",
+            "monochromatic-lint did not finish within 60000 milliseconds and was stopped; run the command again, \
+             run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+             to off to skip the check",
         ),
         (
             ChildFailure::TooLarge {
@@ -468,5 +526,35 @@ fn the_real_linter_meets_the_contract() {
             remaining: Vec::new(),
         })
     );
+    remove(root.as_path());
+}
+
+/// A linter run that takes long prints notices that name the linter and the file it checks, and still returns its result.
+#[test]
+fn a_linter_run_that_takes_long_names_the_file_it_checks() {
+    let root: PathBuf = fixture("linter-notices");
+    let slow: PathBuf = stand_in(&root.join("slow"), "while [ ! -e release ]; do sleep 0.02; done\ncat");
+    let sink: SharedSink = SharedSink::default();
+    // The third notice releases the stand-in, so the run ends on that event, whatever the host's speed.
+    let release: PathBuf = root.join("release");
+    let counted: ActionSink = ActionSink::new(&sink, 3, move || {
+        std::fs::write(&release, b"").expect("release the linter");
+    });
+    let mut linter: ProcessLinter = process_linter(environment(slow.as_path(), &[]).as_slice(), LINTER_LIMITS, root.clone())
+        .with_notices(
+            crate::wait_progress::Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
+            Box::new(counted),
+        );
+    let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"docs/a.md", b"a\n");
+    assert!(run.is_ok(), "{run:?}");
+    let text: String = sink.text();
+    assert!(text.lines().count() >= 3, "{text}");
+    for line in text.lines() {
+        assert!(
+            line.starts_with("cli-git: still waiting for monochromatic-lint to check docs/a.md (process "),
+            "{text}"
+        );
+        assert!(line.contains("stopping it after 60 seconds"), "{text}");
+    }
     remove(root.as_path());
 }

@@ -16,6 +16,8 @@ fn context() -> GitContext {
             (OsString::from("GIT_AUTHOR_EMAIL"), OsString::from("fixture@example.invalid")),
         ],
         global_prefix: Vec::new(),
+        // The context names no repository, so input files are made in the scratch directory beside the fixtures.
+        common_dir: Some(crate::test_support::fixture_root()),
     };
 }
 

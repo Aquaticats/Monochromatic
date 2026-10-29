@@ -425,8 +425,8 @@ Still to do:
 
 Status:
 0.1.0 published and released on 2026-10-29; Trusted Publishing configured and exercised by CI.
-Owner action remaining: none for the crate; the `cargo login` token the owner created for this publish should be revoked
-at <https://crates.io/settings/tokens> once no further manual publish is planned.
+Owner action remaining: none. The owner revoked the `cargo login` token created for this publish on 2026-10-29,
+and `cargo logout` then removed the dead credential from `~/.cargo/credentials.toml`.
 
 Crate `monochromatic-mpm-shadow`,
 version `0.1.0`,
@@ -452,6 +452,13 @@ as measured:
   built and attested both archives, and created the immutable release `monochromatic-mpm-shadow-v0.1.0` with
   the two archives and `monochromatic-mpm-shadow-0.1.0-sha256sums.txt`.
   0.1.0 already carried `[package.metadata.binstall]`, so no 0.1.1 was needed.
+- 0.1.1 followed the same day. Installing 0.1.0 showed that `cargo binstall` updates `~/.cargo/.crates.toml` but not
+  `.crates2.json`, which the shadow read, so the shadow now reads `.crates.toml`. A plain push of the version bump to
+  `main` ran `ms-detect` through `ms-create-release` (run `40886969789`): Trusted Publishing authenticated, crates.io
+  lists 0.1.1 and 0.1.0, and release `monochromatic-mpm-shadow-v0.1.1` is immutable with both archives and the
+  checksums file. Installed through mpm and the extension, the binary's SHA-256 equals the 0.1.1 archive's, and
+  `toolchain:sync` then created `.cache/mpm-shadow-bin/mpm`; `mpm` in the mise environment ran the real mpm 8.2.0
+  and deleted the stale 0.1.0 copies from the cargo registry.
 - Consumer checks: `sha256sum --check` and `gh attestation verify` on the x86_64 archive both passed, and
   `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
   in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary, so binstall used the release

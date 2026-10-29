@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -59,7 +59,7 @@ const DECLARATIONS = 'declare const toppings: readonly string[];\n';
  */
 function scratchProject(source: string,): { readonly filePath: string; readonly [Symbol.dispose]: () => void; } {
   /** Unique temp directory holding the project. */
-  const directory = mkdtempSync(join(tmpdir(), 'oxlint-spread-bridge-failure-',),);
+  const directory = mkdtempSync(join(scratchRoot(), 'oxlint-spread-bridge-failure-',),);
   writeFileSync(
     join(directory, 'tsconfig.json',),
     JSON.stringify({

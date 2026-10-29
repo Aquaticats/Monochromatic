@@ -427,6 +427,8 @@ fn forward_action(
         real_git: real_git.clone(),
         overlay: overlay.clone(),
         global_prefix: Vec::new(),
+        // These queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
     let writes_index: bool = is_index_writer(&command);
@@ -553,6 +555,7 @@ fn lfs_hook_executable<'executable>(
         real_git: real_git.to_path_buf(),
         overlay: overlay.to_vec(),
         global_prefix: command.arguments[..command.subcommand_index].to_vec(),
+        common_dir: None,
     };
     let snapshot: Option<ConfigSnapshot> = match std::env::current_dir() {
         Ok(directory) => read_config_snapshot(&context, directory.as_path()),
@@ -600,6 +603,8 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_execu
         real_git: real_git.clone(),
         overlay: overlay.clone(),
         global_prefix: Vec::new(),
+        // These queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
     let lfs_executable: Option<&Path> =

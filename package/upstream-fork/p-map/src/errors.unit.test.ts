@@ -14,6 +14,7 @@ import {
   InvalidBackpressureError,
   InvalidConcurrencyError,
   InvalidInputError,
+  InvalidKeyedInputError,
   MapperRequiredError,
 } from '../dist/final/neutral/index.mjs';
 
@@ -190,6 +191,44 @@ await describe({
             }
             expect(caught,).toBeInstanceOf(TypeError,);
             expect((caught as Error).message,).toBe('Cannot convert a Symbol value to a string',);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: InvalidKeyedInputError.name,
+      children: [
+        it({
+          name: 'extends TypeError so existing TypeError handlers keep working',
+          fn: async () => {
+            const error = new InvalidKeyedInputError(5,);
+            expect(error,).toBeInstanceOf(TypeError,);
+            expect(error,).toBeInstanceOf(Error,);
+          },
+        },),
+
+        it({
+          name: 'carries upstream p-map message text with the rejected runtime type',
+          fn: async () => {
+            const error = new InvalidKeyedInputError(5,);
+            expect(error.message,).toBe('Expected `input` to be an object, got (number)',);
+          },
+        },),
+
+        it({
+          name: 'names null explicitly, as its runtime type is object',
+          fn: async () => {
+            const error = new InvalidKeyedInputError(null,);
+            expect(error.message,).toBe('Expected `input` to be an object, got (null)',);
+          },
+        },),
+
+        it({
+          name: 'names itself for readable stacks',
+          fn: async () => {
+            const error = new InvalidKeyedInputError(5,);
+            expect(error.name,).toBe('InvalidKeyedInputError',);
           },
         },),
       ],

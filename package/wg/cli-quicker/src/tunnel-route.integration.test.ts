@@ -4,7 +4,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -172,7 +172,7 @@ async function createRouteFixture(): Promise<RouteFixture> {
   /**
    Private fixture directory.
    */
-  const directory = await mkdtemp(join(tmpdir(), 'wgq-route-integration-',),);
+  const directory = await mkdtemp(join(scratchRoot(), 'wgq-route-integration-',),);
   await chmod(directory, 0o700,);
   /**
    Resource owner available before setup for rollback.

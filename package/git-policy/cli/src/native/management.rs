@@ -393,6 +393,8 @@ fn plan_doctor(
         real_git,
         overlay,
         global_prefix: git_global_arguments.to_vec(),
+        // The doctor sends no input, so no scratch directory is needed.
+        common_dir: None,
     };
     return doctor_action(&context, cwd.as_path());
 }

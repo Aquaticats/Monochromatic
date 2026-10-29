@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -59,7 +59,7 @@ async function makeRoot(): Promise<TempRoot> {
   /**
    Fresh root.
    */
-  const root = await mkdtemp(join(tmpdir(), 'deps-update-diagnose-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'deps-update-diagnose-',),);
   await Promise.all([
     writeFile(join(root, 'package.json',), '{}',),
     writeFile(join(root, 'pnpm-workspace.yaml',), MANIFEST,),

@@ -12,7 +12,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -51,7 +51,7 @@ async function makeRepo(): Promise<TempRepo> {
   /**
    Fresh repository root.
    */
-  const root = await mkdtemp(join(tmpdir(), 'deps-update-test-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'deps-update-test-',),);
   await mkdir(join(root, 'package', 'grp', 'app', 'src',), { recursive: true, },);
   await Promise.all([
     writeFile(join(root, 'package.json',), '{"name":"root"}',),
@@ -155,7 +155,7 @@ await describe({
           try {
             await using _scratch = await createScratchWorkspace({
               root: repo.root,
-              projectDirs: [tmpdir(),],
+              projectDirs: [scratchRoot(),],
             },);
             return 'resolved';
           }

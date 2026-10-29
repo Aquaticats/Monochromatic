@@ -5,7 +5,7 @@
  */
 
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -52,7 +52,7 @@ async function createDisposableTempRoot(): Promise<DisposableTempRoot> {
   /**
    Absolute directory unique to the current case.
    */
-  const path = await mkdtemp(join(tmpdir(), 'bash-poke-spool-', ), );
+  const path = await mkdtemp(join(scratchRoot(), 'bash-poke-spool-', ), );
   return {
     path,
     async [Symbol.asyncDispose](): Promise<void> {

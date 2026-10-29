@@ -24,12 +24,19 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
     .collect();
 }
 
-/// Coordinator Git for a fixture repository at `root`.
+/// The home directory of a fixture repository at `root`, beside it, where the per-user scratch directory is made.
+fn home_beside(root: &Path) -> PathBuf {
+    return root.parent().expect("fixture root").join("home");
+}
+
+/// Coordinator Git for a fixture repository at `root`, with a home beside the repository.
 fn git_for(root: &Path) -> PushGit {
+    let mut environment = fixture_environment();
+    environment.push((OsString::from("HOME"), home_beside(root).into_os_string()));
     return PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
-        environment: fixture_environment(),
+        environment,
         lfs_pre_push: None,
     };
 }
@@ -361,6 +368,43 @@ fn a_failed_probe_removes_its_scratch_directory() {
     assert!(present.exists(), "a directory the probe did not create was removed");
     remove(repo.parent().expect("root"));
     remove(&root);
+}
+
+/// The probe makes its private directory in the per-user scratch directory of the push's environment, never in the
+/// system temporary directory (the environment's `TMPDIR` names a path that does not exist), and leaves nothing there.
+#[test]
+fn the_probe_scratch_lives_in_the_per_user_scratch_directory_and_is_removed() {
+    let (repo, _origin, _base) = repository_with_origin("mp-scratch-location");
+    git(&repo, &["commit", "--quiet", "--allow-empty", "--message=next"]);
+    let unusable = home_beside(&repo).join("no-such-tmpdir");
+    let mut pushing = git_for(&repo);
+    pushing.environment.push((OsString::from("TMPDIR"), unusable.clone().into_os_string()));
+    let updates = probe_manual_push_updates(&pushing, &[], &post(&["origin", "main"])).expect("probes");
+    assert_eq!(updates.len(), 1);
+    let scratch = home_beside(&repo).join(".local/state/cli-git/scratch");
+    let left: Vec<OsString> = fs::read_dir(&scratch)
+        .expect("the per-user scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
+    assert!(left.is_empty(), "nothing is left in {}: {left:?}", scratch.display());
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(repo.parent().expect("root"));
+}
+
+/// A push environment with no state directory and no home fails the probe naming the variables, and the system
+/// temporary directory is not a fallback.
+#[test]
+fn the_probe_without_a_home_fails_naming_the_variables() {
+    let (repo, _origin, _base) = repository_with_origin("mp-scratch-no-home");
+    let homeless = PushGit {
+        real_git: PathBuf::from("/usr/bin/git"),
+        cwd: repo.clone(),
+        environment: fixture_environment(),
+        lfs_pre_push: None,
+    };
+    let error = probe_manual_push_updates(&homeless, &[], &post(&["origin", "main"])).expect_err("no home");
+    assert!(error.message.contains("XDG_STATE_HOME") && error.message.contains("HOME"), "{}", error.message);
+    remove(repo.parent().expect("root"));
 }
 
 /// The probe error prints as its diagnostic, so a refused push names what could not be established.

@@ -11,7 +11,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -47,7 +47,7 @@ await describe({
     it({
       name: 'writes an executable xdg-open that records its arguments',
       fn: async ({ expect, }) => {
-        const dir = await mkdtemp(join(tmpdir(), 'e2e-stub-',),);
+        const dir = await mkdtemp(join(scratchRoot(), 'e2e-stub-',),);
         const record = join(dir, 'record.txt',);
         await writeFile(record, '',);
         await writeFileManagerStub({ binDir: join(dir, 'bin',), record, },);

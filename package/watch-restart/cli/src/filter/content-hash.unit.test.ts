@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
@@ -51,7 +51,7 @@ const TINY_HASH_CAP_BYTES = 4;
  ```
  */
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'watch-restart-content-hash-',),);
+  return mkdtemp(join(scratchRoot(), 'watch-restart-content-hash-',),);
 }
 
 /**

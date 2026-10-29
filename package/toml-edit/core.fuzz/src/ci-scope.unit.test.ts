@@ -7,7 +7,7 @@
 
 import { execFileSync, spawnSync, } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync, } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
@@ -63,7 +63,7 @@ type Fixture = {
 /** Create a dependency-free consumer checkout with no inherited Git configuration or hooks. */
 function fixture(): Fixture {
   /** Every mutable resource stays under this disposable parent. */
-  const temporary = mkdtempSync(join(tmpdir(), 'toml-edit-scope-',),);
+  const temporary = mkdtempSync(join(scratchRoot(), 'toml-edit-scope-',),);
   /** Git checkout used by the production decision. */
   const root = join(temporary, 'repository',);
   mkdirSync(root,);

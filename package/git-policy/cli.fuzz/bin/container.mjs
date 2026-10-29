@@ -10,7 +10,6 @@ import {
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
@@ -29,6 +28,13 @@ import {
   targets,
 } from './fuzz-options.mjs';
 import { fuzzTarget } from './fuzz-run.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy-fuzz');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /**
  Build the run image holding only the instrumented binaries, corpus and dictionaries.
@@ -152,7 +158,7 @@ const compilerVersion = (await runCommand({
 if (!compilerVersion.includes('nightly'))
   throw new NativeVerificationError('Fuzz instrumentation requires the repository-managed nightly Rust toolchain.');
 await using context = await mkdtempDisposable(join(
-  tmpdir(),
+  scratchBase,
   'git-policy-cli-fuzz-',
 ));
 const outputRoot = join(

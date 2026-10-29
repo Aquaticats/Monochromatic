@@ -143,7 +143,9 @@ Read these steps of each `build` leg:
 - "Smoke test the executable (--version)" prints `monochromatic-ide <version>`.
 - "Check the shared libraries and the glibc floor" prints the `needed` libraries and the newest glibc symbol version.
   On x64 the list includes the dynamic loader `ld-linux-x86-64.so.2`;
-  on arm64 it is `libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6` with no loader.
+  on arm64 it includes `ld-linux-aarch64.so.1`
+  (`ld-linux-aarch64.so.1 libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6`, dry run 40887621364).
+  An arm64 executable linked in the Fedora 41 image had no loader entry, and one linked in the Ubuntu 24.04 release image has it.
 - "Check that no software renderer is linked" ends with a line that starts
   `Slint software renderer is not linked into any build of this package`,
   names both targets (`x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`),
@@ -220,12 +222,13 @@ Failures that belong to this workflow:
   the two build graphs now differ in a crate that `about.toml` does not cover.
   Both release targets must be listed in `targets` there;
   rerun the `notices` task on each architecture and compare.
-- The step "Build the base image (terminal)" or "Build the IDE build image" fails while downloading:
-  the image build fetches Zig from `ziglang.org`,
+- The step "Build the base image (terminal release)" or "Build the IDE release build image" fails while downloading:
+  the release images (Ubuntu 24.04, `Containerfile.release` of `package/terminal/app` and `package/ide/app`,
+  selected by `IDE_RELEASE=1` in the job `env`) fetch Zig from `ziglang.org`,
   the Rust installer from `sh.rustup.rs`,
   `cargo-nextest` from `get.nexte.st`,
-  Fedora packages,
-  and builds `cargo-about` from source.
+  Ubuntu packages with `apt`,
+  and build `cargo-about` from source.
   Any of them can be unavailable for a while.
   Rerun the failed job.
 - "Record the toolchain of the build image" fails with a cgroup or `OCI runtime` error:

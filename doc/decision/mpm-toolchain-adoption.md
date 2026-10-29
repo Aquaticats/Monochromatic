@@ -312,7 +312,7 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  (the shipped `cargo` manager's plain `cargo install`,
  which `mpm.packages.toml` routes these crates to,
  and local builds fill both).
- The kept version is the one cargo's install record (`.crates2.json`) names as installed,
+ The kept version is the one cargo's install record (`.crates.toml`, which `cargo binstall` updates and `.crates2.json` does not) names as installed,
  or the newest cached version when the record does not name the crate
  (a library dependency such as `monochromatic-jsonc-edit`).
  A crate with a longer name that shares the prefix is a different crate and is judged on its own versions.

@@ -20,6 +20,12 @@ import {
   pMapIterable,
 } from '../dist/final/neutral/index.mjs';
 
+import {
+  collect,
+  createGate,
+  yieldTurn,
+} from './test-support.ts';
+
 await describe({
   name: 'map option handling',
   children: [
@@ -92,6 +98,39 @@ await describe({
             }))
               streamed.push(mapped,);
             expect(streamed,).toEqual([1],);
+          },
+        },),
+
+        it({
+          name: 'yields in input order for the streaming map when preserveOrder is omitted',
+          fn: async () => {
+            /**
+             Gates letting the second element finish before the first.
+             */
+            const gates = [
+              createGate(),
+              createGate(),
+            ];
+            const collecting = collect(pMapIterable({
+              iterable: [
+                0,
+                1,
+              ],
+              mapper: async function gated(value: number,): Promise<number> {
+                await gates[value]?.open;
+                return value;
+              },
+              options: { concurrency: 2, },
+            },),);
+            await yieldTurn();
+            gates[1]?.release();
+            await yieldTurn();
+            gates[0]?.release();
+
+            expect(await collecting,).toEqual([
+              0,
+              1,
+            ],);
           },
         },),
       ],

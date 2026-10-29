@@ -11,7 +11,7 @@
  killed.
 
  Test matrix:
- - OS: ubuntu (apt), fedora (dnf), cachyos (pacman)
+ - OS: ubuntu (apt), cachyos (pacman); Fedora (dnf) was dropped on 2026-10-29
  - User: root, non-root (uid 1000)
 
  @example
@@ -71,14 +71,6 @@ const CELLS: readonly {
   },
   {
     os: 'container:ubuntu',
-    user: 'user',
-  },
-  {
-    os: 'container:fedora',
-    user: 'root',
-  },
-  {
-    os: 'container:fedora',
     user: 'user',
   },
   {

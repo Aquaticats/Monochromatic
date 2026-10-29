@@ -1,5 +1,5 @@
 [tasks."perf:setup"]
-description = "Create performance benchmark fixture files in /tmp"
+description = "Create performance benchmark fixture files in the test scratch root"
 run = "node src/setup-fixture.ts"
 
 [tasks."perf:micro"]
@@ -19,8 +19,11 @@ description = "Remove performance benchmark fixture files"
 shell = "node --input-type=module-typescript -e"
 run = """
 const { rmSync } = await import('node:fs')
+const { homedir } = await import('node:os')
 const { join } = await import('node:path')
-rmSync(join(process.env.TMPDIR ?? '/tmp', 'file-enforcer-perf'), { recursive: true, force: true })
+// The directory scratchRoot() from test-harness-core returns, where the perf scripts keep their fixtures.
+const scratch = process.env.MONOCHROMATIC_TEST_SCRATCH || join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'monochromatic-dev', 'test-scratch')
+rmSync(join(scratch, 'file-enforcer-perf'), { recursive: true, force: true })
 """
 
 # CAP_PERFMON / setcap are Linux-only, so this task is intentionally non-portable.

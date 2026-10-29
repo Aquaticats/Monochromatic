@@ -7,7 +7,7 @@
  * Run via `node perf.config.ts` after setup-fixture.ts creates the fixture.
  */
 
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -26,7 +26,7 @@ reset();
 console.error(`[perf.config] readCache size: ${String(readCache.size,)} entries`,);
 
 /** Absolute path to the fixture root, respects $TMPDIR for sandbox compatibility */
-const BASE = join(tmpdir(), 'file-enforcer-perf',);
+const BASE = join(scratchRoot(), 'file-enforcer-perf',);
 /** Absolute path to the source directory within the fixture */
 const SRC = `${BASE}/src`;
 /** Absolute path to the destination directory within the fixture */

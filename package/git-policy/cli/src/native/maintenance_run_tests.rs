@@ -54,6 +54,7 @@ fn stand_context(path: PathBuf, global_prefix: &[&str]) -> GitContext {
         real_git: path,
         overlay: Vec::new(),
         global_prefix: global_prefix.iter().map(|option| return std::ffi::OsString::from(option)).collect(),
+        common_dir: None,
     };
 }
 

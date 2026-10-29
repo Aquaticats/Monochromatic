@@ -42,7 +42,7 @@ fn lsof_numbers_follow_bigint_spelling() {
 ///  their command and file descriptors follow.
 #[test]
 fn lsof_output_groups_files_under_their_process() {
-    let output: &str = "p42\ncgit commit\nf3\nD0x1000011\ni77\nn/tmp/x\nf4\nD0x2\ni9\n\
+    let output: &str = "p42\ncgit commit\nf3\nD0x1000011\ni77\nn/fixture/x\nf4\nD0x2\ni9\n\
                         p43\ncsh\nf5\nD0x1000011\ni77\n";
     let processes: Vec<LsofProcess> = parse_lsof_fields(output);
     assert_eq!(processes.len(), 2);

@@ -123,11 +123,7 @@ fn git(directory: &std::path::Path, arguments: &[&str]) -> std::process::Output 
 /// Optional --color does not consume a separated branch name in the selected native release.
 #[test]
 fn native_optional_color_flag_still_creates_a_named_branch() {
-    let directory = std::env::temp_dir().join(format!(
-        "native-color-classification-{}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).expect("fresh fixture");
+    let directory = crate::test_support::fixture("native-color-classification");
     git(&directory, &["init", "--initial-branch=main"]);
     git(
         &directory,

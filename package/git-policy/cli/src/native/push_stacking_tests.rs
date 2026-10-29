@@ -25,10 +25,13 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
 
 /// Coordinator Git for a repository at `root`.
 fn push_git(root: &Path) -> PushGit {
+    // The probe's per-user scratch directory is made under a home beside the repository.
+    let mut environment = fixture_environment();
+    environment.push((OsString::from("HOME"), root.parent().unwrap_or(root).join("home").into_os_string()));
     return PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
-        environment: fixture_environment(),
+        environment,
         lfs_pre_push: None,
     };
 }

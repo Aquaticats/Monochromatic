@@ -15,6 +15,8 @@
 use super::auto_push_single_flight::{PushGit, git_command};
 /// Unguessable names for the private probe directory.
 use super::random_id::random_uuid;
+/// The per-user scratch directory the probe directory is made in.
+use super::scratch_location::prepare_user_scratch;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// Owned OS strings for the probe's Git arguments.
@@ -486,7 +488,10 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
-    let scratch = std::env::temp_dir().join(format!(
+    // The probe's hook directory lives in the per-user scratch directory of the push's environment, never in the
+    // system temporary directory, and `ScratchGuard` removes it on every path.
+    let parent = prepare_user_scratch(git.environment.as_slice()).map_err(probe_error)?;
+    let scratch = parent.join(format!(
         "cli-git-push-facts-{}",
         random_uuid().map_err(|error| {
             return probe_error(format!("random source failed: {}", error.0));

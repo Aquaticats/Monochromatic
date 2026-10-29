@@ -1,5 +1,5 @@
 import { mkdtempDisposable, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -31,7 +31,7 @@ await describe({
     it({
       name: 'reports missing runtime with original cause and restart remediation',
       fn: async () => {
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ask-runtime-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ask-runtime-',),);
         const execPath = join(directory.path, 'missing-node',);
         let caught: unknown;
         try {

@@ -8,3 +8,4 @@
 **/.stryker-tmp
 .env.local.json
 mise.local.toml
+.claude

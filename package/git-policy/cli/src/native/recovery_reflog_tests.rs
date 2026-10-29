@@ -92,6 +92,7 @@ fn nonce_entries_are_found_at_any_depth() {
         real_git: root.join("no-git"),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     assert!(
         list_nonce_reflog_oids(&unstartable, repo.as_path(), "refs/heads/main", "x")
