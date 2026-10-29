@@ -19,7 +19,8 @@ import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
 
  @param pollMs - how often the reading's wait checks for abort
 
- @param reading - starts the reading, handing it the abort signal it must honour
+ @param reading - starts the reading, handing it the abort signal it must honour and the fake clock's reading, which
+ budgets the reading builds count a hold on (a monotonic clock that moves only as the call ticks)
 
  @returns Whatever the reading returned
 
@@ -45,7 +46,12 @@ export async function readOnFakeClock<ResultT,>(
     readonly sinon: DisposableSandbox;
     readonly holdMs: number;
     readonly pollMs: number;
-    readonly reading: (inputs: { readonly signal: AbortSignal; }) => Promise<ResultT>;
+    readonly reading: (
+      inputs: {
+        readonly signal: AbortSignal;
+        readonly now: () => number;
+      },
+    ) => Promise<ResultT>;
   },
 ): Promise<ResultT> {
   /**
@@ -54,6 +60,8 @@ export async function readOnFakeClock<ResultT,>(
    refuse it, write a `FakeTimers` message to stderr and leave the timer holding the process for its full length.
    */
   const clock = sinon.useFakeTimers({
+    // One second in, so no reading a budget takes sits at instant zero.
+    now: 1_000,
     toFake: [
       'setTimeout',
       'clearTimeout',
@@ -75,7 +83,14 @@ export async function readOnFakeClock<ResultT,>(
   /**
    The reading, started on the fake clock.
    */
-  const running = reading({ signal: abort.signal, },);
+  const running = reading({
+    signal: abort.signal,
+    now: function fakeNow(): number {
+      return clock.now;
+    },
+  },);
+  // A reading that rejects while the clock ticks is reported by the final await, not as an unhandled rejection.
+  void Promise.allSettled([running,],);
   await clock.tickAsync(holdMs + pollMs,);
   abort.abort();
   await clock.tickAsync(pollMs,);

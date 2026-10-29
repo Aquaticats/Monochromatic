@@ -37,6 +37,7 @@ import {
   clientBefore,
   SIGNAL,
 } from './neuralwatt-seat-client.test-fixture.ts';
+import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
 
 /**
  The clock the budgets count a return on, frozen so no host stall moves a distance between its reading and its hold.
@@ -217,17 +218,25 @@ await describe({
     it({
       name: 'CARRIES NO DISTANCE ON THE BENCH ERROR WHEN THE ACCOUNT NAMES NO RETURN (the control): the reader waited '
         + '60 ms for the return, the account still shows the day spent, and no further return is named',
-      fn: async () => {
-        // The case sleeps for real: the reader waits out the 60 ms and reads the account again.
-        const { client, } = clientBefore({ msBeforeReturn: 60, lagging: true, },);
-        const refusal = await rejectionOf({
-          promise: readPhaseSeats({
-            client,
-            phase: 'lanes',
-            signal: SIGNAL,
-            l: levelCapturingLogger({ lines: [], },),
-            pollMs: 5,
-          },),
+      fn: async ctx => {
+        // The reader waits out the 60 ms and reads the account again, on a fake clock the call ticks past that is also
+        // the monotonic clock the budgets count the return on.
+        const refusal = await readOnFakeClock({
+          sinon: ctx.sinon,
+          holdMs: 60,
+          pollMs: 5,
+          reading: async function reading({ signal, now, },): Promise<unknown> {
+            const { client, } = clientBefore({ msBeforeReturn: 60, lagging: true, now, },);
+            return await rejectionOf({
+              promise: readPhaseSeats({
+                client,
+                phase: 'lanes',
+                signal,
+                l: levelCapturingLogger({ lines: [], },),
+                pollMs: 5,
+              },),
+            },);
+          },
         },);
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect((refusal as WritingBenchUnreachableError).neuralwattReturnsInMs,).toBeUndefined();
