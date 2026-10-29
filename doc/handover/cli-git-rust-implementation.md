@@ -3874,3 +3874,24 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `status -z` as a status entry, so a source path starting with `U`, `AA` or `DD` forwards the merge to native Git
   (safe fallback, wrong decision). Agent `a06fecbc07efeef53` is fixing it tests first on its branch; I land it.
 - Wave 4 (task 65) is running over `push_stacking`, `command_push`, `auto_push_reconcile` and `entry`.
+
+## Update at 2026-10-29 (night, wave 4 results, runner bug)
+
+- Wave 4 (tree `6cd2a6d510` in `~/temp/agent/integrate-8`, images `w40` to `w43`): `push_stacking.rs` 15 mutants, 15
+  caught. `entry.rs` 49 mutants, 42 caught, 7 unviable. `command_push.rs` 6 mutants, 5 caught, 1 unviable.
+  `auto_push_reconcile.rs` 71 mutants, 64 caught, 5 unviable, 2 missed (`integrate_and_push`: guard `plan.explicit`
+  at 635, `!` at 724). Agent `abbc13f4fc26d7e3d` is killing those two.
+- Full `merge_isolation.rs` campaign (log.1, 4 hours because of the runner bug below): 99 mutants, 76 caught, 8
+  unviable, 15 missed. Four beyond the 11 already killed: 437:55, 499:5, 500:9 (`recover_under_lock`) and 632:27
+  (`global_prefix` in `apply`). Agent `a06fecbc07efeef53` is killing those and hand-checking six more from a partial
+  rerun.
+- Runner bug found and fixed: `mutation-parallel.ts` chained its three attempts with `;` and used `break` outside a
+  loop, so every file ran all three attempts even after a good result (3 times the host time, identical results).
+  It now uses a real `for` loop. The stray units were stopped.
+- New flaky baseline: `native_binary forwarding::exit_codes_and_stderr_match_native_git` hit the 5-second bound (5.6 s)
+  in a `command_push` baseline rerun. The same agent investigates it (measure the slow command, then make the code
+  faster or move the command to the commit bound; no guessing).
+- Wave 5 started over `owner_lock.rs`, `worktree_copy_lock.rs`, `transaction_git.rs`, `markdown_linter.rs` and
+  `management_arguments.rs` (the 1810 and 1811 changes; tree `6cd2a6d510`... see `integrate-12`, images `w50` to
+  `w54`). After the survivor fixes land: rerun `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the
+  new tree to confirm the kills.
