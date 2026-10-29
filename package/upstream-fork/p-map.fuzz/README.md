@@ -54,7 +54,7 @@ never another failure mode.
 
 #### Upstream differential oracle
 
-The same workloads drive upstream `p-map` 7.0.8
+The same workloads drive upstream `p-map` 7.1.1
  (the dependency this fork
 replaces) and the fork:
  mapper start order,
@@ -66,6 +66,14 @@ replaces) and the fork:
  streaming yields,
  backpressure backlog,
  and configuration error messages must all match.
+
+The `p-map` catalog entry floats (`>=7.1.1`), so the oracle moves with the
+lockfile while the fork's source is ported by hand.
+A parity failure after a lockfile refresh means upstream changed behavior:
+read the upstream release notes and diff, then port the change into the fork
+(or document the divergence in the fork's README and express it in the parity
+test).
+The fork was last aligned to `p-map` 7.1.1 for `pMap` and `pMapIterable`.
 
 ### Running
 

@@ -1,6 +1,6 @@
 /**
  Differential property tests: the fork must produce the same observable
- traces as upstream `p-map` 7.0.8 on the same generated workload.
+ traces as upstream `p-map` 7.1.1 on the same generated workload.
  
  The oracle is upstream itself: every scheduling, skip, failure, and
  validation behavior this fork claims is checked against the implementation
