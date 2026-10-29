@@ -4,6 +4,7 @@ import {
 } from '@monochromatic-dev/module-logger/ts';
 
 import type { BenchSeating, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
+import { sliceTagged, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type PassPreparation,
   preparePassEntry,
@@ -180,9 +181,9 @@ export async function runPassPreparation(
   },
 ): Promise<PassPreparation> {
   /**
-   Entry logger the preparation and its hook write to.
+   Entry logger the preparation and its hook write to, which names the attempt inside one (ledger B963).
    */
-  const l = tagged({ tag: entryId, },);
+  const l = sliceTagged({ l: tagged({ tag: entryId, },), },);
   /**
    The roster preparation asks, read off the meters first of all
    (`run-seats.ts`): a withheld model pairs no blocks and reviews no

@@ -56,7 +56,8 @@ The groups that follow name the main ones.
   `typography-shown-view.ts`,
   and `locate-quote.ts`.
 - Log context:
-  carry the entry and slice a log line belongs to through async work.
+  carry the entry,
+  attempt and slice a log line belongs to through async work.
   Names:
   `currentLogContext`,
   `inEntryLogContext`,

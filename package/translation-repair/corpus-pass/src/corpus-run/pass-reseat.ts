@@ -9,6 +9,7 @@ import type {
   TranslateSliceSeating,
 } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { MIN_SELECTION_BALLOTS, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
+import { sliceTagged, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type Reseated,
   reseatHookFor,
@@ -81,7 +82,7 @@ export function translateReseatFor(
       client,
       phase: 'translate lane',
       signal,
-      l: tagged({ tag: entryId, },),
+      l: sliceTagged({ l: tagged({ tag: entryId, },), },),
     },);
     return reseated.translateModels;
   };
@@ -263,7 +264,7 @@ export function lanesHooksFor(
     signal,
     entryId,
     startedSelectReachable,
-    l = tagged({ tag: entryId, },),
+    l = sliceTagged({ l: tagged({ tag: entryId, },), },),
   }: {
     readonly client: SeatReadingClient;
     readonly signal: AbortSignal;
@@ -351,7 +352,7 @@ export async function readLanesSeats(
     client,
     phase: 'lanes',
     signal,
-    l: tagged({ tag: entryId, },),
+    l: sliceTagged({ l: tagged({ tag: entryId, },), },),
   },);
   return {
     seats,

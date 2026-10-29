@@ -43,6 +43,7 @@ The groups that follow name the main ones.
   `runPassPreparation`,
   `settleEntry`,
   `persistSettledEntry`,
+  `printSettledLines`,
   `runPassSettlement`.
   Declared in `corpus-run/pass-prepare.ts`,
   `corpus-run/pass-prepare-reseat.ts`,

@@ -69,6 +69,15 @@ The groups that follow name the main ones.
   `NESTING_BOUND`,
   `DELIMITER_BOUND`.
   Declared in `nesting-bound.ts` and `nesting-vocabulary.ts`.
+- Lifecycle stamps:
+  write the wall clock time that a line of the pass carries,
+  and the attempt where the line has one (ledger B960).
+  Names:
+  `lifecycleStamp`,
+  `lifecycleClockStamp`,
+  `wallClockNow`,
+  `LifecycleAttemptError`.
+  Declared in `lifecycle-stamp.ts`.
 - Edits and spans:
   apply disjoint edits to a text,
   find closed mark spans and fenced lines,

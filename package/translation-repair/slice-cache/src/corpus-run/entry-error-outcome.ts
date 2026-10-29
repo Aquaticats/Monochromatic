@@ -19,6 +19,10 @@ import {
   endsTheRun,
   PromptPayloadStoreError,
 } from '@monochromatic-dev/translation-repair-stage/ts';
+import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { WritingBenchUnreachableError, } from '@monochromatic-dev/translation-repair-run/ts';
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 import { VisualEvidenceInterruptedError, } from './visual-evidence-completeness.ts';
@@ -230,6 +234,11 @@ function returnFieldsOf({ answer, }: { readonly answer: ParkedAnswer; },): strin
  cap on the reason's text never cuts them; both are the park's own, as the gate answers them, and never the entry's
  failure's, which may name no return or another distance; `error=` is the failure the entry ended with.
 
+ EVERY LINE CARRIES THE CLOCK TIME IT WAS PRINTED AT AND THE ATTEMPT IT BELONGS TO, as `at=` and `attempt=` straight
+ after the status (after the entry on an `INTERRUPTED` line), before the return fields and the capped reason. The hard
+ ceiling ends an attempt and the next attempt begins under a fresh one, so a line that named neither could not be placed
+ in a time window or tied to the attempt it closed (2026-10-22, `XingZ60`; ledger B960).
+
  @param entryId - entry that failed
 
  @param error - what it raised
@@ -248,14 +257,20 @@ function returnFieldsOf({ answer, }: { readonly answer: ParkedAnswer; },): strin
  `PARKED` with that return and not the status the failure would have had; answers not parked for a failure that is not
  the park's own
 
+ @param attempt - number of the entry's attempt that failed, as the pass's attempts file holds it
+
+ @param wallClock - clock the lines' time is read on; the wall clock unless a test fixes it
+
  @returns Scheduling disposition, never a settlement
 
  @throws {@link ReturnTimeNotUtcError} when the entry is parked for a return whose time is not in UTC, before any
  TALLY line is printed
 
+ @throws `LifecycleAttemptError` when the attempt is not a whole number from 1
+
  @example
  ```ts
- return tallyCaughtEntry({ entryId: entry.id, error, durationMs, aborted, },);
+ return tallyCaughtEntry({ entryId: entry.id, error, durationMs, aborted, attempt, },);
  ```
  */
 export function tallyCaughtEntry(
@@ -266,11 +281,15 @@ export function tallyCaughtEntry(
     aborted,
     endRun,
     parked,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
     readonly error: unknown;
     readonly durationMs: number;
     readonly aborted: boolean;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
     readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
@@ -292,7 +311,14 @@ export function tallyCaughtEntry(
   // as carried-evidence-lost with nothing in the log saying which region.
   if (error instanceof TranslationRepairInterruptedError) {
     for (const finding of error.findings)
-      console.log(`INTERRUPTED ${entryId}: ${finding}`,);
+      console.log(
+        `INTERRUPTED ${entryId} ${
+          lifecycleStamp({
+            attempt,
+            wallClock,
+          },)
+        }: ${finding}`,
+      );
   }
   /**
    The gate's answer for this failure: the return the pass is parked for where it is parked for this failure and will
@@ -308,7 +334,12 @@ export function tallyCaughtEntry(
    */
   const returnFields = answer.parked ? returnFieldsOf({ answer, },) : '';
   console.log(
-    `TALLY ${entryId} status=${status}${returnFields} ms=${String(durationMs,)} aborted=${String(aborted,)} `
+    `TALLY ${entryId} status=${status} ${
+      lifecycleStamp({
+        attempt,
+        wallClock,
+      },)
+    }${returnFields} ms=${String(durationMs,)} aborted=${String(aborted,)} `
       + `error=${message}`,
   );
   return classified.outcome;

@@ -1,4 +1,8 @@
 import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
+import {
   type OverlapSetting,
   readOverlapSetting,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
@@ -52,24 +56,39 @@ export function readPassOverlap(
 
  @param setting - overlap the pass read at launch, beside its source
 
+ @param attempt - number of the entry's attempt this line opens, as the pass's attempts file holds it
+
+ @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
+
  @returns Slices each driver may keep in flight
+
+ @throws `LifecycleAttemptError` (markup package) when the attempt is not a whole number from 1
 
  @example
  ```ts
- const overlap = entryOverlap({ entryId: 'XingZ60', setting, },);
+ const overlap = entryOverlap({ entryId: 'XingZ60', setting, attempt: 2, },);
  ```
  */
 export function entryOverlap(
   {
     entryId,
     setting,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
     readonly setting: OverlapSetting;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
   },
 ): number {
   console.log(
-    `OVERLAP ${entryId} value=${String(setting.overlap,)} source=${setting.source}`,
+    `OVERLAP ${entryId} ${
+      lifecycleStamp({
+        attempt,
+        wallClock,
+      },)
+    } value=${String(setting.overlap,)} source=${setting.source}`,
   );
   return setting.overlap;
 }

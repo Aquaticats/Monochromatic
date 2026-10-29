@@ -1,5 +1,6 @@
 import { join, } from 'node:path';
 
+import { isIsoStampText, } from '@monochromatic-dev/translation-repair-markup';
 import {
   PROVIDERS_LEFT_OFF,
   readHeadSha,
@@ -86,6 +87,113 @@ export const ENTRIES_WITH_A_GAP: readonly CorpusCloneEntry[] = [
 ];
 
 /**
+ The key of a clock time field of a pass line, with the space before it.
+ */
+const CLOCK_TIME_KEY = ' at=';
+
+/**
+ Characters of an instant in the spelling the logger writes, `2026-10-22T08:10:11.123Z`.
+ */
+const INSTANT_LENGTH = 24;
+
+/**
+ Splits what the pass printed into the clock time fields it carried and the text around them, in one pass over the
+ text, a field being the key followed by an instant in the logger's spelling.
+
+ @param text - what the pass printed
+
+ @returns The text without the ` at=<instant>` fields, and the instants in the order they were printed
+
+ @example
+ ```ts
+ const { rest, times, } = splitClockTimes({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+function splitClockTimes({ text, }: { readonly text: string; },): {
+  readonly rest: string;
+  readonly times: readonly string[];
+} {
+  /**
+   Parts of the text between the keys, the first being the part before the first key.
+   */
+  const [
+    head = '',
+    ...tails
+  ] = text.split(CLOCK_TIME_KEY,);
+
+  /**
+   Text kept, in order, from the part before the first key on.
+   */
+  const kept: string[] = [head,];
+
+  /**
+   Instants found, in order.
+   */
+  const times: string[] = [];
+  for (const tail of tails) {
+    /**
+     What follows the key, as far as an instant is long.
+     */
+    const instant = tail.slice(
+      0,
+      INSTANT_LENGTH,
+    );
+    if (isIsoStampText({ text: instant, },)) {
+      times.push(instant,);
+      kept.push(tail.slice(INSTANT_LENGTH,),);
+    }
+    else {
+      kept.push(`${CLOCK_TIME_KEY}${tail}`,);
+    }
+  }
+  return {
+    rest: kept.join('',),
+    times,
+  };
+}
+
+/**
+ The clock times the pass lines in a text carry, in the order they are printed.
+
+ @param text - what the pass printed
+
+ @returns The instants, without their `at=` key
+
+ @example
+ ```ts
+ const times = clockTimesIn({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+function clockTimesIn({ text, }: { readonly text: string; },): readonly string[] {
+  /**
+   The instants the text carries.
+   */
+  const { times, } = splitClockTimes({ text, },);
+  return times;
+}
+
+/**
+ What the pass printed with the clock time fields taken out, so a case run in a child process, whose clock it cannot
+ fix, compares the rest of each line whole.
+
+ @param text - what the pass printed
+
+ @returns The text without the ` at=<instant>` fields
+
+ @example
+ ```ts
+ const rest = withoutClockTimes({ text: 'DONE processed=0 of pending=0 at=2026-10-22T08:10:11.123Z', },);
+ ```
+ */
+function withoutClockTimes({ text, }: { readonly text: string; },): string {
+  /**
+   The text around the fields.
+   */
+  const { rest, } = splitClockTimes({ text, },);
+  return rest;
+}
+
+/**
  What the pass wrote to each stream and how it exited, with the places it ran in.
  */
 type PassRun = {
@@ -95,7 +203,7 @@ type PassRun = {
   readonly code: number;
 
   /**
-   Everything the child wrote to stdout.
+   Everything the child wrote to stdout, with the clock time fields taken out (`clockTimes` holds them).
    */
   readonly stdout: string;
 
@@ -103,6 +211,11 @@ type PassRun = {
    Everything the child wrote to stderr.
    */
   readonly stderr: string;
+
+  /**
+   The clock times the child's pass lines carried, in the order it printed them.
+   */
+  readonly clockTimes: readonly string[];
 };
 
 /**
@@ -144,7 +257,10 @@ export async function runPass(
     readonly settings: Readonly<Record<string, string>>;
   },
 ): Promise<PassRun> {
-  return await runBuiltCommand({
+  /**
+   What the child wrote, as it wrote it.
+   */
+  const written = await runBuiltCommand({
     command: 'corpus-pass',
     packageEntry: CORPUS_PASS_ENTRY,
     args,
@@ -156,6 +272,12 @@ export async function runPass(
       ...settings,
     },
   },);
+  return {
+    code: written.code,
+    stdout: withoutClockTimes({ text: written.stdout, },),
+    stderr: written.stderr,
+    clockTimes: clockTimesIn({ text: written.stdout, },),
+  };
 }
 
 /**
@@ -190,7 +312,7 @@ export async function startLine(
   } = await digestPipeline({ dir: BUILT_DIRECTORY, },);
   return `START tip=${await readHeadSha()} pipeline=${digest} files=${String(fileCount,)} pending=${
     String(pending,)
-  } done=0 soft=259200000ms hard=${String(hardMs,)}ms call=360000ms claude-call=460000ms`;
+  } done=0 soft=259200000ms hard=${String(hardMs,)}ms hard-scope=per-attempt call=360000ms claude-call=460000ms`;
 }
 
 /**

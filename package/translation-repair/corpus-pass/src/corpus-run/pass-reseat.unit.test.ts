@@ -18,6 +18,7 @@ import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
+  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
@@ -32,6 +33,7 @@ import {
   type BudgetView,
   createProviderBudgets,
 } from '@monochromatic-dev/translation-repair-provider';
+import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography';
 import {
   consolidationHooksFor,
   contestHooksFor,
@@ -39,8 +41,13 @@ import {
   lanesHooksFor,
   picturesHooksFor,
   preparationHooksFor,
+  translateReseatFor,
 } from '../../dist/final/node/index.mjs';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import {
+  entryLinesWritten,
+  linesWithoutAttempt,
+} from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 import {
   SEAT_BEDROCK_ONLY_VISION_UNSEATED,
   SEAT_OPENROUTER_ONLY,
@@ -338,6 +345,53 @@ function budgetsClient(
       providerHolds: budgets.holds,
     },
   };
+}
+
+/**
+ Entry the attempt cases name as their entry.
+ */
+const HOOK_ENTRY = 'mittens';
+
+/**
+ Attempt the attempt cases run inside.
+ */
+const HOOK_ATTEMPT = 2;
+
+/**
+ Runs work inside an attempt of the entry and collects the lines the entry's loggers wrote.
+
+ @param sinon - calling case's own sandbox (`ctx.sinon`)
+
+ @param run - the work, a hook or a reading
+
+ @returns Lines it wrote that name the entry, from `console.info` and `console.warn`
+
+ @example
+ ```ts
+ const lines = await entryLinesInAttempt({ sinon: ctx.sinon, run: async () => { await reseat(); }, },);
+ ```
+ */
+async function entryLinesInAttempt(
+  {
+    sinon,
+    run,
+  }: {
+    readonly sinon: DisposableSandbox;
+    readonly run: () => Promise<void>;
+  },
+): Promise<readonly string[]> {
+  return await entryLinesWritten({
+    sinon,
+    entryId: HOOK_ENTRY,
+    run: async () => {
+      await inEntryLogContext({
+        entry: HOOK_ENTRY,
+        generation: 'nap-3',
+        attempt: HOOK_ATTEMPT,
+        run,
+      },);
+    },
+  },);
 }
 
 /**
@@ -1351,6 +1405,68 @@ await describe({
                 return line.includes(`waiting ${String(DRY_HOLD_MS,)}ms for the shortest hold to end`,);
               },),
             ).toBe(true,);
+          },
+        },),
+      ],
+    },),
+
+    // SEQUENTIAL: each case diverts the global `console.info`, where the tagged logger's `info` sink resolves.
+    describe({
+      name: 'the re-seating hooks name the attempt on the lines of the entry logger they build (ledger B963)',
+      concurrency: 1,
+      children: [
+        it({
+          name: `${lanesHooksFor.name} NAMES THE ATTEMPT on the chunk line it writes through its own entry logger`,
+          fn: async (ctx,) => {
+            /** Rig whose view is held, so the hook reads the seats again and says so. */
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            rig.holds.synthetic = SHORT_HOLD_MS;
+            /** Lines of the entry logger the hook wrote inside the attempt. */
+            const lines = await entryLinesInAttempt({
+              sinon: ctx.sinon,
+              run: async () => {
+                await lanesHooksFor({
+                  client: rig.client,
+                  signal: new AbortController().signal,
+                  entryId: HOOK_ENTRY,
+                },).beforeSlice({ lane: 'repair', },);
+              },
+            },);
+
+            expect(lines.some(function isChunkLine(line,): boolean {
+              return line.includes('chunk re-seated under a hold',);
+            },),).toBe(true,);
+            expect(linesWithoutAttempt({
+              lines,
+              attempt: HOOK_ATTEMPT,
+            },),).toStrictEqual([],);
+          },
+        },),
+        it({
+          name: `${translateReseatFor.name} NAMES THE ATTEMPT on the JUDGE SEATS line of the reading it takes at the `
+            + 'translate lane\'s start',
+          fn: async (ctx,) => {
+            /** Rig whose view is wet, so the reading takes no wait. */
+            const rig = viewClient({ view: BEDROCK_AND_OPENROUTER, },);
+            /** Lines of the entry logger the reading wrote inside the attempt. */
+            const lines = await entryLinesInAttempt({
+              sinon: ctx.sinon,
+              run: async () => {
+                await translateReseatFor({
+                  client: rig.client,
+                  signal: new AbortController().signal,
+                  entryId: HOOK_ENTRY,
+                },)();
+              },
+            },);
+
+            expect(lines.some(function readsSeats(line,): boolean {
+              return line.includes('JUDGE SEATS phase=translate lane',);
+            },),).toBe(true,);
+            expect(linesWithoutAttempt({
+              lines,
+              attempt: HOOK_ATTEMPT,
+            },),).toStrictEqual([],);
           },
         },),
       ],

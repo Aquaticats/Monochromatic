@@ -136,6 +136,7 @@ const MARKED_CLASSES: readonly string[] = [
   'LaneSliceCoverageError',
   'LedgerShapeError',
   'LegacyPipelineError',
+  'LifecycleAttemptError',
   'LintBinaryMissingError',
   'LintBinaryRunError',
   'LintBinaryTextError',
@@ -264,6 +265,7 @@ const NAMED_PARTS: Record<string, string> = {
   'SPEND_CEILING_VAR': 'environment variable name',
   'JSON.stringify(value,)': 'value the operator set in that variable',
   'String(MINIMUM_CHECKER_COUNT,)': 'count',
+  'String(attempt,)': 'count',
   'String(lines.length,)': 'count',
   "lines.join('\\n',)": 'producer files, schema names, keywords and paths, all written in this repository',
   'String(overlap,)': 'count',
@@ -523,6 +525,9 @@ const NAMED_PARTS: Record<string, string> = {
  an oversight, and the next reader would have to re-derive each of these.
  */
 const WITHHELD: Record<string, string> = {
+  AttemptCountError: 'names the entry id the attempts file keys the count by, which is a name the corpus chose and not '
+    + 'this package\'s vocabulary, beside the count the entry holds, so the marker would claim a safety the entry id '
+    + 'cannot show',
   ArtifactProvenanceError: 'expected and observed carry whatever field disagreed, which may be text',
   EmptyImageAssetError: 'names the picture by the file name a corpus chose, which is not this package\'s vocabulary; '
     + 'the stage reports the picture by its reason and never forwards the message',

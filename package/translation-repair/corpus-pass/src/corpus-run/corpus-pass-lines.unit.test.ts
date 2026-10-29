@@ -14,6 +14,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { lifecycleStamp, } from '@monochromatic-dev/translation-repair-markup';
 import type { CorpusPinSetting, } from '@monochromatic-dev/translation-repair-run';
 import {
   passDoneLine,
@@ -25,6 +26,30 @@ import {
   passRequiredLines,
   passStartLine,
 } from '../../dist/final/node/index.mjs';
+
+/**
+ Instant the injected wall clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ The clock time every pass line a case prints carries.
+ */
+const AT = 'at=2026-10-22T08:10:11.123Z';
+
+/**
+ Wall clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ const line = passStartLine({ facts, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
 
 /**
  Corpus pin neither half of which a launch overrode.
@@ -99,23 +124,54 @@ await describe({
       name: passIncompleteLine.name,
       children: [
         it({
-          name: 'NAMES AN ENTRY whose English page is absent, with what the read said',
+          name: 'NAMES AN ENTRY whose English page is absent, with what the read said and the clock time it was read at',
           fn: async () => {
-            expect(passIncompleteLine({ gap: {
-              id: 'mittens',
-              side: 'target',
-              detail: 'missing-object',
-            }, },),).toBe('INCOMPLETE mittens: target page absent at the pin (missing-object)',);
+            expect(passIncompleteLine({
+              gap: {
+                id: 'mittens',
+                side: 'target',
+                detail: 'missing-object',
+              },
+              wallClock: fixedWallClock,
+            },),).toBe(`INCOMPLETE mittens ${AT}: target page absent at the pin (missing-object)`,);
           },
         },),
         it({
           name: 'NAMES AN ENTRY whose original page is absent',
           fn: async () => {
-            expect(passIncompleteLine({ gap: {
-              id: 'biscuit',
-              side: 'source',
-              detail: 'missing-object',
-            }, },),).toBe('INCOMPLETE biscuit: source page absent at the pin (missing-object)',);
+            expect(passIncompleteLine({
+              gap: {
+                id: 'biscuit',
+                side: 'source',
+                detail: 'missing-object',
+              },
+              wallClock: fixedWallClock,
+            },),).toBe(`INCOMPLETE biscuit ${AT}: source page absent at the pin (missing-object)`,);
+          },
+        },),
+        it({
+          name: 'CARRIES NO ATTEMPT, the one thing that tells it from the INCOMPLETE line of an attempt, which shares its '
+            + 'first two words and carries `attempt=` after the time, since no attempt has begun for an entry whose '
+            + 'page is absent at the pin (ledger B960)',
+          fn: async () => {
+            /**
+             The line for an entry whose page is absent.
+             */
+            const absent = passIncompleteLine({
+              gap: {
+                id: 'mittens',
+                side: 'target',
+                detail: 'missing-object',
+              },
+              wallClock: fixedWallClock,
+            },);
+            /**
+             What the INCOMPLETE line of an attempt opens with, the stamp the queue writes for attempt 2.
+             */
+            const ofAnAttempt = `INCOMPLETE mittens ${lifecycleStamp({ attempt: 2, wallClock: fixedWallClock, },)}:`;
+            expect(ofAnAttempt,).toBe(`INCOMPLETE mittens ${AT} attempt=2:`,);
+            expect(absent.startsWith(`INCOMPLETE mittens ${AT}:`,),).toBe(true,);
+            expect(absent,).not.toContain('attempt=',);
           },
         },),
       ],
@@ -125,40 +181,48 @@ await describe({
       name: passStartLine.name,
       children: [
         it({
-          name: 'REPORTS the tip, the pipeline and its files, the pending and the finished counts and both ceilings',
+          name: 'REPORTS the tip, the pipeline and its files, the pending and the finished counts and both ceilings, says '
+            + 'the hard one applies to each attempt of an entry, not to the entry across its attempts, and ends with the '
+            + 'clock time, so the line keeps opening `START tip=` for the readers that find a pass by it',
           fn: async () => {
-            expect(passStartLine({ facts: {
-              tip: 'deadbeef',
-              pipelineDigest: 'sha256-tree-v1:cafe',
-              fileCount: 189,
-              pending: 1,
-              done: 0,
-              softBudgetMs: 259_200_000,
-              hardCapMs: 25_200_000,
-              perCallMs: 360_000,
-              claudeCallMs: 460_000,
-            }, },),).toBe(
+            expect(passStartLine({
+              facts: {
+                tip: 'deadbeef',
+                pipelineDigest: 'sha256-tree-v1:cafe',
+                fileCount: 189,
+                pending: 1,
+                done: 0,
+                softBudgetMs: 259_200_000,
+                hardCapMs: 25_200_000,
+                perCallMs: 360_000,
+                claudeCallMs: 460_000,
+              },
+              wallClock: fixedWallClock,
+            },),).toBe(
               'START tip=deadbeef pipeline=sha256-tree-v1:cafe files=189 pending=1 done=0 soft=259200000ms '
-                + 'hard=25200000ms call=360000ms claude-call=460000ms',
+                + `hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms ${AT}`,
             );
           },
         },),
         it({
           name: 'REPORTS several pending and finished entries',
           fn: async () => {
-            expect(passStartLine({ facts: {
-              tip: 'deadbeef',
-              pipelineDigest: 'sha256-tree-v1:cafe',
-              fileCount: 1,
-              pending: 12,
-              done: 3,
-              softBudgetMs: 60_000,
-              hardCapMs: 90_000,
-              perCallMs: 360_000,
-              claudeCallMs: 460_000,
-            }, },),).toBe(
+            expect(passStartLine({
+              facts: {
+                tip: 'deadbeef',
+                pipelineDigest: 'sha256-tree-v1:cafe',
+                fileCount: 1,
+                pending: 12,
+                done: 3,
+                softBudgetMs: 60_000,
+                hardCapMs: 90_000,
+                perCallMs: 360_000,
+                claudeCallMs: 460_000,
+              },
+              wallClock: fixedWallClock,
+            },),).toBe(
               'START tip=deadbeef pipeline=sha256-tree-v1:cafe files=1 pending=12 done=3 soft=60000ms hard=90000ms '
-                + 'call=360000ms claude-call=460000ms',
+                + `hard-scope=per-attempt call=360000ms claude-call=460000ms ${AT}`,
             );
           },
         },),
@@ -181,15 +245,15 @@ await describe({
               ...UNCHANGED,
               hardCapMs: 600_000,
             },),).toEqual([
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 10 minutes rather than '
-                + 'the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 10 minutes '
+                + 'rather than the built-in 420',
             ],);
             expect(passLaunchLines({
               ...UNCHANGED,
               hardCapMs: 510_000,
             },),).toEqual([
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 8.5 minutes rather than '
-                + 'the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 8.5 minutes '
+                + 'rather than the built-in 420',
             ],);
           },
         },),
@@ -200,8 +264,8 @@ await describe({
               ...UNCHANGED,
               hardCapMs: 60_000,
             },),).toEqual([
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 1 minute rather than '
-                + 'the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 1 minute '
+                + 'rather than the built-in 420',
               'CAP TOO TIGHT: an attempt runs 60000ms, which is not longer than the 460000ms one model exchange is '
                 + 'allowed (360000ms by default, 460000ms for a Claude exchange). Attempts are cut before an exchange '
                 + 'can return, so no slice caches, every attempt '
@@ -446,7 +510,10 @@ await describe({
               ],),
               declinedIds: new Set(['mochi',],),
               elapsedMs: 5,
-            },),).toBe('DONE processed=1 of pending=2; artifacts=2/3 declined=1 unpairedArtifacts=1 elapsed=5ms',);
+              wallClock: fixedWallClock,
+            },),).toBe(
+              `DONE processed=1 of pending=2; artifacts=2/3 declined=1 unpairedArtifacts=1 elapsed=5ms ${AT}`,
+            );
           },
         },),
         it({
@@ -462,7 +529,10 @@ await describe({
               settledIds: new Set(['tabby',],),
               declinedIds: new Set(['tabby',],),
               elapsedMs: 5,
-            },),).toBe('DONE processed=0 of pending=0; artifacts=1/1 declined=0 unpairedArtifacts=0 elapsed=5ms',);
+              wallClock: fixedWallClock,
+            },),).toBe(
+              `DONE processed=0 of pending=0; artifacts=1/1 declined=0 unpairedArtifacts=0 elapsed=5ms ${AT}`,
+            );
           },
         },),
         it({
@@ -482,9 +552,10 @@ await describe({
               ],),
               declinedIds: new Set<string>(),
               elapsedMs: 5,
+              wallClock: fixedWallClock,
             },),).toBe(
               'DONE processed=1 of pending=1; artifacts=1/1 declined=0 (pairs counted over the entries --only '
-                + 'named, not every pair at the pin) elapsed=5ms',
+                + `named, not every pair at the pin) elapsed=5ms ${AT}`,
             );
           },
         },),

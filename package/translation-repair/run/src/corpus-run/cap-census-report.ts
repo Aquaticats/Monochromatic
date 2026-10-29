@@ -15,7 +15,9 @@ import type { CommandLineOf, } from './command-lines.ts';
 //
 // PASS-RUN LOGS ONLY, as the 2026-09-28 re-read learned (ledger P7): suite,
 // build and prototype logs carry fixture `SPEND` lines, so a log counts only
-// when a line in its first few kilobytes opens `START tip=`.
+// when the first line among its first two thousand that opens `START tip=`
+// holds a commit id a repository could give (`cap-census-pass-run.ts`, ledger
+// B963): a suite prints the START line of a fixture pass, with a placeholder id.
 //
 // ONE LOG AT A TIME. The agent root holds thousands of logs, some large; each
 // is opened only far enough to read its head, and a pass-run log's text is

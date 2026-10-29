@@ -31,6 +31,30 @@ import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-
 import { makeCorpusPassClone, } from './corpus-pass-clone.test-fixture.ts';
 
 /**
+ Instant the injected wall clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ The clock time every line a case prints carries.
+ */
+const AT = 'at=2026-10-22T08:10:11.123Z';
+
+/**
+ Wall clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ await selectPendingEntries({ ...input, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Original page of an entry whose size puts it in the small band.
  */
 const SMALL_PAGE = '猫睡觉。\n';
@@ -140,6 +164,7 @@ await describe({
           done: new Set(['biscuit',],),
           attempts: new Map(),
           sliceCacheDir: scratch.path,
+          wallClock: fixedWallClock,
         },);
 
         expect(idsOf({ pairs: selected.pending, },),).toEqual(['tabby',],);
@@ -147,8 +172,9 @@ await describe({
           walked: 'every-entry',
           ids: new Set(idsOf({ pairs: COMPLETE, },),),
         },);
+        // THE CLOCK TIME AND NO ATTEMPT: none has begun for an entry whose page is absent (ledger B960).
         expect(printed.lines,).toEqual([
-          `INCOMPLETE mittens: target page absent at the pin (corpus read failed for ${clone.commitSha}:`
+          `INCOMPLETE mittens ${AT}: target page absent at the pin (corpus read failed for ${clone.commitSha}:`
             + 'people/mittens/page.en.md (missing-object); the commit has no such path: check the path, or pin a '
             + 'commit that has it.)',
         ],);

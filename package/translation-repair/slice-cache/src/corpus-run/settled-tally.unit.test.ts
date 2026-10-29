@@ -29,6 +29,30 @@ import {
 import { settledTallyLine, } from '../../dist/final/node/index.mjs';
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Attempt the cases print the line for: the entry's second, the one that began under a fresh cap.
+ */
+const SECOND_ATTEMPT = 2;
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ const printed = settledTallyLine({ artifact, attempt: SECOND_ATTEMPT, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Archive wording of the slice both lanes worked on.
  */
 const ARCHIVE_NAP = 'The cat sleeps on the sill.';
@@ -371,7 +395,11 @@ function renderedFields(): Record<string, string> {
  */
 function fieldsOf({ artifact, }: { readonly artifact: SettledArtifact; },): Record<string, string> {
   return Object.fromEntries(
-    settledTallyLine({ artifact, },)
+    settledTallyLine({
+      artifact,
+      attempt: SECOND_ATTEMPT,
+      wallClock: fixedWallClock,
+    },)
       .split(' ',)
       .filter(function isField(token,): boolean {
         return token.includes('=',);
@@ -411,6 +439,32 @@ await describe({
         // Neither lane's status is reachable without its lane in the key.
         expect(fields.repairStatus,).toBe('repaired',);
         expect(fields.translateStatus,).toBe('complete',);
+      },
+    },),
+    it({
+      name:
+        'STAMPS THE LINE WITH THE CLOCK TIME IT WAS PRINTED AT AND THE ATTEMPT IT BELONGS TO, straight after the status '
+          + 'the runbook greps by, because a reader windowing a log by time had no way to place a tally and no way to '
+          + 'tell which attempt of a re-attempted entry it closed (2026-10-22, XingZ60)',
+      fn: async () => {
+        /**
+         Rendered fields of the entry's second attempt.
+         */
+        const fields = renderedFields();
+        expect(fields.at,).toBe('2026-10-22T08:10:11.123Z',);
+        expect(fields.attempt,).toBe('2',);
+
+        /**
+         Whole rendered line.
+         */
+        const line = settledTallyLine({
+          artifact: catArtifact(),
+          attempt: SECOND_ATTEMPT,
+          wallClock: fixedWallClock,
+        },);
+        expect(line.startsWith(
+          'TALLY CatEntry1 status=SETTLED at=2026-10-22T08:10:11.123Z attempt=2 slices=2 ',
+        ),).toBe(true,);
       },
     },),
     it({
@@ -486,8 +540,12 @@ await describe({
         /**
          Whole rendered line.
          */
-        const line = settledTallyLine({ artifact: catArtifact(), },);
-        expect(line.startsWith('TALLY CatEntry1 ',),).toBe(true,);
+        const line = settledTallyLine({
+          artifact: catArtifact(),
+          attempt: SECOND_ATTEMPT,
+          wallClock: fixedWallClock,
+        },);
+        expect(line.startsWith('TALLY CatEntry1 status=SETTLED ',),).toBe(true,);
 
         /**
          Its fields.

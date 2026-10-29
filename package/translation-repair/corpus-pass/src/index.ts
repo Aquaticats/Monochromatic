@@ -57,7 +57,10 @@ export {
 } from './corpus-run/pass-contest-reseat.ts';
 export { runPassContest, } from './corpus-run/pass-contest.ts';
 export { withEntryBound, } from './corpus-run/pass-entry-bound.ts';
-export { persistSettledEntry, } from './corpus-run/pass-entry-persist.ts';
+export {
+  persistSettledEntry,
+  printSettledLines,
+} from './corpus-run/pass-entry-persist.ts';
 export { settleEntry, } from './corpus-run/pass-entry-settle.ts';
 export {
   relabelArchiveFootnotes,
