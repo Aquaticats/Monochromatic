@@ -295,11 +295,18 @@ type ListedBound = {
 };
 
 /**
- Files another change edits first, each with why its bounds wait. Empty since
- the seven files deferred on 2026-10-06 (UTC) took the census's rule once the
- changes in flight on them merged.
+ Files another change edits first, each with why its bounds wait. Empty from the seven files deferred on 2026-10-06
+ (UTC), which took the census's rule once the changes in flight on them merged, until the widening of ledger B995,
+ which found the file below and the round did not reach it.
  */
-const DEFERRED: Readonly<Record<string, string>> = {};
+const DEFERRED: Readonly<Record<string, string>> = {
+  'provider/budget-hold-wait.unit.test.ts': 'tests of the budget wait over scripted budgets: the cases that wait out a '
+    + 'hold (a few to a few tens of milliseconds in its scripts) sleep it on the real clock in slices of 1 or 2 ms, '
+    + 'and one measures its sleep with performance.now; each needs a fake clock the case ticks, which the next change '
+    + 'writes (ledger B995, "Left open"). The keys the file held before the deferral were: two holds of 4,000 ms handed '
+    + 'to the pure `shortestHold` (read back, sleeping nothing); a hold of 1,000,000 ms that outlasts the case and ends '
+    + 'on the case\'s own abort; and the caller abort of 30 ms armed before that wait, which fires first on any machine',
+};
 
 /**
  Milliseconds from which a hold a test registers for a provider is read as a real wait: the seat reading
@@ -479,6 +486,28 @@ const RETURN_CACHE_WINDOW = 'the cache window of budgets read on the case\'s own
   + 'which the case moves by hand';
 
 /**
+ Why the cooldown of a Hyper refusal keeps its value: the case hands the budgets a fake clock as their monotonic clock
+ and ticks it past the hold, so the router's wait sleeps on that clock and no real time passes.
+ */
+const FAKE_CLOCK_COOLDOWN = 'how long a refusal holds a dry Hyper meter out (40 ms), judged against the fake clock the '
+  + 'case hands the budgets as their monotonic clock and ticks past it, where the router\'s wait sleeps; no real time '
+  + 'passes (ledger B995)';
+
+/**
+ Why a poll slice keeps its value in a case that reads a seat bench: the case registers no hold the reading waits for,
+ so no wait sleeps and no slice is armed.
+ */
+const NO_HOLD_WAITED_FOR = 'the poll slice of a seat reading in a case that registers no hold the reading waits for '
+  + '(it refuses or seats at its first reading), so no wait sleeps';
+
+/**
+ Why a pair of elapsed readings of the real clock keeps its place: the case reads a span it needs to be at least as long
+ as a sleep it makes, which load only lengthens.
+ */
+const SLEEP_LOWER_BOUND = 'an elapsed time the case reads off the real clock to assert it is at least as long as a '
+  + 'sleep it makes on purpose, which load only lengthens';
+
+/**
  Bounds that keep a value of their own, keyed `path#site: form value`.
  */
 const LISTED: Readonly<Record<string, ListedBound>> = {
@@ -487,23 +516,6 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: 'a minute\'s hold the reading is told of after the stop has already landed: the stop aborts inside the '
       + 'dryness read that comes first, and the wait that follows throws the abort before it sleeps',
-  },
-  'provider/budget-hold-wait.unit.test.ts#<module>: hold hyper: 4_000': {
-    count: 2,
-    bound: 'read back',
-    reason: 'a record `shortestHold` is asked the shortest of, which only reads the numbers and sleeps nothing',
-  },
-  'provider/budget-hold-wait.unit.test.ts#<module>: hold hyper: 1_000_000': {
-    count: 1,
-    bound: 'other',
-    reason: 'a hold that outlasts the case: the wait polls every millisecond and the case\'s own abort ends it, so no '
-      + 'bound on the clock decides the verdict',
-  },
-  'provider/budget-hold-wait.unit.test.ts#<module>: setTimeout 30': {
-    count: 1,
-    bound: 'reached',
-    reason: 'the caller abort, armed before a wait on a hold of a million milliseconds, so it fires first on any '
-      + 'machine and the case asserts its own reason',
   },
   'provider/hold-reason.unit.test.ts#<module>: hold hyper: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold hyper: 900_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
@@ -523,9 +535,19 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
   },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: cooldownMs: hyperCooldownMs': {
     count: 1,
-    bound: 'reached',
-    reason: 'how long a refusal holds a dry Hyper meter out for a case that waits that hold out for real, handed in by '
-      + 'the case (40 ms), so the wait cannot end before it on any machine',
+    bound: 'other',
+    reason: FAKE_CLOCK_COOLDOWN,
+  },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: pollMs: 1': {
+    count: 1,
+    bound: 'other',
+    reason: 'the call whose NeuralWatt return lies 301 s away, past the router\'s bound, so its first reading refuses and '
+      + 'no wait sleeps',
+  },
+  'provider/provider-budget-neuralwatt-return.unit.test.ts#refusalAfterHolds: pollMs: pollMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
   },
   'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: 600_000': {
     count: 2,
@@ -556,9 +578,8 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
   },
   'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: cooldownMs: 40': {
     count: 1,
-    bound: 'reached',
-    reason: 'how long a refusal holds a dry Hyper meter out, which the router\'s wait sleeps out for real before it '
-      + 'refuses with the NeuralWatt distance, so the refusal cannot come before it on any machine',
+    bound: 'other',
+    reason: FAKE_CLOCK_COOLDOWN,
   },
   'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: freshForMs: 600_000': {
     count: 1,
@@ -1461,6 +1482,82 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     count: 4,
     bound: 'read back',
     reason: WRITER_GRACE_READ_BACK,
+  },
+  'run/corpus-run/run-seats-phase-bench.unit.test.ts#readOver: pollMs: 5': {
+    count: 1,
+    bound: 'other',
+    reason: 'the poll slice of a reading over a client whose every hold is 0 (its holds reader answers 0 for each '
+      + 'provider), so no wait sleeps',
+  },
+  'run/corpus-run/run-seats-pass-bound.unit.test.ts#<module>: pollMs: 5': {
+    count: 5,
+    bound: 'other',
+    reason: 'the poll slice of a reading whose return lies past what the pass has left, on a monotonic clock frozen at '
+      + '0, so it refuses at its first reading and sleeps nothing',
+  },
+  'run/corpus-run/run-seats-pass-bound.unit.test.ts#refusalUnder: pollMs: 5': {
+    count: 1,
+    bound: 'other',
+    reason: 'the poll slice of a reading whose return lies past the entry\'s cap, on a monotonic clock frozen at 0, so it '
+      + 'refuses at its first reading and sleeps nothing',
+  },
+  'run/corpus-run/run-seats-neuralwatt-return.unit.test.ts#<module>: pollMs: 5': {
+    count: 2,
+    bound: 'other',
+    reason: 'the poll slice of a reading that refuses at its first reading and sleeps nothing: the blocked key, whose '
+      + 'allowance names no return, and the return past what the pass has left on a monotonic clock frozen at 0',
+  },
+  'run/corpus-run/run-seats-read.unit.test.ts#<module>: pollMs: 5': { count: 12, bound: 'other', reason: NO_HOLD_WAITED_FOR, },
+  'run/corpus-run/run-seats-read.unit.test.ts#readSeatsFirst: pollMs: 5': { count: 1, bound: 'other', reason: NO_HOLD_WAITED_FOR, },
+  'test-fixture/corpus-run/gated-git.test-fixture.ts#writeGatedGit: pollMs: MARKER_POLL_MS': {
+    count: 1,
+    bound: 'other',
+    reason: 'the interval at which a child process\'s script looks for a marker file, which the released command writes '
+      + 'as it exits; the script ends on that marker and not on time, so load only lengthens the look',
+  },
+  'page-check/corpus-run/source-reading-cheapest.unit.test.ts#timed: performance.now (none)': {
+    count: 2,
+    bound: 'other',
+    reason: 'the time of one synchronous run of a function, of which the case keeps the least and compares the ratio '
+      + 'between two sizes; no wait or timer is armed, and a stall that lands on one side only can skew the ratio',
+  },
+  'provider/claude-client.unit.test.ts#<module>: performance.now (none)': { count: 2, bound: 'reached', reason: SLEEP_LOWER_BOUND, },
+  'provider/request-pace.unit.test.ts#<module>: performance.now (none)': {
+    count: 3,
+    bound: 'reached',
+    reason: 'the pacer\'s clock, held still until its second take sleeps and then counting real time from the release, '
+      + 'and the span the case asserts is at least the real window it slept; load only lengthens it',
+  },
+  'provider/retry-after-header.unit.test.ts#<module>: performance.now (none)': {
+    count: 4,
+    bound: 'reached',
+    reason: 'two spans of the real clock: one at least as long as the 1 s the header names, which load only lengthens, '
+      + 'and one under 5 s against a header of 30 s that the ladder must not sleep, which only a stall of 5 s outruns',
+  },
+  'provider/transient-retry.unit.test.ts#<module>: performance.now (none)': {
+    count: 6,
+    bound: 'reached',
+    reason: 'three spans of the real clock: at least the 1 s a refusal\'s body names, which load only lengthens, and two '
+      + 'bounds against waits of at least 10 s the ladder must not take (a daily refusal\'s named wait, a first backoff '
+      + 'that an abort cuts), which only a stall of that length outruns',
+  },
+  'source-scan/rotation-sweep/rotation-sweep.test-fixture.ts#runShifted: performance.now (none)': {
+    count: 2,
+    bound: 'read back',
+    reason: 'the duration of one salt\'s runs, printed in seconds in the sweep\'s report; nothing is compared with it',
+  },
+  'stage/stage-round.unit.test.ts#<module>: performance.now (none)': {
+    count: 3,
+    bound: 'other',
+    reason: 'a span from before a round to the turn of the loop where the case reads it, which the round\'s own measured '
+      + 'time lies inside by construction, so a stall lengthens the span and cannot break the bound; the cases test '
+      + 'the order of turns, not a length',
+  },
+  'stage/stage-round.unit.test.ts#scheduledClient: performance.now (none)': {
+    count: 1,
+    bound: 'other',
+    reason: 'the instant a scripted answer is returned, from which the case measures the span to the turn where it reads '
+      + 'the round, an upper bound on the round\'s own grace; a stall lengthens the span and cannot break the bound',
   },
 };
 
