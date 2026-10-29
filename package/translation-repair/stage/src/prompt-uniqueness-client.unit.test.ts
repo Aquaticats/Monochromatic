@@ -337,6 +337,43 @@ await describe({
     },),
 
     it({
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through the same claims (ledger B1072): a first reply that '
+        + 'ended in a length stop with no content is re-asked under another model\'s name with no provider hint, the '
+        + 'nudged prompt is a digest of its own, and a later ask of the question replays both exchanges',
+      fn: async () => {
+        /** Every request that crossed the wrapper, in order. */
+        const asked: ChatTextRequest[] = [];
+        const inner: ModelClient = {
+          chatText: async (request,) => {
+            asked.push(request,);
+            return (asked.length === 1)
+              ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
+              : { text: '"windowsill"', servedBy: 'hyper', };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson bypassed by prompt payload reader',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const client = promptUniqueClient({ inner, },);
+        const outcome = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
+        expect(outcome.kind,).toBe('ok',);
+        expect(asked,).toHaveLength(2,);
+        expect(asked[1]?.modelId,).not.toBe(REQUEST.modelId,);
+        expect(asked[1]?.otherThan,).toBeUndefined();
+        expect(asked[1]?.messages.slice(0, -1,),).toStrictEqual(REQUEST.messages,);
+        expect(modelPromptDigest({ request: asked[1] ?? REQUEST, },),).not.toBe(modelPromptDigest({ request: REQUEST, },),);
+
+        // Asked again, both answers come from the claims.
+        const again = await client.chatJson({ ...REQUEST, validate: isStringAnswer, },);
+        expect(again.kind,).toBe('ok',);
+        expect(asked,).toHaveLength(2,);
+      },
+    },),
+
+    it({
       name: 'READS A CLAIMED PAYLOAD AGAINST THE RESPONSE FORMAT OF THE REQUEST, taking the schema\'s spelling of a '
         + 'listed value that came back differing only in its capital',
       fn: async () => {

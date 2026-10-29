@@ -30,6 +30,7 @@ import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-tes
 import {
   SEAT_HYPER_ONLY,
   SEAT_HYPER_OPENROUTER_UNMEASURED,
+  SEAT_HYPER_OPENROUTER_VISION_EDITOR,
   SEAT_SYNTHETIC_TEXT_EVERYWHERE,
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -1382,6 +1383,52 @@ await describe({
         // The preferred provider's answer is the one the caller's own handling
         // is written against.
         expect(outcome.rawText,).toBe('first refusal',);
+      },
+    },),
+
+    it({
+      name: 'RE-ASKS A REASONING RUNAWAY OF ANOTHER MODEL through its own chatJson: the length stop with no content '
+        + 'on Synthetic is re-asked of the next roster model on the provider its own routing picks, not of the '
+        + 'same model on Hyper',
+      fn: async () => {
+        /**
+         Provider and model of each call, in call order.
+         */
+        const asked: (readonly [ProviderName, string])[] = [];
+        const { callers, } = stubProviders({},);
+        const { budgets, } = stubBudgets({},);
+        const client = createRoutingClient({
+          callers: {
+            ...callers,
+            synthetic: {
+              chatText: async function runawayOnQwen(request,) {
+                asked.push(['synthetic', request.modelId,],);
+                return (request.modelId === SEAT_SYNTHETIC_VISION_NO_OPENROUTER)
+                  ? { text: '', finishReason: 'length', }
+                  : { text: '{"spot":"windowsill"}', };
+              },
+            },
+            hyper: {
+              chatText: async function answers(request,) {
+                asked.push(['hyper', request.modelId,],);
+                return { text: '{"spot":"radiator"}', };
+              },
+            },
+          },
+          budgets,
+        },);
+        const outcome = await client.chatJson({
+          modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          messages: MESSAGES,
+          signal: SIGNAL,
+          validate: isNapSpot,
+        },);
+
+        expect(asked,).toEqual([
+          ['synthetic', SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
+          ['hyper', SEAT_HYPER_OPENROUTER_VISION_EDITOR,],
+        ],);
+        expect(outcome.kind === 'ok' ? outcome.value : undefined,).toEqual({ spot: 'radiator', },);
       },
     },),
 
