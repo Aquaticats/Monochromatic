@@ -3201,3 +3201,27 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   to avoid recursing into its own entries. After removal the inner run needs an empty directory instead, so only
   config-based hooks run; `post-commit` in the real worktree needs the same override. The warning is non-blocking and
   needs a rendering path that is not a blocking `CoreFinding` (those block).
+
+## Update at 2026-10-29 (slices merged for verification; hooks decisions)
+
+- All four slice branches are merged into branch `integrate-slices`, checked out at `~/temp/agent/merge-slices`
+  (merge order S2, J, S4, S1/S3; conflicts in `filesystem_identity.rs`, `binary_tests.rs`, `capture_invocation.rs`,
+  `post_commit_hook.rs` and the planning doc, all resolved by keeping both sides). One merge commit (`1240234269`) carried
+  conflict markers by my mistake; `e66495826a` removes them. Verification (clippy, host, binary, gate) of that tree is next;
+  main is untouched until it passes. Then fast-forward main to it, release (read the current crate version first), and remove
+  the worktree, the branches and the agent worktrees.
+- S1/S3 report (agent aac40a929f1822d77): config starts 4 to 1, a no-hook commit goes 52 to 43 Git starts and 42 to 38 syncs.
+  Deviations to veto: (1) the config snapshot is taken at invocation start, so a hook that changes `maintenance.auto` during
+  the commit no longer affects that commit; (2) dispatcher entries are decided at plan time; (3) named hooks are found from
+  the real repository config while the dispatcher sees the shadow config. Pre-existing gap pinned: Git 2.56.0 runs
+  traditional hooks even when `hook.<event>.enabled=false`.
+- User decisions, not started: (a) remove the `core.hooksPath` handling. The agent listed it: `hook_dispatch_plan.rs`
+  (`compute_hook_dispatch_plan`, `default_hooks_directory`, `resolve_hooks_path`, `plan.json` `hooksPath`),
+  `commit_preparation.rs` (`native_commit_arguments`), `commit_revalidation.rs` (`rerun_pre_commit`), `hook_dispatch.rs`
+  (`run_git_hook`), `shadow_git.rs:87`, `manual_push_probe.rs:197`, `shadow_config.rs`, and `hook_presence.rs`
+  (`hook_entry_may_exist`; `event_may_have_user_hook` reduces to `named_hooks_possible`). Dead tests are in
+  `binary_hook_shim_tests.rs` (the traditional-hook shapes). (b) Warn when traditional hooks are detected, adding no extra
+  syscalls to the common path: the user said to add a `doctor` subcommand if needed. Plan: the commit path warns only on
+  a signal it already holds (a configured `core.hooksPath` from the config snapshot); a new `doctor` management
+  subcommand scans `<git-common-dir>/hooks` and the configured path and reports every traditional hook. Do this after the
+  merge verifies, on the merged tree.
