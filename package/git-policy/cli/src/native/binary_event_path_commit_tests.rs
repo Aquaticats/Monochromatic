@@ -330,7 +330,9 @@ fn the_forbidden_strings_finding_for_a_name_that_is_not_utf8_has_no_exact_bytes(
     let repo: PathBuf = configured(&fixture, None);
     let needle: String = ["PLANTED", "PATH", "NEEDLE"].join("_");
     forbidden_configuration(repo.as_path(), needle.as_str());
-    std::fs::write(repo.join(bad_name()), format!("{needle}\n")).expect("file");
+    // Not the rules file's own bytes: a blob that `HEAD` already holds is not scanned again, and the commit below
+    // would otherwise find the rules file's blob in `HEAD`.
+    std::fs::write(repo.join(bad_name()), format!("{needle} in a file of its own\n")).expect("file");
     let expected: String = "{\"schemaVersion\":1,\"sequence\":0,\"type\":\"finding\",\"trigger\":\"pre-forward\",\
          \"policyId\":\"security/forbidden-strings\",\"severity\":\"error\",\
          \"code\":\"security/forbidden-strings/forbidden-string\",\
