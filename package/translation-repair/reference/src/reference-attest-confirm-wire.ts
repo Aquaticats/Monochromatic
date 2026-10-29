@@ -60,9 +60,9 @@ export type ConfirmationBallot = {
 /**
  Builds the confirmation question over the verified candidates.
 
- @param sourceText - the original document
+ @param sourceText - original document
 
- @param archiveText - the archive rendering as inherited
+ @param archiveText - archive rendering as inherited
 
  @param referenceContext - reference lines, one per page
 

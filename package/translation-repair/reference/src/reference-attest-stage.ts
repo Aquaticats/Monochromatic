@@ -110,9 +110,9 @@ function attestationVotesNeeded({ heard, }: { readonly heard: number; },): numbe
 
  @param modelIds - bench asked, the extraction's
 
- @param sourceText - the original document
+ @param sourceText - original document
 
- @param archiveText - the archive rendering as inherited
+ @param archiveText - archive rendering as inherited
 
  @param referenceContext - reference lines, one per page
 
@@ -120,7 +120,7 @@ function attestationVotesNeeded({ heard, }: { readonly heard: number; },): numbe
 
  @param extracted - details the extraction quorum alone kept, the fallback
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param exchangeTimeoutMs - per-call timeout
 
@@ -294,13 +294,13 @@ async function confirmCandidates(
 
  @param modelIds - bench asked
 
- @param sourceText - the original document
+ @param sourceText - original document
 
- @param archiveText - the archive rendering as inherited
+ @param archiveText - archive rendering as inherited
 
  @param referenceContext - reference lines, one per page
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param exchangeTimeoutMs - per-call timeout
 

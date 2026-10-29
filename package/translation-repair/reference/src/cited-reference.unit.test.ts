@@ -138,7 +138,7 @@ function stubTransport(
 
    @param init - request as production builds it
 
-   @returns The fixed answer
+   @returns Fixed answer
    */
   async function stubbed(
     input: string | URL | Request,
@@ -573,7 +573,7 @@ await describe({
 
              @param apiKey - key, empty for none
 
-             @returns The block
+             @returns Block
              */
             async function block(
               {
@@ -625,7 +625,7 @@ await describe({
             /**
              Transport that refuses everything.
 
-             @returns A closed door
+             @returns Closed door
              */
             async function failing(): Promise<Response> {
               return new Response(
@@ -692,7 +692,7 @@ await describe({
             /**
              Transport refusing with cat prose in the body.
 
-             @returns A 429 whose body is prose
+             @returns 429 whose body is prose
              */
             async function refusingWithProse(): Promise<Response> {
               return new Response(
@@ -861,7 +861,7 @@ await describe({
 
              @param init - request, whose body names the page
 
-             @returns A refusal for the second page, the readable body for the first
+             @returns Refusal for the second page, readable body for the first
              */
             async function laterFirst(_input: string | URL | Request, init?: RequestInit,): Promise<Response> {
               /**

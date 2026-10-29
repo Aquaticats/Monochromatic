@@ -48,7 +48,7 @@ const l = contextRoot({ tag: 'translation-repair', },);
 
  @param dir - cache directory
 
- @param signal - the call's abort
+ @param signal - call's abort
 
  @param fetchFn - transport
 
@@ -217,13 +217,13 @@ type PageOutcome = {
 
  @param error - what the lookup threw
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param index - page's position among the references, from one
 
  @param url - page as the original links it
 
- @returns The stop, or the unfetched page and its warning
+ @returns Stop, or the unfetched page and its warning
 
  @example
  ```ts
@@ -277,7 +277,7 @@ function failedPageOutcome(
 
  @param dir - cache directory
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param fetchFn - transport
 

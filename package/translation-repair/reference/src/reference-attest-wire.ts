@@ -67,9 +67,9 @@ export type ReferenceAttestWire = {
 /**
  Builds the attestation request over one entry.
 
- @param sourceText - the original document
+ @param sourceText - original document
 
- @param archiveText - the archive rendering as inherited
+ @param archiveText - archive rendering as inherited
 
  @param referenceContext - reference lines, one per page, from
  `citedReferenceBlock`

@@ -126,7 +126,7 @@ async function referenceReadOver(
 
  @param path - file the warning names
 
- @returns The line from its first tag on
+ @returns Line from its first tag on
 
  @example
  ```ts

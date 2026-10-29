@@ -108,9 +108,9 @@ function attestedRejection(
 
  @param attested - details the attestation produced for the entry
 
- @param targetText - the chunk's archive text the quotes are placed in
+ @param targetText - chunk's archive text the quotes are placed in
 
- @param original - the texts whose comments are the original's own on the
+ @param original - texts whose comments are the original's own on the
  sheets the attestation read: the attested quotes were placed in the archive as
  those sheets showed it, without the notes between translators, so the claims'
  words are placed in the same text; absent when the archive was not cut

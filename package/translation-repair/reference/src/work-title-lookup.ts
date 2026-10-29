@@ -54,7 +54,7 @@ const l = contextRoot({ tag: 'translation-repair', },);
 
  @param dir - cache directory
 
- @param signal - the call's abort
+ @param signal - call's abort
 
  @param fetchFn - transport
 
@@ -326,11 +326,11 @@ type TitleOutcome = {
 
  @param error - what the lookup threw
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param title - work looked up
 
- @returns The stop, or the failure's warning
+ @returns Stop, or the failure's warning
 
  @example
  ```ts
@@ -375,7 +375,7 @@ function failedTitleOutcome(
 
  @param dir - cache directory
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param fetchFn - transport
 

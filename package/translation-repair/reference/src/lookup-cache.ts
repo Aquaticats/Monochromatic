@@ -366,7 +366,7 @@ export async function cacheFileText(
 
  @param query - query to look for
 
- @returns The record, or a miss when no file is there or the file holds no
+ @returns Record, or a miss when no file is there or the file holds no
  record: text that is not JSON (a file cut short or left empty), or JSON of
  another shape, each said on a warning naming the file
 

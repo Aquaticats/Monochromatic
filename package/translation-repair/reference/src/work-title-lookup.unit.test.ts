@@ -488,7 +488,7 @@ await describe({
             /**
              Transport answering 200 and then failing mid-body.
 
-             @returns A 200 whose body stream errors
+             @returns 200 whose body stream errors
              */
             async function cutBody(): Promise<Response> {
               return bodyCutBy({ failure: cut, },);
@@ -520,7 +520,7 @@ await describe({
             /**
              Transport answering with one result that repeats the key the request carried.
 
-             @returns A 200 whose result echoes the key three times
+             @returns 200 whose result echoes the key three times
              */
             async function echoing(): Promise<Response> {
               return Response.json({
@@ -749,7 +749,7 @@ await describe({
             /**
              Transport refusing with cat prose in the body.
 
-             @returns A 401 whose body is prose
+             @returns 401 whose body is prose
              */
             async function refusingWithProse(): Promise<Response> {
               return new Response(
@@ -825,7 +825,7 @@ await describe({
 
              @param init - request, whose body names the title
 
-             @returns A refusal, for the nap
+             @returns Refusal, for the nap
              */
             async function laterFirst(_input: string | URL | Request, init?: RequestInit,): Promise<Response> {
               /**
