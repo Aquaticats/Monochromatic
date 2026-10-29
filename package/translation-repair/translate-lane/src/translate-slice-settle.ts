@@ -34,10 +34,6 @@ import {
   buyTranslateSlice,
 } from './translate-slice-buy.ts';
 import {
-  floorLimitedKey,
-  type FloorLimitedMemory,
-  notAskedAgain,
-  rememberFloorLimited,
   selectBelowFloor,
   skippedBelowFloor,
 } from './translate-floor-limited.ts';
@@ -189,12 +185,8 @@ export type TranslateSliceSettlement = {
 
  @param twins - memo of purchases in this run, shared by every slice
 
- @param floorLimited - what earlier attempts of this pass left for slices that
- ended unfilled on a select bench below its floor, absent for a caller that
- keeps none
-
  @param selectReachable - select judges a wet provider would serve now, which
- a floor-limited slice is asked again only when it has grown past
+ decides whether a passage the archive never translated is bought at all
 
  @param signal - entry deadline and caller abort
 
@@ -228,7 +220,6 @@ export async function resumeReuseOrBuyTranslateSlice(
     runShape,
     sliceCache,
     twins,
-    floorLimited,
     selectReachable,
     archiveDispute,
     signal,
@@ -248,7 +239,6 @@ export async function resumeReuseOrBuyTranslateSlice(
     readonly runShape: string;
     readonly sliceCache?: SliceCache<TranslateSliceRecord>;
     readonly twins: TwinMemo<TranslateSliceRecord>;
-    readonly floorLimited?: FloorLimitedMemory;
     readonly selectReachable?: number;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
@@ -420,44 +410,9 @@ export async function resumeReuseOrBuyTranslateSlice(
   }
 
   /**
-   Question this slice answers for the pass's memory of floor-limited slices.
-   */
-  const floorKey = floorLimitedKey({
-    sliceIndex,
-    sourceText: slice.source
-      .text,
-    incumbentText: standIn ?? pageWording,
-  },);
-  /**
-   The pass's memory and this slice's select reach, each absent where the caller kept or counted none.
-   */
-  const floorFacts = {
-    ...((floorLimited === undefined) ? {} : { memory: floorLimited, }),
-    ...((selectReachable === undefined) ? {} : { reachable: selectReachable, }),
-  };
-  /**
-   Whether an earlier attempt of this pass left the slice its outcome while its bench has not grown.
-   */
-  const decision = notAskedAgain({
-    ...floorFacts,
-    key: floorKey,
-    benchSize: models.judgeModelIds
-      .length,
-    sliceIndex,
-    l,
-  },);
-  if (decision.kind === 'kept') {
-    cost.left({ exit: 'unfilled', },);
-    return {
-      ...decision.settlement,
-      refusedCacheFindings,
-    };
-  }
-
-  /**
    Whether this passage's select bench reads under the floor, so nothing bought for it could be backed. Asked after the
-   cache and the pass's memory have answered what they can, and acted on only where a purchase would start: a twin's
-   stored record is reused before it.
+   cache has answered what it can, and acted on only where a purchase would start: a twin's stored record is reused
+   before it.
    */
   const belowFloor = selectBelowFloor({
     incumbentKind,
@@ -521,12 +476,6 @@ export async function resumeReuseOrBuyTranslateSlice(
    This slice's own purchase.
    */
   const { bought, } = asked;
-  rememberFloorLimited({
-    ...floorFacts,
-    key: floorKey,
-    bought,
-    toldWhy: belowFloor,
-  },);
   if (bought.kind === 'unfilled') {
     cost.left({ exit: 'unfilled', },);
     return {

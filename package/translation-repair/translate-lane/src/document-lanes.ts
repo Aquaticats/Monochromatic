@@ -52,7 +52,6 @@ import type {
   TranslateSliceSeating,
 } from './translate-document-contract.ts';
 import { translateDocument, } from './translate-document.ts';
-import type { FloorLimitedMemory, } from './translate-floor-limited.ts';
 
 //region Document lanes
 // Both lanes over ONE preparation, arbitrating nothing.
@@ -262,9 +261,6 @@ function laneDelivery(
  @param translateInsertionAdmission - production evidence deciding which
  source-only slices translation may fill
 
- @param floorLimited - what earlier attempts of this pass left for translate
- slices that ended unfilled on a select bench below its floor
-
  @param l - logger both lanes tag under, so one entry reads as one run
 
  @param stageSettings - straggler windows and contest ledger the entry file
@@ -305,7 +301,6 @@ export async function runDocumentLanes(
     refineSliceCache,
     translateSliceCache,
     translateInsertionAdmission,
-    floorLimited,
     l,
     stageSettings,
   }: ForeignBorrowed<{
@@ -335,13 +330,6 @@ export async function runDocumentLanes(
     readonly refineSliceCache?: SliceCache<RefinedSliceSettlement>;
     readonly translateSliceCache?: SliceCache<TranslateSliceRecord>;
     readonly translateInsertionAdmission?: InsertionAdmission;
-
-    /**
-     What earlier attempts of this pass left for translate slices that ended
-     unfilled on a select bench below its floor; absent for a caller that keeps
-     none.
-     */
-    readonly floorLimited?: FloorLimitedMemory;
     readonly l: Logger;
     readonly stageSettings: StageSettings;
   }>,
@@ -474,7 +462,6 @@ export async function runDocumentLanes(
     ...((translateInsertionAdmission === undefined)
       ? {}
       : { insertionAdmission: translateInsertionAdmission, }),
-    ...((floorLimited === undefined) ? {} : { floorLimited, }),
     ...((beforeSlice === undefined)
       ? {}
       : {

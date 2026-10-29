@@ -1,17 +1,16 @@
 /**
- Tests for the translate lane not buying a slice again in a later attempt of the
- same pass when the bench that decides it could not reach its floor and has not
- grown.
+ Tests for the translate lane buying no candidate for a passage the archive never translated while the select bench that
+ decides it reads under its floor of two ballots.
 
- XingZ6020 (2026-10-22) tried slices 88 to 105 in one attempt with the select
- bench at one reachable seat of seven; every one ended unfilled for want of a
- second ballot, and the next attempt asked all eighteen again.
+ XingZ6020 (2026-10-22) tried slices 88 to 105 in one attempt with the select bench at one reachable seat of seven;
+ every one ended unfilled for want of a second ballot, and the next attempt asked all eighteen again. The skip reads the
+ bench before each purchase and keeps no memory, so every attempt at that reach skips the slice again, records the same
+ mark and says why again; the pass once kept a memory of such slices and the owner removed it on 2026-10-29, since the
+ payload store already replays the repeat.
 
- A passage the archive never translated is bought no candidate at all while
- the select bench reads under the floor of two ballots a winner needs: nothing
- bought could be backed, so the slice keeps the outcome it would have ended
- with and the log says why, once. A slice a stored record, a twin or the archive
- itself can answer is not skipped.
+ A passage the archive never translated is bought no candidate at all while the select bench reads under the floor of
+ two ballots a winner needs: nothing bought could be backed, so the slice keeps the outcome it would have ended with
+ and the log says why. A slice a stored record, a twin or the archive itself can answer is not skipped.
 
  Fixtures are cat-themed invention.
 
@@ -33,10 +32,6 @@ import type {
 } from '@monochromatic-dev/translation-repair-provider';
 import { makeInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
-  type AskDecision,
-  type FloorLimitedMemory,
-  notAskedAgain,
-  rememberFloorLimited,
   translateDocument,
   type TranslateModels,
   type TranslateSliceSeating,
@@ -222,7 +217,6 @@ function contentOnlyPair(): PreparedDocumentPair {
 /**
  Runs the lane over the insertion once.
 
- @param memory - what earlier attempts of the pass left, shared across calls
  @param selectReachable - select judges a wet provider would serve, absent when the hook counted none
  @param calls - sink counting every call
  @param lines - sink for every line written
@@ -234,12 +228,11 @@ function contentOnlyPair(): PreparedDocumentPair {
 
  @example
  ```ts
- const result = await attempt({ memory: new Map(), selectReachable: 1, calls, lines, },);
+ const result = await attempt({ selectReachable: 1, calls, lines, },);
  ```
  */
 async function attempt(
   {
-    memory,
     selectReachable,
     calls,
     lines,
@@ -247,7 +240,6 @@ async function attempt(
     sliceCache,
     content = false,
   }: {
-    readonly memory: Map<string, unknown>;
     readonly selectReachable?: number;
     readonly calls: { count: number; };
     readonly lines: string[];
@@ -268,7 +260,6 @@ async function attempt(
     perCallTimeoutMs: HANG_STOP_MS,
     l: capturingLogger({ messages: lines, },),
     stageSettings: SCRIPTED_STAGE_SETTINGS,
-    floorLimited: memory,
     ...((sliceCache === undefined) ? {} : { sliceCache, }),
     ...((selectReachable === undefined)
       ? {}
@@ -290,12 +281,12 @@ async function attempt(
  */
 function whyLines({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
   return lines.filter(function isWhy(line,): boolean {
-    return line.includes('below the floor',) || line.includes('not asked again',);
+    return line.includes('below the floor',);
   },);
 }
 
 await describe({
-  name: 'a slice that ended unfilled on a select bench below the floor',
+  name: 'a passage the archive never translated, on a select bench below the floor',
   concurrency: 1,
   children: [
     it({
@@ -303,9 +294,8 @@ await describe({
         + 'floor: no call, the unfilled outcome it would have ended with, the finding that names the bench and one '
         + 'line saying why',
       fn: async () => {
-        const memory = new Map<string, unknown>();
         const sink = { calls: { count: 0, }, lines: [] as string[], };
-        const result = await attempt({ memory, selectReachable: 1, ...sink, },);
+        const result = await attempt({ selectReachable: 1, ...sink, },);
         expect({
           calls: sink.calls.count,
           reasons: result.unfilled.map(function reasonOf(slice,): string {
@@ -338,9 +328,9 @@ await describe({
         + 'that counted nothing says nothing against the purchase',
       fn: async () => {
         const atFloor = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory: new Map(), selectReachable: 2, ...atFloor, },);
+        await attempt({ selectReachable: 2, ...atFloor, },);
         const uncounted = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory: new Map(), ...uncounted, },);
+        await attempt({ ...uncounted, },);
         expect({
           atFloorAsked: atFloor.calls.count > 0,
           atFloorSaid: whyLines({ lines: atFloor.lines, },).length,
@@ -357,7 +347,7 @@ await describe({
         + 'judges decline, so its ending is a settled slice and not the unfilled one this skip stands for',
       fn: async () => {
         const sink = { calls: { count: 0, }, lines: [] as string[], };
-        const result = await attempt({ memory: new Map(), selectReachable: 1, content: true, ...sink, },);
+        const result = await attempt({ selectReachable: 1, content: true, ...sink, },);
         expect({
           asked: sink.calls.count > 0,
           unfilled: result.unfilled.length,
@@ -383,7 +373,6 @@ await describe({
         };
         const first = { calls: { count: 0, }, lines: [] as string[], };
         const firstResult = await attempt({
-          memory: new Map(),
           selectReachable: 6,
           backing: true,
           sliceCache: writer,
@@ -396,7 +385,6 @@ await describe({
         );
         const later = { calls: { count: 0, }, lines: [] as string[], };
         const laterResult = await attempt({
-          memory: new Map(),
           selectReachable: 1,
           backing: true,
           sliceCache: {
@@ -471,7 +459,6 @@ await describe({
           perCallTimeoutMs: HANG_STOP_MS,
           l: capturingLogger({ messages: lines, },),
           stageSettings: SCRIPTED_STAGE_SETTINGS,
-          floorLimited: new Map(),
           beforeSlice: async (): Promise<TranslateSliceSeating> => {
             const selectReachable = reaches[Math.min(counted.asks, reaches.length - 1,)] ?? 1;
             counted.asks += 1;
@@ -491,24 +478,18 @@ await describe({
     },),
     it({
       name: 'MARKS THE UNFILLED SLICE IT SKIPPED, so the artifact tells a skip for want of a bench from a panel that '
-        + 'declined twice, and keeps the mark when a later attempt keeps the outcome without a call',
+        + 'declined twice',
       fn: async () => {
-        const memory = new Map<string, unknown>();
-        const first = await attempt({ memory, selectReachable: 1, calls: { count: 0, }, lines: [], },);
-        const second = await attempt({ memory, selectReachable: 1, calls: { count: 0, }, lines: [], },);
+        const result = await attempt({ selectReachable: 1, calls: { count: 0, }, lines: [], },);
         expect({
-          first: first.unfilled.map(function markOf(slice,) {
+          marks: result.unfilled.map(function markOf(slice,) {
             return slice.benchBelowFloor;
           },),
-          second: second.unfilled.map(function markOf(slice,) {
-            return slice.benchBelowFloor;
-          },),
-          wording: first.sliceTexts.map(function outcomeOf(text,) {
+          wording: result.sliceTexts.map(function outcomeOf(text,) {
             return text.outcome;
           },),
         },).toEqual({
-          first: [true,],
-          second: [true,],
+          marks: [true,],
           wording: [
             {
               kind: 'unfilled',
@@ -519,201 +500,76 @@ await describe({
       },
     },),
     it({
-      name: 'IS NOT ASKED AGAIN by a later attempt at the same reach, and says nothing more: the unfilled outcome and '
-        + 'its reason kept without a call, the finding that names it, and the one line the first attempt wrote',
+      name: 'SKIPS AND RECORDS THE SAME SLICE IN EVERY ATTEMPT WITH NO MEMORY BETWEEN THEM: three attempts at a reach '
+        + 'of one each make no call, end unfilled as no-candidate-backed with the mark and the finding that names the '
+        + 'bench, and say why on one line of their own',
       fn: async () => {
-        const memory = new Map<string, unknown>();
-        const first = { calls: { count: 0, }, lines: [] as string[], };
-        const second = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, selectReachable: 1, ...first, },);
-        const secondResult = await attempt({ memory, selectReachable: 1, ...second, },);
-        expect({
-          firstSaid: whyLines({ lines: first.lines, },).length,
-          secondCalls: second.calls.count,
-          secondReasons: secondResult.unfilled.map(function reasonOf(slice,): string {
-            return slice.reason;
-          },),
-          secondStatus: secondResult.status,
-          secondSaid: whyLines({ lines: second.lines, },).length,
-          findingKept: secondResult.findings.some(function isAbsence(finding,): boolean {
-            return finding.includes('chunk 0',);
-          },),
-          findingNamed: secondResult.findings.some(function isNotAsked(finding,): boolean {
-            return finding.startsWith('translate-not-asked-again',);
-          },),
-        },).toEqual({
-          firstSaid: 1,
-          secondCalls: 0,
-          secondReasons: ['no-candidate-backed',],
-          secondStatus: 'unfilled',
-          secondSaid: 0,
-          findingKept: true,
-          findingNamed: true,
-        },);
-      },
-    },),
-    it({
-      name: 'SAYS WHY ONCE PER SLICE across the attempts that skip it, not once per attempt',
-      fn: async () => {
-        const memory = new Map<string, unknown>();
-        const first = { calls: { count: 0, }, lines: [] as string[], };
-        const second = { calls: { count: 0, }, lines: [] as string[], };
-        const third = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, selectReachable: 1, ...first, },);
-        await attempt({ memory, selectReachable: 1, ...second, },);
-        await attempt({ memory, selectReachable: 1, ...third, },);
-        expect({
-          firstSaid: whyLines({ lines: first.lines, },).length,
-          secondSaid: whyLines({ lines: second.lines, },).length,
-          thirdSaid: whyLines({ lines: third.lines, },).length,
-          thirdCalls: third.calls.count,
-        },).toEqual({
-          firstSaid: 1,
-          secondSaid: 0,
-          thirdSaid: 0,
-          thirdCalls: 0,
-        },);
-      },
-    },),
-    it({
-      name: 'IS ASKED AGAIN once the select bench has grown to the floor, and not while it has grown but stays '
-        + 'under it',
-      fn: async () => {
-        const memory = new Map<string, unknown>();
-        await attempt({ memory, selectReachable: 0, calls: { count: 0, }, lines: [], },);
-        const stillUnder = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, selectReachable: 1, ...stillUnder, },);
-        const grown = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, selectReachable: 2, ...grown, },);
-        expect({
-          stillUnderCalls: stillUnder.calls.count,
-          grownAsked: grown.calls.count > 0,
-        },).toEqual({
-          stillUnderCalls: 0,
-          grownAsked: true,
-        },);
-      },
-    },),
-    it({
-      name: 'IS NOT RECORDED when the select bench met the floor, since a full panel that backed nothing twice has '
-        + 'said something about the slice, and a later attempt may ask it again as it does now',
-      fn: async () => {
-        const memory = new Map<string, unknown>();
-        await attempt({ memory, selectReachable: 2, calls: { count: 0, }, lines: [], },);
-        const later = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, selectReachable: 2, ...later, },);
-        expect({
-          recorded: memory.size,
-          askedAgain: later.calls.count > 0,
-        },).toEqual({
-          recorded: 0,
-          askedAgain: true,
-        },);
-      },
-    },),
-    it({
-      name: 'KEEPS WHAT THE SLICE WAS TOLD when a purchase that did not skip it ends unfilled again at a reach under '
-        + 'the floor, so a repeat of the same ending does not unsay the one line, and forgets the slice once it '
-        + 'settles',
-      fn: async () => {
-        const memory: FloorLimitedMemory = new Map();
-        const unfilledBy = {
-          kind: 'unfilled',
-          unfilled: { sliceIndex: 3, reason: 'no-candidate-backed', findings: [], },
-          findings: ['absence chunk 3',],
-        } as const;
-        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, toldWhy: true, },);
-        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, },);
-        const keptAfterRepeat = memory.get('q',)?.told;
-        rememberFloorLimited({ memory, key: 'fresh', bought: unfilledBy, reachable: 1, },);
-        const freshTold = memory.get('fresh',)?.told;
-        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 2, },);
-        expect({
-          keptAfterRepeat,
-          freshTold,
-          forgottenAtFloor: memory.has('q',),
-        },).toEqual({
-          keptAfterRepeat: true,
-          freshTold: false,
-          forgottenAtFloor: false,
-        },);
-      },
-    },),
-    it({
-      name: 'TELLS WHY A SLICE IS NOT ASKED AGAIN ONCE, from the tagged helper, when a record that was not told is '
-        + 'kept: the record seeded without toldWhy is kept as its unfilled outcome with one line, marked told, and a '
-        + 'second call keeps it silently while a bench that grew is asked',
-      fn: async () => {
-        const memory: FloorLimitedMemory = new Map();
-        const unfilledBy = {
-          kind: 'unfilled',
-          unfilled: { sliceIndex: 4, reason: 'no-candidate-backed', findings: [], },
-          findings: ['absence chunk 4',],
-        } as const;
-        rememberFloorLimited({ memory, key: 'q', bought: unfilledBy, reachable: 1, },);
+        const sinks = [
+          { calls: { count: 0, }, lines: [] as string[], },
+          { calls: { count: 0, }, lines: [] as string[], },
+          { calls: { count: 0, }, lines: [] as string[], },
+        ];
         /**
-         What the helper logged.
+         What each attempt made of the passage.
          */
-        const lines: string[] = [];
-        /**
-         The helper asked about the slice with the bench no larger than the record.
-         */
-        function askedAt({ reachable, }: { readonly reachable: number; },): AskDecision {
-          return notAskedAgain({
-            memory,
-            key: 'q',
-            reachable,
-            benchSize: 7,
-            sliceIndex: 4,
-            l: capturingLogger({ messages: lines, },),
-          },);
+        const results = [];
+        for (const sink of sinks) {
+          // oxlint-disable-next-line no-await-in-loop -- the attempts are consecutive, as a pass reattempts an entry
+          results.push(await attempt({ selectReachable: 1, ...sink, },),);
         }
-        const first = askedAt({ reachable: 1, },);
-        const toldAfterFirst = memory.get('q',)?.told;
-        const linesAfterFirst = [...lines,];
-        const second = askedAt({ reachable: 1, },);
-        const grown = askedAt({ reachable: 2, },);
         expect({
-          first: first.kind === 'kept' ? first.settlement.outcome : first.kind,
-          lines: linesAfterFirst,
-          toldAfterFirst,
-          secondKept: second.kind,
-          linesAfterSecond: lines.length,
-          grown: grown.kind,
-          linesAfterGrown: lines.length,
+          calls: sinks.map(function callsOf(sink,): number {
+            return sink.calls.count;
+          },),
+          said: sinks.map(function saidOf(sink,): number {
+            return whyLines({ lines: sink.lines, },).length;
+          },),
+          statuses: results.map(function statusOf(result,): string {
+            return result.status;
+          },),
+          marks: results.map(function marksOf(result,) {
+            return result.unfilled.map(function markOf(slice,) {
+              return slice.benchBelowFloor;
+            },);
+          },),
+          findingsNameTheBench: results.map(function namesBench(result,): boolean {
+            return result.findings.includes(
+              'stage-bench-below-floor (translate-select reachable 1 of 6, floor 2, no call made)',
+            );
+          },),
+          noMemoryFinding: results.some(function hasMemoryFinding(result,): boolean {
+            return result.findings.some(function isNotAsked(finding,): boolean {
+              return finding.startsWith('translate-not-asked-again',);
+            },);
+          },),
         },).toEqual({
-          first: { kind: 'unfilled', unfilled: unfilledBy.unfilled, },
-          lines: [
-            '[notAskedAgain] slice 4: not asked again; it ended unfilled (no-candidate-backed) with 1 of 7 select '
-              + 'judges reachable against a floor of 2, and 1 are reachable now; a later pass asks it again only if '
-              + 'the entry is still unsettled',
-          ],
-          toldAfterFirst: true,
-          secondKept: 'kept',
-          linesAfterSecond: 1,
-          grown: 'ask',
-          linesAfterGrown: 1,
+          calls: [0, 0, 0,],
+          said: [1, 1, 1,],
+          statuses: ['unfilled', 'unfilled', 'unfilled',],
+          marks: [[true,], [true,], [true,],],
+          findingsNameTheBench: [true, true, true,],
+          noMemoryFinding: false,
         },);
       },
     },),
     it({
-      name: 'IS ASKED AS BEFORE where no reach was counted, and a pass that shares no memory skips the slice all the '
-        + 'same, since the floor needs no memory',
+      name: 'BUYS THE SLICE ONCE THE SELECT BENCH HAS GROWN TO THE FLOOR, with nothing remembered from the attempts '
+        + 'under it: a reach of zero and of one skip it, a reach of two buys it',
       fn: async () => {
-        const memory = new Map<string, unknown>();
-        await attempt({ memory, calls: { count: 0, }, lines: [], },);
-        const uncounted = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory, ...uncounted, },);
-        const fresh = { calls: { count: 0, }, lines: [] as string[], };
-        await attempt({ memory: new Map(), selectReachable: 1, ...fresh, },);
+        const zero = { calls: { count: 0, }, lines: [] as string[], };
+        await attempt({ selectReachable: 0, ...zero, },);
+        const one = { calls: { count: 0, }, lines: [] as string[], };
+        await attempt({ selectReachable: 1, ...one, },);
+        const two = { calls: { count: 0, }, lines: [] as string[], };
+        await attempt({ selectReachable: 2, ...two, },);
         expect({
-          recorded: memory.size,
-          uncountedAsked: uncounted.calls.count > 0,
-          freshCalls: fresh.calls.count,
+          zeroCalls: zero.calls.count,
+          oneCalls: one.calls.count,
+          twoAsked: two.calls.count > 0,
         },).toEqual({
-          recorded: 0,
-          uncountedAsked: true,
-          freshCalls: 0,
+          zeroCalls: 0,
+          oneCalls: 0,
+          twoAsked: true,
         },);
       },
     },),
