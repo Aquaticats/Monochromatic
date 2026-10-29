@@ -1,6 +1,0 @@
-{
-  "extends": "@monochromatic-dev/config-typescript/dom",
-  "compilerOptions": {
-    "types": ["node"],
-  },
-}

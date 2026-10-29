@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Thinking dismissal shadow">
-  <rect x="4" y="4" width="56" height="56" rx="12" fill="#1c2333" />
-  <path d="M14 44 L26 30 L34 36 L48 18" fill="none" stroke="#7fd1c8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="48" cy="18" r="5" fill="#e8b04b" />
-  <path d="M14 50 H50" fill="none" stroke="#5b677f" stroke-width="3" stroke-linecap="round" />
-</svg>

@@ -1,4 +1,0 @@
-{
-  "extends": "@monochromatic-dev/config-typescript/dom",
-  "include": ["*.ts", "*.d.ts"],
-}

@@ -2034,3 +2034,44 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
     `````text
     No findings in the supplied changes regarding correctness, standards compliance, or test coverage. No unbounded-input traversal or cross-call complexity concerns identified.
     `````
+
+- Date:
+  2026-10-29T17:01:41.348Z
+  Subject:
+  84c602b6a7d2 `test(upstream-fork-p-map): check that the abort listener is removed when the run settles and that a stop drops an earlier element still being read; refactor(upstream-fork-p-map): narrow the mutation suppressions of the concurrent and streaming maps to the families that have an equivalent mutant`
+  Input size:
+  `4 code files, 260 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  324.7 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `fillWhenSettled` (`package/upstream-fork/p-map/src/p-map-iterable.ts:397`), **major**, `RG2`: The pre-existing `done` branch scans every remaining `unfilledIndexes` entry while retaining earlier pending positions. When concurrency and backpressure scale with input, successive `done` outcomes settling from highest to lowest position repeatedly scan those retained entries, producing quadratic work rather than the required linear bound.
+    
+    No newly introduced runtime-correctness or test-specific findings in the supplied diff; the production edits only remove or narrow mutation-testing suppressions.
+    `````
+
+- Skipped:
+  f925613e65c3 (no code files):
+  `docs(handover): note the cost-dismissal rename beside the original names`
+- Date:
+  2026-10-29T17:01:55.690Z
+  Subject:
+  c9365744bb7e `refactor(upstream-fork-p-memoize): coerce the toString descriptor flags with Boolean instead of suppressing their unreachable fallbacks; state the verified proof for ignoreNonConfigurable`
+  Input size:
+  `2 code files, 34 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  52.2 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    No findings in the reviewed changes to `changeToString` or `pMemoize`, including descriptor behavior and the revised mutation-suppression rationale.
+    
+    No RG2 complexity findings: neither change introduces input traversal or repeated calls to helpers that walk unbounded data.
+    `````
