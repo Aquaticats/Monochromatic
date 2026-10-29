@@ -322,9 +322,14 @@ fn unsaved_paths(session: &Session) -> Result<Vec<Vec<u8>>, Bail> {
     if !status.succeeded() {
         return Err(Bail::from(format!("git status failed: {}", status.error_text())));
     }
-    for entry in status.stdout.split(|byte| { return *byte == 0; }) {
+    let mut entries = status.stdout.split(|byte| { return *byte == 0; });
+    while let Some(entry) = entries.next() {
         if entry.len() >= 2 && (entry[0] == b'U' || entry[1] == b'U' || entry[..2] == *b"AA" || entry[..2] == *b"DD") {
             return Err(Bail::Forward(None));
+        }
+        // A rename or copy is followed by its original path, which carries no status letters.
+        if entry.len() >= 2 && (matches!(entry[0], b'R' | b'C') || matches!(entry[1], b'R' | b'C')) {
+            entries.next();
         }
     }
     return Ok(status_paths(status.stdout.as_slice()));

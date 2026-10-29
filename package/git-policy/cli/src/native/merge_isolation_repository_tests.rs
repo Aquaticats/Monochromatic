@@ -140,12 +140,18 @@ fn staged_and_unstaged_work_is_listed_by_path() {
 
 /// A repository where `feature` and `main` have diverged and another session staged `u.txt`.
 fn diverged_with_staged_work(name: &str) -> (PathBuf, PathBuf) {
+    return diverged_with_files(name, &[]);
+}
+
+/// A repository where `feature` and `main` have diverged and another session staged `u.txt`, whose base commit also
+/// holds the `extra` files, which the merge does not touch.
+fn diverged_with_files(name: &str, extra: &[&str]) -> (PathBuf, PathBuf) {
     let parent: PathBuf = fixture(name);
     let repo: PathBuf = repository(parent.as_path(), "repo");
-    for file in ["u.txt", "f.txt", "h.txt"] {
-        std::fs::write(repo.join(file), format!("{file} base\n")).expect("file");
+    for file in ["u.txt", "f.txt", "h.txt"].iter().chain(extra.iter()) {
+        std::fs::write(repo.join(file), format!("{file} base\nwith enough lines\nfor a rename to be found\n")).expect("file");
+        git(repo.as_path(), &["add", "--", file]);
     }
-    git(repo.as_path(), &["add", "--", "u.txt", "f.txt", "h.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
@@ -222,6 +228,45 @@ fn a_range_in_place_of_a_commit_is_native_gits() {
         assert_eq!(outcome, IsolatedMerge::Forward { notice: None }, "{range}");
     }
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
+    remove(parent.as_path());
+}
+
+/// A staged rename lists its original path as a field of its own, with no status letters, and a path may begin with
+/// the letters of an unmerged state; such a rename is other work to keep, not a conflict, and the merge is completed.
+#[test]
+fn a_staged_rename_is_no_conflict_whatever_its_source_is_called() {
+    for source in ["Uold.txt", "xUold.txt", "AAold.txt", "DDold.txt", "UUold.txt"] {
+        let (parent, repo): (PathBuf, PathBuf) =
+            diverged_with_files(format!("merge-unsaved-rename-{source}").as_str(), &[source]);
+        git(repo.as_path(), &["mv", "--", source, "moved.txt"]);
+        let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=no"]);
+        assert!(status.contains(format!("R  {source} -> moved.txt").as_str()), "{source}: {status}");
+        let Ok(mut paths) = unsaved_paths(&session_in(repo.as_path())) else {
+            panic!("{source}: a staged rename is no reason to forward");
+        };
+        paths.sort();
+        let mut expected: Vec<Vec<u8>> =
+            [source, "moved.txt", "u.txt"].iter().map(|name| { return name.as_bytes().to_vec(); }).collect();
+        expected.sort();
+        assert_eq!(paths, expected, "{source}");
+        let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+        let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+        assert!(is_completed(&outcome), "{source}: {outcome:?}");
+        assert_ne!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "{source}: merged");
+        assert!(git_text(repo.as_path(), &["status", "--porcelain=v1"]).contains("moved.txt"), "{source}: rename kept");
+        remove(parent.as_path());
+    }
+}
+
+/// A conflict is still forwarded when it sits after a staged rename in the same status.
+#[test]
+fn a_conflict_after_a_staged_rename_is_still_forwarded() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_files("merge-unsaved-rename-conflict", &["old.txt", "z.txt"]);
+    git(repo.as_path(), &["mv", "--", "old.txt", "moved.txt"]);
+    unmerge(repo.as_path(), "z.txt", &[1, 2, 3]);
+    let status: String = git_text(repo.as_path(), &["status", "--porcelain=v1", "--untracked-files=no"]);
+    assert!(status.contains("R  old.txt -> moved.txt") && status.contains("UU z.txt"), "{status}");
+    assert!(matches!(unsaved_paths(&session_in(repo.as_path())), Err(Bail::Forward(None))));
     remove(parent.as_path());
 }
 
