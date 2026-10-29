@@ -53,7 +53,7 @@ const STATED_MS = 600_000;
 
  @param hyperWet - whether Hyper's meter reads wet, which leaves a writing provider besides Synthetic
 
- @returns The budgets
+ @returns Budgets
 
  @example
  ```ts

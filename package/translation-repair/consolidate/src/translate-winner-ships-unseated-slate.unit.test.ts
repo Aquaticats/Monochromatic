@@ -234,9 +234,9 @@ async function settleOver(
 /**
  What a case reads off a settlement.
 
- @param settled - the settlement
+ @param settled - settlement
 
- @returns The fields the owner's rule decides
+ @returns Fields the owner's rule decides
 
  @example
  ```ts

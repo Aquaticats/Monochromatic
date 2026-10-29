@@ -39,13 +39,13 @@ import type { SlateFloor, } from './consolidate-validity-floor.ts';
 
  @param producedFindings - what gathering recorded
 
- @param subject - the slice, whose syntax role decides the polish not-run reason
+ @param subject - slice, whose syntax role decides the polish not-run reason
 
  @param sliceIndex - prepared position of the slice, for the log
 
  @param l - stage logger
 
- @returns The settlement keeping the standing, marked archive-kept where the rule refused it
+ @returns Settlement keeping the standing, marked archive-kept where the rule refused it
 
  @example
  ```ts
@@ -143,13 +143,13 @@ export type BeforeSlateExit =
 
  @param producedFindings - what gathering recorded
 
- @param subject - the slice, whose syntax role decides the polish not-run reason
+ @param subject - slice, whose syntax role decides the polish not-run reason
 
  @param sliceIndex - prepared position of the slice, for the log
 
  @param l - stage logger
 
- @returns The settlement that ships the winner, or that the slate is asked
+ @returns Settlement that ships the winner, or that the slate is asked
 
  @example
  ```ts
@@ -230,7 +230,7 @@ export function shipWinnerBeforeSlate(
 
  @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round
 
- @param subject - the slice, whose syntax role decides the polish not-run reason
+ @param subject - slice, whose syntax role decides the polish not-run reason
 
  @param sliceIndex - prepared position of the slice, for the log
 

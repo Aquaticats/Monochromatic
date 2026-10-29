@@ -37,7 +37,7 @@ import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
  @param sinon - case's own sandbox, which fakes the timers
  @param syntheticWet - whether Synthetic, the only other configured provider, has budget
 
- @returns The refusal the reading threw, the energy reads counted and the lines the reading logged
+ @returns Refusal the reading threw, the energy reads counted and the lines the reading logged
 
  @example
  ```ts

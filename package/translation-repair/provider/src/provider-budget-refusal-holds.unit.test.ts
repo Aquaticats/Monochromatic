@@ -95,7 +95,7 @@ function holdsOnAClock(
 
  @param lines - every line the holds wrote
 
- @returns The lines about the give-up
+ @returns Lines about the give-up
 
  @example
  ```ts

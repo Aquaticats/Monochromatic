@@ -38,7 +38,7 @@ const EARLIER = {
 
  @param entryStartedAt - when the entry began
 
- @returns The marks after the refusal, and the lines written
+ @returns Marks after the refusal, and the lines written
 
  @example
  ```ts

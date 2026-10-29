@@ -175,7 +175,7 @@ export const TRANSLATE_WINNER_SHIPS_FINDING: string = 'translate-winner-ships: t
 
  @param reason - why the archive keeps it
 
- @returns The finding recorded on the settlement
+ @returns Finding recorded on the settlement
 
  @example
  ```ts
@@ -223,7 +223,7 @@ export function unseatedFinalRound(
 
  @param ballots - ballots that named the translate lane's text in the lane's own round
 
- @returns The translate lane's text as an offered winner, or a named absence where it is not offered or drew fewer than
+ @returns Translate lane's text as an offered winner, or a named absence where it is not offered or drew fewer than
  two ballots
 
  @example
@@ -434,9 +434,9 @@ export function keepTheArchive(
 
  @param settlement - what the stage settled, before any polish
 
- @param winner - the translate lane's text, which two or more judges chose in the lane
+ @param winner - translate lane's text, which two or more judges chose in the lane
 
- @param subject - the slice, whose syntax role decides the not-run reason the final naturalness check requires
+ @param subject - slice, whose syntax role decides the not-run reason the final naturalness check requires
 
  @param sliceIndex - prepared position of the slice, for the log
 

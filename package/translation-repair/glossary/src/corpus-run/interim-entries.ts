@@ -128,7 +128,7 @@ const root = contextRoot({ tag: 'translation-repair', },);
 /**
  Digest an interim record holds of its page.
 
- @param pageText - the page as written
+ @param pageText - page as written
 
  @returns SHA-256 of its UTF-8 bytes, in lowercase hexadecimal
 
@@ -267,7 +267,7 @@ function isCount(value: unknown,): value is number {
 /**
  Whether a parsed object is an interim record, every field present and of its kind.
 
- @param fields - the parsed object
+ @param fields - parsed object
 
  @returns Whether it is a record
 
@@ -350,7 +350,7 @@ type RecordText =
 
  @param entryId - entry whose record to read
 
- @returns The text, or that the file is gone
+ @returns Text, or that the file is gone
 
  @throws What the read raises for any failure but an absent file
 
@@ -389,11 +389,11 @@ async function readRecordText(
 /**
  Parses a record file's text, naming the entry in the log where it is no JSON.
 
- @param text - the file's text
+ @param text - file's text
 
  @param entryId - entry the file is named for
 
- @returns The parsed value, which is not an object where the text does not parse
+ @returns Parsed value, which is not an object where the text does not parse
 
  @example
  ```ts
@@ -429,7 +429,7 @@ function parsedRecordText(
 
  @param entryId - entry whose record to read
 
- @returns The record, or that there is none to read
+ @returns Record, or that there is none to read
 
  @throws What the read raises for any failure but an absent file
 

@@ -87,7 +87,7 @@ export function startEntryProgress(): EntryProgress {
 
  @param artifactsDir - directory of settled artifacts
 
- @returns The interim directory beside it
+ @returns Interim directory beside it
 
  @example
  ```ts

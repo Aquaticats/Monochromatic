@@ -68,7 +68,7 @@ const UNGATED_RECORD = {
 
  @param text - wording it consolidated
 
- @returns The record
+ @returns Record
 
  @example
  ```ts

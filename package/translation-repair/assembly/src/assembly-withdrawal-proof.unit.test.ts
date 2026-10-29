@@ -42,7 +42,7 @@ const DEFINITION = '[^3]: That is its favourite spot.\n';
 /**
  Builds the two slices: a content slice the archive translated and the anchor where the notes belong.
 
- @param archiveText - the first slice's archive text, which is also the whole document
+ @param archiveText - first slice's archive text, which is also the whole document
  @param anchorSource - original of the anchor, whose definition the page ships when no wording fills it
 
  @returns Slices in document order

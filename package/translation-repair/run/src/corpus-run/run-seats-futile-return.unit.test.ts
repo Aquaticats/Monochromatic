@@ -104,7 +104,7 @@ type Rig = {
 
  @param alternative - which provider reads wet beside Synthetic
 
- @returns The rig, and the disposable that puts the real timers back
+ @returns Rig, and the disposable that puts the real timers back
 
  @example
  ```ts
@@ -221,7 +221,7 @@ function rigOn(
 
  @param lines - lines the seat reader wrote
 
- @returns The skip lines
+ @returns Skip lines
 
  @example
  ```ts

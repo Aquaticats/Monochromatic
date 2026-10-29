@@ -52,7 +52,7 @@ export type FutileSkips = ReadonlyMap<ProviderName, FutileSkip>;
 
  @param running - how long each provider's refusal still holds it out
 
- @returns The holds to wait for, and the holds left out with the return behind each
+ @returns Holds to wait for, and the holds left out with the return behind each
 
  @example
  ```ts

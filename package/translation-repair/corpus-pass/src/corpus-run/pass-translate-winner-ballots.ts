@@ -30,7 +30,7 @@ export type TranslateWinnerRecord = {
  CARRIES. A round that kept the archive chose nothing, and an assembly guard that trimmed the shipped text left a
  wording the judges never saw, so neither earns the two-ballot credit.
 
- @param records - the lane's settled records, one per slice it asked
+ @param records - lane's settled records, one per slice it asked
 
  @param comparison - one row per slice, whose translate text is what the translate document carries there
 

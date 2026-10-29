@@ -184,7 +184,7 @@ function withoutOwners(
 /**
  Whether withdrawing one replacement clears one finding on the page as it will be written.
 
- @param finding - the footnote defect the assembly introduced
+ @param finding - footnote defect the assembly introduced
 
  @param sliceIndex - slice whose replacement would be withdrawn
 
@@ -265,7 +265,7 @@ export function withdrawalClears(
 /**
  Replacements whose slice lost the reference to a footnote its archive text held.
 
- @param finding - the footnote defect the assembly introduced
+ @param finding - footnote defect the assembly introduced
 
  @param replacements - replacements standing at the start of the round
 
@@ -345,7 +345,7 @@ export type Attribution = {
 /**
  Reads which of a finding's suspects may be withdrawn.
 
- @param finding - the footnote defect the assembly introduced
+ @param finding - footnote defect the assembly introduced
 
  @param standing - replacements standing at the start of the round
 
@@ -357,7 +357,7 @@ export type Attribution = {
 
  @param sourceBySlice - original text of every slice, by chunk index
 
- @returns The finding beside how many were suspected and which of them provably clear it
+ @returns Finding beside how many were suspected and which of them provably clear it
 
  @example
  ```ts

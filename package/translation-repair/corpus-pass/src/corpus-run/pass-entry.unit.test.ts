@@ -1546,7 +1546,7 @@ type InterimRecordRead = {
  @param dirs - directories of the case
  @param entryId - entry stopped
 
- @returns The record
+ @returns Record
 
  @example
  ```ts
@@ -1578,7 +1578,7 @@ async function interimRecordOf(
  @param entry - entry to settle
  @param client - scripted client
 
- @returns The outcome and the lines printed
+ @returns Outcome and the lines printed
 
  @example
  ```ts

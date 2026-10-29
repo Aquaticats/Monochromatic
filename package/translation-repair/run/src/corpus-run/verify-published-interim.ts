@@ -24,7 +24,7 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
  @param kind - what the slices carry
 
- @returns The count and its noun
+ @returns Count and its noun
 
  @example
  ```ts
@@ -54,9 +54,9 @@ function slicesOf(
 
  @param runsDir - run directory whose published tree holds the page
 
- @param record - the interim record the entry left
+ @param record - interim record the entry left
 
- @returns The line saying what the page is made of, or that it is not the page the record was written for
+ @returns Line saying what the page is made of, or that it is not the page the record was written for
 
  @example
  ```ts

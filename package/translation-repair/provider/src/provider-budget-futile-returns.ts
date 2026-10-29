@@ -127,7 +127,7 @@ export type FutileReturns = {
 
  @param l - logger the mark of a return is written to
 
- @param entryWords - the entry in flight, worded for a log line ("entry XingZ6020", or "the run" where none is named)
+ @param entryWords - entry in flight, worded for a log line ("entry XingZ6020", or "the run" where none is named)
 
  @returns Marks that begin empty
 

@@ -147,7 +147,7 @@ export function contestedRows(
 
  @param count - contested slices the consolidation settles
 
- @returns The line, counting by the singular where there is one
+ @returns Line, counting by the singular where there is one
 
  @example
  ```ts

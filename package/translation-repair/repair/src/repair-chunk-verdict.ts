@@ -144,7 +144,7 @@ function settlementState(
 
  @param measurements - what the checks measured about the patched wording
 
- @returns The rank it lost on, absent when it tied the archive on everything the ranking reads
+ @returns Rank it lost on, absent when it tied the archive on everything the ranking reads
 
  @example
  ```ts

@@ -53,7 +53,7 @@ const GENERATION = `sha256-tree-v1:${'c'.repeat(64,)}`;
  Client whose every chat call asks the real budgets for a provider and meets the refusal the router makes when every
  provider is dry and NeuralWatt's spent day starts again 301 s later.
 
- @returns The client, over budgets whose other providers are unconfigured and so dry
+ @returns Client, over budgets whose other providers are unconfigured and so dry
 
  @example
  ```ts
@@ -93,7 +93,7 @@ function clientOverSpentNeuralWatt(): ModelClient {
   /**
    The call every method makes.
 
-   @param signal - the call's abort handle
+   @param signal - call's abort handle
 
    @returns Never
 

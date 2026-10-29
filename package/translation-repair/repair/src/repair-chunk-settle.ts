@@ -60,7 +60,7 @@ export type ShippedSettlement = SettledChunk & {
 
  @param targetDocument - archive parsed, the grammar baseline
 
- @param sourceDocument - the slice's own original parsed, whose footnote references tell a restoration from a new break
+ @param sourceDocument - slice's own original parsed, whose footnote references tell a restoration from a new break
 
  @param acceptedCount - issues the panel accepted
 

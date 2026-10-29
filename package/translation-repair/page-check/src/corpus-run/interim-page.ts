@@ -112,7 +112,7 @@ function archiveOnlyRow({ slice, }: { readonly slice: ChunkPair; },): ArtifactCo
 
  @param archiveText - English page the slices address, after preparation
 
- @returns The source for `publishFixedPage`, every slice without a consolidation record marked unsettled
+ @returns Source for `publishFixedPage`, every slice without a consolidation record marked unsettled
 
  @example
  ```ts
@@ -210,9 +210,9 @@ export type InterimCounts = {
 /**
  Counts what each slice of an interim page carries, off the reading the page was written from.
 
- @param source - the source `interimSource` composed
+ @param source - source `interimSource` composed
 
- @returns The three counts, which add up to the number of slices
+ @returns Three counts, which add up to the number of slices
 
  @throws {@link UnansweredContestSliceError} when the lanes differ at a settled slice the contest never answered
 
@@ -306,7 +306,7 @@ export type InterimShip = InterimCounts & {
 
  @param archiveOriginalSpans - spans of the archive sealed as the English original, which the page carries byte for byte
 
- @returns The page as written, what each slice of it carries, and what it carries of the destinations
+ @returns Page as written, what each slice of it carries, and what it carries of the destinations
 
  @throws {@link UnparseablePageError} when the page the reading composes does not parse, with no page written
 

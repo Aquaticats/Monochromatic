@@ -33,7 +33,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 
  @param id - entry the record is for
 
- @returns The record
+ @returns Record
 
  @example
  ```ts
