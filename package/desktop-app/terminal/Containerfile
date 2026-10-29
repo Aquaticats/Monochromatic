@@ -5,7 +5,8 @@
 FROM registry.fedoraproject.org/fedora:41
 
 # Build tools:
-#   rustup-installed stable Rust with clippy, not Fedora rust.
+#   rustup-installed nightly Rust with clippy, not Fedora rust (the repository builds everything with
+#   the nightly pinned in toolchain.lock.json).
 #   Zig 0.15.2 from ziglang.org, because libghostty-vt-sys requires Zig 0.15.x
 #   and Fedora 41 packages Zig 0.14.0.
 #   git, curl, tar, xz for libghostty-vt-sys vendored Ghostty fetch and Zig.
@@ -41,10 +42,16 @@ RUN arch="$(uname -m)" \
     && ln --symbolic "/opt/zig-${zig_arch}-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
     && rm /tmp/zig.tar.xz
 
+# The toolchain is the one toolchain.lock.json pins (`.tools.rust.version`), so the image builds with what
+# developers and CI build with. The build context is this package directory, not the repository root, so the
+# lock cannot be read at build time: this default is kept in sync with that key, and
+# `--build-arg RUST_TOOLCHAIN=` overrides it. A floating `stable` here gave the IDE image cargo 1.98, which
+# rejected manifests the repository's nightly accepts (doc/troubleshooting/cargo-1-98-inherited-default-features.md).
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 --silent --show-error --fail https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
-          --default-toolchain stable --component clippy
+          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
 
 # cargo-nextest is the test runner the `test` mise task invokes
 # (`cargo nextest run`). Install the prebuilt binary from get.nexte.st into
