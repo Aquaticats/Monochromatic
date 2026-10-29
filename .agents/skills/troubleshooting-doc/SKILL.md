@@ -143,7 +143,9 @@ clone in "Auto-prototype when constraints 1-5 hold or sorta-hold".
    selection itself:
     a web page gets a `#:~:text=` text fragment,
     and a file in a hosted repository gets the platform's selection
-   permalink (on GitHub, a commit-pinned URL with a line range, for
+   permalink (on GitHub,
+   a commit-pinned URL with a line range,
+   for
    example `blob/<commit>/path/file.ext#L10-L20`).
     Load each link in `agent-browser` and confirm it lands on the quoted
    text before it goes into the doc or into an issue draft.
@@ -512,6 +514,35 @@ to add,
  say so explicitly so a future session does not re-derive the
 same empty comment.
 
+## Check whether someone is already fixing it
+
+A search for the same report does not find a fix that is being written but not yet linked to any report.
+Before filing,
+and again on the day of filing,
+look for work in progress on the code path,
+and record the queries and what each returned:
+
+- Open and draft pull requests,
+  and pull requests merged in the last few days,
+  that touch the files or functions named in the root cause
+  (`gh search prs`,
+  and `gh pr list --state all --search "<path or function>"`).
+- Branches on the upstream and on forks whose names or diffs match the symptom.
+- Comments on the matching and near-miss issues that claim the work ("I'll take this",
+  "working on a fix"),
+  and assignees on them.
+- Recent commits by maintainers on the same files (`gh api repos/<owner>/<repo>/commits --method GET -f path=<file>`).
+  Fresh maintainer churn in the code path means the owner is working there now:
+  say so in the filing decision,
+  and read their open work before posting.
+
+A claimed or in-progress fix turns the filing into a comment on that work,
+or into nothing,
+by the same rule as a duplicate report.
+No hit is a result worth one line in the doc,
+with the queries,
+so the next session does not repeat them.
+
 ## Risk to the poster before any filing
 
 Always draft the artifact;
@@ -539,7 +570,8 @@ and before marking a draft fileable.
    Do not assume it stays private or can be undone.
 - An agent-written report that a maintainer judges low-effort is exactly
   the case these systems exist for.
-   A reproduction, a source trace and a prototype lower that risk
+   A reproduction,
+  a source trace and a prototype lower that risk
    and do not remove it.
 - A recommendation to file is allowed,
    and only when the work earns it:
@@ -584,7 +616,8 @@ Run this whenever the user asks whether a draft is ready,
    affected versions named.
     State which lines were tested and which were not.
     When a report proposes one edit for several copies of a text
-   (versioned documentation pages, mirrors),
+   (versioned documentation pages,
+   mirrors),
    test each copy's claim against its own release line before accepting the scope:
    a suggestion to fix every copy can be wrong for the older line.
     Find the editable source too,
@@ -604,9 +637,11 @@ Run this whenever the user asks whether a draft is ready,
    pull request template and contribution policy.
     Apply the template to everything posted there,
    not only new issues:
-   a pull request body, an edited issue body and a comment each follow the template or form that covers them,
+   a pull request body,
+   an edited issue body and a comment each follow the template or form that covers them,
    with every section present in its order and only the items the template says to remove left out.
-    A body written before the template was read is rewritten, not defended.
+    A body written before the template was read is rewritten,
+   not defended.
     Note what is required,
    which fields only the poster can answer
    (a runtime version the reproduction never recorded is one),
@@ -619,7 +654,8 @@ Run this whenever the user asks whether a draft is ready,
    auto-labelers,
    auto-close and trust-list workflows.
     Record what they do and what they ask the poster.
-5. Re-run the duplicate search and the trust-system search on the day,
+5. Re-run the duplicate search,
+   the work-in-progress check and the trust-system search on the day,
    with the queries written down,
    and confirm the cited code still exists on the default branch.
 6. Run the draft's reproduction exactly as written,
@@ -643,7 +679,8 @@ Run this whenever the user asks whether a draft is ready,
    because the repository carries the poster's name.
 8. State the verdict with its evidence.
     When posting is technically allowed
-   (no rule, ban or trust list stops the poster),
+   (no rule,
+   ban or trust list stops the poster),
    "not ready" is not an end state:
    close every missing item the agent can close,
    re-run the check,
@@ -660,8 +697,11 @@ Run this whenever the user asks whether a draft is ready,
    or a rule that forbids posting.
     Name that blocker and what would clear it.
     Never invent a requirement.
-   A gate counts only when a rule the agent can quote, the target's own policy, or the user's own words imposes it.
-   "A human must re-run it", "a maintainer must pre-approve it" and
+   A gate counts only when a rule the agent can quote,
+   the target's own policy,
+   or the user's own words imposes it.
+   "A human must re-run it",
+   "a maintainer must pre-approve it" and
    "wait for the owner's go-ahead on a draft" are not requirements
    unless one of those sources says so,
    and a draft or checklist that lists one as unmet blocks a recommendation on nothing.
@@ -680,7 +720,8 @@ When the user wants a follow-up posted if a maintainer asks for it
  a wake prompt is self-authored and authorizes nothing else.
 
 1. Save the script at the end of this section to `${HOME}/temp/agent/poll-issue.ts`
-   (scratch is not linted, and the repo's lint rules would reject the script inside the repo)
+   (scratch is not linted,
+   and the repo's lint rules would reject the script inside the repo)
    and run it as a plain background Bash command.
     Never use a Monitor for this:
    a Monitor expires,
@@ -693,10 +734,14 @@ When the user wants a follow-up posted if a maintainer asks for it
    then `node <path>/poll-issue.ts`.
     The unit stays out of the shared Bash cgroup that `systemd-oomd` can reap,
    and `--wait` keeps the Bash task alive so its exit still wakes the session.
-3. Configure it with `POLL_REPO`, `POLL_ISSUE`, `POLL_OWN_LOGIN`,
-   `POLL_DEADLINE_SECONDS`, `POLL_INTERVAL_SECONDS` (300 is enough)
+3. Configure it with `POLL_REPO`,
+   `POLL_ISSUE`,
+   `POLL_OWN_LOGIN`,
+   `POLL_DEADLINE_SECONDS`,
+   `POLL_INTERVAL_SECONDS` (300 is enough)
    and `POLL_BASELINE=now`.
-    It exits 10 with a JSON line when an owner, member or collaborator who is neither a bot nor the poster comments,
+    It exits 10 with a JSON line when an owner,
+   member or collaborator who is neither a bot nor the poster comments,
    when the issue stops being open,
    or when the assignees change;
    0 at the deadline;
@@ -828,7 +873,8 @@ nothing to add),
   selection (a `#:~:text=` fragment or a commit-pinned line-range
   permalink),
    and `agent-browser` confirmed each link lands on the quoted text.
-- If a filing artifact exists, the doc states the risk to the poster
+- If a filing artifact exists,
+  the doc states the risk to the poster
   (see "Risk to the poster before any filing"),
    and any recommendation to file meets the conditions listed there.
 - The readiness check ran,
