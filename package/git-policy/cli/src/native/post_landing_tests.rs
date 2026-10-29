@@ -56,6 +56,7 @@ fn landed(scene: &Scene, records: Vec<AddedPath>) -> LandedTransaction {
         real_index: scene.git_dir.join("index"),
         added_paths: Vec::new(),
         worktree_records: records,
+        config_snapshot: None,
     };
 }
 

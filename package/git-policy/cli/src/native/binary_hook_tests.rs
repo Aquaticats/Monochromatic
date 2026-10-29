@@ -95,6 +95,7 @@ fn prepared(fixture: &Fixture, name: &str, shared: &Path, concurrent_commits: bo
         concurrent_commits,
         inherited_lease_valid: false,
         environment: &[],
+        snapshot: None,
     })
     .expect("plan");
     let hooks: PathBuf = directory.join("hooks");

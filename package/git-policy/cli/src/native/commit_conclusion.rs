@@ -212,6 +212,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         concurrent_commits: invocation.config.concurrency.hooks.concurrent_commits,
         inherited_lease_valid: invocation.inherited_lease_valid,
         environment: invocation.environment,
+        snapshot: capture.layout.config_snapshot.as_ref(),
     })
     .map_err(|error| { return failed(format!("{error:?}")); })?;
     write_hook_dispatch(workspace.hooks_directory.as_path(), &plan, invocation.executable)
@@ -316,6 +317,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         real_index: capture.layout.real_index_path.clone(),
         added_paths: final_added,
         worktree_records: final_worktree,
+        config_snapshot: capture.layout.config_snapshot.clone(),
     };
     let completed = complete_landed_transaction(PostLandingRequest {
         context,

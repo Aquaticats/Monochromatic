@@ -226,3 +226,96 @@ fn real_damaged_configuration_skips_maintenance() {
     assert!(matches!(outcome, AutoMaintenanceOutcome::Exited(code) if code != 0 && code != 1));
     remove(root.as_path());
 }
+
+/// A snapshot parsed from `(scope, record)` pairs, read with or without global options.
+fn listing_snapshot(records: &[(&str, &str)], without_global_options: bool) -> ConfigSnapshot {
+    let mut bytes: Vec<u8> = Vec::new();
+    for (scope, record) in records {
+        bytes.extend_from_slice(scope.as_bytes());
+        bytes.push(0);
+        bytes.extend_from_slice(record.as_bytes());
+        bytes.push(0);
+    }
+    return ConfigSnapshot::parse(bytes.as_slice(), without_global_options).expect("a well-formed listing");
+}
+
+/// A snapshot that models the maintenance keys decides without any `config` start.
+#[test]
+fn a_snapshot_decides_without_starting_the_config_read() {
+    let root: PathBuf = fixture("maintenance-snapshot-decides");
+    let (path, log) = stand_in(root.as_path(), &Stand {
+        config_exit: 0,
+        config_output: "maintenance.auto\\nfalse\\0",
+        reject_detach: false,
+        signal_config: false,
+    });
+    let foreground: ConfigSnapshot = listing_snapshot(&[("local", "maintenance.autodetach\nfalse")], true);
+    let outcome: AutoMaintenanceOutcome =
+        run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&foreground))
+            .expect("maintenance ran");
+    assert_eq!(outcome, AutoMaintenanceOutcome::Exited(0));
+    assert_eq!(calls(log.as_path()), vec![String::from("maintenance run --auto --quiet --no-detach")]);
+    let disabled: ConfigSnapshot = listing_snapshot(&[("global", "gc.auto\n0")], true);
+    assert_eq!(
+        run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&disabled)).expect("decided"),
+        AutoMaintenanceOutcome::Disabled
+    );
+    assert_eq!(calls(log.as_path()).len(), 1, "a disabled decision started nothing more");
+    remove(root.as_path());
+}
+
+/// A snapshot with a value it does not model, or one read with global options, leaves the read to Git.
+#[test]
+fn a_snapshot_that_cannot_decide_starts_the_config_read() {
+    let root: PathBuf = fixture("maintenance-snapshot-declines");
+    let (path, log) = stand_in(root.as_path(), &Stand {
+        config_exit: 1,
+        config_output: "",
+        reject_detach: false,
+        signal_config: false,
+    });
+    let suffixed: ConfigSnapshot = listing_snapshot(&[("local", "gc.auto\n1k")], true);
+    run_auto_maintenance_with(&stand_context(path.clone(), &[]), root.as_path(), Some(&suffixed))
+        .expect("maintenance ran");
+    assert_eq!(calls(log.as_path()).len(), 2);
+    assert!(calls(log.as_path())[0].starts_with("config --type=bool-or-int "));
+    std::fs::remove_file(log.as_path()).expect("reset the log");
+    let optioned: ConfigSnapshot = listing_snapshot(&[("local", "gc.auto\n5")], false);
+    run_auto_maintenance_with(&stand_context(path, &[]), root.as_path(), Some(&optioned)).expect("maintenance ran");
+    assert!(calls(log.as_path())[0].starts_with("config --type=bool-or-int "));
+    remove(root.as_path());
+}
+
+/// Real Git: the decision from a real snapshot equals the decision from Git's own read, for each spelling.
+#[test]
+fn real_snapshot_decisions_equal_the_decisions_from_the_config_read() {
+    let root: PathBuf = fixture("maintenance-snapshot-real");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    for text in [
+        "",
+        "[maintenance]\n\tauto = false\n",
+        "[maintenance]\n\tauto = off\n\tautodetach = no\n",
+        "[gc]\n\tauto = 0\n",
+        "[gc]\n\tauto = 6700\n\tautodetach = false\n",
+        "[gc]\n\tauto = true\n",
+        "[gc]\n\tauto\n",
+        "[maintenance]\n\tauto = 1\n[gc]\n\tauto = 0\n",
+        "[gc]\n\tauto = 1k\n",
+        "[gc]\n\tauto = bogus\n",
+    ] {
+        std::fs::write(repo.join(".git/config"), format!("[core]\n\trepositoryformatversion = 0\n{text}"))
+            .expect("config");
+        let snapshot: Option<ConfigSnapshot> = crate::config_snapshot::read_config_snapshot(&context, repo.as_path());
+        let from_git = read_maintenance_config(&context, repo.as_path());
+        let from_snapshot: Option<BTreeMap<String, String>> = snapshot.as_ref().and_then(ConfigSnapshot::maintenance_records);
+        if let Some(records) = from_snapshot {
+            let Ok(MaintenanceConfig::Records(expected)) = from_git else {
+                panic!("{text}: the snapshot decided but Git's read did not produce records");
+            };
+            assert_eq!(auto_maintenance_arguments(&records), auto_maintenance_arguments(&expected), "{text}");
+            assert_eq!(records, expected, "{text}");
+        }
+    }
+    remove(root.as_path());
+}

@@ -29,6 +29,8 @@ use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_
 use super::js_text::trim_javascript;
 /// Invocation start time, ISO-8601 with milliseconds.
 use super::iso_time::now_iso;
+/// The one configuration read the invocation's consumers share.
+use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 /// `PathBuf` is an owned filesystem path.
 use std::path::{Path, PathBuf};
 
@@ -75,6 +77,8 @@ pub struct InvocationLayout {
     pub empty_tree_oid: String,
     /// ISO-8601 invocation start time.
     pub invoked_at: String,
+    /// The Git configuration read once with the caller's global options, or `None` when Git must answer per key.
+    pub config_snapshot: Option<ConfigSnapshot>,
 }
 
 /// What:
@@ -296,6 +300,28 @@ pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &str) -> 
 /// await resolveRefFormat({ gitPath, cwd });
 /// ```
 pub fn resolve_ref_format(context: &GitContext, cwd: &Path) -> Result<RefFormat, GitFailure> {
+    return resolve_ref_format_with(context, cwd, None);
+}
+
+/// What:
+///  Reads the ref storage backend, from the configuration snapshot when it proves `files`.
+/// Why:
+///   `rev-parse --show-ref-format` prints `reftable` only for a repository whose configuration names
+///  `extensions.refStorage`, so a snapshot read without global options that has no such key proves `files`
+///  without starting Git; any other snapshot, and a missing one, asks Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshot?.provesFilesRefStorage() ? 'files' : await resolveRefFormat({ gitPath, cwd });
+/// ```
+pub fn resolve_ref_format_with(
+    context: &GitContext,
+    cwd: &Path,
+    snapshot: Option<&ConfigSnapshot>,
+) -> Result<RefFormat, GitFailure> {
+    if snapshot.is_some_and(ConfigSnapshot::proves_files_ref_storage) {
+        return Ok(RefFormat::Files);
+    }
     let output: GitOutput = probe(context, cwd, &["rev-parse", "--show-ref-format"])?;
     let reftable: bool = output.code == Some(0) && decoded_trimmed(&output)? == "reftable";
     return Ok(if reftable { RefFormat::Reftable } else { RefFormat::Files });
@@ -319,6 +345,7 @@ pub fn capture_invocation_layout(
 ) -> Result<InvocationLayout, GitFailure> {
     // Taken before any Git runs, as the incumbent does.
     let invoked_at: String = now_iso();
+    let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
     let report: GitOutput = required(
         context,
         cwd,
@@ -357,10 +384,11 @@ pub fn capture_invocation_layout(
         real_index_path: absolute_reported(cwd, &lines, 3)?,
         object_directory: absolute_reported(cwd, &lines, 4)?,
         registry_root: absolute_reported(cwd, &lines, 5)?,
-        ref_format: resolve_ref_format(context, cwd)?,
+        ref_format: resolve_ref_format_with(context, cwd, config_snapshot.as_ref())?,
         object_format: required_line(&lines, 6)?,
         empty_tree_oid: decoded_trimmed(&empty_tree)?,
         invoked_at,
+        config_snapshot,
     });
 }
 
