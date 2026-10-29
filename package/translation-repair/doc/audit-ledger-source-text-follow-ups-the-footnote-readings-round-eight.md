@@ -368,10 +368,13 @@ The counts are the same at `fd7f44c844` and at the head.
 The gates:
 `build`,
 `lint:types` and `lint:oxlint` of `page-check` exit 0.
-`test:unit` of `page-check` passes 256 to 258 cases and fails the 8 `polishConsolidation` cases and the
-`publishFixedPage` case that start `monochromatic-lint`,
-which passed before the merge of `origin/main`.
-The source scans pass 54 and fail the three cases of the family "Markdown linter over the family's living docs".
+`test:unit` of `page-check` on the final head,
+after a second merge of `origin/main`,
+passes 258 cases
+and fails the 9 `polishConsolidation` cases and the `publishFixedPage` case that start `monochromatic-lint`
+(`LintBinaryMissingError`),
+which passed before the first merge of `origin/main`.
+The source scans pass 55 and fail the three cases of the family "Markdown linter over the family's living docs".
 Both failures are the tool lookup in this section.
 
 On the tool lookup:
