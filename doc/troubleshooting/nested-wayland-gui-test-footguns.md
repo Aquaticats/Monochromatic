@@ -178,7 +178,9 @@ none of the 226 accepted ones lost (see `slint-flickable-wheel-jump-outruns-the-
 A driver sent `click` to the IDE and read the application log a fixed time later:
 2 of 210 sessions had no `source pointer press` line,
 and a rerun of the same reading rule (1.5 s after the reply) gave 8 of 400 on the installed IDE.
-Nothing was lost.
+No press was dropped by the compositor or the IDE in any trial where the session outlived the latency.
+A reader that ended the session about 1.5 s after the click did lose records: 7 of those 400 had no press line
+even after the session ended.
 With a driver that waited for the line,
 3,350 of 3,350 clicks were logged,
 every `click` answered `ok`,
@@ -188,11 +190,11 @@ The line was in the file up to 2.75 s late (20 of 3,350 later than 1.5 s).
 
 - The IDE's log writer thread can sit in `write(1, ...)` in state `D` (wait channel `folio_wait_bit_common`)
   for more than a second on a busy disk,
-  while the window thread handles the press at once (8 of 8 sampled late lines);
+  while the window thread handles the press at once (8 of 8 sampled late lines; a line still queued when the session ends can be lost, 1 s exit flush);
   the record exists and is not in the file yet.
 - `WAYLAND_DEBUG=client` writes to the client's standard error from the window thread,
   so on the same busy disk it stalls the window thread and delays the press itself
-  (26 of 27 sampled late presses were in `write(2, ...)`).
+  (31 of 32 sampled late presses, later than 450 ms, were in `write(2, ...)`).
   Keep that output on memory-backed storage,
   or leave it off when the question is timing.
 - Workaround for a driver:
