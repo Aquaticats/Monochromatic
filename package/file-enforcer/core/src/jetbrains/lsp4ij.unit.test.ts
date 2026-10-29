@@ -235,7 +235,11 @@ await describe({
               writeFile(userDefinedPath, USER_DEFINED_XML,),
             ],);
             using xdg = withXdgConfigHome(configRoot,);
-            await manageLsp4ijServerSettings(SETTINGS,);
+            await manageLsp4ijServerSettings({
+              ...SETTINGS,
+              // Disposable manifest inside the throwaway root, so the sync never contends for the shared one.
+              manifestPath: join(configRoot, 'staleness-manifest.json',),
+            },);
 
             /**
              Global settings XML after the sync.
