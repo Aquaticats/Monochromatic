@@ -5772,7 +5772,30 @@ The 403 at `POST git/refs` (probe branch `probe-403-again`, run logs read throug
   any single file or any single workflow-file version (12 new commits on the accepted tip, each swapping in one refused file version, were all accepted,
   as were a same-tree commit and a new-blob control),
   and the count of Actions runs of the commit (mixed in every bucket).
-- Pending: run 40822369704 on six more commits (the whole tree of a refused commit on the tip and on its parent, the tip with a refused workflow directory, the tip tree on a refused parent).
+- Run 40822369704, six more commits, all accepted:
+  the whole tree of a refused commit (`d26ed6d2d8`, `830d02b2cb`) on the current tip,
+  the whole tree of `d26ed6d2d8` on its own original parent (same tree, same parent, only the commit object differs),
+  the tip with the workflow directory of `d26ed6d2d8` or of `4cb480344f`,
+  and the tip tree on the parent of `d26ed6d2d8`.
+  So the refusal is not a property of the tree, the workflow directory, a file, the parent, or the place in history;
+  it belongs to the original commit objects, as GitHub recorded them when they were pushed.
+- Push activity (`gh api repos/.../activity?ref=refs/heads/main`, 100 newest pushes, all by the same actor):
+  every push up to `2d920e407a` in the later window is refused and every push from `ec8c0fda93` (2026-10-26 06:54 EDT) on is accepted;
+  the earlier window is 2026-10-25 19:27 to 19:50 EDT (`3e16deb852` to `d26ed6d2d8`), accepted again from `38cb13b4d1` to 20:48,
+  refused again from `830d02b2cb` at 20:54 EDT.
+  Windows therefore follow the time of the push, not the content.
+- Settings read through the API: the repository requires SHA-pinned actions (`sha_pinning_required: true`),
+  allows `selected` actions (`docker/*`, `jdx/*`, `actions/*`, `changesets/*`, GitHub-owned, verified creators),
+  default workflow token `read`.
+  The organization policy needs `admin:org`, which the CLI lacks (HTTP 403).
+  `doc/troubleshooting/github-actions-organization-policy.md` records the organization policy as `local_only` on 2026-10-15, later widened by the owner.
+- Working hypothesis, NOT shown:
+  GitHub stores a result per commit when it is pushed, and that result depends on a repository or organization setting (the Actions policy, for example)
+  that was different during the refused windows.
+  It fits every measurement above and contradicts none, but no measurement here reads such a setting's history.
+  What would settle it:
+  the organization audit log (an organization owner can read it) for Actions-policy events around 2026-10-25 19:27, 19:50, 20:54 EDT and 2026-10-26 06:54 EDT.
+  Cheaper check for the owner: whether any Actions policy or secret setting was changed at those times.
 - Practical rule meanwhile:
   cut releases from a recent commit of `main`; the probe (`POST git/refs` then `DELETE` at the exact SHA) tells in a minute whether a commit can be tagged.
   Delete the throwaway branches after the result:
