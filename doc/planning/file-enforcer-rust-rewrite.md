@@ -210,6 +210,22 @@ with only a superseded status line added,
 and the XML draft is linked from the decision record as input to the XML crate.
 The live probes keep running.
 
+Reboot hold (2026-10-29):
+the user plans a reboot and asked to start no new work and discard nothing,
+including subagent state.
+Done and committed:
+the four vet drafts (`b34ed80`),
+the `serde_json` approval (`365bd1ecae`).
+In flight:
+the live-probe agent,
+checkpointing to `${HOME}/temp/agent/fe-rust/gate-probes.md` after each probe,
+with containers under `systemd-run` units named `fe-gate-*`.
+After the reboot:
+read that checkpoint,
+resume or rerun only the unfinished probes,
+record the verdicts in issue #1818,
+then start the first implementation area (tasks 20 to 26).
+
 ## Superseded next action (2026-10-29, after confirmation)
 
 The user confirmed a shared understanding ("Shared understanding"),
