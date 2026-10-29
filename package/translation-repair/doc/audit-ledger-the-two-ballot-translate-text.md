@@ -494,8 +494,16 @@ as the rule asks.
 
 Which path shipped each line,
 and why no sheet stopped it.
-The bench was one judge deep from 10:36:27 UTC on 2026-10-29 (the Synthetic weekly credit ran dry),
-so every sheet that states the tense rule needed a second judge and had none:
+The translate select heard two judges at all six slices
+and chose the past-tense text each time
+(log lines 21222,
+22172,
+23558,
+23581,
+23743,
+23828).
+The three later benches heard one judge each,
+because the Synthetic weekly credit ran dry at 10:36:27 UTC on 2026-10-29:
 the lane contest opened no round at any of these slices
 (`1 of 7 seats reachable, below the floor of 2`,
 log lines 25427,
@@ -504,6 +512,8 @@ log lines 25427,
 25542),
 every slate round heard 1 of 7,
 and the page consistency round heard 1 of 7 (log line 29635).
+Each of those rounds needs a second judge to decide,
+so the sheets that state the tense rule were never read by two judges after the translate select.
 
 Group A,
 the archive kept (slices 14,
