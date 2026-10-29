@@ -166,6 +166,13 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   the LUKS2 header (`cryptsetup-refresh(8)`), and refreshing with no optional flags restores defaults, so a refresh must repeat
   `--allow-discards`, which the live table currently has, or TRIM passthrough would be dropped.
 
+- Baseline for the dm-crypt workqueue trial, before any change: single cold 4 KiB direct reads, 100 spread and 100 in a
+  64 MiB window per device, raw `nvme0n1p6` and the LUKS mapping `dm-1` interleaved twice, other processes at 35 to 117
+  reads per second. Medians, spread then window: raw 0.305 / 0.228 ms and 1.173 / 0.231 ms; `dm-1` 1.160 / 0.238 ms and
+  0.936 / 0.253 ms. The raw spread median itself moved from 0.305 to 1.173 ms between runs, so a single-read probe
+  at this load cannot resolve a dm-crypt effect; p99 spikes of 100 to 212 ms hit both devices alike.
+  A fair test of the workqueue flags needs concurrent reads, which is synthetic load and needs an explicit waiver.
+
 Implication for the I/O limit: a broad search by an agent produces exactly the spread-out cold-read pattern that is
 slowest on this drive, and concurrent readers multiply the wait for everyone, so bounding the agents' read rate
 (the bandwidth cap on `/dev/nvme0n1` is shown to work) addresses the actual bottleneck.
