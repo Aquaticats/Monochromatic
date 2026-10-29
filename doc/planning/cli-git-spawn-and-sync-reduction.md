@@ -207,6 +207,9 @@ recovered.
 
 #### Read first: the cases that matter
 
+The first bullet (torn snapshots) and the silent-inconsistency bullet describe the state when the harness was written;
+follow-ups 1 and 2 after the phase listings record how each was resolved, and the listings were updated to match.
+
 - Two index snapshots are not synced today and the table shows what tearing them does. `pre-landing-1.index` and
   `post-1.index` are written by a plain copy and by Git (the sync-site table in the handover has no sync for either,
   and Git's default `core.fsync=committed,-loose-object` excludes `index`, per `git help config`). The landing record
@@ -242,7 +245,8 @@ recovered.
 - The J2 link: deleting `owner.json` sticks at every phase. That is the state a filesystem that persisted the deletions
   inside a removed transaction directory but not its rename would leave, which is the unsourced ordering assumption
   recorded under the J2 outcome.
-- What the user is told: only the owner-record messages name a path. The messages for `preparing.json`, the landing
+- What the user is told (resolved by follow-up 3; the text below is the state when the harness was written): only the
+  owner-record messages name a path. The messages for `preparing.json`, the landing
   record, the index-lock record and the ref-updated record say that the record "is not a schema-version-2 ... record"
   without naming the file or the transaction, and every message carries the hint about fetching history, which does not
   apply. Nothing says how to recover (remove the named transaction directory by hand). That is a diagnostic gap
@@ -341,12 +345,12 @@ Undamaged: completes.
 - `T/conclusion/store-held.json`: all applicable damages sticks
 - `T/hooks/plan.json`: all applicable damages completes
 - `T/index-lock-1.json`: all applicable damages completes
-- `T/landing-1.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/landing-1.json`: empty sticks; half sticks; delete sticks
 - `T/owner.json`: all applicable damages sticks
-- `T/post-1.index`: empty corrupt index (exit 128); half corrupt index (exit 128); delete sticks
+- `T/post-1.index`: empty sticks; half sticks; delete sticks
 - `T/pre-landing-1.index`: all applicable damages sticks
 - `T/prepared.json`: all applicable damages completes
-- `T/preparing.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/preparing.json`: empty sticks; half sticks; delete sticks
 - `T/ref-updated.json`: empty sticks; half sticks; delete completes
 - `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
 - `index.lock`: all applicable damages sticks
@@ -375,6 +379,138 @@ Undamaged: completes.
 - `T/preparing.json`: empty sticks; half sticks; delete completes
 - `T/ref-updated.json`: empty sticks; half sticks; delete completes
 - `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
+
+### J3 follow-up 1: torn index snapshots
+
+Two remedies were measured on the same machine (btrfs on `/var/home`, host Git 2.55.0, a repository of 5,000 tracked
+files whose index is 521,631 bytes, one wrapped `git commit --quiet --message=x -- a.txt` under
+`strace --follow-forks --trace=fsync,fdatasync -y -T`; scratch scripts `measure-landing.ts` and `raw-fsync.ts` in
+`~/temp/agent/j3-snapshots`).
+
+- Baseline: 35, 31, 35 and 31 sync calls in four warm rounds (36 in the cold first round), each journal sync 1.8 to
+  2.2 ms, 82 to 97 ms inside syncs in total. A raw write and `fsync` of a 600,000-byte file took 1.1 ms (median,
+  `/var/home`) to 3.0 ms (median, `/var/mnt/encrypted`).
+- Remedy (a), sync both snapshots before `landing-1.json` (prototype, since reverted): 38 calls in the cold first round,
+  then 37, 33, 37, 33 and 37, so exactly two more than the baseline round for round; the two snapshot syncs took 3.9
+  (cold), 4.0, 4.3, 4.0, 4.2 and 5.5 ms per commit (about 2 ms each). The total inside syncs (67.6 to 85.4 ms) was below
+  the baseline's, which shows the run-to-run noise exceeds the added cost.
+- Remedy (b), record length and hash of each snapshot: FNV-1a 64 over the same 521,631 bytes took 0.38 ms in a release
+  build (`rustc -O`, median of 200 reads; the read itself 0.02 ms), so about 0.8 ms per landing for both snapshots,
+  growing linearly with the index. No syncs.
+
+Chosen: (b). It costs about 3 ms less per landing than (a) on this index, and it also catches damage that has nothing to
+do with unwritten data. FNV-1a is specified by two constants, needs no dependency (`sha1` and `sha2` are in the lockfile
+only through the scanner; a direct dependency would go through the catalog and `file-enforcer`), and does not change
+across Rust versions as `std::hash::DefaultHasher` may. It detects damage; it does not resist someone who edits the file
+on purpose, which is outside what these records defend against. The accepted cost: after a power loss that persisted
+`landing-1.json` and the moved branch but not a snapshot, the landing is not completed (remedy (a) would have completed
+it). Recovery fails closed with a message that names the snapshot, the landing record and the directory and lists the
+steps that finish the commit by hand. Regenerating the post-index from `landedTreeOid` was not attempted.
+
+How it works:
+
+- `landing-<n>.json` ends with `preLandingDigest` and `postDigest` (`{ "length", "fnv1a64" }`). A record without them
+  (written by an older build) reads as having none and recovery trusts its identities as before; no such record is
+  verified, which is the remaining exposure for a transaction left by an older binary across an upgrade.
+- Recovery verifies both snapshots on the install path only, after the `index-installed` marker and the "real index
+  already equals the post-index" checks, and before the comparison of the real index with the pre-landing snapshot.
+  Verifying earlier would turn every `index-installed|post-1.index|*` and `index-installed|pre-landing-1.index|*` case
+  from completes into sticks, because a landing that already installed needs neither snapshot.
+
+Outcome table changes (247 cases regenerated; exactly these two lines differ, every other cell is identical):
+
+- `ref-updated|cli-git-transactions/<id>/post-1.index|empty`: `exit-128!commit-exit-1` becomes `sticks`.
+- `ref-updated|cli-git-transactions/<id>/post-1.index|half`: `exit-128!commit-exit-1` becomes `sticks`.
+
+The `pre-landing-1.index` cases at `ref-updated` (empty, half and delete, all `sticks` before) stay `sticks`; for empty
+and half what changed is the message, which now says the snapshot differs from the recorded length and hash instead
+of claiming the real index changed. The totals become: corrupt real index 2 to 0, sticks 63 to 65.
+
+Guards shown failing: with the comparison in `verify_snapshot` forced to accept, `damage_at_ref_updated` fails at the
+emptied `post-1.index` case with `fatal: .git/index: index file smaller than expected` (left `sticks`, right
+`exit-128!commit-exit-1`), and three unit tests fail (`a_torn_snapshot_is_never_installed`,
+`a_snapshot_that_differs_from_its_digest_is_refused_by_name`,
+`a_normalization_names_the_branch_it_left_alone_and_a_missing_snapshot_names_the_file`). With `postDigest` no longer
+written, `damage_at_ref_updated` fails the same way. All passed again after restoring.
+
+### J3 follow-up 2: the two silent-inconsistency cases
+
+Cause, read from `recover_dead_transaction` in `recovery_landing.rs`: a directory without `preparing.json` was removed
+as "stopped before capture", and a directory with `preparing.json` but no `landing-<n>.json` was discarded as "never
+landed", whatever else it held. At `ref-updated` both deletions left `ref-updated.json` (and, for the second, the
+landing record) in place, so recovery removed the directory of a commit that was already on the branch and exited 0
+with the index never reconciled.
+
+Detection is possible without any extra sync, because the journal writes `preparing.json` first, `landing-<n>.json`
+before the compare-and-swap and `ref-updated.json` after it, each synced before the next. `recovery_contradiction.rs`
+now refuses to discard, and fails closed with the evidence, the directory and the by-hand steps, when:
+
+- `preparing.json` is missing and the directory holds a landing record or `ref-updated.json`;
+- `preparing.json` is present, no landing record exists and `ref-updated.json` exists;
+- `preparing.json` is present, neither record exists, and the target's reflog holds this transaction's nonce entry
+  (this also finds a move whose marker was lost together with the landing record). It costs one `git reflog show` in the
+  recovery of a dead transaction that has no landing record, a crash residue and never a normal commit. A reflog that
+  cannot be read is treated as no evidence, so a repository that does not keep reflogs for its branch is not covered.
+
+An `index-installed` marker exempts the directory (the install finished, nothing remains to reconcile), which keeps
+`index-installed|landing-1.json|delete` and `index-installed|preparing.json|delete` at `completes`.
+
+Repair was judged not possible: the landing record held the post-index identity and digest, the pre-landing identity,
+the real index lock identity and the expected old value, and `preparing.json` held the target, the real index path
+and the shadow path. Without the first, recovery cannot tell which file is the post-index, whether it is intact, or
+whether the `index.lock` on disk is the transaction's; without the second it does not know the branch or the index.
+Regenerating the post-index from the branch tip was not attempted. What cannot be detected: a directory that lost
+`preparing.json` and every landing record and marker (nothing in it shows the move), and a branch whose reflog is off
+or unreadable.
+
+Outcome table changes (247 cases regenerated; exactly these two lines differ, every other cell is identical):
+
+- `ref-updated|cli-git-transactions/<id>/landing-1.json|delete`: `inconsistent!commit-exit-0` becomes `sticks`.
+- `ref-updated|cli-git-transactions/<id>/preparing.json|delete`: `inconsistent` becomes `sticks`.
+
+Totals after follow-ups 1 and 2: silently inconsistent 2 to 0, corrupt real index 2 to 0, sticks 63 to 67.
+
+Guards shown failing: with the check made to return at once, `damage_at_ref_updated` fails at
+`ref-updated|cli-git-transactions/<id>/landing-1.json|delete` (left `sticks`, the old cell right) and three of the four
+`recovery_contradiction` tests fail; with the install-marker exemption disabled,
+`installed_and_unmoved_transactions_are_discarded_as_before` fails. All passed again after restoring.
+
+### J3 follow-up 3: the messages of unreadable records
+
+Cause: the strict parsers (`open_record` in `transaction_journal_parse.rs`) know only the bytes, so their sentence named
+the kind of record ("Transaction record landing record is not a schema-version-2 landing record") and no path. The
+fetch hint came from the gate: `transaction_gate.rs` renders every recovery stop as the engine failure
+`content-unavailable`, whose generic hint (`event_hints.rs`) tells the person to fetch history.
+
+What changed:
+
+- `recovery_record_failure.rs` wraps the parser's failure at the four call sites (`preparing.json` in
+  `recovery_landing.rs`, `landing-<n>.json` there, `ref-updated.json` in `recovery_completion.rs`,
+  `index-lock-<n>.json` in `recovery_evidence.rs`). The message names the transaction, the file path and the directory,
+  keeps the parser's sentence as the detail, and gives the way out per record: remove `preparing.json` (the wrapper then
+  discards a transaction that holds no landing record or marker; an `index.lock` may remain and is removed by hand);
+  restore `landing-<n>.json` from a copy, or finish by hand; remove `index-lock-<n>.json` (the wrapper then handles the
+  transaction from its other records and leaves the lock file); remove `ref-updated.json` (the wrapper then reads the
+  branch's reflog to decide whether the commit landed). The by-hand steps (`recovery_manual_steps.rs`) are shared with
+  the snapshot and contradiction messages of follow-ups 1 and 2: check that no Git command runs, remove the lock, the
+  shadow repository and the transaction directory, then `git status` and, if needed, `git reset` (which unstages other
+  staged changes and leaves the worktree files alone).
+- The wire code stays `content-unavailable` (its documentation covers transaction state, and `SPEC.md` ties that code to
+  exit status 2), so a consumer matching on the code is unaffected. The gate now renders the failure with no `hint`
+  field (`render_engine_failure_with_hint` in `diagnostics.rs`), because the message itself carries the ways out. This
+  applies to every recovery stop, including the owner-record messages, which already named a path.
+- The outcome table is unchanged (regenerated: 247 cases, 0 changed); only text differs.
+- Declined: the same wording for `captured.json` (`capture_records.rs`), which is not in the named list and is read by
+  replay, not by recovery.
+
+Tests: `recovery_record_failure_tests.rs` (every kind names file, transaction and directory and a way out; recovery
+wraps each of the four reads), `transaction_gate_tests.rs` (no hint field and no fetch text), and
+`the_messages_of_damaged_records_name_the_file_and_the_ways_out` in the tearing harness, which kills real commits,
+damages `preparing.json`, `index-lock-1.json`, `landing-1.json` and `ref-updated.json` (emptied and halved) and reads
+the standard error of two repeated commands (exit 2 both times). Shown failing by making `name_record_failure`
+return the parser's failure unchanged (both unit tests and the harness test fail) and by giving the gate a hint again
+(`gates_follow_recovery` fails); restored, all pass.
+
 ## Results of the hook-entry and configuration-snapshot slices
 
 Method: `strace --follow-forks -e trace=execve,fsync,fdatasync,syncfs,sync_file_range` over one wrapped

@@ -1308,6 +1308,11 @@ the real `index.lock` device and inode,
 the migrated pack name
 (see "Object migration"),
 and the added-path and selected-worktree records.
+It ends with `preLandingDigest` and `postDigest`,
+each `{ "length": <bytes>, "fnv1a64": "<16 lowercase hexadecimal digits>" }`
+over the snapshot as the landing wrote it
+(FNV-1a with the 64-bit offset basis `cbf29ce484222325` and prime `100000001b3`).
+A record without them (written before they existed) is read as having none.
 
 The legacy single-journal `<git-dir>/cli-git-transaction` directory is not recovered:
 a command that meets one stops with exit `2` and asks for any Git command through the previous cli-git executable,
@@ -2691,7 +2696,15 @@ Management help returns before recovery.
 Recovery validates the expected old OID,
 the landed OID,
 the pre-landing and intended index snapshots,
-and the recorded artifact and lock identities without hashes.
+and the recorded artifact and lock identities.
+Neither index snapshot is synced when it is written,
+so before installing a post-index, and before comparing the real index with the pre-landing snapshot,
+recovery recomputes the length and hash of each snapshot and compares them with the landing record's digests.
+A snapshot that differs is never installed: recovery fails closed,
+names the snapshot, the landing record and the transaction directory,
+and leaves the branch, the real index and the owned `index.lock` as they were.
+A landing whose install already happened (the `index-installed` marker, or a real index equal to the post-index)
+needs neither snapshot and skips the comparison.
 Before the exact `ref-updated.json` marker exists,
 a landing counts as landed only when the target ref's reflog contains the transaction's nonce entry
 with the recorded new OID;
