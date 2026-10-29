@@ -575,6 +575,11 @@ for the throw alone and for the result after the change (ledger M275).
 A message said to be wrong is checked against the diff of its commit before a corrective comment is posted:
 an agent called "nine places" a wrong count because the message names four cases,
 and the diff removed nine spawns (ledger M274).
+Once that check is done and the commit is on GitHub,
+the corrective comment is posted at once and is not held until the branch lands:
+the owner asked on 2026-10-29
+"Why after landing?"
+of a comment that waited (ledger M295).
 
 What enforces it:
 habit,
@@ -710,6 +715,10 @@ or line count of a growing log stands in for it,
 and neither does a loop in a unit,
 a `tail --follow` in a unit,
 or a repeated `systemctl` status call.
+The output of a background command is read only after the harness reports that it finished:
+on 2026-10-29 (UTC) a commit's result was read before the commit finished,
+so that the head looked unchanged,
+and a log of comment posts was read after one of three (ledger M301).
 
 What enforces it:
 the shared facts every brief points to carry the waiting rule and the exact unit form;
@@ -881,6 +890,9 @@ run on both bundles.
 A report that a brief asks for is returned as text in the hand-back too,
 since the tool has twice refused an agent's Write of its report file (ledger M226,
 M261).
+Where a brief wants a report file as well,
+it names a heredoc inside the keyless wrapper as the way to write it,
+since an agent cannot write a report file with the Write tool in this harness.
 A brief that carries a cause into a doc cites the report that names it with the report's own limit,
 and cites beside it the later finding that confirmed or refuted it (ledger M236).
 A brief names a path only after the lead has listed it,
@@ -910,6 +922,19 @@ the corpus reach of what is open is measured,
 the work is landed,
 and the rest is fixed after the launch,
 each fix as its own commit (ledger M219).
+The owner's stopping rule of 2026-10-25,
+"Land on real impact",
+says when a review loop ends:
+a branch lands once a re-check finds no major issue
+and nothing that changes behaviour on real sources,
+runs or the corpus.
+A gap that only invented inputs show becomes a stated limit and a separate later item,
+and a guard evasion that only an adversarial input reaches is such a gap and not a mistake of the package.
+A nit goes into the same docs round as the findings that came with it,
+and never into a round of its own.
+A branch is not held for a clean re-check:
+the Claude route took 20 re-checks and 22 fix rounds,
+and only re-checks 13 and 14 found a major issue (ledger M296).
 
 What enforces it:
 habit,
