@@ -211,3 +211,61 @@ fn a_scratch_file_has_no_name_and_needs_a_home() {
     assert!(error.to_string().contains("never in the system temporary directory"), "{error}");
     remove(root.as_path());
 }
+
+/// The staleness bound is exactly one day: a changed factor would sweep live files early or keep dead ones for years.
+#[test]
+fn the_staleness_bound_is_exactly_one_day() {
+    assert_eq!(SCRATCH_STALE_AFTER, Duration::from_secs(86_400));
+}
+
+/// An entry exactly as old as the bound is kept; one a second older goes.
+#[test]
+fn the_sweep_keeps_an_entry_exactly_at_the_bound_and_removes_one_past_it() {
+    let root: PathBuf = fixture("scratch-sweep-boundary");
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(&scratch).expect("scratch");
+    let entry: PathBuf = scratch.join("cli-git-boundary");
+    std::fs::write(&entry, b"x").expect("entry");
+    let modified: SystemTime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+    std::fs::File::open(&entry).expect("open").set_modified(modified).expect("set modification time");
+    let at_bound: SystemTime = modified + SCRATCH_STALE_AFTER;
+    assert_eq!(sweep_stale(scratch.as_path(), at_bound, SCRATCH_STALE_AFTER), 0);
+    assert!(entry.exists(), "an entry exactly at the bound is kept");
+    let past_bound: SystemTime = at_bound + Duration::from_secs(1);
+    assert_eq!(sweep_stale(scratch.as_path(), past_bound, SCRATCH_STALE_AFTER), 1);
+    assert!(!entry.exists(), "an entry past the bound is removed");
+    remove(root.as_path());
+}
+
+/// A creation failure other than "already exists" is returned as it is, not hidden behind the later privacy check.
+#[test]
+fn a_refused_creation_surfaces_its_own_error() {
+    let root: PathBuf = fixture("scratch-repository-refused");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir(&common).expect("common");
+    std::fs::set_permissions(&common, std::fs::Permissions::from_mode(0o500)).expect("seal");
+    let writable_anyway: bool = std::fs::create_dir(common.join("probe")).is_ok();
+    let outcome: std::io::Result<PathBuf> = prepare_repository_scratch(common.as_path());
+    std::fs::set_permissions(&common, std::fs::Permissions::from_mode(0o700)).expect("unseal");
+    // A process that ignores permission bits (root) cannot be refused, so only a refusing process proves the error.
+    if !writable_anyway {
+        let error: std::io::Error = outcome.expect_err("creation is refused");
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied, "{error}");
+    }
+    remove(root.as_path());
+}
+
+/// A directory with no group or other access is accepted as it is: only a looser mode is rewritten, so its sticky bit
+/// stays, which a mode rewrite would clear.
+#[test]
+fn a_private_directory_is_left_untouched() {
+    let root: PathBuf = fixture("scratch-private-untouched");
+    let common: PathBuf = root.join("common");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    std::fs::create_dir_all(&scratch).expect("scratch");
+    std::fs::set_permissions(&scratch, std::fs::Permissions::from_mode(0o1700)).expect("sticky");
+    assert_eq!(mode_of(scratch.as_path()), 0o1700, "the fixture is sticky");
+    prepare_repository_scratch(common.as_path()).expect("preparation");
+    assert_eq!(mode_of(scratch.as_path()), 0o1700);
+    remove(root.as_path());
+}
