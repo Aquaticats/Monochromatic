@@ -244,7 +244,16 @@ User decisions taken during execution
      the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
      (parity and coverage gates pass, confirmed by a rerun).
     User chose to port the new 7.1 APIs too (`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, `preserveOrder`),
-     mirroring upstream's shapes; its subagent is in flight.
+     mirroring upstream's shapes.
+    Landed so far: `cc54c0acc6` (`pMapStop`, `pMapSettled`, `preserveOrder`), `89fdcb55c1` (keyed variants),
+     plus the stack-trace link, sidecar parity tests, refrozen coverage baseline, and stop/settled unit suites.
+    The subagent stopped on an `EDQUOT` from the harness temp volume `/tmp/claude-1000`
+     (cause: 8.9G of leaked `native-binary-*` git-policy/cli test fixtures filled the user's `/tmp` tmpfs quota,
+     issue #1809; freed 2026-10-29 with user approval) and was resumed to finish:
+     test and commit `p-map-keyed.unit.test.ts`, add `preserveOrder: false`, iterable-stop and stack-trace tests,
+     rewrite the fork README (drop "Not ported from p-map 7.1", document APIs, deviations, lint suppressions),
+     then rerun build, lint, types, `test:unit`, sidecar parity and `fuzz:coverage`.
+    If that subagent does not report, do those steps directly.
   - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
      (removed `rebuildEntry` callbacks and the JSON.parse fast path)
      and made the driver reach `emitPlainJson` again;
