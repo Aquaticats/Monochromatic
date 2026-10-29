@@ -181,6 +181,15 @@ export function spansOf(
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
   const pending = topLevelPending({ root, },);
+  /**
+   Where a footnote definition starts, for the reader of the source and for the page.
+   */
+  const footnoteStarts = [
+    ...footnoteRanges,
+    ...pageFootnoteRanges,
+  ].map(function startOf({ start, },): number {
+    return start;
+  },);
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     /**
      The node and where it stands.
@@ -291,6 +300,7 @@ export function spansOf(
       source,
       readable,
       regions: rawHtmlRegions,
+      footnoteStarts,
       range,
       inContainer: (!isRootChild) && BLOCK_PARENTS.has(parentType,),
     },);

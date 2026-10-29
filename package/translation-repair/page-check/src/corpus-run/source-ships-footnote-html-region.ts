@@ -300,6 +300,9 @@ const NOT_RAW_HTML: RawHtmlBlockReading = {
  @param inContainer - whether the block stands in a block quote or a list item, the only places the lines of a block of raw
  HTML are read this way; the top reads a footnote's body as a text of its own
 
+ @param footnoteStarts - where a footnote definition starts, for the reader of the source and for the page; a block that
+ goes on past its region and holds one is left to the footnote's own reading
+
  @returns One stretch for each line of the block that has content, none when the block does not start in a region
 
  @example
@@ -314,12 +317,14 @@ export function rawHtmlBlockReading(
     regions,
     range,
     inContainer,
+    footnoteStarts = [],
   }: {
     readonly source: string;
     readonly readable: string;
     readonly regions: readonly RawHtmlRegion[];
     readonly range: TextRange;
     readonly inContainer: boolean;
+    readonly footnoteStarts?: readonly number[];
   },
 ): RawHtmlBlockReading {
   /**
@@ -332,6 +337,11 @@ export function rawHtmlBlockReading(
     return (start <= range.start) && (range.start < end);
   },);
   if ((!inContainer) || (region === undefined))
+    return NOT_RAW_HTML;
+  // A block that goes on past the region and holds the start of another footnote definition is read with that footnote.
+  if (footnoteStarts.some(function startsPast(start,): boolean {
+    return (start >= region.end) && (start < range.end);
+  },))
     return NOT_RAW_HTML;
   /**
    Where the lines of the block that stand in the region end.
