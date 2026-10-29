@@ -79,7 +79,7 @@ The `run` task itself ran this way with the host build path disabled, a scratch 
   on a loaded host.
   The shared libraries the program loads at run time (`libfontconfig`, `libpipewire-0.3`) still come from the host.
   Commit `4723d28bc9` applies this to the `run` task only; `run-quick` and `run-debug` still build with plain cargo in the container.
-  The owner was reconsidering this approach when the doc was written.
+  The owner adopted it for now; issue #1814 tracks replacing Zig (candidates: polyfill-glibc, obggcc).
 - Build on an image whose glibc is not newer than the host's (a pinned older base, or the Ubuntu 24.04 release image).
   Tradeoff: it contradicts the owner's rule that base images track upstream.
 - Run the binary inside the container instead of on the host.
