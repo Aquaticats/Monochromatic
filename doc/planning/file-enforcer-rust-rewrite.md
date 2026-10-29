@@ -65,6 +65,26 @@ Both found:
 - The advisor also retracted its own claim that `package/dependency-catalog/core-rust` is a Rust crate;
   it is TypeScript.
 
+Asked 2026-10-29 how to proceed after the critique,
+the user chose "Reviews first,
+then restart".
+Next action:
+when the sol,
+astra,
+and re-run kimi reviews return
+(the first kimi run produced only a preamble;
+its re-run writes `${HOME}/temp/agent/fe-rust/review-kimi-2.md`),
+verify each finding against the repo,
+then ask a root round with those findings folded in:
+for each generated file keep,
+drop,
+or replace it (symlink,
+build step,
+`mpm restore`);
+what mpm does versus mpm-shadow;
+and what the user wants that the old tool never did.
+The decisions in this file are then re-checked against those root answers.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
