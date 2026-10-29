@@ -1,6 +1,6 @@
 # Release the IDE
 
-Use this to publish a GitHub pre-release of the IDE (`package/desktop-app/ide`,
+Use this to publish a GitHub pre-release of the IDE (`package/ide/app`,
 program `monochromatic-ide`),
 to rehearse one with a dry run,
 and to recover when a release run fails.
@@ -52,7 +52,7 @@ This is why the first real release of a version is a deliberate act and not an e
 
 ## The version
 
-The single source is the `version` line of the `[package]` table in `package/desktop-app/ide/Cargo.toml`.
+The single source is the `version` line of the `[package]` table in `package/ide/app/Cargo.toml`.
 The workflow enforces,
 and fails loudly on:
 
@@ -61,18 +61,18 @@ and fails loudly on:
 - On a push,
   the new version is higher than the old one.
 - The built program prints exactly `monochromatic-ide <version>` for `--version`.
-- The build leaves `package/desktop-app/ide/Cargo.lock` and every other tracked file unchanged.
+- The build leaves `package/ide/app/Cargo.lock` and every other tracked file unchanged.
 
 ## Cut a release
 
-1.  Pick the new version and edit the `version` line in `package/desktop-app/ide/Cargo.toml` by hand.
+1.  Pick the new version and edit the `version` line in `package/ide/app/Cargo.toml` by hand.
 2.  Refresh the lock file without touching any dependency,
     because the workflow fails when the build rewrites `Cargo.lock`:
-    run `mise run //package/desktop-app/ide:fetch` (it runs `cargo fetch` in the build container,
+    run `mise run //package/ide/app:fetch` (it runs `cargo fetch` in the build container,
     which writes the new version into the `ide` entry of `Cargo.lock`),
-    and check that `git diff` shows exactly one changed line in `package/desktop-app/ide/Cargo.lock`.
+    and check that `git diff` shows exactly one changed line in `package/ide/app/Cargo.lock`.
 3.  Commit both files and merge to `main`.
-    A push to `main` that changes `package/desktop-app/ide/Cargo.toml` starts the workflow.
+    A push to `main` that changes `package/ide/app/Cargo.toml` starts the workflow.
     The detect job compares the old and new version and starts the build only if the version changed.
 4.  Rehearse first when the change is more than a version bump:
     a dry run (see "Dry run") on the branch gives the same build without a tag or a release.
@@ -264,7 +264,7 @@ Failures that belong to this workflow:
   and the tree it prints names the path.
 - "Check the single executable" fails with a named check:
   the message names the embedded file or license text that is missing or differs.
-  `mise run //package/desktop-app/ide:runtime` and `notices` rebuild the inputs locally.
+  `mise run //package/ide/app:runtime` and `notices` rebuild the inputs locally.
 
 The release job can fail after it started.
 Look at `gh release list --repo Aquaticats/Monochromatic`:

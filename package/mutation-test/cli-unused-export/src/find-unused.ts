@@ -15,7 +15,7 @@ import {
   lineStarts,
   positionAt,
 } from '@monochromatic-dev/mutation-test-cli/ts/engine/lines.ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { workspaceResolver, } from './resolve.ts';
 import { discoverWorkspacePackages, } from './workspace.ts';

@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
 import {
   defineHandler,
   H3,

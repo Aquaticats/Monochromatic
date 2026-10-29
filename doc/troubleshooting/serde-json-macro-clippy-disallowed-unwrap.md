@@ -9,7 +9,7 @@ INSIDE the macro expansion and attributes the error to the caller's crate,
  failing
 `cargo clippy -- --deny warnings` on code that contains no visible `unwrap`.
 
-Found while building `package/desktop-app/file-manager-gtk-sticky`'s observed-state writer.
+Found while building `package/file-manager/variant-gtk-sticky`'s observed-state writer.
 
 ## Symptom
 
@@ -87,7 +87,7 @@ method never appears in the expansion.
   explicit-map form is cheaper.
 
 - A crate-local wrapper macro that carries the one scoped allowance,
-  shipped in `package/desktop-app/ide/src/json_value.rs` as `json_value!`.
+  shipped in `package/ide/app/src/json_value.rs` as `json_value!`.
   The macro expands to a `let` statement annotated with
   `#[allow(clippy::disallowed_methods, reason = "...")]` that holds `serde_json::json!(...)`,
   and yields the bound value.
@@ -104,7 +104,7 @@ method never appears in the expansion.
   The allowance covers a statement and not an item,
   so unlike the `zbus::interface` case no `const _: () = { ... }` wrapper is needed.
   Production code that builds only a few values uses `Value::from` and `Map::insert` instead
-  (`package/desktop-app/ide/src/language/config/rust_analyzer.rs` and `incoming.rs`).
+  (`package/ide/app/src/language/config/rust_analyzer.rs` and `incoming.rs`).
 
 ## What does not work
 

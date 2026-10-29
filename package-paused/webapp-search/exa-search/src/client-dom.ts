@@ -1,10 +1,10 @@
 // oxlint-disable eslint/prefer-destructuring -- DOM string coercions and a pre-existing TODO marker
-import { prompt, } from '@monochromatic-dev/module-dom/ts/prompt.ts';
+import { prompt, } from '@monochromatic-dev/dom-core/ts/prompt.ts';
 import {
   createObservable,
   type Observable,
-} from '@monochromatic-dev/module-observable';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+} from '@monochromatic-dev/observable-core';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 import * as v from 'valibot';
 
 import { replicateElementAsContentOf, } from './client-replicate-element.ts';

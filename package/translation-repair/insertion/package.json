@@ -15,8 +15,8 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/translation-repair-archive": "workspace:*",
     "@monochromatic-dev/translation-repair-artifact-pool": "workspace:*",
     "@monochromatic-dev/translation-repair-corpus-source": "workspace:*",
@@ -34,7 +34,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
     "@monochromatic-dev/translation-repair-page-pass": "workspace:*",
     "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",

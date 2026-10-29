@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { requireExactKeys, } from '../artifact-exact-guard.ts';
 import { isLowerHexDigit, } from '@monochromatic-dev/translation-repair-markup/ts';

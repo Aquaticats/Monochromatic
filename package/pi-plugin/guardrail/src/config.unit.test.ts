@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { FILE_NOT_FOUND_CODE, } from './constants.ts';
 import { loadGuardrailConfig, } from './config.ts';
 import { configPathForHome, } from './config-paths.ts';

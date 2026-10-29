@@ -1,6 +1,6 @@
 import { format, } from 'node:util';
 
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 //region Entry log lines
 // THE LINES AN ENTRY'S LOGGERS WRITE WHILE WORK RUNS, read off every console method the tagged logger writes to:

@@ -14,7 +14,7 @@
 import { readFile, } from 'node:fs/promises';
 import { parseArgs, } from 'node:util';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { generateAllowedIps, } from '@monochromatic-dev/wg-core-allowedips/ts';
 
 import { CliUsageError, } from './errors.ts';

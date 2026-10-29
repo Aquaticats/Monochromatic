@@ -1,5 +1,11 @@
 # Handover: file-manager native drag-and-drop
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/file-manager` is now `package/file-manager/app`.
+
 Cross-session state for building hand-written per-OS native drag-and-drop into the
 file-manager prototype (`package/desktop-app/file-manager/`),
  so files can be

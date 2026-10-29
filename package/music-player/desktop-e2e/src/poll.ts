@@ -11,7 +11,7 @@
  @packageDocumentation
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 /**
  Whether each attempt looks first and waits after a miss, or waits first and then looks.

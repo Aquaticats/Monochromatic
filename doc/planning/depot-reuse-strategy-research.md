@@ -24,7 +24,7 @@ no broad credential is created or copied into a new secret.
 ### Installed tools, download stores and generated state have different owners
 
 Root `mise.toml:36` retains Bun `1.3.14` for actual Bun-specific consumers:
-`package/desktop-daemon/hall-monitor` builds a compiled bytecode executable,
+`package/hall-monitor/daemon` builds a compiled bytecode executable,
 and `package/runtime-error/bun` exercises Bun error-output fixtures.
 These uses do not make Bun a pnpm package-download cache.
 The installed Bun binary and its compilation outputs need their own tool/source identities.
@@ -40,7 +40,7 @@ while merely retaining the Dockerfile's browser base digest would not identify t
 This campaign does not execute that installer.
 Actual browser/runtime probes belong to the parent campaign.
 
-`package/dev-script/task-util/src/tsc-filter.ts:54` owns TypeScript incremental-state cleanup.
+`package/monorepo-task/core-exec/src/tsc-filter.ts:54` owns TypeScript incremental-state cleanup.
 It removes `dist/**/*.tsbuildinfo` and `.cache/typescript/**/*.tsbuildinfo` before checks,
 with the stated reason that stale dependency state can produce false negatives.
 Restoring that state would conflict with the existing correctness owner;
@@ -49,7 +49,7 @@ Built JavaScript,
 declarations
 and native binaries are separately consumed artifacts whose source/compiler/configuration identities matter.
 
-The terminal's existing `package/desktop-app/terminal/mise.toml:43` dispatcher chooses host Cargo
+The terminal's existing `package/terminal/app/mise.toml:43` dispatcher chooses host Cargo
 only when Cargo,
 Zig and the required native libraries are available.
 Its container fallback retains Cargo registry and Ghostty Git state in the `terminal-cargo` volume,

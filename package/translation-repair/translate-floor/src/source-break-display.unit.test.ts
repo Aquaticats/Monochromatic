@@ -5,7 +5,7 @@
  @module
  */
 
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { messageText, } from '@monochromatic-dev/translation-repair-provider';
 import { buildTranslateMessages, } from '../dist/final/node/index.mjs';
 

@@ -1,5 +1,5 @@
 /** Deterministic scheduling and bounded-collection regression coverage. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { operationFixture, } from './operation-test-fixture.ts';
 
 await describe({ name: '', children: [

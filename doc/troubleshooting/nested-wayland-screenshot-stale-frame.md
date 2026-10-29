@@ -38,7 +38,7 @@ A parent that stops presenting the nested window therefore stopped the hosted cl
 It does not send frame callbacks:
 
 ```rust
-// package/cli/nested-wayland-session/src/screenshot.rs:174
+// package/nested-wayland-session/cli/src/screenshot.rs:174
 pub fn capture(state: &mut Compositor, path: &Path) -> Result<()> {
     let mut pixels = Vec::new();
 
@@ -57,7 +57,7 @@ after presenting to the parent compositor,
 and that path re-armed itself through the parent window:
 
 ```rust
-// package/cli/nested-wayland-session/src/render.rs at commit 82876cfe7, line 139
+// package/nested-wayland-session/cli/src/render.rs at commit 82876cfe7, line 139
     state.backend.submit(Some(&[damage])).unwrap();
 
     send_frame_callbacks(state);
@@ -104,7 +104,7 @@ whatever `request_redraw()` asked for:
 So `redraw` ran again only when the parent answered:
 
 ```rust
-// package/cli/nested-wayland-session/src/app.rs:245
+// package/nested-wayland-session/cli/src/app.rs:245
         WinitEvent::Redraw => {
             redraw(state);
         }
@@ -122,7 +122,7 @@ every later change waits.
 
 The recorder was the one path that sent frame callbacks on its own timer,
 independent of the parent's presentation
-(`package/cli/nested-wayland-session/src/recorder.rs`,
+(`package/nested-wayland-session/cli/src/recorder.rs`,
  `render::send_frame_callbacks(state)` in `capture_and_reschedule`),
 which is why short recordings showed current frames.
 
@@ -141,7 +141,7 @@ which is why short recordings showed current frames.
 
 ## Fix
 
-`package/cli/nested-wayland-session/src/frame_pacing.rs` registers a timer at the nested output's 60 Hz refresh.
+`package/nested-wayland-session/cli/src/frame_pacing.rs` registers a timer at the nested output's 60 Hz refresh.
 `redraw` timestamps every frame it submits to the parent.
 When no frame has been submitted for 50 ms and no recording is running,
 the timer sends the frame callbacks itself.
@@ -158,7 +158,7 @@ as on any compositor.
 ## Verification
 
 Versions under test:
-`package/cli/nested-wayland-session` 0.1.1.
+`package/nested-wayland-session/cli` 0.1.1.
 "Before" is a debug binary built from commit `82876cfe7`
 (the runtime `color-scheme` command present,
  the pacing module present but not wired in).
@@ -173,7 +173,7 @@ Deterministic,
 independent of the host's lock or window state by construction:
 
 ```sh
-mise run //package/cli/nested-wayland-session:inspect:stalled-parent
+mise run //package/nested-wayland-session/cli:inspect:stalled-parent
 ```
 
 It hosts one session inside another.
@@ -188,7 +188,7 @@ Host-dependent,
 when the host session happens to be locked:
 
 ```sh
-mise run //package/cli/nested-wayland-session:inspect:color-scheme
+mise run //package/nested-wayland-session/cli:inspect:color-scheme
 ```
 
 Its first phase takes screenshots around two switches without ever recording.
@@ -322,7 +322,7 @@ A `screenshot` taken after the recording stopped was correct.
 
 ### Root cause
 
-`read_frame` in `package/cli/nested-wayland-session/src/screenshot.rs` rendered into the nested window's
+`read_frame` in `package/nested-wayland-session/cli/src/screenshot.rs` rendered into the nested window's
 EGL surface and read it back.
 Smithay resizes that surface when the window size changed since the last bind:
 
@@ -384,7 +384,7 @@ so a capture has the screen's current size without any swap.
 
 ### Verification
 
-`inspect:scale` in `package/cli/nested-wayland-session/mise.toml` starts a recording,
+`inspect:scale` in `package/nested-wayland-session/cli/mise.toml` starts a recording,
 waits 300 ms so the recorder has drawn,
 switches to scale 2,
 and probes the last recorded frame.

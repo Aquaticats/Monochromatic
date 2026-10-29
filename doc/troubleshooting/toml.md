@@ -2,7 +2,7 @@
 
 This file documents the actual TOML specification pitfalls that
 motivated writing the comment-preserving JSONC parser in
-`package/module/jsonc-edit` instead of adopting TOML for workspace
+`package/jsonc-edit/core-ts` instead of adopting TOML for workspace
 configuration.
  Each footgun gets its own canonical section.
 
@@ -366,7 +366,7 @@ These four footguns,
  combined with TOML's inability to represent
 the configuration patterns we needed,
  led us to write a
-comment-preserving JSONC parser in `package/module/jsonc-edit`:
+comment-preserving JSONC parser in `package/jsonc-edit/core-ts`:
 
 - **No ambiguous table semantics**:
    JSON objects have one

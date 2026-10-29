@@ -3,7 +3,7 @@
 ## Exact diagnostic
 
 The Node research logger in public run `39141147245` used the task label
-`//package/module/test:build` in a log basename after replacing only colons.
+`//package/test-harness/core:build` in a log basename after replacing only colons.
 Node `fs.writeFileSync` emitted `ENOENT` on both Mac and Windows
 for a path ending in `004-/package/module/test-build.log`
 (with the corresponding Windows separators).

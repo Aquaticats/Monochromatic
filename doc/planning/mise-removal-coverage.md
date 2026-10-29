@@ -66,7 +66,7 @@ rather than fanning out to an existing Node package manager.
 
 Stated by the user on 2026-09-16:
 
-- Whatever monorepo manager is chosen must provide every functionality of `@monochromatic-dev/dev-script-file-enforcer`.
+- Whatever monorepo manager is chosen must provide every functionality of `@monochromatic-dev/file-enforcer-core`.
   Cargo manifest enforcement and JetBrains LSP4IJ settings management are pluggable by definition.
   OS package provisioning and its Repology-derived package index may be replaced by Meta Package Manager.
 - It must provide the watch plus RPC pattern:
@@ -137,7 +137,7 @@ Measurements used tracked files plus `mise tasks --all --hidden --json` from the
 
 ## Existing TypeScript configuration compiler
 
-`file-enforcer.config.ts` and `@monochromatic-dev/dev-script-file-enforcer` already provide the canonical TypeScript
+`file-enforcer.config.ts` and `@monochromatic-dev/file-enforcer-core` already provide the canonical TypeScript
 configuration layer proposed by this plan.
 The package executes direct async TypeScript,
 tracks source and destination files,
@@ -311,7 +311,7 @@ upgrade coordination (`mpm upgrade`),
 the release-age cooldown,
 and SBOM export (`mpm sbom`).
 file-enforcer's typed tool plan
-(`package/dev-script/file-enforcer/src/toolchain/`) owns policy,
+(`package/file-enforcer/core/src/toolchain/`) owns policy,
 convergence order,
 and drift reporting.
 The maintainer confirmed the install route per tool family
@@ -357,9 +357,9 @@ for the `cargo:` family only;
 no install depends on `mpm restore` except the `rustup` slice.
 `toolchain.lock.json` replaces `mise.lock` as the pinned version record.
 The sync entry point is `mise run toolchain:sync`
-(also `node package/dev-script/file-enforcer/src/toolchain/sync.ts`),
+(also `node package/file-enforcer/core/src/toolchain/sync.ts`),
 `mise run toolchain:status` reports drift,
-and `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` reports the exposure directory.
+and `node package/file-enforcer/core/src/toolchain/bin-paths.ts` reports the exposure directory.
 One manually installed bootstrap prerequisite remains:
 Node executes the sync entry and Mise wraps it as a task;
 the sync then stages `bin` (a standalone release binary,
@@ -573,7 +573,7 @@ The task-slice gate below is reframed
  from "preserve X"
  to the capability the runner must deliver.
 The acceptance-boundary behaviors
- in `package/dev-script/task-util/src/build-and-test.unit.test.ts`
+ in `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
  stay requirements.
 This reframe is scoped to the task slice;
  the other slices in this document keep their own gates.
@@ -607,11 +607,27 @@ tests continuing after build failure where required,
 retained failure causes,
 machine-readable task listing,
 and correct aggregate exit status.
-`package/dev-script/task-util/src/build-and-test.unit.test.ts` is part of the acceptance boundary.
+`package/monorepo-task/core-exec/src/build-and-test.unit.test.ts` is part of the acceptance boundary.
 
 Intentionally retired behavior:
  no task feature is selected for retirement.
 Unused Mise task features do not need replacement unless a current caller outside task metadata is found.
+
+Update 2026-10-29 (plan revision):
+ the user corrected two premises of the migration plan
+ recorded in [`task-slice-pants-migration.md`](task-slice-pants-migration.md).
+ "We don't care about how much work hop 2 would take",
+ so the later meow hop is not a design input,
+ and "`task-run` (task CLI) is an extremely ugly hack we did because Mise was bugging out",
+ so `@monochromatic-dev/monorepo-task-cli` and its 21 `task.ts` mirrors
+ are a stopgap to retire,
+ not an owner to extend.
+ CI already runs that stopgap instead of Mise,
+ so the slice has two representations today
+ (`mise.toml` and the `task.ts` mirror);
+ only `mise.toml` is source of truth.
+ The replacement owner is still Pants 2.33.1,
+ vetted in [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
 
 ### Watching and process lifecycle
 
@@ -624,7 +640,7 @@ and file-enforcer owns its own `--watch` mode.
 Evidence:
  `package/kwin/key-helper/mise.toml`,
 `package/ssg/aquati.cat/mise.toml`,
-`package/webapp-productivity/done/mise.toml`,
+`package/done/app/mise.toml`,
 and root watch templates.
 
 Proposed owner:
@@ -691,7 +707,7 @@ Current owner:
  Mise loads optional encrypted `.env.local.json` through its rops integration,
 marks values for output redaction,
 and injects them into commands.
-`@monochromatic-dev/module-env-local-json` reads the same store directly for
+`@monochromatic-dev/env-local-json-core` reads the same store directly for
 consumers launched outside mise and owns decryption,
 discovery,
 and the identity chain.
@@ -701,14 +717,14 @@ Evidence:
  `mise.no-env.toml:1212-1233` for the `secrets:edit` and `secrets:migrate`
 tasks,
 `file-enforcer.config.ts:652-668` for the generated `[env]` `_.file` loader,
-and `package/module/env-local-json/src/` for the direct reader,
+and `package/env-local-json/core/src/` for the direct reader,
 identity resolver,
 atomic writer,
 and edit CLI.
 
 Proposed owner:
  retain SOPS and age as primitives;
-`@monochromatic-dev/module-env-local-json` owns file reading,
+`@monochromatic-dev/env-local-json-core` owns file reading,
 decryption,
 identity resolution,
 and the write and edit subcommands.
@@ -800,10 +816,10 @@ Intentionally retired behavior:
 ### Repository-root discovery
 
 Current owner:
- `MISE_MONOREPO` in `@monochromatic-dev/module-fs-path` and its consumers.
+ `MISE_MONOREPO` in `@monochromatic-dev/fs-path-core` and its consumers.
 
 Evidence:
- `package/module/fs-path/src/root-marker.ts` plus consumers in application,
+ `package/fs-path/core/src/root-marker.ts` plus consumers in application,
 CLI,
 build,
 test,
@@ -841,7 +857,7 @@ Evidence:
 `.idea/opentofu_settings.xml`,
 `.idea/misc.xml`,
 `package/config/dotfiles/`,
-`package/dev-script/vm-builder/Containerfile`,
+`package/vm-builder/cli/Containerfile`,
 and `package/mutation-test/cli/runtime/Containerfile`.
 
 Proposed owner:
@@ -883,9 +899,9 @@ and excludes Mise-installable tools from other package-manager provisioning path
 
 Evidence:
  `file-enforcer.config.ts`,
-`package/dev-script/file-enforcer/src/package/manager-defs.ts`,
+`package/file-enforcer/core/src/package/manager-defs.ts`,
 and
-`package/dev-script/file-enforcer/src/package/mise.generate-index.ts`.
+`package/file-enforcer/core/src/package/mise.generate-index.ts`.
 
 Proposed owner:
  file-enforcer is the canonical TypeScript configuration compiler

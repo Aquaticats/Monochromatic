@@ -11,7 +11,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import { text, } from 'node:stream/consumers';

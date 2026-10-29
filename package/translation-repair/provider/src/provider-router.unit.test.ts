@@ -9,8 +9,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import type {
   ProviderName,
   ProviderRecord,

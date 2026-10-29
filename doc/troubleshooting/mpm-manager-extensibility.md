@@ -7,7 +7,7 @@
 >  trusted local definitions belong under `[mpm.overrides.<id>]`
 >  (moved 2026-10-26),
 >  so the `[mpm.managers.<id>]` blocks in this record are the historical path
->  (`package/dev-script/file-enforcer/src/toolchain/mpm-manifest.ts`,
+>  (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`,
 >  `doc/planning/mpm-toolchain-migration.md`,
 >  section `Implementation record (toolchain-core, 2026-10-26)`).
 

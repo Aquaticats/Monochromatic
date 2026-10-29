@@ -46,6 +46,6 @@ RUN pnpm install --frozen-lockfile
 
 # Every tool converges to `toolchain.lock.json`; mise runs only the repository's tasks afterwards
 # (`mise run toolchain:sync` is the same entry once its task is wired).
-RUN export $(cat .env.local | xargs) && node package/dev-script/file-enforcer/src/toolchain/sync.ts
+RUN export $(cat .env.local | xargs) && node package/file-enforcer/core/src/toolchain/sync.ts
 
 RUN mise run prepare

@@ -4,7 +4,7 @@ import type {
   ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 //region Scripted review client
 // THE SCRIPTED CLIENT EVERY ARCHIVE BLOCK REVIEW CASE DRIVES THE STAGE WITH,

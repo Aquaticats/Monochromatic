@@ -117,8 +117,8 @@ Each scenario declares how it depends on replay plumbing
 
 The run uses `podman run --memory=2g --cpus=2 --rm --network=none`.
 `e2e/` is mounted read-only at `/fixture/e2e`,
-and `package/module/caught-value` is mounted read-only at `/fixture/caught-value`
-for `@monochromatic-dev/module-caught-value/ts`,
+and `package/caught-value/core` is mounted read-only at `/fixture/caught-value`
+for `@monochromatic-dev/caught-value-core/ts`,
 which the image resolves through a `/node_modules` symlink.
 No host repository is mounted writable,
 and no credentials enter the container.

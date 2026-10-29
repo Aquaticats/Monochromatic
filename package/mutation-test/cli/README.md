@@ -59,13 +59,13 @@ mutants are reported as compileError and skip test execution.
 
 ```bash
 # Full run against one package (report JSON lands beside the cwd by default)
-mutation-test --package package/module/fs-path
+mutation-test --package package/fs-path/core
 
 # Enumerate mutants and selected tests without any containers
-mutation-test --package package/module/fs-path --dry-run
+mutation-test --package package/fs-path/core --dry-run
 
 # Narrow to specific source files (positional, package-relative)
-mutation-test --package package/module/fs-path src/trim.ts
+mutation-test --package package/fs-path/core src/trim.ts
 ```
 
 Flags:

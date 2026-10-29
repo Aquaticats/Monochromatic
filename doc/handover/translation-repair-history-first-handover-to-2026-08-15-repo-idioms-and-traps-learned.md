@@ -1,5 +1,11 @@
 # Translation repair history, first handover document: repository idioms and traps learned
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/fs-id` is now `package/fs-id/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
 The lint-rule idioms,
 test harness conventions and tooling traps learned while building the package,
 including the build-before-test rule,

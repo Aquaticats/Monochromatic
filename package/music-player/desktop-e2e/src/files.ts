@@ -19,7 +19,7 @@ import {
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 /**
  Tells whether a path exists and can be reached.

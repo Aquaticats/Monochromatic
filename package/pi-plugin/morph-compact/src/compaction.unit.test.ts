@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { chooseCompressionRatio, } from './compaction.ts';
 
 /** Context window size used in ratio tests. */

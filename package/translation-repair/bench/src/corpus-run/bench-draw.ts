@@ -1,5 +1,5 @@
 import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Bench draw
 // WHICH slices a bench runs, given the slices. Reading the corpus lives in

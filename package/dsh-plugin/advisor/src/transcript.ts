@@ -6,7 +6,7 @@
 import type {
   Message as PiMessage,
 } from '@earendil-works/pi-ai';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   estimateAdvisorInputTokens,
 } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';

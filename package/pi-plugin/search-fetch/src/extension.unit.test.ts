@@ -9,7 +9,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   LINKUP_WEB_FETCH_TOOL_NAME,
   LINKUP_WEB_SEARCH_TOOL_NAME,

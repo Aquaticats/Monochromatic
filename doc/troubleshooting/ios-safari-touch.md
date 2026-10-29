@@ -125,8 +125,8 @@ multi-touch start).
 fires.
 
 Verified fix applied in this project in
-`package/webapp-productivity/doodle-widget/src/client/pointer-handlers-zoom.ts`
-and `package/webapp-productivity/doodle-widget/src/styles.ts`.
+`package/doodle-widget/app/src/client/pointer-handlers-zoom.ts`
+and `package/doodle-widget/app/src/styles.ts`.
 Tested on a physical iPhone running iOS Safari;
  all three
 workaround changes (below) are required;

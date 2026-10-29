@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 
 import {
   normalizeMessage,

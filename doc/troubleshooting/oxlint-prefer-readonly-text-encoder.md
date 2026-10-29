@@ -89,7 +89,7 @@ The focused verification commands are:
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:types
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:oxlint
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:test:unit
-mise run //package/module/toml-edit:lint:oxlint
+mise run //package/toml-edit/core:lint:oxlint
 ```
 
 The plugin type and Oxlint tasks pass.

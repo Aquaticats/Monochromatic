@@ -7,8 +7,8 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { foldCarriageReturns, } from '@monochromatic-dev/translation-repair-slice-reading';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source';
 import { passArchiveText, } from '../dist/final/node/index.mjs';

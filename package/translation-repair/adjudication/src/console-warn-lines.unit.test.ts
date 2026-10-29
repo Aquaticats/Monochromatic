@@ -28,7 +28,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { runKeyless, } from './child-environment.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';

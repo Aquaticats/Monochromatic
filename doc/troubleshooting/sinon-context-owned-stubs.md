@@ -30,10 +30,10 @@ not the current implementation.
 
 ### Injected context owns cleanup, not the target object
 
-`package/module/test/src/it.ts:215` creates and passes a per-test sandbox:
+`package/test-harness/core/src/it.ts:215` creates and passes a per-test sandbox:
 
 ```ts
-// package/module/test/src/it.ts
+// package/test-harness/core/src/it.ts
 await using sandbox = createSinon();
 const ctx: TestContext = {
   expect: scopedExpect,
@@ -41,26 +41,26 @@ const ctx: TestContext = {
 };
 ```
 
-`package/module/test/src/sinon.ts:39` delegates to ordinary Sinon.
-The file moved on 2026-10-04 to `package/module/test-sandbox/src/sinon.ts`;
+`package/test-harness/core/src/sinon.ts:39` delegates to ordinary Sinon.
+The file moved on 2026-10-04 to `package/test-harness/core-sandbox/src/sinon.ts`;
 the snippet retains its historical location:
 
 ```ts
-// package/module/test/src/sinon.ts
+// package/test-harness/core/src/sinon.ts
 const sandbox = createSandbox(config,) as DisposableSandbox;
 ```
 
-`package/module/test/src/describe.ts:184` selects an inherited concurrency value,
-but `package/module/test/src/describe.ts:304` allocates a limiter for this suite's children:
+`package/test-harness/core/src/describe.ts:184` selects an inherited concurrency value,
+but `package/test-harness/core/src/describe.ts:304` allocates a limiter for this suite's children:
 
 ```ts
-// package/module/test/src/describe.ts
+// package/test-harness/core/src/describe.ts
 const effectiveConcurrency = concurrency ?? ctx
   .effectiveConcurrency;
 ```
 
 ```ts
-// package/module/test/src/describe.ts
+// package/test-harness/core/src/describe.ts
 const limit = pLimit(effectiveConcurrency,);
 ```
 
@@ -111,17 +111,17 @@ It does not remove this incident's wrapping guard.
 
 ### The harness already has an execution-context boundary
 
-`package/module/test/src/execution-node.ts:173` creates async storage:
+`package/test-harness/core/src/execution-node.ts:173` creates async storage:
 
 ```ts
-// package/module/test/src/execution-node.ts
+// package/test-harness/core/src/execution-node.ts
 storage: new AsyncLocalStorage<ObservedExecution | ReportingExecution>(),
 ```
 
-`package/module/test/src/execution-node.ts:283` runs each descriptor in that store:
+`package/test-harness/core/src/execution-node.ts:283` runs each descriptor in that store:
 
 ```ts
-// package/module/test/src/execution-node.ts
+// package/test-harness/core/src/execution-node.ts
 return runtime.storage
   .run(
     execution,
@@ -130,10 +130,10 @@ return runtime.storage
 
 This is an integration point for production ownership,
 not an already implemented mocking feature.
-`package/module/test/src/execution.ts:25` currently delegates directly outside detected Node:
+`package/test-harness/core/src/execution.ts:25` currently delegates directly outside detected Node:
 
 ```ts
-// package/module/test/src/execution.ts
+// package/test-harness/core/src/execution.ts
 if (((typeof process) === 'undefined')
   || ((typeof process.versions
     ?.node) !== 'string'))
@@ -167,7 +167,7 @@ the forced-overlap fixture ran through the existing package task:
 
 ```bash
 # From the disposable repository root, with only the first probe fixture present.
-mise run //package/module/test:test:unit -- package/module/test/src/issue-481-probe.unit.test.ts
+mise run //package/test-harness/core:test:unit -- package/test-harness/core/src/issue-481-probe.unit.test.ts
 ```
 
 Observed output included:
@@ -188,10 +188,10 @@ With the adapter and execution wrapper installed in the fork:
 
 ```bash
 # From the disposable repository root.
-PROBE_MODE=contextual mise run //package/module/test:test:unit -- \
-  package/module/test/src/issue-481-probe.unit.test.ts \
-  package/module/test/src/issue-481-lifecycle-probe.unit.test.ts
-mise run //package/module/test:lint:types
+PROBE_MODE=contextual mise run //package/test-harness/core:test:unit -- \
+  package/test-harness/core/src/issue-481-probe.unit.test.ts \
+  package/test-harness/core/src/issue-481-lifecycle-probe.unit.test.ts
+mise run //package/test-harness/core:lint:types
 ```
 
 Both commands exited zero.
@@ -335,8 +335,8 @@ The built test passes with completion rejection and the original target unchange
 The first real browser run could not import the neutral consumer bundle.
 Firefox named `node:fs/promises`;
 the neutral chunk began with static Node builtin imports.
-`package/module/test/src/format-error.ts` imported the module-fs-path barrel at load time.
-The file moved on 2026-10-04 to `package/module/test-diagnostic/src/format-error.ts`.
+`package/test-harness/core/src/format-error.ts` imported the module-fs-path barrel at load time.
+The file moved on 2026-10-04 to `package/test-harness/core-diagnostic/src/format-error.ts`.
 Its workspace lookup now dynamically imports that dependency only after Node detection.
 The subsequent run passed the no-process fixtures in Chromium,
 Firefox,
@@ -346,7 +346,7 @@ The partial-process fixtures then reached a separate failure:
 logger's `detectWebStorageRuntime` read `process.versions.node` when the injected process had no `versions`.
 This is a logger runtime probe,
 not a Sinon or async-context failure.
-`package/module/logger/src/sink/web-storage-runtime.ts` now checks `versions` optionally.
+`package/logger/core/src/sink/web-storage-runtime.ts` now checks `versions` optionally.
 Both the module-test browser consumer and a dedicated local-storage browser regression exercise that input.
 The combined post-change run passed all nine selected cases across Chromium,
 Firefox,
@@ -357,7 +357,7 @@ After logger integration,
 
 ### Intentional Node emitter fixture
 
-`package/module/test/src/sinon-semantics.unit.test.ts` intentionally constructs Node's `EventEmitter`.
+`package/test-harness/core/src/sinon-semantics.unit.test.ts` intentionally constructs Node's `EventEmitter`.
 Replacing it with `EventTarget` would test a different callback API,
 not the named Node boundary in the acceptance plan.
 
@@ -371,7 +371,7 @@ no package-wide lint setting is loosened.
 
 ### Intentional source and artifact interoperability
 
-`package/module/test/src/sinon-copies.unit.test.ts` imports both built entry points
+`package/test-harness/core/src/sinon-copies.unit.test.ts` imports both built entry points
 and the public `/ts` entry point in one process.
 The source import is not a substitute for artifact verification:
 this test specifically proves shared ownership between independently loaded implementations.
@@ -551,7 +551,7 @@ and types after the correction.
 the browser consumer could not resolve `../dist/final/neutral/index.mjs`.
 The repository's nested task fan-out launched the neutral build twice,
 allowing its output to disappear while the consumer bundled it.
-Commit `b6f1a813c` changes `package/module/test/mise.toml` to one declared JS dependency graph.
+Commit `b6f1a813c` changes `package/test-harness/core/mise.toml` to one declared JS dependency graph.
 The client task depends on the neutral artifact.
 The next build reached the intended test failure instead of failing module resolution.
 Full builds and browser acceptance subsequently passed.
@@ -560,11 +560,11 @@ The production routing control used a disposable worktree at `94996e25a`:
 
 ```bash
 # From the disposable repository root, using its own built Node artifact.
-mise run //package/module/test:build:js:node
-mise run //package/module/test:test:unit -- package/module/test/src/sinon-context.unit.test.ts
+mise run //package/test-harness/core:build:js:node
+mise run //package/test-harness/core:test:unit -- package/test-harness/core/src/sinon-context.unit.test.ts
 ```
 
-`import.meta.resolve('@monochromatic-dev/module-test')`,
+`import.meta.resolve('@monochromatic-dev/test-harness-core')`,
 run from the disposable package directory,
 resolved to that worktree's `dist/final/node/index.mjs`.
 The fixture passed in `proc_8267`.

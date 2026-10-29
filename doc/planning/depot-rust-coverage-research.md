@@ -113,7 +113,7 @@ Those are source inventory facts,
 not passing test or build credit.
 
 The first metadata pass stopped when Python 3.14's `tomllib` rejected
-`package/desktop-app/ide/Cargo.toml:68` with
+`package/ide/app/Cargo.toml:68` with
 `Invalid initial character for a key part (at line 68, column 105)`.
 That line uses an inline-table trailing comma.
 The repository already documents this
@@ -168,7 +168,7 @@ Its execution classifications are:
   filesystem controls and later selected 34-case archive replays remain separate boundaries.
   It does not have a passing full-suite result.
 - `package/linter/monochromatic-lint`,
-  `package/rust-module/jsonc-edit`,
+  `package/jsonc-edit/core-rust`,
   `package/forbidden-strings/core`,
   `package/wg/cli-quicker-exempt` and `package/codex-plugin/bash-limit`:
   this campaign retains their actual Nextest results.
@@ -176,7 +176,7 @@ Its execution classifications are:
 - `package/forbidden-strings/cli.fuzz`,
   `package/git-policy/cli.fuzz`,
   `package/linter/monochromatic-lint.fuzz`,
-  `package/forbidden-strings/core.fuzz` and `package/rust-module/jsonc-edit.fuzz`:
+  `package/forbidden-strings/core.fuzz` and `package/jsonc-edit/core-rust.fuzz`:
   their GNU/AddressSanitizer,
   generator,
   seed and planted-control boundaries are the active queue.
@@ -195,12 +195,12 @@ Its execution classifications are:
   [headful device consumer](../audit/depot-android-consumer-2026-10-18.evidence.json)
   are consumer boundaries,
   not standalone Rust unit-test counts.
-- `package/cli/nested-wayland-session`,
-  `package/desktop-app/file-manager`,
-  `package/desktop-app/file-manager-gtk-sticky`,
-  `package/desktop-app/file-manager-qt`,
-  `package/desktop-app/ide`,
-  `package/desktop-app/terminal` and `package/music-player/desktop-app`:
+- `package/nested-wayland-session/cli`,
+  `package/file-manager/app`,
+  `package/file-manager/variant-gtk-sticky`,
+  `package/file-manager/variant-qt`,
+  `package/ide/app`,
+  `package/terminal/app` and `package/music-player/desktop-app`:
   the catalog retains their actual desktop owners and dependency graphs.
   They involve Smithay/Wayland,
   GTK,
@@ -470,7 +470,7 @@ Its per-case assertion and artifact bindings belong to the separate routing evid
 - Exercise `forbidden-strings/cli.fuzz`,
   `git-policy/cli.fuzz`,
   `linter/monochromatic-lint.fuzz`,
-  `forbidden-strings/core.fuzz` and `rust-module/jsonc-edit.fuzz`.
+  `forbidden-strings/core.fuzz` and `jsonc-edit/core-rust.fuzz`.
   Inspect the actual owning tasks and target bodies first;
   preserve the GNU target,
   AddressSanitizer,
@@ -902,8 +902,8 @@ Producer `v7njncr47d` used harness `360abf1382631750c3f26928c2342d0acd13eb6b`
 and `.depot/workflows/reuse-scanner-seed.yml`.
 Reader `zq7cc1nd4b` used `670d84778d24567e36b01a22c33833310d44d659`
 and `.depot/workflows/reuse-scanner-target.yml`.
-Both invoke `//package/dev-script/task-util:research:reuse:scanner` through Mise.
-The implementation is `package/dev-script/task-util/bin/reuse-scanner-consumer.mjs`,
+Both invoke `//package/monorepo-task/core-exec:research:reuse:scanner` through Mise.
+The implementation is `package/monorepo-task/core-exec/bin/reuse-scanner-consumer.mjs`,
 importing `reuse-context.mjs`.
 The real owner is `//package/forbidden-strings/cli:test`,
 whose frozen task runs `cargo nextest run --release`.
@@ -950,8 +950,8 @@ No target-reader repetition spread was measured in the original campaign.
 
 Run `221vdm1f21` used harness `a85e204f078db540c2a292342000ce5423bb8338`
 and `.depot/workflows/rust-truepeak-all.yml`.
-Its exact task is `//package/dev-script/task-util:research:rust:truepeak`,
-implemented in `package/dev-script/task-util/bin/rust-truepeak-all.mjs`
+Its exact task is `//package/monorepo-task/core-exec:research:rust:truepeak`,
+implemented in `package/monorepo-task/core-exec/bin/rust-truepeak-all.mjs`
 with `rust-bounded-profile.mjs`.
 The adapter executes the release/all-features boundary of `//package/music-player/truepeak-core:test`:
 locked fetch followed by locked/offline release/all-features Nextest with complete failure reporting.
@@ -1112,8 +1112,8 @@ Those controls receive no application execution credit.
 The search found no matching Nextest status,
 JUnit case,
 structured test outcome,
-or binary-enumeration candidate for `package/desktop-app/ide`,
-`package/desktop-app/terminal`,
+or binary-enumeration candidate for `package/ide/app`,
+`package/terminal/app`,
 or the three `file-manager` application packages.
 The source-qualified alias set includes `ide_app`,
 `terminal_app`,

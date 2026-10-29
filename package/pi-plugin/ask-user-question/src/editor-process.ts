@@ -4,7 +4,7 @@ import {
   once,
 } from 'node:events';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Logger
 

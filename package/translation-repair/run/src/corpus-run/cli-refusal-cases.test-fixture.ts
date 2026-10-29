@@ -1,4 +1,4 @@
-import { expect, } from '@monochromatic-dev/module-test/ts';
+import { expect, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { reportingRefusals, } from '../../dist/final/node/index.mjs';
 

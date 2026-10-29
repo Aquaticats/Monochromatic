@@ -30,7 +30,7 @@ Two places in the workspace shell out to the external `zstd` command-line tool:
   `zstd -z -f --no-check -T0 --exclude-compressed --no-content-size -r --adapt dist` to write a
   `<file>.zst` companion next to every compressible asset in `dist/`.
    The companions are read by
-  `package/dev-script/page-weight/src/size.ts` (`wireSize`) and exist for precompressed serving.
+  `package/page-weight/cli/src/size.ts` (`wireSize`) and exist for precompressed serving.
 
 Both depend on the `zstd` binary being installed,
  which the workspace declares as a mise tool

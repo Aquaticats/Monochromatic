@@ -11,7 +11,7 @@ import { stat, } from 'node:fs/promises';
 import { Readable, } from 'node:stream';
 import { pipeline, } from 'node:stream/promises';
 
-import { formatBytes, } from '@monochromatic-dev/module-numeric-format/ts';
+import { formatBytes, } from '@monochromatic-dev/numeric-format-core/ts';
 
 //region Display constants
 

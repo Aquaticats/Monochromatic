@@ -26,12 +26,12 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "cidr-tools": "catalog:"
   },
   "version": "0.0.1",

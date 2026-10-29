@@ -45,7 +45,7 @@ all exit 1 on stdout
 
 Consequence in this repository:
 the lint wrapper
-(`package/dev-script/task-util/src/oxlint-wrapper.ts`,
+(`package/monorepo-task/core-exec/src/oxlint-wrapper.ts`,
  `finalizeResult`)
 keeps oxlint's exit code,
 so a caller that greps the output for rule diagnostics sees none

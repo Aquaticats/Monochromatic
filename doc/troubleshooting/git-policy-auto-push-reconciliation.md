@@ -12,7 +12,7 @@ cli-git: commit saved locally, but auto-push to origin failed; run `git push` wh
 ```
 
 An ordinary merge then refuses to overwrite concurrent uncommitted edits in
-`doc/handover/slint-ide-0x.md` and `package/desktop-app/ide/README.md`.
+`doc/handover/slint-ide-0x.md` and `package/ide/app/README.md`.
 Those edits are unrelated to the auto-mode commit and remain owned by concurrent work.
 The rejected merge does not establish a conflicting committed history.
 

@@ -7,8 +7,8 @@
  * cracked rim with a real opening. Pure math on plain number pairs, so
  * the whole module unit-tests in node.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   type PaneCell,

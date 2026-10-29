@@ -1,5 +1,18 @@
 # Handover: config-oxlint stale plugin bundle (issue #570)
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-async-time` is now `@monochromatic-dev/async-time-core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/logger` is now `package/logger/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
 ## Status (2026-09-25, grilling in progress, no code changed)
 
 Issue:
@@ -282,7 +295,6 @@ The user rejected that round.
   delete the dangling links under `node_modules/.pnpm`.
   Prototype upstream fix and draft issue exist, not filed.
 - A repair install prints `Already up to date` even while it creates a sub-project workspace link.
-
 
 ## Failure chain with owners
 

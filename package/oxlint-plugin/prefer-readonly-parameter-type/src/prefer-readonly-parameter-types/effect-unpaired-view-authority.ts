@@ -13,7 +13,7 @@
  `ReadonlyDataView`, so every `DataView` member answered "unrecognized" and every buffer
  write landed on the opaque boundary. Measured before this existed: 21 findings across the
  workspace named a buffer member, 14 named nothing else, and `writeEndOfCentralDirectory`
- in `package/module/zip-writer/src/serialize.ts` carried a `ForeignBorrowed` marker and a
+ in `package/zip-writer/core/src/serialize.ts` carried a `ForeignBorrowed` marker and a
  hand-written `@mutates view` for what is a specification-defined store.
  
  Declaring the missing view rather than listing the mutators is deliberate. It reuses the
@@ -54,7 +54,7 @@ const DATA_VIEW_READONLY_MEMBERS: ReadonlySet<string> = new Set([
  `Date` is unpaired for the same reason `DataView` is: the default library declares no
  `ReadonlyDate`, so the diff had nothing to compare and every member answered
  `COLLECTION_UNRECOGNIZED`. Measured before this existed, on the real
- `package/module/toml-edit/src/values.ts`: `encodeValue` and the three callables around
+ `package/toml-edit/core/src/values.ts`: `encodeValue` and the three callables around
  it all read `opaque=[0]`, and 48 workspace findings named `input.toISOString` as the
  sole remaining cause once `Object.getPrototypeOf` was discharged.
  

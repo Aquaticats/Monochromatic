@@ -1,5 +1,10 @@
 # Pi auto-mode axiom evaluation handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/shim/proper-lockfile` is now `package/pnpm-override/shim-proper-lockfile`.
+
 ## Current continuation pointer
 
 The [current frontier](pi-auto-mode-current-frontier.md) records the 2026-10-01 requirements and results:

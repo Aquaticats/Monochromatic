@@ -76,7 +76,7 @@ including the exact diagnostic for rejected cases:
 
 ```bash
 # From the repository root
-mise run //package/desktop-app/ide:inspect:layout-constraints
+mise run //package/ide/app:inspect:layout-constraints
 ```
 
 The task prints its temporary evidence directory and writes `results.json` there.
@@ -101,12 +101,12 @@ It does not edit real project markup to exercise a failing case.
 
 ## Verified consumer changes
 
-`package/desktop-app/ide/ui/app.slint` now constrains the sidebar with equal minimum and maximum widths,
+`package/ide/app/ui/app.slint` now constrains the sidebar with equal minimum and maximum widths,
 without an additional fixed-width binding.
 This preserves its current fixed 256px allocation;
 it does not implement user resizing.
 
-`package/desktop-app/ide/ui/tree.slint` makes the containing row responsible for minimum input dimensions.
+`package/ide/app/ui/tree.slint` makes the containing row responsible for minimum input dimensions.
 Its `TouchArea` fills the row instead of independently declaring competing minima.
 The native MCP tree probe measured the visible rows at 256px by 48px.
 This does not rely on input extending outside the row or overlapping a neighbor.

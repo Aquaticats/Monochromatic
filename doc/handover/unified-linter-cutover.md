@@ -3,6 +3,13 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/rust-module/jsonc-edit.fuzz` is now `package/jsonc-edit/core-rust.fuzz`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`.
 
 ## Purpose

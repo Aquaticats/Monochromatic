@@ -1,5 +1,5 @@
 import type { StopInput, } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 
 import {

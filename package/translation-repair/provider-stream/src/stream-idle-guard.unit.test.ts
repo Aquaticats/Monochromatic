@@ -1,9 +1,9 @@
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   armIdleGuard,

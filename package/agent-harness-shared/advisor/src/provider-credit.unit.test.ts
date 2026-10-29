@@ -1,5 +1,5 @@
 /** Exhausted-credit evidence and per-operation provider exclusion. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { assertAdvisorProviderAvailable, createAdvisorOperationLedger, isAdvisorCreditExhaustion, nextAdvisorCandidate, NO_ADVISOR_CANDIDATE, } from '../dist/final/node/index.mjs';
 
 /** Same registered provider owns both Hyper endpoints. */

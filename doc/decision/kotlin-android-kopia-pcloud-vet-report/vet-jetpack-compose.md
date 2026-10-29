@@ -330,7 +330,7 @@ nothing and it gives them nothing.
  There is no shared build graph,
  no shared lint,
  no shared
-test harness (`@monochromatic-dev/module-test` does not apply).
+test harness (`@monochromatic-dev/test-harness-core` does not apply).
  This island cost is real but it
 is identical for native Jetpack Compose and for Compose Multiplatform,
  so it does not decide

@@ -15,13 +15,13 @@ import {
 import { devNull, } from 'node:os';
 import { join, } from 'node:path';
 
-import { resolveRealGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit, } from '@monochromatic-dev/git-executable-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { spawnKeyless, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
 import {

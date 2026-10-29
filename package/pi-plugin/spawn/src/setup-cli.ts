@@ -19,7 +19,7 @@ import {
 } from 'node:path';
 import { promisify, } from 'node:util';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Module helpers
 

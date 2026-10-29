@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Nested single line readings
 // THE READINGS OF ONE LINE of straight single marks (`nested-single-quotes.ts`). A quoted two-digit number inside a quotation

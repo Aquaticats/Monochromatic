@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { isMissingPathError, } from '@monochromatic-dev/translation-repair-typography';
 import { FIXED_TREE_DIR, } from '@monochromatic-dev/translation-repair-page-check';

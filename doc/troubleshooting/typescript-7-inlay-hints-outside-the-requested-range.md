@@ -7,14 +7,14 @@ not where the range is.
 A statement that begins above the range and has a body that runs through it answers with the hints of its first line,
 although that line is not in the range.
 
-The IDE (`package/desktop-app/ide`) asks for the lines around the view and keeps hints per line
+The IDE (`package/ide/app`) asks for the lines around the view and keeps hints per line
 (`Annotations::merge_labels` in `src/annotation/blocks.rs`).
 Before the fix recorded here it treated every hint of an answer as part of that answer,
 so each answer for lines past a long statement added that statement's hints to its first line again.
 
 ## Symptom
 
-Opening `package/build-tool/css/src/build.unit.test.ts` (286 lines) and clicking around the minimap:
+Opening `package/css/cli/src/build.unit.test.ts` (286 lines) and clicking around the minimap:
 
 - The block of virtual rows above line 96 (`const integrationChildren = integrationFixtures.map(...)`)
   held the same four hints twice,
@@ -62,7 +62,7 @@ with a real TypeScript 7.1.0-beta server on a disposable copy of the file:
 ## Probe
 
 The server was started on the project's own TypeScript
-(`node node_modules/typescript/bin/tsc --lsp --stdio` in `package/build-tool/css`),
+(`node node_modules/typescript/bin/tsc --lsp --stdio` in `package/css/cli`),
 initialized with the `typescript.inlayHints` settings of `src/language/config/typescript.rs`,
 and asked for hints over line ranges of the file
 (zero-based,
@@ -176,7 +176,7 @@ Probes: `~/temp/agent/mm2/cold.ts`, `ranges.ts`, `exp6.ts` (scratch, not kept in
 ## Re-aim once of a minimap press: built
 
 Built on 2026-10-24 after the owner chose "Re-aim once" through the question tool.
-The code is `src/native/minimap/aim.rs` in `package/desktop-app/ide`,
+The code is `src/native/minimap/aim.rs` in `package/ide/app`,
 with the calls in `src/native/rows.rs` (`settle`), `src/native/viewport.rs` (`place`),
 and `src/native/minimap/pointer.rs` (`jump`).
 
@@ -220,7 +220,7 @@ The press is forgotten as soon as anything else happens:
 ### What was measured
 
 The disposable project is `/tmp/ide-mm-proj-8MEEkc`
-(a copy of `package/build-tool/css/src/build.unit.test.ts`,
+(a copy of `package/css/cli/src/build.unit.test.ts`,
 with stubs for its two workspace imports and the TypeScript 7.1.0-beta server),
 the window is 1080 by 1880 logical px, and the sessions run in the nested compositor with the real server.
 Both binaries were built from the same tree, before and after the change.
@@ -519,7 +519,7 @@ and fixed the same day.
 
 ### Symptom
 
-Opening `package/build-tool/css/src/build.unit.test.ts` (287 lines,
+Opening `package/css/cli/src/build.unit.test.ts` (287 lines,
 window of 1080 by 1880 logical px at scale 2)
 and pressing the minimap at y=1000,
 1700,

@@ -66,7 +66,7 @@ import {
  `BinaryExpression`, so following calls alone never reaches the lookup. Measured
  more widely than that: `expressionRoot` strips property access but not a binary
  operator, so before this every alias established through `??` carried no origin at
- all, including `config.eviction ?? []` in `package/module/kv-store`.
+ all, including `config.eviction ?? []` in `package/kv-store/core`.
  
  `||` belongs here too, since it yields its left operand whenever that is truthy,
  and a mutable object is truthy.

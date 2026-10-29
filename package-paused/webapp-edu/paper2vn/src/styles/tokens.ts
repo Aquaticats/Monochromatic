@@ -13,12 +13,12 @@ import {
   cssPercent,
   cssRem,
   type CssValue,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 import {
   HALF,
   QUARTER,
   THREE_QUARTERS,
-} from '@monochromatic-dev/module-const';
+} from '@monochromatic-dev/const-core';
 
 //region Fractional building blocks (max-magnitude 2 per project rules)
 

@@ -11,8 +11,8 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { Candidate, } from '@monochromatic-dev/translation-repair-house-rule';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';

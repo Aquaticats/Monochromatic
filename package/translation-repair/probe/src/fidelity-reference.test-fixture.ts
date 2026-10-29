@@ -1,4 +1,4 @@
-import { expect, } from '@monochromatic-dev/module-test/ts';
+import { expect, } from '@monochromatic-dev/test-harness-core/ts';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure';
 import { foldInvisibleVariants, } from '@monochromatic-dev/translation-repair-markup';
 import {

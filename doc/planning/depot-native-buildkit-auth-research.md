@@ -155,7 +155,7 @@ native dispatch remains a separate operation.
 ### Native consumer
 
 The producer will copy the exact frozen first-party
-`package/module/p-limit-fork/src/task-queue.ts` into a bounded context.
+`package/upstream-fork/p-limit/src/task-queue.ts` into a bounded context.
 A pinned Node base will execute a queue consumer and export its source binding and observed results.
 The native job must read and independently validate the resulting files.
 This is a narrow first-party consumer,

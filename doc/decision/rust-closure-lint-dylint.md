@@ -106,7 +106,7 @@ so no special case was added.
 What replaced it:
 the Dylint lint `avoidable_closure` of `package/linter/monochromatic-lint-closure`,
 run by a package's own `lint:closures` task.
-Only `package/desktop-app/ide` has that task today.
+Only `package/ide/app` has that task today.
 Note of 2026-10-19:
 `monochromatic-lint` now runs the lint for every Rust package as the rule `rust/avoidable-closure`,
 and the IDE task was removed;
@@ -162,7 +162,7 @@ and the IDE keeps error severity because it has no findings.
 - Only code that compiles is linted: features, `cfg`, and `--all-targets` decide coverage.
 - Dylint builds the target with the toolchain that built the library.
 - The generated Slint window type is unverified under rustc; the IDE build needs its runtime prepared first
-  (`mise run //package/desktop-app/ide:runtime`).
+  (`mise run //package/ide/app:runtime`).
 
 ## Implementation of 2026-10-19
 

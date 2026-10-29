@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { SliceDeliveryRecord, } from '@monochromatic-dev/translation-repair-translate-floor';
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';

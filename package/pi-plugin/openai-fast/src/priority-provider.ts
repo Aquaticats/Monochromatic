@@ -10,7 +10,7 @@ import type {
   StreamFunction,
   TranscriptContext,
 } from '@earendil-works/pi-ai';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   createKeylessAuth,
   noAvailableTargets,

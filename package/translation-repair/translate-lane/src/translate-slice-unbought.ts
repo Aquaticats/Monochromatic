@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import { absenceFinding, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 import type { TranslateSliceSettlement, } from './translate-slice-settle.ts';
 

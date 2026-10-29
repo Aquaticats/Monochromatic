@@ -14,7 +14,7 @@ issue 1794 [issue-1794][].
 ## Symptom
 
 A style sweep running `oxlint --fix` through `mise run format:oxlint` (or
-`mise run //package/dev-script/task-util:format:oxlint`) leaves `.js`/`.mjs`/`.ts`
+`mise run //package/monorepo-task/core-exec:format:oxlint`) leaves `.js`/`.mjs`/`.ts`
 files that no longer parse.
 Node reports the failure at consumption time:
 
@@ -178,7 +178,7 @@ mise run //package/oxlint-plugin/no-restricted-syntax:test:unit
 
 ```sh
 # confirms any suspect file's parse state; the gate runs the same parsers
-mise run //package/dev-script/task-util:lint:parse -- <paths>
+mise run //package/monorepo-task/core-exec:lint:parse -- <paths>
 ```
 
 Red-first evidence:
@@ -238,8 +238,8 @@ by parse-error variant:
    bases,
    never a whole-file `git restore` against a moving tree.
 2. **Re-apply formatting through the fixed fixer and gate the result.**
-   `mise run //package/dev-script/task-util:format:oxlint -- <paths>` followed by
-   `mise run //package/dev-script/task-util:lint:parse -- <paths>`.
+   `mise run //package/monorepo-task/core-exec:format:oxlint -- <paths>` followed by
+   `mise run //package/monorepo-task/core-exec:lint:parse -- <paths>`.
    Tradeoff:
    all-rules fix runs over a whole tree have historically needed several passes to
    settle (the catch-up sweep recorded 9 passes over 190 files),
@@ -285,7 +285,7 @@ by parse-error variant:
   files in `typescript@7.1.0-beta`.
   It panics with `panic: Debug failure. False
   expression: Output generation failed` (measured on
-  `package/stub/silent/index.d.cts`) because the call always emits and a
+  `package/pnpm-override/stub-silent/index.d.cts`) because the call always emits and a
   declaration file has nothing to emit.
   Parse declaration content under the
   matching non-declaration suffix instead (what `lint:parse` does);

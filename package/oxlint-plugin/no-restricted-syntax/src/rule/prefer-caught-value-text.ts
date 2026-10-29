@@ -16,7 +16,7 @@ import {
 /**
  Canonical implementation path exempt from duplicate-implementation reports.
  */
-const CANONICAL_FORMATTER_PATH = 'package/module/caught-value/src/index.ts';
+const CANONICAL_FORMATTER_PATH = 'package/caught-value/core/src/index.ts';
 
 /**
  Tests whether current file owns canonical formatter implementation.
@@ -56,7 +56,7 @@ export const preferCaughtValueText: CreateOnceRule = {
       recommended: true,
     },
     messages: {
-      duplicate: 'Use caughtValueText or caughtValueStack from @monochromatic-dev/module-caught-value/ts.',
+      duplicate: 'Use caughtValueText or caughtValueStack from @monochromatic-dev/caught-value-core/ts.',
     },
   },
   /**

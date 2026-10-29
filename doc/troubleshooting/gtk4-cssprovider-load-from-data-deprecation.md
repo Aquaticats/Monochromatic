@@ -9,7 +9,7 @@ the new level.
 `v4_10` starts failing `cargo clippy -- --deny warnings` at `v4_12` with no code change of its
 own.
 
-Found while building `package/desktop-app/file-manager-gtk-sticky`.
+Found while building `package/file-manager/variant-gtk-sticky`.
 
 ## Symptom
 
@@ -60,8 +60,8 @@ Environment:
 - Use the replacement API:
    `load_from_string` (same argument,
    same behavior for UTF-8 CSS).
-  Applied in `package/desktop-app/file-manager/src/style.rs` and
-  `package/desktop-app/file-manager-gtk-sticky/src/style.rs`.
+  Applied in `package/file-manager/app/src/style.rs` and
+  `package/file-manager/variant-gtk-sticky/src/style.rs`.
   Both packages expose GTK 4.12 APIs,
   so standalone and unified build graphs use the same non-deprecated call.
   Tradeoff:

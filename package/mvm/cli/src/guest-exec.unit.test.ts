@@ -26,7 +26,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 //region Disposable home: the package derives its data directory from the home directory when it loads
 

@@ -1,6 +1,6 @@
 import { format, } from 'node:util';
 
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 //region Console log capture
 // READS WHAT console.log PRINTED WHILE A CASE RAN, through a stub on the

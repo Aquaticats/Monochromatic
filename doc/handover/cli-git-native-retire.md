@@ -1,5 +1,17 @@
 # cli-git native retirement lane
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/stub/throwing` is now `package/pnpm-override/stub-throwing`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/css-edit.bench` is now `package/css/core-edit.bench`.
+
 This file holds the current state of the retirement of the TypeScript Git policy wrapper;
  when the state changes,
 replace the text instead of appending.

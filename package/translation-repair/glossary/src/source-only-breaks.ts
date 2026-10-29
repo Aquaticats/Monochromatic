@@ -6,7 +6,7 @@ import type {
 import type { DeepReadonlyData, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import type { BlockShape, } from './translate-skeleton.ts';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Explicit source line structure
 // A single-block poem can miss the blank-block verse heuristic. Its explicit

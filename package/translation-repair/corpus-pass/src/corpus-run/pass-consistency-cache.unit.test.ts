@@ -13,13 +13,13 @@
 
 import { join, } from 'node:path';
 
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import { CONSISTENCY_CACHE_VERSION, } from '@monochromatic-dev/translation-repair-consistency';

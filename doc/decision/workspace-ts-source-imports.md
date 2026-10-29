@@ -95,7 +95,7 @@ No build precedes type-check or lint.
 - **Node runs it.**
   Node refuses `.ts` under `node_modules`,
   but pnpm workspace links resolve to real paths outside it,
-  so tests importing `@monochromatic-dev/module-test/ts` run under Node 26 unchanged
+  so tests importing `@monochromatic-dev/test-harness-core/ts` run under Node 26 unchanged
   (`doc/decision/npm-publishing.md`).
 
 ## Prior art

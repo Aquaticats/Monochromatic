@@ -9,7 +9,7 @@ Research date: 2026-09-16.
 Scope: read-only design deep dive for the all-Rust option in
 `doc/planning/monorepo-manager-from-scratch-design.md`,
 section "Single-file shipping and a file-enforcer rewrite":
-the daemon plus a Rust rewrite of `package/dev-script/file-enforcer`,
+the daemon plus a Rust rewrite of `package/file-enforcer/core`,
 with every plausible configuration host designed until disqualifying problems surfaced (rule `YKZ`).
 Nothing under `/var/home/user/Monochromatic` was modified.
 No cgroup, unit, or scope was created,
@@ -52,8 +52,8 @@ and nothing was committed.
   - `AR/` is `SCR/allrust/`,
      this research's work directory.
   - `REG/` is `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
-  - `TE/` is `package/module/toml-edit/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
+  - `TE/` is `package/toml-edit/core/src/`.
   - `STD/` is `~/.rustup/toolchains/nightly-2026-09-16-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/std/src/`.
 - Crate metadata comes from `https://crates.io/api/v1/crates/<name>` with user agent `monochromatic-vet-discovery`
    and `gh api repos/<owner>/<repo>`,
@@ -681,7 +681,7 @@ From the AST probe and a read of `file-enforcer.config.ts`:
    `rquickjs` 0.13.0 with `futures` and `loader`;
    an `AsyncRuntime` on `tokio`;
    a module loader that serves built-in modules
-   `@monochromatic-dev/dev-script-file-enforcer/ts`,
+   `@monochromatic-dev/file-enforcer-core/ts`,
    `node:fs/promises`,
    `node:crypto`,
    `node:path`,
@@ -1221,7 +1221,7 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 
 - A1 or A2:
    keep `file-enforcer.config.ts`;
-   keep the import of `@monochromatic-dev/dev-script-file-enforcer/ts`, served by the host loader;
+   keep the import of `@monochromatic-dev/file-enforcer-core/ts`, served by the host loader;
    replace `node:` imports with host modules of the same names or inline equivalents;
    replace `import('browserslist')` with a host function backed by `browserslist-rs`;
    inline `isTypeScriptSourcePath` (an 8-line function, `package/config/pnpr/src/publish-plan.ts:186-193`) instead of
@@ -1242,9 +1242,9 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 
 - `file-enforcer.config.ts:30`.
 - `package.json:35` (root dependency) and `pnpm-lock.yaml:430`, `:1830`, `:4190`.
-- `package/dev-script/vm-builder/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`,
+- `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`,
    called 14 times (`rg 'exec\('`),
-   and `package/dev-script/vm-builder/package.json:16`.
+   and `package/vm-builder/cli/package.json:16`.
   These need a TypeScript replacement for `exec` (`nano-spawn` or `node:child_process`) whatever the host.
 - `package/test-fixture/file-enforcer-perf/src/perf.config.ts:21` and `src/perf.bench.test.ts:21`
    import `cat`, `dedup`, `getJsonProperty`, `overwrite`, `overwriteEach`, `readCache`, `reset`, `classifyEvent`,
@@ -1256,7 +1256,7 @@ From the AST probe and a read of `file-enforcer.config.ts`:
 - `FE/cargo/apply-plan.ts` as a fixture.
 - Task wiring:
    `mise.no-env.toml:1120-1127` (`sync:files`, `watch:sync:files`) runs
-   `node package/dev-script/file-enforcer/src/cli.ts`;
+   `node package/file-enforcer/core/src/cli.ts`;
    `package/config/pnpr/src/publish-plan.ts:44` and `src/publish-missing-versions.ts:205` tell users to run
    `mise run sync:files`.
 - Documents that describe the TypeScript design:

@@ -11,7 +11,7 @@ import type { Dirent, } from 'node:fs';
 import { readdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 /**

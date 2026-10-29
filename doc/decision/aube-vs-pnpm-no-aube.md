@@ -58,7 +58,7 @@ The rejection rests on concrete findings,
 - Hard blocker on our config.
   aube validates our existing `pnpm-lock.yaml` ("Lockfile is up to date"),
   but a forced re-resolve fails with `ERR_AUBE_NO_MATCHING_VERSION` on our `workspace:` stub override
-  (`no version of js-yaml matches range workspace:@monochromatic-dev/stub-throwing@*`).
+  (`no version of js-yaml matches range workspace:@monochromatic-dev/pnpm-override-stub-throwing@*`).
   That means it cannot add a dependency,
    bump a version,
    or regenerate the lockfile here.

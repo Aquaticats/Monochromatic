@@ -1,5 +1,11 @@
 # Vet exact JSON number storage for the Rust jsonc-edit port
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:

@@ -89,7 +89,7 @@ Rejected alternatives:
 
 ## Testing: Node + module-test + Playwright
 
-Unit tests run on Node through the in-house `@monochromatic-dev/module-test` harness (Jest-style API on chai + sinon).
+Unit tests run on Node through the in-house `@monochromatic-dev/test-harness-core` harness (Jest-style API on chai + sinon).
  Browser and end-to-end tests run on Playwright (in Podman for reproducibility).
 
 Alternatives rejected:

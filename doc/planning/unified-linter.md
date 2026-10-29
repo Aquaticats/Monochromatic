@@ -77,7 +77,7 @@ removing the separate deepmerge port and fork-test prerequisite.
      pinned with `=` and upgraded together
      ([`doc/audit/tech-unified-linter-markdown-parser-vet-2026-09-23.md`](../audit/tech-unified-linter-markdown-parser-vet-2026-09-23.md));
   - `monochromatic-jsonc-edit`,
-     the repository's Rust JSONC package at `package/rust-module/jsonc-edit`,
+     the repository's Rust JSONC package at `package/jsonc-edit/core-rust`,
      for configuration;
      no HCL dependency or compatibility parser;
   - no external configuration-merge dependency.

@@ -26,8 +26,8 @@ Long tool calls that budget tightly around `git`
 
 ## Emitter
 
-`@monochromatic-dev/module-logger`,
- from `package/module/logger/src/create-logger.ts`:
+`@monochromatic-dev/logger-core`,
+ from `package/logger/core/src/create-logger.ts`:
  `verifyAndApply` runs each sink's `verify()` under `withHostTimeout`
  with `verifyTimeoutMs` (5000 ms),
  and a timed-out verify reports the quoted diagnostic,
@@ -75,7 +75,7 @@ Do not saturate the host to recreate it;
 any load experiment must use a bounded disposable container.
 
 On 2026-10-26 the line appeared twice during `node src/package/mise.container-test.ts`
-container-matrix runs in `package/dev-script/file-enforcer`
+container-matrix runs in `package/file-enforcer/core`
 (before that run's resource bounds landed):
 
 ```text
@@ -91,7 +91,7 @@ The runs were host-exhausting at the time
 recorded in `doc/planning/mpm-toolchain-migration.md`),
 and the bounded rerun
 (`podman run --memory=2g --cpus=2`,
-`package/module/matrix/src/container.ts`)
+`package/test-harness/core-matrix/src/container.ts`)
 was green.
 The emitter is again load-correlated and still not root-caused here.
 
@@ -129,9 +129,9 @@ verification in flight for seconds under load
 widens the window in which an early fake-timer install can collide with it.
 That makes the deadlock a latent,
 load-sensitive hazard for the default-run files that install fake timers
-(`package/module/test/src/sinon-clock.unit.test.ts`,
-`package/module/logger/src/sink/file-batch.unit.test.ts`,
-`package/module/test-sandbox/src/sandbox.unit.test.ts`);
+(`package/test-harness/core/src/sinon-clock.unit.test.ts`,
+`package/logger/core/src/sink/file-batch.unit.test.ts`,
+`package/test-harness/core-sandbox/src/sandbox.unit.test.ts`);
 no default-run failure has been observed,
 and the issue #1762 five-batch 32-process repro was green.
 
@@ -142,7 +142,7 @@ both probe files then ran green to completion (exit 0).
 Root-fix direction,
 not implemented at this writing:
 `withTimeout`
-(`package/module/async-time/src/with-timeout.ts`)
+(`package/async-time/core/src/with-timeout.ts`)
 should capture schedule and clear from one clock domain
 so a global replacement mid-race cannot cross domains.
 The owner paused fix implementation while the issue #1762 remedy design settles.
@@ -161,10 +161,10 @@ would hide or postpone the symptom rather than establish its cause.
 
 ## Investigation for issue #573 on 2026-10-04
 
-`package/module/logger/src/default-sinks.node.ts:37` constructs the Node default set in this order:
+`package/logger/core/src/default-sinks.node.ts:37` constructs the Node default set in this order:
 
 ```ts
-// package/module/logger/src/default-sinks.node.ts
+// package/logger/core/src/default-sinks.node.ts
 return [
   createConsoleSink(),
   createSessionStorageSink(),
@@ -223,7 +223,7 @@ Candidate endpoints:
   Its only change from its parent is the decision document,
   so its executable source matches its parent's.
 
-`git diff d322d083e HEAD -- package/module/logger package/module/async-time` is empty.
+`git diff d322d083e HEAD -- package/logger/core package/async-time/core` is empty.
 The logger and timeout source did not change between that reported revision and this investigation.
 Commit `ee58222bc` introduced the verification deadline on 2026-09-06,
 before the issue's reported onset window.

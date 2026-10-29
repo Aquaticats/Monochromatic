@@ -14,7 +14,7 @@ import { join, } from 'node:path';
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { createAutounattendIso, } from './autounattend.ts';
 import {

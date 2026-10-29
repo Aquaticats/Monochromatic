@@ -38,13 +38,13 @@ and it has since been seen to hurt.
   Largest:
    `config/oxlint` (394 sibling,
    14 own),
-  `dev-script/vm-builder` (203 sibling,
+  `vm-builder/cli` (203 sibling,
    5 own),
   `mcp/mvm` (176 sibling,
    11 own).
-- `mise run //package/dev-script/task-util:lint:types`:
+- `mise run //package/monorepo-task/core-exec:lint:types`:
    0.46 s wall for a 126-file program (31 own).
-- `mise run //package/dev-script/task-util:lint:oxlint`:
+- `mise run //package/monorepo-task/core-exec:lint:oxlint`:
    3 errors,
   all `typescript(no-useless-empty-export)`,
   unrelated to `/ts`.
@@ -266,7 +266,7 @@ and orders lint after a declaration build.
 ## Measurement design (round 4, in progress)
 
 Subject:
- `package/dev-script/file-enforcer` (138 own files,
+ `package/file-enforcer/core` (138 own files,
 151 sibling source files in its program;
 main-worktree warm `lint:oxlint` 1.4 s on 136 files with 84 pre-existing `test-import` errors).
 Throwaway worktree at `~/temp/agent/ts-boundary-spike-2026-09-06`.

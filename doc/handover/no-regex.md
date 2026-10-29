@@ -3,6 +3,27 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/deps-cube` is now `package/dependency-catalog/cli-cube`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/test-expect` is now `package/test-harness/core-expect`;
+> `package/module/zip-writer` is now `package/zip-writer/core`;
+> `package/module/image-diff` is now `package/llm/image-diff`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/matrix` is now `package/test-harness/core-matrix`;
+> `package/module/test` is now `package/test-harness/core`;
+> `package/module/dom` is now `package/dom/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
 
 State of the lint-failure refactor triggered by the oxlint rule

@@ -180,7 +180,7 @@ Four custom oxlint plugins are authored in-repo under `package/oxlint-plugin/`
 so third-party rule authoring is load-bearing for TypeScript.
 
 Existing consumer tooling that a shared diagnostic schema would unlock for free:
-`package/dev-script/task-util/src/oxlint-wrapper.ts` (281 lines),
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts` (281 lines),
 `oxlint-augment.ts` (683),
 `oxlint-guidance.ts` (140),
 `oxlint-fix-loop.ts`.

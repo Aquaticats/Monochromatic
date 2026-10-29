@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import {
   CANDIDATE_APPARATUS_RULE,

@@ -2,7 +2,7 @@
 
 ## Symptom
 
-Type-aware Oxlint reported opaque effects in `package/build-tool/css` for PostCSS `8.5.16` calls,
+Type-aware Oxlint reported opaque effects in `package/css/cli` for PostCSS `8.5.16` calls,
 including `Container.walkAtRules`,
 `Node.remove`,
 `Node.replaceWith`,
@@ -83,7 +83,7 @@ After rebuilding the semantic plugin,
 this command reported no diagnostics:
 
 ```text
-OXLINT_THREADS=1 mise run //package/build-tool/css:lint:oxlint
+OXLINT_THREADS=1 mise run //package/css/cli:lint:oxlint
 ```
 
 ## Upstream filing decision

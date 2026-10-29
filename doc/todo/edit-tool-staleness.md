@@ -13,7 +13,7 @@ The file was **not** modified.
 
 ## Reproduction timeline
 
-1. `Read` on `package/dev-script/file-enforcer/src/package/manager-defs.ts` (harness records staleness marker)
+1. `Read` on `package/file-enforcer/core/src/package/manager-defs.ts` (harness records staleness marker)
 2. `Write` creates a **sibling** file `manager-defs.unit.test.ts` in the same directory
 3. `dprint fmt` runs:
     scans workspace,
@@ -81,6 +81,6 @@ instead of mtime/inode for staleness detection.
    Fedora Atomic (ostree-based,
    `/home` is a symlink to `/var/home`)
 - File affected:
-   `package/dev-script/file-enforcer/src/package/manager-defs.ts`
+   `package/file-enforcer/core/src/package/manager-defs.ts`
 - Claude Code version:
    check `claude --version` at investigation time

@@ -27,14 +27,14 @@
 
 import { setImmediate as turnOfTheLoop, } from 'node:timers/promises';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   describe,
   type DisposableSandbox,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {

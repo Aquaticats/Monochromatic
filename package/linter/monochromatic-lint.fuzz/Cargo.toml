@@ -19,8 +19,8 @@ shadow_unrelated = "deny"
 [dependencies]
 # Existing repository libFuzzer harness and structured JSONC generator.
 libfuzzer-sys = { workspace = true, features = ["arbitrary-derive"] }
-jsonc-edit-fuzz = { path = "../../rust-module/jsonc-edit.fuzz", version = "=0.0.0" }
-monochromatic-jsonc-edit = { path = "../../rust-module/jsonc-edit", version = "=0.1.1" }
+jsonc-edit-fuzz = { path = "../../jsonc-edit/core-rust.fuzz", version = "=0.0.0" }
+monochromatic-jsonc-edit = { path = "../../jsonc-edit/core-rust", version = "=0.1.1" }
 monochromatic-lint = { path = "../monochromatic-lint", version = "=0.3.0" }
 # Match the subject's semantic frontend; this fixed in-memory fixture avoids Cargo execution during fuzzing.
 ra_ap_hir = { workspace = true }

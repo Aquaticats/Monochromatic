@@ -173,6 +173,16 @@ Gate g215 failed `run-client-create.unit.test.ts:480` under host load,
 and the case passed alone:
 the rig counted turns of the event loop (fixed in `df2350a6ee`,
 ledger B965 and M299).
+Gate g228 ran beside two rotation sweeps,
+and its `probe.test-unit` step exited 1 with 11 failing built-command cases
+whose stderr carried the line
+`logger internal error: sink verification failed ... Timed out after 5000ms`.
+The step run alone in the same tree passed 296 cases with none failing (ledger M309).
+An install on the current main rewrote `pnpm-lock.yaml` in the gate trees `tr-g227` and `tr-g228`,
+149 changed lines in the first and a 229-line diff in the second.
+The `git checkout --detach` of gate g227 was refused by cli-git over the dirty tree,
+and each gate tree was dirty again when it was retired,
+so the retire script refused to remove it (ledger M308).
 
 The rule:
 a gate tree is set up in this order before its first gate:
@@ -190,14 +200,30 @@ before it is read as a case that is red.
 A rotation sweep runs beside a gate only in another worktree:
 in the gate's own tree it starts after the gate ends,
 since the gate rebuilds `dist` and the sweep reads it.
+At most one sweep runs beside a gate,
+even in another worktree (ledger M309).
 After main is merged into a branch,
 `lint:types` runs on the merged head before a full gate,
 because a merge with no conflict can still make a field required that the branch's cases leave out.
 A red case is run alone before it is judged:
 a case that fails under the load of a gate and passes alone is looked at for a rig that depends on timing,
 and one that fails alone is read for its message.
+A red step of a gate is run alone in the same tree before it is judged,
+as a red case is:
+`probe.test-unit` of gate g228 was red with 11 cases beside two sweeps,
+and passed 296 cases with none failing alone (ledger M309).
+After a gate tree's install,
+`git status --short` is read for a rewritten `pnpm-lock.yaml`,
+since an install on the current main rewrites it (ledger M308).
+The tree setup saves that diff and restores the file with `git restore --no-enforce-worktree -- pnpm-lock.yaml`,
+and the restore is repeated before the tree is retired.
+That restore is the lead's,
+in scratch tooling:
+a subagent leaves the file as it is and reports it in its hand-back.
+The lockfile belongs to another session,
+and no gate tree and no round commits it or changes it.
 
 What enforces it:
 habit,
-and the lead's `PATH` builder for gates,
-which is scratch tooling outside the repository.
+and the lead's `PATH` builder for gates and the tree setup that restores the lockfile,
+which are scratch tooling outside the repository.

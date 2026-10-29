@@ -6,7 +6,7 @@
  * Dispatches `rename-confirm` with the new name, or `rename-cancel` on dismissal.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { STYLES, } from './rename-input.styles.ts';
 

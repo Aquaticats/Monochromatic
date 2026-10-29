@@ -62,8 +62,8 @@ and not a Linkup account-management UI.
 - Existing repo Pi package tests are colocated as `src/*.unit.test.ts`
   and run through package-scoped `mise run` tasks.
 - Existing repo Pi packages that log use tagged loggers from
-  `@monochromatic-dev/module-logger`.
-- `@monochromatic-dev/module-logger` now documents that consumers do not await
+  `@monochromatic-dev/logger-core`.
+- `@monochromatic-dev/logger-core` now documents that consumers do not await
   `initPromise` before logging,
   because startup records replay after sinks verify.
 - Existing repo Pi packages that declare `typebox` as a peer also install it
@@ -84,14 +84,14 @@ Create `package/pi-plugin/linkup/` with these package properties:
 - `package.json#pi.extensions`:
    `['./dist/final/node/index.mjs']`.
 - Runtime dependencies:
-   `@monochromatic-dev/module-logger` plus Node built-ins.
+   `@monochromatic-dev/logger-core` plus Node built-ins.
 - Peer dependencies:
    `@earendil-works/pi-coding-agent` and `typebox`.
 - Dev dependencies follow sibling Pi packages:
   `@earendil-works/pi-coding-agent`,
   `@monochromatic-dev/config-tsdown`,
   `@monochromatic-dev/config-typescript`,
-  `@monochromatic-dev/module-test`,
+  `@monochromatic-dev/test-harness-core`,
   `@types/node`,
   and `typebox`.
 
@@ -109,9 +109,9 @@ The package should include these files at minimum:
 - `src/tools.ts`
 - colocated unit tests for each module with branch logic
 
-Modules should import `tagged` from `@monochromatic-dev/module-logger` directly.
+Modules should import `tagged` from `@monochromatic-dev/logger-core` directly.
 Do not add a package root logger module or await `initPromise`;
-`@monochromatic-dev/module-logger` buffers startup records until sinks verify.
+`@monochromatic-dev/logger-core` buffers startup records until sinks verify.
 
 ## Public tools
 
@@ -365,9 +365,9 @@ The client should throw clear errors for:
 Error messages should include endpoint context,
 but must not include the API key or authorization header.
 
-Use tagged loggers from `@monochromatic-dev/module-logger` for production logging.
+Use tagged loggers from `@monochromatic-dev/logger-core` for production logging.
 Do not use raw `console.log` or `console.error` in the extension runtime.
-Do not await `initPromise` from `@monochromatic-dev/module-logger`;
+Do not await `initPromise` from `@monochromatic-dev/logger-core`;
 logging before sink verification is supported by startup replay.
 The `src/mise.verify-extension.ts` script may print its final verification result
 because it is a user-facing verification script,

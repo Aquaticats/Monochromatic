@@ -72,8 +72,8 @@ The selected search landmark describes this UI's purpose without inventing a too
 Run the package-owned disposable markup controls:
 
 ```sh
-# package/desktop-app/ide/mise.toml
-mise run //package/desktop-app/ide:inspect:search-accessibility
+# package/ide/app/mise.toml
+mise run //package/ide/app:inspect:search-accessibility
 ```
 
 Observed results with `slint-viewer 1.18.1`:
@@ -94,7 +94,7 @@ This does not establish screen-reader modal semantics or an AccessKit focus trap
 Use the existing search landmark:
 
 ```diff
-# package/desktop-app/ide/ui/search.slint
+# package/ide/app/ui/search.slint
 -    accessible-role: dialog;
 +    accessible-role: search;
 ```

@@ -12,7 +12,7 @@ import {
   cssTranslateX,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   MONO_FONT_FAMILY,

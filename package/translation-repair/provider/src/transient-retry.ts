@@ -1,7 +1,7 @@
 import { setTimeout as sleepFor, } from 'node:timers/promises';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';

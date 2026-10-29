@@ -302,8 +302,8 @@ Vite is not used here;
 ## 2026-07-22: postcss replaced by the in-house css-edit CST
 
 `build-tool-css` no longer uses PostCSS.
-Parsing now sits on `@monochromatic-dev/module-css-edit`
-(`package/module/css-edit`),
+Parsing now sits on `@monochromatic-dev/css-core-edit`
+(`package/css/core-edit`),
 an in-house byte-preserving stylesheet-structure CST over the
 `@csstools/css-tokenizer` spec tokenizer,
 joining the `jsonc-edit`/`toml-edit` format-editing family.
@@ -390,7 +390,7 @@ postcss by the ecosystem.
 - `process-shim.ts` deleted;
    css-edit references no process globals.
 - Browser consumers import
-  `@monochromatic-dev/build-tool-css/ts/expand` directly;
+  `@monochromatic-dev/css-cli/ts/expand` directly;
   the package index re-exports the node-only file pipeline whose
   `module-fs-path` imports would drag node builtins into client bundles
   (found live in agent-browser when done-postcss components stopped
@@ -438,8 +438,8 @@ depends on LightningCSS or oxc-resolver;
  neither appears in
 any `package.json` or in the lockfile.
 
-- CSS build package lives at `package/build-tool/css/`
-  (`@monochromatic-dev/build-tool-css`).
+- CSS build package lives at `package/css/cli/`
+  (`@monochromatic-dev/css-cli`).
 - Pipeline is pure JS,
    PostCSS only,
    no native binary:
@@ -464,7 +464,7 @@ any `package.json` or in the lockfile.
    nested mixin expansion,
    and `@apply` inlining
   all pass unit tests
-  (`mise run //package/build-tool/css:buildAndTest`).
+  (`mise run //package/css/cli:buildAndTest`).
 - The two earlier blockers no longer apply:
    the LightningCSS
   `customAtRules`/`var()` defect (#1081) is irrelevant

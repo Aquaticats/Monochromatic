@@ -14,7 +14,7 @@ import {
   resolve,
 } from 'node:path';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import spawn from 'nano-spawn';
 import {
   childEnvironment,

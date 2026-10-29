@@ -18,7 +18,7 @@ import {
   overwriteEach,
   readCache,
   reset,
-} from '@monochromatic-dev/dev-script-file-enforcer/ts';
+} from '@monochromatic-dev/file-enforcer-core/ts';
 
 // Reset tracker so each run starts clean (critical for watch mode and repeated benchmarks)
 reset();

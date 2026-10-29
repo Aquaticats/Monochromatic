@@ -134,8 +134,8 @@ Feature run `mr9cw18gds` checked out harness base `0886b2669d`,
 then Depot's injected patch step failed:
 
 ```text
-error: patch failed: package/dev-script/task-util/mise.toml:140
-error: package/dev-script/task-util/mise.toml: patch does not apply
+error: patch failed: package/monorepo-task/core-exec/mise.toml:140
+error: package/monorepo-task/core-exec/mise.toml: patch does not apply
 ```
 
 The launch used local head `2288fcec22` and uploaded a 12579-byte patch
@@ -150,7 +150,7 @@ The first replay remains under verification.
 TOML full attempt `gfklnntq0x` reproduced the patch boundary on 2026-10-16:
 all jobs checked out `3b3be538e7`,
 then failed on a missing `.depot/workflows/depot-complete-logger-remainder.yml`
-and an unapplied `package/module/logger.fuzz/mise.toml` hunk.
+and an unapplied `package/logger/core.fuzz/mise.toml` hunk.
 The provider logs contain the patch diagnostic and no source-check artifact.
 The October 17 retry uses independently pushed branch `trial/depot-final-recovery-20261017`
 at `409e6ec106`,
@@ -414,11 +414,11 @@ and an absent before record.
 The disposable fixture was restored and its final after control passed.
 
 The explicit hash enumeration has a narrower boundary than all configured native inputs.
-`package/dev-script/task-util/mise.toml:816` starts with root JavaScript/mise metadata,
+`package/monorepo-task/core-exec/mise.toml:816` starts with root JavaScript/mise metadata,
 then line 818 adds exact metadata filenames immediately inside each selected package:
 
 ```javascript
-// package/dev-script/task-util/mise.toml at harness 4c4063e78b
+// package/monorepo-task/core-exec/mise.toml at harness 4c4063e78b
 const paths=new Set(['mise.lock','mise.toml','pnpm-lock.yaml','pnpm-workspace.yaml','package.json']);
 for(const pkg of packages)for(const name of ['mise.toml','package.json','Cargo.toml','Cargo.lock','tsconfig.json','.cargo/config.toml'])if(trackedFiles.has(`${pkg}/${name}`))paths.add(`${pkg}/${name}`);
 ```
@@ -465,7 +465,7 @@ and nested metadata inside selected or artifact-prerequisite packages.
 Commit `faf388e838737e6b08b9a8075cdcbf4b34f02b2b` changes tracked path enumeration to NUL boundaries:
 
 ```javascript
-// package/dev-script/task-util/mise.toml:817 at harness faf388e838
+// package/monorepo-task/core-exec/mise.toml:817 at harness faf388e838
 const trackedFiles=new Set(git(['ls-files','-z']).split('\\0').filter(Boolean));
 ```
 
@@ -510,10 +510,10 @@ The repaired fixture driver and command logs remain in
 ### Index exclusions are rejected
 
 Harness `a07d84a129f0dd16861551adfb76b1a3bbc4083d` adds an independent index invariant before tracked status.
-`package/dev-script/task-util/mise.toml:818` enumerates NUL-delimited status tags:
+`package/monorepo-task/core-exec/mise.toml:818` enumerates NUL-delimited status tags:
 
 ```javascript
-// package/dev-script/task-util/mise.toml:818 at harness a07d84a129
+// package/monorepo-task/core-exec/mise.toml:818 at harness a07d84a129
 const indexEntries=git(['ls-files','-v','-z']).split('\\0').filter(Boolean);
 ```
 
@@ -565,7 +565,7 @@ and outer common-manifest digest can all match while the static case registratio
 This is separate from the byte-preserving transport boundary in `#1119`.
 
 Root trial harness `ae3aad924c7b74c83d27ad0f286832008195eebf` adds the missing assertion to
-`package/module/logger.fuzz/mise.toml`,
+`package/logger/core.fuzz/mise.toml`,
 task `trial:depot:cohort-identity`:
 
 ```text

@@ -15,7 +15,7 @@ and describe the rule as it was before its removal.
 `rust/no-anonymous-functions` reports every `CLOSURE_EXPR` node
 (`package/linter/monochromatic-lint/src/rust_no_anonymous_functions.rs`).
 It has no option besides severity and no inline suppression.
-After the IDE closures branch, 1068 of 1135 findings in `package/desktop-app/ide` became named code,
+After the IDE closures branch, 1068 of 1135 findings in `package/ide/app` became named code,
 and 67 remain.
 Those 67 are closures that own state for a callee that keeps or runs the callable later:
 17 thread bodies, 38 Slint `on_*` callbacks, 8 `Timer::start` bodies, 2 `catch_unwind` bodies,
@@ -99,7 +99,7 @@ Full report: `~/temp/agent/linter-spike/report.md` (branch `spike/linter-closure
   the Slint-generated window type does not exist for it; and the IDE's dependency graph did not load here
   (`cargo metadata --offline --locked` fails on `encoding_rs`), so even `slint::Timer` did not resolve.
   Whether `BuildGenerated` would resolve the setters is not verified.
-- Cost on `package/desktop-app/ide`: 0.067 s today against 5.9 s with the closure rule made semantic, about 80
+- Cost on `package/ide/app`: 0.067 s today against 5.9 s with the closure rule made semantic, about 80
   times, from loading the session and a serial per-file pass; the classification itself is inside the noise. On
   `package/linter/monochromatic-lint`: 0.043 s against 2.3 s.
 - Gaps: a callee that is a value of fn-trait type is not answered; closures inside macro token trees need

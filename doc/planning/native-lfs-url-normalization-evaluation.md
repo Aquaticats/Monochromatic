@@ -62,9 +62,9 @@ the option that reproduces the incumbent on the consumed contract with the least
   and the selected contract never encodes or decodes,
   so the function does not use it.
 - `url` 2.5.8 is locked in four other packages of this repository
-  (`package/desktop-app/file-manager-qt`,
-  `package/desktop-app/ide`,
-  `package/desktop-app/terminal`,
+  (`package/file-manager/variant-qt`,
+  `package/ide/app`,
+  `package/terminal/app`,
   `package/music-player/desktop-app`).
   Walking its dependency lists in those lockfiles gives 35 or 36 crates,
   and the same eight names are absent from the linter lockfile in every one:

@@ -13,7 +13,7 @@ import type {
 } from '@deepseek-ai/dsh-settings';
 import {
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   neuralWattLogger,
 } from './logging.ts';

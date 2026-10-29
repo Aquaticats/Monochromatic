@@ -47,7 +47,7 @@ which lists every file of this record.
 
 `origin/main` moved from `b6927f7ba9` to `96ed19a2b1` during this round
 (ten commits,
-all in `package/desktop-app/ide` and its docs,
+all in `package/ide/app` and its docs,
 none in `package/translation-repair`),
 and the branch merged it in `938e84afb9` with no conflict.
 The first version of this sentence said `origin/main` stayed put and no merge was made;
@@ -663,7 +663,7 @@ and no merge was made.
 The head of round 7,
 `938e84afb9`,
 is the merge of ten main commits (`96ed19a2b1`),
-all in `package/desktop-app/ide` and its docs,
+all in `package/ide/app` and its docs,
 none in `package/translation-repair`,
 and the docs commit that held the sentence was written before the merge and not touched after it.
 The report of round 7 stated the merge correctly,

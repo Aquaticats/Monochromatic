@@ -22,7 +22,7 @@ with no `lint:closures` task of its own.
 
 - Every Rust package gets the check by default.
   The syntax-only rule `rust/no-anonymous-functions` that did this was removed on 2026-10-18,
-  and since then only `package/desktop-app/ide` has a closure check (its `lint:closures` task).
+  and since then only `package/ide/app` has a closure check (its `lint:closures` task).
 - The check is a part of `monochromatic-lint` (the root task `lint:monochromatic-lint`),
   so a developer or CI runs one linter and reads one result channel.
 - There is no separate `lint:closures` task in any package.
@@ -125,7 +125,7 @@ capture but the callee does not keep it).
   14 fuzz targets;
   14 capture nothing,
   1 captures).
-- `package/cli/nested-wayland-session`:
+- `package/nested-wayland-session/cli`:
   builds offline for `cargo check`,
   but `cargo metadata` inside Dylint needs the crates of other platforms,
   so it failed offline until `cargo +stable fetch --locked` ran.
@@ -150,7 +150,7 @@ capture but the callee does not keep it).
   21 reports (9 source,
   12 tests;
   21 capture nothing).
-- `package/desktop-app/file-manager`:
+- `package/file-manager/app`:
   needs system GTK 4 (4.22.5 here,
   through `pkg-config`) and the offline fetch.
   Cold 24.4 s,
@@ -159,7 +159,7 @@ capture but the callee does not keep it).
   2 tests;
   35 capture nothing,
   22 capture).
-- `package/desktop-app/file-manager-gtk-sticky`:
+- `package/file-manager/variant-gtk-sticky`:
   needs system GTK 4 and the offline fetch;
   it depends on `file-manager` by path,
   whose files Dylint does not lint here.
@@ -169,7 +169,7 @@ capture but the callee does not keep it).
   2 tests;
   18 capture nothing,
   9 capture).
-- `package/desktop-app/file-manager-qt`:
+- `package/file-manager/variant-qt`:
   needs the Qt 6 development packages with `qmake` (Qt 6.11.2 here),
   a C++ toolchain,
   and the offline fetch.
@@ -177,7 +177,7 @@ capture but the callee does not keep it).
   warm 0.8 s.
   1 report (source;
   captures nothing).
-- `package/desktop-app/ide`:
+- `package/ide/app`:
   `cargo check` fails on the host without the prepared runtime:
   `build.rs` panics at line 207 because `<build dir>/debug/build/runtime/manifest.json` cannot be read.
   With the runtime and the licenses file linked into the build directory as the IDE task does,
@@ -186,7 +186,7 @@ capture but the callee does not keep it).
   0 reports,
   which matches the task's current clean state (5 fulfilled `expect` attributes;
   no other diagnostics).
-- `package/desktop-app/terminal`:
+- `package/terminal/app`:
   needs `zig` 0.15.x (the root mise tool),
   the `pkg-config` font libraries of Slint,
   the zig cache directory that the root `.cargo/config.toml` sets (`ZIG_GLOBAL_CACHE_DIR`),
@@ -298,7 +298,7 @@ capture but the callee does not keep it).
   2 reports (2 source;
   1 captures nothing,
   1 captures).
-- `package/rust-module/jsonc-edit`:
+- `package/jsonc-edit/core-rust`:
   builds with nothing extra.
   Cold 1.1 s,
   warm 0.4 s.
@@ -306,7 +306,7 @@ capture but the callee does not keep it).
   43 tests;
   37 capture nothing,
   25 capture).
-- `package/rust-module/jsonc-edit.fuzz`:
+- `package/jsonc-edit/core-rust.fuzz`:
   builds with nothing extra.
   Cold 4.1 s,
   warm 0.5 s.
@@ -328,7 +328,7 @@ capture but the callee does not keep it).
   Fuzz crates hold 64 of them and bench crates 158.
 - Reports inside generated Slint code:
   5370 (5252 in `package/music-player/desktop-app`,
-  118 in `package/desktop-app/terminal`).
+  118 in `package/terminal/app`).
 - Cold time summed over the 24 packages:
   522 s,
   run one after another at 8 jobs.
@@ -352,7 +352,7 @@ capture but the callee does not keep it).
 The IDE reports nothing in generated code because it uses `slint::slint!`,
 a procedural macro,
 and the lint skips spans from external macros (`in_external_macro` in the lint's `src/lib.rs`).
-`package/desktop-app/terminal` and `package/music-player/desktop-app` use `slint::include_modules!()`,
+`package/terminal/app` and `package/music-player/desktop-app` use `slint::include_modules!()`,
 which pastes a file from the build directory,
 so its spans look like ordinary source.
 Without a change those 5370 reports cannot be rewritten by anyone,
@@ -396,7 +396,7 @@ All of this was read from `package/linter/monochromatic-lint` and the repository
   (no path means the working directory).
   It is step two of the root `lint`,
   beside dprint and the skills check.
-  `package/desktop-app/ide` and `package/wg/cli-quicker-exempt` call it from their own `lint` for their directory.
+  `package/ide/app` and `package/wg/cli-quicker-exempt` call it from their own `lint` for their directory.
   CI:
   `.github/workflows/advisory-core.yml` passes the changed `.md`,
   `.mdx` and `.rs` files;
@@ -666,7 +666,7 @@ A > D > C > B.
 - By package,
   the largest are `package/music-player/desktop-app` (1319 own),
   `package/git-policy/cli` (767),
-  `package/cli/nested-wayland-session` (221),
+  `package/nested-wayland-session/cli` (221),
   `package/forbidden-strings/cli` (155) and `package/forbidden-strings/core` (124).
   The IDE has none left.
 - For scale:

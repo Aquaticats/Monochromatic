@@ -1,4 +1,4 @@
-import type { CompletionUsage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { CompletionUsage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';

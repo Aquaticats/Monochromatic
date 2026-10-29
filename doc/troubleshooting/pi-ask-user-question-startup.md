@@ -458,10 +458,10 @@ Do not infer that the historical incident was fixed merely because these launch-
   only their diagnostic text is recorded here.
 
 Moving the helper does not change the logger's search root.
-`package/module/logger/src/sink/file.ts:174` starts from the working directory:
+`package/logger/core/src/sink/file.ts:174` starts from the working directory:
 
 ```ts
-// package/module/logger/src/sink/file.ts
+// package/logger/core/src/sink/file.ts
 const nodeModulesDir = await findNodeModulesUp({
   cwd: process.cwd(),
   stat,

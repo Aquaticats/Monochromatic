@@ -3,6 +3,11 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/git/executable` is now `package/git-executable/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
 > `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
 
@@ -2938,3 +2943,44 @@ not a regression. Attempt 2 reruns the same four files; logs `~/temp/agent/m1804
 `src/native` while it runs.
 Queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
+Flakiness is to be fixed at its cause, not rerun around (user, 05:3x). Findings:
+- `owner_lock` tests were wall-clock races (a helper holding the lock for a fixed 300 or 400 ms, a notice bounded below
+  390 ms); fixed in `7fffca336a` by ending each wait on an event (release file, kill after the slow notice). The
+  slow-notice test fails with the once-only guard removed (21 notices).
+- The two 5-second binary failures: the same commands took 16 ms (`cli-git check`, 8 real-git processes) and 37 ms
+  (mixed `reset`, 5 execs, no blocking syscall over 5 ms) on the host, so wrapper work does not explain a 5-second kill.
+  The user chose to reproduce the stall in the container (no bound change). Method: one full run split with
+  `nextest --partition count:i/12` into 12 gate-capped containers (`~/temp/agent/partition-run.ts`, unit
+  `cli-git-partition-run`, logs `partition-m1804-<i>of12.log`); the tests are the only load.
+- Commit path speed (user chose to cut it, task 67): a wrapped commit takes about 180 ms and starts 48 real-git
+  processes (the amend about 42; an earlier "90" double-counted an appended trace file), against 1 process and 0
+  fsyncs for direct git. The wrapper's own process makes 38 fsync calls per commit (77 ms), plus 11 `git config`, about
+  10 `rev-parse`, a scratch `git init`, 2 `findmnt` and a `git version`. Scripts: `measure-commit-commands.ts`,
+  `measure-fsync.ts`, `attribute-commit.ts`, `trace-histogram.ts` in `~/temp/agent`. Keep any fsync that guards crash
+  recovery and document why.
+- The mutation campaign script now reruns a baseline that fails (up to 8 attempts) and logs per attempt; it waits
+  until the flakiness work lands and `src/native` is quiet.
+Stall reproduction results (user asked to reproduce, not to change the bound; measured, in order):
+- Hypotheses that the data rejected: git thread fan-out under the container's 2-CPU quota (25 alternating rounds:
+  baseline 105 and 100 ms, `pack.threads=1` plus `core.preloadindex=false` 101 ms, `nr_throttled 0`); the 128-pid cap
+  (one wrapped commit peaks at 13 pids in every arm; the whole `native_binary` group alone peaks at 27 with no limit
+  event, at limit 128 and at 4096).
+- The first 12-way partition run (unit `cli-git-partition-run`, one full run split with `--partition count:i/12`)
+  failed everywhere with `Resource temporarily unavailable (os error 11)` on fork and thread creation, and five commit
+  tests then sat for 90 seconds; `/sys/fs/cgroup/user.slice/user-1000.slice/pids.events` shows `max 598`. The identical
+  rerun minutes later (unit `cli-git-partition-run2`) passed all 2121 tests in 8 to 11 s per container (one 30 s, the
+  design-30-s `takes_over_from_a_pusher_killed_mid_push`), peaks 21 to 32 pids, `max 0`, `nr_throttled 0`. So the
+  failure episode was a host-wide fork-failure window, not load from the containers or the gate caps; it cannot be
+  summoned on demand. Serial gate time is about 300 s; the same suite split 12 ways takes about 30 s.
+- Fault injection (`~/temp/agent/fork-fault-injection.ts`): failing each of the first 130 `clone3` and 130 `clone` calls
+  of a wrapped explicit-path commit with EAGAIN (positive control exits 0 in 365 ms) ended in a clean nonzero exit or an
+  unaffected success within 1.2 s every time; the wrapper names the command that could not start ("could not start ...
+  Resource temporarily unavailable"). No hang from a single commit. The five 90-second hangs of the first partition run
+  are not explained by this and stay open (tests: `commit::fewer_lost_races_than_configured_take_no_reservation`,
+  `commit::a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing`, three `event_path_commit` replays).
+- Wrapper cost, measured: `reset --hard` 3 ms (1 git process), mixed `reset` 37 ms (5 execs), `cli-git check` 16 ms (8),
+  so nothing there is near the 5-second bound. The commit is the heavy path (see the commit-path bullet above): sync
+  calls 43, now 41 after `perf(git-policy/cli): feed git's stdin scratch file without syncing it`.
+- Journal records cost two syncs each (file, then directory) by `write_journal_record`; lock candidates sync
+  `owner.json` before publication so a power loss cannot leave a malformed blocking record (fail-closed, would stick
+  every acquirer). Cutting those is a durability decision for the user, not made yet.

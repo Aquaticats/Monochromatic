@@ -10,7 +10,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { parseRateLimitSnapshots, } from './rate-limit-headers.ts';
 import {
   PLAIN_USAGE_WARNING_STYLE,
@@ -101,7 +101,7 @@ const HEADER_VALUE_MARKER = 'MARKER-NOT-FOR-LOGS';
 function unreadableFieldChildSource(): string {
   return `
     import { parseSyntheticRateLimitSnapshots, } from './src/synthetic-quota-headers.ts';
-    import { logger, } from '@monochromatic-dev/module-logger/ts';
+    import { logger, } from '@monochromatic-dev/logger-core/ts';
 
     parseSyntheticRateLimitSnapshots({
       headers: { 'x-synthetic-quotas': ${JSON.stringify(JSON.stringify({

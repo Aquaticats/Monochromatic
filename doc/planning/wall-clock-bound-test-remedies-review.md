@@ -87,8 +87,8 @@ any two-CPU container behavior,
 and CI history for the inventoried assertions.
 
 Built artifacts used by the probes:
-`package/module/logger/dist` from 2026-10-18 12:00,
-`package/module/test/dist` from 2026-10-04.
+`package/logger/core/dist` from 2026-10-18 12:00,
+`package/test-harness/core/dist` from 2026-10-04.
 The probes therefore tested the tree as of those builds,
 not a fresh one.
 
@@ -159,7 +159,7 @@ while "separate sequential sibling suites can still overlap".
 
 The logger test file has no `concurrency` setting at any level,
 and its root `describe` at `create-logger.unit.test.ts:354` dispatches children
-with the harness default of 16 (`package/module/test/src/descriptor.ts:65`).
+with the harness default of 16 (`package/test-harness/core/src/descriptor.ts:65`).
 Its own helper comment at line 83 says sibling tests run concurrently.
 So the two rewritten tests would install process-global fake timers while up to
 15 sibling suites keep running with real timers.
@@ -174,7 +174,7 @@ Set `concurrency: 1` on the root `describe` at line 354
 (or restructure so one sequential ancestor contains every sibling),
 and state the runtime cost in the plan.
 The same rule applies to item 1's guard test:
-`package/module/async-time/src/with-timeout.unit.test.ts` has a sibling test
+`package/async-time/core/src/with-timeout.unit.test.ts` has a sibling test
 that schedules real timers (its timeout case waits 300 ms),
 and its root at line 13 also needs `concurrency: 1`.
 The plan mentions the sequencing rule for item 3 but not for item 1.
@@ -238,10 +238,10 @@ not a bare absolute.
 
 Question 1 calls the smaller-blast-radius alternative
 "the harness `withHostTimeout` boundary".
-`withHostTimeout` lives in `package/module/logger/src/with-host-timeout.ts:26`
+`withHostTimeout` lives in `package/logger/core/src/with-host-timeout.ts:26`
 and is called from `create-logger.ts:318` and `:515`.
 The harness calls `withTimeout` directly at
-`package/module/test/src/it-attempt.ts:83` and `describe.ts:316`,
+`package/test-harness/core/src/it-attempt.ts:83` and `describe.ts:316`,
 for the attempt and suite timeouts.
 A fix in the logger wrapper would leave those two paths crossing domains,
 and the attempt timeout is one of the paths a fake-timer test exercises.
@@ -412,9 +412,9 @@ which does not rebuild `module-test/dist`.
 Add explicit rebuild steps to the verification plan:
 
 - after item 1,
-  rebuild `//package/module/test` before rerunning the no-flag probe;
+  rebuild `//package/test-harness/core` before rerunning the no-flag probe;
 - after item 1,
-  rebuild `//package/module/logger` before the logger tests
+  rebuild `//package/logger/core` before the logger tests
   (the normal `buildAndTest` path does this);
 - verify the probes report the fresh build,
   not the 2026-10-04 harness artifact.
@@ -809,7 +809,7 @@ P2 exited 0 with no throw.
 No deadlock and no exit 13 were observed.
 
 Descriptor re-execution:
-`node src/describe.unit.test.ts` from `package/module/test` printed the
+`node src/describe.unit.test.ts` from `package/test-harness/core` printed the
 `failing-suite` failure lines twice,
 four lines in total,
 confirming the double-consumption claim.

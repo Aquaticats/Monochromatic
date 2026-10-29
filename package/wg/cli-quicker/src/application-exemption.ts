@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { resolveApplicationExemptionCommand, } from './application-exemption-command.ts';
 import { BypassRouteError, } from './errors.ts';

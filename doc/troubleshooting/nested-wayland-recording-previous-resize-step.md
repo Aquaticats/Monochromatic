@@ -23,7 +23,7 @@ of the real compositor comes from.
 ## Root cause
 
 The delay is in the compositor's capture model and the toolkit's redraw gate, not in the application.
-Four facts decide it (paths under `package/cli/nested-wayland-session/`; the line numbers are those of the tag
+Four facts decide it (paths under `package/nested-wayland-session/cli/`; the line numbers are those of the tag
 `monochromatic-nested-wayland-session-v0.4.0`, and a note after the list gives the current ones):
 
 - `src/screen.rs:209`: the `resize` command calls `set_mode`, so the output mode, which is the size of every recorded
@@ -119,7 +119,7 @@ is created by the compositor's `set_mode` at command time.
 
 ## Improvement: callbacks right after the configure
 
-`screen::apply` (`package/cli/nested-wayland-session/src/screen.rs`) now calls `render::send_frame_callbacks` and
+`screen::apply` (`package/nested-wayland-session/cli/src/screen.rs`) now calls `render::send_frame_callbacks` and
 flushes the clients when a recording runs and the size or scale changed.
 It does so after `set_mode`, `reconfigure_fullscreen` and `tell_surfaces_scale`, which is the placement the
 counterfactual probe used.
@@ -142,7 +142,7 @@ The reasons, from the code:
 
 Guards:
 
-- `mise run //package/cli/nested-wayland-session:inspect:resize-callbacks` hosts an animating Slint scene, records at 2
+- `mise run //package/nested-wayland-session/cli:inspect:resize-callbacks` hosts an animating Slint scene, records at 2
   fps, resizes 150 ms after a tick, and reads the client's `WAYLAND_DEBUG` log.
   On the unchanged compositor it failed with
   `600x340: the frame callback came 337.5 ms after the configure, not at once`
@@ -169,7 +169,7 @@ sets was not rechecked.
   stale captures before the change 88.1 to 92.7 percent (mean 90.3), after it 45.2 to 56.0 percent in 7 runs (mean 49.5)
   and 91.5 percent in one run.
   The median delay from a command to the commit of its width fell from 11 to 13 ms to 6 to 7 ms in the same runs.
-- Series with the current bundle `package/desktop-app/ide/dist/monochromatic-ide` (4 runs per side, load at start
+- Series with the current bundle `package/ide/app/dist/monochromatic-ide` (4 runs per side, load at start
   8.3 to 11.4): stale captures before 90.5 to 91.7 percent, after 42.9 to 46.4 percent,
   commit delay median 11.5 to 13 ms before and 6 to 7 ms after.
 - Two runs are slow: before-r7 (92.7 percent stale, commit delay median 47 ms) and the 91.5 percent run

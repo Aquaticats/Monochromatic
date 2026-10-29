@@ -1,5 +1,10 @@
 # Issue 577 indent rule investigation: handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
 ## Purpose
 
 Close out the question "how hard is it to actually check indentation in our oxlint plugin"

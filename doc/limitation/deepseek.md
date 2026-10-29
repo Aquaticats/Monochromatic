@@ -28,10 +28,10 @@ and documentation work.
 - `doc/planning/wall-clock-bound-test-grilling-record.md`
 - `doc/handover/wall-clock-bound-unit-tests.md`
 - `doc/troubleshooting/cli-git-logger-sink-verify-timeout.md`
-- `package/module/test/`,
-  `package/module/test-sandbox/`,
-  `package/module/async-time/`,
-  `package/module/logger/`
+- `package/test-harness/core/`,
+  `package/test-harness/core-sandbox/`,
+  `package/async-time/core/`,
+  `package/logger/core/`
 - `mise.toml` test runner tasks
 - issue [1762][i1762],
   issue [1771][i1771],

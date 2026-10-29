@@ -1,6 +1,24 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-app/electron-infra` is now `package/electron-infra/core`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/desktop-app/ide` is now `package/ide/app`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten.matrix` is now `package/dependency-catalog/cli-tighten.matrix`;
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/module/async-iter` is now `package/async-iter/core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
 > `package/cli/fy` is now `package/fy/cli`.
 

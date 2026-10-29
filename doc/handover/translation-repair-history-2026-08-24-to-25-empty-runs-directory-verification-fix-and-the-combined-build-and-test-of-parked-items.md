@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: the verification command that read an empty runs directory as a green run, and the combined build and test of the parked items
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
 The verification command that stopped reading an empty runs directory as a green run,
 with its guard proof and the second copy of the lister it turned up,
 the combined build and test of all the parked items on one tree,

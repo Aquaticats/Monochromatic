@@ -8,7 +8,7 @@
  * behind the camera to the far end, so a fixed pool covers an endless
  * corridor.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   BoxGeometry,
   Group,

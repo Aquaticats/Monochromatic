@@ -140,7 +140,7 @@ including:
 - `package/git-policy/cli/src/bin.ts`;
 - `package/git-policy/cli/src/worktree-copy/entry-compare.ts`;
 - `package/git-policy/cli/src/worktree-copy/journal-lock.ts`;
-- `package/module/caught-value/src/index.ts`.
+- `package/caught-value/core/src/index.ts`.
 
 The [Node 24.0.0 release notes][node-24] identify explicit resource management and `Error.isError` as features
 added with Node 24's V8 13.6 update.

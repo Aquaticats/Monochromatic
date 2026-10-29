@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   buildRunReport,
@@ -62,7 +62,7 @@ await describe({
              */
             const options = parseCliOptions([
               '--package',
-              'package/module/fs-path',
+              'package/fs-path/core',
               '--full-suite',
               '--dry-run',
               '--shard-size',
@@ -75,7 +75,7 @@ await describe({
               '5',
               'src/trim.ts',
             ],);
-            expect(options.packagePath,).toBe('package/module/fs-path',);
+            expect(options.packagePath,).toBe('package/fs-path/core',);
             expect(options.fullSuite,).toBe(true,);
             expect(options.dryRun,).toBe(true,);
             expect(options.shardSize,).toBe(8,);
@@ -171,7 +171,7 @@ await describe({
               shardSize: 2,
               timeoutFloorMs: 5_000,
               timeoutFactor: 3,
-              packagePath: 'package/module/fs-path',
+              packagePath: 'package/fs-path/core',
             },);
             expect(manifests,).toHaveLength(3,);
             expect(manifests.map(function ids(manifest,): number {
@@ -215,7 +215,7 @@ await describe({
               },
               timeoutFloorMs: 5_000,
               timeoutFactor: 3,
-              packagePath: 'package/module/fs-path',
+              packagePath: 'package/fs-path/core',
             },);
             expect(manifests,).toHaveLength(2,);
             expect(manifests.every(function singleton(manifest,): boolean {
@@ -330,7 +330,7 @@ await describe({
              */
             const report = buildRunReport({
               outcome,
-              packagePath: 'package/module/fs-path',
+              packagePath: 'package/fs-path/core',
             },);
             expect(report.totals,).toEqual({
               killed: 1,

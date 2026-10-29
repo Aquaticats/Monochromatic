@@ -34,7 +34,7 @@
 
 - [x] Path containment: `assertWithinRoot` validates all file operations against `rootDir`
 - [x] Shared protocol types: `src/protocol.ts` eliminates type duplication between server and client
-- [x] Tagged loggers: all server and client modules use `tagged()` from `@monochromatic-dev/module-logger`
+- [x] Tagged loggers: all server and client modules use `tagged()` from `@monochromatic-dev/logger-core`
 - [x] Named parameters: all functions with 2+ params use destructured object parameters
 - [x] WebSocket close handling: pending requests rejected on disconnect (prevents promise leaks)
 - [x] Error propagation: fire-and-forget async calls wrapped with try/catch and tagged logging

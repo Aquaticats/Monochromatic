@@ -6,7 +6,7 @@
  * Dispatches a `result-select` CustomEvent when the user picks a result.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { SearchResult, } from '../../../protocol.ts';
 import {

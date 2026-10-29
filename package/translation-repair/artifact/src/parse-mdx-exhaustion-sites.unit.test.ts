@@ -19,7 +19,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { tenseCandidateGroups, } from '@monochromatic-dev/translation-repair-translate-stage';
 import { splitTargetOnlyRun, } from '@monochromatic-dev/translation-repair-translate-lane';

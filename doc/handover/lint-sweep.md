@@ -3,6 +3,29 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/module-or-throw` is now `@monochromatic-dev/or-throw-core`;
+> `package/module/kv-store` is now `package/kv-store/core`;
+> `package/module/memoize` is now `package/kv-store/memoize`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/fy` is now `package/fy/cli`;
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/terminal-exec` is now `package/terminal-exec/cli`;

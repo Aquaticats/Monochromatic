@@ -32,7 +32,7 @@ Because there is no workspace,
  file-enforcer,
  becomes the canonical source
  instead.
- It already depends on `@monochromatic-dev/module-toml-edit` (a
+ It already depends on `@monochromatic-dev/toml-edit-core` (a
  comment-preserving TOML editor) and ships `getTomlProperty` plus
  `overwriteTomlKey`,
  so property-level edits that preserve each crate's bespoke
@@ -166,7 +166,7 @@ Because ownership is self-healing,
    guarded keyed
   enforcement,
    block insertion):
-   `package/dev-script/file-enforcer/src/cargo/`,
+   `package/file-enforcer/core/src/cargo/`,
    exported from the package
    index,
    with unit tests.

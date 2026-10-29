@@ -52,7 +52,7 @@ The investigation corrected the record:
 - The inventory is seven real-elapsed upper-bound assertions in five files.
   The issue's line-based probe missed the two tightest:
   `FAST_FLUSH_MS = 40` at
-  `package/module/logger/src/create-logger.unit.test.ts:811` and `:1076`,
+  `package/logger/core/src/create-logger.unit.test.ts:811` and `:1076`,
   where the assertion spans two lines.
 - The sites are three families,
   not one defect:
@@ -154,7 +154,7 @@ Not proposed:
 ### Item 1: `withTimeout` domain-paired clear (issue 1771)
 
 File:
-`package/module/async-time/src/with-timeout.ts`
+`package/async-time/core/src/with-timeout.ts`
 (global `setTimeout` at line 56;
 disposer clears through the global `clearTimeout`).
 
@@ -167,7 +167,7 @@ so a global replacement mid-race cannot cross clock domains.
 The reviewer question below covers the alternative of fixing at the harness
 `withHostTimeout` boundary instead.
 
-Guard test (in `package/module/async-time`):
+Guard test (in `package/async-time/core`):
 install sinon fake timers **without** `shouldClearNativeTimers`,
 start and complete a `withTimeout` race whose timer is still pending at completion,
 assert clean disposal with no throw.
@@ -188,7 +188,7 @@ and the logger suite after the change.
 ### Item 2: describe concurrency proof without a clock
 
 File:
-`package/module/test/src/describe.unit.test.ts`,
+`package/test-harness/core/src/describe.unit.test.ts`,
 test `runs children concurrently` (bound at line 58).
 
 Change:
@@ -205,7 +205,7 @@ the review questions cover the value.
 Sketch of the replacement body:
 
 ```ts
-// package/module/test/src/describe.unit.test.ts (sketch)
+// package/test-harness/core/src/describe.unit.test.ts (sketch)
 it({
   name: 'runs children concurrently',
   fn: async () => {
@@ -241,7 +241,7 @@ and contention cannot lower the peak of timer-held overlapping bodies.
 ### Item 3: logger fast-flush proofs on a virtual clock
 
 File:
-`package/module/logger/src/create-logger.unit.test.ts`,
+`package/logger/core/src/create-logger.unit.test.ts`,
 tests at lines 811 and 1076 (`FAST_FLUSH_MS = 40` against a 60 ms deadline).
 
 Change:
@@ -355,13 +355,13 @@ a quadratic regression on 4000 prefixes takes seconds and trips the bound reliab
 No behavior change.
 The optional ratio-scaling rewrite
 (the `deep / shallow` pattern in
-`package/module/deepmerge-ts.fuzz/src/scale-complexity.local.unit.test.ts`)
+`package/upstream-fork/deepmerge-ts.fuzz/src/scale-complexity.local.unit.test.ts`)
 is explicitly not planned:
 the measured slack already makes the absolute bound robust.
 
 ### Item 7: documentation updates
 
-- `package/module/test/README.md`,
+- `package/test-harness/core/README.md`,
   `Fake timers` section:
   add the single-consumption rule for descriptors,
   the `concurrency: 1` sequencing rule for clock readers and writers,
@@ -369,7 +369,7 @@ the measured slack already makes the absolute bound robust.
   (kept as general guidance even after [#1771][i1771] lands,
   because tests' own native timers can still cross domains;
   reviewer question below).
-- `package/module/test/README.md`:
+- `package/test-harness/core/README.md`:
   new section on duration upper bounds,
   distinguishing surrogate bounds
   (rewrite as observations:
@@ -382,7 +382,7 @@ the measured slack already makes the absolute bound robust.
   derive the ceiling from the slower alternative's constant;
   document the slack),
   mirroring the existing lower-bound recipe in `Duration and hang assertions`.
-- `package/module/test/README.md`:
+- `package/test-harness/core/README.md`:
   document descriptor re-execution semantics
   (every consumption re-runs;
   existing self-test output shows duplicated `[FAIL]` lines from double consumption).
@@ -497,7 +497,7 @@ Concurrency proof under a fake clock (validates the item 2 alternative in questi
 
 ```js
 // probe: fake-clock concurrency proof (single descriptor consumption!)
-import { describe, expect, it } from '<repo>/package/module/test/dist/final/node/index.mjs';
+import { describe, expect, it } from '<repo>/package/test-harness/core/dist/final/node/index.mjs';
 
 const timerChild = name =>
   it({ name, fn: async () => new Promise(r => { setTimeout(r, 100); }) });
@@ -547,8 +547,8 @@ Logger flush proof on a virtual clock (validates the item 3 pattern):
 
 ```js
 // probe: zero-virtual-advance second flush
-import { describe, expect, it } from '<repo>/package/module/test/dist/final/node/index.mjs';
-import { createLogger } from '<repo>/package/module/logger/dist/final/node/index.mjs';
+import { describe, expect, it } from '<repo>/package/test-harness/core/dist/final/node/index.mjs';
+import { createLogger } from '<repo>/package/logger/core/dist/final/node/index.mjs';
 
 await describe({
   name: 'probe',

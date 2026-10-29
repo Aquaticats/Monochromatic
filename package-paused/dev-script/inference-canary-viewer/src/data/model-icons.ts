@@ -25,7 +25,7 @@ import zhipuSvg from '@lobehub/icons-static-svg/icons/zhipu-color.svg' with {
   type: 'text',
 };
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Kimi SVG has white (#fff) fills that are invisible on light backgrounds,

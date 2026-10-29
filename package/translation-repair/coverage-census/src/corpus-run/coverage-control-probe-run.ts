@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';

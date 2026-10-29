@@ -127,14 +127,14 @@ Read from `package/config/tsdown/src/` on 2026-07-15:
    - `git-policies/cli`:
       bin with shebang,
       run a real command.
-   - `module/toml-edit`:
+   - `toml-edit/core`:
       neutral flavor,
       inlined workspace deps,
       tests green.
-   - `webapp-productivity/wc`:
+   - `wc/app`:
       client flavor,
       page loaded via `agent-browser`.
-   - `desktop-app/file-manager-electron`:
+   - `file-manager/variant-electron`:
       preload CJS,
       exercised through the app.
 2. Sweep per flavor on `main` after pilot passes,
@@ -166,7 +166,7 @@ Read from `package/config/tsdown/src/` on 2026-07-15:
 All six representative cells pass on raw rolldown 1.1.5 with
 `rolldown-plugin-dts` 0.27.9 (`generator: 'oxc'`):
 
-- `module/toml-edit` (neutral):
+- `toml-edit/core` (neutral):
    built,
    dist smoke-verified (parse plus
   byte-exact roundtrip),
@@ -183,12 +183,12 @@ All six representative cells pass on raw rolldown 1.1.5 with
    shebang and exec
   bit preserved,
    real commands exercised from the built bin.
-- `webapp-productivity/wc` (client):
+- `wc/app` (client):
    page assembled and driven via
   `agent-browser`,
    zero console errors,
    live stats computed.
-- `desktop-app/file-manager-electron` (preload CJS):
+- `file-manager/variant-electron` (preload CJS):
    built through the
   swapped mise task;
    the wayland boundary test passes on the merged

@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Credential views
 // Reads a reply text the way a mechanical decoder would, keeping for every unit

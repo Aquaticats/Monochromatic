@@ -239,12 +239,12 @@ These all point at final artifacts,
 - `file-enforcer.config.ts` names the same binary,
    plus the `.exe` spelling for Windows.
 - `package/forbidden-strings/cli/mise.toml` names the same release binary.
-- `package/cli/nested-wayland-session/mise.toml` runs `./target/release/monochromatic-nested-wayland-session`.
-- `package/desktop-app/file-manager/mise.toml` runs `./target/debug/monochromatic-file-manager`.
-- `package/desktop-app/file-manager-qt/mise.toml` runs `./target/debug/monochromatic-file-manager-qt`.
-- `package/desktop-app/file-manager-gtk-sticky/mise.toml` runs
+- `package/nested-wayland-session/cli/mise.toml` runs `./target/release/monochromatic-nested-wayland-session`.
+- `package/file-manager/app/mise.toml` runs `./target/debug/monochromatic-file-manager`.
+- `package/file-manager/variant-qt/mise.toml` runs `./target/debug/monochromatic-file-manager-qt`.
+- `package/file-manager/variant-gtk-sticky/mise.toml` runs
    `./target/debug/monochromatic-file-manager-gtk-sticky`.
-- `package/desktop-app/file-manager-gtk-sticky/tests/wayland_boundary.rs` joins
+- `package/file-manager/variant-gtk-sticky/tests/wayland_boundary.rs` joins
    `target/release/monochromatic-file-manager-gtk-sticky` and a sibling package's
    `target/release/monochromatic-nested-wayland-session`.
 - `package/wg/cli-quicker/src/privilege-context-data.unit.test.ts` and
@@ -262,7 +262,7 @@ The root `.gitignore` already ignores `target/` globally.
  and `incremental/` inside `target/debug/`.
 Measured across the repository's `target/debug` and `target/release` directories,
  that is 20 GB,
- with the largest single trees being `package/cli/nested-wayland-session/target` at 6.3G,
+ with the largest single trees being `package/nested-wayland-session/cli/target` at 6.3G,
  `package/forbidden-strings/cli.fuzz/target` at 5.8G,
  `package/linter/rust/target` at 4.4G,
  and `package/forbidden-strings/cli/target` at 3.1G.
@@ -321,7 +321,7 @@ the native development libraries are present,
  and falls back to a Fedora podman container otherwise.
 The fallback does not see this configuration:
 
-- `package/music-player/desktop-app/Containerfile` and `package/desktop-app/terminal/Containerfile` both
+- `package/music-player/desktop-app/Containerfile` and `package/terminal/app/Containerfile` both
    set `ENV CARGO_HOME=/cargo`.
 - `package/music-player/desktop-app/mise.toml` mounts the package directory at `/work` and a named
    volume at `/cargo`,

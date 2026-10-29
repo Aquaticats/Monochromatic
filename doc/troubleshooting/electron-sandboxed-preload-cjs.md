@@ -9,7 +9,7 @@ An all-ESM TypeScript package therefore needs its preload bundled separately to 
  or the
 bridge never installs and the renderer sees no exposed API.
 
-Encountered while building `package/desktop-app/file-manager-electron` (the repo's prior
+Encountered while building `package/file-manager/variant-electron` (the repo's prior
 Electron package,
  `electron-counter`,
  avoided preloads entirely,

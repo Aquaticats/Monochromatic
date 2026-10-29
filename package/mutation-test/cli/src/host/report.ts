@@ -6,7 +6,7 @@
  
  @example
  ```ts
- const report = buildRunReport({ outcome, packagePath: 'package/module/fs-path' });
+ const report = buildRunReport({ outcome, packagePath: 'package/fs-path/core' });
  ```
  */
 

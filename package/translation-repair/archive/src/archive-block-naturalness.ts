@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { reviewAbsoluteNaturalness, } from './absolute-naturalness-review-stage.ts';

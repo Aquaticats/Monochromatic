@@ -1,8 +1,8 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import type {
   JsonSchemaResponseFormat,

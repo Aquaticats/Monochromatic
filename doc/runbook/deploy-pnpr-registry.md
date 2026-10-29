@@ -208,9 +208,9 @@ The URLs in steps 2 and 3 are the `0.1.0-alpha.11` root surface.
    prints `{}`.
 2. `curl --silent --write-out ' %{http_code}\n' 'https://pnpr.c.aquati.cat/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'`
    prints `Not Found 404` before the first publish run,
-   or a JSON document containing `"name":"@monochromatic-dev/module-or-throw"` after it.
+   or a JSON document containing `"name":"@monochromatic-dev/or-throw-core"` after it.
 3. `curl --silent --request PUT --header 'content-type: application/json' --data '{}' --write-out ' %{http_code}\n' 'https://pnpr.c.aquati.cat/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'`
-   prints `Authentication required for package "@monochromatic-dev/module-or-throw" 401`.
+   prints `Authentication required for package "@monochromatic-dev/or-throw-core" 401`.
    The package name in that message proves the encoded slash reached pnpr through Caddy.
 4. `curl --silent --write-out ' %{http_code}\n' https://pnpr.c.aquati.cat/left-pad`
    prints `Not Found 404`,
@@ -377,9 +377,9 @@ TODO | DONE
    contains `pnpr_build_info{version="0.1.0-alpha.16"}`
    (the version of the base you moved to).
 4. `curl --silent --write-out ' %{http_code}\n' 'https://pnpr.c.aquati.cat/npm/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'`
-   prints a JSON document containing `"name":"@monochromatic-dev/module-or-throw" 200`.
+   prints a JSON document containing `"name":"@monochromatic-dev/or-throw-core" 200`.
 5. `curl --silent --request PUT --header 'content-type: application/json' --data '{}' --write-out ' %{http_code}\n' 'https://pnpr.c.aquati.cat/npm/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'`
-   prints `Authentication required for package "@monochromatic-dev/module-or-throw" 401`.
+   prints `Authentication required for package "@monochromatic-dev/or-throw-core" 401`.
 6. `curl --silent --write-out '%{http_code}\n' --output /dev/null 'https://pnpr.c.aquati.cat/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'`
    prints `404`:
     the root npm surface is gone on this base.

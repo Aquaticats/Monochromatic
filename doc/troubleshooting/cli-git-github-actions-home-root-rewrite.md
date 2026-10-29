@@ -34,7 +34,7 @@ This was repository code behavior,
 not a GitHub Actions checkout or Git failure.
 
 The pre-fix implementation in commit `ac70fa47c^`,
-`package/module/fs-path/src/root-discovery.ts:578` to `588`,
+`package/fs-path/core/src/root-discovery.ts:578` to `588`,
 rewrote every root beginning with `/home/`:
 
 ```ts
@@ -61,7 +61,7 @@ this changed an existing repository root into a different path identity.
 The resulting nonexistent candidate was treated as config absence,
 which made trust return `trust-failed`.
 
-The fix in `package/module/fs-path/src/root-discovery.ts:635` to `642` returns the path that actually matched:
+The fix in `package/fs-path/core/src/root-discovery.ts:635` to `642` returns the path that actually matched:
 
 ```ts
 const root = await walkUpRoot({
@@ -91,16 +91,16 @@ and `git rev-parse --show-toplevel` were all valid before the package root finde
 - Failing runner image:
    `ubuntu-24.04` version `20260705.232.1`.
 - Regression test:
-   `package/module/fs-path/src/find-monorepo-root.unit.test.ts`.
+   `package/fs-path/core/src/find-monorepo-root.unit.test.ts`.
 - Hosted harness:
    `.github/workflows/final-newline.yml`.
 
 Run local package verification with:
 
 ```sh
-mise run //package/module/fs-path:buildAndTest
-mise run //package/module/fs-path:lint:types
-mise run //package/module/fs-path:format:oxlint
+mise run //package/fs-path/core:buildAndTest
+mise run //package/fs-path/core:lint:types
+mise run //package/fs-path/core:format:oxlint
 ```
 
 The regression fixture starts under logical `$HOME` when it uses `/home/...`.

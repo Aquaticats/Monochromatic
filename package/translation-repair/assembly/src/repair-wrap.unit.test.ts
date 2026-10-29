@@ -24,8 +24,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { wrapRepairOutcomes, } from '../dist/final/node/index.mjs';
 import { preparedPairAt, } from '@monochromatic-dev/translation-repair-slice-reading/ts/prepared-pair-at.test-fixture.ts';

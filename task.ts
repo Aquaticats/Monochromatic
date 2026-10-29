@@ -1,5 +1,5 @@
 /**
- Root task definitions for `@monochromatic-dev/dev-script-task-cli`.
+ Root task definitions for `@monochromatic-dev/monorepo-task-cli`.
 
  These bodies are the mise-free equivalents of the root `mise.toml` tasks CI
  used to run through `mise run`. Templates hold the shared package-task bodies
@@ -31,11 +31,11 @@ import {
 import {
   loadPackageTasks,
   runTaskCli,
-} from './package/dev-script/task-cli/src/load.ts';
+} from './package/monorepo-task/cli/src/load.ts';
 import type {
   RootTaskFile,
   TaskDefinition,
-} from './package/dev-script/task-cli/src/types.ts';
+} from './package/monorepo-task/cli/src/types.ts';
 
 
 
@@ -50,7 +50,7 @@ const REPO_ROOT = import.meta.dirname;
  Runs a workspace package's node entry: built `dist/final/node/<entry>.mjs` when
  present, else `src/<entry>.ts` through the current node.
 
- @param packagePath - Path like `package/dev-script/task-util`.
+ @param packagePath - Path like `package/monorepo-task/core-exec`.
  @param entryName - Entry base name like `oxlint-wrapper`.
  @param entryArgs - Arguments passed to the entry.
  @throws When neither built nor source entry exists.
@@ -200,7 +200,7 @@ function parseUsageArgs(raw: string): string[] {
 /**
  Runs every direct child task of a package task like `build:js` in parallel.
 
- @param taskName - Full task name like `//package/module/logger:build:js`.
+ @param taskName - Full task name like `//package/logger/core:build:js`.
  @throws When a child task is missing or any child fails.
  */
 async function fanoutChildren(taskName: string): Promise<void> {
@@ -290,19 +290,19 @@ await runTestFiles(files, [])
     description: 'Lint with Oxlint',
     run: [
       { shell: 'node --input-type=module-typescript -e', run: 'ensureOxlintConfig()', },
-      { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/dev-script/task-util\', \'oxlint-wrapper\', [])', },
+      { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/monorepo-task/core-exec\', \'oxlint-wrapper\', [])', },
     ],
   },
   'format:oxlint': {
     description: 'Auto-fix this package with Oxlint using its package-local tsconfig',
     run: [
       { shell: 'node --input-type=module-typescript -e', run: 'ensureOxlintConfig()', },
-      { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/dev-script/task-util\', \'oxlint-wrapper\', [\'--fix\'])', },
+      { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/monorepo-task/core-exec\', \'oxlint-wrapper\', [\'--fix\'])', },
     ],
   },
   'lint:types': {
     description: 'TypeScript',
-    run: { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/dev-script/task-util\', \'tsc-filter\', [\'--build\'])', },
+    run: { shell: 'node --input-type=module-typescript -e', run: 'runWorkspaceNode(\'package/monorepo-task/core-exec\', \'tsc-filter\', [\'--build\'])', },
   },
   'watch:build': {
     description: 'Watch-build this package, fanout to watch:build:* tasks',
@@ -334,15 +334,15 @@ await runTestFiles(files, [])
 const tasks: Record<string, TaskDefinition> = {
   'toolchain:sync': {
     description: 'Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)',
-    run: 'node package/dev-script/file-enforcer/src/toolchain/sync.ts',
+    run: 'node package/file-enforcer/core/src/toolchain/sync.ts',
   },
   'toolchain:status': {
     description: 'Print observed versus locked tool versions and exit non-zero on drift',
-    run: 'node package/dev-script/file-enforcer/src/toolchain/status.ts',
+    run: 'node package/file-enforcer/core/src/toolchain/status.ts',
   },
   'toolchain:update': {
     description: 'Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing',
-    run: 'node package/dev-script/file-enforcer/src/toolchain/update.ts',
+    run: 'node package/file-enforcer/core/src/toolchain/update.ts',
   },
   'bootstrap': {
     description: 'Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)',
@@ -366,11 +366,11 @@ const tasks: Record<string, TaskDefinition> = {
   },
   'rust:update': {
     description: 'Update every first-party Cargo.lock under rust-catalog.toml\'s release-age and trust policy (pnpm -r --no-save update)',
-    run: 'node package/dev-script/rust-catalog-update/src/cli.ts',
+    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts',
   },
   'rust:verify': {
     description: 'Check every locked Rust registry version against rust-catalog.toml\'s trust policy (CI)',
-    run: 'node package/dev-script/rust-catalog-update/src/cli.ts --verify',
+    run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts --verify',
   },
   'lint:monochromatic-lint': {
     description: 'Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths',

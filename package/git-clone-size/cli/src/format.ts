@@ -1,4 +1,4 @@
-import { formatBytes, } from '@monochromatic-dev/module-numeric-format/ts';
+import { formatBytes, } from '@monochromatic-dev/numeric-format-core/ts';
 
 import type {
   EstimateRange,

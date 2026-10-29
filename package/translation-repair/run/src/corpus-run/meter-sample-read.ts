@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { isIsoStampText, } from '@monochromatic-dev/translation-repair-markup/ts';
 import type { MeterState, } from '@monochromatic-dev/translation-repair-provider/ts';

@@ -4,8 +4,8 @@ import {
   outcomesEqual,
 } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   assertDeliveryCoherent,
   DeliveryCoherenceError,

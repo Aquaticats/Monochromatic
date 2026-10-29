@@ -1,0 +1,52 @@
+[tasks.build]
+description = "Build the monochromatic-jsonc-edit library in release mode"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the monochromatic-jsonc-edit library in debug mode"
+run = "cargo build"
+
+[tasks.lint]
+description = "cargo check (no codegen)"
+run = "cargo check"
+
+[tasks."lint:types"]
+description = "Type-level gate for this crate: cargo check plus clippy with warnings denied"
+run = ["cargo check", "cargo clippy --release --all-targets -- -D warnings"]
+
+[tasks."lint:clippy"]
+description = "Run clippy with warnings denied"
+run = "cargo clippy --release --all-targets -- -D warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.package]
+description = "Build the crates.io package tarball"
+run = "cargo package"
+
+[tasks.test]
+description = "cargo nextest run in release mode"
+run = "cargo nextest run --release"
+
+[tasks."test:debug"]
+description = "cargo nextest run in debug mode for fast iteration"
+run = "cargo nextest run"
+
+[tasks."test:shared-fixtures"]
+description = "Fail when the shared JSONC conformance fixture copies drift"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { createHash } = await import('node:crypto')
+const { readFile } = await import('node:fs/promises')
+const { resolve } = await import('node:path')
+const root = resolve(process.cwd(), '../../..')
+const canonical = resolve(root, 'package/jsonc-edit/core-ts.conformance/fixtures/jsonc-conformance.json')
+const copy = resolve(root, 'package/jsonc-edit/core-rust/fixtures/jsonc-conformance.json')
+const digest = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
+const canonicalDigest = await digest(canonical)
+const copyDigest = await digest(copy)
+if (canonicalDigest !== copyDigest) { throw new Error(`shared JSONC conformance fixture drift: ${canonicalDigest} != ${copyDigest}`) }
+console.log(`shared JSONC conformance fixture matches: ${canonicalDigest}`)
+"""

@@ -122,7 +122,7 @@ Propose only when the app is desktop-only,
 
 ### Worked example: one exception and one refusal in the same app
 
-The read-only IDE in `package/desktop-app/ide`,
+The read-only IDE in `package/ide/app`,
 decided by the user on 2026-10-05.
 
 - Sidebar divider:

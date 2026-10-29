@@ -15,7 +15,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { poolBandLines, } from '../../dist/final/node/index.mjs';
 import { bandedEntryOf, } from './banded-entry.test-fixture.ts';

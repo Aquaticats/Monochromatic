@@ -19,7 +19,7 @@ import { createHash, } from 'node:crypto';
 import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { FetchedReference, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';

@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { SliceValidation, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 

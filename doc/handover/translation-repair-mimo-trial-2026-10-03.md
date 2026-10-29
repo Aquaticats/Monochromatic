@@ -1,5 +1,10 @@
 # Translation repair: trial handover to MiMo, 2026-10-03
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-or-throw` is now `@monochromatic-dev/or-throw-core`.
+
 Part of the [translation repair handover](translation-repair.md).
 
 Claude Code wrote this on 2026-10-03 (UTC) for MiMo 2.6 Pro,

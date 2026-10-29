@@ -11,10 +11,10 @@ Read that decision first;
 - `mise run toolchain:sync`:
  converge every tool to `toolchain.lock.json`.
  Alias target of `bootstrap` and `prepare:android`.
- Also runnable as `node package/dev-script/file-enforcer/src/toolchain/sync.ts`.
+ Also runnable as `node package/file-enforcer/core/src/toolchain/sync.ts`.
 - `mise run toolchain:status`:
  print observed versus locked versions and exit non-zero on drift.
- Also runnable as `node package/dev-script/file-enforcer/src/toolchain/status.ts`.
+ Also runnable as `node package/file-enforcer/core/src/toolchain/status.ts`.
 - `mise run toolchain:update`:
  re-resolve the floating requests and channel stamps to their current
  upstream versions,
@@ -24,7 +24,7 @@ Read that decision first;
  `--check` reports and exits 1 when anything would move,
  writing nothing.
  Explicit pins never move without a plan edit.
- Also runnable as `node package/dev-script/file-enforcer/src/toolchain/update.ts`.
+ Also runnable as `node package/file-enforcer/core/src/toolchain/update.ts`.
  Resolution sources per family
  (each probe-verified,
  maintainer policy 2026-10-26):
@@ -38,7 +38,7 @@ Read that decision first;
  `rust` follows the rustup nightly channel date,
  and `android-sdk` follows Google's cmdline-tools revision
  (its `androidPackages` pins stay fixed).
-- `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts`:
+- `node package/file-enforcer/core/src/toolchain/bin-paths.ts`:
  print the exposure directory,
  PATH directories,
  and one absolute path per linked binary as JSON
@@ -85,7 +85,7 @@ Top level:
 ```jsonc
 {
   "schemaVersion": 1,
-  "generatedFrom": "package/dev-script/file-enforcer/src/toolchain/plan.ts",
+  "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",
   "tools": {
     "node": {
       "request": { "track": "latest" },
@@ -308,7 +308,7 @@ The cutover is a hard switch that follows a successful full sync on the machine
  hooks,
  `[vars]`,
  and `env_shell_expand`.
-2. Regenerate `mise.toml` with `node package/dev-script/file-enforcer/src/cli.ts`.
+2. Regenerate `mise.toml` with `node package/file-enforcer/core/src/cli.ts`.
 3. Delete `mise.lock`;
  retire `lock:mise`;
  repoint `bootstrap` to `toolchain:sync`.
@@ -321,9 +321,9 @@ The cutover is a hard switch that follows a successful full sync on the machine
 
 ## Consumers
 
-- `package/desktop-app/ide/src/language/mise/*` becomes `language/toolchain/*`,
+- `package/ide/app/src/language/mise/*` becomes `language/toolchain/*`,
  querying `bin-paths.ts` output instead of `mise config ls --json` / `mise bin-paths`.
-- `package/dev-script/vm-builder/Containerfile` and
+- `package/vm-builder/cli/Containerfile` and
  `package/config/dotfiles/mise/config.toml` stop seeding tool management.
 - Root `Dockerfile`,
  `package/mutation-test/cli/runtime/Containerfile` install from `toolchain.lock.json` pins

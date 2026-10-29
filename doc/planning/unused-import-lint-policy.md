@@ -51,7 +51,7 @@ By package, the ones with more than two:
      4  package/pi-plugin/advisor/src
      4  package/pi-plugin/auto-mode/src
      3  package/wg/cli-quicker/src
-     3  package/dev-script/vm-builder/src
+     3  package/vm-builder/cli/src
 
 THE MEASUREMENT UNDER-COUNTS, deliberately, and the direction matters.
 A name mentioned in a comment or inside a string reads as used, so the real number is at least

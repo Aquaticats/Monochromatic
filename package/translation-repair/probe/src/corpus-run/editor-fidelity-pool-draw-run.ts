@@ -1,6 +1,6 @@
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import {
   type CommandLineOf,
   type FlagValue,

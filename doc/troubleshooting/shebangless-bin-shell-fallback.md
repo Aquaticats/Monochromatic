@@ -178,7 +178,7 @@ Patterns that fail,
    Tradeoffs:
     discipline only,
     nothing enforces it outside the preset;
-   direct `.ts` `bin` entries (`package/dev-script/watch-restart` `src/cli.ts`,
+   direct `.ts` `bin` entries (`package/watch-restart/cli` `src/cli.ts`,
    `package/claude-code-plugin/source` `src/cli/spawn-claude.ts`) need it in the source itself
    because no build rewrites them.
 3. Explicit interpreter at the call site (`node plain.mjs` runs the shebangless file,

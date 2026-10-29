@@ -30,12 +30,12 @@ The repository policy at `package/config/oxlint/src/rule/restriction.ts:214-215`
 The equivalent fail-loud replacement is:
 
 ```typescript
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 nonNullishOrThrow(rows[0],).outcome = value;
 ```
 
-A consuming package needs `@monochromatic-dev/module-or-throw: "workspace:*"`
+A consuming package needs `@monochromatic-dev/or-throw-core: "workspace:*"`
 when it does not already declare that dependency.
 
 ## Root cause
@@ -100,11 +100,11 @@ not evidence that this repository changed its preferred remediation.
 
 ### The repository's diagnostic wrapper now owns the local guidance
 
-`package/dev-script/task-util/src/oxlint-guidance.ts:44` defines `RULE_GUIDANCE`,
+`package/monorepo-task/core-exec/src/oxlint-guidance.ts:44` defines `RULE_GUIDANCE`,
 which owns project-specific additions to Oxlint diagnostics.
 The implemented fix adds the `no-non-null-assertion` entry at the same file's line 53.
 
-`package/dev-script/task-util/src/oxlint-guidance.ts:134-136` keeps returning a sentinel for an absent entry:
+`package/monorepo-task/core-exec/src/oxlint-guidance.ts:134-136` keeps returning a sentinel for an absent entry:
 
 ```typescript
 const ruleGuidance = RULE_GUIDANCE[ruleName];
@@ -113,7 +113,7 @@ if (ruleGuidance === undefined)
 ```
 
 When guidance exists,
-`package/dev-script/task-util/src/oxlint-augment.ts:656-660` appends it to Oxlint's existing help line:
+`package/monorepo-task/core-exec/src/oxlint-augment.ts:656-660` appends it to Oxlint's existing help line:
 
 ```typescript
 if ((activeGuidance !== NO_RULE) && (!injected)
@@ -125,7 +125,7 @@ if ((activeGuidance !== NO_RULE) && (!injected)
 ```
 
 When Oxlint emits no help line,
-`package/dev-script/task-util/src/oxlint-augment.ts:664-670` injects one at the diagnostic boundary.
+`package/monorepo-task/core-exec/src/oxlint-augment.ts:664-670` injects one at the diagnostic boundary.
 The missing registry entry was therefore the local defect.
 Commit `07362d55d` added it without changing the parser,
 rule configuration,
@@ -149,7 +149,7 @@ HEAD:   c42d6397eab5b2d5bb2bd6746c57bc2a9cad21bd
 ### Runnable repository-boundary harness
 
 Use a disposable worktree with this fixture at
-`package/dev-script/task-util/src/issue-442-repro.ts`:
+`package/monorepo-task/core-exec/src/issue-442-repro.ts`:
 
 ```typescript
 /**
@@ -171,7 +171,7 @@ With workspace dependencies available in that disposable worktree,
 run the same consumer boundary used by the repository:
 
 ```bash
-mise run //package/dev-script/task-util:lint:oxlint
+mise run //package/monorepo-task/core-exec:lint:oxlint
 ```
 
 Before implementation,
@@ -179,11 +179,11 @@ the output contained Oxlint's optional-chaining help and no mention of `nonNulli
 The command exited nonzero because the fixture intentionally violated the rule.
 
 The implemented registry entry was built and exercised through
-`package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs`.
+`package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs`.
 The same diagnostic became:
 
 ```text
-help: Consider using the optional chain operator `?.` instead. `x!.y` is equivalent to `x.y` at runtime and will throw if `x` is `null` or `undefined`, but `x?.y` will return `undefined`. Repository policy: preserve fail-loud semantics. Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/module-or-throw/ts`. Do not use optional chaining unless a missing value is intentionally accepted.
+help: Consider using the optional chain operator `?.` instead. `x!.y` is equivalent to `x.y` at runtime and will throw if `x` is `null` or `undefined`, but `x?.y` will return `undefined`. Repository policy: preserve fail-loud semantics. Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/or-throw-core/ts`. Do not use optional chaining unless a missing value is intentionally accepted.
 ```
 
 The implementation uses this registry value:
@@ -192,7 +192,7 @@ The implementation uses this registry value:
 'no-non-null-assertion': {
   guidance: [
     'Repository policy: preserve fail-loud semantics.',
-    'Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/module-or-throw/ts`.',
+    'Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/or-throw-core/ts`.',
     'Do not use optional chaining unless a missing value is intentionally accepted.',
   ]
     .join(' ',),
@@ -216,10 +216,10 @@ For the standalone `issue442Rows[0]!` fixture,
 the built wrapper retained Oxlint's note and injected this separate line:
 
 ```text
-help: Repository policy: preserve fail-loud semantics. Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/module-or-throw/ts`. Do not use optional chaining unless a missing value is intentionally accepted.
+help: Repository policy: preserve fail-loud semantics. Replace `value!` with `nonNullishOrThrow(value,)` from `@monochromatic-dev/or-throw-core/ts`. Do not use optional chaining unless a missing value is intentionally accepted.
 ```
 
-`mise run //package/dev-script/task-util:lint:types` passed after implementation.
+`mise run //package/monorepo-task/core-exec:lint:types` passed after implementation.
 The package's `lint:oxlint` task still reports seven pre-existing
 `test-import(require-eventual-artifact)` errors.
 A disposable worktree at parent commit `e815bdff5` reproduced the same seven errors,
@@ -228,7 +228,7 @@ so this change added no Oxlint finding.
 The existing helper verification passed through:
 
 ```bash
-mise run //package/module/or-throw:test:unit -- package/module/or-throw/src/non-nullish-or-throw.unit.test.ts
+mise run //package/or-throw/core:test:unit -- package/or-throw/core/src/non-nullish-or-throw.unit.test.ts
 ```
 
 It covered non-nullish pass-through,
@@ -282,18 +282,18 @@ The local wrapper now injects repository guidance.
 
 ### Implemented project guidance at the existing wrapper boundary
 
-`RULE_GUIDANCE` in `package/dev-script/task-util/src/oxlint-guidance.ts` now contains
+`RULE_GUIDANCE` in `package/monorepo-task/core-exec/src/oxlint-guidance.ts` now contains
 `no-non-null-assertion` guidance.
 `oxlint-augment.ts` remains generic.
-Focused tests in `package/dev-script/task-util/src/oxlint-augment.unit.test.ts` cover the existing-help
+Focused tests in `package/monorepo-task/core-exec/src/oxlint-augment.unit.test.ts` cover the existing-help
 and no-help variants.
 
 This is the implemented repository fix.
 It uses the mechanism documented at
-`package/dev-script/task-util/README.md:159-165`,
+`package/monorepo-task/core-exec/README.md:159-165`,
 which says repository lint runs through `task-oxlint` and that the wrapper augments diagnostics without removing them.
 The location also keeps private repository policy out of the published config package:
-`package/dev-script/task-util/package.json:6` is private,
+`package/monorepo-task/core-exec/package.json:6` is private,
 while `package/config/oxlint/package.json:3` is published.
 
 Use the bare `no-non-null-assertion` registry key without a header guard.
@@ -374,7 +374,7 @@ The filing constraints resolve as follows:
     The actionable defect is that Monochromatic's existing guidance registry lacks its repository-specific replacement.
 2.  Can upstream fix it?
     Upstream can revise generic wording,
-    but it cannot direct users to `@monochromatic-dev/module-or-throw/ts`.
+    but it cannot direct users to `@monochromatic-dev/or-throw-core/ts`.
     It cannot complete this repository's fix.
 3.  Are they supporting this use case?
     Oxlint supports detecting non-null assertions.
@@ -407,7 +407,7 @@ Title: `typescript/no-non-null-assertion` should recommend a repository-specific
 
 Do not file this issue upstream.
 The requested behavior depends on Monochromatic's private policy and
-`@monochromatic-dev/module-or-throw/ts` package.
+`@monochromatic-dev/or-throw-core/ts` package.
 Oxlint 1.78.0 already explains that optional chaining changes runtime behavior.
 The missing actionable guidance belongs in Monochromatic's `task-oxlint` wrapper,
 not in Oxc.

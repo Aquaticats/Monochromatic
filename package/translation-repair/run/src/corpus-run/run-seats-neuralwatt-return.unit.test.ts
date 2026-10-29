@@ -18,7 +18,7 @@ import {
   type DisposableSandbox,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';

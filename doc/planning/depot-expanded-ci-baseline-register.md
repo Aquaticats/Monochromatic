@@ -163,8 +163,8 @@ The build failure classes were:
   `gdk-pixbuf-sys` and `cairo-sys-rs`;
 - a Podman image build failure;
 - `cargo vendor` download failures for `anstyle-wincon` and `serde_json`;
-- unresolved workspace imports of `@monochromatic-dev/module-logger` and
-  `@monochromatic-dev/module-async-time`;
+- unresolved workspace imports of `@monochromatic-dev/logger-core` and
+  `@monochromatic-dev/async-time-core`;
 - Android and design build failures;
 - an unresolved `canvg` import in `jspdf`.
 
@@ -206,9 +206,9 @@ The unit baseline remains invalid.
 
 The first fast subset is five owning build tasks and their tests:
 
-- `//package/module/logger:build` and `:test:unit`;
-- `//package/module/p-map-fork:build` and `:test:unit`;
-- `//package/module/toml-edit:build` and `:test:unit`;
+- `//package/logger/core:build` and `:test:unit`;
+- `//package/upstream-fork/p-map:build` and `:test:unit`;
+- `//package/toml-edit/core:build` and `:test:unit`;
 - `//package/forbidden-strings/cli:build` and `:test`;
 - `//package/linter/monochromatic-lint:build` and `:test`.
 
@@ -271,8 +271,8 @@ Failed tasks:
 
 - `//package/config/lfs-r2-worker:build:js:browser`.
 - `//package/wg/cli-allowedips:build:js`.
-- `//package/dev-script/file-enforcer:build:js`.
-- `//package/dev-script/task-util:build:js`.
+- `//package/file-enforcer/core:build:js`.
+- `//package/monorepo-task/core-exec:build:js`.
 
 Observed errors include `rolldown exited with non-zero status: killed by SIGABRT`,
 `node exited with non-zero status: killed by SIGABRT` and

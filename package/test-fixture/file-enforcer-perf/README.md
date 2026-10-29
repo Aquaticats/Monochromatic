@@ -1,6 +1,6 @@
 # file-enforcer-perf
 
-Performance benchmark suite for `@monochromatic-dev/dev-script-file-enforcer`.
+Performance benchmark suite for `@monochromatic-dev/file-enforcer-core`.
 Tests file-enforcer under VPS-like resource constraints using podman containers with CPU contention,
  memory limits,
  and IO throttling calibrated against a real VPS baseline.

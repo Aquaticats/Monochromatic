@@ -6,13 +6,13 @@
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { RUN_MODELS, } from '@monochromatic-dev/translation-repair-run';
 import { rotatedBench, } from '@monochromatic-dev/translation-repair-stage';

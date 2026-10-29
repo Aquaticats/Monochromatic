@@ -2,7 +2,7 @@ import { once, } from 'node:events';
 import { writeFile, } from 'node:fs/promises';
 import { createServer, type Socket, } from 'node:net';
 
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { createRequestRegistry, readHelperRequest, requestExternalAnswer, } from '../dist/final/node/index.mjs';
 import { runHelperCommand, } from './helper-process-fixture.ts';

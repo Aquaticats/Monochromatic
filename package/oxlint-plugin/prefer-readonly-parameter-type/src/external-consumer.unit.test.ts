@@ -21,7 +21,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 /** Package root whose built publication artifact is staged. */
 const PACKAGE_ROOT = fileURLToPath(new URL('../', import.meta.url,),);

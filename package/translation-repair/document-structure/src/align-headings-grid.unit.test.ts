@@ -26,7 +26,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { headingAffinity, } from '@monochromatic-dev/translation-repair-markup';
 import { buildGrid, } from '../dist/final/node/index.mjs';

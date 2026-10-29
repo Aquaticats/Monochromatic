@@ -211,11 +211,11 @@ container PIDs `36`,
 The first five terminate before the next begins;
 the sixth remains at the final sample.
 This is not evidence that one analyzer was stuck for the whole interval.
-`package/dev-script/task-util/src/oxlint-fix-loop.ts:325,338`
+`package/monorepo-task/core-exec/src/oxlint-fix-loop.ts:325,338`
 runs a fix invocation and a plain-lint oracle in each pass:
 
 ```ts
-// package/dev-script/task-util/src/oxlint-fix-loop.ts, separate excerpts
+// package/monorepo-task/core-exec/src/oxlint-fix-loop.ts, separate excerpts
 const fixResult = await runFix();
 const oracle = await runLint();
 ```
@@ -780,7 +780,7 @@ That build metadata is not proof of an unmodified upstream source tree.
 ### Worker count does not budget Go-managed memory
 
 The repository wrapper already supports a native thread override.
-`package/dev-script/task-util/src/oxlint-wrapper.ts:48-50` reads:
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts:48-50` reads:
 
 ```ts
 const threadOverride = process.env

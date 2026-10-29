@@ -16,8 +16,8 @@ import {
 } from 'node:fs/promises';
 import { connect } from 'node:net';
 
-import { wait } from '@monochromatic-dev/module-async-time';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { wait } from '@monochromatic-dev/async-time-core';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { encode } from '@msgpack/msgpack';
 
 import { NoNvimSocketError } from './errors.ts';

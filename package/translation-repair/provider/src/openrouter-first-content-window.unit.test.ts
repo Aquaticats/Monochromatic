@@ -27,7 +27,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { createOpenRouterClient, } from '../dist/final/node/index.mjs';
 import { STREAM_FIRST_CONTENT_MS, } from '@monochromatic-dev/translation-repair-provider-stream/ts';

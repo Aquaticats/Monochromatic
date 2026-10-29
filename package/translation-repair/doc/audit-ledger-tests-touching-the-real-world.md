@@ -12,7 +12,7 @@ which lists every file of this record.
 
 Found by the census M100 queued.
 module-test runs a suite's children sixteen at a time unless a suite says otherwise
-(`package/module/test/src/describe.ts`),
+(`package/test-harness/core/src/describe.ts`),
 so a case that sets an environment variable,
 diverts `console.log` or moves the working directory across an await
 shares that value with every case running beside it,
@@ -525,7 +525,7 @@ rolldown drops `lib/html.js` because the package declares `sideEffects: false`,
 which is why the corpus runs kept working.
 
 The change:
-`package/shim/katex` resolves as `katex`,
+`package/pnpm-override/shim-katex` resolves as `katex`,
 exposes `renderToString` and the other members of katex's surface as functions,
 and throws `KatexNotInstalledError` from every call or construction;
 the override points at it.

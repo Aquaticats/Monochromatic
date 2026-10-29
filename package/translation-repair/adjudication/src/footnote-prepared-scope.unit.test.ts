@@ -1,4 +1,4 @@
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { FootnoteRewriteError, } from '@monochromatic-dev/translation-repair-document-structure';
 import { footnoteRelabelOf, } from '@monochromatic-dev/translation-repair-corpus-source';
 import { prepareDocumentPair, } from '../dist/final/node/index.mjs';

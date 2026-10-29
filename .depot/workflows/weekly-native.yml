@@ -76,9 +76,9 @@ jobs:
         continue-on-error: true
         timeout-minutes: 25
         run: |
-          task-run //package/module/logger:build
-          task-run //package/module/p-map-fork:build
-          task-run //package/module/toml-edit:build
+          task-run //package/logger/core:build
+          task-run //package/upstream-fork/p-map:build
+          task-run //package/toml-edit/core:build
           task-run //package/forbidden-strings/cli:build
           task-run //package/linter/monochromatic-lint:build
       - name: Node and Rust fast subset unit
@@ -86,9 +86,9 @@ jobs:
         continue-on-error: true
         timeout-minutes: 25
         run: |
-          task-run //package/module/logger:test:unit
-          task-run //package/module/p-map-fork:test:unit
-          task-run //package/module/toml-edit:test:unit
+          task-run //package/logger/core:test:unit
+          task-run //package/upstream-fork/p-map:test:unit
+          task-run //package/toml-edit/core:test:unit
           task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test
       - name: BuildKit and Bake container producer
@@ -96,7 +96,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 35
         run: |
-          cd package/desktop-app/terminal
+          cd package/terminal/app
           sudo podman build --memory=16g --tag localhost/monochromatic/terminal --file Containerfile .
           cd ../ide
           sudo podman build --memory=16g --tag localhost/monochromatic/ide --file Containerfile .
@@ -135,7 +135,7 @@ jobs:
             { name: 'packaged artifacts and host consumers', command: 'none selected', outcome: 'incomplete' },
             { name: 'OS, architecture and application consumers', command: 'task-run //package/vmsync/cli:test:e2e', outcome: '${{ steps.vm.outcome }}' },
             { name: 'VM, desktop and Android consumers', command: 'Android build and vmsync e2e', outcome: '${{ steps.android.outcome }} / ${{ steps.vm.outcome }}' },
-            { name: 'BuildKit and Bake container producers', command: 'task-run //package/desktop-app/ide:runtime', outcome: '${{ steps.buildkit.outcome }}' },
+            { name: 'BuildKit and Bake container producers', command: 'task-run //package/ide/app:runtime', outcome: '${{ steps.buildkit.outcome }}' },
             { name: 'Depot Tests', command: 'none selected', outcome: 'incomplete' },
             { name: 'cache and Disk', command: 'none selected', outcome: 'incomplete' },
             { name: 'SDK VM profiles', command: 'none selected', outcome: 'incomplete' },

@@ -28,7 +28,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { SliceDeliveryRecord, } from '@monochromatic-dev/translation-repair-translate-floor';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary';
 import type { DocumentLanesResult, } from '@monochromatic-dev/translation-repair-translate-lane';

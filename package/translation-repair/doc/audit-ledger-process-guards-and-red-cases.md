@@ -388,7 +388,7 @@ The block-pairing reader's out-of-range case asserted `toThrow(BlockPairingError
 Rewritten to cover both sides and name each,
 it asserted `toThrow` with each message instead,
 and module-test hands a string straight to chai's `.throw`
-(`package/module/test/src/expect-matchers-core.ts` lines 138-140),
+(`package/test-harness/core/src/expect-matchers-core.ts` lines 138-140),
 which checks only that the message contains it
 (`compatibleMessage` in chai 6.2.2's `index.js`,
 lines 80-81).

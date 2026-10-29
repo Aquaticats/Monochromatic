@@ -1,5 +1,15 @@
 # Translation repair handover 2026-09-06: the queue, page reads of 2026-09-25 and 2026-09-26
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
 Page reads from the numbered queue,
 from TianqiChen6662 back to mikaela17,
 with classes one hundred twenty-one to one hundred sixty-one,

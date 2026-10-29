@@ -1,8 +1,8 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup/ts';
 import type { ModelCaller, } from '@monochromatic-dev/translation-repair-provider/ts';

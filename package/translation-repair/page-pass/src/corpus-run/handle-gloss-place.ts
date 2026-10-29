@@ -1,6 +1,6 @@
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import type { SliceReplacement, } from '../splice-slices.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   pageTextBySlice,

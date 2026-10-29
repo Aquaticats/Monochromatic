@@ -5,7 +5,7 @@ An `impl` block annotated with `#[zbus::interface(...)]` makes clippy report
 although the block contains no `unwrap`.
 The error points at the `#[zbus::interface(...)]` attribute line.
 
-Found while applying the root `clippy.toml` inside the container lint of `package/cli/nested-wayland-session`.
+Found while applying the root `clippy.toml` inside the container lint of `package/nested-wayland-session/cli`.
 Before the container received that file,
 the ban was not applied there and the nine interface blocks of the crate passed.
 
@@ -22,7 +22,7 @@ error: use of a disallowed method `std::result::Result::unwrap`
     = note: this error originates in the attribute macro `zbus::interface`
 ```
 
-One error appears per annotated `impl` block, nine in `package/cli/nested-wayland-session/src`.
+One error appears per annotated `impl` block, nine in `package/nested-wayland-session/cli/src`.
 
 ## Root cause
 

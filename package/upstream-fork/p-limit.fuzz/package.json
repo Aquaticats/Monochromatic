@@ -1,0 +1,24 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/upstream-fork-p-limit.fuzz",
+  "description": "Property-based fuzz campaign for module-p-limit-fork: scheduling invariants, input totality, and a differential oracle against upstream p-limit 7.3.3.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/upstream-fork-p-limit": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "p-limit": "catalog:",
+    "typescript": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/p-limit.fuzz"
+  }
+}

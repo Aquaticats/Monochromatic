@@ -8,7 +8,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from '@earendil-works/pi-coding-agent';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   ADVISOR_OPERATION_TYPE,

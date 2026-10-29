@@ -3,7 +3,7 @@
 // claim here comes from evidence2.mjs (corrected probes) or evidence.mjs.
 const ROLLDOWN_EXTERNAL = "rolldown's `external` accepts a plain string or a predicate, not only a RegExp: `type ExternalOption = StringOrRegExp | StringOrRegExp[] | ExternalOptionFunction` with `type ExternalOptionFunction = (id: string, parentId: string | undefined, isResolved: boolean) => NullValue<boolean>` (`node_modules/rolldown/dist/shared/define-config-CGhm2DU-.d.mts:3415-3417`, read in this tree). The predicate replaces the whole option value rather than one array entry, so this site has to migrate together with the other configs that list the same patterns.";
 
-const THROW_STRING = "this repo's expect accepts a string here: `toThrow: (expected?: string | RegExp | (abstract new(...args: never) => unknown),) => void` (`package/module/test-expect/src/expect-matchers.ts:91-93`), and the implementation passes the value straight to chai's `.throw` (`expect-matchers-core.ts:131-146`), where a string argument is a message-inclusion check. So the string form removes the regex from the feature entirely, unlike `.toMatch`, whose string form compiles `new RegExp(expected)` at `expect-matchers-core.ts:294`.";
+const THROW_STRING = "this repo's expect accepts a string here: `toThrow: (expected?: string | RegExp | (abstract new(...args: never) => unknown),) => void` (`package/test-harness/core-expect/src/expect-matchers.ts:91-93`), and the implementation passes the value straight to chai's `.throw` (`expect-matchers-core.ts:131-146`), where a string argument is a message-inclusion check. So the string form removes the regex from the feature entirely, unlike `.toMatch`, whose string form compiles `new RegExp(expected)` at `expect-matchers-core.ts:294`.";
 
 const RULES = [
   {

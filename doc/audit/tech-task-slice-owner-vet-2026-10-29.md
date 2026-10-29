@@ -1,5 +1,10 @@
 # Task-slice owner vet report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
 Status:
  complete;
  reopened vet for the chosen candidate
@@ -719,6 +724,15 @@ This vet finds no disqualifying problem:
  remain unacknowledged upstream,
  which is already priced
  into the trust deduction.
+
+Scope note recorded 2026-10-29:
+ the user stated "we're still going to migrate off pants to meow
+ later when we have capacity",
+ so Pants is an interim owner
+ and `meow` stays the endpoint.
+The migration plan written for that is
+[`doc/planning/task-slice-pants-migration.md`](../planning/task-slice-pants-migration.md),
+ and the scope carve this vet records is temporary.
 
 What adoption must carry in,
  because upstream does not:

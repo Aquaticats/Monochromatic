@@ -32,7 +32,7 @@
     "@monochromatic-dev/agent-harness-shared-text-scan": "workspace:*",
     "@monochromatic-dev/claude-code-plugin-hook-type": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-current-time-context": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-terminal-title": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-shell-command-analyzer": "workspace:*",
     "@optique/core": "catalog:",
@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   }
 }

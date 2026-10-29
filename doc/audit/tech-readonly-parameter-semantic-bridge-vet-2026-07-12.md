@@ -1,5 +1,10 @@
 # Readonly parameter semantic bridge technology vet
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 Status:
  complete for technology selection.
 TypeScript 7's synchronous unstable API is selected;

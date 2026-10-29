@@ -35,7 +35,7 @@ run = [{ tasks = ["watch:build:js:client", "watch:build:css", "dev:server"] }]
 [tasks."dev:server"]
 hide = true
 description = "Start editord server with file-watch auto-restart"
-# Driven by @monochromatic-dev/dev-script-watch-restart: TS-first watcher
+# Driven by @monochromatic-dev/watch-restart-cli: TS-first watcher
 # with an in-process content-hash cache (so external editors' byte-identical
 # format-on-save writes do not trigger a restart), spawning the node child
 # directly via node:child_process so SIGTERM reaches it through one process

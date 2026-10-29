@@ -11,7 +11,7 @@ import z from '@deepseek-ai/schemastery';
 import type {
   AdvisorConfig,
 } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   createDshAdvisorSessionState,
   loadDshAdvisorConfig,

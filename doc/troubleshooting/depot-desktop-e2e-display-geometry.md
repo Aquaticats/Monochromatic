@@ -19,10 +19,10 @@ This geometry defect is established independently of the cause of each pointer o
 ## Root cause
 
 At harness `9f4a01f699f09abb25f10258455ac0faed0ecae8`,
-`package/dev-script/task-util/mise.toml:649` started an additional software parent with this argument fragment:
+`package/monorepo-task/core-exec/mise.toml:649` started an additional software parent with this argument fragment:
 
 ```typescript
-// package/dev-script/task-util/mise.toml, historical trial harness
+// package/monorepo-task/core-exec/mise.toml, historical trial harness
 '--size', '1920x1080'
 ```
 
@@ -40,24 +40,24 @@ export const WIDE_WINDOW = {
 
 The parent is a fixture compositor that deliberately fills its screen with the hosted toplevel.
 Its `new_toplevel` implementation at
-`package/cli/nested-wayland-session/src/handler/xdg_shell.rs:208` calls:
+`package/nested-wayland-session/cli/src/handler/xdg_shell.rs:208` calls:
 
 ```rust
-// package/cli/nested-wayland-session/src/handler/xdg_shell.rs
+// package/nested-wayland-session/cli/src/handler/xdg_shell.rs
 set_fullscreen(&surface, self.screen.geometry);
 ```
 
-`package/cli/nested-wayland-session/src/handler/xdg_shell.rs:98` sets fullscreen state:
+`package/nested-wayland-session/cli/src/handler/xdg_shell.rs:98` sets fullscreen state:
 
 ```rust
-// package/cli/nested-wayland-session/src/handler/xdg_shell.rs
+// package/nested-wayland-session/cli/src/handler/xdg_shell.rs
 state.states.set(xdg_toplevel::State::Fullscreen);
 ```
 
 The same helper at line 114 assigns the parent's logical screen size:
 
 ```rust
-// package/cli/nested-wayland-session/src/handler/xdg_shell.rs
+// package/nested-wayland-session/cli/src/handler/xdg_shell.rs
 state.size = Some((geometry.logical_width, geometry.logical_height).into());
 ```
 

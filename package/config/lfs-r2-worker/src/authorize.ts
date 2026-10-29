@@ -7,7 +7,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import type { WorkerEnv, } from './store.ts';
 

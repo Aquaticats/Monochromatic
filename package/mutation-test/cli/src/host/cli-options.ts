@@ -6,7 +6,7 @@
  
  @example
  ```ts
- parseCliOptions(['--package', 'package/module/fs-path']);
+ parseCliOptions(['--package', 'package/fs-path/core']);
  ```
  */
 
@@ -124,7 +124,7 @@ function positiveInteger(options: {
  
  @example
  ```ts
- parseCliOptions(['--package', 'package/module/fs-path']);
+ parseCliOptions(['--package', 'package/fs-path/core']);
  ```
  */
 export function parseCliOptions(argv: readonly string[],): CliOptions {

@@ -5,7 +5,7 @@
  No inline CSS or large strings; styles are in a generated external file.
  Element order follows Capo.js recommendations for optimal browser parsing.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

@@ -267,7 +267,7 @@ A brief that says "do not hand back until done" did not hold a Haiku agent to it
 
 ### Goal
 
-Make the source view of the read-only Slint IDE (`package/desktop-app/ide`) scroll smoothly even under extreme host
+Make the source view of the read-only Slint IDE (`package/ide/app`) scroll smoothly even under extreme host
 load, then wrap long lines like IntelliJ does.
 Haiku subagents did the stage 1 overscan tile, the old-versus-new scroll measurements, the stage 2 worker thread tile
 build, the code surveys, the Parley research, and the wrap shaping measurement.
@@ -275,7 +275,7 @@ The plans are `doc/planning/slint-ide-scroll-pipeline.md` and `doc/planning/slin
 
 ### Files involved
 
-- `package/desktop-app/ide/src/native/tile.rs` and `tile_build.rs`: the stage 2 worker.
+- `package/ide/app/src/native/tile.rs` and `tile_build.rs`: the stage 2 worker.
 - `/home/user/temp/agent/ide-scroll-new-vs-old/ide-scroll-build-compare.mjs`: the measurement harness a Haiku agent
   wrote.
 - `/home/user/temp/agent/ide-wrap-measure/`: the wrap shaping measurement.

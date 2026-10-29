@@ -1,6 +1,6 @@
 //! Controls for filesystem-identity parsing and the Linux resolver,
 //!  checked against the
-//! incumbent's `package/module/fs-id` parser tests and real `findmnt`/`stat` output.
+//! incumbent's `package/fs-id/core` parser tests and real `findmnt`/`stat` output.
 
 use super::*;
 

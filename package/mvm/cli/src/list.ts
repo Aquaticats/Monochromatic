@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from './config.ts';
 import { virsh, } from './virsh.ts';

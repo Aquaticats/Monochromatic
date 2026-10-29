@@ -81,7 +81,7 @@ No installed-source patch was applied.
 
 ### Native consumer regression
 
-`package/desktop-app/ide/src/native/tree_scroll_tests.rs` creates the actual application window,
+`package/ide/app/src/native/tree_scroll_tests.rs` creates the actual application window,
 installs 60 tree rows,
 shows the window,
 and forces rendered snapshots before checking row bounds.
@@ -91,7 +91,7 @@ and a backward jump.
 
 ```bash
 # From the repository root
-mise run //package/desktop-app/ide:test:native
+mise run //package/ide/app:test:native
 ```
 
 Before replacing the tree's ListView path,
@@ -118,7 +118,7 @@ It does not reimplement the algorithm under test.
 
 ```bash
 # Supply a checked-out or installed Slint repeater.rs path
-mise run //package/desktop-app/ide:inspect:listview-algorithm -- /path/to/internal/core/model/repeater.rs
+mise run //package/ide/app:inspect:listview-algorithm -- /path/to/internal/core/model/repeater.rs
 ```
 
 The task compiles and runs in a network-disabled container,
@@ -159,7 +159,7 @@ and explicit positive overscroll bindings.
 
 ## Verified consumer workaround
 
-`package/desktop-app/ide/ui/tree.slint` uses a native `ScrollView`
+`package/ide/app/ui/tree.slint` uses a native `ScrollView`
 with explicit fixed-row geometry instead of the ListView estimator.
 Only the visible rows plus overscan are materialized.
 Their model indices and absolute content positions come from the known 48px row height.

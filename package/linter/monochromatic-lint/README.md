@@ -303,7 +303,7 @@ relative to the configuration file:
   },
   // A later block raises one tree to error, and turns the rule off for tests.
   {
-    "files": ["package/desktop-app/ide/**/*.rs"],
+    "files": ["package/ide/app/**/*.rs"],
     "rules": { "rust/avoidable-closure": { "severity": "error" } }
   },
   {
@@ -408,7 +408,7 @@ no separator,
 no leading dash).
 
 ```jsonc
-// package/desktop-app/file-manager/monochromatic-lint.prerequisites.jsonc
+// package/file-manager/app/monochromatic-lint.prerequisites.jsonc
 {
   "pkg-config": ["gtk4"]
 }

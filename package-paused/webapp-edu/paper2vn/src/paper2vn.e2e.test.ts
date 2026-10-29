@@ -20,7 +20,7 @@
 import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 import {
   expect,
   type Page,

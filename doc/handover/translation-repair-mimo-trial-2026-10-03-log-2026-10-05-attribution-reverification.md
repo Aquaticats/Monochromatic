@@ -1,5 +1,10 @@
 # Translation repair MiMo trial: log of 2026-10-05, the coverage attributions re-verified
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/test` is now `package/test-harness/core`.
+
 The trial log from 01:49 to 05:22 UTC on 2026-10-05,
 when the eight ledger paragraphs blaming the census's attribution were found unverified and re-opened;
 it holds the correction of the record,

@@ -10,7 +10,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { PatchOperation, } from '@monochromatic-dev/translation-repair-page-pass';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure';

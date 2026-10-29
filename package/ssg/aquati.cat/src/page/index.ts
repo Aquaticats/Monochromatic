@@ -3,7 +3,7 @@
  
  Renders a list of available languages linking to their landing pages.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   i18n,

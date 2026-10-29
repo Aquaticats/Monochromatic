@@ -4,7 +4,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { GitHubFetchPlan, } from './github-fetch-types.ts';
 import { planForHost, } from './github-section-plan.ts';

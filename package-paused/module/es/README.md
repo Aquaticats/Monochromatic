@@ -96,24 +96,24 @@ All functions are pure and don't rely on execution context.
 import { types, } from '@monochromatic-dev/module-es/ts';
 
 // Utilities split from module-es now live in focused packages:
-// @monochromatic-dev/module-async-iter
-// @monochromatic-dev/module-function-arity
-// @monochromatic-dev/module-kv-store
-// @monochromatic-dev/module-memoize
-// @monochromatic-dev/module-observable
-// @monochromatic-dev/module-pipe
+// @monochromatic-dev/async-iter-core
+// @monochromatic-dev/function-arity-core
+// @monochromatic-dev/kv-store-core
+// @monochromatic-dev/kv-store-memoize
+// @monochromatic-dev/observable-core
+// @monochromatic-dev/pipe-core
 ```
 
 #### Functional Programming Patterns
 
 ```typescript
-// Function composition split into @monochromatic-dev/module-pipe.
+// Function composition split into @monochromatic-dev/pipe-core.
 import {
   pipe,
   pipeAsync,
   piped,
   pipedAsync,
-} from '@monochromatic-dev/module-pipe';
+} from '@monochromatic-dev/pipe-core';
 
 // Function transformation
 import {
@@ -138,8 +138,8 @@ import {
   wait,
 } from '@monochromatic-dev/module-es';
 
-// Async iteration helpers split into @monochromatic-dev/module-async-iter.
-import { mapIterableAsync, } from '@monochromatic-dev/module-async-iter';
+// Async iteration helpers split into @monochromatic-dev/async-iter-core.
+import { mapIterableAsync, } from '@monochromatic-dev/async-iter-core';
 
 // Concurrency control
 import { deConcurrency, } from '@monochromatic-dev/module-es';
@@ -332,7 +332,7 @@ Use [`jsonc.min`](https://www.npmjs.com/package/jsonc.min/) instead.
 
 #### Observable
 
-Use `@monochromatic-dev/module-observable` for workspace observable needs.
+Use `@monochromatic-dev/observable-core` for workspace observable needs.
 It provides `createObservable` and `createObservableAsync` with `getValue()` and `setValue()` methods.
 For an external observable implementation, evaluate [`@therapy/observable`](https://jsr.io/@therapy/observable).
 

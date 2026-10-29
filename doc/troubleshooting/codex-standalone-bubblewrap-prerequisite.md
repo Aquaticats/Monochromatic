@@ -97,7 +97,7 @@ The isolated research branch's runnable owner is:
 
 ```text
 # Isolated research worktree, after the immutable harness revision is pushed
-RESEARCH_RUST_PROFILE=codex-host mise run //package/dev-script/task-util:research:rust:host
+RESEARCH_RUST_PROFILE=codex-host mise run //package/monorepo-task/core-exec:research:rust:host
 ```
 
 That task uses only disposable fixture homes,

@@ -1,6 +1,6 @@
 import { access, } from 'node:fs/promises';
 import { setTimeout as wait, } from 'node:timers/promises';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { createRequestRegistry, requestExternalAnswer, } from '../dist/final/node/index.mjs';
 

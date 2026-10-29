@@ -13,7 +13,7 @@ $ podman run --rm --cpus=2 localhost/monochromatic/ide sh -c 'nproc; cat /sys/fs
 
 `nproc` is the first thing a reader tries,
 and it suggests that every tool in the container sizes itself to 32 CPUs on a quota of 2.
-The IDE package (`package/desktop-app/ide`) suspected that of its test runner:
+The IDE package (`package/ide/app`) suspected that of its test runner:
 `cargo nextest run` would start one test thread per host CPU,
 32 threads on a quota of 2 CPUs,
 and the throttled threads would slow timing-sensitive tests.
@@ -134,16 +134,16 @@ Whether one of them runs a tool that counts CPUs with the affinity mask (and so 
 needs the same probe per tool:
 
 - `package/forbidden-strings/cli`
-- `package/cli/nested-wayland-session`
+- `package/nested-wayland-session/cli`
 - `package/config/pnpr`
-- `package/desktop-app/terminal`
+- `package/terminal/app`
 - `package/git-policy/cli`
 - `package/git-policy/cli.fuzz`
 - `package/linter/monochromatic-lint`
 - `package/linter/monochromatic-lint.fuzz`
-- `package/module/conf-fork`
-- `package/module/deepmerge-ts.fuzz`
-- `package/module/test`
+- `package/upstream-fork/conf`
+- `package/upstream-fork/deepmerge-ts.fuzz`
+- `package/test-harness/core`
 - `package/music-player/desktop-app`
 - `package/forbidden-strings/core`
 

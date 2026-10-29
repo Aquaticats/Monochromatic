@@ -33,12 +33,12 @@ import {
   join,
 } from 'node:path';
 
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   corpusGitEnvironment,

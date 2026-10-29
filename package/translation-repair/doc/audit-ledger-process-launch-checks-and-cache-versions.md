@@ -489,7 +489,7 @@ landed in `65e8325303`.
 No run read the file,
 so no pass was touched.
 
-The katex shim (`package/shim/katex`,
+The katex shim (`package/pnpm-override/shim-katex`,
 added in `47b4634eeb` and landed in `c0d0325899`)
 is a new workspace package,
 and file-enforcer derives the private registry's config,
@@ -497,7 +497,7 @@ and file-enforcer derives the private registry's config,
 from the workspace's packages.
 Nothing ran file-enforcer before that landing,
 and the gate runs no step that would,
-so the config kept its published count at 163 and left `@monochromatic-dev/shim-katex` out of its package list.
+so the config kept its published count at 163 and left `@monochromatic-dev/pnpm-override-shim-katex` out of its package list.
 The run for WUC rewrote it to 164 with the shim listed.
 The same run also rewrote the `_.path` list in the root `mise.toml`,
 dropping the `node_modules/.bin` folders of packages the scratch worktree had not installed;

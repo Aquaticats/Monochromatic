@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';

@@ -1,4 +1,4 @@
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core/ts';
 
 
 

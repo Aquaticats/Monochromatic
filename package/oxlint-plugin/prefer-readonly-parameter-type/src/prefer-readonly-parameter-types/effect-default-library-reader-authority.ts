@@ -98,7 +98,7 @@ export type ReaderResultRelation =
  reading: the prototype it hands back is reachable from the operand, and writing through
  it changes what the operand does. Measured as the largest single root cause on the
  argument side, named by 53 findings through `isPlainObject` in
- `package/module/toml-edit/src/value-encoders.ts`.
+ `package/toml-edit/core/src/value-encoders.ts`.
  */
 const VERIFIED_READERS: Readonly<Record<string, Readonly<Record<string, ReaderResultRelation>>>> = {
   ObjectConstructor: {

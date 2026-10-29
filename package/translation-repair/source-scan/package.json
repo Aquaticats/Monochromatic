@@ -11,8 +11,8 @@
   "dependencies": {},
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
     "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
     "@monochromatic-dev/translation-repair-markup": "workspace:*",

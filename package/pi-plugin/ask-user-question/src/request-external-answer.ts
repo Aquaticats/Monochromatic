@@ -3,7 +3,7 @@ import { fileURLToPath, } from 'node:url';
 import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts';
 import { resolveTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts/resolve.ts';
 import { NO_TERMINAL, } from '@monochromatic-dev/terminal-exec-cli/ts/validate.ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { createAnswerChannel, } from './answer-channel.ts';
 import {

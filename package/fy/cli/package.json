@@ -11,13 +11,13 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "nano-spawn": "catalog:"
   },
   "dependencies": {
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-fs-path": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:"
   },

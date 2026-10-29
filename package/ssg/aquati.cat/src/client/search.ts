@@ -15,7 +15,7 @@
  ```
  */
 
-import { escapeHtml, } from '@monochromatic-dev/module-hyperscript/ts';
+import { escapeHtml, } from '@monochromatic-dev/hyperscript-core/ts';
 
 //region Types
 

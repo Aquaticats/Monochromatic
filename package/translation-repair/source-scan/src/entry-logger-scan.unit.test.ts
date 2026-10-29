@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   SLICE_TAGGED,
@@ -96,7 +96,7 @@ await describe({
          */
         const spellings = [
           `const l = tagged({ tag: \`\${entryId}\`, },);\n`,
-          'import { tagged as makeLogger, } from \'@monochromatic-dev/module-logger/ts\';\n'
+          'import { tagged as makeLogger, } from \'@monochromatic-dev/logger-core/ts\';\n'
             + 'const l = makeLogger({ tag: entryId, },);\n',
           'const l = tagged({ l: parent, tag: entryId, },);\n',
           'const l = tagged({ tag: pair.id, },);\n',

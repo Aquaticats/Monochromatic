@@ -7,7 +7,7 @@
 import {
   describe,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { serializeSnapshot, } from './serialize.ts';
 import type { EstimateSnapshot, } from './types.ts';

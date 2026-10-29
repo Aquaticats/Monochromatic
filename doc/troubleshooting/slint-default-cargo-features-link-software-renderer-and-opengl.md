@@ -202,7 +202,7 @@ The `listed` crate prints `warning: nothing to print` for `--invert i-slint-rend
 `--invert glutin`,
 and `--invert i-slint-renderer-femtovg` does not match a package.
 
-The IDE's own manifest (`package/desktop-app/ide/Cargo.toml:84`) uses
+The IDE's own manifest (`package/ide/app/Cargo.toml:84`) uses
 `default-features = false` with `std`,
 `backend-default`,
 `backend-winit`,
@@ -211,13 +211,13 @@ The IDE's own manifest (`package/desktop-app/ide/Cargo.toml:84`) uses
 `unstable-winit-030`,
 `accessibility`,
 `compat-1-2` and `system-tray`.
-Run from `package/desktop-app/ide`,
+Run from `package/ide/app`,
 the same three inverted trees print `nothing to print` for
 `i-slint-renderer-software` and `glutin`,
 and `i-slint-renderer-femtovg` is reached only through the selector,
 the winit
 backend and `slint` (which is the wgpu flavor there).
-The package's task `inspect:no-software-renderer` (`package/desktop-app/ide/mise.toml:175-192`) runs this check inside the
+The package's task `inspect:no-software-renderer` (`package/ide/app/mise.toml:175-192`) runs this check inside the
 container with `--all-features`,
 and takes `--features slint/renderer-software` and `--features slint/mcp` as positive
 controls that must reach the renderer;
@@ -352,7 +352,7 @@ compare the default list in `slint-1.18.x/Cargo.toml` with the IDE's.
 - Whether `slint-build`'s default `renderer-software` pulls extra build-time crates into the IDE was not measured.
 - I did not run the package's container task `inspect:no-software-renderer`.
 - The two existing MCP notes (`doc/troubleshooting/slint-embedded-mcp-server.md`,
-  `doc/troubleshooting/slint-mcp-winit-femtovg-screenshot.md`) never name the IDE (searched for `desktop-app/ide`,
+  `doc/troubleshooting/slint-mcp-winit-femtovg-screenshot.md`) never name the IDE (searched for `ide/app`,
   `editor`,
   `helix` and `both apps`;
   their "both apps" are the music player and the terminal),

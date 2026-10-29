@@ -12,7 +12,7 @@ import { promisify, } from 'node:util';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { isAsciiAlphanumeric, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {

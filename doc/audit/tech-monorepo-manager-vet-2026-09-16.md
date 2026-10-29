@@ -1,5 +1,11 @@
 # Monorepo manager vet report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/dev-script-file-enforcer` is now `@monochromatic-dev/file-enforcer-core`.
+
 Status:
 complete;
 no candidate is recommendable.

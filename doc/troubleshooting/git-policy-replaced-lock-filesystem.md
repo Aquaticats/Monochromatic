@@ -122,8 +122,8 @@ on `research/depot-reuse-20261018`.
 Its package-owned entry point is:
 
 ```sh
-# package/dev-script/task-util/mise.toml, research/depot-reuse-20261018
-mise run //package/dev-script/task-util:research:reuse:lock-portability
+# package/monorepo-task/core-exec/mise.toml, research/depot-reuse-20261018
+mise run //package/monorepo-task/core-exec:research:reuse:lock-portability
 ```
 
 The preceding `research:reuse:lock-prepare` task admits the diagnostic ZIP and binds the exact prerequisites.

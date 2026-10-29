@@ -247,9 +247,9 @@ which the replacement keeps.
 ## What does not work
 
 - Guidance text in the repo's oxlint wrapper
-  (`package/dev-script/task-util/src/oxlint-guidance.ts`):
+  (`package/monorepo-task/core-exec/src/oxlint-guidance.ts`):
   the wrapper prints only the final lint after its fix loop
-  (`package/dev-script/task-util/src/oxlint-wrapper.ts:254-277`),
+  (`package/monorepo-task/core-exec/src/oxlint-wrapper.ts:254-277`),
   so an autofixed diagnostic and its guidance never reach the author.
 - Disabling one rule's autofix:
   oxlint has only global `--fix`,

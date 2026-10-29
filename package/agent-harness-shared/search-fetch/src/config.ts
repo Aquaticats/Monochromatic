@@ -14,8 +14,8 @@ import {
   EnvLocalJsonShapeError,
   EnvLocalJsonSopsMissingError,
   readEnvLocalJson,
-} from '@monochromatic-dev/module-env-local-json/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/env-local-json-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   DEEPSEEK_API_KEY_ENV,

@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 import { mkdtemp, } from 'node:fs/promises';
 import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';

@@ -6,10 +6,10 @@
 
 import {
   caughtValueText,
-} from '@monochromatic-dev/module-caught-value/ts';
+} from '@monochromatic-dev/caught-value-core/ts';
 import {
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   NEURALWATT_ROUTE,
   NEURALWATT_SETTINGS_NAMESPACE,

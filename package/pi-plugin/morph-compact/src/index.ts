@@ -30,7 +30,7 @@ import type {
   SessionBeforeCompactEvent,
 } from '@earendil-works/pi-coding-agent';
 import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   NO_MORPH_KEY,

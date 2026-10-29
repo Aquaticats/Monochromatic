@@ -19,14 +19,14 @@ During `mise run lint:oxlint` at the repository root:
 ```
 
 The message is followed by a Go stack and then `Error running tsgolint: "exit status: exit status: 2"`.
-The report is attached to `package/webapp-productivity/rss/src/index.ts`,
+The report is attached to `package/rss/app/src/index.ts`,
  at `1:1`,
  which is the file whose analysis is lost.
 
-The historical `package/module/test/src/expect-matchers.ts` moved on 2026-10-04
- to `package/module/test-expect/src/expect-matchers.ts`.
+The historical `package/test-harness/core/src/expect-matchers.ts` moved on 2026-10-04
+ to `package/test-harness/core-expect/src/expect-matchers.ts`.
 
-An earlier reading of mine named `package/module/test/src/expect-matchers.ts` instead,
+An earlier reading of mine named `package/test-harness/core/src/expect-matchers.ts` instead,
  inferred from diagnostics printed near the panic in an interleaved log.
 That was wrong,
  and it is why the reproduction below looked unavailable for so long:
@@ -61,8 +61,8 @@ Measured at `94af5da15`,
  reading the cause `effect-demand-index.ts` logs beside each omission:
 
 ```text
-omitting package/webapp-productivity/rss/src/index.ts:2646:3443:219 ... Error: panic: interface conversion
-omitting package/webapp-productivity/rss/src/index.ts:3500:4182:263 ... Error: panic: interface conversion
+omitting package/rss/app/src/index.ts:2646:3443:219 ... Error: panic: interface conversion
+omitting package/rss/app/src/index.ts:3500:4182:263 ... Error: panic: interface conversion
 omitting node_modules/.../@optique/core@1.2.0/.../dist/facade.js:12673:15456:263 ... Error: panic: interface conversion
 ```
 
@@ -212,18 +212,18 @@ Does not reproduce,
  each run completing with findings and no panic:
 
 ```bash
-# Historical command; the file moved to package/module/test-expect/src/expect-matchers.ts on 2026-10-04.
+# Historical command; the file moved to package/test-harness/core-expect/src/expect-matchers.ts on 2026-10-04.
 # 7 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module/test/src/expect-matchers.ts
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/test-harness/core/src/expect-matchers.ts
 
 # 52 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module/test
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/test-harness/core
 
 # 422 findings, no panic
-node package/dev-script/task-util/dist/final/node/oxlint-wrapper.mjs --type-aware package/module
+node package/monorepo-task/core-exec/dist/final/node/oxlint-wrapper.mjs --type-aware package/module
 
 # 52 findings, no panic
-mise run //package/module/test:lint:oxlint
+mise run //package/test-harness/core:lint:oxlint
 ```
 
 The file the run is working through when it panics therefore does not trigger it on its

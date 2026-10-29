@@ -64,18 +64,18 @@ these are already decided,
 ### The import and its call sites
 
 - Two files import exactly one symbol from file-enforcer's `/ts` subpath:
-  `package/dev-script/vm-builder/src/build-and-import.ts:20`
-  and `package/dev-script/vm-builder/src/import.ts:9`,
-  both `import { exec, } from '@monochromatic-dev/dev-script-file-enforcer/ts';`.
+  `package/vm-builder/cli/src/build-and-import.ts:20`
+  and `package/vm-builder/cli/src/import.ts:9`,
+  both `import { exec, } from '@monochromatic-dev/file-enforcer-core/ts';`.
   Verified:
 
 ```bash
 rg --line-number --glob '!node_modules' --glob '!**/dist/**' \
-  "from '@monochromatic-dev/dev-script-file-enforcer" package/ *.ts --type ts
+  "from '@monochromatic-dev/file-enforcer-core" package/ *.ts --type ts
 ```
 
 - The workspace dependency edge is
-  `package/dev-script/vm-builder/package.json:16`.
+  `package/vm-builder/cli/package.json:16`.
   Verified by reading that manifest.
 - `exec` is called 14 times,
   seven per file:
@@ -97,8 +97,8 @@ rg --line-number --glob '!node_modules' --glob '!**/dist/**' \
 
 ```bash
 rg --line-number "await exec\(|await run\(" \
-  package/dev-script/vm-builder/src/build-and-import.ts \
-  package/dev-script/vm-builder/src/import.ts
+  package/vm-builder/cli/src/build-and-import.ts \
+  package/vm-builder/cli/src/import.ts
 ```
 
 - Exactly one call per file consumes the return value:
@@ -122,11 +122,11 @@ rg --line-number "await exec\(|await run\(" \
 ### What `exec` actually provides
 
 - `exec` is declared at
-  `package/dev-script/file-enforcer/src/pipeline/exec.ts:66`
+  `package/file-enforcer/core/src/pipeline/exec.ts:66`
   and re-exported at
-  `package/dev-script/file-enforcer/src/index.ts:96`.
+  `package/file-enforcer/core/src/index.ts:96`.
   Verified:
-  `rg --line-number "export (async )?(function|const) exec" package/dev-script/file-enforcer/src`.
+  `rg --line-number "export (async )?(function|const) exec" package/file-enforcer/core/src`.
 - It accepts a discriminated union:
   a direct form `{ cmd, args? }`
   and a platform-aware form `{ platformCommands }`
@@ -142,7 +142,7 @@ rg --line-number "await exec\(|await run\(" \
   the package's own test asserts the thrown message is
   `Command failed with exit code 1: false`
   and that stderr text appears in the message
-  (`package/dev-script/file-enforcer/src/pipeline/exec.unit.test.ts:38-58`).
+  (`package/file-enforcer/core/src/pipeline/exec.unit.test.ts:38-58`).
   Verified by reading that file.
 - Neither stdout nor stderr is inherited,
   so probe commands stay silent on the user's terminal.
@@ -155,24 +155,24 @@ rg --line-number "await exec\(|await run\(" \
 
 - Every `exec` call site in the repository uses the direct `{ cmd, args }` form.
   The `platformCommands` key appears only in
-  `package/dev-script/file-enforcer/src/pipeline/exec.ts`,
-  `package/dev-script/file-enforcer/src/pipeline/exec.unit.test.ts:108`,
+  `package/file-enforcer/core/src/pipeline/exec.ts`,
+  `package/file-enforcer/core/src/pipeline/exec.unit.test.ts:108`,
    `:121`,
    `:134`,
-  and `package/dev-script/file-enforcer/README.md:116`.
+  and `package/file-enforcer/core/README.md:116`.
   Verified:
   `rg --line-number --glob '!node_modules' --glob '!**/dist/**' "platformCommands" . --glob '!doc/**'`.
 - file-enforcer's two internal callers also use the direct form:
-  `package/dev-script/file-enforcer/src/watch/notify.ts:125`,
+  `package/file-enforcer/core/src/watch/notify.ts:125`,
    `:136`,
    `:172`
-  and `package/dev-script/file-enforcer/src/package/manager.ts:333`.
+  and `package/file-enforcer/core/src/package/manager.ts:333`.
   Verified:
   `rg --line-number --after-context=8 "exec\(" ` on both files.
 - So the platform-aware dispatch,
    its `PlatformMatchError`,
   and `evaluatePredicate` in
-  `package/dev-script/file-enforcer/src/platform/evaluate-predicate.ts`
+  `package/file-enforcer/core/src/platform/evaluate-predicate.ts`
   are reachable only from tests and prose.
   They are retired behavior,
    not behavior to port.
@@ -199,7 +199,7 @@ rg --line-number "await exec\(|await run\(" \
 ### The cost of the barrel import
 
 - The `/ts` subpath resolves to `src/index.ts`
-  (`package/dev-script/file-enforcer/package.json` `exports`),
+  (`package/file-enforcer/core/package.json` `exports`),
   which is a barrel.
   Verified by reading that manifest.
 - vm-builder's last recorded type-check program holds 72 distinct file-enforcer source files.
@@ -207,7 +207,7 @@ rg --line-number "await exec\(|await run\(" \
 
 ```bash
 rg --only-matching '[^"]*file-enforcer/src/[^"]*' \
-  package/dev-script/vm-builder/.cache/typescript/tsconfig.tsbuildinfo \
+  package/vm-builder/cli/.cache/typescript/tsconfig.tsbuildinfo \
   | sort --unique | wc --lines
 ```
 
@@ -216,8 +216,8 @@ rg --only-matching '[^"]*file-enforcer/src/[^"]*' \
   Verified:
   a scratch walker
   (`closure.ts` beside this document)
-  run as `node closure.ts package/dev-script/file-enforcer/src/index.ts`
-  and `node closure.ts package/dev-script/file-enforcer/src/pipeline/exec.ts`.
+  run as `node closure.ts package/file-enforcer/core/src/index.ts`
+  and `node closure.ts package/file-enforcer/core/src/pipeline/exec.ts`.
   The walker mis-resolved two specifiers
   (`src/package/ensure-package.ts` and `src/data/packages.ts`,
    both of which exist),
@@ -234,11 +234,11 @@ rg --only-matching '[^"]*file-enforcer/src/[^"]*' \
 ### vm-builder already owns a process runner, three times over
 
 - An identical streaming helper `run({ cmd, args })` is declared three times:
-  `package/dev-script/vm-builder/src/build-and-import.ts:137`,
-  `package/dev-script/vm-builder/src/import.ts:98`,
-  and `package/dev-script/vm-builder/src/sign-and-push.ts:63`.
+  `package/vm-builder/cli/src/build-and-import.ts:137`,
+  `package/vm-builder/cli/src/import.ts:98`,
+  and `package/vm-builder/cli/src/sign-and-push.ts:63`.
   Verified:
-  `rg --line-number "^async function run|^function run|//region Streaming" package/dev-script/vm-builder/src/*.ts`.
+  `rg --line-number "^async function run|^function run|//region Streaming" package/vm-builder/cli/src/*.ts`.
 - Each spawns through `node:child_process.spawn` with `stdio: 'inherit'`
   and throws `${cmd} exited with code N` on a non-zero exit.
   Verified by reading all three.
@@ -255,7 +255,7 @@ rg --only-matching '[^"]*file-enforcer/src/[^"]*' \
   all pass `cmd: 'sudo'`.
 - `sign-and-push.ts` imports no file-enforcer symbol.
   Verified:
-  `rg --line-number "spawn|exec" package/dev-script/vm-builder/src/sign-and-push.ts`.
+  `rg --line-number "spawn|exec" package/vm-builder/cli/src/sign-and-push.ts`.
 - So the package's real need is two shapes of one responsibility:
   inherit for interactive privileged steps,
   capture for `virsh` and `flatpak` queries.
@@ -327,7 +327,7 @@ Rule `MD5` forbids tables,
   (`build-and-import.ts:285-291` and `:387-393`,
   `import.ts:142-147` and `:239-244`),
   each of which renders the caught value through
-  `caughtValueText` from `@monochromatic-dev/module-caught-value/ts`.
+  `caughtValueText` from `@monochromatic-dev/caught-value-core/ts`.
   Verified by reading both files.
 - Owner after the rewrite:
   vm-builder's `src/process.ts`.
@@ -420,7 +420,7 @@ Rule `MD5` forbids tables,
 - Consumed by:
   vm-builder,
    which declares no `nano-spawn` entry and reaches it only through file-enforcer.
-  Verified by reading `package/dev-script/vm-builder/package.json`.
+  Verified by reading `package/vm-builder/cli/package.json`.
 - Owner after the rewrite:
   vm-builder's own manifest,
   `"nano-spawn": "catalog:"`,
@@ -428,11 +428,11 @@ Rule `MD5` forbids tables,
 - Selection status:
   recommended.
 - Parity test:
-  `mise run //package/dev-script/vm-builder:lint:types` and `:build` both pass
+  `mise run //package/vm-builder/cli:lint:types` and `:build` both pass
   with the file-enforcer entry removed.
 - Retired behavior:
-  the `@monochromatic-dev/dev-script-file-enforcer` workspace edge at
-  `package/dev-script/vm-builder/package.json:16`,
+  the `@monochromatic-dev/file-enforcer-core` workspace edge at
+  `package/vm-builder/cli/package.json:16`,
   and with it 72 file-enforcer source files leaving vm-builder's type program.
 
 ### L7: the `/ts` subpath and the barrel re-export
@@ -478,7 +478,7 @@ Rule `MD5` forbids tables,
 ### L9: documentation of `exec`
 
 - Consumed by:
-  readers of `package/dev-script/file-enforcer/README.md:134-197`.
+  readers of `package/file-enforcer/core/README.md:134-197`.
 - Owner after the rewrite:
   none.
 - Selection status:
@@ -489,9 +489,9 @@ Rule `MD5` forbids tables,
   (`exec.ts:66`).
   Verified by reading both.
   `README.md:290` also imports
-  `@monochromatic-dev/dev-script-file-enforcer/data/packages.ts`,
+  `@monochromatic-dev/file-enforcer-core/data/packages.ts`,
   a subpath the manifest does not export.
-  Verified by reading `package/dev-script/file-enforcer/package.json`.
+  Verified by reading `package/file-enforcer/core/package.json`.
 - Parity test:
   none;
   this is drift to delete,
@@ -576,7 +576,7 @@ No disqualifying problem.
 ### Option B: vm-builder owns a private copy
 
 Shape:
-one new file `package/dev-script/vm-builder/src/process.ts`
+one new file `package/vm-builder/cli/src/process.ts`
 exporting `runInherited({ cmd, args }): Promise<void>`
 and `runCaptured({ cmd, args }): Promise<string>`.
 `runInherited` is the existing helper,
@@ -610,7 +610,7 @@ Cons:
 - vm-builder has no tests today,
   so the parity tests are new work.
   Verified:
-  `rg --files package/dev-script/vm-builder/src`
+  `rg --files package/vm-builder/cli/src`
   lists four source files and no `*.test.ts`.
   Rule `PKG` already required them,
    so this is a debt paid,
@@ -625,25 +625,25 @@ No disqualifying problem.
 Rule `RCI` requires looking before proposing.
 Candidates measured:
 
-- `@monochromatic-dev/dev-script-task-util`,
+- `@monochromatic-dev/monorepo-task-core-exec`,
   described as "CLI utilities for mise task orchestration:
   command executor with allowFailure support,
    file append helper,
    and make-style dependency checker".
   Verified:
-  `package/dev-script/task-util/package.json:4`.
+  `package/monorepo-task/core-exec/package.json:4`.
   Its `src/command.ts` is the nearest thing to an owner,
   and it already depends on `nano-spawn`.
   Verified by reading that manifest.
-- `@monochromatic-dev/git-executable`:
+- `@monochromatic-dev/git-executable-core`:
   resolves a native Git executable.
   Verified:
-  `package/git/executable/package.json:4`.
-- `@monochromatic-dev/dev-script-watch-restart`:
+  `package/git-executable/core/package.json:4`.
+- `@monochromatic-dev/watch-restart-cli`:
   restarts a long-running child on content change;
   its `SpawnFn` defaults to inherit stdio and is lifecycle-oriented.
   Verified:
-  `package/dev-script/watch-restart/src/child.ts:262` and `:272-283`.
+  `package/watch-restart/cli/src/child.ts:262` and `:272-283`.
 - `@monochromatic-dev/oxlint-plugin-test-support`:
   test-only oxlint invocation.
   Verified:
@@ -669,7 +669,7 @@ Cons:
 - `task-util` has no `exports` map at all,
   only `main` and six `bin` entries,
   so there is no `/ts` subpath for rule `ST3` to use.
-  Verified by reading `package/dev-script/task-util/package.json`.
+  Verified by reading `package/monorepo-task/core-exec/package.json`.
 - `src/command.ts` is a top-level script:
   it parses `process.argv` through Optique at module scope
   (`command.ts:91-97`)
@@ -844,7 +844,7 @@ Option B,
 
 ### The module
 
-`package/dev-script/vm-builder/src/process.ts`,
+`package/vm-builder/cli/src/process.ts`,
 with TSDoc on every declaration per rule `TSD`
 and `//region` markers per rule `ST2`:
 
@@ -883,7 +883,7 @@ while `node:child_process.spawn` stays only where inherited stdio demands it.
 vm-builder is Node-only by design;
 its bundle comment records that.
 Verified:
-`package/dev-script/vm-builder/rolldown.node.config.ts:7-15`.
+`package/vm-builder/cli/rolldown.node.config.ts:7-15`.
 
 ### The call sites
 
@@ -896,8 +896,8 @@ Verified:
 
 ### The manifest
 
-- Remove `"@monochromatic-dev/dev-script-file-enforcer": "workspace:*"`
-  at `package/dev-script/vm-builder/package.json:16`.
+- Remove `"@monochromatic-dev/file-enforcer-core": "workspace:*"`
+  at `package/vm-builder/cli/package.json:16`.
 - Add `"nano-spawn": "catalog:"`.
 - Rule `LFW`:
   regenerate `pnpm-lock.yaml` with pnpm,
@@ -931,7 +931,7 @@ never `virsh`,
  or `sudo`,
 and never against the user's libvirt state.
 
-Run with `mise run //package/dev-script/vm-builder:test:unit`,
+Run with `mise run //package/vm-builder/cli:test:unit`,
 which the root template globs as `**/*.unit.test.ts`.
 Verified:
 `mise.no-env.toml:548` and `:566-572`.
@@ -941,15 +941,15 @@ never `bun test`.
 ### Verification at the user boundary
 
 Rule `VUB` wants the artifact exercised as a user would.
-`mise run //package/dev-script/vm-builder:import` imports a qcow2 into libvirt with `sudo`
+`mise run //package/vm-builder/cli:import` imports a qcow2 into libvirt with `sudo`
 and mutates the user's libvirt domains,
 so rule `THR` forbids an agent from running it as verification.
 The honest boundary check is:
 
-- `mise run //package/dev-script/vm-builder:lint:types` and `:lint:oxlint` pass.
-- `mise run //package/dev-script/vm-builder:buildAndTest` passes,
+- `mise run //package/vm-builder/cli:lint:types` and `:lint:oxlint` pass.
+- `mise run //package/vm-builder/cli:buildAndTest` passes,
   which its own description already calls the package's verification
-  (`package/dev-script/vm-builder/mise.toml`,
+  (`package/vm-builder/cli/mise.toml`,
    `buildAndTest`).
   Verified by reading that file.
 - The `sudo` prompt and the `virsh domstate` read are proven only by a real run,
@@ -1093,18 +1093,18 @@ Ranking:
 What it is:
 
 - `package/oxlint-plugin/prefer-readonly-parameter-type/src/workspace-source-effect.unit.test.ts:20-31`
-  reads `package/dev-script/file-enforcer/src/cargo/apply-plan.ts` from disk
+  reads `package/file-enforcer/core/src/cargo/apply-plan.ts` from disk
   and asserts effect summaries for `setIfDiffers`,
    `applyEnforcement`,
    and `applyCargoPlan`.
   Verified by reading the test.
 - The test's own comment states the point:
   live workspace analysis proves the chain mutation-free without catalog entries,
-  and every link reaches `Object.entries` inside `@monochromatic-dev/module-toml-edit`.
+  and every link reaches `Object.entries` inside `@monochromatic-dev/toml-edit-core`.
   Verified:
   the comment at `workspace-source-effect.unit.test.ts:50-61`.
 - The fixture source is 183 lines and imports `tomlSet` from
-  `@monochromatic-dev/module-toml-edit/ts` at `apply-plan.ts:17-19`,
+  `@monochromatic-dev/toml-edit-core/ts` at `apply-plan.ts:17-19`,
   with the three functions at `:46`,
    `:88`,
    and `:128`.
@@ -1141,17 +1141,17 @@ Ledger:
 
 A constraint worth naming:
 after file-enforcer is deleted,
-`@monochromatic-dev/module-toml-edit` has no remaining non-fuzz TypeScript consumer.
+`@monochromatic-dev/toml-edit-core` has no remaining non-fuzz TypeScript consumer.
 Verified:
 `rg --files-with-matches "module-toml-edit" package/ --type ts`
-returns only `module/toml-edit` itself,
- `module/toml-edit.fuzz`,
- `module/jsonc-edit/src/index.ts`,
+returns only `toml-edit/core` itself,
+ `toml-edit/core.fuzz`,
+ `jsonc-edit/core-ts/src/index.ts`,
 file-enforcer,
  and this test;
 and the `jsonc-edit` hit is a doc comment,
  not an import
-(`package/module/jsonc-edit/src/index.ts:4-8`).
+(`package/jsonc-edit/core-ts/src/index.ts:4-8`).
 
 Options:
 
@@ -1159,7 +1159,7 @@ Options:
     A new `package/test-fixture/prefer-readonly-parameter-type`,
     following the sibling `package/test-fixture/oxlint-no-restricted-syntax`,
     holding a frozen copy of `apply-plan.ts`
-    and declaring `@monochromatic-dev/module-toml-edit` as a dependency
+    and declaring `@monochromatic-dev/toml-edit-core` as a dependency
     so the chain still crosses a package boundary through `/ts`.
     Pros:
     keeps the property under test (live workspace source,
@@ -1209,7 +1209,7 @@ What they are:
 
 - `mise.no-env.toml:1120-1128` defines `sync:files`
   (alias `file-enforcer`,
-   running `node package/dev-script/file-enforcer/src/cli.ts`)
+   running `node package/file-enforcer/core/src/cli.ts`)
   and `watch:sync:files` (the same with `--watch`).
   Verified by reading that file.
 - The generated `mise.toml:1121-1128` carries the same two tasks.
@@ -1319,7 +1319,7 @@ While the TypeScript file-enforcer still runs and meow does not yet replace it:
     Nothing about it moves until meow supports the full platform matrix,
     at which point Mise and the tasks go together.
 5.  `export { exec, } from './pipeline/exec.ts';` at
-    `package/dev-script/file-enforcer/src/index.ts:96`
+    `package/file-enforcer/core/src/index.ts:96`
     can be deleted once vm-builder stops importing it,
     but leaving it is harmless:
     the file is deleted wholesale later,
@@ -1363,7 +1363,7 @@ Ordering within the recommended option:
 - vm-builder has no tests and no CI job today,
   so a regression surfaces only when the user next builds a VM.
   Verified:
-  `rg --files package/dev-script/vm-builder/src`
+  `rg --files package/vm-builder/cli/src`
   and the absence of any workflow naming vm-builder in `.github/workflows/`.
 - `sudo` prompts depend on inherited stdio.
   Any future move of vm-builder under a task runner breaks them,
@@ -1522,7 +1522,7 @@ while frozen numbers cannot be compared under the same conditions.
 - Option 4a:
   a new `package/test-fixture/prefer-readonly-parameter-type`
   holding a frozen copy of `apply-plan.ts`
-  and depending on `@monochromatic-dev/module-toml-edit`.
+  and depending on `@monochromatic-dev/toml-edit-core`.
   Pros:
   keeps a real cross-package chain,
   survives file-enforcer's deletion,
@@ -1615,8 +1615,8 @@ with no repository mutation.
   the `tsbuildinfo` search recorded under "The cost of the barrel import"
   reported 72.
 - Import closure:
-  `node closure.ts package/dev-script/file-enforcer/src/index.ts` reported 75,
-  `node closure.ts package/dev-script/file-enforcer/src/pipeline/exec.ts` reported 3.
+  `node closure.ts package/file-enforcer/core/src/index.ts` reported 75,
+  `node closure.ts package/file-enforcer/core/src/pipeline/exec.ts` reported 3.
   The walker is `closure.ts` beside this document,
    in the session scratchpad.
 - Spawn pattern census:

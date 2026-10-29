@@ -14,7 +14,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { ChunkRepairOutcome, } from '@monochromatic-dev/translation-repair-assembly';
 import type {
   AdjudicatedIssue,

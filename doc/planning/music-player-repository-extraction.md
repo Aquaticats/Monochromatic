@@ -115,7 +115,7 @@ Publish shared tooling before extraction.
 The new repository must consume registry releases,
 not source checkouts of Monochromatic tooling.
 
-- Publish file-enforcer to npm as `@monochromatic-dev/dev-script-file-enforcer`.
+- Publish file-enforcer to npm as `@monochromatic-dev/file-enforcer-core`.
 - Publish the existing Rust linter family to crates.io:
   - `monochromatic-rust-linter-core`
   - `monochromatic-rust-linter-pattern`

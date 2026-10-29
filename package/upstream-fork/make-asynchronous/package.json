@@ -1,0 +1,35 @@
+{
+  "license": "LGPL-3.0-or-later AND MIT",
+  "name": "@monochromatic-dev/upstream-fork-make-asynchronous",
+  "private": true,
+  "description": "Fork of make-asynchronous (by Sindre Sorhus, MIT) rewritten to TypeScript: run a serialized function in a worker thread without blocking the main thread, with an async-iterable variant.",
+  "type": "module",
+  "version": "0.0.1",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/make-asynchronous"
+  }
+}

@@ -159,7 +159,7 @@ export function compositorVersionProblem(
   const need = `the checks need compositor ${FIRST_VERSION_WITH_RUNNER_CONTROLS} or newer (key names F1 to F24 and `
     + 'Menu, Unicode typing, exact sizes, windows and focus). Install the current one with '
     + '"mise upgrade cargo:monochromatic-nested-wayland-session", or set E2E_COMPOSITOR to a build of '
-    + 'package/cli/nested-wayland-session';
+    + 'package/nested-wayland-session/cli';
   if (version.length === 0)
     return `the compositor ${path} printed no version ("${output.trim()}"); ${need}`;
   if (isAtLeast({

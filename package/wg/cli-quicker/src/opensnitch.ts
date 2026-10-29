@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { OpenSnitchConfigError, } from './errors.ts';
 import { currentNetworkNamespace, } from './network-namespace.ts';

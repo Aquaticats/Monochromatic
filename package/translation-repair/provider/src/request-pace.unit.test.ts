@@ -12,13 +12,13 @@
 
 import { once, } from 'node:events';
 
-import { wait as pause, } from '@monochromatic-dev/module-async-time/ts';
+import { wait as pause, } from '@monochromatic-dev/async-time-core/ts';
 import {
   caught,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
 import {

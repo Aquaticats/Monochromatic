@@ -8,7 +8,7 @@ import { banDisableRule, } from './_ban-disable-factory.ts';
  `typescript-eslint/no-non-null-assertion` variants), built via
  {@link banDisableRule}.
  
- Use `nonNullishOrThrow()` from `\@monochromatic-dev/module-or-throw`
+ Use `nonNullishOrThrow()` from `\@monochromatic-dev/or-throw-core`
  or an explicit null check instead of the `!` postfix operator.
  */
 export const noDisableNoNonNullAssertion: CreateOnceRule = banDisableRule({

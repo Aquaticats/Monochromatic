@@ -1,5 +1,12 @@
 # Vet the parser foundation for a native Rust jsonc-edit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/jsonc-edit.conformance` is now `package/jsonc-edit/core-ts.conformance`;
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status and fingerprint
 
 - Status:

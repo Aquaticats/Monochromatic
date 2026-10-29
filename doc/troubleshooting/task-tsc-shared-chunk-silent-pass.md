@@ -16,8 +16,8 @@ even with a deliberate `const x: number = 'not a number'` in package source.
 ## Root cause
 
 The `lint:types` task template in the root `mise.toml` runs
-`runWorkspaceNode('package/dev-script/task-util', 'tsc-filter', ['--build'])`,
-which executes the built `package/dev-script/task-util/dist/final/node/tsc-filter.mjs`
+`runWorkspaceNode('package/monorepo-task/core-exec', 'tsc-filter', ['--build'])`,
+which executes the built `package/monorepo-task/core-exec/dist/final/node/tsc-filter.mjs`
 whenever it exists.
 
 `src/tsc-filter.ts` runs its command-line body behind `if (import.meta.main) await main();`

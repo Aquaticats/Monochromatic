@@ -4,7 +4,7 @@ import {
   createLogger,
   sinks,
   tagged
-} from '../../package/module/logger/dist/final/node/index.mjs';
+} from '../../package/logger/core/dist/final/node/index.mjs';
 
 const mode = process.argv[2];
 if (![

@@ -1,0 +1,25 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/deps-update-cli",
+  "description": "Run pnpm update --recursive --no-save and, when the strict minimumReleaseAge gate refuses it, report which versions are too new, when they mature, and who pulls them in.",
+  "type": "module",
+  "main": "src/index.ts",
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "nano-spawn": "catalog:",
+    "yaml": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/deps-update/cli"
+  },
+  "private": true,
+  "sideEffects": true
+}

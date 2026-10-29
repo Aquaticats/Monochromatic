@@ -4,7 +4,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import { BypassRouteError, } from './errors.ts';
 import {

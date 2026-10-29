@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { readReviewedFidelityReferences, } from '../fidelity-reference-read.ts';
 import { fetchTransport, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {

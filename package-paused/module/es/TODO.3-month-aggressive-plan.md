@@ -136,7 +136,7 @@ in 3 months using maximum quality + AI acceleration + bounty system.
 
 ##### Week 5 (September 13-19): Universal Type Testing Implementation
 
-- [ ] Implement type testing for all existing functions using `@monochromatic-dev/module-test`
+- [ ] Implement type testing for all existing functions using `@monochromatic-dev/test-harness-core`
 - [ ] Add type inference tests for generic functions
 - [ ] Create type testing patterns for complex scenarios
 - [ ] Verify type safety across all refactored functions

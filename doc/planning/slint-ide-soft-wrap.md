@@ -230,7 +230,7 @@ Status as of 2026-10-12 (the branch `feat/ide-soft-wrap`):
    so it keeps a bound, now a budget of characters shaped (the passes a line gets fall with its length);
    a test that raced the 200 ms scroll quiet time reads a clock the test holds;
    and scrolling inside a built tile of a wrapped file is counted to do no source work.
-   The README (`package/desktop-app/ide/README.md`, "Soft wrap") holds the numbers and the list of known differences
+   The README (`package/ide/app/README.md`, "Soft wrap") holds the numbers and the list of known differences
    from IntelliJ.
 8. Slice 5 (2026-10-13), a new width on the window thread: **built.**
    A new wrap width no longer waits for the worker's tile.

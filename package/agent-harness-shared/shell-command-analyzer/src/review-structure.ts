@@ -2,7 +2,7 @@
  Parser-owned shell structure for permission review. @module
  */
 import { parse, } from 'unbash';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Syntax projection retains operations while keeping source archives local.
 /**

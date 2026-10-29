@@ -18,7 +18,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { ConsistencyInvariantError, } from '@monochromatic-dev/translation-repair-consistency';
 import { groupLine, } from '../../dist/final/node/index.mjs';

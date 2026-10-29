@@ -83,12 +83,12 @@ alongside [`stylistic`](package/oxlint-plugin/stylistic/),
 and [`test-import`](package/oxlint-plugin/test-import/) plugins.
 
 **Wayland-native desktop applications**:
-[`desktop-app/file-manager`](package/desktop-app/file-manager/) is a native file manager
+[`file-manager/app`](package/file-manager/app/) is a native file manager
 presenting a Niri-like horizontal strip of columns on GTK4,
 with native Wayland drag-and-drop.
-[`desktop-app/terminal`](package/desktop-app/terminal/) is a Slint terminal
+[`terminal/app`](package/terminal/app/) is a Slint terminal
 backed by Ghostty's libghostty-vt core.
-[`cli/nested-wayland-session`](package/cli/nested-wayland-session/) hosts one Wayland client
+[`nested-wayland-session/cli`](package/nested-wayland-session/cli/) hosts one Wayland client
 fullscreen on the GPU (dmabuf) path for GUI testing,
 screenshotting the framebuffer and injecting synthetic input
 over a Unix-socket control API.
@@ -112,7 +112,7 @@ See [`PHILOSOPHY.tool-choices.md`](doc/philosophy/tool-choices.md) for the full
 analysis of h3 vs Elysia vs Hono.
 
 **Monorepo-aware CSS build tool**:
-[`build-tool-css`](package/build-tool/css/) resolves `@import` through
+[`build-tool-css`](package/css/cli/) resolves `@import` through
 `package.json` exports mappings and `node_modules`,
 processes custom `@mixin`/`@apply` syntax,
 and generates CSS strings for Shadow DOM injection,
@@ -197,7 +197,7 @@ mise run toolchain:sync
 ```
 
 The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
-and `node package/dev-script/file-enforcer/src/toolchain/sync.ts`
+and `node package/file-enforcer/core/src/toolchain/sync.ts`
 runs the same work without the task wrapper.
 The sync entry stages its own bootstrap tools first:
 `bin` as a standalone release binary
@@ -220,17 +220,17 @@ mise run prepareAndBuild
 - `mise run toolchain:update` re-resolves the floating requests and the
   channel stamps to their current upstream versions and rewrites
   `toolchain.lock.json` as a reviewable diff
-  (`node package/dev-script/file-enforcer/src/toolchain/update.ts`,
+  (`node package/file-enforcer/core/src/toolchain/update.ts`,
   `--check` reports without writing);
   explicit pins never move without a plan edit.
 - `mise run toolchain:status` prints observed versus locked versions and exits
   non-zero on drift
-  (`node package/dev-script/file-enforcer/src/toolchain/status.ts` runs the
+  (`node package/file-enforcer/core/src/toolchain/status.ts` runs the
   same check).
 - `mpm installed` lists what every package manager on the machine holds,
   `mpm outdated` lists available upgrades,
   and `mpm sbom` exports the inventory as SPDX or CycloneDX.
-- `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` prints the
+- `node package/file-enforcer/core/src/toolchain/bin-paths.ts` prints the
   exposure directory,
   PATH directories,
   and one absolute path per linked binary as JSON
@@ -249,7 +249,7 @@ re-resolving versions is a separate update action,
 the `pnpm update` analogue.
 
 Version bumps change the typed tool plan in
-`package/dev-script/file-enforcer/src/toolchain/` and the generated
+`package/file-enforcer/core/src/toolchain/` and the generated
 `toolchain.lock.json`,
 never a hand-edited lock.
 Upgrades of a single machine package name their tool
@@ -278,7 +278,7 @@ mise run test
 mise run buildAndTest
 
 # Build and test a specific file
-mise run buildAndTest -- package/module/async-time/src/wait.unit.test.ts
+mise run buildAndTest -- package/async-time/core/src/wait.unit.test.ts
 
 # Lint all files (oxlint, dprint, markdown, rust, detekt)
 mise run lint
@@ -297,8 +297,8 @@ mise run watch:test
 Run a task in a specific package with the monorepo path prefix:
 
 ```sh
-mise run //package/module/async-time:test:unit
-mise run //package/webapp-productivity/done:build
+mise run //package/async-time/core:test:unit
+mise run //package/done/app:build
 ```
 
 ## Project structure
@@ -395,7 +395,7 @@ package-deprecated/         Deprecated packages retained for reference
 - **Formatter**:
   dprint (orchestrates all formatters including oxlint auto-fix)
 - **Testing**:
-  `@monochromatic-dev/module-test` unit files executed through Node-based `mise run` tasks,
+  `@monochromatic-dev/test-harness-core` unit files executed through Node-based `mise run` tasks,
   Playwright in Podman for browser and e2e tests,
   `cargo-fuzz` for coverage-guided fuzzing
 - **HTTP framework**:

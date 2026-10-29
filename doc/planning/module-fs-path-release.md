@@ -12,7 +12,7 @@ Mechanism and prior art:
 
 ## Driver
 
-`@monochromatic-dev/module-test` cannot publish while it depends on private packages.
+`@monochromatic-dev/test-harness-core` cannot publish while it depends on private packages.
 The logger shipped on 2026-09-06 (0.4.0 today);
  `module-fs-path` is the other private dependency,
  so it gets the same treatment next.
@@ -25,7 +25,7 @@ After this release,
 ## Settled decisions (2026-09-07)
 
 - The published artifact follows the logger's platform split
-   (`package/module/logger/DECISIONS.md`,
+   (`package/logger/core/DECISIONS.md`,
    "Platform-specific sinks live behind `./node` and `./browser`"):
    the root entry `.` is platform-neutral (POSIX path ops,
    trims,
@@ -110,13 +110,13 @@ After this release,
    the owner typing the one-time password;
    later versions publish from CI with provenance.
 - Records:
-   `package/module/fs-path/DECISIONS.md` for the split (package docs stay beside code),
+   `package/fs-path/core/DECISIONS.md` for the split (package docs stay beside code),
    this file for the release,
    README rewritten.
 
 ## Measured state (2026-09-07)
 
-- `package/module/fs-path/package.json`:
+- `package/fs-path/core/package.json`:
    `private: true`,
    version 0.0.1,
    404 on the registry;
@@ -137,7 +137,7 @@ After this release,
    no built client bundle in the repo contains fs-path code;
    `doc/troubleshooting/css-tooling.md` records done-postcss routing around fs-path
    because its imports dragged Node builtins into the client bundle.
-   Only `dev-script/deps-cube` (2 files) imports a Node-only helper (`findPackageRootCached`);
+   Only `dependency-catalog/cli-cube` (2 files) imports a Node-only helper (`findPackageRootCached`);
    nothing in the repo imports the `ensure*` or `empty*` helpers.
 - Gates:
    `lint:types` green;
@@ -266,7 +266,7 @@ After this release,
 
 ## Result (2026-09-07)
 
-- `@monochromatic-dev/module-fs-path@0.1.0` is on the registry
+- `@monochromatic-dev/fs-path-core@0.1.0` is on the registry
    (`npm view` prints the version and a `registry.npmjs.org` tarball URL);
    published from a linked worktree of the version branch with `npm publish --otp`,
    no provenance.
@@ -276,7 +276,7 @@ After this release,
    so the registration is verified by the next CI publish rather than here).
 - Version pull request #499 merged as `3e46e38df`;
    the release run it triggered (34111678810) found nothing to version or publish;
-   tag and GitHub release `@monochromatic-dev/module-fs-path@0.1.0` created through the API on the merge commit.
+   tag and GitHub release `@monochromatic-dev/fs-path-core@0.1.0` created through the API on the merge commit.
 - A throwaway Node 26 project installed 0.1.0 from the registry and ran the mise finder,
    `ensureDir`,
    and `findPackageRootCached`;
@@ -320,7 +320,7 @@ Publishing before bringing the bump to `main` prevents the existing `npm-release
 from publishing the version before the new trusted publisher can validate.
 
 Local checks passed:
-`mise run //package/module/fs-path:buildAndTest`,
+`mise run //package/fs-path/core:buildAndTest`,
 `lint:types`,
 and `lint:oxlint` (zero warnings and errors).
 [Release run 38837297263](https://github.com/Aquaticats/Monochromatic/actions/runs/38837297263)
@@ -337,7 +337,7 @@ This successful OIDC publication exercised the newly configured publisher.
 A disposable consumer with its own `package.json` installed `0.2.1` from npm and passed the same runtime checks,
 plus assertions of the installed version and repository URL.
 Commit `d71ed3b6d4` records the matching version and changelog on `main`.
-Tag `@monochromatic-dev/module-fs-path@0.2.1` preserves the exact published source commit.
+Tag `@monochromatic-dev/fs-path-core@0.2.1` preserves the exact published source commit.
 The initial consumer fixture omitted its own manifest and caused npm to select the parent scratch directory;
 the affected temporary Markdown dependencies were restored and compiled successfully.
 Details:

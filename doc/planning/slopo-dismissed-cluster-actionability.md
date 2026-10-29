@@ -37,7 +37,7 @@ no embedding step and no API cost,
    46% of those that exist.
 
 A sample of what the floor excludes argues for keeping it.
-`module/hyperscript/src/css/values.constructors.ts` has 33 exported constructors.
+`hyperscript/core/src/css/values.constructors.ts` has 33 exported constructors.
 At threshold 13 the index holds 8 of them;
 the other 25 are 8-node one-liners such as `cssRem`,
  `cssEm`,
@@ -89,7 +89,7 @@ which makes it the cleanest test of the question.
 - The idiom is
    `public constructor(message: string,) { super(message,); this.name = 'XError'; }`,
    concentrated in `git-policy/cli` (42 files),
-   `module/deepmerge-ts.fuzz` (12),
+   `upstream-fork/deepmerge-ts.fuzz` (12),
    `open-code-review-issue/cli` (11) and `mvm/cli` (9).
 - No base class sets the name automatically;
    `new.target.name` appears nowhere in the repository.
@@ -142,7 +142,7 @@ A second family sits above the floor too:
 11 indexed units contain `attachShadow(`,
 all at 20 nodes or more,
 and `rg` finds 22 sites in total.
-The other 11 are in `webapp-productivity/done-postcss`,
+The other 11 are in `done/variant-postcss`,
 which the `done-*` pattern in `slopo.conf.yaml` excludes from indexing,
 verified with `pathspec`'s gitignore matcher.
 That exclusion is deliberate:
@@ -313,7 +313,7 @@ and C13 is the one with a real remedy.
 ## Retractions from the first pass of this investigation
 
 - The suggestion that C866 and C989 could share an in-file helper is withdrawn.
-   `package/module/hyperscript/README.md` documents the family as the design:
+   `package/hyperscript/core/README.md` documents the family as the design:
    "Branded value constructors replace raw strings,
    preventing invalid units and disallowed color functions at the type level",
    and lists `cssRem`,
@@ -579,9 +579,9 @@ duplicated once,
 because the value of a shared utility is one place to hold a policy times the number of consumers,
 not lines saved per pair.
 This repository is full of that shape:
-`module/or-throw`,
-`module/numeric-format`,
-`module/throws` and `agent-harness-shared/text-scan` are all small utilities with many consumers.
+`or-throw/core`,
+`numeric-format/core`,
+`throws/core` and `agent-harness-shared/text-scan` are all small utilities with many consumers.
 
 So the test is three questions,
 none of which is "how much code do the two sides share":
@@ -801,13 +801,13 @@ Six have an owner that does not yet know about these clusters:
    C833.
    Owner:
    #619,
-   which is consolidating `module/fs-path`.
+   which is consolidating `fs-path/core`.
 - Manifest license readers,
    C878.
    Owner:
    #633,
    which owns the file,
-   while `dev-script/deps-cube` already has the reader that also unwraps the object form.
+   while `dependency-catalog/cli-cube` already has the reader that also unwraps the object form.
 
 ## Bucket B: propagating habits that need a policy decision
 
@@ -876,7 +876,7 @@ Four of these already have their pattern owned in place,
 which is why the dismissal is safe:
 `one-line-forwarders` and `engine-send-wrapper` both delegate to a shared function,
 `oxlint-createonce-scaffolding` uses the `createOnce` the plugin already extracted,
-and `or-throw-sibling-guards` lives in `module/or-throw`.
+and `or-throw-sibling-guards` lives in `or-throw/core`.
 
 ## What this says about the taxonomy itself
 
@@ -989,7 +989,7 @@ The record:
    #650 (the shell and git-config quoting grammars),
    #617 (line-ending normalisation and the 28-site non-empty-line predicate in two spellings),
    #620 (the `AbortController` disposable pair),
-   #619 (`splitSegments` for `module/fs-path`) and #633 (the two license readers and the third
+   #619 (`splitSegments` for `fs-path/core`) and #633 (the two license readers and the third
    reader in `deps-cube` that unwraps the object form).
 - #665 was opened with the eight drafted owner designs,
    each carrying its measurement,

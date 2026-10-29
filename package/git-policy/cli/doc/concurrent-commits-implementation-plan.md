@@ -206,7 +206,7 @@ and every new behavior goes into sibling modules per MXL:
   `using`/`await using` cleanup,
   and custom error classes.
 - Git always runs with an argument array and no shell.
-- Unit tests sit beside the module as `*.unit.test.ts` on `@monochromatic-dev/module-test`,
+- Unit tests sit beside the module as `*.unit.test.ts` on `@monochromatic-dev/test-harness-core`,
   run through `mise run //package/git-policy/cli:test:unit`.
 - Real-Git disposable fixtures follow `src/worktree-copy-fixture.unit.test.ts`:
   `/usr/bin/git`,

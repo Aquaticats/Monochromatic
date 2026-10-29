@@ -17,7 +17,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { validateTranslatedSlice, } from '@monochromatic-dev/translation-repair-translate-floor';
 import { describeStandingVerdict, } from '../dist/final/node/index.mjs';

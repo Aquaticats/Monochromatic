@@ -3,6 +3,12 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/module/fs-path` is now `package/fs-path/core`;
+> `package/module/test` is now `package/test-harness/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/mutation-test.fixture` is now `package/mutation-test/cli.fixture`;
 > `package/cli/mutation-test` is now `package/mutation-test/cli`;
 > `@monochromatic-dev/cli-mutation-test` is now `@monochromatic-dev/mutation-test-cli`.

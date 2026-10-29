@@ -57,7 +57,7 @@ async function copySourceSnapshot({ context }) {
   );
   const dependency = join(
     context,
-    'package/rust-module/jsonc-edit',
+    'package/jsonc-edit/core-rust',
   );
   const entries = [
     ...[
@@ -82,7 +82,7 @@ async function copySourceSnapshot({ context }) {
     ].map(function dependencyEntry(name) {
       return {
         from: resolve(
-          '../../rust-module/jsonc-edit',
+          '../../jsonc-edit/core-rust',
           name,
         ),
         to: join(

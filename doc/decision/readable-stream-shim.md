@@ -20,8 +20,8 @@ The package is large,
  and ships a parallel class hierarchy that breaks `instanceof` identity against `node:stream` for any consumer that
  happens to mix the two.
 
-The workspace already has a precedent for replacing userland mirrors of platform APIs with a `link:package/shim/<name>`
-override (see `package/shim/node-domexception/`).
+The workspace already has a precedent for replacing userland mirrors of platform APIs with a `link:package/pnpm-override/shim-<name>`
+override (see `package/pnpm-override/shim-node-domexception/`).
 The same mechanism applies cleanly here:
  a single workspace package that re-exports `node:stream`,
  wired in via `pnpm-workspace.yaml > overrides`,
@@ -45,15 +45,15 @@ The outcome:
 ## Shim package layout
 
 Package root:
- `package/shim/readable-stream/`.
+ `package/pnpm-override/shim-readable-stream/`.
 Five top-level files plus a `lib/` directory of five 3-line re-exports.
 
-### `package/shim/readable-stream/package.json`
+### `package/pnpm-override/shim-readable-stream/package.json`
 
 ```json
 {
   "license": "LGPL-3.0-or-later",
-  "name": "@monochromatic-dev/shim-readable-stream",
+  "name": "@monochromatic-dev/pnpm-override-shim-readable-stream",
   "description": "API-compatible shim for readable-stream@3 and readable-stream@4; re-exports node:stream.",
   "private": true,
   "type": "commonjs",
@@ -87,7 +87,7 @@ Five top-level files plus a `lib/` directory of five 3-line re-exports.
 
 Notes:
 
-- Fields mirror `package/shim/node-domexception/package.json` (`private`,
+- Fields mirror `package/pnpm-override/shim-node-domexception/package.json` (`private`,
    `type: "commonjs"`,
    `main` + `types`,
    explicit `exports`,
@@ -100,7 +100,7 @@ Notes:
   If a future consumer requires an additional subpath,
    the remediation is a one-line `exports` entry plus a 1-line file under `lib/`.
 
-### `package/shim/readable-stream/index.cjs`
+### `package/pnpm-override/shim-readable-stream/index.cjs`
 
 ```js
 'use strict';
@@ -166,7 +166,7 @@ all are properties of `node:stream` on Node 22+,
  so all are defined as own properties on the default export by the `Object.keys(Stream)` enumeration without having to
  spell them out.
 
-### `package/shim/readable-stream/index.d.cts`
+### `package/pnpm-override/shim-readable-stream/index.d.cts`
 
 ```ts
 import Stream = require('node:stream');
@@ -183,7 +183,7 @@ but adds complexity for no caller value:
  etc. by name,
  which the namespace export provides.
 
-### `package/shim/readable-stream/lib/_stream_writable.js`
+### `package/pnpm-override/shim-readable-stream/lib/_stream_writable.js`
 
 ```js
 'use strict';
@@ -191,7 +191,7 @@ but adds complexity for no caller value:
 module.exports = require('node:stream',).Writable;
 ```
 
-### `package/shim/readable-stream/lib/_stream_readable.js`
+### `package/pnpm-override/shim-readable-stream/lib/_stream_readable.js`
 
 ```js
 'use strict';
@@ -199,7 +199,7 @@ module.exports = require('node:stream',).Writable;
 module.exports = require('node:stream',).Readable;
 ```
 
-### `package/shim/readable-stream/lib/_stream_transform.js`
+### `package/pnpm-override/shim-readable-stream/lib/_stream_transform.js`
 
 ```js
 'use strict';
@@ -207,7 +207,7 @@ module.exports = require('node:stream',).Readable;
 module.exports = require('node:stream',).Transform;
 ```
 
-### `package/shim/readable-stream/lib/_stream_duplex.js`
+### `package/pnpm-override/shim-readable-stream/lib/_stream_duplex.js`
 
 ```js
 'use strict';
@@ -215,7 +215,7 @@ module.exports = require('node:stream',).Transform;
 module.exports = require('node:stream',).Duplex;
 ```
 
-### `package/shim/readable-stream/lib/_stream_passthrough.js`
+### `package/pnpm-override/shim-readable-stream/lib/_stream_passthrough.js`
 
 ```js
 'use strict';
@@ -233,7 +233,7 @@ The other four are provided defensively to match the full set of `_stream_*.js` 
  this costs five 3-line files and keeps the shim useful if a future winston-transport or third-party patch reaches for
  another subpath.
 
-### `package/shim/readable-stream/mise.toml`
+### `package/pnpm-override/shim-readable-stream/mise.toml`
 
 ```toml
 [tasks.lint]
@@ -246,7 +246,7 @@ extends = "lint:oxlint"
 extends = "lint:types"
 ```
 
-Identical to `package/shim/node-domexception/mise.toml`.
+Identical to `package/pnpm-override/shim-node-domexception/mise.toml`.
 
 ## Upstream package.json fields and shim coverage
 
@@ -341,19 +341,19 @@ Not included in the shim.
 Add one line to the `overrides` block:
 
 ```yaml
-'readable-stream': 'link:package/shim/readable-stream'
+'readable-stream': 'link:package/pnpm-override/shim-readable-stream'
 ```
 
 A single override entry suffices for both v3.6.2 and v4.7.0.
 The `link:` protocol is a path resolver,
  not a semver resolver:
  pnpm substitutes the symlinked path regardless of which version a transitive dependent declared,
- identical to how the existing `'node-domexception': 'link:package/shim/node-domexception'` line handles every upstream
+ identical to how the existing `'node-domexception': 'link:package/pnpm-override/shim-node-domexception'` line handles every upstream
  `node-domexception` request.
 No version-qualified entry (`readable-stream@3`,
  `readable-stream@4`) is needed.
 
-Place the new line adjacent to the existing `'node-domexception': 'link:package/shim/node-domexception'` entry inside
+Place the new line adjacent to the existing `'node-domexception': 'link:package/pnpm-override/shim-node-domexception'` entry inside
 `overrides`,
  in alphabetical position (after `'node-domexception'`).
 
@@ -369,7 +369,7 @@ After wiring (`pnpm-workspace.yaml` override added,
       `winston@3.15.0`,
       `winston-transport@4.9.0`,
       `isomorphic-git@1.37.6`),
-      each pointing at `../../../../package/shim/readable-stream`.
+      each pointing at `../../../../package/pnpm-override/shim-readable-stream`.
    - Two orphan store directories may linger at `node_modules/.pnpm/readable-stream@3.6.2/` and
    - `node_modules/.pnpm/readable-stream@4.7.0/`.
       They are inert:
@@ -380,8 +380,8 @@ After wiring (`pnpm-workspace.yaml` override added,
      The primary signal that the override is live is the three consumer symlinks above;
       the orphan dirs disappear on the next full `node_modules` rebuild.
 2. Type-check and lint the shim package itself.
-   - `mise run //package/shim/readable-stream:lint:types`
-   - `mise run //package/shim/readable-stream:lint:oxlint`
+   - `mise run //package/pnpm-override/shim-readable-stream:lint:types`
+   - `mise run //package/pnpm-override/shim-readable-stream:lint:oxlint`
 3. Exercise winston via the mcp/nvim chain.
    - `mise run //package/mcp/nvim:lint:types` (the package depends on `neovim`,
       which depends on `winston`;

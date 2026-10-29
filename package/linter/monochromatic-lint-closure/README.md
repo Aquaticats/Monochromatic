@@ -91,7 +91,7 @@ The UI test exports `CARGO_MANIFEST_DIR` and `OUT_DIR` for the compiler processe
 and `tests/outside/` holds the file that lies beside the package directory.
 Measured effect:
 before the change `package/music-player/desktop-app` reported 5252 closures and
-`package/desktop-app/terminal` 118 inside the generated `app.rs`;
+`package/terminal/app` 118 inside the generated `app.rs`;
 see the measurement in `doc/planning/closure-lint-everywhere.md` and the end-to-end run recorded in
 `doc/decision/rust-closure-lint-dylint.md`.
 
@@ -224,7 +224,7 @@ A session whose tools are not installed yet runs `mise install` first
 
 Dylint builds the linted package with the toolchain that built the library,
 so the target must compile on that nightly.
-The IDE package (`package/desktop-app/ide`) has no `rust-toolchain` file and builds in a container image on the floating stable channel;
+The IDE package (`package/ide/app`) has no `rust-toolchain` file and builds in a container image on the floating stable channel;
 it compiled on `nightly-2026-10-17` in the stage-1 run,
 so no incompatibility showed.
 Only code that compiles under the chosen features,

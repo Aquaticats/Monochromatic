@@ -53,7 +53,7 @@ Port Git-specific token classification rather than handing all Git arguments to 
 ### Configuration
 
 Read repository-root `cli-git.config.jsonc` through
-`package/rust-module/jsonc-edit`.
+`package/jsonc-edit/core-rust`.
 Validate the document into typed settings for the compiled-in policy registry and existing concurrency controls.
 Report unknown keys,
 unknown policy IDs,
@@ -165,7 +165,7 @@ fix mapping,
 and JSONL output.
 Do not implement a second Markdown rule engine inside cli-git.
 
-Use `package/rust-module/jsonc-edit` for both tools,
+Use `package/jsonc-edit/core-rust` for both tools,
 with separate typed schemas:
 cli-git's policy settings and the linter's ordered configuration blocks are different data models.
 The linter's filename is `monochromatic-lint.config.jsonc`.

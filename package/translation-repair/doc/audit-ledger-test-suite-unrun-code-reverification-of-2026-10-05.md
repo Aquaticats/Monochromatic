@@ -123,7 +123,7 @@ the suite prints one info line per suite
 listing its fulfilled children's names,
 per-case `[PASS]` lines are debug level,
 and empty-name suites log at debug
-(`package/module/test/src/describe.ts`),
+(`package/test-harness/core/src/describe.ts`),
 so counting `[PASS]` lines counts named suites,
 not cases;
 a cold stretch's line label can start at the line

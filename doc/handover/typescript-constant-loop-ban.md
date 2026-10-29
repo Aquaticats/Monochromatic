@@ -1,5 +1,10 @@
 # TypeScript constant-loop ban handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/css-edit` is now `package/css/core-edit`.
+
 Last updated:
 `2026-07-22T22:06:35-04:00`.
 

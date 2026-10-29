@@ -4,7 +4,7 @@ import {
   type Socket,
 } from 'node:net';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { HelperProtocolError, } from './helper-protocol.ts';
 import type { HelperRequest, } from './helper-request.ts';

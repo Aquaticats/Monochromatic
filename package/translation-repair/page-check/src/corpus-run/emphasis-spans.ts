@@ -1,6 +1,6 @@
 import type { Nodes, } from 'mdast';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { maskHtmlComments, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { treeNodes, } from '@monochromatic-dev/translation-repair-markup/ts';

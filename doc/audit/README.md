@@ -1,5 +1,11 @@
 # Dependency Security Report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/shim/ungap-structured-clone` is now `package/pnpm-override/shim-ungap-structured-clone`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`.
+
 ## Socket CLI scan (2026-04-05)
 
 Scanned with Socket CLI v1.1.78 via `socket scan create --report`.

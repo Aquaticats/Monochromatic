@@ -5,7 +5,7 @@ that do not report a failure of the client:
 every line a language server prints on standard error,
 the end of that stream when the server process ends,
 and every JSON-RPC error response.
-The IDE's Language module (`package/desktop-app/ide/src/language`) embeds `helix-lsp`
+The IDE's Language module (`package/ide/app/src/language`) embeds `helix-lsp`
 and forwards its `log` records into the application log,
 so a clean open, request, close, and quit leaves ERROR-level records.
 The repository rule on quiet cleanup (`AGENTS.md`, code `CXL`) forbids that.
@@ -137,10 +137,10 @@ let (id, result) = match output {
 
 ### How the records reach the application log
 
-`package/desktop-app/ide/src/native.rs` starts logging with `tracing_subscriber::fmt()...init()`,
+`package/ide/app/src/native.rs` starts logging with `tracing_subscriber::fmt()...init()`,
 which also installs the bridge from the `log` crate that `helix-lsp` uses.
 The filter keeps `helix-lsp` at warnings and errors
-(`HELIX_LOG_DIRECTIVE` in `package/desktop-app/ide/src/language.rs`),
+(`HELIX_LOG_DIRECTIVE` in `package/ide/app/src/language.rs`),
 because `helix-lsp` logs every protocol message in full at `info`.
 All three records are errors to that filter.
 
@@ -170,8 +170,8 @@ which was also the head of `master` on 2026-10-05.
 Container suite, scripted server, no real language server:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:test:language quiet::
+# package/ide/app
+mise run //package/ide/app:test:language quiet::
 ```
 
 `tests/language/quiet.rs` installs the application's log setup with an in-memory writer,
@@ -184,8 +184,8 @@ and the test runs with the bridge described in "Verified workarounds".
 Host, real servers confined by bubblewrap, disposable projects:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:inspect:language-lifecycle
+# package/ide/app
+mise run //package/ide/app:inspect:language-lifecycle
 ```
 
 ### Records that appear
@@ -217,7 +217,7 @@ rust-analyzer `1.100.0-nightly (1303417 2026-09-21)`, open, one hover, close, qu
 ### Re-labelling in the application (adopted)
 
 The repository owner chose this handling on 2026-10-06 ("Re-label in the IDE").
-`package/desktop-app/ide/src/logging/relabel.rs` installs the `log` crate's logger for the process.
+`package/ide/app/src/logging/relabel.rs` installs the `log` crate's logger for the process.
 It lowers exactly the three shapes, when they come from the `helix_lsp::transport` target at ERROR,
 and passes everything else, at every level, through `tracing_log::format_trace` unchanged:
 
@@ -342,14 +342,14 @@ Prototype, applied to a fresh clone at the pinned revision
 Verification command, with a disposable target directory, Cargo home copy, and the clone:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:inspect:language-lifecycle-guards "$CACHE" "$CARGO" "$HELIX" helix
+# package/ide/app
+mise run //package/ide/app:inspect:language-lifecycle-guards "$CACHE" "$CARGO" "$HELIX" helix
 ```
 
 Note, 2026-10-06: this `helix` part was removed from `inspect:language-lifecycle-guards`
 when the application started re-labelling the record, because the strict test now passes with or without the change.
 The command runs as written on `main` at commit `45db45d02`;
-to reproduce the prototype result, check out `package/desktop-app/ide` at that commit.
+to reproduce the prototype result, check out `package/ide/app` at that commit.
 
 Result on 2026-10-05 (`~/temp/agent/ide-language-lifecycle-guard-8DAtvs/results.json`):
 built against the unmodified clone, the strict test fails with `scripted-ls err: <- StreamClosed`;

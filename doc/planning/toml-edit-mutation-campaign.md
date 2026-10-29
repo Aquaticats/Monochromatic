@@ -2,7 +2,7 @@
 
 ## Goal and scope
 
-The user requested mutation testing against `package/module/toml-edit` and fixes for actionable findings.
+The user requested mutation testing against `package/toml-edit/core` and fixes for actionable findings.
 Use the opt-in `test:mutation` task with `--full-suite` and reports under private scratch.
 The package task scans `src/conformance/` by default,
  but the upstream conformance runner does not execute inside the mutation container.
@@ -82,7 +82,7 @@ The remaining loop-bound mutants forcing `end > 0` to true or changing `>` to `>
  are equivalent because an out-of-range index is `undefined` and fails the newline comparison.
 
 A repository-wide symbol and subpath search found no callers of these exports outside `emit-value.ts` itself.
-`package/module/toml-edit/package.json` still exposes `./ts/*` and ships `src`,
+`package/toml-edit/core/package.json` still exposes `./ts/*` and ships `src`,
  so these helpers were reachable through source-subpath imports despite not being root exports.
 The unauthenticated public npm registry returned `E404` for this package on 2026-09-24;
  that alone does not prove that no authenticated or Git-based consumer exists.

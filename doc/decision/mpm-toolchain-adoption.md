@@ -202,7 +202,7 @@ The maintainer's "no pinning" wording is recorded as:
 
 `file-enforcer` owns the typed toolchain policy
  (the `doc/planning/mise-removal-coverage.md` file-enforcer provisioning row),
- in `package/dev-script/file-enforcer/src/toolchain/`:
+ in `package/file-enforcer/core/src/toolchain/`:
 
 - `toolchain.lock.json` (generated,
  committed):

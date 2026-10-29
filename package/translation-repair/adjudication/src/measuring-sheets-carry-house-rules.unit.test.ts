@@ -28,7 +28,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { buildRenderingAuditMessages, } from '@monochromatic-dev/translation-repair-rendering-audit';
 import type { AdjudicatedIssue, } from '@monochromatic-dev/translation-repair-shared-contract';

@@ -1,0 +1,22 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/upstream-fork-matcher.fuzz",
+  "description": "Property-based fuzz campaign for module-matcher-fork: matching invariants, input totality, and a differential oracle against upstream matcher 6.1.0.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/upstream-fork-matcher": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "matcher": "catalog:",
+    "typescript": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/matcher.fuzz"
+  }
+}

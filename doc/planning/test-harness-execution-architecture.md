@@ -35,12 +35,12 @@ Every symptom in the remediation plan follows from those choices.
 ### A deadline is reported, not enforced
 
 `runItAttempt` wraps the body in `withTimeout`
-(`package/module/test/src/it-attempt.ts:83`),
+(`package/test-harness/core/src/it-attempt.ts:83`),
 `describe` wraps the settle promise the same way
-(`package/module/test/src/describe.ts:316`),
+(`package/test-harness/core/src/describe.ts:316`),
 and the logger wraps sink verification in `withHostTimeout`,
 which delegates to `withTimeout`
-(`package/module/logger/src/with-host-timeout.ts:26`).
+(`package/logger/core/src/with-host-timeout.ts:26`).
 
 `withTimeout` uses `Promise.race`:
 it settles the race,
@@ -88,7 +88,7 @@ The inventory is small enough to change and large enough to matter:
 17 default-run unit files call `setTimeout`,
 and two default-run files install fake timers,
 one for `Date` only and one for `setTimeout` and `clearTimeout`
-(`package/module/test/src/sinon-clock.unit.test.ts`).
+(`package/test-harness/core/src/sinon-clock.unit.test.ts`).
 A third file passes `useFakeTimers: false` while testing sandbox options.
 Code under test is much larger:
 231 non-test source files read ambient time.
@@ -99,7 +99,7 @@ Full dependency injection across all of it is not proportionate.
 `describe` and `it` return lazy thenables.
 The descriptor's `.then` both starts an execution and reports its result,
 so every consumption re-runs the body
-(`package/module/test/src/descriptor.ts`).
+(`package/test-harness/core/src/descriptor.ts`).
 The harness self-test shows the consequence:
 the same failing child emits its `[FAIL]` lines twice
 because two `.rejects` assertions consume one descriptor twice.
@@ -217,7 +217,7 @@ cancellation,
 and journal.
 
 ```ts
-// package/module/test/src/scope.ts (sketch)
+// package/test-harness/core/src/scope.ts (sketch)
 type ScopeState = 'created' | 'running' | 'waiting' | 'cancelled' | 'settled' | 'disposed';
 
 type ExecutionScope = {
@@ -256,7 +256,7 @@ because it means the test left work running.
 ### Clock
 
 ```ts
-// package/module/test/src/clock.ts (sketch)
+// package/test-harness/core/src/clock.ts (sketch)
 type Clock = {
   now(): number;
   sleep(ms: number, options?: { readonly signal?: AbortSignal }): Promise<void>;

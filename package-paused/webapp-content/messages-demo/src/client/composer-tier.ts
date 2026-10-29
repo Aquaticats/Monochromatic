@@ -6,7 +6,7 @@
  * signals; the composer applies whatever transition it returns.
  */
 
-import { BYTES_PER_KIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core/ts';
 
 /**
  * Tier-2 threshold in kibibytes.

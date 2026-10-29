@@ -162,7 +162,7 @@ and every `package/pi-plugin` and `package/pi-shared` package now passes `lint:t
   and ask-user-question annotates an exported constant for `--isolatedDeclarations`.
 
 The remaining logger type-check failure was resolved under issue #254:
-`package/webapp-productivity/done/src/lib/db-migrations.ts` no longer imports or awaits
+`package/done/app/src/lib/db-migrations.ts` no longer imports or awaits
 `initPromise`,
 which the lazy default logger does not export.
 
@@ -374,7 +374,7 @@ covers this incident.
   `SimpleStreamOptions` type no longer declares.
   Switching model-review to per-API `stream()` options would make it typed,
   at the cost of importing non-lazy provider modules.
-- `package/dev-script/deps-update` runs no type check after a dependency bump,
+- `package/deps-update/cli` runs no type check after a dependency bump,
   so a restored `lint:types` still depends on someone running it.
   The 2026-10-20 drift batch this caused is recorded in
   [`deps-update-api-drift.md`](deps-update-api-drift.md).

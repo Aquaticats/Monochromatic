@@ -31,7 +31,7 @@ async function startApplication() {
 ```
 
 This repo hit the symptom while building
-`package/desktop-app/electron-counter/src/main.ts`:
+`package/electron-infra/app-counter/src/main.ts`:
  the app logged that it was waiting for Electron
 readiness,
  then the nested Wayland boundary test never observed the renderer state.
@@ -170,12 +170,12 @@ Verified against:
 - Electron package version:
    `43.1.0`,
    resolved by
-  `package/desktop-app/electron-counter/node_modules/electron`.
+  `package/electron-infra/app-counter/node_modules/electron`.
 - Electron source clone:
    `electron/electron` at
   `54acd1b3900db4503dc486691f2e68c3aec1efe3`.
 - Runtime boundary:
-   `package/cli/nested-wayland-session` with `DISPLAY` cleared and
+   `package/nested-wayland-session/cli` with `DISPLAY` cleared and
   `app.commandLine.appendSwitch('ozone-platform', 'wayland')` in each fixture app.
 
 The reproduction harness creates temporary ESM apps,
@@ -204,9 +204,9 @@ async function start() {
 `;
 ```
 
-The command run from `package/desktop-app/electron-counter` was a `node --input-type=module`
+The command run from `package/electron-infra/app-counter` was a `node --input-type=module`
 harness that used `require('electron')` for the Electron binary and
-`package/cli/nested-wayland-session/target/release/monochromatic-nested-wayland-session` for the
+`package/nested-wayland-session/cli/target/release/monochromatic-nested-wayland-session` for the
 Wayland boundary.
 
 Observed result:
@@ -257,7 +257,7 @@ Observed result:
 
 ### Start an async function without awaiting it at module top level
 
-Patch shape used by `package/desktop-app/electron-counter/src/main.ts`:
+Patch shape used by `package/electron-infra/app-counter/src/main.ts`:
 
 ```ts
 // doc/troubleshooting/electron-esm-whenready.md

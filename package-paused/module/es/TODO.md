@@ -210,7 +210,7 @@ library (`@monochromatic-dev/module-es`) for TypeScript.
 2. **API Refactors** → [API Refactors Todo](TODO.api-refactors.md#major-api-design-changes-required)
    - **Logger parameters** required for ALL functions (150+ functions affected)
    - **Named parameters** for 3+ parameter functions (major breaking change)
-   - **Type testing** with `@monochromatic-dev/module-test` for all type utilities
+   - **Type testing** with `@monochromatic-dev/test-harness-core` for all type utilities
    - **Major version bump required** (1.0.0 → 2.0.0)
 
 3. **Object Utilities** →

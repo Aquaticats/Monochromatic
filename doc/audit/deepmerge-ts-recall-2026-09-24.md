@@ -1,5 +1,10 @@
 # deepmerge-ts historical recall audit, 2026-09-24
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`.
+
 ## Question
 
 Would the sidecar in `package/module/deepmerge-ts.fuzz`,

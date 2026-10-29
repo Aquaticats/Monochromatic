@@ -74,14 +74,11 @@ fn the_rule_requires_exactly_one_final_line_feed() {
     }
 }
 
-/// The five preserved path families,
+/// The preserved path families,
 ///  each with its depth condition and a near miss.
 #[test]
 fn preserved_paths_keep_their_bytes() {
     for path in [
-        "package/forbidden-strings/cli.fuzz/seed/case",
-        "package/forbidden-strings/core.fuzz/seed/case",
-        "package/test-fixture/toml-edit/src/case.toml",
         "dist/final/node/index.mjs",
         "pkg/dist/final/node/index.mjs",
         "pkg/dist/final/node/deeper/chunk.mjs",
@@ -91,9 +88,12 @@ fn preserved_paths_keep_their_bytes() {
         assert!(is_final_newline_excluded(path.as_bytes()), "{path}");
     }
     for path in [
-        "package/forbidden-strings/cli.fuzz/seedling",
-        "x/package/forbidden-strings/cli.fuzz/seed/case",
-        "package/test-fixture/toml-edit/srcs/case",
+        // Seed and fixture directories are exempt through their `-text` attribute,
+        //  never through their path, so no package path is excluded here.
+        "package/forbidden-strings/cli.fuzz/seed/case",
+        "package/forbidden-strings/core.fuzz/seed/case",
+        "package/test-fixture/toml-edit/src/case.toml",
+        "package/jsonc-edit/core-rust.fuzz/seed/fuzz_depth_envelope/boundary-512",
         "dist/final/node",
         "pkg/dist/final/node",
         "dist/final/nodes/index.mjs",

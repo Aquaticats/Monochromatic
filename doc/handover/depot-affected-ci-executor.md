@@ -1,5 +1,10 @@
 # Depot affected CI executor
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`.
+
 ## Purpose and boundary
 
 Run the complete applicable CI surface for the historical TOML, native, logger,

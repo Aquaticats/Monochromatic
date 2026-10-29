@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { inspect, } from 'node:util';
 import type { ReadonlyDeep, } from 'type-fest';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 // TODO: deprecate Optique
 import { message, } from '@optique/core/message';
 // TODO: deprecate Optique

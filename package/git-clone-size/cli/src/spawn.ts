@@ -1,10 +1,10 @@
 import nanoSpawn, { SubprocessError, } from 'nano-spawn';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 /**
  Result of a process invocation that did not throw operationally.

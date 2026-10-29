@@ -4,7 +4,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ClaudeAttemptAsk,
   ModelClient,

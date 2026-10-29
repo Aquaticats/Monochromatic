@@ -32,11 +32,11 @@ RUN ["apt-get", "install", "--yes", "--no-install-recommends", "openssh-client"]
 
 COPY --from=git-build /opt/git /opt/git
 
-# The suite imports the workspace package @monochromatic-dev/module-caught-value through its `/ts` source,
+# The suite imports the workspace package @monochromatic-dev/caught-value-core through its `/ts` source,
 # which the run task mounts read-only at /fixture/caught-value. Node resolves /fixture/e2e imports through
 # /node_modules; the symlink's real path lies outside node_modules, so Node's type stripping still applies.
 RUN ["mkdir", "--parents", "/node_modules/@monochromatic-dev"]
-RUN ["ln", "--symbolic", "/fixture/caught-value", "/node_modules/@monochromatic-dev/module-caught-value"]
+RUN ["ln", "--symbolic", "/fixture/caught-value", "/node_modules/@monochromatic-dev/caught-value-core"]
 
 # The image deliberately has no /usr/bin/git: each scenario selects its Git through PATH order.
 WORKDIR /work

@@ -10,13 +10,13 @@
 
 import { createHash, } from 'node:crypto';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   PAGE_TITLE_CACHE_VERSION,

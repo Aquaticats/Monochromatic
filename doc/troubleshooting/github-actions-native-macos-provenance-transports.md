@@ -33,11 +33,11 @@ Repository issues `#1175` and `#1176` retain those distinct operational boundari
 ### The provenance helper has separate request and connection bounds
 
 At frozen harness `467dc0002d6080f8aa951f488430450debf3df3c`,
-`package/dev-script/task-util/mise.toml:219` defines `readContentsApi`.
+`package/monorepo-task/core-exec/mise.toml:219` defines `readContentsApi`.
 Its call at line `223` supplies a 30-second request signal:
 
 ```javascript
-// package/dev-script/task-util/mise.toml:223, frozen native harness
+// package/monorepo-task/core-exec/mise.toml:223, frozen native harness
 const response = await fetch(url, {
   headers: {
     Accept: 'application/vnd.github.object+json',
@@ -53,7 +53,7 @@ It contains credential variable names without credential values.
 The authenticated fetch,
 decoded-byte checks,
 and common-manifest binding checks precede the phase-record write.
-The record write is at `package/dev-script/task-util/mise.toml:265`.
+The record write is at `package/monorepo-task/core-exec/mise.toml:265`.
 The failed fetch therefore leaves no after record.
 Further source assertions follow the record write.
 

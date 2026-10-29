@@ -3,7 +3,8 @@
 Commits made without the suite,
 the lint,
 the scans or the type check that would have refused them,
-and a round landed without the round before it (M264).
+a round landed without the round before it (M264),
+and a note committed before the Markdown check had run on it (M307).
 
 Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
@@ -714,3 +715,33 @@ typography or document structure needs a fresh gate and not the scan alone.
 Recurrence:
 M250 and D35,
 where docs-only commits landed without the one task that reads the line limit and main went red.
+
+## M307: a note was committed before the source-scan Markdown check had run on it
+
+Status:
+fixed on 2026-10-29 (UTC) in `d4fbf7d6e9`,
+recorded the same day from the lead's notes.
+
+The lead's own note in B965
+(`audit-ledger-providers-and-seats-a-run-holds-out.md`,
+commit `832383a4c4`)
+failed the `semantic-line-breaks` check at its lines 980 and 981.
+Each of the two lines ran on past a comma inside a parenthesis.
+`d4fbf7d6e9` breaks them at their clauses and changes no fact.
+The cause was that the note was committed
+before `mise run //package/translation-repair/source-scan:test:unit` had run on it,
+and the note was one the lead wrote,
+not an agent's.
+
+Prevention:
+`mistake-prevention-docs-and-references.md`,
+"The Markdown linter":
+that task runs before the commit of any Markdown edit,
+the lead's own included,
+whatever the size of the edit.
+
+Recurrence:
+M300,
+where a brief named the root lint task and a ledger went to a gate with two findings,
+and M133,
+where a fix commit changed a doc without the Markdown lint.

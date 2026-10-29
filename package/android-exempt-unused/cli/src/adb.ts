@@ -6,7 +6,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import nanoSpawn, { SubprocessError, } from 'nano-spawn';
 
 import { ADB, } from './constants.ts';

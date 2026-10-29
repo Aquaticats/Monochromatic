@@ -1,0 +1,92 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:browser"]
+extends = "build:js:browser"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:browser"]
+extends = "watch:build:js:browser"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+description = "Build the neutral bundle, then run unit tests against the built dist"
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."test:mutation"]
+description = "Run container-isolated mutation testing against the full toml-edit unit suite"
+usage = 'arg "[args]" var=#true help="Optional mutation-test flags and package-relative source files"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const args = parseUsageArgs(process.env.usage_args ?? '')
+// The CLI resolves --package from cwd; mise runs package tasks from the package directory.
+process.chdir(monorepoRoot)
+runWorkspaceNode('package/mutation-test/cli', 'cli', ['--package', 'package/toml-edit/core', '--full-suite', ...args])
+"""
+
+[tasks."test:conformance"]
+description = "Run the upstream toml-test suite against the package decode/encode adapters for TOML 1.0 and 1.1"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+// The adapters import the built package entry point, so the dist must be fresh.
+execFileSync('mise', ['run', 'build'], { stdio: 'inherit' })
+// Follow the latest upstream runner through mise (not pinned) so corpus updates
+// are exercised; mise verifies the release attestation and SLSA provenance on
+// install. The version is logged so a future failure can be traced to an
+// upstream corpus change versus a local code change.
+const runner = ['exec', 'github:toml-lang/toml-test@latest', '--', 'toml-test']
+// MONOCHROMATIC_WARN=false silences the package's CRLF-normalization warning so the decoder's
+// stderr stays clean on success (the runner treats any stderr as the result).
+// MISE_LOG_LEVEL=error does the same for mise itself: on CI `node` is a mise shim, and any
+// mise warning it prints (a deprecated config key, an available update) lands on the
+// adapter's stderr and fails every case. See doc/troubleshooting/toml-edit-fuzz-workflow.md.
+const env = { ...process.env, MISE_LOG_LEVEL: 'error', MONOCHROMATIC_WARN: 'false' }
+execFileSync('mise', [...runner, 'version'], { stdio: 'inherit', env })
+const decoder = `${process.cwd()}/src/conformance/decode.ts`
+const encoder = `${process.cwd()}/src/conformance/encode.ts`
+for (const version of ['1.0', '1.1']) {
+  console.log(`toml-test conformance: TOML ${version}`)
+  // toml-test's `test` flags are -decoder/-encoder/-toml/-timeout/-v/-run/-json/-script;
+  // it has no color flag, so any extra token is rejected as a positional argument.
+  // -timeout is raised well above the 1s default: each case spawns a fresh
+  // `node --experimental-strip-types` decoder/encoder, whose startup can exceed
+  // 1s under load and flakily time out otherwise.
+  execFileSync('mise', [...runner, 'test',
+    `-decoder=node ${decoder} ${version}`,
+    `-encoder=node ${encoder} ${version}`,
+    `-toml=${version}`, '-timeout=30s'],
+    { stdio: 'inherit', env })
+}
+console.log('toml-test conformance: all decoder, encoder, and invalid cases passed for 1.0 and 1.1')
+"""

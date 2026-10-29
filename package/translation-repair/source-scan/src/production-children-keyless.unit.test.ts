@@ -28,7 +28,7 @@
  OUT OF THE SCAN'S REACH: a spawning function reached through an alias
  (`const run = spawn`), a call through a computed non-literal member, a
  module that wraps another language's launcher, and a spawn started inside a
- workspace package this package imports (`@monochromatic-dev/git-executable`
+ workspace package this package imports (`@monochromatic-dev/git-executable-core`
  reads files and starts nothing, read by hand). `env` built correctly says
  nothing about the other options.
 
@@ -43,7 +43,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { readPackageSource, } from './family-source.test-fixture.ts';
 import {

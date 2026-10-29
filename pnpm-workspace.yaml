@@ -160,7 +160,7 @@ catalog:
   'pify': '>=6.1.0'
   # make-asynchronous-fork.fuzz differential subject; not a runtime dependency anywhere.
   'make-asynchronous': '>=2.1.0'
-  # p-waterfall is omitted: package/module/pipe provides sequential async composition.
+  # p-waterfall is omitted: package/pipe/core provides sequential async composition.
   'pdfjs-dist': '>=4.0.0'
   'picomatch': '>=4.0.7'
   'pinyin-pro': '>=3.29.5'
@@ -310,9 +310,9 @@ overrides:
   # construction. Only the default export is consumed; named serialize /
   # deserialize are intentionally omitted and can be added if a future
   # transitive dep reaches in.
-  # See package/shim/ungap-structured-clone/README.md and
+  # See package/pnpm-override/shim-ungap-structured-clone/README.md and
   # doc/troubleshooting/dependencies.md for the audit trail.
-  '@ungap/structured-clone': 'link:package/shim/ungap-structured-clone'
+  '@ungap/structured-clone': 'link:package/pnpm-override/shim-ungap-structured-clone'
   # Remove abort-controller globally. It is a polyfill of the WHATWG
   # AbortController for Node < 15. Our supported runtimes (Node 22+, Bun)
   # all ship a native AbortController on globalThis. The only transitive
@@ -334,7 +334,7 @@ overrides:
   # has itself left the graph: it is substituted with the throwing stub via the
   # `js-yaml` policy in .pnpmfile.policies.json, so it no longer ships argparse.
   # The workspace does not consume js-yaml at all; YAML parsing uses the `yaml`
-  # package (see package/dev-script/deps-cube/src/catalog.ts and
+  # package (see package/dependency-catalog/cli-cube/src/catalog.ts and
   # package/ssg/aquati.cat/src/lib/content.ts). Removing argparse
   # leaves the library APIs intact and drops 4214 LOC of supply-chain surface
   # (last commit 2022-05).
@@ -385,8 +385,8 @@ overrides:
   # remark-math throw ERR_MODULE_NOT_FOUND (built bundles drop `lib/html.js`).
   # A workspace shim stands in: every member throws and nothing renders. The
   # workspace uses only the syntax extension, never `mathHtml`.
-  # See package/shim/katex/README.md and doc/troubleshooting/dependencies.md.
-  'micromark-extension-math>katex': 'link:package/shim/katex'
+  # See package/pnpm-override/shim-katex/README.md and doc/troubleshooting/dependencies.md.
+  'micromark-extension-math>katex': 'link:package/pnpm-override/shim-katex'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: nanoid@3.3.14 failed verification with possible package takeover.
   'nanoid': '>=5.1.15'
   # Substitute deprecated node-domexception@1.0.0 with a workspace shim that
@@ -396,7 +396,7 @@ overrides:
   # is API-identical-by-construction, eliminating pnpm's install-time
   # deprecation warning without altering runtime behaviour.
   # See doc/troubleshooting/dependencies.md and doc/dependency-blocklist.md.
-  'node-domexception': 'link:package/shim/node-domexception'
+  'node-domexception': 'link:package/pnpm-override/shim-node-domexception'
   'postcss': 'catalog:'
   # Substitute proper-lockfile@4.1.2 with a workspace shim that implements
   # lockSync/lock via node:fs.mkdirSync atomic-dir locking. The upstream is
@@ -412,7 +412,7 @@ overrides:
   # (including .then) as a self-return.
   # See doc/decision/proper-lockfile-removal.md and
   # doc/troubleshooting/dependencies.md.
-  'proper-lockfile': 'link:package/shim/proper-lockfile'
+  'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'
   # Substitute readable-stream@3 (winston, winston-transport) and
   # readable-stream@4 (isomorphic-git) with a single workspace shim that
   # re-exports node:stream. Both upstream versions are userland mirrors of
@@ -433,7 +433,7 @@ overrides:
   # the 'abort-controller': '-' override above.
   # See doc/decision/readable-stream-shim.md for the full audit, including
   # the enumerated consumer surface and the verification plan.
-  'readable-stream': 'link:package/shim/readable-stream'
+  'readable-stream': 'link:package/pnpm-override/shim-readable-stream'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: semver@6.3.1 failed verification with possible package takeover.
   'semver': '>=7.8.5'
   # Patch GHSA-38rv-x7px-6hhq / CVE-2026-9675,

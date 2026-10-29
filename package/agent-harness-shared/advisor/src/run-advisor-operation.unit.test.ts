@@ -1,6 +1,6 @@
 /** Built Advisor dispatch, scope, and exact-model integration through real faux providers. @module */
 import { fauxAssistantMessage, fauxProvider, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { AdvisorOperationError, type AdvisorRunContext, DEFAULT_CONFIG, runAdvisor, } from '../dist/final/node/index.mjs';
 import { testAdvisorTranscriptSerialization, } from './transcript-test-fixture.ts';
 

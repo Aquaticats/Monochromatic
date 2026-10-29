@@ -20,7 +20,7 @@ import { cwd, } from 'node:process';
 
 import spawn from 'nano-spawn';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { isRecord, } from './is-record.ts';
 import type { RunReport, } from './host/report.ts';

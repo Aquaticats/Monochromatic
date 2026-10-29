@@ -19,13 +19,13 @@ import {
   stat,
 } from 'node:fs/promises';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { stripAnsi, } from './ansi.ts';
 import {

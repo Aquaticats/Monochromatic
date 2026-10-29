@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { ArchiveOriginalSpan, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { linksOf, } from '@monochromatic-dev/translation-repair-rendering-audit/ts';

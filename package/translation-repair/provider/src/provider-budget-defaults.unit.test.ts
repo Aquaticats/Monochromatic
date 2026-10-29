@@ -14,7 +14,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   warnLinesDuring,
 } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';

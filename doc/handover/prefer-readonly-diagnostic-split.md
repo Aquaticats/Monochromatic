@@ -1,5 +1,10 @@
 # Handover: split readonly diagnostics by evidence
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/caught-value` is now `package/caught-value/core`.
+
 Live document.
 Update it after each implementation decision,
 landed increment,

@@ -15,14 +15,14 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
-    "@monochromatic-dev/module-or-throw": "workspace:*"
+    "@monochromatic-dev/or-throw-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-async-time": "workspace:*",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",

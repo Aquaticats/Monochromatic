@@ -6,7 +6,7 @@ workspace.
 
 (Distinct from `doc/troubleshooting/testing.md`,
  which covers the
-in-tree `@monochromatic-dev/module-test` harness rather than
+in-tree `@monochromatic-dev/test-harness-core` harness rather than
 `bun:test`.
 )
 

@@ -13,13 +13,13 @@ import { join, } from 'node:path';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { PatchOutcome, } from '@monochromatic-dev/translation-repair-page-pass';
 import type {

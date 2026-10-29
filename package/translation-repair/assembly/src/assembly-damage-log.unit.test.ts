@@ -14,12 +14,12 @@
  @module
  */
 
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { UNATTRIBUTED_TEXT, } from '@monochromatic-dev/translation-repair-house-rule';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
 import {

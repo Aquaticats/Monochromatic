@@ -97,7 +97,7 @@ They are not independent evidence that Depot egress or a live ASN provider faile
 
 The logger original member `modules-b-038.log` reaches a batch-write Promise identity assertion
 and a JSONL parse failure during the reentrant `toJSON` case.
-The owning `package/module/logger/src/sink/file-batch.unit.test.ts`
+The owning `package/logger/core/src/sink/file-batch.unit.test.ts`
 creates a disposable directory and exercises escaped,
 newline,
 and Unicode messages.
@@ -149,14 +149,14 @@ All four GitHub Actions samples and both corrected-native samples report WebKit 
 and `1` unexpected,
 with no flaky result.
 The unexpected case is
-`package/module/logger/src/sink/opfs.browser.test.ts:41`:
+`package/logger/core/src/sink/opfs.browser.test.ts:41`:
 `createOpfsSink().verify()` returns `false` where the assertion expects `true`.
 That establishes the availability-probe result;
 it does not identify the underlying OPFS cause.
 The skipped OPFS root-discovery case remains skipped.
 
 The Chromium and Firefox E2E commands in those six samples report no test cases and a discovery error:
-`Cannot find package '@monochromatic-dev/module-or-throw'`
+`Cannot find package '@monochromatic-dev/or-throw-core'`
 from `package-paused/webapp-edu/paper2vn/src/paper2vn.e2e.test.ts`.
 The frozen root E2E configuration matches `**/*.e2e.test.ts` without excluding that paused owner.
 This is a reached discovery failure,

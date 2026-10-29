@@ -12,14 +12,14 @@
  * unescaped. Function components are called with their props and return
  * `SafeHtml` directly; no separate render pass needed.
  *
- * Reuses `escapeHtml` and `VOID_ELEMENTS` from `@monochromatic-dev/module-hyperscript`
+ * Reuses `escapeHtml` and `VOID_ELEMENTS` from `@monochromatic-dev/hyperscript-core`
  * to avoid duplicating HTML generation internals.
  */
 
 import {
   escapeHtml,
   VOID_ELEMENTS,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 //region Types
 

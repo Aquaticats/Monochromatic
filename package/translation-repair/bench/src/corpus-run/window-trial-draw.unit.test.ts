@@ -20,7 +20,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { DocumentDisplacement, } from '@monochromatic-dev/translation-repair-artifact';
 import {
   CONTROL_CLASS,

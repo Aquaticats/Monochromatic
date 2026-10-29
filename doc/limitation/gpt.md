@@ -15,9 +15,9 @@ after oxlint already printed a `help:` line.
 **Files involved:
 **
 
-- `package/dev-script/task-util/src/oxlint-augment.ts`
-- `package/dev-script/task-util/src/oxlint-guidance.ts`
-- `package/dev-script/task-util/src/oxlint-augment.unit.test.ts`
+- `package/monorepo-task/core-exec/src/oxlint-augment.ts`
+- `package/monorepo-task/core-exec/src/oxlint-guidance.ts`
+- `package/monorepo-task/core-exec/src/oxlint-augment.unit.test.ts`
 
 ### Mistakes
 

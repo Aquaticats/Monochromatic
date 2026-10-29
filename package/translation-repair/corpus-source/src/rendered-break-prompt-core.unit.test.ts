@@ -4,7 +4,7 @@
  @module
  */
 
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import {
   renderedBreakContract,
   renderedBreakFacts,

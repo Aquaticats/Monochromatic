@@ -140,7 +140,7 @@ export function expressionElementOrigins({
      
      Queued as well as collected, because container members compose and the corpus
      composes them. `panes.filter(rootLike,).toSorted(bySpawnOrder,)` in
-     `package/desktop-app/file-manager-electron/src/strip.ts` is the shape: the outer
+     `package/file-manager/variant-electron/src/strip.ts` is the shape: the outer
      member's receiver is the inner call, whose own value origins are empty because the
      array it returns is fresh.
      */

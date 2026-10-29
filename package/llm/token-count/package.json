@@ -1,0 +1,39 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/llm-token-count",
+  "description": "Token counting for Claude models using the Anthropic API.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "bin": {
+    "token-count": "dist/final/node/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "LICENSES"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@optique/core": "catalog:",
+    "@optique/run": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:",
+    "typescript": "catalog:"
+  }
+}

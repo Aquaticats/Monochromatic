@@ -24,14 +24,14 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { SliceNeighbourContext, } from '@monochromatic-dev/translation-repair-repair';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';

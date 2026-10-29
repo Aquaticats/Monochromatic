@@ -1,6 +1,6 @@
 //region Rotation sweep report
 // WHAT A SUITE'S OUTPUT SAYS ABOUT THE CASES THAT FAILED. The test harness
-// (`package/module/test`) logs one error record per failed case, shaped
+// (`package/test-harness/core`) logs one error record per failed case, shaped
 // `[error] [<timestamp>] [<suite>] [<case>] [FAIL] (<ms>) <cause>`, and one more
 // for each suite that holds a failed case, shaped `[error] [<timestamp>] [<suite>]
 // [FAIL] (<ms>) Error: <case>`. The tags before ` [FAIL] (` name the case by its

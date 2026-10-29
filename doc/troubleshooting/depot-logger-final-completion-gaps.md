@@ -35,20 +35,20 @@ The reason the credentials were rejected is unknown.
 Elapsed time alone does not prove token expiry.
 
 At frozen harness `3d976fe06d22ae01c54aa206cf021a78374a3b06`,
-`package/module/logger.fuzz/mise.toml:614` invokes the authenticated fetch:
+`package/logger/core.fuzz/mise.toml:614` invokes the authenticated fetch:
 
 ```ts
-// package/module/logger.fuzz/mise.toml:614, frozen harness 3d976fe06d22
+// package/logger/core.fuzz/mise.toml:614, frozen harness 3d976fe06d22
 const object=JSON.parse(execFileSync('gh',['api','--method','GET','--header',
  'Accept: application/vnd.github.object+json',endpoint],
  {encoding:'utf8',maxBuffer:4*1024*1024,timeout:30000}));
 ```
 
 The failed child process throws before the completion record is written.
-The write occurs at `package/module/logger.fuzz/mise.toml:667`:
+The write occurs at `package/logger/core.fuzz/mise.toml:667`:
 
 ```ts
-// package/module/logger.fuzz/mise.toml:667, frozen harness 3d976fe06d22
+// package/logger/core.fuzz/mise.toml:667, frozen harness 3d976fe06d22
 writeFileSync(join(directory,`logger-cohort-${phase}-results.json`),
  JSON.stringify(receipt,null,2)+'\n',{flag:'wx',mode:0o600});
 ```
@@ -74,18 +74,18 @@ Unit job `8t3kxfvzcc` changes the tracked stop-reminder bundle.
 The retained porcelain paths have positive matching and command-header rejection controls.
 
 The source guard rejects tracked differences before collecting configured-input hashes,
-at `package/dev-script/task-util/mise.toml:1187`:
+at `package/monorepo-task/core-exec/mise.toml:1187`:
 
 ```ts
-// package/dev-script/task-util/mise.toml:1187, frozen harness 3d976fe06d22
+// package/monorepo-task/core-exec/mise.toml:1187, frozen harness 3d976fe06d22
 const trackedStatus=git(['status','--porcelain','--untracked-files=no']);
 assert.equal(trackedStatus,'','Coherent replay changed tracked source');
 ```
 
-The common guard independently rejects them at `package/module/logger.fuzz/mise.toml:660`:
+The common guard independently rejects them at `package/logger/core.fuzz/mise.toml:660`:
 
 ```ts
-// package/module/logger.fuzz/mise.toml:660, frozen harness 3d976fe06d22
+// package/logger/core.fuzz/mise.toml:660, frozen harness 3d976fe06d22
 const sourceStatus=git(source,['status','--porcelain','--untracked-files=no']);
 assert.equal(sourceStatus,'','Cohort source has tracked modifications');
 ```

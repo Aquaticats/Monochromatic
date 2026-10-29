@@ -6,7 +6,7 @@ Frozen application `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`
 locks `@playwright/test` to 1.64.0,
 while `playwright.Dockerfile` selects the digest-qualified 1.63.0 image.
 In GitHub Actions run `39123458425`,
-the actual `package/module/test` browser owner enumerated two cases per engine,
+the actual `package/test-harness/core` browser owner enumerated two cases per engine,
 then each engine failed at launch with Playwright's diagnostic:
 
 ```text
@@ -116,7 +116,7 @@ The same run invokes the unchanged root E2E owner for Chromium and Firefox.
 Both fail before any E2E body with:
 
 ```text
-Error: Cannot find package '@monochromatic-dev/module-or-throw' imported from /work/package-paused/webapp-edu/paper2vn/src/paper2vn.e2e.test.ts
+Error: Cannot find package '@monochromatic-dev/or-throw-core' imported from /work/package-paused/webapp-edu/paper2vn/src/paper2vn.e2e.test.ts
 ```
 
 The frozen `playwright.e2e.config.ts` matches `**/*.e2e.test.ts`

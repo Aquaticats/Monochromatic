@@ -3,6 +3,11 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `@monochromatic-dev/git-executable` is now `@monochromatic-dev/git-executable-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/mutation-test` is now `package/mutation-test/cli`.
 
 ## Purpose

@@ -15,7 +15,7 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
-    "@monochromatic-dev/module-or-throw": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/translation-repair-assembly": "workspace:*",
     "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
     "@monochromatic-dev/translation-repair-glossary": "workspace:*",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/translation-repair-adjudication": "workspace:*",
     "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
     "@types/node": "catalog:",

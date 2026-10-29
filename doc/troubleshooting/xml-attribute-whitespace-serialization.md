@@ -752,7 +752,7 @@ replace only those bytes with text encoded for the attribute's own quote charact
 and re-parse the result.
 `roxmltree_splice` and `encode_attribute` in the harness are the minimal form;
 the encoder mirrors file-enforcer `escapeXmlAttribute`
-(`package/dev-script/file-enforcer/src/pipeline/xml-coding.ts:177-193`),
+(`package/file-enforcer/core/src/pipeline/xml-coding.ts:177-193`),
 plus `&apos;` for single-quoted values.
 The harness row "roxmltree range_value splice with encoder" shows a single-quoted source keeping its quote,
 its spacing,

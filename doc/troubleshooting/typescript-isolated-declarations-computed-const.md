@@ -6,7 +6,7 @@ Under `isolatedDeclarations: true`,
  because declaration emit must be
 derivable from the single file without type inference across expressions.
 
-Found while building `package/desktop-app/file-manager-electron`'s shared constants.
+Found while building `package/file-manager/variant-electron`'s shared constants.
 
 ## Symptom
 

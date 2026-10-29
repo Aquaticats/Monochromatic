@@ -24,12 +24,12 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "dependencies": {
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*"
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*"
   },
   "version": "0.0.1",
   "repository": {

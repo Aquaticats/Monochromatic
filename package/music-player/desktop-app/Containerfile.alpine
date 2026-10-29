@@ -85,7 +85,7 @@ RUN apk add --no-cache \
 # podman 4.9, whose builder reads every heredoc line as a Containerfile instruction. The script therefore must not
 # contain a single quote; use double quotes inside it. Inputs (all bind-mounted read-only by the caller):
 #   /opt/music-player/music-player  the app binary built in the build stage
-#   /opt/music-player/nws           the nested compositor built from package/cli/nested-wayland-session
+#   /opt/music-player/nws           the nested compositor built from package/nested-wayland-session/cli
 #   /opt/music-player/fixture       the invented tone files of package/music-player/desktop-app/fixture
 # Three scenarios, each a fresh app run inside the compositor with no GPU and no seat:
 #   no-audio   no sound server, no ALSA device: the app must start and tell the person (never crash)

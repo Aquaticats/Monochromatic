@@ -2,7 +2,7 @@ import { writeFile, } from 'node:fs/promises';
 
 import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { mapOverlapped, } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { EditorFidelityTrial, } from '../editor-fidelity-trials.ts';

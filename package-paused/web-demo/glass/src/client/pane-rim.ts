@@ -5,7 +5,7 @@
  * this merged mesh of the rim cells stands in, so the blasted-out hole
  * is a real opening in real geometry rather than a texture trick.
  */
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   BufferAttribute,
   BufferGeometry,

@@ -7,7 +7,7 @@ with a `TouchArea` inside it that implements mouse drag selection,
 does not behave like a text view:
 
 - The press reaches the `TouchArea` late.
-  In `package/desktop-app/ide`,
+  In `package/ide/app`,
   removing `mouse-drag-pan-enabled: false` from the source `Flickable` in a disposable copy
   made the headless test `drag_selects_text_by_characters_and_by_words_without_panning`
   fail on its first check,
@@ -135,11 +135,11 @@ the guard run did not log the filter result.
 Versions under test:
 Slint `1.18.1` (`i-slint-core` checksum `ed2ea15059d70bc31b1a8b1eb4c34f2c5df04cb7e53f36179b43c0261231d646`,
 `i-slint-compiler` checksum `f55d48ebef05e2bf09ba5a1fc67bcb11033b9e12a2a50ed3105c7d25e2b539d0`,
-from `package/desktop-app/ide/Cargo.lock`).
+from `package/ide/app/Cargo.lock`).
 
 Harness:
-`package/desktop-app/ide/bin/inspect-source-guards.mjs`
-(now `package/desktop-app/ide/bin/inspect-source-guards.ts`,
+`package/ide/app/bin/inspect-source-guards.mjs`
+(now `package/ide/app/bin/inspect-source-guards.ts`,
 renamed 2026-10-22),
 guard `mouse-drag-selects`,
 which deletes the `mouse-drag-pan-enabled: false;` line from `ui/app.slint` in a disposable copy
@@ -148,8 +148,8 @@ The run recorded here used the tree committed as `374ea9a36`;
 its logs are in `~/temp/agent/ide-source-guard-Qu70pZ/`.
 
 ```sh
-# package/desktop-app/ide/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
-mise run //package/desktop-app/ide:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" mouse-drag-selects
+# package/ide/app/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
+mise run //package/ide/app:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" mouse-drag-selects
 ```
 
 ### Works cleanly
@@ -182,10 +182,10 @@ mise run //package/desktop-app/ide:inspect:source-guards "${HOME}/temp/agent/<di
 ## Verified workarounds
 
 Disable mouse panning on the `Flickable` that hosts the selectable content
-(`package/desktop-app/ide/ui/app.slint:257` to `266` on `main` at `f9d08ae79`):
+(`package/ide/app/ui/app.slint:257` to `266` on `main` at `f9d08ae79`):
 
 ```slint
-// package/desktop-app/ide/ui/app.slint:257
+// package/ide/app/ui/app.slint:257
                 scroll := Flickable {
                     width: parent.width;
                     height: parent.height;
@@ -202,7 +202,7 @@ Tradeoffs:
 
 - A mouse can no longer pan the view by dragging.
   The application has to scroll during a selection drag that leaves the view itself;
-  the IDE does that in native code (`package/desktop-app/ide/README.md`,
+  the IDE does that in native code (`package/ide/app/README.md`,
   "Pointer selection").
 - The 100 ms press delay disappears for mouse input,
   because the filter returns `ForwardAndIgnore` before the delay path.

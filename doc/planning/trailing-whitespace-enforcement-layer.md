@@ -61,7 +61,7 @@ git grep --count --extended-regexp '^[[:blank:]]+$'
 - Patch attachments hold 248 such lines in 50 `*.patch` files,
   and unified diff format requires them,
   because a blank context line is one space.
-- The vendored `package/shim/katex/index.cjs` holds 2,
+- The vendored `package/pnpm-override/shim-katex/index.cjs` holds 2,
   which are upstream bytes.
 - HTML holds 16 in 8 files,
   and `.editorconfig` unsets trimming for `*.html`,
@@ -278,7 +278,7 @@ Cons:
   so no template-aware machinery exists there to reuse.
 - Byte-level detection cannot separate noise from content.
   Template text,
-  `package/shim/katex/index.cjs`,
+  `package/pnpm-override/shim-katex/index.cjs`,
   `*.patch` attachments,
   fenced unified diffs in `doc/`,
   and fuzz seeds all hold legitimate line-end whitespace today,

@@ -5,8 +5,8 @@
  
  @example
  ```bash
- mutation-test --package package/module/fs-path
- mutation-test --package package/module/fs-path --dry-run src/trim.ts
+ mutation-test --package package/fs-path/core
+ mutation-test --package package/fs-path/core --dry-run src/trim.ts
  ```
  */
 
@@ -14,7 +14,7 @@ import { writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { cwd, } from 'node:process';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   parseCliOptions,
@@ -43,7 +43,7 @@ const l = tagged({ tag: 'mutation-test', },);
  
  @example
  ```ts
- await runCli(parseCliOptions(['--package', 'package/module/fs-path']));
+ await runCli(parseCliOptions(['--package', 'package/fs-path/core']));
  ```
  */
 export async function runCli(options: CliOptions,): Promise<void> {

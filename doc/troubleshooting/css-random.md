@@ -1,6 +1,6 @@
 # CSS `random()`: the `/TR/` snapshot's stale `by` step makes `random(a, b, by c)` silently dropped
 
-`@monochromatic-dev/module-hyperscript`'s `cssRandom` emitted `random(1, 1000, by 1)`
+`@monochromatic-dev/hyperscript-core`'s `cssRandom` emitted `random(1, 1000, by 1)`
 from the day it was written until `8decc5d92`.
 That spelling comes from the W3C `/TR/` snapshot of CSS Values 5,
 which is nearly two years stale.
@@ -68,7 +68,7 @@ In the `/TR/` snapshot, `per-element` occurs 12 times and `element-scoped` occur
 The offending code read:
 
 ```ts
-// package/module/hyperscript/src/css/values.constructors.ts, before 8decc5d92
+// package/hyperscript/core/src/css/values.constructors.ts, before 8decc5d92
   return step === undefined
     ? `random(${min}, ${max})` as CssValue
     : `random(${min}, ${max}, by ${step})` as CssValue;

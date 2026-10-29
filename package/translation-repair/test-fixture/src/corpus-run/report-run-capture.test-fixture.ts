@@ -1,4 +1,4 @@
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { divertingConsoleLog, } from './console-log-capture.test-fixture.ts';
 

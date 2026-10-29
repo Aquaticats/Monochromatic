@@ -8,7 +8,7 @@
 # mount as `mcp__search-fetch__web_search` and `mcp__search-fetch__web_fetch`.
 #
 # Credentials come from the repo's sops/age-encrypted `.env.local.json`, read by
-# `@monochromatic-dev/module-env-local-json` through the shared search-fetch
+# `@monochromatic-dev/env-local-json-core` through the shared search-fetch
 # core; `$HOME/.pi/agent/extensions/pi-search-fetch.json` now holds only the
 # blocklist. The harness subprocess scrub drops names matching
 # `KEY|PASSWORD|SECRET|TOKEN` plus `DSH_*`, so `SOPS_AGE_KEY_FILE` does not

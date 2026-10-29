@@ -311,7 +311,7 @@ function isCallableBinding(
  scope-chain walk. The rule only inspects the module scope and any
  intermediate function/block scopes.
  
- Harness self-tests in `package/module/test/src/{describe,it}.unit.test.ts`
+ Harness self-tests in `package/test-harness/core/src/{describe,it}.unit.test.ts`
  are circular by design (the function under test IS the local binding);
  they opt out via inline
  `oxlint-disable-next-line no-restricted-syntax/prefer-describe-function-ref-name`.

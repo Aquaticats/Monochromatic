@@ -10,7 +10,7 @@ owner-authorized.
 
 The repository owner asked for GitHub releases CI ("Please setup gh releases CI")
 and chose two products:
-the nested Wayland compositor binaries (`package/cli/nested-wayland-session`,
+the nested Wayland compositor binaries (`package/nested-wayland-session/cli`,
 crate `monochromatic-nested-wayland-session`) and the IDE.
 This decision covers the compositor only.
 The IDE has its own workflow.

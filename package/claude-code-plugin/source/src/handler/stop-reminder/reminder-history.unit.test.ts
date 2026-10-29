@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { alreadyRaised, } from './reminder-history.ts';
 import { uncertaintyLead, } from './reminder-lead.ts';
 

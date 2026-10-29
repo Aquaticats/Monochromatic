@@ -1,5 +1,15 @@
 # Handover: making `prefer-readonly-parameter-type` bulletproof
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/rss` is now `package/rss/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/kv-store` is now `package/kv-store/core`.
+
 Live document.
  Updated as work lands,
  not at the end.

@@ -9,13 +9,13 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   caught,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact';
 import type {

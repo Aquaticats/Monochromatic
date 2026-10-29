@@ -12,6 +12,12 @@ Fixed on 2026-10-29 (UTC) in `d599b87fab` (shared-contract),
 with the census change that left room for its test in `91710ff5d3` (run).
 The cases were committed red first,
 in `299e1a797e` and `de96820c96`.
+The message of `d599b87fab` says "none at the cap",
+which was true of the old cap of 13,082 only:
+at 5,098,
+3 of Xiaomi's 293 calls reach it.
+Commit comment 207194488 corrects the message,
+and `5f9a726c61` corrects the comment on the card in `model-cards.ts` (ledger M312).
 
 Found on 2026-10-29 by the pre-launch census (`doc/runbook/translation-repair-corpus-pass.md`,
 Setup step 6),

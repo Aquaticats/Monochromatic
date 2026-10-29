@@ -22,7 +22,7 @@ import {
 } from 'node:path';
 import { text, } from 'node:stream/consumers';
 import { fileURLToPath, } from 'node:url';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 //region Constants
 

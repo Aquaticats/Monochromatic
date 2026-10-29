@@ -3,6 +3,30 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/desktop-app/ide` is now `package/ide/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/test-diagnostic` is now `package/test-harness/core-diagnostic`;
+> `package/module/numeric-format` is now `package/numeric-format/core`;
+> `package/module/caught-value` is now `package/caught-value/core`;
+> `package/module/i18n-compose` is now `package/i18n-compose/core`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/test-expect` is now `package/test-harness/core-expect`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/fs-path` is now `package/fs-path/core`;
+> `package/module/logger` is now `package/logger/core`;
+> `package/module/throws` is now `package/throws/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`;
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.

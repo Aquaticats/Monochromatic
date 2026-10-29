@@ -3,6 +3,18 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-app/terminal` is now `package/terminal/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/async-time` is now `package/async-time/core`;
+> `package/module/logger` is now `package/logger/core`;
+> `package/module/test` is now `package/test-harness/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/unused-export` is now `package/mutation-test/cli-unused-export`.
 
 Purpose: record the design interview that gives `package/pi-plugin/advisor` a DSH variant

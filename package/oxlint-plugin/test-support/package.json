@@ -5,14 +5,14 @@
   "type": "module",
   "description": "Dev-only shared test harness helpers for Monochromatic oxlint plugin fixtures.",
   "dependencies": {
-    "@monochromatic-dev/module-fs-path": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
     "nano-spawn": "catalog:",
     "string-dedent": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "files": [

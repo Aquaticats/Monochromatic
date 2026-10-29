@@ -14,11 +14,11 @@ not Git.
 Pushing a single tag through the wrapped `git` failed three times in a row on 2026-09-06:
 
 ```text
-git push origin '@monochromatic-dev/module-logger@0.1.0'
+git push origin '@monochromatic-dev/logger-core@0.1.0'
 {"schemaVersion":1,"sequence":0,"type":"engine-failure","code":"plugin-threw","message":"spawn /usr/bin/git EAGAIN","trigger":"manual-push","policyId":"final-newline"}
 ```
 
-The tag existed locally (`git tag -a '@monochromatic-dev/module-logger@0.1.0' dfa0e0d58 -m ...` succeeded).
+The tag existed locally (`git tag -a '@monochromatic-dev/logger-core@0.1.0' dfa0e0d58 -m ...` succeeded).
 Commit auto-pushes through the same wrapper kept working before and after
 (`git status -sb` showed `main` in sync with `origin/main` between attempts).
 

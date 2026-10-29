@@ -5,7 +5,7 @@
  @module
  */
 
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { wrapReplacementText, } from '@monochromatic-dev/translation-repair-typography';
 import { readSliceSkeleton, } from '@monochromatic-dev/translation-repair-glossary';

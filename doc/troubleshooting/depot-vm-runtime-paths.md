@@ -182,8 +182,8 @@ attempted to upload the local harness change over provider checkout `01c948cac2`
 The injected patch failed before VM setup:
 
 ```text
-error: patch failed: package/dev-script/task-util/mise.toml:549
-error: package/dev-script/task-util/mise.toml: patch does not apply
+error: patch failed: package/monorepo-task/core-exec/mise.toml:549
+error: package/monorepo-task/core-exec/mise.toml: patch does not apply
 ```
 
 No VM evidence artifact was created.
@@ -337,7 +337,7 @@ also clean and remotely matched on the same branch.
 Workflow `.depot/workflows/depot-complete-vm-original.yml`,
 job `vm-original`,
 runs the natural build,
-`//package/dev-script/task-util:trial:depot:vm:original`,
+`//package/monorepo-task/core-exec:trial:depot:vm:original`,
 and the separate standalone consumer.
 The original-task adapter invokes only the authored source command
 `mise run //package/vmsync/cli:test:e2e`.
@@ -535,10 +535,10 @@ seconds and millisecond precision are accepted without rewriting the shared inpu
 Task `trial:depot:vm:cohort` checks the actual harness `HEAD` against `GITHUB_SHA`,
 rejects tracked harness edits and index masks,
 and validates the authored VM selection in the logger case manifest.
-The implementation on the VM branch is `package/dev-script/task-util/mise.toml:807`:
+The implementation on the VM branch is `package/monorepo-task/core-exec/mise.toml:807`:
 
 ```js
-// package/dev-script/task-util/mise.toml, VM harness branch
+// package/monorepo-task/core-exec/mise.toml, VM harness branch
 assert.equal(harnessRevision,process.env.GITHUB_SHA,'Actual harness HEAD must equal GITHUB_SHA');
 ```
 
@@ -547,10 +547,10 @@ using GitHub's contents object response,
 decodes its base64 content,
 and checks the decoded bytes against the supplied digest before parsing the JSON.
 The manifest must be below 1 MiB.
-The decoding boundary is `package/dev-script/task-util/mise.toml:830`:
+The decoding boundary is `package/monorepo-task/core-exec/mise.toml:830`:
 
 ```js
-// package/dev-script/task-util/mise.toml, VM harness branch
+// package/monorepo-task/core-exec/mise.toml, VM harness branch
 const bytes=Buffer.from(response.content,'base64');
 ```
 
@@ -572,10 +572,10 @@ NUL path boundaries,
 and rejection of all assume-unchanged/skip-worktree flags.
 It hashes 650 configured inputs for the current logger selection.
 Indexed exclusions remain incompatible with this immutable-source contract.
-The source guard is `package/dev-script/task-util/mise.toml:884` on the VM branch:
+The source guard is `package/monorepo-task/core-exec/mise.toml:884` on the VM branch:
 
 ```js
-// package/dev-script/task-util/mise.toml, VM harness branch
+// package/monorepo-task/core-exec/mise.toml, VM harness branch
 assert(
   indexEntries.every(entry=>entry[0]!=='S'&&!/[a-z]/.test(entry[0])),
   'Immutable source index must not hide tracked inputs with assume-unchanged or skip-worktree flags',

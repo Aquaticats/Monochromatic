@@ -13,7 +13,7 @@ import {
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { PreparedSheetFacts, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {

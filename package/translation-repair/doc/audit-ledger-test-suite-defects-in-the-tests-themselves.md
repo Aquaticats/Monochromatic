@@ -253,7 +253,7 @@ Measured on 2026-09-27:
 most of that count is the deliberate `translation-repair-runs*` run directories;
 the logs themselves are 34,919 top-level `*.log.jsonl` files (846 MB with the runs),
 about 22 added per unit suite run,
-and the logger's file sink (`package/module/logger/src/sink/file.ts`) reads no switch that could turn it off in tests.
+and the logger's file sink (`package/logger/core/src/sink/file.ts`) reads no switch that could turn it off in tests.
 
 Added on 2026-10-10 (UTC):
 the logger's sink verification,

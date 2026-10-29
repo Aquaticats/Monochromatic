@@ -7,7 +7,7 @@
  * The context unlocks lazily on the first pointer gesture, as autoplay
  * policy requires.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  * Logger root shared by the glass demo client modules.

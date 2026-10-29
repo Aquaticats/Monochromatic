@@ -1,4 +1,4 @@
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   alignDocumentSections,

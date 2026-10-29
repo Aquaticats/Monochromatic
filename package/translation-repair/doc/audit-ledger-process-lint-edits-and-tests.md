@@ -443,11 +443,11 @@ as B78's red commit wrote it,
 replaced `Date.now` for the whole process while a case held it.
 It was written without reading how module-test schedules cases:
 a suite runs its children side by side,
-sixteen at a time by default (`package/module/test/src/describe.ts`).
+sixteen at a time by default (`package/test-harness/core/src/describe.ts`).
 The fix commit's checks passed,
 since on the fixed tree no package code reads `Date.now`;
 the logger does,
-for its stamps (`package/module/logger/src/create-logger.ts`),
+for its stamps (`package/logger/core/src/create-logger.ts`),
 so a sibling's log lines during a stub window carried the stepped time,
 as the FAIL lines of the fixture's own guard-offs show (`2026-09-30T23:00:00.000Z`).
 The first guard-off of B78 (`monotonicMs` reading `Date.now`) showed the cost:

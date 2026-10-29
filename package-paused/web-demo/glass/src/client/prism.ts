@@ -6,7 +6,7 @@
  * three.js-free and unit-testable; the debris system wraps the arrays in a
  * BufferGeometry.
  */
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   type PaneCell,

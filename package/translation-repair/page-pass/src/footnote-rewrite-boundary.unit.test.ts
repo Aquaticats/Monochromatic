@@ -1,4 +1,4 @@
-import { caught as caughtBy, DEFAULT_CONCURRENCY, describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { caught as caughtBy, DEFAULT_CONCURRENCY, describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import {
   FootnoteRewriteError,
   requireFootnoteRewriteRefusal,

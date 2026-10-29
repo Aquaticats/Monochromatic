@@ -11,7 +11,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { opensMdxTag, } from '@monochromatic-dev/translation-repair-markup';
 import { parseMdxBody, } from '../dist/final/node/index.mjs';

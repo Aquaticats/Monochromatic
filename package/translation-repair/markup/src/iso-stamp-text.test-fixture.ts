@@ -1,6 +1,6 @@
 //region Stamps the logger never writes
 // The console sink stamps every log line with `Date.prototype.toISOString()`
-// (`package/module/logger/src/sink/console.ts`), which writes
+// (`package/logger/core/src/sink/console.ts`), which writes
 // `YYYY-MM-DDTHH:mm:ss.sssZ` for every year the logs span. `Date.parse` reads
 // more than that, and each stamp here is one it reads, or may read, that the
 // logger never writes (ledger B73). The readers of log stamps share the list

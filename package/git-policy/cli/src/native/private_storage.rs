@@ -187,6 +187,24 @@ pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> 
 }
 
 /// What:
+///  Write one file exclusively with mode `0600`,
+///  refusing links,
+///  without syncing it.
+/// Why:
+///   Scratch bytes that are unlinked right after they are opened for reading are never recovered,
+///  so a sync would only make every caller wait for the disk;
+///  records that a crash must find stay on `write_exclusive_synced`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handle = await open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); await handle.writeFile(bytes);
+/// ```
+pub fn write_exclusive_scratch(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut file: File = exclusive_options().open(path)?;
+    return file.write_all(bytes);
+}
+
+/// What:
 ///  Create one directory with mode `0700`;
 ///  its parent must exist.
 /// Why:

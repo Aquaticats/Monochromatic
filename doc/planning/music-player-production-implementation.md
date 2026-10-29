@@ -191,7 +191,7 @@ and the decisions D106 to D119 at the end of `package/music-player/design/decisi
   why and stop work on it.
 - Polish standard: every clickable element has hover, pressed and pointer-cursor feedback; no copy or layout that a user
   would call unfinished; verify by driving the real window in the nested compositor
-  (`package/cli/nested-wayland-session`, 0.4.0 installed: notifications and Plasma job fakes, `--accent-color`,
+  (`package/nested-wayland-session/cli`, 0.4.0 installed: notifications and Plasma job fakes, `--accent-color`,
   `--launcher-log`, `--color-scheme`). A change is done only after it was driven the way a person uses it.
 - Emulator: launch it headfully, as its own systemd user unit, on the host GPU, no container, no `xvfb-run`, no
   `-feature -Vulkan` (`doc/troubleshooting/android-emulator-37-software-renderer-sigsegv.md`, section "Working agent

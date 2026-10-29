@@ -173,7 +173,7 @@ input,
 audio and notification checks ran inside Alpine containers with explicit podman bounds
 (`--memory=3g --cpus=4`),
 with the app hosted in this repository's nested compositor
-(`package/cli/nested-wayland-session`,
+(`package/nested-wayland-session/cli`,
 built from source on Alpine,
 headless,
 `--gpu software`,

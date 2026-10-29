@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type { DeepReadonlyData, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
@@ -19,7 +19,7 @@ import {
   UnnameableToolError,
   XiaomiModelNotServedError,
 } from '@monochromatic-dev/translation-repair-provider/ts';
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import { exchangeFailureLogText, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
 import {
   isDecisionSeat,

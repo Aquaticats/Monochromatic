@@ -7,7 +7,7 @@
  @module
  */
 
-import { caught, } from '@monochromatic-dev/module-test/ts';
+import { caught, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool';
 import {

@@ -13,7 +13,7 @@
     "LICENSES"
   ],
   "dependencies": {
-    "@monochromatic-dev/module-zip-writer": "workspace:*"
+    "@monochromatic-dev/zip-writer-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*"

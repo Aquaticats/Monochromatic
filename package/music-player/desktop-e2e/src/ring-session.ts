@@ -12,8 +12,8 @@
  @packageDocumentation
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   clickAt,

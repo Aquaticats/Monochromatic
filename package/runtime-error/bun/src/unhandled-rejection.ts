@@ -5,7 +5,7 @@
  `wait` keeps the event loop alive long enough for the detection to fire.
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 /**
  Milliseconds to keep the event loop alive for unhandled rejection detection.

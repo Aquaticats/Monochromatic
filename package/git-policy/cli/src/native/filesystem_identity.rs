@@ -1,6 +1,6 @@
 //! What:
 //!  The filesystem identity recorded with every real `index.lock` a transaction creates,
-//!       spelled exactly as the incumbent's `@monochromatic-dev/module-fs-id` spells it.
+//!       spelled exactly as the incumbent's `@monochromatic-dev/fs-id-core` spells it.
 //! Why:
 //!  Recovery removes a real `index.lock` only when its device,
 //!  inode and filesystem
@@ -8,7 +8,7 @@
 //!  the incumbent compares the recorded `fsId` with the one
 //!      it resolves now,
 //!  so both wrappers must resolve the same text for the same filesystem
-//!      (`package/module/fs-id/src/platform-resolvers.ts`,
+//!      (`package/fs-id/core/src/platform-resolvers.ts`,
 //!  `parsers.ts`).
 //!
 //! In TS you'd write (pseudocode):

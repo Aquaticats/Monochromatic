@@ -1,7 +1,7 @@
 import { readFile, readdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { translateSliceInput, } from '@monochromatic-dev/translation-repair-translate-lane';
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract';

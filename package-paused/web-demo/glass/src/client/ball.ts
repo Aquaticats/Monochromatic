@@ -2,7 +2,7 @@
  * Thrown balls: pooled meshes, ballistic flight, floor bounces, and
  * strike resolution through the swept-segment collider.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   Mesh,
   MeshStandardMaterial,

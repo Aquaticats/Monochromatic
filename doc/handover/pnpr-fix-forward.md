@@ -1,5 +1,10 @@
 # Handover: pnpr fix-forward and the publish 401
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-or-throw` is now `@monochromatic-dev/or-throw-core`.
+
 ## Purpose
 
 Record the held `0.1.0-alpha.16` lockstep repin for the pnpr registry,

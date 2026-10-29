@@ -15,7 +15,7 @@ import {
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { splitOnWhitespace, } from '../../list.ts';
 import { spawn, } from '../../spawn.ts';

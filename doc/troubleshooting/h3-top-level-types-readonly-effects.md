@@ -111,8 +111,8 @@ Run the focused verification:
 ```sh
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:test:unit
-OXLINT_THREADS=1 mise run //package/webapp-productivity/done:lint:oxlint
-OXLINT_THREADS=1 mise run //package/webapp-productivity/done-postcss:lint:oxlint
+OXLINT_THREADS=1 mise run //package/done/app:lint:oxlint
+OXLINT_THREADS=1 mise run //package/done/variant-postcss:lint:oxlint
 ```
 
 ### Patterns that resolve

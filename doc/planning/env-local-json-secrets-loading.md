@@ -97,13 +97,13 @@ plus loading that works with no mise in the loop.
   discovery,
   identity chain,
   and write seam:
-  `package/module/env-local-json/src/read-env-local-json.ts`,
+  `package/env-local-json/core/src/read-env-local-json.ts`,
   `src/discovery.ts`,
   `src/identity.ts`,
   `src/write.ts`,
   `src/store-shape.ts`.
 - Tests:
-  `package/module/env-local-json/src/env-local-json.unit.matrix.test.ts`,
+  `package/env-local-json/core/src/env-local-json.unit.matrix.test.ts`,
   `package/agent-harness-shared/search-fetch/src/config-store.unit.test.ts`,
   `src/migrate.unit.test.ts`.
 - CI:
@@ -116,8 +116,8 @@ plus loading that works with no mise in the loop.
 ## Settled decisions
 
 - D1 (Q1):
-  the mechanism ships as generic `package/module/env-local-json`,
-  published as `@monochromatic-dev/module-env-local-json`;
+  the mechanism ships as generic `package/env-local-json/core`,
+  published as `@monochromatic-dev/env-local-json-core`;
   search-fetch is its first consumer.
 - D2 (Q2 and Q10):
   precedence is `process.env` > `.env.local.json`;
@@ -175,7 +175,7 @@ plus loading that works with no mise in the loop.
   checked before any identity lookup or sops call;
   otherwise `EnvLocalJsonPlaintextError`.
 - D10 (Q14):
-  naming is `package/module/env-local-json`,
+  naming is `package/env-local-json/core`,
   with the explicit-path override variable `ENV_LOCAL_JSON_PATH`.
 - D11 (Q15):
   search-fetch reads the store inside `loadLinkupConfig` and never mutates
@@ -308,7 +308,7 @@ plus loading that works with no mise in the loop.
 
 Created:
 
-- `package/module/env-local-json/` with `src/`,
+- `package/env-local-json/core/` with `src/`,
   `src/bin/env-local-json.ts`,
   unit and container tests,
   `README.md`,
@@ -331,7 +331,7 @@ Touched:
 - `package/mcp/search-fetch/src/index.ts` and
   `package/pi-plugin/search-fetch/src/index.ts` for the degraded-startup diagnostic,
   and `package/pi-plugin/search-fetch/src/mise.verify-extension.ts`.
-- `package/module/matrix/` for the `node` runtime that runs the container matrix.
+- `package/test-harness/core-matrix/` for the `node` runtime that runs the container matrix.
 - `mise.no-env.toml` for the `secrets:edit` and `secrets:migrate` tasks.
 - User credential files outside the repo:
   `~/.pi/agent/extensions/pi-search-fetch.json`,
@@ -357,7 +357,7 @@ Touched:
 ## Verification plan
 
 - Task commands:
-  `mise run //package/module/env-local-json:build`,
+  `mise run //package/env-local-json/core:build`,
   `:lint:types`,
   `:lint:oxlint`,
   `:test:unit`,

@@ -1,0 +1,30 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/dependency-catalog-cli-rust-update",
+  "description": "Recursive no-save update of every first-party Cargo.lock under rust-catalog.toml's release-age and trust policy, the Cargo counterpart of pnpm -r --no-save update.",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "rust-catalog-update": "src/cli.ts"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/dependency-catalog-core-rust": "workspace:*",
+    "@monochromatic-dev/toml-edit-core": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/dependency-catalog/cli-rust-update"
+  },
+  "private": true,
+  "sideEffects": true
+}

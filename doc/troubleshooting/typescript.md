@@ -833,7 +833,7 @@ exists in a directory covered by a `tsconfig.json`:
 
 ```txt
 panic: ScriptKind must be specified when parsing source file:
-  /var/home/user/Monochromatic/package/module/test/architecture.svg
+  /var/home/user/Monochromatic/package/test-harness/core/architecture.svg
 ```
 
 ### Root cause
@@ -1382,7 +1382,7 @@ out/b.js   bytes=2678   __disposeResources occurrences=2
 
 In this workspace 7 of the 135 ignored stray `.js` files carry the helper,
  for example
-`package/module/logger/src/create-logger.unit.test.js:1`.
+`package/logger/core/src/create-logger.unit.test.js:1`.
 
 Symptom 2 is behavior.
 `await using` on an object whose `[Symbol.asyncDispose]` is `null` and whose `[Symbol.dispose]` is
@@ -1513,7 +1513,7 @@ That specific attribution is not established:
  TS 7 rejects file arguments in a directory containing a
 `tsconfig.json` with `TS5112` unless `--ignoreConfig` is passed (measured),
  and
-`package/module/logger` has one.
+`package/logger/core` has one.
 What the evidence does support is emit produced outside
 `package/config/typescript/tsconfig.options.json`,
  whose `target: esnext` would have emitted no helper.
@@ -1909,7 +1909,7 @@ but could not repair the wrapper's error handling.
 ### Owned source cause
 
 Before the repair,
-`package/dev-script/task-util/src/tsc-filter.ts:203`
+`package/monorepo-task/core-exec/src/tsc-filter.ts:203`
 only preserved a failed subprocess status when recognized TypeScript diagnostic headers survived filtering:
 
 ```ts
@@ -1918,7 +1918,7 @@ if (stdoutResult.hasRemainingErrors || stderrResult.hasRemainingErrors)
   process.exitCode = subprocessError.exitCode ?? 1;
 ```
 
-`package/dev-script/task-util/src/tsc-output-filter.ts:331`
+`package/monorepo-task/core-exec/src/tsc-output-filter.ts:331`
 sets that flag for retained recognized diagnostic headers:
 
 ```ts
@@ -1942,9 +1942,9 @@ Consequently the wrapper could print a failure and leave its own default exit st
 
 ### Repair and compatibility boundary
 
-`package/dev-script/task-util/src/tsc-filter.ts:204`
+`package/monorepo-task/core-exec/src/tsc-filter.ts:204`
 now preserves failure unless `isFullySuppressedCompilerFailure` accounts for the output.
-`package/dev-script/task-util/src/tsc-suppressed-failure.ts:53`
+`package/monorepo-task/core-exec/src/tsc-suppressed-failure.ts:53`
 requires actual removal of known diagnostics and rejects remaining stderr:
 
 ```ts
@@ -1967,7 +1967,7 @@ The fixture executes the built `dist/final/node/tsc-filter.mjs`
 against a disposable Node executable named `tsc`.
 Only the child process receives the modified executable search path.
 No actual thread exhaustion is induced.
-The source is `package/dev-script/task-util/src/tsc-failure-fixture.ts`;
+The source is `package/monorepo-task/core-exec/src/tsc-failure-fixture.ts`;
 its per-case directory is removed after the child and output descriptors close.
 
 The original built wrapper failed the expected-status assertions for:
@@ -1988,9 +1988,9 @@ and statement delimiters when embedding output into its temporary executable.
 
 ```bash
 # From the repository root; each check consumes rebuilt task-util output
-mise run //package/dev-script/task-util:build:js
-mise run //package/dev-script/task-util:test:tsc-failure
-mise run //package/dev-script/task-util:test:unit -- src/tsc-filter.unit.test.ts
+mise run //package/monorepo-task/core-exec:build:js
+mise run //package/monorepo-task/core-exec:test:tsc-failure
+mise run //package/monorepo-task/core-exec:test:unit -- src/tsc-filter.unit.test.ts
 ```
 
 The original failure log is `${HOME}/temp/agent/tsc-wrapper-failure-red-20261014.log`.

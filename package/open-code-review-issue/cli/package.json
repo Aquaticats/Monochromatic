@@ -25,14 +25,14 @@
   "dependencies": {
     "@inquirer/checkbox": "catalog:",
     "@inquirer/input": "catalog:",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "version": "0.0.1",

@@ -19,7 +19,7 @@
  specifier. Idempotent (a by-name specifier is not relative, so it is skipped).
  
  Usage: `bun mise.switch-tests-byname.ts <pkgDir> <pkgName> [--dry]`
-   e.g. `bun mise.switch-tests-byname.ts package/module/or-throw @monochromatic-dev/module-or-throw`
+   e.g. `bun mise.switch-tests-byname.ts package/or-throw/core @monochromatic-dev/or-throw-core`
  
  @module
  */

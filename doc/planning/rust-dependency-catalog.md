@@ -86,14 +86,14 @@ Each item links to its decision section for evidence and rejected alternatives.
    [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
 - Change intents for Rust crates:
    [issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802).
-- `package/dev-script/deps-update`:
+- `package/deps-update/cli`:
    treated as unusable;
    audit tracked in [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
 
 ## Measured facts (2026-10-29)
 
 Measured with a read-only scratch script that parses every first-party `Cargo.toml` through
-`@monochromatic-dev/module-toml-edit` and lists every entry in `dependencies`,
+`@monochromatic-dev/toml-edit-core` and lists every entry in `dependencies`,
 `dev-dependencies`,
 `build-dependencies`,
 and their `target.<cfg>.*` variants.
@@ -115,7 +115,7 @@ and their `target.<cfg>.*` variants.
  Its guard paths are `dependencies.<name>` and `build-dependencies.<name>` only, so it never sees:
 
 - `dev-dependencies`
-   (`i-slint-backend-testing = "=1.18.1"` in `package/desktop-app/ide` and `package/music-player/desktop-app`;
+   (`i-slint-backend-testing = "=1.18.1"` in `package/ide/app` and `package/music-player/desktop-app`;
    `tempfile`).
 - `target.<cfg>.dependencies`
    (`ignore` and `libc` and `tempfile` in `package/git-policy/cli` under `cfg(unix)`;
@@ -131,21 +131,21 @@ Because it owns features,
 ### Divergent requirements today
 
 - `tokio`:
-   `"1.50"` in `package/desktop-app/ide`,
+   `"1.50"` in `package/ide/app`,
    `"1"` elsewhere;
    feature sets differ per crate;
    `optional = true` in `package/music-player/truepeak-core`.
 - `zbus`:
-   `"5.19.0"` in `package/cli/nested-wayland-session`,
+   `"5.19.0"` in `package/nested-wayland-session/cli`,
    `"5"` in `package/music-player/desktop-app`.
 - `windows`:
-   `0.58` in `package/desktop-app/file-manager`,
+   `0.58` in `package/file-manager/app`,
    `0.62` in `package/music-player/desktop-app`;
    different majors and different feature lists.
 - `slint`:
    all `1.18.1`,
    feature sets differ
-   (`package/desktop-app/ide` is GPU-only with `default-features = false`).
+   (`package/ide/app` is GPU-only with `default-features = false`).
 - `image`:
    both `0.25`,
    features differ.
@@ -163,7 +163,7 @@ Because it owns features,
    all `=0.0.336`,
    across `package/linter/monochromatic-lint` and its fuzz sidecar.
 - Helix:
-   three git dependencies on one `rev` in `package/desktop-app/ide`.
+   three git dependencies on one `rev` in `package/ide/app`.
 - CXX-Qt:
    `cxx-qt`,
    `cxx-qt-lib`,
@@ -306,7 +306,7 @@ An earlier round of answers was voided by the owner because the questions did no
 ### Owner of the sync and the check
 
 Extend `file-enforcer`'s existing Cargo engine
- (`package/dev-script/file-enforcer/src/cargo/`) with the catalog and a check-only mode.
+ (`package/file-enforcer/core/src/cargo/`) with the catalog and a check-only mode.
 Why:
  `Cargo.toml` keeps one owner (edition, lints, `[workspace]`, profiles, and dependencies);
  a new Rust CLI built on `toml_edit` (the crate Cargo itself depends on) would split ownership for a lighter CI setup;
@@ -413,7 +413,7 @@ Omitted:
 
 Owner direction:
  also look at the repo's `catalog:tighten` task
- (`package/dev-script/catalog-tighten/`).
+ (`package/dependency-catalog/cli-tighten/`).
 It raises `>=x.y.z` floors in the JS catalog to the installed version,
  reports every entry as `TIGHT`, `OK`, `SKIP`, `UNDCL`, or `MISS`,
  and rewrites only the version token.
@@ -462,9 +462,9 @@ Owner rationale:
 
 Known consequence:
  `i-slint-backend-testing` must stay an exact pin equal to the resolved `slint`
- (its README requires `=` matching `slint`, noted in `package/desktop-app/ide/Cargo.toml`).
+ (its README requires `=` matching `slint`, noted in `package/ide/app/Cargo.toml`).
 A recursive update moves `slint` to its newest release while the exact pin stays,
- so `package/desktop-app/ide` and `package/music-player/desktop-app` stop compiling their tests until the pin is raised
+ so `package/ide/app` and `package/music-player/desktop-app` stop compiling their tests until the pin is raised
  by hand.
 The nine `ra_ap_*` exact pins share one version and move together,
  so they do not split.
@@ -559,7 +559,7 @@ The repo's JS policy is strict:
  `minimumReleaseAgeExclude` (scope globs with rationale comments),
  `minimumReleaseAgeStrict: true`,
  `minimumReleaseAgeIgnoreMissingTime: false`.
-`package/dev-script/deps-update` (`mise run deps:update`) describes itself as running
+`package/deps-update/cli` (`mise run deps:update`) describes itself as running
  `pnpm update --recursive --no-save` and reporting strict refusals
  (`doc/troubleshooting/pnpm-update-no-save-strict-release-age.md`).
 Owner direction (2026-10-29):
@@ -782,10 +782,10 @@ Following pnpm,
 ### Out-of-scope formatting left in the worktree (2026-10-29)
 
 While linting the catalog code,
- a package-wide `mise run //package/dev-script/file-enforcer:format:oxlint` reformatted files outside this work.
+ a package-wide `mise run //package/file-enforcer/core:format:oxlint` reformatted files outside this work.
 Owner decisions:
 
-- The 25 files under `package/dev-script/file-enforcer/src/toolchain/` and `src/package/` that were unmodified
+- The 25 files under `package/file-enforcer/core/src/toolchain/` and `src/package/` that were unmodified
    before this session stay modified (formatting only);
    their diff is saved at `${HOME}/temp/agent/rust-catalog/autofix-outside-scope.patch`.
 - `src/toolchain/plan.artifacts.ts` and `src/toolchain/plan.tools.ts` already held another session's uncommitted
@@ -796,7 +796,7 @@ Later autofix runs snapshot `src/` first and copy every file outside the catalog
 The autofix also changed meaning in one of the 25 files:
  `src/toolchain/update.ts` had a typed arrow `const fetcher: ... = async (url, init) => ...`,
  rewritten as `async function fetcher(url, init)`,
- so `mise run //package/dev-script/file-enforcer:lint:types` fails with TS7006 at `update.ts:632` and `:633`.
+ so `mise run //package/file-enforcer/core:lint:types` fails with TS7006 at `update.ts:632` and `:633`.
 Told this,
  the owner still chose to leave all 25 files as they are.
 Type-checking the catalog code therefore reads that task's output for errors in `src/cargo/catalog/`,
@@ -819,13 +819,13 @@ Fix, commit `d1477a13ba`:
  a crate's generated entry carries `default-features = false` when every catalog site of that dependency in the crate
  writes it,
  and sites that disagree fail the sync with a named issue
- (`package/dev-script/file-enforcer/src/cargo/catalog/default-features.ts`).
+ (`package/file-enforcer/core/src/cargo/catalog/default-features.ts`).
 Verified with `cargo metadata --locked` for all seven affected crates on host nightly and on cargo 1.98.0,
  with the pre-fix ide manifest still failing on 1.98.0 as the control.
 
 Owner correction (2026-10-29):
  "we should always use nightly rust for everything!"
-The 1.98 cargo came from `package/desktop-app/terminal/Containerfile` installing floating `--default-toolchain stable`
+The 1.98 cargo came from `package/terminal/app/Containerfile` installing floating `--default-toolchain stable`
  (the IDE image is built `FROM localhost/monochromatic/terminal`);
  `nested-wayland-session` and the music-player Linux image did the same.
 Commit `8652ba7d7f` makes each of them install `ARG RUST_TOOLCHAIN`,
@@ -862,7 +862,7 @@ The `ARG` defaults are synced by hand,
    resolved with only `alloc`,
    and `cargo package` kept `version = ">=2.6.4"`;
    `cargo update --dry-run` ran on the host in `package/music-player/desktop-app` and
-   `package/desktop-app/file-manager-qt` with only the registry index
+   `package/file-manager/variant-qt` with only the registry index
    (no Podman environment).
 - Name of the mise task and of its package
    (decided:
@@ -902,7 +902,7 @@ Landed:
  the `file-enforcer` sync and `--check` mode with the per-crate `default-features` rendering,
  the migration of all 24 manifests,
  the Cargo source of `catalog-tighten`,
- `package/dev-script/rust-catalog-update` (update, dry run, CI `--verify`, exclude pruning, tests, README),
+ `package/dependency-catalog/cli-rust-update` (update, dry run, CI `--verify`, exclude pruning, tests, README),
  the pinned-nightly build images (`8652ba7d7f`),
  and the contributor runbook `doc/runbook/rust-dependencies.md`.
 
@@ -931,20 +931,52 @@ The host's `RUSTUP_TOOLCHAIN=1.98.1` stays on purpose as a canary for tools that
  (owner decision, [issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
 The warm crates.io history cache (161 crates) is in the main checkout's gitignored `.cache/rust-catalog-update/`.
 
-Queued, waiting for another session's uncommitted package-rename batch,
- which holds edits to the files these steps touch
- (root `mise.toml`, `.github/workflows/advisory-core.yml`, `pnpm-lock.yaml`, and parts of `package/dev-script/file-enforcer`):
+Landed after the package moves (the update package is now `package/dependency-catalog/cli-rust-update`,
+ file-enforcer is `package/file-enforcer/core`):
 
-1.  Add a thin `rust:update` mise task in `mise.no-env.toml` running the update bin, then `mise run sync:files`.
-2.  Add the CI steps to `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`:
-     `file-enforcer --check`,
-     then `rust-catalog-update --verify` between pinned `actions/cache/restore` and `actions/cache/save` steps
-     for `.cache/rust-catalog-update/`,
-     keyed on a hash of every `Cargo.lock`.
-3.  Fix every pre-existing `file-enforcer` lint and type error
-     (including `src/toolchain/update.ts:632` and `:633` TS7006,
-     and the toolchain tests that still expect `nightly-2026-10-28` and node `26.12.1`),
+- `rust:update` and `rust:verify` tasks in `mise.no-env.toml` and in root `task.ts`
+   (`task-run` reads `task.ts`, not `mise.toml`), commit `328e2421b2`;
+   `pnpm-lock.yaml` with the importer landed in the other session's batch.
+- CI steps in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm` (commit `ed7a8036c2`).
+   `prepare:pnpm` already runs the file-enforcer sync (`node file-enforcer.config.ts`),
+   so the drift step checks with `git diff --exit-code` that the sync left every crate manifest and `rust-catalog.toml`
+   unchanged;
+   a `file-enforcer --check` at that point would compare against files the sync just rewrote and could never fail.
+   Control in a throwaway worktree: clean tree exit 0, an edited generated entry exit 1 naming the file.
+   `rust:verify` runs between `actions/cache/restore` and `actions/cache/save` of `.cache/rust-catalog-update/`.
+
+The first full `rust:verify` (1388 versions of 1024 crates) got HTTP 429 from crates.io after 657 API requests
+ spaced exactly 1000 ms apart.
+crates.io's data-access policy lists the API last, after the sparse index, static.crates.io,
+ and the database dump (`https://static.crates.io/db-dump.tar.gz`, 2,103,407,089 bytes on 2026-10-29, rebuilt daily,
+ no rate limit),
+ and allows the API "a maximum of 1 request per second".
+Owner decision (2026-10-29): fill the trust cache from the dump (commit `d6954e5a7f`).
+Measured for the design:
+
+- Dump layout (dump `2026-10-29-020020`, crates.io commit `55d3c7bf0d5d0ffc2fc6217d7ce0f97cc798ae02`):
+   tar order `crates.csv`, `crate_owners.csv`, `versions.csv`, then `dependencies.csv` (1.8 GB)
+   and `version_downloads.csv` (0.96 GB).
+   Public: `versions.{crate_id,num,created_at,published_by,repository}`, `crate_owners`, `users`,
+   and `crates.trustpub_only` (134 locked crates).
+   Private: `versions.trustpub_data` and every `trustpub_*` table (`dump-db.toml` at that commit).
+- Across 785 API histories (37,822 releases, 1,470 Trusted Publishing) no Trusted Publishing release has a publisher;
+   the earliest is 2025-07-12T16:49:05Z,
+   so a crate with a publisher-less release since 2025-07-01 is left to the API.
+- On the real dump: 1024 of 1024 locked crates found, 883 histories written, 141 left to the API,
+   22 seconds including gunzip, stopping after `versions.csv`.
+- Dump against API on 660 crates and 23,813 releases: identical version sets, times, and publishers;
+   9 old `dashmap` releases list a repository in the dump and none in the API,
+   which the declared-to-declared repository rule does not count.
+- The tar and CSV readers are hand-written (owner chose this over vetted libraries).
+- The API now spaces requests 1100 ms apart and retries HTTP 429 after `Retry-After`
+   or a doubling 30-second backoff, at most five times.
+
+Remaining:
+
+1.  A cold `task-run rust:verify` from an empty cache (running at the time of writing).
+2.  Fix every pre-existing file-enforcer lint and type error
+     (452 errors and 454 warnings measured before the move, mostly `src/toolchain/*`;
+     `src/toolchain/plan.artifacts.ts` is `toolchain:update` output, so its findings are fixed in the renderer),
      committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
-4.  Commit `pnpm-lock.yaml` with the `rust-catalog-update` importer:
-     the other session includes it in its batch commit.
-5.  Close #1800 with the final commit.
+3.  Close #1800.

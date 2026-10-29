@@ -91,7 +91,7 @@ All 19 carry the identical `[lints.clippy]` table
   The release binary is consumed by path:
    `cli-git.config.ts:48` and `file-enforcer.config.ts:183-184`
    point at `package/forbidden-strings/cli/target/release/forbidden-strings` `[V]`.
-- `package/cli/nested-wayland-session` (published 0.1.1):
+- `package/nested-wayland-session/cli` (published 0.1.1):
    lib plus bin;
    `smithay = "=0.7.0"` with winit, DRM, GLES features;
    CI installs `libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev clang libclang-dev`
@@ -100,30 +100,30 @@ All 19 carry the identical `[lints.clippy]` table
    bin only,
    `libc` raw syscalls;
    its `target/release` path is referenced by `package/wg/cli-quicker` tests `[V]`.
-- `package/desktop-app/file-manager`:
+- `package/file-manager/app`:
    lib plus bin;
    `gtk4 0.11` over system GTK;
    `cfg(windows)` `windows 0.58`,
    `cfg(target_os = "macos")` `objc2` crates `[V]`.
-- `package/desktop-app/file-manager-gtk-sticky`:
+- `package/file-manager/variant-gtk-sticky`:
    lib plus bin;
    path dependency on `file-manager`;
    `tests/wayland_boundary.rs` runs
-   `../../cli/nested-wayland-session/target/release/monochromatic-nested-wayland-session`
+   `../../nested-wayland-session/cli/target/release/monochromatic-nested-wayland-session`
    and its own `target/release` binary by Cargo path `[V]`.
-- `package/desktop-app/file-manager-qt`:
+- `package/file-manager/variant-qt`:
    bin;
    `cxx 1.0.176`, `cxx-qt 0.9.1`, `cxx-qt-lib` feature `full`;
    `build.rs` runs `cxx_qt_build::CxxQtBuilder` with a QML module and `src/qt_log.cpp`;
    `mise.toml` sets `QMAKE = "/usr/bin/qmake6"` against system Qt 6.11.1 `[V]`.
-- `package/desktop-app/terminal`:
+- `package/terminal/app`:
    lib plus bin;
    Slint 1.17 with `slint-build`;
    `libghostty-vt 0.1.1` whose `-sys` crate builds Ghostty with Zig (section 3);
    `portable-pty` from a `wezterm` git revision;
    `build.rs` emits `cargo:rustc-link-arg-bin=monochromatic-terminal=-Wl,-rpath,$ORIGIN/../lib/monochromatic-terminal`;
    host builds need `LIBCLANG_PATH`, `BINDGEN_EXTRA_CLANG_ARGS`, `ZIG_GLOBAL_CACHE_DIR`,
-   with a podman container fallback (`package/desktop-app/terminal/mise.toml`) `[V]`.
+   with a podman container fallback (`package/terminal/app/mise.toml`) `[V]`.
 - `package/linter/rust` (`monochromatic-rust-linter`):
    lib plus bin `rust-linter`;
    path dependencies on `rust-linter-core`, `rust-linter-plugin/builtin`, `rust-linter-pattern`;
@@ -330,7 +330,7 @@ Recommendation within this design:
    `rustc-link-arg-bin`, `rustc-link-arg-bins`, and `rustc-cdylib-link-arg`
    print "build script returned unsupported directive" and are dropped
    (`cargo_build_script_runner/lib.rs:101-110`) `[V]`.
-  `package/desktop-app/terminal/build.rs` depends on `rustc-link-arg-bin` for its rpath,
+  `package/terminal/app/build.rs` depends on `rustc-link-arg-bin` for its rpath,
    so the flag moves to the `rust_binary` target `[I]`.
 - Per-crate knobs come from `crate.annotation`:
    `crate_features`, `rustc_flags`, `gen_build_script`, `override_target_build_script`,
@@ -476,7 +476,7 @@ Recommendation within this design:
    (`rg --files --hidden --no-ignore-vcs --glob '**/build.zig*' --glob '**/*.zig'` returned nothing),
    and no `zig cc` use exists `[V]`.
 - The only use:
-   `libghostty-vt-sys 0.1.1`, a dependency of `package/desktop-app/terminal`.
+   `libghostty-vt-sys 0.1.1`, a dependency of `package/terminal/app`.
   Its `build.rs`:
   - clones `https://github.com/ghostty-org/ghostty.git`
      at commit `bebca84668947bfc92b9a30ed58712e1c34eee1d` into `OUT_DIR`
@@ -486,7 +486,7 @@ Recommendation within this design:
   - maps only Linux and macOS Rust triples to Zig targets
    (`~/.cargo/registry/src/index.crates.io-*/libghostty-vt-sys-0.1.1/build.rs`) `[V]`.
 - Ghostty's `build.zig.zon` in the fetched checkout lists 15 `url =` entries,
-   and `package/desktop-app/terminal/target/zig-global-cache/p` holds 30 fetched packages `[V]`,
+   and `package/terminal/app/target/zig-global-cache/p` holds 30 fetched packages `[V]`,
    so the build fetches Zig packages from the network at build time `[I]`.
 - Zig is pinned to 0.15.2 (`mise.toml:132-138`);
    Ghostty rejects 0.16.0 (`doc/troubleshooting/desktop-app-host-build.md:310-324`) `[V]`.
@@ -886,7 +886,7 @@ Ordered by how directly each one could disqualify the Bazel route or force a red
     - Evidence:
        `rustc-link-arg-bin` is dropped with only a warning
        (`cargo_build_script_runner/lib.rs:101-110`) `[V]`;
-       `package/desktop-app/terminal/build.rs` depends on it `[V]`.
+       `package/terminal/app/build.rs` depends on it `[V]`.
     - Why:
        the build succeeds and the binary fails at runtime to find `libghostty-vt.so.0` `[I]`.
 11. Signing-key change wipes on-device state.

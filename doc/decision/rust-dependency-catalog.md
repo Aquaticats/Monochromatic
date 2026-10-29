@@ -86,6 +86,14 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    and only a change between two declared `repository` values fails;
    an undeclared value on either side carries no evidence.
    The CI check re-verifies every locked registry version.
+   Amended by the owner on 2026-10-29:
+   a cold cache is filled from the crates.io database dump (`https://static.crates.io/db-dump.tar.gz`,
+   rebuilt daily, no rate limit), which crates.io's data-access policy lists ahead of the API,
+   after a full API-only verification hit HTTP 429 after 657 requests.
+   The dump keeps every Trusted Publishing column private,
+   so a crate with a publisher-less release since 2025-07-01 still takes its history from the API,
+   which is spaced at 1100 ms and retries HTTP 429 after `Retry-After`.
+   The dump and CSV readers are hand-written, not third-party libraries (owner choice).
 - `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
    it writes no lockfiles.
 
@@ -94,9 +102,9 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 - Upstream majors arrive through the update by design;
    the owner treats falling behind as the failure.
 - `i-slint-backend-testing` stays an exact pin equal to `slint`,
-   so an update that moves `slint` breaks the tests of `package/desktop-app/ide` and `package/music-player/desktop-app`
+   so an update that moves `slint` breaks the tests of `package/ide/app` and `package/music-player/desktop-app`
    until the pin is raised by hand.
-- `package/dev-script/deps-update` is not built on;
+- `package/deps-update/cli` is not built on;
    its audit is [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
 - Lockfile drift reporting and transitive policy are
    [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801);

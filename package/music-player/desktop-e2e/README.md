@@ -93,7 +93,7 @@ Run it alone:
    path of the compositor executable;
    default the active mise install, found with `mise where` from the app directory.
    Use it to run against a build that is not installed yet,
-   such as `package/cli/nested-wayland-session/target/release/monochromatic-nested-wayland-session`.
+   such as `package/nested-wayland-session/cli/target/release/monochromatic-nested-wayland-session`.
 - `E2E_LIBRARY_GENERATOR`:
    path of the library generator script that materializes the one-thousand-track library;
    default `temp/agent/agent-scale/make-scale-library.ts` under the home directory.

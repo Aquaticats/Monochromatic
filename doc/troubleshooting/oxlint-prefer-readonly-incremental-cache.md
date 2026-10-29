@@ -235,7 +235,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--type-aware'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--type-aware'])
 """
 ```
 
@@ -375,7 +375,7 @@ const cached = packageIdentityByRoot.get(rootAndName.packageRoot,);
 The observed run wrote 21,616 `intrinsic-effect-query` records,
 including 11,878 failed reads of a `src/package.json` path.
 The file sink appends every record as JSONL at
-`package/module/logger/src/sink/file.ts:274-283`:
+`package/logger/core/src/sink/file.ts:274-283`:
 
 ```typescript
 async function write(record: object,): Promise<void> {
@@ -612,7 +612,7 @@ measured:
 Before schema 2,
 the same edit cost 13.7 seconds and preserved no entries.
 
-End-to-end `mise run //package/dev-script/file-enforcer:lint:oxlint` measured:
+End-to-end `mise run //package/file-enforcer/core:lint:oxlint` measured:
 
 - analyzer-digest rotation:
   24.5 seconds,

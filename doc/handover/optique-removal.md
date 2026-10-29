@@ -3,6 +3,20 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/dev-script/backup-path` is now `package/backup-path/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/token-count` is now `package/llm/token-count`;
+> `package/module/image-diff` is now `package/llm/image-diff`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/fy` is now `package/fy/cli`;
 > `package/cli/git-clone-size` is now `package/git-clone-size/cli`;
 > `package/cli/mutation-test` is now `package/mutation-test/cli`;

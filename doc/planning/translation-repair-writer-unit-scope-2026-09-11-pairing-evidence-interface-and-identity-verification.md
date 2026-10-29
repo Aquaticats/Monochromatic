@@ -21,7 +21,7 @@ Preparation roster quorum remains a distinct condition from pair agreement.
 
 The first green attempt exposed a test assertion mistake:
 `toHaveProperty(path, value)` delegates to Chai's non-deep property comparison
-in `package/module/test/src/expect-matchers-core.ts`.
+in `package/test-harness/core/src/expect-matchers-core.ts`.
 The tests now compare `outcome.outcomes` with `toEqual`.
 The original red failures were missing-property assertions;
 the attempted green failures are not evidence of changed pairing results.

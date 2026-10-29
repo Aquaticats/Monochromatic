@@ -1,0 +1,29 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/toml-edit-core.fuzz",
+  "description": "Fast-check property campaign, grammar-complete generators, semantic-equality oracle, corpus loader, run-budget tooling, and the deterministic V8 coverage-reachability gate for @monochromatic-dev/toml-edit-core. Sidecar tooling kept out of the runtime package so its source stays pure production code and nothing here ships in the tarball.",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/toml-edit-core": "workspace:*",
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/test-fixture-toml-edit": "workspace:*",
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "toml-eslint-parser": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "src",
+    "coverage-baseline.json",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/toml-edit/core.fuzz"
+  }
+}

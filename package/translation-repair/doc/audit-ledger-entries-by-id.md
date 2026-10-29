@@ -680,6 +680,12 @@ which lists every file of this record.
 - [M301, process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md)
 - [M302 to M303, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
 - [M304, process mistakes, agents and briefs in the rounds after the split][l34]
+- [M305, process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md)
+- [M306, process mistakes, shell commands and tasks](audit-ledger-process-shell-commands-and-tasks.md)
+- [M307, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
+- [M308 to M310, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
+- [M311, process mistakes, shell commands and tasks](audit-ledger-process-shell-commands-and-tasks.md)
+- [M312, process mistakes, agents and briefs in the rounds after the split][l34]
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
 - [T8, code no unit test runs, with the areas of the audit][l35]
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)

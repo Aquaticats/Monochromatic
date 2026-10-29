@@ -16,7 +16,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { createProviderBudgets, } from '../dist/final/node/index.mjs';
 import { consoleLinesDuring, } from './neuralwatt-ledger.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';

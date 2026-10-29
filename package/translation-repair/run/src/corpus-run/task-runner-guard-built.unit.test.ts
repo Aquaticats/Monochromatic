@@ -28,7 +28,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { describe, } from '@monochromatic-dev/module-test/ts';
+import { describe, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { RUN_ENTRY, } from './built-entry.test-fixture.ts';
 import {

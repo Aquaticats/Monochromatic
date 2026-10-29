@@ -111,7 +111,7 @@ runs:
       run: |
         set -euo pipefail
         bin_dir="$RUNNER_TEMP/task-cli-bin"
-        run_ts="${GITHUB_WORKSPACE//\\//}/package/dev-script/task-cli/src/run.ts"
+        run_ts="${GITHUB_WORKSPACE//\\//}/package/monorepo-task/cli/src/run.ts"
         mkdir -p "$bin_dir"
         chmod +x "$run_ts"
         printf '#!/usr/bin/env bash\nexec node "%s" "$@"\n' "$run_ts" > "$bin_dir/task-run"

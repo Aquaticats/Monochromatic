@@ -675,7 +675,7 @@ It answers with the next value to send,
 
 Never change the host desktop environment's global theme to test this app.
 Run theme-dependent and other isolated GUI checks inside the repo-owned compositor at
-`package/cli/nested-wayland-session`.
+`package/nested-wayland-session/cli`.
 If that compositor cannot provide a required test feature,
 add the feature to `nested-wayland-session` rather than mutating host-wide desktop settings.
 Restore any app-local fixture state after capture.

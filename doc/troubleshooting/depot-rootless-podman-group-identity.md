@@ -499,11 +499,11 @@ while the immediately written file reported mtime `1792230357550.949` millisecon
 That observation disproves strict wall-clock ordering as a sufficient collector predicate here;
 it does not diagnose a Node or filesystem fault.
 The rejected guard in trial `57cd4d8d4b`,
-`package/module/logger.fuzz/mise.toml:211`,
+`package/logger/core.fuzz/mise.toml:211`,
 required the following comparison:
 
 ```javascript
-// package/module/logger.fuzz/mise.toml, trial 57cd4d8d4b
+// package/logger/core.fuzz/mise.toml, trial 57cd4d8d4b
 stat.mtimeMs >= Date.parse(startedAt)
 ```
 

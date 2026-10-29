@@ -74,7 +74,7 @@ async function copySnapshot({ context }) {
   );
   const dependency = join(
     context,
-    'package/rust-module/jsonc-edit',
+    'package/jsonc-edit/core-rust',
   );
   const entries = [
     ...[
@@ -99,7 +99,7 @@ async function copySnapshot({ context }) {
     ].map(function dependencyEntry(name) {
       return {
         from: resolve(
-          '../../rust-module/jsonc-edit',
+          '../../jsonc-edit/core-rust',
           name,
         ),
         to: join(
@@ -233,7 +233,7 @@ async function runSuite() {
       '--volume',
       `${resolve('e2e')}:/fixture/e2e:ro,Z`,
       '--volume',
-      `${resolve('../../module/caught-value')}:/fixture/caught-value:ro,Z`,
+      `${resolve('../../caught-value/core')}:/fixture/caught-value:ro,Z`,
       nativeImage,
       'node',
       '/fixture/e2e/concurrent-e2e-consumer.ts',

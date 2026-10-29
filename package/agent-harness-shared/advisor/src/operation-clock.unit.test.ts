@@ -1,5 +1,5 @@
 /** Bounded operation waits at the built-artifact boundary. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { ADVISOR_CLOCK_BOUNDARY, createAdvisorCancellation, waitForAdvisorEvent, } from '../dist/final/node/index.mjs';
 
 await describe({ name: '', children: [

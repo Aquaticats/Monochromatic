@@ -134,8 +134,8 @@ Tini `0.19.0-1` and Linux `6.12.109+`.
 The research worktree owns the runnable task:
 
 ```sh
-# Research branch package/dev-script/task-util/mise.toml, not the main checkout.
-mise run //package/dev-script/task-util:research:rust:wg
+# Research branch package/monorepo-task/core-exec/mise.toml, not the main checkout.
+mise run //package/monorepo-task/core-exec:research:rust:wg
 ```
 
 Use its declared ephemeral Depot job:
@@ -166,7 +166,7 @@ Each failure retains its own run ID and diagnostic.
 The research harness contains these consumer patches:
 
 ```diff
-# package/dev-script/task-util/bin/rust-wg-privileged.mjs, abridged.
+# package/monorepo-task/core-exec/bin/rust-wg-privileged.mjs, abridged.
 - run('owned-init-help', '/usr/bin/tini', ['--help']);
 + run('owned-init-help', '/usr/bin/tini', ['-h']);
 ```

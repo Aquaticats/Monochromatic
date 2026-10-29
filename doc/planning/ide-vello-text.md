@@ -1,6 +1,6 @@
 # IDE text and minimap on the GPU
 
-Status: proposal, measured on 2026-10-19, nothing in `package/desktop-app/ide` was changed.
+Status: proposal, measured on 2026-10-19, nothing in `package/ide/app` was changed.
 The recommendation needs the owner answers in the last section before any migration stage starts.
 
 ## Requirement

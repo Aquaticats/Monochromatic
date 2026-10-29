@@ -14,7 +14,7 @@ import {
 } from '@earendil-works/pi-ai';
 import type { AgentSession, } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { expect, } from '@monochromatic-dev/module-test/ts';
+import { expect, } from '@monochromatic-dev/test-harness-core/ts';
 import { fixtureAssistant, } from './host-fixture-model.ts';
 import { fixtureProvider, } from './host-fixture-provider.ts';
 import {

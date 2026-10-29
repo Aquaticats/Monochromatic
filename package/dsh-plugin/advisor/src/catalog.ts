@@ -10,7 +10,7 @@ import type {
 } from '@earendil-works/pi-ai';
 import {
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type {
   AdvisorRequestAuth,
 } from '@monochromatic-dev/agent-harness-shared-advisor/ts';

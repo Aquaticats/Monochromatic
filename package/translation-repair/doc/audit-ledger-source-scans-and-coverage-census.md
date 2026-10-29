@@ -284,7 +284,7 @@ the first red run of the scans of B336 and B337 printed only
 and reading the findings took a second run of each file outside the runner.
 By the lead's inference,
 the 13 are the 12 lines of B337 and the span its scan's first draft flagged.
-`@monochromatic-dev/module-test` builds `expect` on chai 6.3.0,
+`@monochromatic-dev/test-harness-core` builds `expect` on chai 6.3.0,
 whose `config.truncateThreshold` defaults to 40
 (`node_modules/.pnpm/chai@6.3.0/node_modules/chai/index.js:860`)
 and is handed to loupe as the length a value is cut to (`index.js:928`);

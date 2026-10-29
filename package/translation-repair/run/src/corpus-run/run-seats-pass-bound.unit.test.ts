@@ -18,7 +18,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
 import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup';

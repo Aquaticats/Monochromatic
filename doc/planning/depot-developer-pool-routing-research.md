@@ -216,7 +216,7 @@ Existing ownership should be extended before introducing an independent graph en
   The [cycle investigation](../troubleshooting/mise-affected-workspace-cycles.md) traces the validator.
   Removing real development edges would lose impact evidence.
 - Incumbent pnpm 12.14.0 successfully lists the logger reverse closure with
-  `pnpm --recursive --filter '...@monochromatic-dev/module-logger' --include-workspace-root list --depth -1 --json`.
+  `pnpm --recursive --filter '...@monochromatic-dev/logger-core' --include-workspace-root list --depth -1 --json`.
   The selected set exactly matches all 157 declared affected packages plus repository root.
   This verifies Node metadata reachability through the actual cyclic workspace;
   it does not verify a complete cross-language changed-file selector.

@@ -18,13 +18,13 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { join, } from 'node:path';
 
 import {
   findRootCached,
   packageNamed,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import nanoSpawn from 'nano-spawn';
 
 //region Constants

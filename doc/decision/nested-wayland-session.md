@@ -259,7 +259,7 @@ covers prebuilt-binary installs on the `cargo` path,
 - Suggested home:
    a Rust crate under `package/`,
    per issue #272 the suggested path is
-  `package/cli/nested-wayland-session`,
+  `package/nested-wayland-session/cli`,
    subject to a better category during implementation.
 - Smithay pinned to crates.io 0.7.0.
   Smithay is pre-1.0 and its git HEAD is far ahead of the release with breaking changes;

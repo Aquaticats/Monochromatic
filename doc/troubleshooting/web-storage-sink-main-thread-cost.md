@@ -2,7 +2,7 @@
 
 ## Symptom
 
-Every record logged through `@monochromatic-dev/module-logger` pays the
+Every record logged through `@monochromatic-dev/logger-core` pays the
 session-storage sink's full write cost on the calling thread,
 even though the sink returns `Promise<void>` and the logger dispatches
 writes fire-and-forget.
@@ -66,7 +66,7 @@ mechanism."
 
 On our side,
 the sink's `write` therefore runs entirely before its promise exists
-(`package/module/logger/src/sink/session-storage.ts:245`):
+(`package/logger/core/src/sink/session-storage.ts:245`):
 
 ```ts
         globalThis.sessionStorage
@@ -83,7 +83,7 @@ the sink's `write` therefore runs entirely before its promise exists
 
 and the logger's fire-and-forget dispatch can only skip waiting,
 never offload
-(`package/module/logger/src/create-logger.ts:193`):
+(`package/logger/core/src/create-logger.ts:193`):
 
 ```ts
       const trackedWrite = trackWrite({
@@ -105,7 +105,7 @@ Versions under test:
 
 - HeadlessChrome/149.0.0.0 via `agent-browser`,
    Linux x86_64.
-- `@monochromatic-dev/module-logger` at workspace commit `583f1c25b`.
+- `@monochromatic-dev/logger-core` at workspace commit `583f1c25b`.
 
 Harness:
 save the script below,
@@ -381,7 +381,7 @@ the duplication,
 and the buffered write path below makes the cost acceptable.
 Kept here as history so the rejection is not re-shipped;
 the current `verify` is probe-only
-(`package/module/logger/src/sink/session-storage.ts`).
+(`package/logger/core/src/sink/session-storage.ts`).
 
 ### One uniform buffered write path (shipped in `c040389f8`)
 
@@ -390,9 +390,9 @@ newline-joined JSONL batches,
  one batch per counter-incremented key,
 identically on every runtime;
  no per-runtime mode exists
-(`package/module/logger/src/sink/session-storage.ts`,
+(`package/logger/core/src/sink/session-storage.ts`,
 persistence engine split to
-`package/module/logger/src/sink/session-storage-store.ts`).
+`package/logger/core/src/sink/session-storage-store.ts`).
 A batch flushes:
 
 - synchronously from inside `write` at a 32 KiB joined-length cap
@@ -455,7 +455,7 @@ Tradeoffs:
 ### OPFS sink batched through the same shared buffer (shipped in `13d993c14`)
 
 The buffering stage is extracted to
-`package/module/logger/src/sink/record-buffer.ts` (same triggers,
+`package/logger/core/src/sink/record-buffer.ts` (same triggers,
  same
 constants) and both sinks compose it;
 the OPFS sink issues one queued stream write per joined batch,
@@ -490,7 +490,7 @@ OPFS,
  sessionStorage,
  and noop with no recorded reason for the gap,
 an omission rather than a decision.
-`package/module/logger/src/sink/local-storage.ts` now composes
+`package/logger/core/src/sink/local-storage.ts` now composes
 `record-buffer.ts` exactly the way this document prescribed,
 so the synchronous-cost finding applies to it the same way,
 and the localStorage rows in the sweep above supplied its numbers.
@@ -501,7 +501,7 @@ Its quota table was fill-probed separately
 and 10,477,569 on Deno 2.9,
 which lands 8 KiB short of the 10 MiB its sessionStorage measures.
 Design rationale for its run-scoped keys and cross-run eviction:
-`package/module/logger/DECISIONS.md`.
+`package/logger/core/DECISIONS.md`.
 
 An IndexedDB sink followed the same day and took the default
 persistent-browser slot from OPFS,
@@ -524,7 +524,7 @@ measured 1.56 ms per flush cycle,
 6.26 µs per record amortized.
 Full rationale,
 including the relaxed-durability choice and retention cap:
-`package/module/logger/DECISIONS.md`.
+`package/logger/core/DECISIONS.md`.
 
 ### Crash durability under batching
 

@@ -91,7 +91,7 @@ managed by mise.
 1. Create `rolldown.node.config.ts`.
     The minimum form re-exports the shared
    config
-   (see `package/module/test-diagnostic/rolldown.node.config.ts`):
+   (see `package/test-harness/core-diagnostic/rolldown.node.config.ts`):
 
    ```ts
    export { default, } from '@monochromatic-dev/config-rolldown/.node.ts';
@@ -132,7 +132,7 @@ managed by mise.
 
 2. Add build mise tasks to the package's `mise.toml`.
     Mirror the pattern
-   in `package/module/matrix/mise.toml`:
+   in `package/test-harness/core-matrix/mise.toml`:
 
    ```toml
    [tasks.build]

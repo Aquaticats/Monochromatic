@@ -8,7 +8,7 @@ Tab and Shift+Tab land on it,
 no element shows focus,
 and the next key goes nowhere useful.
 
-In `package/desktop-app/ide`,
+In `package/ide/app`,
 the window-level scope in `ui/app.slint` observes Ctrl+F and Escape for the tree,
 the source view,
 and the find bar.
@@ -172,13 +172,13 @@ Versions under test:
 Slint `1.18.1` (`slint` checksum `15e477d5ff6fec20909100ff8f7062432ebfbda7a62a0f37d0252aa126f38c83`,
 `i-slint-core` checksum `ed2ea15059d70bc31b1a8b1eb4c34f2c5df04cb7e53f36179b43c0261231d646`,
 `i-slint-compiler` checksum `f55d48ebef05e2bf09ba5a1fc67bcb11033b9e12a2a50ed3105c7d25e2b539d0`,
-all from `package/desktop-app/ide/Cargo.lock`).
+all from `package/ide/app/Cargo.lock`).
 
 Harness:
-`package/desktop-app/ide/bin/inspect-source-guards.mjs`
-(now `package/desktop-app/ide/bin/inspect-source-guards.ts`,
+`package/ide/app/bin/inspect-source-guards.mjs`
+(now `package/ide/app/bin/inspect-source-guards.ts`,
 renamed 2026-10-22),
-run through the `inspect:source-guards` task of `package/desktop-app/ide/mise.toml`.
+run through the `inspect:source-guards` task of `package/ide/app/mise.toml`.
 It copies the package into a disposable directory,
 removes one guard line,
 runs the named headless native test with real window key events
@@ -189,8 +189,8 @@ The run recorded here used the tree committed as `374ea9a36`;
 its logs are in `~/temp/agent/ide-source-guard-Qu70pZ/`.
 
 ```sh
-# package/desktop-app/ide/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
-mise run //package/desktop-app/ide:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" observer-scope-not-a-stop,find-scope-not-a-stop
+# package/ide/app/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
+mise run //package/ide/app:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" observer-scope-not-a-stop,find-scope-not-a-stop
 ```
 
 Later commits added a sidebar divider stop and renamed the closed-find focus test
@@ -231,10 +231,10 @@ The click path was not exercised.
 ## Verified workarounds
 
 Set both focus properties to `false` on every scope that only observes keys
-(`package/desktop-app/ide/ui/app.slint:157` to `162` and `ui/find.slint:37` to `42` on `main` at `f9d08ae79`):
+(`package/ide/app/ui/app.slint:157` to `162` and `ui/find.slint:37` to `42` on `main` at `f9d08ae79`):
 
 ```slint
-// package/desktop-app/ide/ui/app.slint:157
+// package/ide/app/ui/app.slint:157
     FocusScope {
         width: parent.width;
         height: parent.height;

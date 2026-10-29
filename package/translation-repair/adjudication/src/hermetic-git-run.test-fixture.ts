@@ -1,6 +1,6 @@
 import { devNull, } from 'node:os';
 
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 
 import { spawnKeyless, } from './child-environment.test-fixture.ts';
 

@@ -1,5 +1,5 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type {
   AdjudicatedIssue,

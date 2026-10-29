@@ -27,7 +27,7 @@ before reaching any other question.
 Measured before this landed:
  21 findings across the workspace name a `DataView` or typed-array member and
 14 name nothing else.
- `writeEndOfCentralDirectory` in `package/module/zip-writer/src/serialize.ts` carries
+ `writeEndOfCentralDirectory` in `package/zip-writer/core/src/serialize.ts` carries
 a `ForeignBorrowed` marker and a hand-written `@mutates view` for what is a specification-defined store,
 which is the escape hatch being reached for in place of an answer.
 
@@ -93,7 +93,7 @@ Workspace either side:
 offers unchanged at 4 and 33.
  Twelve findings naming a `view` parameter disappeared across
 `package/mvm/cli`,
- `package/figma/kiwi` and `package/module/zip-writer`,
+ `package/figma/kiwi` and `package/zip-writer/core`,
  and seven reappeared naming only
 `buffer`,
  which is the sound remainder:
@@ -123,7 +123,7 @@ changed nothing until channel entries joined it.
  `toISOString`,
  with one channel entry beside it,
  and the real
-`package/module/toml-edit/src/values.ts` probed either side.
+`package/toml-edit/core/src/values.ts` probed either side.
 
 Without it,
  `encodeValue` and the three callables around it all read `opaque=[0]`.
@@ -306,7 +306,7 @@ one,
 
 That is a fact about the call rather than about the member,
  which is what makes it answerable.
-`pubDateDate.toLocaleString()` in `package/webapp-productivity/rss/src/html-item.ts` passes nothing at all,
+`pubDateDate.toLocaleString()` in `package/rss/app/src/html-item.ts` passes nothing at all,
 so there is no options object and no accessor to reach.
  The member reads `[[DateValue]]`,
  consults ambient
@@ -380,7 +380,7 @@ from three mentions to none and three findings cleared,
  with nothing added.
 
 One of the three is worth naming.
- `getIndexHtmlBody` in `package/webapp-productivity/rss/src/html.ts` was
+ `getIndexHtmlBody` in `package/rss/app/src/html.ts` was
 not reporting at all two increments earlier;
  composing container relations connected its `options` to the
 locale call through the elements,
@@ -404,7 +404,7 @@ The stake is small:
  and
 `Uint8Array` is the only typed array any of them uses,
  checked against the parameter declarations in
-`package/module/zip-writer/src/headers.ts`,
+`package/zip-writer/core/src/headers.ts`,
  `package/figma/kiwi/src/zip.ts` and `package/mvm/cli`.
 
 The cost is not small,

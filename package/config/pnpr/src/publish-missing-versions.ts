@@ -1,8 +1,8 @@
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { isJsonRecord, } from './json-shape.ts';
 import {
@@ -124,7 +124,7 @@ function workspaceDependencyNames(
 
  @example
  ```ts
- selectedNames({ packageNames: ['@monochromatic-dev/module-or-throw'] });
+ selectedNames({ packageNames: ['@monochromatic-dev/or-throw-core'] });
  ```
  */
 function selectedNames({ packageNames, }: { readonly packageNames: readonly string[]; },): readonly string[] {

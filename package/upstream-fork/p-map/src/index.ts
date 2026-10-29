@@ -1,0 +1,65 @@
+/**
+ TypeScript fork of [`p-map`](https://github.com/sindresorhus/p-map) by
+ Sindre Sorhus (MIT): map over iterables with limited concurrency.
+ 
+ Rewritten to this repository's TypeScript standards with the upstream
+ `p-map` 7.0.8 iteration semantics preserved: up to `concurrency` mapper
+ calls run at once,
+ results collect in input order,
+ `pMapSkip` drops a result,
+ `stopOnError` picks first-failure versus `AggregateError`,
+ the abort
+ `signal` rejects with its reason,
+ and `pMapIterable` streams results under a
+ `backpressure` bound. The only API-shape deviation is lint-mandated: one
+ destructured object replaces upstream's three positional parameters.
+ 
+ @example
+ ```ts
+ import { pMap, } from '\@monochromatic-dev/upstream-fork-p-map';
+ 
+ const results = await pMap({
+   iterable: [
+     'a',
+     'b',
+   ],
+   mapper: async function fetchUser(id: string): Promise<string> {
+     return `user-${id}`;
+   },
+   options: { concurrency: 2, },
+ });
+ ```
+ 
+ @packageDocumentation
+ */
+
+export {
+  InvalidBackpressureError,
+  InvalidConcurrencyError,
+  InvalidInputError,
+  MapperRequiredError,
+} from './errors.ts';
+
+export {
+  type MapInput,
+  type Mapper,
+} from './mapper.ts';
+
+export { type SourceIterator, } from './map-iterator.ts';
+
+export {
+  type IterableMapOptions,
+  type MapOptions,
+} from './map-options.ts';
+
+export {
+  type MapRun,
+  pMap,
+} from './p-map.ts';
+
+export {
+  type IterableMapRun,
+  pMapIterable,
+} from './p-map-iterable.ts';
+
+export { pMapSkip, } from './p-map-skip.ts';

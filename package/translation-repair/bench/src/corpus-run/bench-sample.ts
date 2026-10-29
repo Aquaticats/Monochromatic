@@ -1,4 +1,4 @@
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 import {
   allInInputOrder,
   refusalText,

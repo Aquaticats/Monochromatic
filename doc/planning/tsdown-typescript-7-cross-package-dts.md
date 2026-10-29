@@ -366,7 +366,7 @@ not against the main checkout's ignored build outputs.
 
    ```sh
    mise run //package/oxlint-plugin/stylistic:build:js:node
-   mise run //package/module/const:build:js:browser
+   mise run //package/const/core:build:js:browser
    ```
 
 5. Run config-oxlint checks:

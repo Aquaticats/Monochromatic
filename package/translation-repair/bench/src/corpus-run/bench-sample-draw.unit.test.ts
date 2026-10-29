@@ -49,7 +49,7 @@
  */
 
 import { fileURLToPath, } from 'node:url';
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 import {
   mkdir,
   rm,
@@ -64,7 +64,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
 import {
   type CorpusPin,

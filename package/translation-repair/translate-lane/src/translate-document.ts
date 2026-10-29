@@ -2,7 +2,7 @@ import type { ArchiveDispute, } from '@monochromatic-dev/translation-repair-arch
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';

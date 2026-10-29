@@ -137,7 +137,7 @@ do not claim two concurrent owners when the evidence is only same-test double st
 ### Execution and cleanup
 
 Use the existing runtime execution boundary rather than leave a second static Node-only store in `it.ts`.
-`package/module/test/src/execution-node.ts` already supplies descriptor context for rejection attribution.
+`package/test-harness/core/src/execution-node.ts` already supplies descriptor context for rejection attribution.
 Its current descriptor lifetime is not sufficient by itself:
 `it.repeats` needs fresh attempt identity.
 
@@ -192,7 +192,7 @@ do not silently install a partially functioning replacement.
 ### Runtime and consumer boundary
 
 The prototype only verifies Node.
-`package/module/test/src/execution.ts` currently delegates directly outside detected Node.
+`package/test-harness/core/src/execution.ts` currently delegates directly outside detected Node.
 Resolve and test the runtime support policy before claiming a portable fix.
 Keep browser imports usable;
 a Node-only prototype must not become a static Node import in the neutral entry.

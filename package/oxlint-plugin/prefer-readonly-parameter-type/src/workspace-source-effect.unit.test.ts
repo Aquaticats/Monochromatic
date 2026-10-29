@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { isFunctionLikeDeclaration, } from 'typescript/ast/is';
 
 import {
@@ -19,7 +19,7 @@ import {
  File-enforcer source calling workspace `module-toml-edit` functions.
  */
 const APPLY_PLAN_PATH = fileURLToPath(new URL(
-  '../../../dev-script/file-enforcer/src/cargo/apply-plan.ts',
+  '../../../file-enforcer/core/src/cargo/apply-plan.ts',
   import.meta.url,
 ),);
 
@@ -52,7 +52,7 @@ await describe({
          * narrowing proves the whole chain mutation-free.
          *
          * Mutation-free, not fully resolved. Every link reaches `Object.entries` inside
-         * `@monochromatic-dev/module-toml-edit`, which nothing derives, so each one
+         * `@monochromatic-dev/toml-edit-core`, which nothing derives, so each one
          * carries unproven reachability on the parameter it packages into that call.
          * The first two links read `[]` until the owned call edge stopped filtering
          * argument literals by the callee's authored `@mutates` names, which had let a

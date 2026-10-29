@@ -989,11 +989,11 @@ No package installation or dependency adoption is performed by this document.
 ### Production dependency: shared logger
 
 Package:
-`@monochromatic-dev/module-logger`,
+`@monochromatic-dev/logger-core`,
 inspected version `0.4.4`,
 declared `workspace:*`.
 Import:
-`@monochromatic-dev/module-logger/ts`.
+`@monochromatic-dev/logger-core/ts`.
 
 - `tagged`:
   construct module and function loggers with correlated tags.
@@ -1061,7 +1061,7 @@ not a completed runtime reproduction or repair.
   the shared projection calls `parse`.
   Auto-mode makes no direct import from `unbash`.
   Its inspected manifest declares no production or optional dependencies.
-- `@monochromatic-dev/module-logger`:
+- `@monochromatic-dev/logger-core`:
   also used internally by the shared parser,
   counted once.
 - `@monochromatic-dev/ownership-marker-foreign-borrowed`:
@@ -1213,7 +1213,7 @@ or runtime monkey patch.
 ### Test-only dependencies and functions
 
 Package:
-`@monochromatic-dev/module-test`,
+`@monochromatic-dev/test-harness-core`,
 inspected `0.0.2`,
 declared `workspace:*`.
 
@@ -1301,7 +1301,7 @@ this document does not claim a full transitive development-package audit has alr
   bundle,
   and lint commands invoked through package-scoped `mise run` tasks.
   They are not shipped runtime dependencies.
-- Existing `@monochromatic-dev/dev-script-task-util` task entry points:
+- Existing `@monochromatic-dev/monorepo-task-core-exec` task entry points:
   `tsc-filter` and `oxlint-wrapper` preserve the repository's type and lint execution conventions.
   Auto-mode imports no helper functions from this package into production.
 - `mise` and `pnpm`:
@@ -1718,13 +1718,13 @@ not new runtime qualification results.
   `node_modules/@types/node/module.d.ts`:
   `findPackageJSON` and experimental `registerHooks`.
 
-[logger-manifest]: ../../../../module/logger/package.json
-[logger-tagged]: ../../../../module/logger/src/tagged.ts
-[logger-file]: ../../../../module/logger/src/sink/file.ts
+[logger-manifest]: ../../../../logger/core/package.json
+[logger-tagged]: ../../../../logger/core/src/tagged.ts
+[logger-file]: ../../../../logger/core/src/sink/file.ts
 [shell-manifest]: ../../../../agent-harness-shared/shell-command-analyzer/package.json
 [shell-projection]: ../../../../agent-harness-shared/shell-command-analyzer/src/review-structure.ts
 [shell-readme]: ../../../../agent-harness-shared/shell-command-analyzer/README.md
-[test-manifest]: ../../../../module/test/package.json
+[test-manifest]: ../../../../test-harness/core/package.json
 [build-config]: ../../../../config/rolldown/src/index.node.ts
 [assessment]: ../../../../../doc/planning/pi-auto-mode-batched-assessment.md
 [span-trial]: ../span-02-trial.md

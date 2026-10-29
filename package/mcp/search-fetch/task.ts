@@ -1,10 +1,10 @@
 /**
  Package tasks for `@monochromatic-dev/mcp-search-fetch`, replacing the
  `mise.toml` tasks CI ran through `mise run` with node-native definitions for
- `@monochromatic-dev/dev-script-task-cli`.
+ `@monochromatic-dev/monorepo-task-cli`.
  */
 
-import type { PackageTaskFile, } from '../../dev-script/task-cli/src/types.ts';
+import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
 
 export default {
   'build': { extends: 'build', },
@@ -21,8 +21,8 @@ export default {
   'buildAndTest': {
     description: 'Build the node MCP-server bin, then run unit tests against the built artifact',
     run: [
-      'node package/dev-script/task-cli/src/run.ts //package/mcp/search-fetch:build',
-      'node package/dev-script/task-cli/src/run.ts //package/mcp/search-fetch:test:unit',
+      'node package/monorepo-task/cli/src/run.ts //package/mcp/search-fetch:build',
+      'node package/monorepo-task/cli/src/run.ts //package/mcp/search-fetch:test:unit',
     ],
   },
 } satisfies PackageTaskFile;

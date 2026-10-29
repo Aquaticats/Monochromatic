@@ -13,7 +13,7 @@ import {
   relative,
 } from 'node:path';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 

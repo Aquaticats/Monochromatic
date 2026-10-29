@@ -202,17 +202,17 @@ async function main() {
       {
         source: resolve(
           source,
-          '../../rust-module/jsonc-edit'
+          '../../jsonc-edit/core-rust'
         ),
-        destination: 'rust-module/jsonc-edit',
+        destination: 'jsonc-edit/core-rust',
         fuzz: false
       },
       {
         source: resolve(
           source,
-          '../../rust-module/jsonc-edit.fuzz'
+          '../../jsonc-edit/core-rust.fuzz'
         ),
-        destination: 'rust-module/jsonc-edit.fuzz',
+        destination: 'jsonc-edit/core-rust.fuzz',
         fuzz: true
       },
     ];
@@ -240,11 +240,11 @@ async function main() {
     await cp(
       resolve(
         source,
-        '../../rust-module/jsonc-edit/fixtures'
+        '../../jsonc-edit/core-rust/fixtures'
       ),
       join(
         context,
-        'package/rust-module/jsonc-edit/fixtures'
+        'package/jsonc-edit/core-rust/fixtures'
       ),
       { recursive: true }
     );

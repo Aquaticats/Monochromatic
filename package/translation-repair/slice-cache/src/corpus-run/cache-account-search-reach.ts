@@ -8,11 +8,11 @@ import {
   sep,
 } from 'node:path';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { rethrowUnlessMissingPath, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {

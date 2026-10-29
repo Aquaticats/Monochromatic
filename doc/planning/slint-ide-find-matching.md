@@ -39,7 +39,7 @@ The native implementation must keep original source positions and copy bytes,
 reject stale results after file navigation or external reload,
 and perform no project mutation.
 Every deliberate difference from the browser reference is named in
-`package/desktop-app/ide/README.md`.
+`package/ide/app/README.md`.
 
 ## Measured reference
 
@@ -53,7 +53,7 @@ The profile's `Last Version` identifies Chrome `149.0.7827.54`.
 The first capture is `/tmp/ide-find-reference-is2TFy/results.json`.
 The extended capture is `/tmp/ide-find-reference-mskkxd/results.json`.
 The latter is preserved in
-`package/desktop-app/ide/tests/fixture/browser-find.json`.
+`package/ide/app/tests/fixture/browser-find.json`.
 
 Observed matches include case differences,
 canonical accent equivalents,
@@ -177,4 +177,4 @@ and `tests/find_reference.rs` pins the exact differing set so a behavior change 
   content revision,
   and query identity.
   Landed on `main` as `f51495788` through `4e1c2a808`.
-- [x] Record the browser-find differences in `package/desktop-app/ide/README.md`.
+- [x] Record the browser-find differences in `package/ide/app/README.md`.

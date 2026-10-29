@@ -48,7 +48,7 @@ try {
     await cp(
       resolve(
         source,
-        '../../rust-module/jsonc-edit',
+        '../../jsonc-edit/core-rust',
         name
       ),
       join(

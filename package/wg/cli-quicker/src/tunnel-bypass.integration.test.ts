@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
   readFixtureState,

@@ -8,7 +8,7 @@ import type {
 import type {
   JsonValue,
 } from '@deepseek-ai/dsh-util-values';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   isAdvisorDetails,
   renderAdvisorOperationSummary,

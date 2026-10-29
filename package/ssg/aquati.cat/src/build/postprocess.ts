@@ -47,7 +47,7 @@ import {
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import spawn from 'nano-spawn';
 import readdir from 'tiny-readdir-glob';
 

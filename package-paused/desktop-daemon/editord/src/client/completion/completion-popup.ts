@@ -5,7 +5,7 @@
  * Supports keyboard navigation, selection, and dismissal.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { CompletionItem, } from '../../../protocol.ts';
 import { STYLES, } from './completion-popup.styles.ts';

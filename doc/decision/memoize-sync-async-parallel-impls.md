@@ -2,7 +2,7 @@
 
 ## Context
 
-`@monochromatic-dev/module-memoize` ships two wrappers,
+`@monochromatic-dev/kv-store-memoize` ships two wrappers,
  `memoize` (`src/memoize.ts`)
 and `memoizeAsync` (`src/memoize-async.ts`).
 They share structure:
@@ -22,7 +22,7 @@ The reasons a future explorer needs,
  so this is not re-suggested:
 
 - It matches the deliberate split already in the substrate.
-  `@monochromatic-dev/module-kv-store` maintains separate `Store` and `SyncStore`
+  `@monochromatic-dev/kv-store-core` maintains separate `Store` and `SyncStore`
   implementations rather than abstracting over both,
    and memoize sits directly on that contract.
   Mirroring the substrate's shape keeps the two layers aligned.
@@ -41,5 +41,5 @@ The two variants share only the internal cache-key encoder (`src/cache-key.ts`)
 and the types module (`src/types.ts`).
 
 This decision is paired with the deepening plan at
-`package/module/memoize/PLAN.deepen-cache-key-seam.md`,
+`package/kv-store/memoize/PLAN.deepen-cache-key-seam.md`,
 which keeps that shared encoder private and injective while leaving the two variants parallel.

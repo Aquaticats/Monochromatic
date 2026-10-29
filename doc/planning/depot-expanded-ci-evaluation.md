@@ -941,21 +941,21 @@ deleted-package membership and artifact-consumer ownership.
 #### Static checks and shared producers
 
 Select each admitted package's declared lint/type owners,
-including `//package/module/logger:lint:types`,
+including `//package/logger/core:lint:types`,
 then retain task-level diagnostics and the source-bound selected task list.
-Build `//package/module/test:build` and the other actual shared producers once per admitted graph.
+Build `//package/test-harness/core:build` and the other actual shared producers once per admitted graph.
 Preserve Mise dependency ownership and repository packing/generator owners;
 do not introduce a second package inventory as workflow YAML.
 The existing task utility's timestamp checks are incremental-build aids,
 not content authentication for restored artifacts
-(`package/dev-script/task-util/src/depends.ts`).
+(`package/monorepo-task/core-exec/src/depends.ts`).
 Warnings denied by the frozen configuration remain failures,
 with their source dispositions visible.
 
 #### Node unit, process and nondefault tests
 
 Run each declared owner,
-including `//package/module/logger:test:unit` and `//package/module/p-map-fork:test:unit`,
+including `//package/logger/core:test:unit` and `//package/upstream-fork/p-map:test:unit`,
 against its real built prerequisites.
 Retain runtime case reports separately from command exit counts.
 Process owners keep their subprocess and cleanup assertions;
@@ -963,7 +963,7 @@ property,
 conformance and mutation owners keep their bounded inputs,
 seeds and native classifications.
 Keep those nondefault profiles independently schedulable,
-including `//package/module/p-map-fork:test:mutation`.
+including `//package/upstream-fork/p-map:test:mutation`.
 The retained logger,
 matcher and p-map failures need explicit dispositions before required-check adoption.
 

@@ -5,7 +5,7 @@ Status:
 
 ## Resolution
 
-`@monochromatic-dev/git-executable` now owns real-Git selection for git-policy-cli and auto-mode.
+`@monochromatic-dev/git-executable-core` now owns real-Git selection for git-policy-cli and auto-mode.
 The resolver promotes common platform paths exposed by `PATH`,
 scans remaining candidates sequentially,
 recognizes Windows `PATHEXT`,
@@ -419,7 +419,7 @@ The broad workspace-bin `PATH` is expected and needed for normal Pi operation.
 
 The durable remediation was applied at the resolver ownership boundary.
 The user confirmed common-path priority,
-and `@monochromatic-dev/git-executable` now separates executable cache lifetime from mutable worktree metadata.
+and `@monochromatic-dev/git-executable-core` now separates executable cache lifetime from mutable worktree metadata.
 
 ## What does not work
 

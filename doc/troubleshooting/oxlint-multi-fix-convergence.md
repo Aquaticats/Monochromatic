@@ -576,7 +576,7 @@ Tradeoffs:
 ### F. task-oxlint fix-until-stable wrapper (current state for the command path)
 
 `task-oxlint` (the `oxlint` wrapper at
-`package/dev-script/task-util/src/oxlint-wrapper.ts`) loops `oxlint --fix` to a
+`package/monorepo-task/core-exec/src/oxlint-wrapper.ts`) loops `oxlint --fix` to a
 fixpoint when the caller passes `--fix`,
  so a single `task-oxlint --fix` (and the
 `format:oxlint` task that calls it) applies the overlapping and fix-induced fixes
@@ -669,7 +669,7 @@ baseline.
  because the
 plain-lint oracle is not verified to track suggestion-applied changes.
  The loop
-lives in `package/dev-script/task-util/src/oxlint-fix-loop.ts` with unit tests
+lives in `package/monorepo-task/core-exec/src/oxlint-fix-loop.ts` with unit tests
 in `oxlint-fix-loop.unit.test.ts`.
 
 This workspace has a real autofix oscillation that the loop surfaces.

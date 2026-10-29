@@ -9,7 +9,7 @@ import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { withFileMutationQueue, } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { HelperRequest, } from './helper-request.ts';
 

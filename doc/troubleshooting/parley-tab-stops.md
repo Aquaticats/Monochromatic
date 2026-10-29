@@ -100,7 +100,7 @@ and it is given in logical units and multiplied by the layout's scale
 Versions under test:
 `parley` 0.11.1 (checksum `22d2ff88bd3f7d68d1d9b09c7e6209f9a8e8c05088295140a2bcf2e9b17038c5`)
 with `harfrust` 0.12.0,
-from `package/desktop-app/ide/Cargo.lock`.
+from `package/ide/app/Cargo.lock`.
 
 ### Standalone probe
 
@@ -114,8 +114,8 @@ Output:
 
 ### IDE guard controls
 
-`package/desktop-app/ide/bin/inspect-source-guards.mjs`
-(now `package/desktop-app/ide/bin/inspect-source-guards.ts`,
+`package/ide/app/bin/inspect-source-guards.mjs`
+(now `package/ide/app/bin/inspect-source-guards.ts`,
 renamed 2026-10-22)
 removes one tab guard at a time in a disposable copy
 and requires the named test to fail.
@@ -123,8 +123,8 @@ The run recorded here used the files of commit `8dab09180`;
 logs are in `~/temp/agent/ide-source-guard-bX6gco/`.
 
 ```sh
-# package/desktop-app/ide/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
-mise run //package/desktop-app/ide:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" tab-half-space,tab-unusable-space,tab-scale,tab-leading-shortcut
+# package/ide/app/mise.toml task inspect:source-guards; arguments: cache, cargo home copy, guard names
+mise run //package/ide/app:inspect:source-guards "${HOME}/temp/agent/<disposable-target>" "${HOME}/temp/agent/<cargo-home-copy>" tab-half-space,tab-unusable-space,tab-scale,tab-leading-shortcut
 ```
 
 ### Works cleanly
@@ -163,7 +163,7 @@ and `unusable_space_advance_keeps_one_space_width`.
 ## Verified workarounds
 
 Shape each tab as a space and widen that one space with letter spacing until it ends on a stop.
-`package/desktop-app/ide` does this in four places (`main` at `f9d08ae79`):
+`package/ide/app` does this in four places (`main` at `f9d08ae79`):
 
 1.  `src/text_projection.rs:79` to `82` replaces each source tab with one space in the display text
     and records its byte,
@@ -182,7 +182,7 @@ Shape each tab as a space and widen that one space with letter spacing until it 
     on the stand-in space's single byte:
 
 ```rust
-// package/desktop-app/ide/src/shaped_text.rs:159
+// package/ide/app/src/shaped_text.rs:159
         // The stand-in space of a tab is one byte; spacing on it changes that one advance only.
         for (byte, extra) in spacings {
             builder.push(StyleProperty::LetterSpacing(*extra), *byte..*byte + 1);

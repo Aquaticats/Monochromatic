@@ -1,6 +1,6 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
 import { INELIGIBLE_STANDING_WITHHELD_FINDING, } from './consolidate-ineligible-standing.ts';

@@ -2,7 +2,7 @@
 # Keep direct Cargo launches from IDEA and other tools aligned with the terminal mise task.
 # Cargo resolves relative env paths through the config file's real path, so this stays under /var/home
 # even when an editor opens the repo through /home/user.
-ZIG_GLOBAL_CACHE_DIR = { value = "package/desktop-app/terminal/target/zig-global-cache", relative = true }
+ZIG_GLOBAL_CACHE_DIR = { value = "package/terminal/app/target/zig-global-cache", relative = true }
 
 # Slint build scripts need this when Cargo is launched outside mise.
 SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"

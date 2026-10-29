@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 //region Capturing logger
 // A LOGGER THAT KEEPS EVERY LINE, for cases that read what the code under

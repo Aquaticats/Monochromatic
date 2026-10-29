@@ -3,6 +3,21 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `@monochromatic-dev/dev-script-watch-restart` is now `@monochromatic-dev/watch-restart-cli`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-toml-edit` is now `@monochromatic-dev/toml-edit-core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/terminal-exec` is now `package/terminal-exec/cli`.
 
 Date:

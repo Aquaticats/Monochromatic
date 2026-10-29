@@ -2,7 +2,7 @@
 
 ## Decision
 
-Cargo work for `package/desktop-app/terminal` and `package/music-player/desktop-app` runs on the host when the
+Cargo work for `package/terminal/app` and `package/music-player/desktop-app` runs on the host when the
 native development libraries are present,
  and falls back to a Fedora podman container (see each package's
 `Containerfile`) otherwise.

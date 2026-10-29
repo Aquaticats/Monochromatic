@@ -16,7 +16,7 @@
  @packageDocumentation
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import { chordKeys, } from './actions.ts';
 import { isSearchWithField, } from './conditions.ts';

@@ -3,6 +3,35 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/syllable-break-demo` is now `package/syllable-break-demo/app`;
+> `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `@monochromatic-dev/module-hyperscript` is now `@monochromatic-dev/hyperscript-core`;
+> `package/module/zip-writer` is now `package/zip-writer/core`;
+> `package/module/image-diff` is now `package/llm/image-diff`;
+> `package/module/llm-type` is now `package/llm/llm-type`;
+> `package/module/logger` is now `package/logger/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`;
+> `package/module/dom` is now `package/dom/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
 > `package/cli/vmsync` is now `package/vmsync/cli`.

@@ -1,4 +1,4 @@
-import type { CompletionUsage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { CompletionUsage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type {

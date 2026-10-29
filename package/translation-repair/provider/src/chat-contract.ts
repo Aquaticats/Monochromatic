@@ -2,7 +2,7 @@ import type {
   ChatMessage,
   CompletionUsage,
   ContentPart,
-} from '@monochromatic-dev/module-llm-type/ts';
+} from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type { Decider, } from './decision-contract.ts';
@@ -68,7 +68,7 @@ export type JsonSchemaResponseFormat = {
  FOR IMAGES, and only images so far. A picture is sent so a transcribed
  passage has a source that can be CHECKED rather than only preserved, and the
  provider takes that as an OpenAI-compatible content-part array. The part type
- is the shared one from `@monochromatic-dev/module-llm-type`, so nothing here
+ is the shared one from `@monochromatic-dev/llm-llm-type`, so nothing here
  invents a protocol.
 
  @example

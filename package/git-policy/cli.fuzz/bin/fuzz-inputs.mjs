@@ -123,8 +123,8 @@ export async function copyInputs({
       ],
     },
     {
-      from: '../../rust-module/jsonc-edit',
-      to: 'package/rust-module/jsonc-edit',
+      from: '../../jsonc-edit/core-rust',
+      to: 'package/jsonc-edit/core-rust',
       names: [
         'Cargo.toml',
         'Cargo.lock',

@@ -375,7 +375,7 @@ const { mkdirSync } = await import('node:fs')
 const { join, resolve } = await import('node:path')
 const packageDir = process.cwd()
 const musicPlayer = resolve(packageDir, '..')
-const compositor = resolve(packageDir, '../../cli/nested-wayland-session')
+const compositor = resolve(packageDir, '../../nested-wayland-session/cli')
 const cache = join(packageDir, 'target', 'alpine-cache')
 for (const sub of ['cargo', 'target-app', 'target-nws', 'scratch', 'smoke-out', 'context']) { mkdirSync(join(cache, sub), { recursive: true }) }
 const podman = (args) => execFileSync('podman', args, { stdio: 'inherit' })

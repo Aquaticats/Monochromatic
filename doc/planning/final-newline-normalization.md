@@ -283,8 +283,8 @@ The ordinary files identified during planning were:
 - `package-paused/webapp-content/messages-demo/src/server.ts`
 - `package/mutation-test/cli/src/host/cli-options.ts`
 - `package/linter/kotlin/build.gradle.kts`
-- `package/module/toml-edit/src/fuzz/coverage-v8.ts`
-- `package/module/toml-edit/src/values.ts`
+- `package/toml-edit/core/src/fuzz/coverage-v8.ts`
+- `package/toml-edit/core/src/values.ts`
 - `package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts`
 - `package/ssg/aquati.cat/public/manifest.webmanifest`
 - `package/ssg/aquati.cat/src/content/en/on-humanity.mdx`

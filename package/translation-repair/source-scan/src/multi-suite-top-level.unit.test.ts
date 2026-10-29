@@ -33,7 +33,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { readPackageSource, } from './family-source.test-fixture.ts';
 import {
@@ -182,7 +182,7 @@ await describe({
             fixture({
               path: 'napping-cats.test.ts',
               text: [
-                'import { describe, it, } from \'@monochromatic-dev/module-test/ts\';',
+                'import { describe, it, } from \'@monochromatic-dev/test-harness-core/ts\';',
                 'await describe({ name: \'napping\', children: [',
                 '  it({ name: \'curls up\', fn: async () => {}, },),',
                 '], },);',
@@ -194,7 +194,7 @@ await describe({
             fixture({
               path: 'purring-cats.test.ts',
               text: [
-                'import { describe, it, } from \'@monochromatic-dev/module-test/ts\';',
+                'import { describe, it, } from \'@monochromatic-dev/test-harness-core/ts\';',
                 '// a note that says await describe( to see whether the scan counts it',
                 'const NOTE = \'await describe( inside a string, not a call\';',
                 'await describe({ name: \'purring\', children: [',

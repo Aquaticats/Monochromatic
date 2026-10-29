@@ -5,7 +5,7 @@
  * Handles editor element creation, text content serialization, and scrolling.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 //region Editor element creation
 

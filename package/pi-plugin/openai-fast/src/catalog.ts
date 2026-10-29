@@ -4,7 +4,7 @@
 
 import type { Provider, } from '@earendil-works/pi-ai';
 import { ModelRuntime, } from '@earendil-works/pi-coding-agent';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { CODEX_PROVIDER, } from './constants.ts';
 import { FastModelError, } from './fast-model-error.ts';
 import { createCatalogCredentials, } from './catalog-credentials.ts';

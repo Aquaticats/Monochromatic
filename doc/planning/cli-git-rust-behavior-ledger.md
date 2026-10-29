@@ -131,7 +131,7 @@ code lines only.
   `e2e` 48 source files and 7,782 lines plus 7 test files and 1,050 lines;
   `perf` 26 files and 3,498 lines.
 - Sibling packages:
-  `package/git/executable` 7 source files and 409 lines;
+  `package/git-executable/core` 7 source files and 409 lines;
   `package/git-policy/repository` 9 and 1,119;
   `package/git-policy/forbidden-strings` 6 and 633;
   `package/git-policy/markdown-lint` 5 and 600;
@@ -384,24 +384,24 @@ counted with `rg --multiline --count-matches` over the `Status` and `Native stat
 ### Real-Git resolution and self-exclusion
 
 - Behavior:
-  `resolveRealGit` (`package/git/executable/src/resolve-real-git.ts:360-414`) builds absolute candidates
+  `resolveRealGit` (`package/git-executable/core/src/resolve-real-git.ts:360-414`) builds absolute candidates
   from `PATH` and,
   on Windows,
   `PATHEXT` (`78-96`,
   `155-226`),
   promotes common platform locations that `PATH` exposes
-  (`package/git/executable/src/platform-paths.ts:10-22`,
+  (`package/git-executable/core/src/platform-paths.ts:10-22`,
   `44-98`),
   and returns the first executable candidate that is not a wrapper shim
-  (`package/git/executable/src/resolve-real-git.ts:290-338`).
-  `isGitPolicySelfShim` (`package/git/executable/src/self-shim.ts:185-246`) returns `false`
+  (`package/git-executable/core/src/resolve-real-git.ts:290-338`).
+  `isGitPolicySelfShim` (`package/git-executable/core/src/self-shim.ts:185-246`) returns `false`
   for any ELF,
   PE,
   or Mach-O header (`34-45`,
   `212-218`),
   and otherwise searches at most 64 KiB of script text for four markers
   naming the package or its bundled entry (`139-164`).
-  Successful results are cached for the process (`package/git/executable/src/resolution-cache.ts`).
+  Successful results are cached for the process (`package/git-executable/core/src/resolution-cache.ts`).
 - Spec:
   `SPEC.md:29-38`;
   `README.md:21-38`.
@@ -1080,7 +1080,7 @@ and lines 295 to 297
   `SPEC.md:62-75`.
 - Consumers:
   the wrapper build;
-  `package/dev-script/file-enforcer/src/generated-policy-contracts.unit.test.ts`.
+  `package/file-enforcer/core/src/generated-policy-contracts.unit.test.ts`.
 - Status:
   retired.
   The implementation plan line 435 lists file-enforcer-owned scanner and build integration
@@ -3817,7 +3817,7 @@ Native state is absent for every entry.
 ### Tagged debug logging
 
 - Behavior:
-  production code logs through tagged loggers from `@monochromatic-dev/module-logger`,
+  production code logs through tagged loggers from `@monochromatic-dev/logger-core`,
   rooted at the tag `cli-git` (`src/bin.ts:54`).
   96 non-test source files call `tagged(` 192 times,
   and 90 files hold 215 `debug`,
@@ -3830,7 +3830,7 @@ Native state is absent for every entry.
   and `native`).
   The console sink prints debug records when `MONOCHROMATIC_VERBOSE=true`
   or when `process.argv` contains `--verbose`
-  (`package/module/logger/src/sink/console.ts:55-77`).
+  (`package/logger/core/src/sink/console.ts:55-77`).
 - Spec:
   `SPEC.md:1586` (debug logs must not corrupt the selected JSONL stream),
   `1478`.
@@ -3919,7 +3919,7 @@ Trust-only platform code (`src/trust/registry-io.ts`,
   open lock holders are found through `/proc/<pid>/fd` (`src/index-lock/index-lock-evidence.ts:324-328`);
   the hook dispatcher repeats the liveness check (`src/hook-dispatch/hook-dispatch-program.ts:69-84`);
   common Git paths are `/usr/bin/git` and `/usr/local/bin/git`
-  (`package/git/executable/src/platform-paths.ts:10-13`).
+  (`package/git-executable/core/src/platform-paths.ts:10-13`).
 - Spec:
   `SPEC.md:3358-3370`,
   `3406-3424`.
@@ -3947,7 +3947,7 @@ Trust-only platform code (`src/trust/registry-io.ts`,
   open holders come from `lsof` (`src/index-lock/index-lock-holders-darwin.ts:335-372`),
   spawned only while a foreign lock is present;
   common Git paths add `/opt/homebrew/bin/git` and `/opt/local/bin/git`
-  (`package/git/executable/src/platform-paths.ts:18-22`).
+  (`package/git-executable/core/src/platform-paths.ts:18-22`).
 - Spec:
   `SPEC.md:3411-3424`.
 - Consumers:
@@ -3971,12 +3971,12 @@ Trust-only platform code (`src/trust/registry-io.ts`,
 
 - Behavior:
   real-Git lookup follows `PATHEXT` and compares candidates case-insensitively
-  (`package/git/executable/src/resolve-real-git.ts:31`,
+  (`package/git-executable/core/src/resolve-real-git.ts:31`,
   `78-123`),
   with Program Files and `LOCALAPPDATA` install roots
-  (`package/git/executable/src/platform-paths.ts:27`,
+  (`package/git-executable/core/src/platform-paths.ts:27`,
   `51-92`)
-  and backslash shim markers (`package/git/executable/src/self-shim.ts:149-154`).
+  and backslash shim markers (`package/git-executable/core/src/self-shim.ts:149-154`).
   Birth identity and start time come from a PowerShell `Get-Process` call
   (`src/policy-engine/commit-transaction-process-identity.ts:146-157`;
   `src/index-lock/process-start-time.ts:363-364`);
@@ -4181,7 +4181,7 @@ Trust-only platform code (`src/trust/registry-io.ts`,
   `cleanupHkGitConfig` (`src/maintenance/hk-config-cleanup.ts:56-157`) removes only keys beginning with `hook.hk-`
   from explicitly chosen Git configuration scopes.
   The command entry is `src/maintenance/hk-config-cleanup-command.ts`;
-  it resolves real Git through `@monochromatic-dev/git-executable`.
+  it resolves real Git through `@monochromatic-dev/git-executable-core`.
 - Spec:
   no `SPEC.md` section states it;
   `doc/runbook/remove-retired-hk-git-config.md` is the procedure.
@@ -4255,7 +4255,7 @@ by route.
   Each therefore re-enters the wrapper as a nested invocation of the external command `lfs`,
   which the classifier treats as configuration-loading (`src/trust/command-classification.ts:280-281`).
 - Other packages:
-  `package/git/executable` (the resolver the wrapper uses and that must recognize it);
+  `package/git-executable/core` (the resolver the wrapper uses and that must recognize it);
   `package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts` (uses that resolver);
   `package/git-policy/api`,
   `package/git-policy/repository`,
@@ -4281,7 +4281,7 @@ by route.
 These have no incumbent behavior and are not counted in the status tally.
 
 - JSONC configuration loading from repository-root `cli-git.config.jsonc`
-  through `package/rust-module/jsonc-edit` (implementation plan lines 55 to 61).
+  through `package/jsonc-edit/core-rust` (implementation plan lines 55 to 61).
   Native state:
   implemented as library modules (`src/native/config_file.rs`,
   `src/native/config_parse.rs`).
@@ -4470,7 +4470,7 @@ not fixed.
   and `src/policy-engine/commit-transaction-recovery-landing.ts:81`.
 - Verbose logging is tied to a Git argument:
   the logger enables verbose output when `process.argv` contains `--verbose`
-  (`package/module/logger/src/sink/console.ts:69-77`),
+  (`package/logger/core/src/sink/console.ts:69-77`),
   so by reading `git commit --verbose` also turns on wrapper debug lines on stderr.
 - A Git child ended by a signal exits `1` (`src/bin.ts:454-456`),
   not a status that names the signal.

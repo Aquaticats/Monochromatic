@@ -9,7 +9,7 @@
  @module
  */
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 //region Types
 

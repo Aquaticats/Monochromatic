@@ -1,5 +1,16 @@
 # Mise-free CI migration
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-cli` is now `package/monorepo-task/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger.fuzz` is now `package/logger/core.fuzz`;
+> `package/module/logger` is now `package/logger/core`.
+
 Purpose:
  remove mise from every CI workflow in this repository while keeping the
  local developer task system unchanged.

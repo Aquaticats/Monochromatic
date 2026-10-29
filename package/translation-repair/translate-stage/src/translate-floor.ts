@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import type { SliceSyntax, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import type { DeclaredNamePair, } from '@monochromatic-dev/translation-repair-house-rule/ts';

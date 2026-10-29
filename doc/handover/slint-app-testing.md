@@ -1,5 +1,10 @@
 # Testing Slint apps headless (agent-driven UI testing)
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-app/terminal` is now `package/terminal/app`.
+
 How a future session drives,
  inspects,
  and screenshots this repo's Slint 1.17 GUIs without a physical display,

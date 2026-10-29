@@ -1,6 +1,6 @@
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Candidate selection
 // The last deterministic gate: the unchanged translation always competes,

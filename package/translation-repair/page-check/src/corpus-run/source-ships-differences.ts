@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type { PublishDefect, } from './publish-defects.ts';
 import {
   type ReadingComparison,

@@ -277,7 +277,7 @@ function formatHeader(
 
 /**
  Cutoff below which a duration renders with one decimal place. Matches
- `@monochromatic-dev/module-numeric-format` (Q5 default-to-richer pick);
+ `@monochromatic-dev/numeric-format-core` (Q5 default-to-richer pick);
  above it, decimals add noise without adding signal.
  */
 const DECIMAL_BELOW_MS = 10;

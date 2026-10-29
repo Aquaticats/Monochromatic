@@ -10,11 +10,11 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import {
   MS_PER_SECOND,
-} from '@monochromatic-dev/module-const/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { GuestAgentUnreachableError, } from './agent-command.ts';
 import { domainPresence, } from './guest-exec-status.ts';

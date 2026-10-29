@@ -9,7 +9,7 @@ import spawn from 'nano-spawn';
 import {
   findRootCached,
   GIT_REPOSITORY,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import dedent from 'string-dedent';
 
 /**

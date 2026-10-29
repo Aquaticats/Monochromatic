@@ -7,7 +7,7 @@ tag `v30.0.1`) through wgpu 30.0.1,
 on the Vulkan backend (RADV on an AMD RX 7600,
 Mesa,
 Fedora 44),
-as used by Slint 1.18.1 in `package/desktop-app/ide`.
+as used by Slint 1.18.1 in `package/ide/app`.
 The study that found it is the section "An abort at exit in debug builds,
 found and fixed" of
 `doc/planning/ide-gpu-snapshot-harness.md`.
@@ -277,14 +277,14 @@ cargo build
 
 ### Leak one extra handle of each wgpu object
 
-`package/desktop-app/ide/src/launcher.rs:259-275` (the application) and
-`package/desktop-app/ide/src/native/gpu_snapshot.rs:253-264` (the test harness) keep one more clone of the instance,
+`package/ide/app/src/launcher.rs:259-275` (the application) and
+`package/ide/app/src/native/gpu_snapshot.rs:253-264` (the test harness) keep one more clone of the instance,
 adapter,
 device and queue in a leaked `Box`,
 so the last handle is never dropped at thread exit:
 
 ```rust
-// package/desktop-app/ide/src/launcher.rs:270-275
+// package/ide/app/src/launcher.rs:270-275
     Box::leak(Box::new((
         gpu.instance.clone(),
         gpu.adapter.clone(),
@@ -521,7 +521,7 @@ an explicit "nothing to add" note.
 Follow-up for the repository:
 when a wgpu release newer than 30.0.1 that contains commit
 `efcf445784dd31537f09bc61bad27431de713fce` is the one Slint resolves,
-remove the leak in `package/desktop-app/ide/src/launcher.rs` and `src/native/gpu_snapshot.rs` and run a debug build
+remove the leak in `package/ide/app/src/launcher.rs` and `src/native/gpu_snapshot.rs` and run a debug build
 to confirm the exit is clean.
 
 ## Evidence and limits

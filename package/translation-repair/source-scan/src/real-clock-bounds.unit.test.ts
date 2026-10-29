@@ -13,7 +13,7 @@
  WHAT THE SCAN READS, in test files and test fixtures only: the argument of
  `AbortSignal.timeout`; the delay of a global `setTimeout` or `setInterval`;
  the first argument of `setTimeout` imported from `node:timers/promises` and
- of `wait` imported from `@monochromatic-dev/module-async-time/ts`, under any
+ of `wait` imported from `@monochromatic-dev/async-time-core/ts`, under any
  local name; and the value of an object literal's key, or the default of a
  destructured parameter, named in `BOUND_KEYS`: the per-call deadlines, grace
  windows (the two of a `WriterGrace` among them), stream bounds (a model
@@ -85,9 +85,9 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   declaringModule,
@@ -1571,7 +1571,7 @@ type TimerNames = {
   readonly promiseSleeps: ReadonlySet<string>;
 
   /**
-   Local names of `wait` from `@monochromatic-dev/module-async-time/ts`.
+   Local names of `wait` from `@monochromatic-dev/async-time-core/ts`.
    */
   readonly waits: ReadonlySet<string>;
 
@@ -1682,7 +1682,7 @@ function timerNamesOf(
       const local = identifierName({ node: specifier.local, },);
       if ((from === 'node:timers/promises') && (exported === 'setTimeout'))
         promiseSleeps.add(local,);
-      if ((from === '@monochromatic-dev/module-async-time/ts') && (exported === 'wait'))
+      if ((from === '@monochromatic-dev/async-time-core/ts') && (exported === 'wait'))
         waits.add(local,);
       if (HANG_STOP_PATHS.has(landsAt,) && (exported === HANG_STOP_NAME))
         hangStops.add(local,);
@@ -2565,7 +2565,7 @@ await describe({
             path: 'litter.unit.test.ts',
             text: [
               'import { setTimeout as nap, } from \'node:timers/promises\';',
-              'import { wait as snooze, } from \'@monochromatic-dev/module-async-time/ts\';',
+              'import { wait as snooze, } from \'@monochromatic-dev/async-time-core/ts\';',
               'import { HANG_STOP_MS, } from \'./hang-stop.test-fixture.ts\';',
               'const TINY_MS = 20;',
               'export async function purr({ graceMs = 50, perCallTimeoutMs = HANG_STOP_MS, }: { graceMs?: number; '

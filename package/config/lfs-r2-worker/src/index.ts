@@ -14,7 +14,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { handleBatch, } from './batch.ts';
 import { mediaTypeForPath, } from './media-type.ts';

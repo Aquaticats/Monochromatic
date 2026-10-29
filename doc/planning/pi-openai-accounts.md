@@ -83,7 +83,7 @@ Answers are cited by the interview question that produced them.
 - Q31: upstream draft filed as reminder issue #605, labeled `ready-for-human`; the user posts it.
 - Q34: non-secret state lives in `<agent-dir>/openai-accounts.json` at `0600`, with leases in a separate
   ephemeral file that carries no meaning after a crash.
-- Q37 and Q43: the switch is announced through a tagged logger from `@monochromatic-dev/module-logger`
+- Q37 and Q43: the switch is announced through a tagged logger from `@monochromatic-dev/logger-core`
   at `warn`. No `pi.notify`, no footer status. Interactive visibility is an open probe, recorded below.
 - Q38 and Q44: `/accounts` renders a transcript-visible, non-model-visible status list. No switch command,
   no reorder command, no rename command.
@@ -336,7 +336,7 @@ markers, and `spent_at` all key on the slot id.
 
 ### Announcement channel
 
-The switch is logged at `warn` through a tagged logger from `@monochromatic-dev/module-logger`, tagged per the
+The switch is logged at `warn` through a tagged logger from `@monochromatic-dev/logger-core`, tagged per the
 repo convention with the function name, naming the account that served the turn and the account that was left.
 No `pi.notify`, no footer status, no transcript message, and nothing model-visible.
 

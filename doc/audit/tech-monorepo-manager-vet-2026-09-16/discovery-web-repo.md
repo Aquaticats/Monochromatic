@@ -3,6 +3,22 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/webapp-productivity/wc` is now `package/wc/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `@monochromatic-dev/dev-script-file-enforcer` is now `@monochromatic-dev/file-enforcer-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
 
 Run date: 2026-09-16.

@@ -1,8 +1,8 @@
-import { BYTES_PER_KIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core/ts';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { DEFAULT_MAX_PACK_BYTES, } from './constants.ts';
 import {

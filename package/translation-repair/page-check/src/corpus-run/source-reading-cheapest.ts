@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { boundOf, } from './source-reading-bound.ts';
 import { lookaheadsOf, } from './source-reading-lookahead.ts';
 import { placedAfter, } from './source-reading-places.ts';

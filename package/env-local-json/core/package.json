@@ -1,0 +1,49 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/env-local-json-core",
+  "description": "Read requested keys from the repository's sops/age-encrypted .env.local.json without mutating process.env, plus an internal identity resolver, atomic value writer, and edit CLI.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./testing": {
+      "types": "./dist/final/node/testing.d.mts",
+      "default": "./dist/final/node/testing.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "bin": {
+    "env-local-json": "dist/final/node/bin.mjs"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "string-dedent": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core-matrix": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/env-local-json/core"
+  }
+}

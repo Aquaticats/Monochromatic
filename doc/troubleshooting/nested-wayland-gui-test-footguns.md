@@ -6,8 +6,8 @@ plus two operational traps when driving the compositor by hand
 > Use `~/temp/agent` for current work.
 
 Cluster of footguns hit while writing keyboard-driven boundary tests against
-`package/cli/nested-wayland-session` (repo-owned tool) for
-`package/desktop-app/file-manager-gtk-sticky` and during manual driving of the compositor.
+`package/nested-wayland-session/cli` (repo-owned tool) for
+`package/file-manager/variant-gtk-sticky` and during manual driving of the compositor.
 
 ## Symptom
 
@@ -84,7 +84,7 @@ session.
    the boundary test waits for
   `ready: true` before its first key.
    Test passes repeatedly in under a second
-  (`mise run //package/desktop-app/file-manager-gtk-sticky:test:wayland`).
+  (`mise run //package/file-manager/variant-gtk-sticky:test:wayland`).
 - AF_UNIX:
    `python3 -c "import socket; s=socket.socket(socket.AF_UNIX); s.connect('<108+ byte path>')"`
   raises `AF_UNIX path too long`;
@@ -134,7 +134,7 @@ Two traps met while driving the music player's lists with the compositor's `scro
 measurements (`doc/audit/music-player-release-build-measurements-2026-10-15.md`).
 
 - The `steps=` argument of `scroll` (and of `drag`) is limited to 1 through 1000
-  (`package/cli/nested-wayland-session/src/protocol_click.rs`, `rest.number("steps", 1, (1, 1_000))`).
+  (`package/nested-wayland-session/cli/src/protocol_click.rs`, `rest.number("steps", 1, (1, 1_000))`).
   A larger value answers `err scroll steps= must be from 1 to 1000`.
   To travel farther, send several `scroll` commands, each with at most 1000 steps.
 - The distance a pixel scroll moves a Slint list is not the distance requested when the events are fast.

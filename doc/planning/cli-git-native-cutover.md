@@ -29,7 +29,7 @@ the lock entry,
 the retirement of the hk cleanup and of the performance harness,
 the release build as the package `build` task,
 the CI jobs that need the wrapper,
-and the native recognition in `package/git/executable`.
+and the native recognition in `package/git-executable/core`.
 Nothing in the real installation was installed,
  replaced,
  or published by that lane;
@@ -217,7 +217,7 @@ Probes run on 2026-10-13 by the install lane,
    throwaway-project block of `Steps that remain`,
    plus `git worktree add` from a repository that has a gitignored `.cache/forbidden-strings.rules.txt`.
 - The dependent-version release step on the real repository:
-   two clones of the install branch with the version of `package/module/async-time` raised,
+   two clones of the install branch with the version of `package/async-time/core` raised,
    one through `node package/git-policy/repository/src/bump-dependents.ts`,
    one through the installed executable's `cli-git fix --all --policy mono/dependent-version-bump`.
 - The new `bin/final-newline-workflow.mjs` against the installed executable,
@@ -485,7 +485,7 @@ The main checkout's `.claude/settings.json` has no hit;
   The task's optional base-revision argument has no equivalent;
    the base is `HEAD`.
   Proof on the real repository on 2026-10-13:
-   with the version of `package/module/async-time` raised in two clones,
+   with the version of `package/async-time/core` raised in two clones,
    the TypeScript planner (`package/git-policy/repository/src/bump-dependents.ts`) and the native fix changed 77
    manifests with byte-identical diffs (40,744 bytes);
    an earlier native run without `git-lfs` on `PATH` exited 2 and changed one file,
@@ -564,7 +564,7 @@ The main checkout's `.claude/settings.json` has no hit;
   `package/git-policy/{repository,forbidden-strings,markdown-lint}/src` into `package/git-policy/cli/src/optional/`.
   Delete all three in the same commit that deletes `src/optional/`;
   otherwise `mise run sync:files` regenerates the deleted files.
-- `package/dev-script/file-enforcer/src/generated-policy-contracts.unit.test.ts` (76 lines,
+- `package/file-enforcer/core/src/generated-policy-contracts.unit.test.ts` (76 lines,
   only these mirror fixtures at `:49-55`):
    delete with the mirrors.
 - `file-enforcer.config.ts`,
@@ -635,8 +635,8 @@ The main checkout's `.claude/settings.json` has no hit;
 
 ### Sibling packages
 
-- `package/git/executable` (the shared real-Git resolver,
-   `@monochromatic-dev/git-executable`):
+- `package/git-executable/core` (the shared real-Git resolver,
+   `@monochromatic-dev/git-executable-core`):
   done on the install branch (commit `1e5c35a886`).
    `isGitPolicySelfShim` in `src/self-shim.ts` returns "not a shim" for any ELF,
    PE or Mach-O header,
@@ -924,15 +924,15 @@ The results are in `doc/handover/cli-git-native-interop.md`.
   Imports measured in the surviving `e2e/`,
    `bin/` and
    `native-interop/` (after the performance harness was deleted):
-   `@monochromatic-dev/module-test`,
-  `@monochromatic-dev/module-caught-value`,
-   `@monochromatic-dev/module-logger`,
+   `@monochromatic-dev/test-harness-core`,
+  `@monochromatic-dev/caught-value-core`,
+   `@monochromatic-dev/logger-core`,
   `valibot` (only `bin/differential-config-compare.mjs:11`),
    plus `@monochromatic-dev/config-typescript` for
   `tsconfig.json` and `@types/node`.
    `nano-spawn` is now imported only by `src/` (`rg nano-spawn` on 2026-10-13).
    Drop `nano-spawn` and `valibot` together with the files that use them.
-  The `@monochromatic-dev/git-executable`,
+  The `@monochromatic-dev/git-executable-core`,
    `...-git-policy-repository`,
    `...-config-rolldown`,
   `...-module-async-time`,
@@ -1018,7 +1018,7 @@ revision).
     Note (2026-10-13): deleted at the user's request and readable at commit `5d61d7b442`:
     The runnable incumbent and its provisioning step.
     The results are in `doc/handover/cli-git-native-interop.md`.
-8.  `package/git/executable` treats native executables as real Git (see `Sibling packages`).
+8.  `package/git-executable/core` treats native executables as real Git (see `Sibling packages`).
 9.  `cli-git.config.ts` imports the `./ts` export that the retirement deletes,
     so after the deletion nothing can load it:
      the native wrapper never reads a `.ts` configuration,
@@ -1026,7 +1026,7 @@ revision).
      It must be deleted.
     Once it is gone,
      any session still on the incumbent runs only the core policies (hazard 6).
-10. The hk cleanup command imports `@monochromatic-dev/git-executable/ts` and `@monochromatic-dev/module-logger/ts`
+10. The hk cleanup command imports `@monochromatic-dev/git-executable-core/ts` and `@monochromatic-dev/logger-core/ts`
     (`src/maintenance/hk-config-cleanup-command.ts:14`,
      `hk-config-cleanup.ts:7`);
     its disposable-fixture test lives in `src/trust/fixture/hk-config-cleanup-consumer.ts` and is run by

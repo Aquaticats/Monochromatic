@@ -3,7 +3,7 @@ import type {
   RootContent,
 } from 'mdast';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   leadingMarkWidth,
   maskHtmlComments,

@@ -9,7 +9,7 @@ The build pipeline runs as a sequence of mise tasks (`mise run build`):
 
 1. **Client JS** (`build:js:client`):
     bundle client-side scripts via rolldown.
-    Localized UI text is rendered at build time via `@monochromatic-dev/module-i18n-compose`
+    Localized UI text is rendered at build time via `@monochromatic-dev/i18n-compose-core`
     (no codegen step),
     with per-locale label tables in `src/i18n/`
 2. **Site generation** (`build:site` / `src/build.ts`):

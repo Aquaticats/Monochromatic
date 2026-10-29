@@ -13,7 +13,7 @@ import {
   relative,
 } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import readdir from 'tiny-readdir-glob';
 
 import type { Locale, } from '../i18n/index.ts';

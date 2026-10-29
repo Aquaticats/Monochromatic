@@ -4,7 +4,7 @@
  * Produces a complete `<!DOCTYPE html>` page linking to the external stylesheet.
  * All content is static; viewable with JavaScript disabled.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Wraps body content in a full HTML document.

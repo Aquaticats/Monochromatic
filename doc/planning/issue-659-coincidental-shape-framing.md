@@ -82,13 +82,13 @@ Source spot-checks:
 - `package/git-policy/cli/src/trust/typescript-source-capture.ts:54-63`
 - `package/rolldown-plugin/import-attributes/src/patterns.ts:82-93`
 - `package/cli/markdown-lint/src/fix.ts:55-66`
-- `package/module/fs-path/src/root-filesystem.neutral.ts:47-53`
-- `package/module/fs-path/src/memory-root-filesystem.ts:245-250`
+- `package/fs-path/core/src/root-filesystem.neutral.ts:47-53`
+- `package/fs-path/core/src/memory-root-filesystem.ts:245-250`
 - `package/oxlint-plugin/test-support/src/index.ts:188-272`
 - `package/ssg/aquati.cat/src/lib/jsx-to-html.ts:59-77`
 - `package/git-policy/cli/src/hook-dispatch/hook-dispatch-plan.ts:131-145`
 - `package/git-policy/cli/src/shadow-repository/shadow-config.ts:63-78`
-- `package/module/hyperscript/src/css/values.constructors.ts:297-314,346-365,462-464,482-484`
+- `package/hyperscript/core/src/css/values.constructors.ts:297-314,346-365,462-464,482-484`
 
 ## What the issue gets right
 
@@ -242,8 +242,8 @@ and no sibling issue body names any of the 22 symbols.
 all return no hit across the fetched bodies.
 Two clusters are still exposed:
 
-- C358 has a unit at `package/module/deepmerge-ts.fuzz/src/coverage-v8.ts:94-99`.
-- C342 has two at `package/module/deepmerge-ts.fuzz/src/declared-type-sample.ts:181-184,399-401`.
+- C358 has a unit at `package/upstream-fork/deepmerge-ts.fuzz/src/coverage-v8.ts:94-99`.
+- C342 has two at `package/upstream-fork/deepmerge-ts.fuzz/src/declared-type-sample.ts:181-184,399-401`.
 - `#613` proposes one shared fuzz coverage harness replacing 13 sidecar copies,
    which would move those paths and invalidate both hashes.
 

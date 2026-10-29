@@ -12,7 +12,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { ArtifactConsistencyRunOff, } from '@monochromatic-dev/translation-repair-artifact';
 import { runOffResultLine, } from '../../dist/final/node/index.mjs';

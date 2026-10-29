@@ -6,13 +6,13 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@monochromatic-dev/dev-script-file-enforcer": "workspace:*",
-    "@monochromatic-dev/module-fs-path": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*",
+    "@monochromatic-dev/file-enforcer-core": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "devDependencies": {
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "mitata": "catalog:",
     "@mitata/counters": "catalog:"
   }

@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { edgeRefusalOf, } from '../../dist/final/node/index.mjs';
 import { renderingsOf, } from '@monochromatic-dev/translation-repair-consistency/ts/consistency-renderings.test-fixture.ts';

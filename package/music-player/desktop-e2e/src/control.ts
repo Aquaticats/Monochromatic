@@ -17,7 +17,7 @@
 import { connect, } from 'node:net';
 import { join, } from 'node:path';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import { expect, } from './errors.ts';
 import { SHOT_SETTLE_MS, } from './timing.ts';

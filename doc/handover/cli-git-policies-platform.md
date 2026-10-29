@@ -3,6 +3,17 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/fs-id` is now `package/fs-id/core`;
+> `@monochromatic-dev/module-fs-id` is now `@monochromatic-dev/fs-id-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
 

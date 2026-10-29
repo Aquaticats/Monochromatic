@@ -383,7 +383,7 @@ after this plan was first written:
 ### M9: cutover
 
 - The `exec` replacement lands with the rewrite:
-   `package/dev-script/vm-builder/src/process.ts` over `nano-spawn`,
+   `package/vm-builder/cli/src/process.ts` over `nano-spawn`,
    and vm-builder's dependency on file-enforcer removed.
 - The `prefer-readonly-parameter-type` read moves to its own fixture package.
 - The performance fixture retires with the TypeScript implementation,

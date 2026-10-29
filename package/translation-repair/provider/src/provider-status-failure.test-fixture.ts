@@ -1,4 +1,4 @@
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 import {

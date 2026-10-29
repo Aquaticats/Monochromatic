@@ -84,7 +84,7 @@ There is no global `mise.lock`;
  (`doc/planning/cli-git-global-install.md`).
 
 The path algebra in
-`package/dev-script/file-enforcer/src/toolchain/paths.ts`
+`package/file-enforcer/core/src/toolchain/paths.ts`
 gains a global variant
 (`globalToolchainPaths`),
 built from `HOME`/`XDG_CONFIG_HOME`/`XDG_DATA_HOME`

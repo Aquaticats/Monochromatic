@@ -62,7 +62,7 @@ use forbidden_strings::CandidateScan;
 /// ```ts
 /// // Map<string, Uint8Array>, iterated in sorted key order.
 /// ```
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 /// `Rc<T>` is a shared,
@@ -372,6 +372,30 @@ impl ContentState {
                     Err(error) => return Err(candidate_failure(&error)),
                 }
             }
+            Some(Err(_)) | None => return Err(candidate_failure(&not_prepared_error())),
+        }
+    }
+
+    /// What:
+    ///  The given candidate pathnames whose `text` Git attribute is unset,
+    ///  read from the state the candidates were listed from.
+    ///  `Err(outcome)` is the policy outcome of a lookup that failed.
+    /// Why:
+    ///   A file that declares `-text` keeps its exact bytes.
+    ///  Only the paths a policy would change are asked about,
+    ///  so a commit that needs no change starts no attribute query.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async textUnset(paths: Uint8Array[]): Promise<Set<string>>; // throws PolicyOutcome
+    /// ```
+    pub fn text_unset(&self, paths: &[&[u8]]) -> Result<HashSet<Vec<u8>>, PolicyOutcome> {
+        // `&self.prepared` borrows the remembered attempt read-only.
+        match &self.prepared {
+            Some(Ok(prepared)) => match prepared.attributes.text_unset(paths) {
+                Ok(unset) => return Ok(unset),
+                Err(error) => return Err(candidate_failure(&error)),
+            },
             Some(Err(_)) | None => return Err(candidate_failure(&not_prepared_error())),
         }
     }

@@ -19,7 +19,7 @@ import {
   join,
 } from 'node:path';
 
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source';

@@ -12,7 +12,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { namesWithoutQuoting, } from '@monochromatic-dev/translation-repair-document-structure';
 import { TrialSliceRefusalError, } from '../../dist/final/node/index.mjs';

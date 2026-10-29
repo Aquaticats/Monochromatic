@@ -11,7 +11,7 @@
  @module
  */
 
-import { describe, } from '@monochromatic-dev/module-test/ts';
+import { describe, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { sameReadingCases, } from './source-reading-same.test-fixture.ts';
 

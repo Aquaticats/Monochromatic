@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';

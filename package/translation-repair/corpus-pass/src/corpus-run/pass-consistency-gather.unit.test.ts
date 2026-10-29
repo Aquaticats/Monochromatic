@@ -15,7 +15,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { StageRosterRepeatError, } from '@monochromatic-dev/translation-repair-stage';
 import type { SliceCache, } from '@monochromatic-dev/translation-repair-translate-floor';

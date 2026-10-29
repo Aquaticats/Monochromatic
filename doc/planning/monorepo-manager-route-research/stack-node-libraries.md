@@ -54,7 +54,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
 
 - Catalog: `'chokidar': '>=5.0.0'` (`pnpm-workspace.yaml:71`);
   the lockfile resolves `chokidar@5.0.0` and `readdirp@5.1.1` (`node_modules/.pnpm`, verified, measured).
-- `package/dev-script/file-enforcer` (`package.json:33`):
+- `package/file-enforcer/core` (`package.json:33`):
   one chokidar watcher per directory derived by `watchDirs` (`src/watch/watch-filter.ts:28-60`),
   with `atomic: true`, `awaitWriteFinish: false`, `depth: 0`, `followSymlinks: false`, `ignoreInitial: true`
   (`src/watch/watch-dir.ts:231-241`),
@@ -66,7 +66,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
   and a write to a managed destination emits `{ kind: 'protected' }` (`:451-496`),
   each after waiting for chokidar's `ready` (commit `a4728812b` "wait for chokidar readiness").
   It pins nothing about scale, overflow, bursts, or new directories (verified, source).
-- `package/dev-script/watch-restart` (`package.json:35`):
+- `package/watch-restart/cli` (`package.json:35`):
   recursive chokidar with `awaitWriteFinish` defaulting to `{ stabilityThreshold: 50, pollInterval: 10 }`
   (`src/watcher-types.ts:36-56`).
   Its atomic-save test is skipped with

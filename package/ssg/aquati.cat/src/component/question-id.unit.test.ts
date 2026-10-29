@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { fingerprint32, } from 'farmhashjs';
 
 import type { SafeHtml, } from '../lib/jsx-to-html.ts';

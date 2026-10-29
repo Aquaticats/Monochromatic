@@ -22,7 +22,7 @@ import { parseArgs, } from 'node:util';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { installedCompositorPath, } from './compositor-path.ts';
 import {

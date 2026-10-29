@@ -6,7 +6,7 @@ Accepted 2026-10-22.
 Owner-authorized:
 the owner asked for GitHub releases CI ("Please setup gh releases CI") and chose the IDE and the nested compositor as
 the products to release.
-This document covers the IDE (`package/desktop-app/ide`,
+This document covers the IDE (`package/ide/app`,
 program `monochromatic-ide`);
 the compositor has its own workflow and document.
 The first real release is a separate act that needs the owner's go-ahead (see the consequences).
@@ -25,8 +25,8 @@ and the ARM64 section says what it changes.
 
 Before this,
 the IDE had no release path.
-`mise run //package/desktop-app/ide:install` puts a locally built `dist/monochromatic-ide` into `~/.local/bin`,
-`package/desktop-app/ide/Cargo.toml` has `publish = false`,
+`mise run //package/ide/app:install` puts a locally built `dist/monochromatic-ide` into `~/.local/bin`,
+`package/ide/app/Cargo.toml` has `publish = false`,
 and nothing built the program anywhere but the owner's machine.
 
 The owner's answers,
@@ -45,7 +45,7 @@ as the agent that built this received them:
   Linux x86_64 only for now
   (changed the same day:
   see "Linux ARM64").
-  The program needs a Wayland session and a Vulkan driver for a hardware GPU (`package/desktop-app/ide/README.md`,
+  The program needs a Wayland session and a Vulkan driver for a hardware GPU (`package/ide/app/README.md`,
   sections "Renderer and GPU" and "What the host provides").
 - The released file is the single executable that the `bundle` task writes,
   with its notices.
@@ -74,7 +74,7 @@ Facts that constrain the design:
 
 ### Trigger and versions
 
-`.github/workflows/ide-release.yml` runs on a push to `main` that changes `package/desktop-app/ide/Cargo.toml`,
+`.github/workflows/ide-release.yml` runs on a push to `main` that changes `package/ide/app/Cargo.toml`,
 and on `workflow_dispatch` with a `dry-run` boolean that defaults to true.
 The detect job is the music player's detect job with the IDE's manifest:
 it compares the `[package]` `version` before and after the push and builds only when it changed.
@@ -116,19 +116,19 @@ with and without an existing tag.
 
 ### The build runs the repository's mise tasks in podman
 
-The runner runs `mise run //package/desktop-app/ide:bundle`,
+The runner runs `mise run //package/ide/app:bundle`,
 the flow developers use,
 and not a native `cargo build`.
 The reasons are in the tasks themselves:
 
-- `build` depends on `runtime` and `notices` (`package/desktop-app/ide/mise.toml`,
+- `build` depends on `runtime` and `notices` (`package/ide/app/mise.toml`,
   the `depends` of `[tasks.build]`).
   `build.rs` stops the build when the prepared runtime directory is missing (`build.rs`,
-  the message "Prepare it with `mise run //package/desktop-app/ide:runtime`").
+  the message "Prepare it with `mise run //package/ide/app:runtime`").
 - `runtime` fetches the Helix grammars at the pinned revision and compiles them in the container,
   with network;
   `notices` runs `cargo-about` 0.9.2,
-  which exists only inside the image (`package/desktop-app/ide/Containerfile`,
+  which exists only inside the image (`package/ide/app/Containerfile`,
   the `cargo install ... --version 0.9.2 cargo-about` line,
   and the task's version check).
   Every one of those tasks runs through `runBounded` and podman.
@@ -142,11 +142,11 @@ The reasons are in the tasks themselves:
 
 The steps are:
 
-1. Build the base image with `mise run //package/desktop-app/terminal:image`.
-   The IDE image is `FROM localhost/monochromatic/terminal` (`package/desktop-app/ide/Containerfile`,
+1. Build the base image with `mise run //package/terminal/app:image`.
+   The IDE image is `FROM localhost/monochromatic/terminal` (`package/ide/app/Containerfile`,
    line 2),
    and the tasks build the IDE image on demand but not its base.
-2. Build the IDE image with `mise run //package/desktop-app/ide:image`.
+2. Build the IDE image with `mise run //package/ide/app:image`.
 3. Run a bounded container once to print `rustc --version --verbose`,
    `cargo --version` and `cargo-about --version`,
    with the same kinds of limits the tasks pass (memory,
@@ -156,22 +156,22 @@ The steps are:
    The Alpine job proves `--memory` and `--cpus` on this runner image;
    `--pids-limit` and `--ulimit` were not proven,
    and this step makes them fail early and not an hour into the build.
-4. Run `mise run //package/desktop-app/ide:bundle`.
+4. Run `mise run //package/ide/app:bundle`.
    `MISE_JOBS=1` runs one task at a time
    (`mise run --help` of mise 2026.10.0 lists `--jobs` with `[env: MISE_JOBS]`),
    because the container bound applies per container and not per task graph.
    `IDE_CONTAINER_CPUS=4` and `IDE_CONTAINER_MEMORY=12g` replace the default 90 percent share
-   (`package/desktop-app/ide/bin/container-bounds.ts`),
+   (`package/ide/app/bin/container-bounds.ts`),
    as the Alpine job's `BUILD_CPUS` and `BUILD_MEMORY` do,
    so the runner keeps room for podman and the runner processes.
 
 The `build` task passes no `--locked` to cargo.
-The workflow fails the job if `git diff` shows a change in `package/desktop-app/ide/Cargo.lock` or in any tracked
+The workflow fails the job if `git diff` shows a change in `package/ide/app/Cargo.lock` or in any tracked
 file after the build,
 so a dependency change the build made on its own never ships.
 
 The Rust toolchain of the release is whatever `stable` was when the image was built
-(`package/desktop-app/terminal/Containerfile`,
+(`package/terminal/app/Containerfile`,
 the `--default-toolchain stable` line),
 not the `mise.lock` nightly.
 `mise.lock` supplies node,
@@ -196,7 +196,7 @@ All of these run on the runner before anything is uploaded or attested:
   Both were measured on the installed binary on 2026-10-22.
   `INSTALL.txt` and the README state those requirements,
   so a build that needs more fails until they are updated.
-- `mise run //package/desktop-app/ide:inspect:no-software-renderer`:
+- `mise run //package/ide/app:inspect:no-software-renderer`:
   Slint's software renderer is not linked.
 - `inspect:bundle` with the checks `inventory`,
   `license-texts` and `crate-licenses`:
@@ -211,7 +211,7 @@ All of these run on the runner before anything is uploaded or attested:
 
 ```sh
 # The inspect:bundle gate of the workflow: file, runtime directory, and the checks that need no window.
-mise run //package/desktop-app/ide:inspect:bundle \
+mise run //package/ide/app:inspect:bundle \
   dist/monochromatic-ide target/release/runtime inventory,license-texts,crate-licenses
 ```
 
@@ -385,7 +385,7 @@ Measured on that run:
 
 ### The renderer gate on a fresh cargo volume
 
-`mise run //package/desktop-app/ide:inspect:no-software-renderer` stopped with
+`mise run //package/ide/app:inspect:no-software-renderer` stopped with
 `no matching package named async-net found`,
 required by `i-slint-backend-testing v1.18.1`,
 and cargo's note that `--frozen` is offline mode.
@@ -453,7 +453,7 @@ a copy of it as `dist/monochromatic-ide` of the worktree) because a release buil
   a wrong version,
   a glibc floor of 2.38,
   and a different executable.
-- `mise run //package/desktop-app/ide:inspect:no-software-renderer` passed.
+- `mise run //package/ide/app:inspect:no-software-renderer` passed.
 - After the fix of "The renderer gate on a fresh cargo volume",
   the gate chain was run against a real build from a new cargo volume
   (the `bundle` task through a wrapper that named another volume and the runner's cargo 1.99.1,
@@ -473,7 +473,7 @@ a copy of it as `dist/monochromatic-ide` of the worktree) because a release buil
   run in the build image,
   changed exactly one line of `Cargo.lock`
   (the `ide` entry from `0.1.0` to `0.1.1`).
-- `mise run //package/desktop-app/ide:lint` and the markdown lint (`monochromatic-lint`) of the three documents
+- `mise run //package/ide/app:lint` and the markdown lint (`monochromatic-lint`) of the three documents
   written here passed after the findings in the README section were fixed.
 - The `inspect:bundle` command of the block in "Gates before upload" passed with 3 of 10 checks in 15.39 s:
   1,255 embedded files,
@@ -522,7 +522,7 @@ so no release starts from it.
   so `ide-v0.1.0` can never receive an ARM64 archive.
   ARM64 first ships with the next version,
   and that release holds four files (see "Files and names").
-- The `version` in `package/desktop-app/ide/Cargo.toml` is not changed by the ARM64 change,
+- The `version` in `package/ide/app/Cargo.toml` is not changed by the ARM64 change,
   because a version change merged to `main` starts a real release.
   The owner raises it after reviewing the change.
 
@@ -542,7 +542,7 @@ and a dry run is most useful when it shows both results.
 The build is native on both and needs no cross compiler and no emulation.
 The tasks start the IDE image in podman,
 and the image is built for the architecture of the host.
-The base `Containerfile` (`package/desktop-app/terminal/Containerfile`) has branches for `x86_64` and `aarch64`
+The base `Containerfile` (`package/terminal/app/Containerfile`) has branches for `x86_64` and `aarch64`
 where the architecture matters (the Zig tarball with its SHA-256,
 and the `cargo-nextest` download),
 and everything else is a Fedora 41 package or a rustup download that exists for both.
@@ -925,7 +925,7 @@ and the host is not Ubuntu.
   and a day's change in Fedora 41,
   `stable` Rust,
   the Zig download or `cargo-nextest` `latest` can fail or alter a build with no repository change.
-  The image installs them unpinned (`package/desktop-app/terminal/Containerfile`).
+  The image installs them unpinned (`package/terminal/app/Containerfile`).
   Pinning them changes what developers build with and is a separate decision.
 - The Rust toolchain of a release is not the `mise.lock` nightly.
   Each release names its compiler in the notes.

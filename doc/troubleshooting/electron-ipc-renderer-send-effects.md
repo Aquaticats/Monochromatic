@@ -11,7 +11,7 @@ This rule cannot inspect enough of those calls to know what they might change.
 ```
 
 The affected surface is
-`package/desktop-app/file-manager-electron/src/preload.ts`.
+`package/file-manager/variant-electron/src/preload.ts`.
 The state is a plain immutable DTO,
 but Electron's declaration does not describe serialization,
 caller-code invocation,

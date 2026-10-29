@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
 } from '@earendil-works/pi-coding-agent';
 import { Text, } from '@earendil-works/pi-tui';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   type Static,

@@ -23,7 +23,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-tsdown": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "nano-spawn": "catalog:",
     "neovim": "catalog:",

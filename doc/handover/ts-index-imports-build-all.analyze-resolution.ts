@@ -10,7 +10,7 @@
 //
 // Self-imports are EXCLUDED: the by-name lib smoke tests deliberately import a
 // package's own `.` (built dist) to exercise the bundle, e.g. build-tool-css's
-// build.unit.test.ts importing '@monochromatic-dev/build-tool-css'. Those are
+// build.unit.test.ts importing '@monochromatic-dev/css-cli'. Those are
 // the intended dist resolutions and not violations.
 import { Glob } from 'bun';
 import {

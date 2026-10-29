@@ -17,7 +17,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure';
 import {
   type JsonSchemaResponseFormat,

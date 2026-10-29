@@ -30,7 +30,7 @@ import {
   workerData,
 } from 'node:worker_threads';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 
 import {
   addTallies,
@@ -108,7 +108,7 @@ if (isMainThread) {
   const {
     logger,
     tagged,
-  } = await import('@monochromatic-dev/module-logger');
+  } = await import('@monochromatic-dev/logger-core');
   /**
    Tagged logger for the compression stage.
    */

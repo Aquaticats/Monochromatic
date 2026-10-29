@@ -1,0 +1,35 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/hyperscript-core",
+  "private": true,
+  "description": "Type-safe hyperscript factories for HTML, CSS, DOM, and XML generation.",
+  "type": "module",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "csstype": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {},
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/hyperscript/core"
+  }
+}

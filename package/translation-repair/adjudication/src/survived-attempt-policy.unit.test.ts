@@ -19,7 +19,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { HOUSE_POLICY_BLOCK, } from '@monochromatic-dev/translation-repair-house-rule';
 import { buildTranslateMessages, } from '@monochromatic-dev/translation-repair-translate-floor';

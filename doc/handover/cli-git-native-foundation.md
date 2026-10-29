@@ -1,5 +1,15 @@
 # cli-git native foundation
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/git/executable` is now `package/git-executable/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
+
 ## Authority and scope
 
 This records a scoped delegation of the Rust cli-git rewrite:

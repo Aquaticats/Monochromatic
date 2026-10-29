@@ -28,7 +28,7 @@ The five sibling `valibot` consumers that already declared `typescript: catalog:
 `package/mcp/search-fetch`,
 `package/mcp/stdio`,
  `package/ssg/aquati.cat`,
-and `package/webapp-productivity/rss`) resolved `valibot@1.5.0(typescript@7.1.0-beta)`
+and `package/rss/app`) resolved `valibot@1.5.0(typescript@7.1.0-beta)`
  as soon as the catalog moved.
 
 The same move also had to clear the workspace's `minimumReleaseAge: 1440` strict hold,

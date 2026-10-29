@@ -20,7 +20,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
  No allowlist heuristics: modules are not called and do not return.
  The remediation paths are a concrete data structure (`Map`, `WeakMap`,
  `Set`, `WeakSet` for mutable containers), the {@link memoize} helper from
- `@monochromatic-dev/module-memoize` for cached computations, or wrapping
+ `@monochromatic-dev/kv-store-memoize` for cached computations, or wrapping
  initialization in an IIFE assigned to const.
  
  @example
@@ -61,7 +61,7 @@ export const noModuleRootLet: CreateOnceRule = {
     messages: {
       forbidden: '`let` at module-root scope is mutable across the entire module. '
         + 'Replace with a `Map`/`WeakMap`/`Set`/`WeakSet` for mutable containers, '
-        + '`memoize()` from `@monochromatic-dev/module-memoize` for cached computations, '
+        + '`memoize()` from `@monochromatic-dev/kv-store-memoize` for cached computations, '
         + 'or an IIFE assigned to const `const cached = (function init () { let v = null; /* compute */ return v; })()`. '
         + 'If genuinely unavoidable, add '
         + '`oxlint-disable-next-line no-restricted-syntax/no-module-root-let` with a justification.',

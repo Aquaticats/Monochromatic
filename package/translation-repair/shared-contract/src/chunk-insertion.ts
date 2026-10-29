@@ -4,7 +4,7 @@ import {
   admitWithinShortfall,
   pageShortfall,
 } from './coverage-corroboration.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Chunk insertion placement
 // Section-scale insertion: which untranslated sections get an anchor to be written at,

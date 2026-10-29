@@ -16,7 +16,7 @@ Last verified:
 Any package-scoped lint reports errors from the project-owned rule
 `prefer-readonly-parameter-type(prefer-readonly-parameter-types)` on ordinary ECMAScript intrinsic calls.
 
-For `package/module/toml-edit`,
+For `package/toml-edit/core`,
  136 errors,
  every one from this rule.
  Verbatim:
@@ -38,7 +38,7 @@ The same shape appears for `blocks.filter`,
  and `Error.isError`.
 
 It is not package-specific.
- `package/module/caught-value` is 38 lines whose only calls are `Error.isError` and
+ `package/caught-value/core` is 38 lines whose only calls are `Error.isError` and
 `String`,
  and it reports two errors of the same class.
 
@@ -141,8 +141,8 @@ git worktree add "${HOME}/temp/agent/oxlint-bisect" HEAD
 cd "${HOME}/temp/agent/oxlint-bisect"
 pnpm install --no-frozen-lockfile   # resolves @oxlint/plugins 1.74.0
 mise run //package/config/oxlint:build
-cd package/module/caught-value
-node ../../dev-script/task-util/src/oxlint-wrapper.ts --type-aware
+cd package/caught-value/core
+node ../../monorepo-task/core-exec/src/oxlint-wrapper.ts --type-aware
 ```
 
 Result under 1.74.0:
@@ -152,7 +152,7 @@ Result under 1.75.0 in the main checkout:
 The plugin version is not a factor.
 
 Smallest reproduction:
- lint `package/module/caught-value`,
+ lint `package/caught-value/core`,
  whose entire source is two intrinsic calls.
 
 ## Attempted fix: derive receiver survival from read-only views, abandoned
@@ -425,7 +425,7 @@ off it:
 
 The trigger is a callable in the inbound closure that is itself invoked at module top level,
  such as `await main();`
-at the end of `package/module/toml-edit/src/conformance/decode.ts`.
+at the end of `package/toml-edit/core/src/conformance/decode.ts`.
  The walk from that call passes no callable
 before reaching the source file.
 
@@ -442,7 +442,7 @@ Two properties made it hard to see:
 Both are fixed.
  The walk stops on an absent parent (`01f85074a`,
  reshaped in `a2a7e7f5a` to avoid a nullish union),
-and the log uses `caughtValueStack` from `@monochromatic-dev/module-caught-value` so frames survive (`5c8a624a9`).
+and the log uses `caughtValueStack` from `@monochromatic-dev/caught-value-core` so frames survive (`5c8a624a9`).
 A regression test covers the top-level-invocation shape;
  reverting the guard fails it with the original `TypeError`.
 

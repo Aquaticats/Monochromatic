@@ -187,7 +187,7 @@ match context.token() {
 A scalar root is valid JSON (RFC 8259),
 so this is not a defect;
 the repository's JSONC definition rejects it
-(`package/module/jsonc-edit.conformance/src/jsonc.conformance.unit.test.ts`),
+(`package/jsonc-edit/core-ts.conformance/src/jsonc.conformance.unit.test.ts`),
 and the consumer has to check.
 
 ### The comment check is skipped when comments are collected as tokens

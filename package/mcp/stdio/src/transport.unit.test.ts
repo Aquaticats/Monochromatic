@@ -4,9 +4,9 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   createSerialRequestQueue,

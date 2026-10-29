@@ -22,9 +22,9 @@ on:
     branches: ['main']
     paths:
     - 'package/forbidden-strings/cli/Cargo.toml'
-    - 'package/cli/nested-wayland-session/Cargo.toml'
+    - 'package/nested-wayland-session/cli/Cargo.toml'
     - 'package/forbidden-strings/core/Cargo.toml'
-    - 'package/rust-module/jsonc-edit/Cargo.toml'
+    - 'package/jsonc-edit/core-rust/Cargo.toml'
     - 'package/linter/monochromatic-lint/Cargo.toml'
     - 'package/git-policy/cli/Cargo.toml'
 
@@ -90,6 +90,14 @@ jobs:
           publish=true
         elif [ "$EVENT_NAME" = 'push' ] && [ "$before" != "$after" ]; then
           publish=true
+          # A moved Cargo.toml has no `before` at its new path, so a package move reads as a
+          # bump. A crates.io version can be published only once: skip the push when the
+          # index already lists it, so the build, publish, and release jobs stay idle.
+          if curl -sSf -H 'User-Agent: monochromatic-ci' https://index.crates.io/fo/rb/forbidden-strings \
+            | grep -q "\"vers\":\"${after}\""; then
+            echo "::notice::forbidden-strings ${after} is already on crates.io; nothing to publish."
+            publish=false
+          fi
         fi
         if [ "$publish" = 'true' ]; then
           {
@@ -356,7 +364,7 @@ jobs:
         INPUT_CRATE: ${{ github.event.inputs.crate }}
       run: |
         set -euo pipefail
-        cargo_toml='package/cli/nested-wayland-session/Cargo.toml'
+        cargo_toml='package/nested-wayland-session/cli/Cargo.toml'
         after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         before=''
         if [ -n "${BEFORE_SHA:-}" ] \
@@ -434,27 +442,27 @@ jobs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
       with:
         path: |
-          package/cli/nested-wayland-session/target
-          !package/cli/nested-wayland-session/target/package
-        key: cargo-v2-publish-nws-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('package/cli/nested-wayland-session/Cargo.lock') }}
+          package/nested-wayland-session/cli/target
+          !package/nested-wayland-session/cli/target/package
+        key: cargo-v2-publish-nws-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('package/nested-wayland-session/cli/Cargo.lock') }}
         restore-keys: |
           cargo-v2-publish-nws-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
 
     - name: Build .crate package (verifies by compile)
-      working-directory: package/cli/nested-wayland-session
+      working-directory: package/nested-wayland-session/cli
       run: cargo package
 
     - name: Log cargo directory sizes
       if: always()
       run: |
-        du --summarize --human-readable package/cli/nested-wayland-session/target "$HOME/.cargo/registry" "$HOME/.cargo/git" || true
-        du --max-depth=2 --human-readable package/cli/nested-wayland-session/target | sort --human-numeric-sort --reverse | head --lines=15 || true
+        du --summarize --human-readable package/nested-wayland-session/cli/target "$HOME/.cargo/registry" "$HOME/.cargo/git" || true
+        du --max-depth=2 --human-readable package/nested-wayland-session/cli/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
-        subject-path: 'package/cli/nested-wayland-session/target/package/monochromatic-nested-wayland-session-${{ needs.nws-detect.outputs.version }}.crate'
+        subject-path: 'package/nested-wayland-session/cli/target/package/monochromatic-nested-wayland-session-${{ needs.nws-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
       if: ${{ !inputs.dry-run }}
@@ -463,7 +471,7 @@ jobs:
 
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
-      working-directory: package/cli/nested-wayland-session
+      working-directory: package/nested-wayland-session/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
@@ -472,7 +480,7 @@ jobs:
       # idempotent: it skips when the version is already present, so re-running
       # to (re)build the release binaries never fails on a duplicate upload.
       if: ${{ !inputs.dry-run }}
-      working-directory: package/cli/nested-wayland-session
+      working-directory: package/nested-wayland-session/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         VERSION: ${{ needs.nws-detect.outputs.version }}
@@ -573,7 +581,7 @@ jobs:
     # records; the release profile in Cargo.toml applies fat LTO and one codegen unit.
     - name: Build binary
       shell: bash
-      working-directory: package/cli/nested-wayland-session
+      working-directory: package/nested-wayland-session/cli
       env:
         TARGET: ${{ matrix.target }}
       run: cargo build --release --locked --target "$TARGET"
@@ -589,7 +597,7 @@ jobs:
       run: |
         set -euo pipefail
         bin='monochromatic-nested-wayland-session'
-        got=$("package/cli/nested-wayland-session/target/${TARGET}/release/${bin}" --version)
+        got=$("package/nested-wayland-session/cli/target/${TARGET}/release/${bin}" --version)
         want="${bin} ${VERSION}"
         printf 'got:  %s\nwant: %s\n' "$got" "$want"
         [ "$got" = "$want" ]
@@ -608,9 +616,9 @@ jobs:
         crate='monochromatic-nested-wayland-session'
         stage_dir="${crate}-${VERSION}-${TARGET}"
         mkdir -p "dist/${stage_dir}/LICENSES"
-        cp "package/cli/nested-wayland-session/target/${TARGET}/release/${crate}" "dist/${stage_dir}/"
-        cp package/cli/nested-wayland-session/README.md "dist/${stage_dir}/"
-        cp package/cli/nested-wayland-session/LICENSES/*.txt "dist/${stage_dir}/LICENSES/"
+        cp "package/nested-wayland-session/cli/target/${TARGET}/release/${crate}" "dist/${stage_dir}/"
+        cp package/nested-wayland-session/cli/README.md "dist/${stage_dir}/"
+        cp package/nested-wayland-session/cli/LICENSES/*.txt "dist/${stage_dir}/LICENSES/"
         archive="${stage_dir}.tar.gz"
         (cd dist && tar czf "${archive}" "${stage_dir}")
         archive_path="dist/${archive}"
@@ -850,7 +858,7 @@ jobs:
         INPUT_CRATE: ${{ github.event.inputs.crate }}
       run: |
         set -euo pipefail
-        cargo_toml='package/rust-module/jsonc-edit/Cargo.toml'
+        cargo_toml='package/jsonc-edit/core-rust/Cargo.toml'
         after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         before=''
         if [ -n "${BEFORE_SHA:-}" ] \
@@ -909,14 +917,14 @@ jobs:
 
     # Not cached: the cold build takes under 1 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
-      working-directory: package/rust-module/jsonc-edit
+      working-directory: package/jsonc-edit/core-rust
       run: cargo package
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
-        subject-path: 'package/rust-module/jsonc-edit/target/package/monochromatic-jsonc-edit-${{ needs.je-detect.outputs.version }}.crate'
+        subject-path: 'package/jsonc-edit/core-rust/target/package/monochromatic-jsonc-edit-${{ needs.je-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
       if: ${{ !inputs.dry-run }}
@@ -925,7 +933,7 @@ jobs:
 
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
-      working-directory: package/rust-module/jsonc-edit
+      working-directory: package/jsonc-edit/core-rust
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
@@ -935,7 +943,7 @@ jobs:
       # nested-wayland-session bootstraps. Idempotent: skips when the version is
       # already present, so re-runs never fail on a duplicate upload.
       if: ${{ !inputs.dry-run }}
-      working-directory: package/rust-module/jsonc-edit
+      working-directory: package/jsonc-edit/core-rust
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         VERSION: ${{ needs.je-detect.outputs.version }}

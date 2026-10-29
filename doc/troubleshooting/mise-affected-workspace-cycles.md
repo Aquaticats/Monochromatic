@@ -9,13 +9,13 @@ but both of these repository probes exit with status 1:
 # Repository root, metadata only
 mise tasks graph --json
 mise run --affected --affected-json --affected-base HEAD --affected-head HEAD \
-  '//package/module/toml-edit:lint:types'
+  '//package/toml-edit/core:lint:types'
 ```
 
 The emitting tool reports:
 
 ```text
-mise ERROR workspace project dependency cycle detected: node:@monochromatic-dev/config-rolldown -> node:@monochromatic-dev/module-test -> node:@monochromatic-dev/config-rolldown; adjust [monorepo.projects."node:@monochromatic-dev/config-rolldown"] depends, depends_add, or depends_remove to break the cycle
+mise ERROR workspace project dependency cycle detected: node:@monochromatic-dev/config-rolldown -> node:@monochromatic-dev/test-harness-core -> node:@monochromatic-dev/config-rolldown; adjust [monorepo.projects."node:@monochromatic-dev/config-rolldown"] depends, depends_add, or depends_remove to break the cycle
 mise ERROR Version: 2026.10.0 linux-x64 (2026-10-02)
 ```
 
@@ -53,7 +53,7 @@ if let Some(path) = self.find_cycle() {
 and proposes graph overrides.
 The project graph supports development edges;
 the repository actually declares both sides of this cycle in
-`package/config/rolldown/package.json:17` and `package/module/test/package.json:39`.
+`package/config/rolldown/package.json:17` and `package/test-harness/core/package.json:39`.
 This is not evidence of an unresolved package name or missing task.
 
 The current [workspace graph documentation][mise-graph] explicitly requires a final graph without cycles.
@@ -181,7 +181,7 @@ Both real-source metadata queries then exited `1` with the same
 /tools/mise run --affected --affected-json --affected-committed \
   --affected-base e02be6c8b8fe9efb41a7f8f1a0b311c17796588a \
   --affected-head e02be6c8b8fe9efb41a7f8f1a0b311c17796588a \
-  '//package/module/toml-edit:lint:types'
+  '//package/toml-edit/core:lint:types'
 ```
 
 Neither query emitted a successful selection.
@@ -201,7 +201,7 @@ query the incumbent package manager's reverse dependency filter:
 
 ```sh
 # Repository root, metadata only
-pnpm --recursive --filter '...@monochromatic-dev/module-logger' \
+pnpm --recursive --filter '...@monochromatic-dev/logger-core' \
   --include-workspace-root list --depth -1 --json
 ```
 

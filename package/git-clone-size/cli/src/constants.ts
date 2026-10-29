@@ -1,7 +1,7 @@
 import {
   BYTES_PER_GIB,
   BYTES_PER_MIB,
-} from '@monochromatic-dev/module-const/ts';
+} from '@monochromatic-dev/const-core/ts';
 
 import type { Band, } from './types.ts';
 

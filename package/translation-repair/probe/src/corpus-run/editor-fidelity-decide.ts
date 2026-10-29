@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { countWithNoun, } from './editor-fidelity-arm-facts.ts';
 import { REPEAT_ALPHA, } from './editor-fidelity-arm-repeat-test.ts';
 import {

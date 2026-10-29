@@ -17,7 +17,7 @@ import { join, } from 'node:path';
 import {
   describe,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   DEFAULT_MAX_DEEPEN_COMMITS,

@@ -10,7 +10,7 @@
  const manifest: ShardManifest = {
    schemaVersion: 1,
    shardId: 'src__a.ts-0',
-   packagePath: 'package/module/fs-path',
+   packagePath: 'package/fs-path/core',
    mutants: [],
    tests: ['src/a.unit.test.ts'],
    timeoutFloorMs: 5000,

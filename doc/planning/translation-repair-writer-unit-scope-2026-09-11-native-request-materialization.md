@@ -122,8 +122,8 @@ This completes the non-serving request-materialization proof;
 it does not complete the exclusive acquisition journal or authorize paid preparation.
 
 The request-capture test's fetch probe needs explicit isolation.
-This worktree resolves `@monochromatic-dev/module-test/ts` to its own `package/module/test/src/index.ts`;
-`package/module/test/src/sinon.ts` uses ordinary process-global Sinon.
+This worktree resolves `@monochromatic-dev/test-harness-core/ts` to its own `package/test-harness/core/src/index.ts`;
+`package/test-harness/core/src/sinon.ts` uses ordinary process-global Sinon.
 `mise.toml`'s `runTestFiles` launches each test file in a separate Node process.
 The capture file now sets `concurrency: 1` around the process-global positive-control stub and its readers.
 The newer main-worktree skill's per-attempt method isolation does not describe this older resolved implementation.

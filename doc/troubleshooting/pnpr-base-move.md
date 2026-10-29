@@ -37,7 +37,7 @@ With the new base running against a converted store,
  the URLs this repo documents and publishes to,
  for example `GET /~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw`,
  answer `404` with an empty body.
- The same packument answers `200` at `/npm/~monochromatic-dev/@monochromatic-dev/module-or-throw`.
+ The same packument answers `200` at `/npm/~monochromatic-dev/@monochromatic-dev/or-throw-core`.
  An unauthenticated publish probe at the root URL answers `404` (empty body)
  instead of the `401 Authentication required for package "..."` the old base returns.
 
@@ -174,7 +174,7 @@ The registry directory endpoint confirms the mount
   Ruled out on the converted fixture:
   `pnpr verify` reports `Packages checked: 1` and `Versions checked: 1`,
   `pnpr export --out` reports `Packages: 1`,
-  and `GET /npm/~monochromatic-dev/@monochromatic-dev/module-or-throw` answers `200`
+  and `GET /npm/~monochromatic-dev/@monochromatic-dev/or-throw-core` answers `200`
   with the exact document body.
   The earlier `404`s were probes against the root surface.
 - "The `404` is a claim or gate mask (`RegistrySource::Unclaimed`,
@@ -230,10 +230,10 @@ Runs on the host with podman;
 ```bash
 # fixture: one package in the earlier layout
 export REPRO="${HOME}/temp/agent/pnpr-base-move-repro"
-mkdir --parents "${REPRO}/st-legacy/@monochromatic-dev/module-or-throw"
-printf '%s' '{"name":"@monochromatic-dev/module-or-throw","dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{"name":"@monochromatic-dev/module-or-throw","version":"1.0.0"}}}' > "${REPRO}/st-legacy/@monochromatic-dev/module-or-throw/package.json"
-printf 'synthetic-blob' > "${REPRO}/st-legacy/@monochromatic-dev/module-or-throw/index.tgz"
-chmod 0777 "${REPRO}" "${REPRO}/st-legacy" "${REPRO}/st-legacy/@monochromatic-dev" "${REPRO}/st-legacy/@monochromatic-dev/module-or-throw"
+mkdir --parents "${REPRO}/st-legacy/@monochromatic-dev/or-throw-core"
+printf '%s' '{"name":"@monochromatic-dev/or-throw-core","dist-tags":{"latest":"1.0.0"},"versions":{"1.0.0":{"name":"@monochromatic-dev/or-throw-core","version":"1.0.0"}}}' > "${REPRO}/st-legacy/@monochromatic-dev/or-throw-core/package.json"
+printf 'synthetic-blob' > "${REPRO}/st-legacy/@monochromatic-dev/or-throw-core/index.tgz"
+chmod 0777 "${REPRO}" "${REPRO}/st-legacy" "${REPRO}/st-legacy/@monochromatic-dev" "${REPRO}/st-legacy/@monochromatic-dev/or-throw-core"
 ```
 
 ```bash
@@ -251,9 +251,9 @@ podman run --rm --name pnpr-t-upg2 --env PNPR_SECRET=local-throwaway-secret-0123
 # serve the converted store and probe both surfaces
 podman run --detach --name pnpr-t-srv --env PNPR_SECRET=local-throwaway-secret-0123456789abcdef --volume "${REPRO}/st-legacy:/pnpr/storage:z" --publish 127.0.0.1:17690:7677 "${IMAGE}" --config /pnpr/config.yaml --storage /pnpr/storage
 curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/-/ping'
-curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/npm/~monochromatic-dev/@monochromatic-dev/module-or-throw'
-curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/npm/@monochromatic-dev/module-or-throw'
-curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/~monochromatic-dev/@monochromatic-dev/module-or-throw'
+curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/npm/~monochromatic-dev/@monochromatic-dev/or-throw-core'
+curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/npm/@monochromatic-dev/or-throw-core'
+curl --silent --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/~monochromatic-dev/@monochromatic-dev/or-throw-core'
 curl --silent --request PUT --header 'content-type: application/json' --data '{}' --write-out ' %{http_code}\n' 'http://127.0.0.1:17690/npm/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw'
 podman stop pnpr-t-srv
 ```
@@ -293,11 +293,11 @@ Works cleanly:
 
 - `GET /-/ping` → `{}`.
 - `GET /-/ready` → `{"status":"ok","storage":"ok","auth":"ok"}`.
-- `GET /npm/~monochromatic-dev/@monochromatic-dev/module-or-throw` → `200` and the packument JSON.
-- `GET /npm/@monochromatic-dev/module-or-throw` → `200` and the same packument
+- `GET /npm/~monochromatic-dev/@monochromatic-dev/or-throw-core` → `200` and the packument JSON.
+- `GET /npm/@monochromatic-dev/or-throw-core` → `200` and the same packument
   (path-less base addresses the default registry).
 - `PUT /npm/~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw` unauthenticated
-  → `401 Authentication required for package "@monochromatic-dev/module-or-throw"`.
+  → `401 Authentication required for package "@monochromatic-dev/or-throw-core"`.
 
 ### Requests and boots that fail
 
@@ -309,7 +309,7 @@ Failing catalog,
   no `pnpr listening` line,
   container exit.
   In production this surfaced as Caddy `502` on every URL.
-- `GET /~monochromatic-dev/@monochromatic-dev/module-or-throw` and the `%2f` spelling
+- `GET /~monochromatic-dev/@monochromatic-dev/or-throw-core` and the `%2f` spelling
   → `404` empty body on the new base
   (on `0.1.0-alpha.11` the same paths answer `200` or `401`).
 - `PUT /~monochromatic-dev/@monochromatic-dev%2fmodule-or-throw` unauthenticated

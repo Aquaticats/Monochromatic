@@ -18,7 +18,7 @@ The top-level nested-session process can still report success because it stopped
 
 ## Cause
 
-`package/cli/nested-wayland-session/src/control.rs` originally handled `Command::Quit` by immediately calling
+`package/nested-wayland-session/cli/src/control.rs` originally handled `Command::Quit` by immediately calling
 `state.loop_signal.stop()`.
 That ended the compositor event loop and destroyed the hosted client's Wayland connection while the client was running.
 Winit correctly reported the unexpected broken transport as an event-loop failure.

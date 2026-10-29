@@ -16,7 +16,7 @@ import {
   expect,
   it,
   type DisposableSandbox,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { HOLD_POLL_MS, } from '@monochromatic-dev/translation-repair-provider';
 import {

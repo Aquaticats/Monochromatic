@@ -176,7 +176,7 @@ Its repository consumer then stopped at CLI import,
 before any guest or KVM initialization:
 
 ```text
-Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@monochromatic-dev/module-caught-value'
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@monochromatic-dev/caught-value-core'
 ```
 
 The diagnostic-only workflow had omitted the original full VM workflow's workspace setup.

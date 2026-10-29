@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { fragmentBody, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import { rendersAsNothing, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { encodeAsLiteralMdx, } from './source-ships-encoding.ts';

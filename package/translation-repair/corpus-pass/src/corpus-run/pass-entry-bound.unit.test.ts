@@ -11,7 +11,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run';
 import { withEntryBound, } from '../../dist/final/node/index.mjs';

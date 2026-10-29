@@ -24,13 +24,13 @@ import {
 import { join, } from 'node:path';
 import { setImmediate as nextTurn, } from 'node:timers/promises';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary';

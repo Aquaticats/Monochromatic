@@ -165,7 +165,7 @@ This questioning pattern teaches:
 
 ### General Testing Guidelines
 
-- Write a corresponding test file (using `@monochromatic-dev/module-test`) that aims for 100% test coverage
+- Write a corresponding test file (using `@monochromatic-dev/test-harness-core`) that aims for 100% test coverage
 - Tests can only be run from workspace root using `mise run test`
 - To run tests for specific patterns:
   - `mise run test:unit -- package/module/es/src/boolean.equal.unit.test.ts`
@@ -281,7 +281,7 @@ expect(isError(new Error(),),).toBe(true,);
 
 ### Functional Programming Utilities
 
-Function composition lives in `@monochromatic-dev/module-pipe`,
+Function composition lives in `@monochromatic-dev/pipe-core`,
  not module-es:
 
 - Use `piped` for eager synchronous function composition

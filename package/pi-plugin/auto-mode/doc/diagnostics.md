@@ -27,7 +27,7 @@ Published logger `0.4.4` keeps nearest-ancestor `node_modules/.monochromatic` as
 then falls back to per-user state when the project destination cannot be used.
 The fallback notice identifies the actual destination and escapes terminal control characters.
 Explicit directory arguments and nonempty `MONOCHROMATIC_LOG_DIRECTORY` stay strict.
-The logger's [file destination contract](../../../module/logger/doc/file-destinations.md)
+The logger's [file destination contract](../../../logger/core/doc/file-destinations.md)
 defines platform layouts and initialization probes.
 The active auto-mode artifact still needs its final coherent rebuild with this logger repair.
 Auto-mode does not own a parallel logging backend.

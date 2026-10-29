@@ -17,8 +17,8 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { hXml as h, } from '@monochromatic-dev/module-hyperscript/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { hXml as h, } from '@monochromatic-dev/hyperscript-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from './config.ts';
 import {

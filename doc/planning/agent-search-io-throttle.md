@@ -19,7 +19,7 @@ Every probe now places its file on `/var/home`, confirmed with `findmnt --target
 - `nvme0n1` and `sda` both list `none mq-deadline [kyber] bfq` with `kyber` active; the `dm-*` devices have no scheduler file.
 - The `io` cgroup controller is enabled for `user@1000.service`.
   `io.cost.qos` and `io.cost.model` read empty, so iocost is not configured.
-- `package/dev-script/claude-cpu-cap/src/run-pass.ts` states that I/O pressure is deliberately not watched.
+- `package/claude-cpu-cap/daemon/src/run-pass.ts` states that I/O pressure is deliberately not watched.
 
 ## Cgroup read caps on the repository disk
 
@@ -69,7 +69,7 @@ To revert, delete the rule file and run `echo kyber | sudo tee /sys/block/nvme0n
 ## Scope requirement: not Claude only
 
 The user ruled out a fix that applies only to Claude Code.
-`package/dev-script/claude-cpu-cap/src/paths.ts` targets exactly one cgroup,
+`package/claude-cpu-cap/daemon/src/paths.ts` targets exactly one cgroup,
 `app.slice/claude-code-bash`, and re-applies the limit on every pass because Claude Code recreates it each boot.
 Each running `claude` TUI sits in its own `app.slice/app-ghostty-surface-transient-<n>.scope`,
 so any terminal-launched tool (other agent harnesses under `package/pi-plugin` and `package/dsh-plugin`, builds, the user's
@@ -127,15 +127,81 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   worst single read 0.08 ms.
   The drive never idled: other sessions completed 1,313 reads during the 50 ms gaps, 7,854 during 300 ms, 32,771 during 1500 ms
   and 90,430 during 4000 ms (about 2,800 reads per second), so this says nothing about APST wake-up cost.
-- It does show that a single small read inside a hot 64 MiB region costs about 0.04 ms even while other sessions
-  read about 2,800 times per second. The cold small-file reads measured earlier took roughly 10 ms to 50 ms per file.
-  The gap between those two is unexplained. Candidate causes, all unmeasured: reads spread across the whole device
-  rather than one hot region (a DRAM-less drive keeps its logical-to-physical map in flash and a 64 MiB host buffer),
-  btrfs metadata lookups, dm-crypt, queueing behind bursts from other sessions' builds, and the 4-command limit under bursts.
+- Retraction: an earlier revision of this note read the 0.04 ms figure as showing that the drive's raw small-read latency
+  is not the problem. That was wrong. The probe file had been written seconds before it was read, so those reads were
+  most likely served from the drive's or the host's cache; they say nothing about cold data.
+- Cold single 4 KiB direct reads on the raw partition `nvme0n1p6` (881 GiB, `sudo dd iflag=direct`, 200 reads per
+  category, alternating). Two runs under different measured load:
+  - Heavy load, other sessions at about 2,800 reads per second: whole-partition spread median 8.84 ms, p90 25.5 ms,
+    p99 211 ms; one 64 MiB window median 8.22 ms, p90 24.6 ms, p99 118 ms. Queueing behind the other sessions dominates,
+    and the two categories are indistinguishable.
+  - Light load, other processes at 70 reads per second: whole-partition spread median 1.13 ms, p90 1.34 ms, p99 7.9 ms,
+    max 9.0 ms; one 64 MiB window median 0.23 ms, p90 0.82 ms, p99 17.2 ms, max 79.7 ms.
+    Spreading reads across the device costs about five times the median of reading one small region.
+    This matches the expected behavior of a DRAM-less drive whose address map does not fit its 64 MiB host buffer,
+    but the mechanism is not proven; other explanations are first-touch reads of cold flash pages.
+- Kernel counters from `/proc/diskstats` in six 5-second windows while load varied: at 3 reads per second `nvme0n1`
+  showed 0.50 ms average read wait; at 26 reads per second 1.05 ms; at 174 reads per second 1.31 ms, while the LUKS
+  mapping `dm-1` above it showed 0.85 ms, 1.82 ms and 3.15 ms. dm-crypt and the layers above add roughly 1.5 to 2 ms
+  at moderate load, so the encryption layer is a measurable second cost.
+- Why APST cannot be switched with `nvme set-feature`: `nvme_admin_cmd_allowed()` in the kernel's
+  `drivers/nvme/host/ioctl.c` returns false for a userspace Set Features on `NVME_FEAT_AUTO_PST`
+  (and on host behavior, host memory buffer and queue count), even for root, so the ioctl returns `EACCES`
+  (confirmed with `strace`: `ioctl(NVME_IOCTL_ADMIN_CMD) = -1 EACCES`). Lockdown mode is `none` and Secure Boot is disabled.
+  The driver's own control is `nvme_set_latency_tolerance()` behind the PM QoS file `pm_qos_latency_tolerance_us`;
+  that route was not exercised. APST also could not matter during agent bursts here, because the other sessions kept
+  the drive busy far below the 100 ms idle that starts a power-state transition.
+
+- APST toggled through the driver's own PM QoS file (`/sys/class/nvme/nvme0/power/pm_qos_latency_tolerance_us`, initial
+  value 100000, equal to the module default). Writing `0` made the drive report `APSTE=Disabled` with no idle-timer entries
+  (`nvme get-feature` 0x0c); writing `100000` back restored a report identical to the original, verified in a `finally` block.
+  Latency effect, raw 4 KiB direct reads on `nvme0n1p6` (72 of 72 reads proved by `/proc/diskstats` to reach the drive),
+  four arms (default, disabled, default, disabled), six reads per gap: medians 0.22 to 0.31 ms in every arm and gap,
+  maximum 2.18 ms. The 500 ms gaps were nearly idle (0 to 33 other reads) and showed no 10 ms penalty with APST enabled,
+  so the 100 ms transition to the 10 ms-exit state costs nothing measurable here. The 3000 ms gaps were busy (174 to 14,320
+  other reads), so the 2000 ms transition to the 60 ms-exit state was not exercised and remains untested.
+  An earlier run of the same comparison through a file on `/var/home` read 0.02 to 0.04 ms and is discarded: it had no
+  evidence the reads reached the drive and ran about seven times faster than the raw reads, so they were likely cache hits.
+- `cryptsetup refresh` on an active mapping updates it without unmounting; flags set without `--persistent` are not stored in
+  the LUKS2 header (`cryptsetup-refresh(8)`), and refreshing with no optional flags restores defaults, so a refresh must repeat
+  `--allow-discards`, which the live table currently has, or TRIM passthrough would be dropped.
+
+- Baseline for the dm-crypt workqueue trial, before any change: single cold 4 KiB direct reads, 100 spread and 100 in a
+  64 MiB window per device, raw `nvme0n1p6` and the LUKS mapping `dm-1` interleaved twice, other processes at 35 to 117
+  reads per second. Medians, spread then window: raw 0.305 / 0.228 ms and 1.173 / 0.231 ms; `dm-1` 1.160 / 0.238 ms and
+  0.936 / 0.253 ms. The raw spread median itself moved from 0.305 to 1.173 ms between runs, so a single-read probe
+  at this load cannot resolve a dm-crypt effect; p99 spikes of 100 to 212 ms hit both devices alike.
+  A fair test of the workqueue flags needs concurrent reads, which is synthetic load and needs an explicit waiver.
+
+- dm-crypt workqueue trial, user ran `cryptsetup refresh luks-a968fc93-... --allow-discards --perf-no_read_workqueue
+  --perf-no_write_workqueue` (no `--persistent`); `dmsetup table` then showed `3 allow_discards no_read_workqueue
+  no_write_workqueue`. Same interleaved probe, other processes at 52 to 121 reads per second. Medians, spread then window:
+  raw 1.406 / 0.658 ms and 1.145 / 0.232 ms; `dm-1` 1.174 / 0.265 ms and 1.152 / 0.245 ms. Against the baseline
+  (`dm-1` 1.160 / 0.238 ms and 0.936 / 0.253 ms) there is no change beyond run-to-run spread. This is a null result from
+  a single-read probe that could not resolve a difference to begin with, not evidence that the flags do nothing under
+  concurrent reads.
+
+- dm-crypt workqueue trial with a real job: `mise run //:lint:oxlint` over the whole repository (8,176 files, 488 rules,
+  16 threads; it finds 18,203 warnings and 7,044 errors, so the task exits 1 by design), run as a capped transient unit
+  (`MemoryMax=24G`, `CPUQuota=1600%`) after dropping the page cache. Counters are system-wide `/proc/diskstats` deltas,
+  so they include other sessions. All three runs per arm are comparable; the first run of each arm was not systematically different.
+  - Flags on (`no_read_workqueue`, `no_write_workqueue`): 78.6 s, 108.6 s, 107.3 s; `nvme0n1` read wait 2.96, 2.88, 7.76 ms;
+    `dm-1` read wait 5.80, 7.10, 24.96 ms.
+  - Flags off (defaults, after `cryptsetup refresh ... --allow-discards`; table back to `1 allow_discards`): 98.4 s, 80.6 s,
+    102.5 s; `nvme0n1` read wait 2.94, 2.52, 5.52 ms; `dm-1` read wait 6.18, 5.97, 12.84 ms.
+  - The wall-time ranges overlap fully (78.6 to 108.6 s against 80.6 to 102.5 s); means 98.2 s against 93.8 s. The
+    workqueue bypass has no effect this measurement can resolve, so the live mapping was returned to its defaults.
+  - One whole-repo lint issues about 53,000 to 116,000 reads on `nvme0n1` (1.4 to 4.0 GiB) in 80 to 110 seconds, roughly 800 to
+    1,100 reads per second from a single job, which is the load level at which other readers saw 8 ms median cold-read waits.
+  - `dm-1` read wait is about twice `nvme0n1`'s in calmer runs in both arms, so the extra wait above the drive is not the
+    dm-crypt workqueue.
+
+Implication for the I/O limit: a broad search by an agent produces exactly the spread-out cold-read pattern that is
+slowest on this drive, and concurrent readers multiply the wait for everyone, so bounding the agents' read rate
+(the bandwidth cap on `/dev/nvme0n1` is shown to work) addresses the actual bottleneck.
 
 Candidate measurements, none run yet:
 
-- Single 4 KiB direct reads at random offsets across the whole raw partition (read-only), against the same count inside one hot region.
 - Queue-depth sweep of 4 KiB random reads on the raw device read-only, against the same sweep through the LUKS mapping
   (synthetic load, which the repository rules ban unless the user waives them).
 - APST on versus off, which needs the user to permit `nvme set-feature` on `/dev/nvme0`.

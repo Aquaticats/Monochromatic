@@ -75,7 +75,7 @@ Rejected alternatives:
   distinguished only by a filename prefix.
 - Force-add seeds past a plain `corpus/` ignore:
   tracked-but-ignored files are invisible to `rg` and every gitignore-respecting tool;
-  the tracked shim files in `package/shim/readable-stream/lib/` already demonstrate this failure mode.
+  the tracked shim files in `package/pnpm-override/shim-readable-stream/lib/` already demonstrate this failure mode.
 
 ## Design: plugin bundles move out of `dist/`
 

@@ -40,20 +40,20 @@ The provider's `diagnosis` and `possible_fix` strings are suggestions;
 they do not establish a source or common-manifest mismatch.
 
 At the frozen harness,
-`package/dev-script/task-util/mise.toml:916` requires the committed complete case manifest:
+`package/monorepo-task/core-exec/mise.toml:916` requires the committed complete case manifest:
 
 ```javascript
-// package/dev-script/task-util/mise.toml:916, frozen TOML harness
+// package/monorepo-task/core-exec/mise.toml:916, frozen TOML harness
 assert.equal(localCase.completeGraph, true, 'Final route requires a frozen complete case manifest');
 ```
 
 The final record is written only after the authenticated Contents API request,
 common-manifest checks,
 and before/after identity comparisons.
-`package/dev-script/task-util/mise.toml:941` performs that write:
+`package/monorepo-task/core-exec/mise.toml:941` performs that write:
 
 ```javascript
-// package/dev-script/task-util/mise.toml:941, frozen TOML harness
+// package/monorepo-task/core-exec/mise.toml:941, frozen TOML harness
 writeFileSync(join(directory, 'toml-provenance-' + phase + '.json'), JSON.stringify(record, null, 2) + '\n');
 ```
 

@@ -194,7 +194,7 @@ Current pin source:
  the recipe below edits `mise.lock`,
  which the toolchain migration retires.
  A stale repository tool version now fixes at the typed tool plan in
- `package/dev-script/file-enforcer/src/toolchain/`,
+ `package/file-enforcer/core/src/toolchain/`,
  which regenerates `toolchain.lock.json`;
  rerun `mise run toolchain:sync` to converge
  (`doc/troubleshooting/mpm-toolchain-migration.md`).

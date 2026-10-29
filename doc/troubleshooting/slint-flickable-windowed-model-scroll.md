@@ -19,7 +19,7 @@ set-row-data) leaves the gesture undisturbed and scrolling is smooth.
 
 ## Symptom
 
-The prototype at `package/desktop-app/file-manager/` renders 1200 columns,
+The prototype at `package/file-manager/app/` renders 1200 columns,
 of which only the visible window (about 5 to 8) plus prefetch exist in the model
 at once.
 The columns sit at absolute x inside a `Flickable` with
@@ -155,8 +155,8 @@ Reproduction harness:
 build the prototype with the embedded Slint MCP server and drive it headless.
 
 ```bash
-# package/desktop-app/file-manager
-mise run //package/desktop-app/file-manager:mcp   # binds 127.0.0.1:9317
+# package/file-manager/app
+mise run //package/file-manager/app:mcp   # binds 127.0.0.1:9317
 ```
 
 Then `drag_element` the `AppWindow::strip-flick` element leftward repeatedly and
@@ -191,7 +191,7 @@ Mutate it through `Repeater`/`ModelNotify` instead:
    flushed once
   scrolling settles.
 
-The implementation is `package/desktop-app/file-manager/src/model_sync.rs`
+The implementation is `package/file-manager/app/src/model_sync.rs`
 (the `sync_horizontal`,
  `refresh_all_in_window`,
  and `refresh_column` methods),

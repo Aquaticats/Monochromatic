@@ -4,9 +4,9 @@
  @module
  */
 
-import { MS_PER_SECOND, } from '@monochromatic-dev/module-const/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { formatTrackedDuration, } from '@monochromatic-dev/module-numeric-format/ts';
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { formatTrackedDuration, } from '@monochromatic-dev/numeric-format-core/ts';
 
 import {
   JOB_LINE_PREFIX,

@@ -48,12 +48,12 @@ for (const [index, item,] of items.entries()) {
 
 Representative cases:
  `package/git-clone-size/cli/src/async-queue.ts:51`,
-`package/module/toml-edit/src/fuzz/arb-combinators.ts:33`,
- `package/module/kv-store/src/consensus.ts:53`,
+`package/toml-edit/core/src/fuzz/arb-combinators.ts:33`,
+ `package/kv-store/core/src/consensus.ts:53`,
 `package/pi-plugin/goal/src/pi-runtime-verifier-provider.ts:174`.
 
-The `values` pair is `package/module/zip-writer/src/serialize.ts:218` and
-`package/desktop-app/file-manager-electron/src/session.ts:75`.
+The `values` pair is `package/zip-writer/core/src/serialize.ts:218` and
+`package/file-manager/variant-electron/src/session.ts:75`.
 
 ## Why `values` is the easy one and `entries` is not
 

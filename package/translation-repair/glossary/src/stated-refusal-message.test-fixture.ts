@@ -1,4 +1,4 @@
-import { caught, } from '@monochromatic-dev/module-test/ts';
+import { caught, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { StatedRefusalError, } from '../dist/final/node/index.mjs';
 

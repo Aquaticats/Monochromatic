@@ -63,11 +63,11 @@ EventKind::UnresolvedEntry => write!(f, "UNRESOLVED_ENTRY"),
 
 The logger diagnostic has a separate input boundary.
 At the frozen application source,
-`package/module/logger/src/sink/file.ts:181` searches from `process.cwd()` for `node_modules`.
+`package/logger/core/src/sink/file.ts:181` searches from `process.cwd()` for `node_modules`.
 Its lines 198 to 205 choose and create the log directory:
 
 ```typescript
-// package/module/logger/src/sink/file.ts
+// package/logger/core/src/sink/file.ts
 const LOG_DIR = directory ? directory : join(
   nodeModulesDir,
   '.monochromatic',

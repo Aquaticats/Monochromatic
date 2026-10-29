@@ -186,7 +186,7 @@ pnpm update --recursive --no-save --reporter append-only
 ```
 
 The remaining `ERR_PNPM_PEER_DEP_ISSUES` failure is a separate incident:
- the update moves `package/dev-script/deps-cube` to `@deck.gl/core@9.4.0`,
+ the update moves `package/dependency-catalog/cli-cube` to `@deck.gl/core@9.4.0`,
  which pulls `@luma.gl/gpgpu@9.4.2`,
  whose peer range requires `@luma.gl/webgpu` `~9.4.0`.
 `HEAD`'s lockfile has no `@luma.gl/gpgpu`.
@@ -209,7 +209,7 @@ With both changes,
 Tradeoff:
  if a later gpgpu release starts importing `@luma.gl/webgpu`,
  pnpm no longer flags the missing peer
- and the failure moves to runtime in `package/dev-script/deps-cube`.
+ and the failure moves to runtime in `package/dependency-catalog/cli-cube`.
 
 Patterns,
  for this repository's config
@@ -275,7 +275,7 @@ On 2026-09-22 the lockfile's scope members were exactly `chord` and the five `pi
 
 ### Run `mise run deps:update` instead of the bare command
 
-`package/dev-script/deps-update` (commits `d4d52e34e`,
+`package/deps-update/cli` (commits `d4d52e34e`,
  `02f7448f1`,
  `cfd65c2fa`) runs `pnpm update --recursive --no-save`.
 On this refusal it resolves a temporary copy of the workspace manifests in loose mode,

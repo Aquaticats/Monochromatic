@@ -12,7 +12,7 @@ SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ';', '}' or <eof>
 The evaluated text ended with:
 
 ```text
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--type-aware', '--fix']) src/pair-blocks-stage.ts src/pair-blocks-stage.unit.test.ts
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--type-aware', '--fix']) src/pair-blocks-stage.ts src/pair-blocks-stage.unit.test.ts
 ```
 
 This was an invocation mistake,
@@ -30,7 +30,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--type-aware', '--fix'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--type-aware', '--fix'])
 """
 ```
 

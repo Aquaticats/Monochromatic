@@ -706,7 +706,7 @@ Measured facts for that pick:
   `libc` in `package/wg/cli-quicker-exempt/Cargo.toml:36`
   and `package/music-player/desktop-app/Cargo.toml:188`;
   `windows` in `package/music-player/desktop-app/Cargo.toml:203`
-  and `package/desktop-app/file-manager/Cargo.toml:41`.
+  and `package/file-manager/app/Cargo.toml:41`.
   No manifest names `signal-hook`,
   `ctrlc`,
   `nix`,
@@ -2404,7 +2404,7 @@ and a variable is inherited by every program a hook starts.
 ### Evidence
 
 - The incumbent's logger turns verbose on for `MONOCHROMATIC_VERBOSE=true` or an argument `--verbose`
-  (`package/module/logger/src/sink/console.ts:55-77`).
+  (`package/logger/core/src/sink/console.ts:55-77`).
 - The ledger lists the argument form as a defect:
   by reading,
   `git commit --verbose` also turns on wrapper debug lines.
@@ -2414,7 +2414,7 @@ and a variable is inherited by every program a hook starts.
   "Debug logs must not corrupt the selected JSONL event stream" (`SPEC.md:1586`).
 - Sibling Rust tools here use `tracing` with `RUST_LOG`
   (`package/forbidden-strings/cli/Cargo.toml:82-87`;
-  `package/cli/nested-wayland-session/Cargo.toml`).
+  `package/nested-wayland-session/cli/Cargo.toml`).
   The scanner the wrapper links brings `tracing` with it.
 - Measured:
   the native wrapper's non-test sources hold no `eprintln!`,

@@ -2,11 +2,11 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   findRootCached,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import spawn, { type SubprocessError, } from 'nano-spawn';
 
 /** Mise monorepo root for the spawn cwd, so the bin path is invariant to the task's launch directory. */

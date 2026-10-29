@@ -3,6 +3,25 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/webapp-productivity/doodle-widget` is now `package/doodle-widget/app`;
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten.matrix` is now `package/dependency-catalog/cli-tighten.matrix`;
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/deps-cube` is now `package/dependency-catalog/cli-cube`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/test` is now `package/test-harness/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/rust-module/forbidden-regex.bench` is now `package/forbidden-strings/core.bench`.
 
 ## Current human instructions

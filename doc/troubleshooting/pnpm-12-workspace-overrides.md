@@ -13,7 +13,7 @@ The following keys were ignored: "pnpm.overrides".
 ```
 
 The offline install then failed with `ERR_PNPM_NO_OFFLINE_META`
-for the registry version of `@monochromatic-dev/module-numeric-format@0.0.1`.
+for the registry version of `@monochromatic-dev/numeric-format-core@0.0.1`.
 No positive installed-consumer body ran in that invocation.
 The actual packed CLI without its dependencies separately failed with `ERR_MODULE_NOT_FOUND`,
 as required by the missing-dependency negative control.

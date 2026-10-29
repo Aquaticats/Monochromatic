@@ -4,7 +4,7 @@
 
 The initial body of issue `#1162` reversed its environment-variable sender and receiver.
 Immutable harness `18e8c13173` proves the pilot sets `DEPOT_LOGGER_EXTERNAL_GROUP`,
-while `package/module/logger.fuzz/mise.toml:288` reads `DEPOT_LOGGER_EXTERNAL`.
+while `package/logger/core.fuzz/mise.toml:288` reads `DEPOT_LOGGER_EXTERNAL`.
 The body and a correction comment are re-fetched and verified after correction.
 The failure and its repair remain the same incident.
 

@@ -68,7 +68,7 @@ export type PublishedVersions = {
 
  @example
  ```ts
- (await readWorkspace()).get('@monochromatic-dev/module-or-throw');
+ (await readWorkspace()).get('@monochromatic-dev/or-throw-core');
  ```
  */
 export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntry>> {
@@ -125,7 +125,7 @@ export async function readWorkspace(): Promise<ReadonlyMap<string, WorkspaceEntr
 
  @example
  ```ts
- await fetchPublishedVersions({ origin: 'https://pnpr.c.aquati.cat', name: '@monochromatic-dev/module-or-throw' });
+ await fetchPublishedVersions({ origin: 'https://pnpr.c.aquati.cat', name: '@monochromatic-dev/or-throw-core' });
  ```
  */
 export async function fetchPublishedVersions(

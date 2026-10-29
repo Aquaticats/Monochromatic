@@ -4,12 +4,12 @@ on:
   pull_request:
     branches: ['main']
     paths:
-    - 'package/module/fs-id/**'
+    - 'package/fs-id/core/**'
     - '.github/workflows/fs-id.yml'
   push:
     branches: ['main']
     paths:
-    - 'package/module/fs-id/**'
+    - 'package/fs-id/core/**'
     - '.github/workflows/fs-id.yml'
 
 concurrency:
@@ -45,4 +45,4 @@ jobs:
         install-dependencies: 'false'
 
     - name: Resolve preferred identity
-      run: node package/module/fs-id/src/host-evidence.ts
+      run: node package/fs-id/core/src/host-evidence.ts

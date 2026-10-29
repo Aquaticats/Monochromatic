@@ -11,7 +11,7 @@ git commit --message "scoped change" -- <file>
 ```
 
 This occurred in commit `d28eb9155`.
-Only the new `package/module/array-at` importer was staged in `pnpm-lock.yaml`,
+Only the new `package/array-at/core` importer was staged in `pnpm-lock.yaml`,
  but the pathspec commit also recorded pre-existing catalog-upgrade changes from the working file.
 The commit therefore reported 940 insertions and 768 deletions rather than only the importer block.
 A corrective commit comment records that understated scope.

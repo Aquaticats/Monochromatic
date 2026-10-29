@@ -54,7 +54,7 @@ No cgroup, systemd unit, or scope was created.
 Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users (verified):
 
 - `zbus`:
-   `package/cli/nested-wayland-session/Cargo.toml:72` (`5.19.0`, blocking API, default features)
+   `package/nested-wayland-session/cli/Cargo.toml:72` (`5.19.0`, blocking API, default features)
    and `package/music-player/desktop-app/Cargo.toml:155` (`5`, default features, locked `5.16.0`).
 - `tokio`:
    `rt`, `sync`, `macros` in `package/music-player/truepeak-core/Cargo.toml:57`,
@@ -65,7 +65,7 @@ Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users
    `package/forbidden-strings/cli/Cargo.toml:76`,
    `package/forbidden-strings/core.bench/Cargo.toml:38`.
 - `serde_json = "1"`:
-   `package/linter/rust`, `package/desktop-app/file-manager-gtk-sticky`,
+   `package/linter/rust`, `package/file-manager/variant-gtk-sticky`,
    `package/music-player/truepeak-core.bench`, `package/rust-module/rust-linter-core`,
    `package/music-player/desktop-app`.
 - Not listed by the caller but present:

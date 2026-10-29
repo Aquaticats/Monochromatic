@@ -1,5 +1,11 @@
 # IDE GPU migration, stages 5 and 6: state at the stop
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/ide` is now `package/ide/app`.
+
 Branch `worktree-agent-a0880539282a3162b`, base `63991e9923`.
 Work was stopped on the coordinator's request so the machine could be rebooted.
 Measurements and design are in `doc/planning/ide-gpu-snapshot-harness.md`, section "Stages 5 and 6".

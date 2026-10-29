@@ -30,7 +30,7 @@ ParsingError { index: 29, message: "Unexpected end of input while processing blo
 ```
 
 The repository's `module-jsonc-edit` parser
-(`package/module/jsonc-edit/src/scan.ts:403`)
+(`package/jsonc-edit/core-ts/src/scan.ts:403`)
 reports:
 
 ```text

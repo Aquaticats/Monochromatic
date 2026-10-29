@@ -5208,11 +5208,11 @@ This diagnostic does not describe a Jev response failure or a tool-judgment dead
 
 ### Logger source path and verified workaround
 
-`package/git/executable/src/resolve-real-git.ts:10` imports the incumbent tagged logger.
+`package/git-executable/core/src/resolve-real-git.ts:10` imports the incumbent tagged logger.
 Its default Node sink order places the asynchronous file sink at index 3:
 
 ```typescript
-// package/module/logger/src/default-sinks.node.ts:38
+// package/logger/core/src/default-sinks.node.ts:38
 return [
   createConsoleSink(),
   createSessionStorageSink(),
@@ -5221,10 +5221,10 @@ return [
 ];
 ```
 
-`package/module/logger/src/create-logger.ts:351` starts each verification under a deadline:
+`package/logger/core/src/create-logger.ts:351` starts each verification under a deadline:
 
 ```typescript
-// package/module/logger/src/create-logger.ts:358
+// package/logger/core/src/create-logger.ts:358
 available: await withHostTimeout({
   label: `sink ${entryIndex} verify`,
   ms: verifyTimeoutMs,
@@ -5233,7 +5233,7 @@ available: await withHostTimeout({
 },),
 ```
 
-The file sink awaits filesystem operations in `package/module/logger/src/sink/file.ts:169`.
+The file sink awaits filesystem operations in `package/logger/core/src/sink/file.ts:169`.
 The outer checker then synchronously waited for its child while logger startup could still be pending.
 `proc_6308` isolated this mechanism on Node 26.10.0 with disposable homes and log directories:
 blocking for 5,200ms after initiating the default logger reproduced the exact diagnostic;
@@ -5606,7 +5606,7 @@ Repository configuration intentionally selects a different owner:
 
 ```yaml
 # pnpm-workspace.yaml:358
-'proper-lockfile': 'link:package/shim/proper-lockfile'
+'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'
 ```
 
 The [existing removal decision](../decision/proper-lockfile-removal.md)
@@ -5618,7 +5618,7 @@ timer,
 and path builtins:
 
 ```javascript
-// package/shim/proper-lockfile/index.cjs:3
+// package/pnpm-override/shim-proper-lockfile/index.cjs:3
 const { mkdirSync, rmdirSync, } = require('node:fs',);
 const { setTimeout: sleep, } = require('node:timers/promises',);
 const { dirname, basename, resolve, } = require('node:path',);
@@ -7428,7 +7428,7 @@ There is nothing to file upstream:
 ## Native lifecycle logger timeout on 2026-10-14
 
 The maintained Pi 1.1.0 `test:native:host-lifecycle` command passed its session assertions
-but emitted this `@monochromatic-dev/module-logger` diagnostic:
+but emitted this `@monochromatic-dev/logger-core` diagnostic:
 
 ```text
 logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify
@@ -7518,11 +7518,11 @@ This establishes bounded verification recovery,
 not a diagnosis of the original thread allocation failure.
 
 The incorrect wrapper exit result has a separate owned source explanation:
-`package/dev-script/task-util/src/tsc-filter.ts:203`
+`package/monorepo-task/core-exec/src/tsc-filter.ts:203`
 sets a failure code only for recognized retained TypeScript errors:
 
 ```ts
-// package/dev-script/task-util/src/tsc-filter.ts
+// package/monorepo-task/core-exec/src/tsc-filter.ts
 if (stdoutResult.hasRemainingErrors || stderrResult.hasRemainingErrors)
   process.exitCode = subprocessError.exitCode ?? 1;
 ```
@@ -7903,11 +7903,11 @@ and appended text.
 The resource-copy port added a synchronous logger emission to every `snapshotInput` entry.
 The counted permission consumer makes 169,893 snapshot calls and two constructor-option copies.
 
-`package/module/logger/src/create-logger.ts:285`
+`package/logger/core/src/create-logger.ts:285`
 retains each available sink write until its asynchronous completion:
 
 ```typescript
-// package/module/logger/src/create-logger.ts
+// package/logger/core/src/create-logger.ts
 const trackedWrite = trackWrite({
   writePromise: entry.sink
     .write(record,),
@@ -9068,7 +9068,7 @@ The host imports logger source through configured extensions and also loads a bu
 Those module-local defaults have independent state.
 Both consumer outputs need rebuilding before replay can establish the memory repair at the Pi boundary.
 The logger package's
-[write completion and file ownership explanation](../../package/module/logger/doc/write-completion.md)
+[write completion and file ownership explanation](../../package/logger/core/doc/write-completion.md)
 records the roles,
 alternatives,
 completion limits,

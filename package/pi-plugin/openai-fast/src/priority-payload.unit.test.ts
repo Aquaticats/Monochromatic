@@ -9,7 +9,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { forcePriorityPayload, } from '../dist/final/node/index.mjs';
 import { createStreamFixtureModel, } from './stream-fixture.ts';
