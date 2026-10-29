@@ -524,6 +524,22 @@ and machine-readable output,
 but its name grammar bans the colon task vocabulary,
 so the contract choice is now a three-way flagged decision.
 
+Update 2026-10-29 (task-slice comparison):
+ [`task-slice-comparison.md`](task-slice-comparison.md)
+joins the measured Poe the Poet 0.49.0,
+Buck2 2026-10-14,
+Pants 2.33.1,
+and projen 0.104.19 pilots
+with pnpm 12.16,
+Nadle 0.6.1,
+meow,
+and keeping Mise.
+Only Poe the Poet and projen keep the colon task names;
+the documented-drift class that culled Nadle reproduces in every candidate,
+so it is recorded per candidate rather than used as a cull.
+Please and Tilt pilots are in flight,
+then the contract question is asked with every candidate.
+
 Parity gate:
  preserve package namespaces,
 partial invocation,

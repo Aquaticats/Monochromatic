@@ -243,18 +243,15 @@ Next action:
  the contract is a flagged choice;
 adoption waits for explicit acceptance and would reopen the vet
 for the chosen candidate.
-Four disposable probes run as further candidates after the user directed
-"Pilot and compare with Pants first"
-and then "Pilot and compare Poe the Poet,
+The four disposable probes the user then directed
+("Pilot and compare with Pants first"
+and "Pilot and compare Poe the Poet,
 projen,
-Buck2 too":
- Pants,
-Poe the Poet,
-projen,
-and Buck2,
-each against the same parity-gate catalog in a spaced scratch fixture.
-When their measured reports return,
-a single comparison doc joins them with pnpm,
+Buck2 too")
+are complete and joined with pnpm,
 Nadle,
-and meow,
-and the contract question is asked again with every candidate.
+and meow in
+[`task-slice-comparison.md`](task-slice-comparison.md),
+which supersedes the ranking in this doc.
+Please and Tilt pilots follow the same pattern,
+then the contract question is asked again with every candidate.
