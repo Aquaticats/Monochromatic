@@ -120,6 +120,28 @@ The deliverable is the pin: a test-only recorder in `sync_directory` (`take_dire
 creates and the empty list when it finds. With the three guards broken (sync also on the already-exists and
 already-written paths) all six tests fail; they pass restored.
 
+### J2 outcome: one of the two post-removal syncs dropped
+
+`remove_transaction_directory` (called by `dispose_landed_transaction` and by recovery) syncs the registry twice:
+after renaming the directory to `<id>.retired`, and after deleting the retired tree. The second is dropped. A
+retired directory that survives a power loss is removed by the next recovery (`recover_registered_transactions`
+removes every `Retired` entry), and a landed directory that is still published is classified `AlreadyInstalled` and
+cleaned; `a_completed_landing_that_is_still_published_is_cleaned_by_recovery` runs both together and fails when the
+retired-entry removal is disabled.
+
+The first is kept, and this departs from the instruction to drop both. It is not a durability sync of a removal but
+an ordering barrier: the rename must reach the disk before the deletions inside the directory do. Without it a
+filesystem that persists the unlinks but not the rename leaves the published name `<id>` with `owner.json` gone, and a
+published directory without a valid owner record is a fail-closed exit 2 that keeps its contents (see the recovery
+outcome list for the slice J3 harness, case "owner record deleted"). Dropping it too saves one more sync (about 2 ms
+here) and is a one-line change if the user accepts that filesystem ordering assumption.
+
+Measured with `node sync-count.ts` and `node sync-count.ts warm` before and after: 42 to 41 cold and 41 to 40 warm
+(wrapper 31 to 30 warm). The pin is `removal_syncs_the_registry_only_for_the_rename` and
+`disposal_syncs_the_registry_once`; both fail with the final `sync_parent` restored. No test in the repository counts
+syncs of the built binary (`strace` appears only in `binary_fork_failure_tests.rs`), so the sync budget named under
+Budgets does not exist yet.
+
 ## Budgets
 
 The host and gate suites carry a spawn budget (from `GIT_TRACE2_PERF`) and the host suite a sync budget (from

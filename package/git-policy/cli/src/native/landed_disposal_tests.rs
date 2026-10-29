@@ -46,6 +46,17 @@ fn disposal_removes_the_shadow_and_the_directory() {
     scene.finish();
 }
 
+/// Disposal syncs the registry once, for the rename that retires the directory, and not after the deletions.
+#[test]
+fn disposal_syncs_the_registry_once() {
+    let scene: Scene = Scene::new("landed-disposal-sync", false);
+    std::fs::create_dir_all(scene.shadow.join("objects")).expect("shadow");
+    crate::private_storage::take_directory_syncs();
+    dispose_landed_transaction(paths(&scene)).expect("disposed");
+    assert_eq!(crate::private_storage::take_directory_syncs(), vec![scene.registry.clone()]);
+    scene.finish();
+}
+
 /// A shadow an earlier run already removed is not an error, so a recovery can repeat disposal.
 #[test]
 fn disposal_is_idempotent_when_the_shadow_is_already_gone() {
