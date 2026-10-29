@@ -244,9 +244,12 @@ TODO | DONE
     It reads ids and numbers only,
     and spends no quota.
     The summary line counts paths it could not read,
-    each named in a `cap-census: cannot read` line because a directory it could not list,
-    or a link named like a log, may hold a run log,
-    and counts apart the dangling links under any other name, which it passes over unnamed
+    each named in a `cap-census: cannot read` line
+    because a directory it could not list,
+    or a link named like a log,
+    may hold a run log,
+    and counts apart the dangling links under any other name,
+    which it passes over unnamed
     since they hold nothing to read.
     `PLACEHOLDER WITH A DISTRIBUTION` means a card still names the pooled 99th percentile
     though the rule can now read its own calls (ledger P10):

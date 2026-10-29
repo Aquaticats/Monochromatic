@@ -930,10 +930,12 @@ and the card still named the pool.
 
 What the rule reads:
 
-- Xiaomi's own endpoint: 293 completed calls,
+- Xiaomi's own endpoint:
+  293 completed calls,
   p99 5,098,
   none at the old cap of 13,082.
-- OpenRouter: 1,362 completed calls,
+- OpenRouter:
+  1,362 completed calls,
   p99 553,
   none at the old cap.
 - The highest p99 of a provider with at least 100 calls,
