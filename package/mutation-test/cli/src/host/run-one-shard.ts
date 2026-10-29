@@ -11,7 +11,6 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -26,6 +25,7 @@ import type {
   ShardReport,
 } from '../shard-schema.ts';
 
+import { scratchParent, } from '../scratch-parent.ts';
 /**
  Module logger for shard round trips.
  */
@@ -69,14 +69,14 @@ export async function runOneShard(options: {
    Host directory holding this shard's manifest.
    */
   const manifestDir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mutation-manifest-',
   ),);
   /**
    Host directory receiving this shard's report.
    */
   const reportDir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mutation-report-',
   ),);
   await writeFile(

@@ -18,7 +18,6 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
@@ -30,6 +29,7 @@ import {
   renderCommandLine,
 } from './spawn-errors.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 /**
  Logger root for mvm after removing the package log shim.
 
@@ -78,7 +78,7 @@ async function openCapture(): Promise<Capture> {
    Fresh directory readable by this user only.
    */
   const directory = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'mvm-spawn-',
   ),);
   /**

@@ -4,7 +4,6 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -23,6 +22,7 @@ import {
   type WorkspaceEntry,
 } from './registry-read.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Build, pack, token, publish
 
 /**
@@ -115,7 +115,7 @@ export async function packForPnpr({ entry, }: { readonly entry: WorkspaceEntry; 
    Scratch directory for this package's tarballs.
    */
   const scratch = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'pnpr-pack-',
   ),);
   await spawn(
@@ -302,7 +302,7 @@ export async function publishTarball(
    */
   const userconfig = join(
     await mkdtemp(join(
-      tmpdir(),
+      await scratchParent(),
       'pnpr-npmrc-',
     ),),
     '.npmrc',

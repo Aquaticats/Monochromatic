@@ -5,7 +5,6 @@
  */
 
 import { execFile, } from 'node:child_process';
-import { tmpdir, } from 'node:os';
 import { promisify, } from 'node:util';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -21,6 +20,7 @@ import type {
   GhCommandRunnerOptions,
 } from './github-fetch-types.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 /**
  Logger root for pi-search-fetch after removing the package log shim.
  
@@ -182,14 +182,14 @@ function createGhCommandRunner(
    Captured output ceiling in bytes.
    */
   const maxOutputBytes = runnerOptions.maxOutputBytes ?? GH_OUTPUT_MAX_BYTES;
-  /**
-   Working directory keeping gh away from ambient repository context.
-   */
-  const workingDirectory = runnerOptions.cwd ?? tmpdir();
 
   return async function runConfiguredGhCommand(
     request: ForeignBorrowed<GhCommandRequest>,
   ): Promise<GhCommandOutcome> {
+    /**
+     Working directory keeping gh away from ambient repository context.
+     */
+    const workingDirectory = runnerOptions.cwd ?? await scratchParent();
     /**
      Logger tagged for this child invocation.
      */
