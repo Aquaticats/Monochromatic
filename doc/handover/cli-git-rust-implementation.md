@@ -3,6 +3,12 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
 > `package/cli/mvm` is now `package/mvm/cli`.
 
@@ -2923,7 +2929,12 @@ unrelated pnpm 1.11.1 to 1.11.2); another session committed it as `536631ce75` (
 0.2.11`, 05:13) and the file is clean now. The host's `~/.cargo/bin/cli-git-native` was replaced at 05:11 and its sha256
 (`ed951186...`) equals the released 0.2.11 archive binary, so the host runs 0.2.11. I did not run `toolchain:sync`;
 the earlier note here that the host was older was true at 04:30 only.
-Mutation campaign running: unit `cli-git-mut-m1804`, files `push_stacking.rs`, `command_push.rs`, `auto_push_reconcile.rs`,
-`entry.rs` in that order, logs `~/temp/agent/m1804-mutation-<file>.log`; do not edit `src/native` while it runs.
+Mutation campaign attempt 1 (unit `cli-git-mut-m1804`, 05:2x) produced no result: all four unmutated baselines failed on
+a different timing-sensitive test each (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`
+and `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed` hit the 5-second bound;
+`owner_lock::tests::a_bounded_wait_takes_a_free_lock_and_one_freed_in_time` and `a_slow_wait_sends_one_slow_notice`)
+while the host load average was about 28. The container gate had passed 2121 of 2121 earlier, so this is load flakiness,
+not a regression. Attempt 2 reruns the same four files; logs `~/temp/agent/m1804-mutation-<file>.log`. Do not edit
+`src/native` while it runs.
 Queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
