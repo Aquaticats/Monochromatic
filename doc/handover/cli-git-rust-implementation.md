@@ -3252,3 +3252,21 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Agent a4bd69a2e240509bc (slice J) was resumed to find the cause (harness assumption or a real change from one of the other
   slices) and fix it on its own worktree after merging `integrate-slices`; then merge its branch into `integrate-slices`
   again and rerun the gate.
+
+## Update at 2026-10-29 (J fix, budget agent report, /tmp pressure)
+
+- The two tearing failures were a harness bug: its number normalizer assumed 7-digit pids and the container (`--init`) has
+  short ones, so the `cli-git-add-policy-<pid>-...` key differed between listing and case runs. Fixed in `019d433cc9`
+  (15 keys renamed, no outcome changed) and fast-forwarded onto `integrate-slices`. Gate run 2 ended after two container
+  stages with no verdict and no error in the log; the rerun is unit `cli-git-gate-merge4`
+  (log `~/temp/agent/gate-merge4.log`, ends with an `exit=` line).
+- Budget agent (a25fe20d930cb8679) finished on branch `worktree-agent-a25fe20d930cb8679` (`e6aabdf36c`, `83330e8c99`,
+  `182acb78f6`; merged `integrate-slices` first). Exact per-subcommand start and sync budgets for no hooks, one config
+  hook and amend in `binary_budget_tests.rs`; no-hook commit: 33 wrapper syncs plus 3 from `index-pack`, `stat` 3 on
+  tmpfs, 0 on a UUID filesystem. Shown failing by lowering budgets. Its full binary run showed 7 unexplained failures,
+  suspected to come from /tmp running out of space; verify on a clean merge before trusting it.
+- /tmp is a 16 GB tmpfs holding 13 GB, including 160 leaked `/tmp/native-binary-<pid>-*` fixtures (about 99 to 280 MB each)
+  from killed or failing test runs. Concurrent suites hit EDQUOT, which also empties task output files. The auto-mode
+  classifier denied cleaning them ("Shared Scratch Sweep") for both the agent and me. A user decision is needed: allow a
+  sweep of dead-pid fixtures older than 30 minutes, or clear `/tmp` by hand. Longer term, the binary test fixtures
+  should remove themselves on failure.
