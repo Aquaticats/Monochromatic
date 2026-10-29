@@ -3472,3 +3472,147 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   and `cli-git-verify-merge-tests` (targets `~/temp/agent/target-merge-clippy`, `~/temp/agent/target-merge-tests`). When
   green: fast-forward the main checkout to the merge commit (`git merge --ff-only`, safe beside unrelated staged files), then
   merge the oxlint and scratch-location branches, one container gate, release, cleanup.
+
+## State at 2026-10-29 (evening): read this block first
+
+This block supersedes the open-items list of "State at 2026-10-29 (late afternoon)" and the integration notes of the
+blocks after it. Times are local.
+
+### On main now
+
+- Release 0.3.0 (`651df035b5`), then the merge-beside-staged-changes work, fast-forwarded as `6f864674de` (agent
+  `afb65bb9babbe8ffa`; decision record `doc/planning/cli-git-merge-with-staged-index.md`). Verified before landing on
+  the merged tree: clippy clean; host 2205 of 2207 (the known linter test plus
+  `worktree_copy_lock::tests::waiter_names_a_live_holder_and_takes_the_lock_after_release`, which passes alone in 0.3
+  s and failed once under load for a cause not captured); binary 224 of 225 (the known linter test only). The
+  container gate has not run on it. The installed `git` is still 0.3.0, so the new merge path is not live until the
+  next release is installed.
+- Deviation the user may veto: landing of an isolated merge is Git's own `git merge --ff-only` under the landing lock,
+  not the commit path's compare-and-swap. Measured: native fast-forward keeps unrelated staged entries and refuses
+  only on overlap.
+- Not fixed: `git pull` hits the same refusal (the merge is a child Git spawns). Workaround: `git fetch`, then
+  `git merge --no-edit origin/<branch>`.
+- Peer-landed work in this package area: `df9d65a071` (root `clippy.toml` bans `std::env::temp_dir`,
+  `tempfile::tempdir`, `tempfile::tempfile`, `TempDir::new`, `NamedTempFile::new`), so `native:clippy` on main fails
+  on the crate's own `temp_dir` uses until the scratch-location branch lands; `7da722af96` rewrote the 21 `.mjs`
+  runners under `bin` and `cli.fuzz/bin` (scratch now `<package>/node_modules/.monochromatic/git-policy`), which can
+  conflict with the oxlint branch.
+
+### Combined tree awaiting verification (not on main)
+
+- Location: detached worktree `~/temp/agent/integrate-merge-wt` (a branch cannot be created there:
+  `git switch --create` is blocked by branch-worktree-only). It holds main at `6f864674de` plus, merged in this order:
+  oxlint cleanup (`worktree-agent-afe3b1e78082f5280`), scratch locations (`worktree-agent-ab12997169a0f5b11`), and
+  issue 1811 (`worktree-agent-a367b2612f424f68c`), then two fix commits.
+- Conflicts resolved: `markdown_linter.rs` (the call takes the local `scratch` of the scratch branch and the notice
+  and cadence of the 1811 branch) and the handover (both sides kept).
+- Compile errors found by the first verification run, fixed in two commits, all caused by two branches adding fields
+  to the same structs: `merge_isolation.rs` built `GitContext` without the scratch branch's `common_dir` (now
+  `Some(common_dir)`, because the merge message passes through `git stripspace` and `git fmt-merge-msg` as input);
+  `markdown_linter::executable_linter` lacked the 1811 branch's `cadence` and `notices`;
+  `transaction_git_tests::slow_run` lacked `common_dir`. Lesson: a clean textual merge of two branches is not a
+  compile; always build the combined tree.
+- Verification units of this tree: `cli-git-verify-all-clippy3` (running at the time of writing); the host and binary
+  suites must be run again after the fixes (`mise run <task> -- --no-fail-fast`, one task name per command). Target
+  dirs `~/temp/agent/target-merge-clippy` and `~/temp/agent/target-merge-tests`.
+- Landing: when green, put `Closes #1810` in the body of a commit on this tree (the scratch merge commit has the
+  default message and is not amended), merge main into it (expect conflicts in the `.mjs` runners from `7da722af96`),
+  run `native:clippy` on that result with no local `clippy.toml` change (`monochromatic-80` asked for this check),
+  fast-forward the main checkout (`git merge --ff-only <oid>`; safe beside unrelated staged files), then message
+  `monochromatic-80` (peer `uds:/run/user/1000/cc-socks/2748920.sock`) that the scratch branch is on main. Issue 1810
+  waits only on this.
+
+### Issue 1811 (branch `worktree-agent-a367b2612f424f68c`, head `10203f1964`)
+
+- Every wait before the push stage prints a notice after a one second grace, repeats every
+  `CLI_GIT_WAIT_NOTICE_SECONDS` (default 10), names the holder, and ends at a bound with the ways forward. New:
+  `wait_progress.rs` (clock and queue place), `child_watch.rs` (stops a stalled child at `CLI_GIT_CHILD_WAIT_SECONDS`,
+  default 1800: the `git cat-file --batch` reader and the captured Git steps), reservation waits (silent before for
+  their whole bound) now name the holder and the queue number.
+- Measured on the real binary: landing lock lines at 1.16 s and 11.15 s; reservation at 1.42 s; live `index.lock` at
+  0.28 s; unproven `index.lock` at 1.22 s; Markdown linter child at 1.30 s. Eight concurrent healthy commits took 0.46
+  to 2.37 s each at load about 33 and printed nothing.
+- The reporter's silent 5 min 9 s is consistent with `await_slot` (20 ms naps, silent for its 30 minute bound), not
+  proven.
+- Not bounded on purpose: Git commands that inherit the terminal. No binary test for the Git-step and cat-file bounds
+  (the wrapper always prefers `/usr/bin/git`).
+- Commit messages the agent flagged as inaccurate (GCA, never amended): `e40bf9cdd1` bundles docs, a behavior change
+  and test fixes under a `docs(...)` subject; `6f0a4e43a3` has two scopes in one subject. Post a corrective commit
+  comment when the branch is on main.
+- Verification by the agent: clippy clean; host 2206 of 2207; binary 207 of 208 (known linter tests only). The compile
+  fixes above came after.
+
+### Git LFS (branch `worktree-agent-ab2b64d9df753a15f`, 8 commits, not merged; agent resumed for the follow-up below)
+
+- The user deleted the four git-lfs shims from the main checkout's `.git/hooks`. Verdicts: `pre-push` handled natively
+  (`lfs_pre_push.rs`: for a real, non-dry-run `git push` in a repository whose own local, worktree or command config
+  has a `filter.lfs.*` or `lfs.*` key, the wrapper adds `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command
+  that runs `git cli-git lfs-pre-push`, which runs `git-lfs pre-push`; Git supplies arguments and ref lines, a failure
+  blocks the push; covers typed push, the stacked path, the lost-race merge push, auto-push after a commit and
+  reconcile pushes; probes never carry it; a caller's `-c hook.cli-git-lfs-pre-push.enabled=false` wins).
+  `post-checkout`, `post-commit`, `post-merge`: unnecessary, since the git-lfs sources return early without lockable
+  patterns and the repository has no `lockable` attribute; adopting `lockable` reopens this.
+- Cost: a forwarded `git push` in a repository without LFS keys starts one more `git config --list` (23 to 24 starts);
+  commit and non-push paths unchanged; the three `budget::*` ratchet tests pass unchanged.
+- Agent's verification: clippy clean; host 2179 of 2180 (known linter); binary 220 of 222 (known linter and
+  `discard::reading_forms_are_never_rejected` at 7.9 s under load, passes alone). Not rerun in full after its last
+  change.
+- Finding: git-lfs rewrites its four shims whenever `filter-process` or `clean` runs (`installHooks(false)`), so the
+  files come back on the next LFS add and `git cli-git doctor` would exit 1 again; a present `pre-push` shim doubles
+  the upload. Recorded in `doc/troubleshooting/git-lfs-rewrites-hook-shims.md` on that branch.
+- User decision (verbatim): "Make doctor say exactly what's happening and that this is normal and make our wrapper
+  invoke the real git w/o hooks." Sent to the agent: every real-Git start gets
+  `-c core.hooksPath=<never-created path>` (an argument, so no syscall; config hooks still run); `doctor` recognizes a
+  byte-exact LFS shim by content, explains it is normal and never runs through cli-git, exits 0 when only such shims
+  exist (my choice, open to veto), 1 for any other hook, 2 without a repository. Test of the switches on Git 2.56.0
+  (`~/temp/agent/hook-ignore-probe.ts`): `hook.<event>.enabled=false` stops only config hooks and leaves the
+  hook-directory hook running; `core.hooksPath` to a never-created path stops the hook-directory hooks and leaves
+  config hooks; `hook.hookdir.enabled` does nothing. No switch ignores one hook-directory hook by name;
+  `core.hooksPath` is per directory.
+- Earlier statements in this file that traditional hooks are "undefined unsupported behavior" are refined by this
+  decision: they are never run through cli-git.
+
+### Open items, in order
+
+1. Verify and land the combined tree (above), then reply to `monochromatic-80`, then `native:clippy` on main.
+2. Merge the LFS branch after the hooks-off follow-up reports (expect conflicts in `entry.rs`, `auto_push*.rs`,
+   `lib.rs`, `README.md`, `SPEC.md`); rebuild the combined tree, then clippy, host, binary.
+3. One container gate on the final main (never in parallel with other gates; the run copies the source to
+   `/tmp/cli-git-native-test-*`, issue 1810 part for `monochromatic-80`), then release the next version (read the
+   crate version first; four files via `~/temp/agent/release.ts <from> <to> <note>`), install it, and watch the merge
+   path live.
+4. Mutation: read wave 1 (units `cli-git-mutpar-w1-*`, logs `~/temp/agent/mutpar-w1-*.log.N`); wave 2 over
+   `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`, `doctor`,
+   `traditional_hook_warning`, `recovery_snapshot`, `recovery_contradiction`, `content_digest`, `rule_require_root`,
+   `scratch_location`, the 1804 files, plus the new `merge_isolation*`, `merge_options`, `wait_progress`,
+   `child_watch`, `lfs_pre_push`.
+5. Load-flaky tests (task 66): `discard::a_linked_worktree_runs_the_forms_only_while_clean` (5-second bound),
+   `discard::reading_forms_are_never_rejected`,
+   `worktree_copy_lock::tests::waiter_names_a_live_holder_and_takes_the_lock_after_release`,
+   `auto_push_single_flight::...a_lock_held_past_the_wait_limit_is_reported_and_left_in_place`.
+6. Parked: tasks 65, 69, 23, 30, the Windows clippy target, the auto-push merge running no push-time policy (issue
+   1804), issue 1796 server-side enforcement. Also the question from `monochromatic-04` (staleness manifest timeouts)
+   is not ours: it is tracked in issue 1812 and `e655dcad15`.
+
+### Cleanup after the merges
+
+- Remove `~/temp/agent/integrate-merge-wt` (`git worktree remove`), `~/temp/agent/target-merge-clippy`,
+  `~/temp/agent/target-merge-tests`, `~/temp/agent/merge-slices`, `~/temp/agent/verify-retry`, `~/temp/agent/1811`.
+- Remove `.claude/worktrees/agent-*` (not `agent-a563e0c526d53df51`, which is not this session's); delete the merged
+  branches (`integrate-slices`, `worktree-agent-*`).
+- Remove the e2e images `localhost/cli-git-concurrent-e2e:cfghooks` and
+  `localhost/cli-git-concurrent-e2e-native:cfghooks`.
+- Stop leftover `cli-git-*` units (`systemctl --user list-units 'cli-git-*'`); `standards-review-shadow-*` units come
+  from the repository's commit hook and are not ours.
+
+### Lessons of the day (additions)
+
+- `mise run taskA taskB` hands `taskB` to `taskA` as an argument: nextest read it as a filter and ran 0 tests. Run
+  each task in its own command, and pass `-- --no-fail-fast` to see every failure.
+- nextest stops at the first failure by default, so the known linter failure hides the other 1000 tests.
+- A textual merge of branches that each add a struct field does not compile; build the combined tree.
+- `git switch --create` is blocked in a worktree by the wrapper's own policy; use a detached HEAD for throwaway merges
+  and fast-forward the main checkout to the resulting oid.
+- A commit through the wrapper waits silently on the landing lock under load; issue 1811 is the fix.
+- A peer's question about another package's timeouts was answered from the commit message of `e655dcad15` (read the
+  message, not the author field: all sessions commit as the same identity).
