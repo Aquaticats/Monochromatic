@@ -3740,3 +3740,41 @@ blocks after it. Times are local.
   branch; one container gate on the final main; release the next version; install it.
 - Lesson: `tail --pid=$(systemctl --user show --property=MainPID --value <unit>)` returns at once or never when the
   unit has already exited; read the unit's journal with `journalctl --user --since "-3 hours" --unit=<unit>` instead.
+
+## State at 2026-10-29 (night, later): everything is on main; gate running; release next
+
+This block supersedes the land order and open items of the blocks since "State at 2026-10-29 (evening)".
+
+- Main is at `b0624e8569` and holds, in landing order: merge beside staged changes (`6f864674de`); the oxlint cleanup,
+  scratch locations (issue 1810, closed by `Closes #1810` in the merge message), and the issue 1811 wait notices with
+  the flaky-test fixes (`ecb9d4cf19`); the LFS work with hooks-off, doctor and the probe decision (`be1a123829`); and
+  the `.mjs` to `.ts` conversion. Issue 1810 is closed (16:23Z) and issue 1811 is closed (16:24Z) with a comment.
+  Corrective comments are posted on the two commits whose subjects are inaccurate (`e40bf9cdd1`, `6f0a4e43a3`).
+- Verification before landing: clippy clean on the combined tree with the root `clippy.toml` ban; the LFS branch
+  merged with main by its agent: host 2293 of 2294 and binary 272 of 273 (only the two known linter tests fail),
+  budget ratchets unchanged; the conversion branch: `lint:types` exit 0, oxlint 0 findings, runners show their usage
+  errors. The LFS merge into main and the conversion merge on top were conflict-free apart from handover text.
+- The container gate runs once on `b0624e8569` from the clean worktree `~/temp/agent/integrate-3` (unit
+  `cli-git-gate-final`, `TMPDIR=~/temp/agent/tmp`). It also exercises the converted runner `test-native-container.ts`.
+  Read its result before releasing.
+- Next, in order: (1) read the gate result and fix any failure; (2) release the next version (read the crate version
+  first, 0.3.0 was the last; features landed since, so a minor bump) with
+  `~/temp/agent/release.ts <from> <to> <note>`, which edits the four files; wait for the publish workflow with
+  `~/temp/agent/wait-publish.ts`; install it; check live that a staged index no longer blocks `git merge`, that
+  `git cli-git doctor` explains LFS shims, that a waiting commit prints notices; (3) read mutation wave 1 and run wave
+  2 including the new modules (`merge_isolation*`, `merge_options`, `wait_progress`, `child_watch`, `lfs_pre_push`,
+  `hooks_off`, `scratch_location`, `doctor`); (4) the load-flaky tests of task 66 now have deterministic controls for
+  the 1811 area, but `discard::a_linked_worktree_runs_the_forms_only_while_clean` and
+  `discard::reading_forms_are_never_rejected` (5-second bound under load) remain; (5) cleanup.
+- Cleanup list (after the release): worktrees `~/temp/agent/integrate-merge-wt`, `integrate-final-wt` (holds an
+  unresolved trial merge, remove with force after checking nothing in it is needed), `integrate-3`,
+  `~/temp/agent/combined`; their target dirs `~/temp/agent/target-merge-clippy`, `target-merge-tests`;
+  `.claude/worktrees/agent-*` except `agent-a563e0c526d53df51`; merged branches `worktree-agent-*`,
+  `integrate-slices`, the `-combined` branch and their remote copies; the two e2e images
+  `localhost/cli-git-concurrent-e2e:cfghooks` and `localhost/cli-git-concurrent-e2e-native:cfghooks`; leftover
+  `cli-git-*` units (`standards-review-shadow-*` come from the repository's commit hook).
+- Peer `monochromatic-80` is gone from the session list; nobody else is known to own issue 1810 follow-ups, which are
+  finished.
+- Lesson: when main moves between a merge and its fast-forward (it does every few minutes), do the merge of main and
+  the `git merge --ff-only "$(git -C <worktree> rev-parse HEAD)"` in one command; a merge in a worktree with a
+  hook-modified `doc/audit/standards-review-gate-shadow.md` is refused, so merge in a fresh worktree.
