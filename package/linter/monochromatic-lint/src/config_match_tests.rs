@@ -19,7 +19,7 @@ use std::path::Path;
 
 /// Build a configuration with a platform-native absolute base but no filesystem access.
 fn prepare(source: &str) -> PreparedConfiguration {
-    let base = std::env::temp_dir().join("monochromatic-lint-pattern-fixture");
+    let base = crate::test_scratch::scratch_root().join("monochromatic-lint-pattern-fixture");
     return prepare_configuration(ConfigurationSource {
         path: base.join(CONFIG_NAME),
         base,
@@ -195,7 +195,7 @@ fn relative_parent_selection_is_not_silently_rebased() {
         FileConfiguration::Configured { .. }
     ));
     let error = config
-        .resolve(std::env::temp_dir().as_path())
+        .resolve(crate::test_scratch::scratch_root().as_path())
         .expect_err("absolute candidate");
     assert!(error.message.contains("relative"));
 }
@@ -203,7 +203,7 @@ fn relative_parent_selection_is_not_silently_rebased() {
 /// Invalid glob syntax fails when preparing configuration rather than silently matching nothing.
 #[test]
 fn invalid_patterns_are_rejected() {
-    let base = std::env::temp_dir();
+    let base = crate::test_scratch::scratch_root();
     let source = ConfigurationSource {
         path: base.join(CONFIG_NAME),
         base,

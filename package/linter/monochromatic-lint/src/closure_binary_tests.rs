@@ -52,7 +52,7 @@ impl Fixture {
     /// the package `my pkg` with its manifest and one source file.
     fn new() -> Fixture {
         let sequence: u64 = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let created: PathBuf = std::env::temp_dir().join(format!(
+        let created: PathBuf = crate::test_scratch::scratch_root().join(format!(
             "monochromatic-lint-closure-{}-{sequence}",
             std::process::id()
         ));
@@ -578,3 +578,7 @@ fn host_real_run_over_wg_quicker_exempt() {
         "the --all-targets probe found no test finding, so it cannot show their absence"
     );
 }
+
+/// The unit-test scratch root, shared with the library test build and placed in the build directory.
+#[path = "test_scratch.rs"]
+mod test_scratch;
