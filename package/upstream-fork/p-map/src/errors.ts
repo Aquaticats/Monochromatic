@@ -196,4 +196,37 @@ export class InvalidBackpressureError extends TypeError {
   }
 }
 
+/**
+ Thrown when the input of a keyed map is not an object or a `Map`.
+
+ @example
+ ```ts
+ import { InvalidKeyedInputError, pMapKeyed, } from '\@monochromatic-dev/upstream-fork-p-map';
+
+ try {
+   await pMapKeyed({
+     input: 5 as never,
+     mapper: function identity(value: unknown,): unknown {
+       return value;
+     },
+   });
+ }
+ catch (error) {
+   error instanceof InvalidKeyedInputError; // => true
+ }
+ ```
+ */
+export class InvalidKeyedInputError extends TypeError {
+  /**
+   Builds the error with upstream `p-map`'s message text, naming `null`
+   explicitly because `typeof null` is `'object'`.
+
+   @param input - Value that was not an object or a `Map`.
+   */
+  constructor(input: unknown,) {
+    super(`Expected \`input\` to be an object, got (${input === null ? 'null' : typeof input})`,);
+    this.name = 'InvalidKeyedInputError';
+  }
+}
+
 //endregion Errors

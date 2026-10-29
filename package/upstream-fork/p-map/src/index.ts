@@ -37,6 +37,7 @@ export {
   InvalidBackpressureError,
   InvalidConcurrencyError,
   InvalidInputError,
+  InvalidKeyedInputError,
   MapperRequiredError,
 } from './errors.ts';
 
@@ -53,6 +54,20 @@ export {
   type MapOptions,
   type SettledMapOptions,
 } from './map-options.ts';
+
+export {
+  type KeyedInput,
+  type KeyedKey,
+  type KeyedMapper,
+  type KeyedMapperFunction,
+  type KeyedMapRun,
+  type KeyedNewValue,
+  type KeyedResult,
+  type KeyedValue,
+  pMapKeyed,
+  pMapSettledKeyed,
+  type SettledKeyedMapRun,
+} from './p-map-keyed.ts';
 
 export {
   type MapRun,
