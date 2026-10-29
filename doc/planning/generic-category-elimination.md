@@ -293,10 +293,15 @@ Published names (`shim-node-domexception`,
  `shim-ungap-structured-clone`,
  `stub-silent`,
  `stub-throwing`)
-rename with their paths;
-after the user's manual first publish of each new name,
-the old names get `npm deprecate` pointing to the new ones
-(the user runs the npm-authenticated steps).
+rename with their paths.
+Correction (user,
+ 2026-10-29):
+ the task is only to move.
+No `npm deprecate`,
+ pausing,
+ or publishing steps are part of this plan;
+an earlier answer that chose "rename and deprecate" is superseded.
+Old names simply stay on npmjs as they are.
 
 ### `webapp-productivity`,
  `desktop-daemon`,
@@ -400,8 +405,8 @@ Mapping (sidecars follow their subject,
 Publishing consequences:
 
 - `module-logger` and `module-fs-path` are on npmjs:
-   rename plus `npm deprecate` of the old names after the user's manual first publish,
-   as for the shims.
+   they rename with their paths;
+   nothing is deprecated (move only).
 - `mise.toml`,
    `mise.no-env.toml`,
    and `.github/workflows/npm-publish.yml` assume `module-$NPM_MODULE` and `//package/module/$NPM_MODULE`;
@@ -411,6 +416,49 @@ Publishing consequences:
    possibly transitively);
   the user will update it,
    tracked by [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3).
+
+### `dev-script` (settled 2026-10-29)
+
+- `dependency-catalog` product:
+   `module/pnpm-workspace-catalog` to `dependency-catalog/core-pnpm`,
+   `module/rust-catalog` to `dependency-catalog/core-rust`,
+   `dev-script/catalog-tighten` (+ `.matrix`) to `dependency-catalog/cli-tighten` (+ `cli-tighten.matrix`),
+   `dev-script/deps-cube` to `dependency-catalog/cli-cube`,
+   `dev-script/rust-catalog-update` to `dependency-catalog/cli-rust-update`.
+  `catalog-tighten` is built on both catalog libraries.
+  Held by `monochromatic-fb` until released.
+- `dev-script/deps-update` to `deps-update/cli` (shares no code with the catalogs).
+- `monorepo-task` product (user-chosen name;
+   `task` alone is too generic):
+   `dev-script/task-cli` to `monorepo-task/cli`,
+   `dev-script/task-util` to `monorepo-task/core-exec`.
+  The 20 `package/*/*/task.ts` imports keep the same depth.
+- `dev-script/backup-path` to `backup-path/cli`.
+- `dev-script/claude-cpu-cap` to `claude-cpu-cap/daemon`;
+  right after the move commit,
+   re-point `~/.config/systemd/user/claude-cpu-watch.service`,
+   fix the in-repo unit,
+   run `systemctl --user daemon-reload`,
+   restart the unit,
+   and confirm it is active (user-approved).
+- `dev-script/file-enforcer` to `file-enforcer/core` (held by `monochromatic-fb`).
+- `dev-script/page-weight` to `page-weight/cli`.
+- `dev-script/vm-builder` to `vm-builder/cli` (built on `file-enforcer`,
+   not `mvm`).
+- `dev-script/watch-restart` to `watch-restart/cli`.
+
+### `desktop-app` (settled 2026-10-29)
+
+- `desktop-app/electron-infra` to `electron-infra/core`;
+  `desktop-app/electron-counter` to `electron-infra/app-counter` (a demo built on it).
+- `desktop-app/file-manager` to `file-manager/app`;
+  `-gtk-sticky`,
+   `-qt`,
+   `-electron` to `file-manager/variant-gtk-sticky`,
+   `variant-qt`,
+   `variant-electron`.
+- `desktop-app/ide` to `ide/app` and `desktop-app/terminal` to `terminal/app`,
+  after `monochromatic-ec` releases them.
 
 These batches run after the `cli` batch lands.
 
