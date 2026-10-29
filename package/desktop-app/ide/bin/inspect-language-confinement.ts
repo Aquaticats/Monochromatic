@@ -17,6 +17,14 @@ const inspect = resolve('target/debug/ide-language-inspect');
 const scripted = resolve('target/debug/ide-scripted-lsp');
 const probeScript = resolve('bin/language-confinement-probe.cjs');
 const store = resolve('../../../node_modules/.pnpm');
+// The workspace catalog pins one TypeScript 7 release and the store holds whichever it installed, so the fixture copies the
+// newest TypeScript 7 entry by prefix instead of naming a version that goes stale with every catalog bump.
+const storeEntry = (prefix: string): string => {
+  const found = readdirSync(store).filter((name) => name.startsWith(prefix)).sort();
+  const newest = found.at(-1);
+  if (newest === undefined) throw new Error(`No ${prefix} entry in the pnpm store ${store}; run the workspace install first`);
+  return join(store, newest);
+};
 const realHome = homedir();
 const privateRoot = join(realHome, 'temp', 'agent');
 if ((statSync(privateRoot).mode & 0o077) !== 0) throw new Error('Scratch root must exclude group and other permissions: ' + privateRoot);
@@ -114,8 +122,8 @@ const makeTypeScript = (root: string): void => {
   write({ path: join(root, 'src/index.ts'), text: tsIndex });
   // A plain JavaScript file with an untyped bare import invites automatic type acquisition.
   write({ path: join(root, 'src/legacy.js'), text: "const leftPad = require('left-pad');\nmodule.exports = leftPad('x', 3);\n" });
-  cpSync(join(store, 'typescript@7.0.2/node_modules/typescript'), join(root, 'node_modules/typescript'), { recursive: true });
-  cpSync(join(store, '@typescript+typescript-linux-x64@7.0.2/node_modules/@typescript/typescript-linux-x64'), join(root, 'node_modules/@typescript/typescript-linux-x64'), { recursive: true });
+  cpSync(join(storeEntry('typescript@7'), 'node_modules/typescript'), join(root, 'node_modules/typescript'), { recursive: true });
+  cpSync(join(storeEntry('@typescript+typescript-linux-x64@7'), 'node_modules/@typescript/typescript-linux-x64'), join(root, 'node_modules/@typescript/typescript-linux-x64'), { recursive: true });
   write({ path: join(root, 'node_modules/typescript/bin/tsc'), text: [
     '#!/usr/bin/env node',
     'import { createRequire } from "node:module";',
