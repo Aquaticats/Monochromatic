@@ -138,6 +138,24 @@ and the branch only ever touches manifests,
  changelogs,
  and changeset files.
 
+### Releases run through `npm-publish.yml` (2026-10-29)
+
+After the category moves renamed `module-logger` and `module-fs-path` to `logger-core` and `fs-path-core`,
+the owner directed:
+"just do new releases through npm-publish.yml now".
+`.github/workflows/npm-publish.yml` is a manual dispatch that builds,
+tests,
+packs,
+and publishes one package (input `package`) with provenance.
+Both renamed packages list it as their trusted publisher
+and published `logger-core` 0.4.6 and `fs-path-core` 0.2.2 through it.
+`npm-release.yml` (changesets) still runs on its path filter;
+its `select-mode` failed on every run until `33b6a407a5` ignored the `translation-repair-*` family,
+and with no changeset pending it versions and publishes nothing.
+A package may list up to 10 trusted publishers
+(<https://docs.npmjs.com/trusted-publishers>),
+so moving a package back to the changesets flow only needs `npm trust github` with `--file npm-release.yml`.
+
 ## Consequences
 
 - Public packages may depend on published workspace modules;

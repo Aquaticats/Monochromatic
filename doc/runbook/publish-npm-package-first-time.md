@@ -35,7 +35,7 @@ Prerequisites:
 
 - An npm account that owns the `@monochromatic-dev` scope,
    with two-factor authentication enabled and the authenticator app at hand.
-- A clone of `https://github.com/Aquaticat/Monochromatic` with `mise` installed and activated
+- A clone of `https://github.com/Aquaticats/Monochromatic` with `mise` installed and activated
    and the toolchain provisioned (`mise run toolchain:sync`),
    so `mise exec -- npm --version` prints `11.19.0` or newer (`npm trust` needs 11.15.0 or newer)
    and `pnpm --version` prints `11.21.0` or newer.
@@ -132,11 +132,18 @@ TODO
      the code is good for about 30 seconds,
      so run the command right after reading it.
 12.  Register the release workflow as the trusted publisher:
-     `mise exec -- npm trust github @monochromatic-dev/logger-core --repo Aquaticat/Monochromatic --file npm-release.yml --allow-publish`.
+     `mise exec -- npm trust github @monochromatic-dev/logger-core --repo Aquaticats/Monochromatic --file npm-release.yml --allow-publish`.
      Expected:
      a confirmation prompt,
      answer **y** (or pass `--yes`),
-     then a line confirming the trusted publisher for `Aquaticat/Monochromatic` and `npm-release.yml`.
+     then a line confirming the trusted publisher for `Aquaticats/Monochromatic` and `npm-release.yml`.
+     Since 2026-10-29 the owner releases through `.github/workflows/npm-publish.yml` instead
+     (one package per manual dispatch, input `package`, for example `logger/core`);
+     `logger-core` and `fs-path-core` trust that workflow,
+     registered with the same command and `--file npm-publish.yml`.
+     A package can list up to 10 trusted publishers
+     (<https://docs.npmjs.com/trusted-publishers>),
+     so registering both workflows is allowed.
      This command and `npm trust list` open a browser for npm's web authentication every time,
      even with a logged-in token,
      so they must run from your own terminal;
@@ -184,7 +191,7 @@ TODO
 - `npm view @monochromatic-dev/logger-core version` prints `0.1.0`.
 - `npm view @monochromatic-dev/logger-core dist.tarball` prints a `registry.npmjs.org` URL.
 - `mise exec -- npm trust list @monochromatic-dev/logger-core` lists one GitHub entry with
-   `Aquaticat/Monochromatic` and `npm-release.yml`.
+   `Aquaticats/Monochromatic` and the workflow registered in step 12.
 - `gh release view '@monochromatic-dev/logger-core@0.1.0' --json tagName --jq .tagName`
    prints `@monochromatic-dev/logger-core@0.1.0`.
 - In a disposable directory:
