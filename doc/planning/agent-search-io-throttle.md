@@ -267,8 +267,25 @@ CI: `.github/workflows/cargo-publish.yml` gained `ss-detect`, `ss-publish-crate`
 Trusted Publishing and, once the crate's `Cargo.toml` carries `[package.metadata.binstall]`, builds two Linux archives and
 creates one immutable release. Version 0.1.1 (commit `7b3d373a07`) carries the metadata and went out through that route:
 run `40863841089` succeeded in every job, crates.io lists 0.1.1, the release has both archives and the checksums, and
-`cargo binstall --dry-run --disable-strategies compile,quick-install` finds the archive. Not done yet: the plan entry
-(installation through `mpm`) and activation.
+`cargo binstall --dry-run --disable-strategies compile,quick-install` finds the archive. The plan entry (commit
+`b8f5581796`) installs it through `mpm`; see the next section.
+
+## Activation, as verified
+
+The toolchain plan entry `cargo:monochromatic-search-shadow` (`route: cargo-binstall`, Linux only) generated
+an `mpm` override pinning `binstall --no-confirm --version 0.1.1`, one line in `mpm.packages.toml`, a lock entry,
+and `.cache/search-shadow-bin` as the first `PATH` entry of the generated `mise.toml`.
+`mise run toolchain:sync` then reported `1 installed, 61 unchanged, 0 failed` and created
+`.cache/search-shadow-bin/rg`, a link to `~/.cargo/bin/search-shadow`.
+Checked through `mise exec` in the repository root:
+
+- `command -v rg` resolves to `.cache/search-shadow-bin/rg`; `rg --version` prints ripgrep 15.2.0, the locked tool behind it.
+- A search with a named path returns results; `--replace TEXT` works.
+- `rg -rl PATTERN FILE` and `rg --hidden PATTERN` (no path, repository root) exit 2 with the explanations;
+  `rg --hidden PATTERN .github/...` runs. `SEARCH_SHADOW_ALLOW_WIDE=1` lifts only the wide-walk refusal, not the `-r` ban.
+- A running `rg` reports `best-effort: prio 7` under `ionice -p`.
+
+The agent's own Bash tool had inherited its `PATH` before the change, so only new shells (or `mise exec`) resolve the shadow.
 The toolchain's `cargo-binstall` provider runs `cargo binstall --no-confirm --version X CRATE` with no compile ban, so a
 source-only crate installs by compiling (about 9 seconds measured). A plan entry needs `postinstall.link` for `rg`
 (the schema allows one link per entry, so `grep` and `find` need an array), and the link directory must precede
@@ -296,19 +313,30 @@ are inputs to that work and nothing here was changed.
   an identical commit was already in progress.
 - Not measured: `git commit --help` took 7.7 s through the wrapper, and was not compared with the real binary.
 
-## Proposals
+## Where each layer stands
 
-Ranking: A > B > C > D.
+The earlier ranking of four alternatives is superseded: the owner decided the layers are complementary, not exclusive, and
+required a harness-neutral result.
 
-- A, I/O caps on the agent cgroup targeting `/dev/nvme0n1`: bounds every command, and the bandwidth cap is shown to work.
-  Risks: it slows legitimate builds, the numbers need measuring, and the many-small-files IOPS cap is not yet verified.
-- B, a PreToolUse hook that denies broad searches: stops the load at the source and the Bash hook machinery exists.
-  Risk: shell-string parsing is bypassable by scripts and can false-positive.
-- C, an `.rgignore` plus softening the `--hidden`/`--no-ignore` advice in `CLAUDE.md`:
-  cheap, but `--no-ignore` bypasses the file. The share of the 464,482 files that `node_modules`, `target`, `.cache`,
-  and `.claude/worktrees` account for is unmeasured.
-- D, an `AGENTS.md` rule alone: weakest, since agents drift from rules under load.
+Delivered and verified:
 
-A beats B because a cap bounds every command an agent runs, while a hook only catches commands it recognizes.
-B beats C because a hook can inspect the `--no-ignore` flag that defeats an ignore file.
-C beats D because C is mechanical, while D relies on obedience.
+- BFQ on `nvme0n1`, persistent through `/etc/udev/rules.d/61-nvme-bfq.rules` (the boot-time event is untested).
+- `IOWeight=10` on Ghostty terminal scopes (drop-in) and `io.weight` 10 on `claude-code-bash` (watcher). The end-to-end
+  check did not show that the weight protects a light reader.
+- The `rg` shadow, installed through `mpm` and first on `PATH`, running `rg` at best-effort level 7 and refusing `-r` and
+  unbounded hidden walks. `AGENTS.md` rules `RT1` and `RGT` now describe it.
+
+Ruled out: the dm-crypt workqueue flags (no effect on the whole-repo lint) and APST (no measurable latency effect; the
+kernel refuses userspace Set Features on it).
+
+Open:
+
+- Read caps on `/dev/nvme0n1`: the bandwidth cap throttles cold buffered reads, the IOPS cap was never verified at a value
+  below the delivered rate, and nothing applies either to the agents yet. A cap on `/dev/dm-1` is silently dropped.
+- Shadows and policy for `grep` and `find`, which need several links per plan entry and, in Claude Code shells, do not help
+  because `grep` and `find` are shell functions running Claude's embedded `ugrep` and `bfs`.
+- A Claude Code PreToolUse hook for the commands a `PATH` shadow cannot see (not built).
+- Revoking the `trusted-publishing` crates.io token and then `cargo logout`.
+- `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...`; whether that matches after
+  the move to `Aquaticats` is untested.
+- Commit load: each commit runs a whole-worktree shadow `git commit`; the owner is improving the git wrapper separately.

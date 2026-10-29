@@ -547,7 +547,8 @@ RT1:
  `rg` for text search,
  not directory navigation;
  `rg --files` for globs;
- add `--hidden`/`--no-ignore` when dot-dirs or ignored files may hold matches.
+ `--hidden`/`--no-ignore` only with a named path:
+ the rg shadow refuses them at a repo root.
 
 RT4:
  `gh` for GitHub issues,
@@ -672,7 +673,8 @@ No long form:
 RGT:
  `rg` recurses by default;
  its `-r` means `--replace`,
- so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output.
+ so grep-reflex `rg -rl`/`-ir` silently rewrites matches in output;
+ the rg shadow refuses short `-r`.
 
 ### Hazardous commands
 

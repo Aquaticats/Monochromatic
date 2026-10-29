@@ -42,8 +42,12 @@ win over PATH, so the links reach `rg` there but not those two.
 search-shadow link .cache/search-shadow-bin
 ```
 
-Activation in this repository is a separate step: the directory must precede `.cache/toolchain-bin` on PATH,
-which is defined in `file-enforcer.config.ts`.
+In this repository it is installed through `mpm` by the toolchain plan (entry `cargo:monochromatic-search-shadow` in the plan
+data under `package/file-enforcer/core/src/toolchain/`): `mise run toolchain:sync` runs `cargo binstall` for the locked
+version, the entry's postinstall links `search-shadow` as `rg` in the gitignored `.cache/search-shadow-bin`, and the
+generated `mise.toml` puts that directory first on PATH (its source is `file-enforcer.config.ts`), ahead of
+`.cache/toolchain-bin`, which holds the locked ripgrep. Only `rg` is linked so far: a postinstall carries one link, so
+`grep` and `find` need the plan schema to accept several links.
 
 ## Exit codes
 
