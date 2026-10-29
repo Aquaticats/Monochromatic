@@ -805,6 +805,30 @@ Type-checking the catalog code therefore reads that task's output for errors in 
 and `src/index.ts`,
  which report none.
 
+### Cargo 1.98 regression from the migration (2026-10-29)
+
+The migration commit `fd0bd03540` broke cargo 1.98.0 (the `localhost/monochromatic/ide` image),
+ blocking the IDE 0.1.3 release:
+ Edition 2024 member sites with `default-features = false` over a generated entry that kept default features
+ fail with "`default-features = false` cannot override workspace's `default-features`".
+Host nightly 1.101 accepts them because rust-lang/cargo#17126 (cargo 1.99) allows the override,
+ so the earlier `memchr` probe in "Open questions" passed on the wrong toolchain to catch it.
+Full trace: `doc/troubleshooting/cargo-1-98-inherited-default-features.md`.
+
+Fix, commit `d1477a13ba`:
+ a crate's generated entry carries `default-features = false` when every catalog site of that dependency in the crate
+ writes it,
+ and sites that disagree fail the sync with a named issue
+ (`package/dev-script/file-enforcer/src/cargo/catalog/default-features.ts`).
+Verified with `cargo metadata --locked` for all seven affected crates on host nightly and on cargo 1.98.0,
+ with the pre-fix ide manifest still failing on 1.98.0 as the control.
+
+Consequence for verification:
+ manifest changes from the catalog are checked on the oldest cargo a consumer builds with
+ (currently 1.98.0 in `localhost/monochromatic/ide`),
+ not only the host nightly.
+The CI drift check (task 10) should include that oldest-cargo `cargo metadata` pass.
+
 ## Rejected
 
 - Repository-root Cargo workspace:
