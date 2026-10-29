@@ -15,6 +15,7 @@ fn sample_plan() -> HookDispatchPlan {
         lease: String::from("lease"),
         hook_lock_path: String::from("/repo/.git/cli-git/hook.lock"),
         skip_hook_lock: false,
+        named_hooks_possible: true,
     };
 }
 
@@ -48,6 +49,58 @@ fn entries_are_symbolic_links_named_after_preparation_events() {
     assert_eq!(
         std::fs::read_dir(&hooks).expect("entries").count(),
         PREPARATION_HOOK_EVENTS.len() + 1
+    );
+    remove(root.as_path());
+}
+
+/// The entry names a plan writes, sorted, without the plan file.
+fn entry_names(hooks: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(hooks)
+        .expect("hooks directory")
+        .flatten()
+        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .filter(|name| { return name != PLAN_FILENAME; })
+        .collect();
+    names.sort();
+    return names;
+}
+
+/// Only an event whose user hook may exist gets an entry; every shape of file counts as a hook.
+#[cfg(unix)]
+#[test]
+fn an_event_without_a_user_hook_gets_no_entry() {
+    let root: PathBuf = fixture("hook-entries-omitted");
+    let user_hooks: PathBuf = root.join("user-hooks");
+    std::fs::create_dir(&user_hooks).expect("user hooks");
+    let plan: HookDispatchPlan = HookDispatchPlan {
+        hooks_path: user_hooks.display().to_string(),
+        named_hooks_possible: false,
+        ..sample_plan()
+    };
+    let executable: PathBuf = PathBuf::from("/opt/native/bin/git");
+    write_hook_dispatch(root.join("none").as_path(), &plan, executable.as_path()).expect("write");
+    assert_eq!(entry_names(root.join("none").as_path()), Vec::<String>::new());
+    std::fs::write(user_hooks.join("commit-msg"), b"not executable").expect("plain file");
+    std::fs::create_dir(user_hooks.join("pre-commit")).expect("directory");
+    write_hook_dispatch(root.join("some").as_path(), &plan, executable.as_path()).expect("write");
+    assert_eq!(entry_names(root.join("some").as_path()), vec![String::from("commit-msg"), String::from("pre-commit")]);
+    remove(root.as_path());
+}
+
+/// A configuration that defines hooks by name keeps all three entries whatever the directory holds.
+#[cfg(unix)]
+#[test]
+fn named_hooks_keep_every_entry() {
+    let root: PathBuf = fixture("hook-entries-named");
+    let plan: HookDispatchPlan = HookDispatchPlan {
+        hooks_path: root.join("empty").display().to_string(),
+        named_hooks_possible: true,
+        ..sample_plan()
+    };
+    write_hook_dispatch(root.join("hooks").as_path(), &plan, Path::new("/opt/native/bin/git")).expect("write");
+    assert_eq!(
+        entry_names(root.join("hooks").as_path()),
+        vec![String::from("commit-msg"), String::from("pre-commit"), String::from("prepare-commit-msg")]
     );
     remove(root.as_path());
 }

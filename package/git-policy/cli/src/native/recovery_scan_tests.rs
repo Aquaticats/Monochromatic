@@ -5,7 +5,9 @@ use crate::owner_lock::try_acquire_owner_lock;
 use crate::owner_lock_record::{OwnerLockRecord, encode_owner_lock_record};
 use crate::recovery_inspect::tests::owner_bytes;
 use crate::recovery_landing::tests::Scene;
+use crate::test_support::git_text;
 use crate::transaction_journal::LandingOperation;
+use crate::transaction_journal_encode::encode_ref_updated;
 use crate::transaction_registry::{RETIRED_SUFFIX, STAGING_SUFFIX};
 
 /// Second and third transaction IDs.
@@ -102,6 +104,49 @@ fn every_entry_gets_its_outcome() {
     assert!(!reservation.exists());
     // The landing lock was taken and released.
     assert!(!scene.registry.join(LANDING_LOCK_NAME).exists());
+    scene.finish();
+}
+
+/// A landed transaction whose disposal removed the shadow but not yet the directory (a power loss before the
+///  directory removal reached the disk) is recognized as installed and cleaned by the next recovery,
+///  and a retired directory left half deleted is removed beside it.
+/// This is why disposal needs no sync after removing the directory.
+#[test]
+fn a_completed_landing_that_is_still_published_is_cleaned_by_recovery() {
+    let scene: Scene = Scene::new("recovery-scan-completed-leftover", false);
+    scene.capture();
+    scene.land(LandingOperation::Commit, Vec::new());
+    scene.move_branch();
+    std::fs::copy(scene.directory.join("post-1.index"), scene.git_dir.join("index")).expect("installed index");
+    std::fs::write(scene.directory.join("index-installed"), b"").expect("installed marker");
+    std::fs::write(
+        scene.directory.join("ref-updated.json"),
+        encode_ref_updated(scene.prepared.as_str()),
+    )
+    .expect("ref marker");
+    std::fs::remove_dir_all(scene.shadow.as_path()).expect("shadow already disposed");
+    let retired_name: String = format!("{THIRD}{RETIRED_SUFFIX}");
+    let retired: PathBuf = add_entry(scene.registry.as_path(), retired_name.as_str(), None);
+    std::fs::write(retired.join("leftover"), b"x").expect("leftover");
+    let outcomes: Vec<RecoveryOutcome> =
+        recover_registered_transactions(&scene.place(), scene.registry.as_path()).expect("recovered");
+    assert_eq!(
+        action_for(outcomes.as_slice(), scene.directory.as_path()),
+        Some(RecoveryAction::AlreadyInstalled)
+    );
+    assert_eq!(
+        action_for(outcomes.as_slice(), retired.as_path()),
+        Some(RecoveryAction::RetiredRemoved)
+    );
+    assert!(!scene.directory.exists());
+    assert!(!retired.exists());
+    assert!(
+        crate::transaction_registry::list_transaction_entries(scene.registry.as_path())
+            .expect("listing")
+            .is_empty()
+    );
+    // The landed commit stays: recovery cleaned up, it did not undo anything.
+    assert_eq!(git_text(scene.repo.as_path(), &["rev-parse", "refs/heads/main"]), scene.prepared);
     scene.finish();
 }
 

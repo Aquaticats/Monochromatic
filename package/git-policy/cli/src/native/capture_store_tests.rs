@@ -1,6 +1,7 @@
 //! Controls for the capture store's files.
 
 use super::*;
+use crate::private_storage::take_directory_syncs;
 use crate::test_support::{fixture, remove};
 
 /// Sequence files hold canonical decimal safe integers and one newline.
@@ -122,4 +123,16 @@ fn worktree_identities_are_trimmed() {
     std::fs::create_dir(store.join(WORKTREE_ID_FILENAME)).expect("directory");
     assert!(read_worktree_id(root.as_path()).is_err());
     remove(root.as_path());
+}
+
+/// Creating the store syncs the Git directory once, and finding the store syncs nothing.
+#[test]
+fn the_git_directory_is_synced_only_when_the_store_is_created() {
+    let git_dir: PathBuf = fixture("capture-store-sync-on-create");
+    take_directory_syncs();
+    ensure_capture_store(git_dir.as_path()).expect("created");
+    assert_eq!(take_directory_syncs(), vec![git_dir.clone()]);
+    ensure_capture_store(git_dir.as_path()).expect("found");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    remove(git_dir.as_path());
 }

@@ -20,7 +20,8 @@
 use super::diagnostic_log::{debug, warn};
 use super::hook_dispatch_plan::HookDispatchPlan;
 use super::landed_disposal::{LandedTransactionPaths, dispose_landed_transaction};
-use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance};
+use super::config_snapshot::ConfigSnapshot;
+use super::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use super::post_commit_hook::{
     PostCommitHookError, PostCommitHookOutcome, PostCommitHookRequest, run_post_commit_hook,
 };
@@ -65,6 +66,8 @@ pub struct LandedTransaction {
     pub added_paths: Vec<AddedPath>,
     /// Selected corrections, then hook changes, whose worktree copies the landing completes.
     pub worktree_records: Vec<AddedPath>,
+    /// The configuration read when the commit began, which supplies the maintenance keys when it models them.
+    pub config_snapshot: Option<ConfigSnapshot>,
 }
 
 /// What:
@@ -183,9 +186,10 @@ pub fn complete_landed_transaction(
         registry_root: landed.registry_root.as_path(),
     })
     .map_err(PostLandingError::Dispose)?;
-    let maintenance: Option<AutoMaintenanceOutcome> = match run_auto_maintenance(
+    let maintenance: Option<AutoMaintenanceOutcome> = match run_auto_maintenance_with(
         request.context,
         landed.repository_root.as_path(),
+        landed.config_snapshot.as_ref(),
     ) {
         Ok(outcome) => Some(outcome),
         Err(error) => {

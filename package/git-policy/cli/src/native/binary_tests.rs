@@ -73,6 +73,9 @@ mod management;
 mod coordination;
 #[path = "binary_hook_tests.rs"]
 mod hook;
+/// A wrapped commit and a direct one agree in every shape of hook, whether or not an event has a dispatcher entry.
+#[path = "binary_hook_shim_tests.rs"]
+mod hook_shim;
 /// The dependent-version policy on direct check and fix.
 #[path = "binary_dependent_version_tests.rs"]
 mod dependent_version;
@@ -86,6 +89,14 @@ mod landing_crash;
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
+
+/// A commit killed at a phase marker whose transaction files are then torn, dropped or emptied: what recovery does.
+#[path = "binary_recovery_tearing_tests.rs"]
+mod recovery_tearing;
+
+/// The Git version text a commit records in the user's cache directory, and when it trusts it.
+#[path = "binary_version_cache_tests.rs"]
+mod version_cache;
 
 /// A process start that fails anywhere in a commit never strands the repository.
 #[path = "binary_fork_failure_tests.rs"]

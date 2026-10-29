@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::capture_store::{SEQUENCE_FILENAME, WORKTREE_ID_FILENAME};
+use crate::private_storage::take_directory_syncs;
 use crate::test_support::{fixture, remove};
 use crate::transaction_registry::{OWNER_FILENAME, TRANSACTION_ROOT_NAME};
 
@@ -185,6 +186,39 @@ fn landings_record_their_capture_once() {
     .expect("captured");
     std::fs::write(store.join(SEQUENCE_FILENAME), b"x\n").expect("malformed sequence");
     assert!(record_landed_capture(git_dir.as_path(), transaction.as_path(), "t", "c2").is_err());
+    remove(root.as_path());
+}
+
+/// Recording a landing syncs the directories it creates and the record directory it writes into;
+///  recording the same landing again finds everything in place and syncs nothing.
+#[test]
+fn a_repeated_landing_record_syncs_nothing() {
+    let root: PathBuf = fixture("capture-records-record-sync");
+    let git_dir: PathBuf = root.join("git");
+    std::fs::create_dir(&git_dir).expect("git dir");
+    let transaction: PathBuf = root.join("transaction");
+    std::fs::create_dir(&transaction).expect("transaction");
+    std::fs::write(
+        transaction.join(CAPTURED_FILENAME),
+        encode_captured_record(&captured("w", 2)),
+    )
+    .expect("captured");
+    let store: PathBuf = git_dir.join(crate::capture_store::CAPTURE_STORE_NAME);
+    let landed_directory: PathBuf = landed_record_directory(git_dir.as_path());
+    take_directory_syncs();
+    assert_eq!(
+        record_landed_capture(git_dir.as_path(), transaction.as_path(), "t", "c0"),
+        Ok(true)
+    );
+    assert_eq!(
+        take_directory_syncs(),
+        vec![git_dir.clone(), store.clone(), landed_directory.clone()]
+    );
+    assert_eq!(
+        record_landed_capture(git_dir.as_path(), transaction.as_path(), "t", "c0"),
+        Ok(true)
+    );
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
     remove(root.as_path());
 }
 

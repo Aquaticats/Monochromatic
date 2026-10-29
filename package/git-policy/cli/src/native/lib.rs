@@ -41,6 +41,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// One `git config --list` read, parsed, and the lookups the commit path makes against it.
+pub mod config_snapshot;
+
 /// Key-naming typed readers over parsed JSONC values.
 mod config_values;
 
@@ -91,6 +94,12 @@ pub mod real_git_candidate;
 ///  never part of the release executable.
 #[cfg(test)]
 mod test_support;
+
+/// A Git stand-in that logs each start and runs the real Git;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod recording_git;
 
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
@@ -588,6 +597,10 @@ pub mod iso_time;
 /// The filesystem identity recorded with every real `index.lock` a transaction creates.
 pub mod filesystem_identity;
 
+/// The Linux filesystem UUID of a path read from the mount table and the udev database instead of `findmnt`.
+#[cfg(target_os = "linux")]
+pub mod filesystem_identity_mount;
+
 /// Running real Git for transaction,
 ///  recovery and landing work.
 pub mod transaction_git;
@@ -603,6 +616,9 @@ pub mod hook_dispatch_entries;
 
 /// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
 pub mod hook_dispatch;
+
+/// Whether a commit event can have a user hook, so an event without one needs no dispatcher entry.
+pub mod hook_presence;
 
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
@@ -700,6 +716,15 @@ pub mod replay_revalidation;
 
 /// Replay: one replay of a prepared commit onto a moved target, the integrator's replay result (`replay_commit`).
 pub mod replay_commit;
+/// The empty tree's object name under each known object format.
+pub mod empty_tree;
+
+/// Files-backend ref reads that answer without a Git process or decline.
+pub mod ref_files;
+
+/// Proof, without a Git process, that a sequencer marker names nothing on the files ref storage.
+pub mod sequencer_marker;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;
@@ -769,6 +794,9 @@ pub mod process_start;
 
 /// The Git version check run once before work that depends on Git's behavior.
 pub mod git_version;
+
+/// The private per-user cache of the version text, keyed by the Git executable's identity.
+pub mod git_version_cache;
 
 /// Processes holding a lock file open,
 ///  found by device and inode.
