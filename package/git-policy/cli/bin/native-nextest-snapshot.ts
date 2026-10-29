@@ -24,7 +24,7 @@ import {
 import {
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 
 /** Pinned so every gate runs the same runner; the checksum below belongs to this exact release asset. */
 export const nextestVersion = '0.9.148';

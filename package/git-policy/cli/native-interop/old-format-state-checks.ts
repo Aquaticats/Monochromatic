@@ -1,5 +1,5 @@
 /**
- The checks of `old-format-fixtures.mjs` for stored state that no transaction phase explains: the capture store of
+ The checks of `old-format-fixtures.ts` for stored state that no transaction phase explains: the capture store of
  finished commits and the hook lock of a dead incumbent.
  */
 /// <reference types="node" />
@@ -13,19 +13,19 @@ import { join } from 'node:path';
 import {
   restoreFixture,
   captureSequence
-} from './old-format-restore.mjs';
+} from './old-format-restore.ts';
 import {
   excerpt,
   LONG_EXCERPT,
   linesOf,
-} from './old-format-text.mjs';
+} from './old-format-text.ts';
 import {
   isMissingPath,
   leftovers,
   namesIn,
   realGit,
   runThrough,
-} from './support.mjs';
+} from './support.ts';
 
 /**
  The lines of the hook's log.
@@ -53,7 +53,7 @@ async function hookLines(log) {
 /**
  Check that a native commit lands over the incumbent's capture store and advances its sequence.
 
- @param {{ matrix: import('./old-format-phase-checks.mjs').Matrix }} request - recorder of the driver's checks
+ @param {{ matrix: import('./old-format-phase-checks.ts').Matrix }} request - recorder of the driver's checks
  */
 export async function checkCompleted({ matrix }) {
   const tag = 'completed';
@@ -118,7 +118,7 @@ export async function checkCompleted({ matrix }) {
 /**
  Check that a native commit retires the hook lock of a dead incumbent, runs the hook once and lands.
 
- @param {{ matrix: import('./old-format-phase-checks.mjs').Matrix }} request - recorder of the driver's checks
+ @param {{ matrix: import('./old-format-phase-checks.ts').Matrix }} request - recorder of the driver's checks
  */
 export async function checkDeadHookLock({ matrix }) {
   const tag = 'hook-lock-dead';

@@ -8,7 +8,7 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { isMissingPath } from './support.mjs';
+import { isMissingPath } from './support.ts';
 
 /**
  Directories below `.git` that hold objects, references and transaction state.

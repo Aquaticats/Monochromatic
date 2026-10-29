@@ -17,7 +17,7 @@ import {
   resolve,
 } from 'node:path';
 
-import { vendorLockedDependencies } from './native-scanner-snapshot.mjs';
+import { vendorLockedDependencies } from './native-scanner-snapshot.ts';
 
 /** Directory below the build context that holds the linter stage's repository-shaped sources. */
 export const linterContextDirectory = 'linter-stage';

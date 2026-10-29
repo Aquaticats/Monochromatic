@@ -21,19 +21,19 @@ import {
   linterSnapshotEntries,
   linterStageLines,
   vendorLinterDependencies,
-} from './native-linter-snapshot.mjs';
+} from './native-linter-snapshot.ts';
 import {
   copyNextest,
   nextestCopyLines,
-} from './native-nextest-snapshot.mjs';
+} from './native-nextest-snapshot.ts';
 import {
   scannerSnapshotEntries,
   vendorLockedDependencies,
-} from './native-scanner-snapshot.mjs';
+} from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,

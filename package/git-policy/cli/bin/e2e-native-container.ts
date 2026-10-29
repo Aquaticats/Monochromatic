@@ -37,11 +37,11 @@ import {
 import {
   scannerSnapshotEntries,
   vendorLockedDependencies,
-} from './native-scanner-snapshot.mjs';
+} from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -260,5 +260,5 @@ const action = Object.entries(actions)
     return name === subcommand;
   })?.[1];
 if ((extra.length > 0) || (action === undefined))
-  throw new NativeVerificationError('Usage: node bin/e2e-native-container.mjs base|image|run');
+  throw new NativeVerificationError('Usage: node bin/e2e-native-container.ts base|image|run');
 await action();

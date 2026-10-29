@@ -3,7 +3,7 @@
 
  Every option is validated before any container starts, so a typo fails in milliseconds instead of after a build.
  */
-import { NativeVerificationError } from '../../cli/bin/native-verification-process.mjs';
+import { NativeVerificationError } from '../../cli/bin/native-verification-process.ts';
 
 /**
  One registered target and the dictionary it fuzzes with.

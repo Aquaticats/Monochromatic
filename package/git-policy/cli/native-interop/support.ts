@@ -1,6 +1,6 @@
 /**
  Shared helpers of the native-interoperability drivers.
- They run only inside the image `bin/interop-native-container.mjs` builds,
+ They run only inside the image `bin/interop-native-container.ts` builds,
  where `/opt/native/bin/git` is the native wrapper and `/usr/bin/git` is Git 2.56.0.
  Every repository is restored below `/work/scratch` and never leaves the container.
  */

@@ -1,12 +1,12 @@
 /**
- Text and process helpers shared by the checks of `old-format-fixtures.mjs`.
+ Text and process helpers shared by the checks of `old-format-fixtures.ts`.
  */
 /// <reference types="node" />
 import {
   REAL_GIT,
   run,
   runEnvironment,
-} from './support.mjs';
+} from './support.ts';
 
 /** Longest excerpt of a status or fsck output that a check message carries. */
 export const SHORT_EXCERPT = 300;
@@ -49,7 +49,7 @@ export function linesOf(text) {
  Run `git fsck` through real Git in a restored fixture.
 
  @param {{ repository: string, home: string }} fixture - restored fixture
- @returns {Promise<import('./support.mjs').RunOutcome>} the outcome
+ @returns {Promise<import('./support.ts').RunOutcome>} the outcome
  */
 export function fsckOf(fixture) {
   return run({

@@ -1,5 +1,5 @@
 /**
- The per-phase checks of `old-format-fixtures.mjs`: the stored incumbent transaction phases.
+ The per-phase checks of `old-format-fixtures.ts`: the stored incumbent transaction phases.
  */
 /// <reference types="node" />
 import {
@@ -12,15 +12,15 @@ import {
   fingerprintOf,
   lostEntries,
   STORED_STATE_DIRECTORIES,
-} from './old-format-fingerprint.mjs';
-import { restoreFixture } from './old-format-restore.mjs';
+} from './old-format-fingerprint.ts';
+import { restoreFixture } from './old-format-restore.ts';
 import {
   excerpt,
   fsckOf,
   LONG_EXCERPT,
   linesOf,
   SHORT_EXCERPT,
-} from './old-format-text.mjs';
+} from './old-format-text.ts';
 import {
   leftovers,
   namesIn,
@@ -29,7 +29,7 @@ import {
   runEnvironment,
   runThrough,
   REAL_GIT,
-} from './support.mjs';
+} from './support.ts';
 
 /**
  A stored phase and whether the incumbent's commit had landed when it died.
@@ -38,7 +38,7 @@ import {
 
 /**
  Recorder of the driver's checks.
- @typedef {ReturnType<typeof import('./support.mjs').createMatrix>} Matrix
+ @typedef {ReturnType<typeof import('./support.ts').createMatrix>} Matrix
  */
 
 /** Words, in lower case, that would mean the native wrapper could not read a stored record. */

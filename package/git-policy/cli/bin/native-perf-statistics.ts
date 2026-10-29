@@ -1,5 +1,5 @@
 /**
- Order statistics of the latency samples that `native-perf.mjs` reports for each scenario.
+ Order statistics of the latency samples that `native-perf.ts` reports for each scenario.
 
  `SPEC.md` ("Benchmark method") asks for the median, the p95 and the median absolute deviation of every sample set.
  */

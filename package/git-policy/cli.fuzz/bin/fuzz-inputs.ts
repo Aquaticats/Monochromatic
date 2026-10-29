@@ -18,7 +18,7 @@ import {
   resolve,
 } from 'node:path';
 
-import { NativeVerificationError } from '../../cli/bin/native-verification-process.mjs';
+import { NativeVerificationError } from '../../cli/bin/native-verification-process.ts';
 
 /** Error codes that mean a PATH entry does not hold a usable candidate. */
 const unusableCandidateCodes = new Set([

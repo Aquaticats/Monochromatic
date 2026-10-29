@@ -2,7 +2,7 @@
  The native wrapper reads on-disk state in the format the retired incumbent wrapper wrote.
 
  The fixtures under `native-interop/fixture/` are plain files captured from the incumbent (pinned revision
- `f4fc1fa213ece65672e4314983a75266837892f9`) by `capture-fixtures.mjs`; `old-format-restore.mjs` recreates them.
+ `f4fc1fa213ece65672e4314983a75266837892f9`) by `capture-fixtures.mjs`; `old-format-restore.ts` recreates them.
  Each fixture is restored to the absolute location it was captured at (its records name absolute paths), and then
  only the native wrapper runs against it:
 
@@ -24,16 +24,16 @@
 import {
   checkIdentityBoundPhase,
   checkRestorablePhase,
-} from './old-format-phase-checks.mjs';
+} from './old-format-phase-checks.ts';
 import {
   checkCompleted,
   checkDeadHookLock,
-} from './old-format-state-checks.mjs';
-import { createMatrix } from './support.mjs';
+} from './old-format-state-checks.ts';
+import { createMatrix } from './support.ts';
 
 /**
  Phases whose records hold no identity of a file that a copy cannot reproduce.
- @type {readonly import('./old-format-phase-checks.mjs').StoredPhase[]}
+ @type {readonly import('./old-format-phase-checks.ts').StoredPhase[]}
  */
 const RESTORABLE_PHASES = [
   {
@@ -47,7 +47,7 @@ const RESTORABLE_PHASES = [
 ];
 /**
  Phases whose records name device and inode numbers of files the incumbent created.
- @type {readonly import('./old-format-phase-checks.mjs').StoredPhase[]}
+ @type {readonly import('./old-format-phase-checks.ts').StoredPhase[]}
  */
 const IDENTITY_BOUND_PHASES = [
   {

@@ -1,5 +1,5 @@
 /**
- Git processes and fixture repositories the latency benchmark in `native-perf.mjs` measures against.
+ Git processes and fixture repositories the latency benchmark in `native-perf.ts` measures against.
 
  Every direct sample and every wrapper child runs the real Git at `/usr/bin/git`; the wrapped run only differs in
  that its PATH lists the scratch `bin` directory, where `git` is a symlink to the release wrapper, first.
@@ -14,7 +14,7 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { runCommand } from './native-verification-process.mjs';
+import { runCommand } from './native-verification-process.ts';
 
 /** The real Git every direct sample and every wrapper child runs. */
 const REAL_GIT = '/usr/bin/git';

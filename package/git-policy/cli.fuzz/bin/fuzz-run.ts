@@ -19,12 +19,12 @@ import {
   createContainer,
   NativeVerificationError,
   runCommand,
-} from '../../cli/bin/native-verification-process.mjs';
+} from '../../cli/bin/native-verification-process.ts';
 import {
   limits,
   maxInputBytes,
   runImage,
-} from './fuzz-images.mjs';
+} from './fuzz-images.ts';
 
 /** How much of the end of each stream is searched for libFuzzer's final statistics: 256 KiB. */
 const statisticsTailBytes = 262_144;
@@ -89,7 +89,7 @@ export function executedUnitsIn(text) {
 /**
  Run the target's fuzzer to its time limit.
 
- @param {{ target: import('./fuzz-options.mjs').FuzzTarget, evidence: string, secondsPerTarget: number }} request -
+ @param {{ target: import('./fuzz-options.ts').FuzzTarget, evidence: string, secondsPerTarget: number }} request -
    the target, the evidence directory and the seconds to fuzz
  @returns {Promise<string | undefined>} what went wrong, or nothing when the target ran and executed inputs
  */

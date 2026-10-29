@@ -1,5 +1,5 @@
 /**
- Restores the plain-file fixtures the retired incumbent wrapper left, for `old-format-fixtures.mjs`.
+ Restores the plain-file fixtures the retired incumbent wrapper left, for `old-format-fixtures.ts`.
 
  The fixtures under `native-interop/fixture/` store every `.git` directory as `dot-git`,
  and list the symbolic links the incumbent's shadow repositories hold in the fixture's `links.tsv`
@@ -25,7 +25,7 @@ import {
   REAL_GIT,
   run,
   runEnvironment,
-} from './support.mjs';
+} from './support.ts';
 
 /** Where the fixtures sit in the image. */
 const FIXTURE_SOURCE = '/fixture/native-interop/fixture';

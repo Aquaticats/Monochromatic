@@ -21,7 +21,7 @@ import {
 import {
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 
 /** Image path of the vendored registry sources; the Containerfile copies `vendor` there. */
 const imageVendorDirectory = '/work/vendor';

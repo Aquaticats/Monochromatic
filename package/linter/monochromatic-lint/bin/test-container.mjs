@@ -12,7 +12,7 @@ import {
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
 // The gate image runs the suite with the runner the git-policy/cli gate pins by version and checksum.
-import { copyNextest } from '../../../git-policy/cli/bin/native-nextest-snapshot.mjs';
+import { copyNextest } from '../../../git-policy/cli/bin/native-nextest-snapshot.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,

@@ -10,8 +10,8 @@
  The retired TypeScript wrapper is not part of the image; the drivers that ran against it, and the step that rebuilt
  it from its pinned revision, are recorded in `doc/handover/cli-git-native-interop.md`.
 
- Usage: `node bin/interop-native-container.mjs <driver> [arguments...]`,
- where `<driver>` names a file under `native-interop/` without its `.mjs` suffix.
+ Usage: `node bin/interop-native-container.ts <driver> [arguments...]`,
+ where `<driver>` names a file under `native-interop/` without its `.ts` suffix.
  */
 // The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
 // program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
@@ -33,11 +33,11 @@ import {
 import {
   scannerSnapshotEntries,
   vendorLockedDependencies,
-} from './native-scanner-snapshot.mjs';
+} from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -292,7 +292,7 @@ const run = await runCommand({
     ...limits,
     image,
     'node',
-    `/fixture/native-interop/${driver}.mjs`,
+    `/fixture/native-interop/${driver}.ts`,
     ...driverArguments,
   ],
   capture: true,

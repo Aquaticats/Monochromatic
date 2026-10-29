@@ -6,7 +6,7 @@
 // The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
 // program that loads no ambient Node types; this reference loads them, so `process` stays typed in this file.
 /// <reference types="node" />
-import { NativeVerificationError } from './native-verification-process.mjs';
+import { NativeVerificationError } from './native-verification-process.ts';
 
 /** Directory every mutation scope must name. */
 const nativeSourcePrefix = 'src/native/';

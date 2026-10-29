@@ -24,8 +24,8 @@ import {
 import {
   NativeVerificationError,
   runCommand,
-} from '../../cli/bin/native-verification-process.mjs';
-import { plants } from './planted-table.mjs';
+} from '../../cli/bin/native-verification-process.ts';
+import { plants } from './planted-table.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -135,7 +135,7 @@ async function controls({ root }) {
 /**
  Apply one plant's edits to its file text, refusing an edit that does not match exactly once.
 
- @param {{ plant: import('./planted-table.mjs').Plant, original: string }} request - the plant and its file's text
+ @param {{ plant: import('./planted-table.ts').Plant, original: string }} request - the plant and its file's text
  @returns {string} the edited text
  @throws {NativeVerificationError} when an edit matches anything but exactly once
  */
@@ -166,7 +166,7 @@ function planted({
 /**
  Plant one defect, run the controls, and put the file back.
 
- @param {{ root: string, evidence: string, plant: import('./planted-table.mjs').Plant, index: number }} request -
+ @param {{ root: string, evidence: string, plant: import('./planted-table.ts').Plant, index: number }} request -
    the disposable copy, the evidence directory, the defect and its position, which names its log
  @returns {Promise<{ name: string, file: string, edits: unknown, status: number | null, failed: string[],
    noticed: boolean }>} what the controls observed

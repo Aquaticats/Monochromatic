@@ -16,7 +16,7 @@ import {
   NativeVerificationError,
   createContainer,
   runCommand
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,

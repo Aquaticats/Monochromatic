@@ -2,10 +2,10 @@
  Planted guard removals in the entry point, configuration, index locks and hook dispatch.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
- current source, so a control cannot silently stop applying. See `native-planted-controls.mjs` for how they run.
+ current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
 
-/** @type {readonly import('./native-planted-controls.mjs').PlantedControl[]} */
+/** @type {readonly import('./native-planted-controls.ts').PlantedControl[]} */
 export const plantedEntryControls = [
   {
     name: "post-commit disabled event runs nothing",

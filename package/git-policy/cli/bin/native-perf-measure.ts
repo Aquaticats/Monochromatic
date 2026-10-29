@@ -1,16 +1,16 @@
 /**
- Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.mjs`.
+ Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.ts`.
  */
 // The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
 // program that loads no ambient Node types; this reference loads them, so `node:` imports stay typed in this file on
 // its own instead of depending on a sibling module that carries the same reference.
 /// <reference types="node" />
-import { timed } from './native-perf-git.mjs';
+import { timed } from './native-perf-git.ts';
 import {
   median,
   percentile95,
   summary,
-} from './native-perf-statistics.mjs';
+} from './native-perf-statistics.ts';
 
 /**
  One sample whose Git command exited nonzero.

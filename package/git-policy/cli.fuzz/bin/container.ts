@@ -15,19 +15,19 @@ import { join } from 'node:path';
 import {
   NativeVerificationError,
   runCommand,
-} from '../../cli/bin/native-verification-process.mjs';
-import { buildInstrumentedTargets } from './fuzz-build.mjs';
+} from '../../cli/bin/native-verification-process.ts';
+import { buildInstrumentedTargets } from './fuzz-build.ts';
 import {
   baseImage,
   limits,
   maxInputBytes,
   runImage,
-} from './fuzz-images.mjs';
+} from './fuzz-images.ts';
 import {
   parseOptions,
   targets,
-} from './fuzz-options.mjs';
-import { fuzzTarget } from './fuzz-run.mjs';
+} from './fuzz-options.ts';
+import { fuzzTarget } from './fuzz-run.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -115,7 +115,7 @@ async function buildRunImage({
  Fuzz each selected target in turn. A failed target is recorded and the campaign goes on,
  so one finding never hides the targets after it.
 
- @param {{ selected: readonly import('./fuzz-options.mjs').FuzzTarget[], evidence: string,
+ @param {{ selected: readonly import('./fuzz-options.ts').FuzzTarget[], evidence: string,
    secondsPerTarget: number }} request - the targets, the evidence directory and the seconds each runs
  @returns {AsyncGenerator<string | undefined>} one outcome per target: what went wrong, or nothing
  */

@@ -16,22 +16,22 @@ import { join } from 'node:path';
 import {
   copyNextest,
   nextestCopyLines
-} from '../../cli/bin/native-nextest-snapshot.mjs';
+} from '../../cli/bin/native-nextest-snapshot.ts';
 import {
   createContainer,
   NativeVerificationError,
   runCommand,
-} from '../../cli/bin/native-verification-process.mjs';
+} from '../../cli/bin/native-verification-process.ts';
 import {
   baseImage,
   buildImage,
   limits,
-} from './fuzz-images.mjs';
+} from './fuzz-images.ts';
 import {
   copyInputs,
   executable,
-} from './fuzz-inputs.mjs';
-import { targets } from './fuzz-options.mjs';
+} from './fuzz-inputs.ts';
+import { targets } from './fuzz-options.ts';
 
 /**
  Run `cargo vendor` and map the vendored directory to its path inside the build image.

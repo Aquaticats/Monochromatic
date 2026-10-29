@@ -23,17 +23,17 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { runPlantedControls } from './native-planted-controls.mjs';
+import { runPlantedControls } from './native-planted-controls.ts';
 import {
   baselineSkipArguments,
   parseScopes,
   parseTimeout,
-} from './native-mutation-options.mjs';
+} from './native-mutation-options.ts';
 import {
   createContainer,
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -46,7 +46,7 @@ makeScratchBase(scratchBase, { recursive: true });
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
   ?? 'development';
-/** Already tested source snapshot this campaign mutates; built by bin/test-native-container.mjs. */
+/** Already tested source snapshot this campaign mutates; built by bin/test-native-container.ts. */
 const testImage = `localhost/git-policy-native-test:${imageTag}`;
 /** Campaign image layered over the tested snapshot. */
 const mutationImage = `localhost/git-policy-native-mutation:${imageTag}`;

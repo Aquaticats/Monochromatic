@@ -17,14 +17,14 @@ import {
   resolve,
 } from 'node:path';
 
-import { plantedCommitControls } from './native-planted-controls-commit.mjs';
-import { plantedEntryControls } from './native-planted-controls-entry.mjs';
-import { plantedLandingControls } from './native-planted-controls-landing.mjs';
+import { plantedCommitControls } from './native-planted-controls-commit.ts';
+import { plantedEntryControls } from './native-planted-controls-entry.ts';
+import { plantedLandingControls } from './native-planted-controls-landing.ts';
 import {
   createContainer,
   NativeVerificationError,
   runCommand,
-} from './native-verification-process.mjs';
+} from './native-verification-process.ts';
 
 /** Source directory inside the tested image. */
 const containerSource = '/work/package/git-policy/cli';

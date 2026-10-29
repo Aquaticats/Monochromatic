@@ -1,8 +1,8 @@
 /**
  Defects the planted-control run applies, one per invariant family.
  */
-import { dependentVersionPlants } from './planted-dependent-version.mjs';
-import { markdownPlants } from './planted-markdown.mjs';
+import { dependentVersionPlants } from './planted-dependent-version.ts';
+import { markdownPlants } from './planted-markdown.ts';
 
 /**
  One defect: its name, the file it edits and the edits, each of which must match exactly once.

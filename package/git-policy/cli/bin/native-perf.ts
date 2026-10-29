@@ -34,8 +34,8 @@ import {
 } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { repository } from './native-perf-git.mjs';
-import { measure } from './native-perf-measure.mjs';
+import { repository } from './native-perf-git.ts';
+import { measure } from './native-perf-measure.ts';
 
 /** The strict upper bound for wrapper-added latency of a forwarded command, in milliseconds. */
 const BUDGET_MILLISECONDS = 2_000;
@@ -171,15 +171,15 @@ const forwarded = [
   },
 ];
 
-/** @type {import('./native-perf-measure.mjs').SampleFailure[]} */
+/** @type {import('./native-perf-measure.ts').SampleFailure[]} */
 const failures = [];
-/** @type {import('./native-perf-measure.mjs').ScenarioReport[]} */
+/** @type {import('./native-perf-measure.ts').ScenarioReport[]} */
 const report = [];
 
 /**
  Keep a scenario's failed samples and its report, in the order the scenarios ran.
 
- @param {import('./native-perf-measure.mjs').ScenarioMeasurement} measurement - what one scenario measured
+ @param {import('./native-perf-measure.ts').ScenarioMeasurement} measurement - what one scenario measured
  */
 function record(measurement) {
   failures.push(...measurement.failures);
@@ -191,7 +191,7 @@ function record(measurement) {
 /**
  Measure every scenario one at a time, forwarded commands first, because concurrent scenarios would distort each other.
 
- @returns {AsyncGenerator<import('./native-perf-measure.mjs').ScenarioMeasurement>} one measurement per scenario,
+ @returns {AsyncGenerator<import('./native-perf-measure.ts').ScenarioMeasurement>} one measurement per scenario,
    in the order the scenarios ran
  */
 async function* measureScenarios() {

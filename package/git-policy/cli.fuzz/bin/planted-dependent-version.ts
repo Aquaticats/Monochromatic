@@ -1,5 +1,5 @@
 /**
- Planted defects for the dependent-version invariants, spread into the list in `planted-controls.mjs`.
+ Planted defects for the dependent-version invariants, spread into the list in `planted-controls.ts`.
  Each `from` must occur exactly once in its file.
  */
 
