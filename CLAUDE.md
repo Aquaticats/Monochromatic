@@ -1192,10 +1192,12 @@ PP8:
 PPX:
  Class members default to `#private`.
 
-#### Regular expressions
+#### Unbounded input
 
 RG2:
- Code replacing a regex makes one linear pass (O(n) time,
+ Code consuming unbounded input
+ (regex replacement included)
+ makes one linear pass (O(n) time,
  O(1) stack),
  proven O(n) for unbounded input.
 
