@@ -138,7 +138,7 @@ function quoteSpans(
 
  @param titles - archive italic spans
 
- @returns The span's italic form, or the empty string where it names no title
+ @returns Span's italic form, or the empty string where it names no title
 
  @example
  ```ts

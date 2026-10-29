@@ -90,7 +90,7 @@ function isRangeSpace(
 
  @param day - day just read
 
- @returns The month, or no part where none follows the day
+ @returns Month, or no part where none follows the day
 
  @example
  ```ts
@@ -135,7 +135,7 @@ export function monthAfterDay(
 
  @param month - month just read
 
- @returns The tail, or no part where the month starts a name or runs into
+ @returns Tail, or no part where the month starts a name or runs into
  more digits or letters
 
  @example
@@ -296,7 +296,7 @@ type DayFirstParts = Readonly<{
 
  @param at - offset of the day's first digit
 
- @returns The parts, or no part where no day-first date starts there
+ @returns Parts, or no part where no day-first date starts there
 
  @example
  ```ts
@@ -355,7 +355,7 @@ function dayFirstParts(
 
  @param at - offset of the day's first digit
 
- @returns The date, or no part where none starts there
+ @returns Date, or no part where none starts there
 
  @example
  ```ts
@@ -405,7 +405,7 @@ export function readDayFirst(
 
  @param at - offset of the first day's first digit
 
- @returns The date, or no part where no such range starts there
+ @returns Date, or no part where no such range starts there
 
  @example
  ```ts

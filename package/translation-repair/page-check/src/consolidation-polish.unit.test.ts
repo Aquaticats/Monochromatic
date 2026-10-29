@@ -278,7 +278,7 @@ function singleRoundClient(
 
  @param gateChoice - what every polish gate judge chooses
 
- @returns The client and the schema of every request, in the order asked
+ @returns Client and schema of every request, in the order asked
 
  @example
  ```ts

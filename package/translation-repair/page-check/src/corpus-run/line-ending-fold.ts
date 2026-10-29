@@ -32,7 +32,7 @@ type FoldedReplacement = {
 
  @param entry - replacement beside its folded text
 
- @returns The replacement unchanged when nothing folded, else with the folded text
+ @returns Replacement unchanged when nothing folded, else with the folded text
 
  @example
  ```ts

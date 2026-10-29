@@ -111,7 +111,7 @@ function englishWordsOf(
 
  @param text - text as the page would carry it
 
- @param source - the original slice, whose own English words keep their
+ @param source - original slice, whose own English words keep their
  spelling
 
  @returns Rewritten text and each change as "from" to "to"

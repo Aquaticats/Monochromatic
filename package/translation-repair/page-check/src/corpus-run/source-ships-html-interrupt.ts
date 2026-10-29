@@ -82,7 +82,7 @@ function endsRightBefore(
 
  @param block - block that stands right before another
 
- @returns The block the first one ends with: itself for a block that is no container, the last block of the last item of a
+ @returns Block the first one ends with: itself for a block that is no container, the last block of the last item of a
  list, the last block of a block quote
 
  @example

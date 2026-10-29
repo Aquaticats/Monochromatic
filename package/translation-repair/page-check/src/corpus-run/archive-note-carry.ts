@@ -45,9 +45,9 @@ import {
  Quotes a note for the finding that names it, so a note over several lines
  stays on one line of the log.
 
- @param text - the note as the archive writes it
+ @param text - note as the archive writes it
 
- @returns The note as a quoted string
+ @returns Note as a quoted string
 
  @example
  ```ts
@@ -72,7 +72,7 @@ export function quotedNote({ text, }: { readonly text: string; },): string {
 
  @param notes - each note as the archive writes it, in archive order
 
- @returns The wording followed by each note
+ @returns Wording followed by each note
 
  @example
  ```ts
@@ -115,9 +115,9 @@ export function appendedNotes(
 
  @param text - what the page carries for the slice
 
- @param archive - the archive's text for the slice
+ @param archive - archive's text for the slice
 
- @returns The text and each note added; the text unchanged when it lacks none
+ @returns Text and each note added; the text unchanged when it lacks none
 
  @example
  ```ts

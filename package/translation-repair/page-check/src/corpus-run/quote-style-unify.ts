@@ -167,9 +167,9 @@ type PageReadings = {
 
  @param page - what the page pass read of the slices
 
- @param text - the text of a slice as the page carries it
+ @param text - text of a slice as the page carries it
 
- @returns The text's prose mask and whether the grammar refused it
+ @returns Text's prose mask and whether the grammar refused it
 
  @example
  ```ts
@@ -212,7 +212,7 @@ function readingOf(
 
  @param carried - text the page carries per slice
 
- @returns The readings by carried text, and the definitions they were read with
+ @returns Readings by carried text, and the definitions they were read with
 
  @example
  ```ts
@@ -302,7 +302,7 @@ function readPage(
 
  @param carried - text the page carries per slice
 
- @param page - the prose mask of each carried text, read once, with the page's definitions
+ @param page - prose mask of each carried text, read once, with the page's definitions
 
  @returns Convention text holding the curly marks the page mostly uses
 

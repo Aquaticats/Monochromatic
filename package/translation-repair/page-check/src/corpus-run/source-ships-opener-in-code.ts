@@ -111,7 +111,7 @@ function holdsOnlyMarks({ line, }: { readonly line: string; },): boolean {
 
  @param before - what stands in the span before the opener
 
- @returns The code with the gap after it cut off; the whole of it when nothing but gap stands in it
+ @returns Code with the gap after it cut off; the whole of it when nothing but gap stands in it
 
  @example
  ```ts

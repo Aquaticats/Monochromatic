@@ -56,7 +56,7 @@ type MonthFirstDays = Readonly<{
 
  @param first - first day after the month
 
- @returns The days as written month first, suffixes dropped
+ @returns Days as written month first, suffixes dropped
 
  @example
  ```ts
@@ -121,7 +121,7 @@ function monthFirstDays(
 
  @param at - offset just past the last day
 
- @returns The year, no part, or refused where a year runs into more digits
+ @returns Year, no part, or refused where a year runs into more digits
  or letters
 
  @example
@@ -158,7 +158,7 @@ function yearAfterDays(
 
  @param month - month just read
 
- @returns The month and year, or no part where no clean year follows
+ @returns Month and year, or no part where no clean year follows
 
  @example
  ```ts
@@ -201,7 +201,7 @@ function monthYear(
 
  @param at - offset of the month's first letter
 
- @returns The date, or no part where none starts there
+ @returns Date, or no part where none starts there
 
  @example
  ```ts
@@ -284,7 +284,7 @@ export function readMonthFirst(
 
  @param year - year just read
 
- @returns The date, or no part where none follows the year
+ @returns Date, or no part where none follows the year
 
  @example
  ```ts
@@ -347,7 +347,7 @@ function yearMonthDay(
 
  @param year - year just read
 
- @returns The date, or no part where none follows the year
+ @returns Date, or no part where none follows the year
 
  @example
  ```ts
@@ -420,7 +420,7 @@ function yearDayMonth(
 
  @param at - offset of the year's first digit
 
- @returns The date, or no part where none starts there
+ @returns Date, or no part where none starts there
 
  @example
  ```ts

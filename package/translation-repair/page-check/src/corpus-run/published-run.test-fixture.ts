@@ -102,7 +102,7 @@ export const BUILT_PIPELINE_DIR: string = join(
  Digest of the built pipeline, which a disagreement over an artifact another
  build settled names as the reader.
 
- @returns The digest text of `dist/final/node`
+ @returns Digest text of `dist/final/node`
 
  @example
  ```ts
@@ -121,7 +121,7 @@ export async function builtPipelineDigest(): Promise<PipelineDigest> {
  @param packageEntry - URL of the built index of the package that owns the command, as `import.meta.resolve` gives it
  for that package's name
 
- @returns The digest text of that package's `dist/final/node`
+ @returns Digest text of that package's `dist/final/node`
 
  @example
  ```ts
@@ -141,7 +141,7 @@ export async function builtPipelineDigestOf(
 
  @param entryId - entry the page belongs to
 
- @returns The page's path
+ @returns Page's path
 
  @example
  ```ts
@@ -173,7 +173,7 @@ export function publishedPagePath(
 
  @param entryId - entry the artifact settles
 
- @returns The artifact's path
+ @returns Artifact's path
 
  @example
  ```ts
@@ -202,7 +202,7 @@ export function artifactPathOf(
 
  @param entryId - entry the artifact settles
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts
@@ -440,7 +440,7 @@ function readerOf(
  archive has none for; false leaves the contest unasked, where such a slice
  ships nothing
 
- @returns The directory and the page path of the first entry, removed when
+ @returns Directory and page path of the first entry, removed when
  its `await using` scope ends
 
  @example

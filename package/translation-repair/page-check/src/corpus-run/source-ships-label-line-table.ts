@@ -46,7 +46,7 @@ function startOffsetOf({ node, }: { readonly node: TreeNode; },): number {
 
  @param body - text of the body, as the parse reads it
 
- @returns The body with the second line changed, the body itself when it has no second line
+ @returns Body with the second line changed, body itself when it has no second line
 
  @example
  ```ts
@@ -92,7 +92,7 @@ function withLetteredSecondLine({ body, }: { readonly body: string; },): string 
  @param body - text of the body of a footnote definition, as the parse reads it, its first line being the rest of the
  label's line
 
- @returns The body with the delimiter row lettered when the parse reads a table on the first line, the body otherwise
+ @returns Body with the delimiter row lettered when the parse reads a table on the first line, the body otherwise
 
  @example
  ```ts

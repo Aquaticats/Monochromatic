@@ -120,7 +120,7 @@ export function rowsChangingArchive(
 
  @param slices - preparation defining replacement spans
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param targetText - archive text the replacement spans address
 
@@ -130,7 +130,7 @@ export function rowsChangingArchive(
 
  @param incumbentBySlice - archive text of every slice, by index
 
- @returns The round's halves, passes and guard
+ @returns Round's halves, passes and guard
 
  @example
  ```ts
@@ -260,7 +260,7 @@ function takesBackAny({ fresh, }: { readonly fresh: readonly number[]; },): bool
 
  @param slices - preparation defining replacement spans
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param targetText - archive text the replacement spans address
 
@@ -270,7 +270,7 @@ function takesBackAny({ fresh, }: { readonly fresh: readonly number[]; },): bool
 
  @param incumbentBySlice - archive text of every slice, by index
 
- @returns The settling round, every slice taken back in round order, and the
+ @returns Settling round, every slice taken back in round order, and the
  findings of the rounds that took them back; the settling round's own guard
  may take back again a pass-made row at a slice already among them
 

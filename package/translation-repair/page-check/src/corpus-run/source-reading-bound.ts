@@ -110,7 +110,7 @@ function startsOf({ segments, }: { readonly segments: readonly Segment[]; },): C
 
  @param mayStand - whether the block may end after the place it stands at
 
- @returns The place; infinity where none of the first few is one
+ @returns Place; infinity where none of the first few is one
 
  @example
  ```ts
@@ -172,17 +172,17 @@ function firstStandingFrom(
 
  @param index - where each word of the page stands
 
- @param segment - the block
+ @param segment - block
 
  @param held - what the blocks a range reaches show since the last block no range reaches
 
- @param from - the place the block before ended at, with the cost
+ @param from - place the block before ended at, with the cost
 
  @param isLast - whether the block is the last of the source, which must end the page
 
  @param guesses - places the block is tried at along the offsets
 
- @returns The places, each with the cost of getting there
+ @returns Places, each with the cost of getting there
 
  @example
  ```ts
@@ -301,7 +301,7 @@ function placedAfterStanding(
 
  @param placed - places, with the cost, in any order
 
- @returns The cheapest places, the cheapest first, each place once at its cost
+ @returns Cheapest places, cheapest first, each place once at its cost
 
  @example
  ```ts
@@ -347,7 +347,7 @@ function cheapestOf({ placed, }: { readonly placed: readonly Standing[]; },): re
 
  @param segments - runs of the source, in order
 
- @returns The fewest blocks the readings cannot be asked about over those ways, which is no less than over every way;
+ @returns Fewest blocks the readings cannot be asked about over those ways, which is no less than over every way;
  infinity where none of them places the blocks
 
  @example

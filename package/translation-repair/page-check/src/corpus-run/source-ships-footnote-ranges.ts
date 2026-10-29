@@ -154,7 +154,7 @@ export type PageOnlyDefinition = {
 
  @param endLine - line the block read last in the container ends on, which a definition without a position leaves
 
- @returns The edit, the label and the state of the container; {@link NO_PAGE_ONLY_DEFINITION} when the node is no link
+ @returns Edit, label and state of the container; {@link NO_PAGE_ONLY_DEFINITION} when the node is no link
  reference definition with a footnote label or the page starts no footnote at it
 
  @example
@@ -309,10 +309,10 @@ export type FootnoteReadings = {
 
  @param readable - text as the parse reads it, with its comments blanked
 
- @param source - the text itself, whose label lines hold the comment openers that `readable` writes as text, so that a
+ @param source - text itself, whose label lines hold the comment openers that `readable` writes as text, so that a
  footnote definition that opens with one is found to open with raw HTML; `readable` when absent
 
- @returns The tables, the footnote definitions of the page and of the two readings together, the lines of the raw HTML
+ @returns Tables, footnote definitions of the page and of the two readings together, lines of the raw HTML
  blocks the definitions open with, and the starts only the page reads
 
  @example

@@ -19,7 +19,7 @@ import { readsAsDisplayMath, } from '../../dist/final/node/index.mjs';
 
  @param source - text
 
- @returns The answer for the stretch from the first `$$` to the end of the last
+ @returns Answer for the stretch from the first `$$` to the end of the last
 
  @example
  ```ts

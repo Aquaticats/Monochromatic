@@ -23,7 +23,7 @@ import { archiveBlockIdentity, } from './archive-block-repair.ts';
 
  @param pairIndex - aligned pair the block names
 
- @returns The pair's source text
+ @returns Pair's source text
 
  @throws {@link ArchiveBlockAlignmentMissingError} when the alignment holds no
  such pair, which means the preparation and the alignment disagree about the

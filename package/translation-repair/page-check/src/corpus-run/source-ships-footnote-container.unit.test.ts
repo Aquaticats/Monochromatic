@@ -44,7 +44,7 @@ const OPEN_IN_QUOTE = {
  @param source - text that is a block quote
  @param at - index of the child
 
- @returns The child and where it stands
+ @returns Child and where it stands
 
  @example
  ```ts

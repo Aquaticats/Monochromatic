@@ -361,7 +361,7 @@ export function opensFootnoteBody(
 
  @param range - where the block stands
 
- @param state - the container's state once the block is read
+ @param state - container's state once the block is read
 
  @returns Whether the block is such a paragraph
 

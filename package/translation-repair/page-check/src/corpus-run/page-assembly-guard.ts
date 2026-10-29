@@ -25,7 +25,7 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 
  @param slices - preparation defining replacement spans
 
- @param sourceText - the original document, whose headings set how many
+ @param sourceText - original document, whose headings set how many
  distinct headings the page owes (class forty-five)
 
  @param targetText - archive text the replacement spans address

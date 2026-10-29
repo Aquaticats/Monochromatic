@@ -47,7 +47,7 @@ const NO_BLOCKS: Run = { reached: true, words: [], blocks: 0, };
 
  @param runs - runs of the source, in order
 
- @returns The fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
+ @returns Fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
 
  @example
  ```ts
@@ -77,7 +77,7 @@ function cheapestByPlacing(
 
  @param runs - runs of the source, in order
 
- @returns The fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
+ @returns Fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
 
  @example
  ```ts
@@ -153,7 +153,7 @@ function cheapestByPairs(
 
  @param runs - runs of the source, in order
 
- @returns The fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
+ @returns Fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
 
  @example
  ```ts
@@ -239,7 +239,7 @@ function configurationFrom({ seed, }: { readonly seed: number; },): { readonly p
 
    @param count - how many words
 
-   @returns The words
+   @returns Words
 
    @example
    ```ts
@@ -292,7 +292,7 @@ function longConfigurationFrom({ seed, }: { readonly seed: number; },): { readon
 
    @param count - how many words
 
-   @returns The words
+   @returns Words
 
    @example
    ```ts

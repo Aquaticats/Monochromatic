@@ -31,7 +31,7 @@ import {
 
  @param reverted - rows the guard withdrew
 
- @returns The round as the rule reads it
+ @returns Round as the rule reads it
  */
 function roundOf(
   {

@@ -136,7 +136,7 @@ export function wordFollows(
 
  @param at - offset of its first digit
 
- @returns The day, or no part where no day 1 to 31 stands there on its own
+ @returns Day, or no part where no day 1 to 31 stands there on its own
 
  @example
  ```ts
@@ -213,7 +213,7 @@ export function readDay(
 
  @param at - offset of its first letter
 
- @returns The month, or no part where no month name stands there
+ @returns Month, or no part where no month name stands there
 
  @example
  ```ts
@@ -269,7 +269,7 @@ export function readMonth(
 
  @param at - offset of its first digit
 
- @returns The year, or no part where no clean four-digit year stands there
+ @returns Year, or no part where no clean four-digit year stands there
 
  @example
  ```ts
@@ -318,7 +318,7 @@ export function readYear(
 
  @param at - offset just past the month or day
 
- @returns The year, no part, or refused where digits or letters run on
+ @returns Year, no part, or refused where digits or letters run on
  ("4 May2024"), or a year runs into more ("4 May 2024a"), ledger K8
 
  @example
@@ -434,7 +434,7 @@ export function monthStartsName(
 
  @param end - offset just past the year
 
- @returns A comma where a word follows the year, else nothing
+ @returns Comma where a word follows the year, else nothing
 
  @example
  ```ts
@@ -467,7 +467,7 @@ export function closingComma(
 
  @param month - month just read
 
- @returns A period to keep after the rewritten date, or nothing
+ @returns Period to keep after the rewritten date, or nothing
 
  @example
  ```ts

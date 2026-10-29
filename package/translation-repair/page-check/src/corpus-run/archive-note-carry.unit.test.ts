@@ -45,9 +45,9 @@ const SOURCE = '猫睡在窗台上。\n';
 /**
  One content slice over a passage whose archive ends in the given comments.
 
- @param archive - the archive's text for the slice
+ @param archive - archive's text for the slice
 
- @returns The preparation's one pair
+ @returns Preparation's one pair
 
  @example
  ```ts
@@ -78,7 +78,7 @@ function slicesOver({ archive, }: { readonly archive: string; },): readonly Chun
 /**
  Builds a source whose consolidation shipped the given wording at slice 0.
 
- @param archive - the archive's text for the slice
+ @param archive - archive's text for the slice
 
  @param text - what the consolidation shipped there
 
@@ -123,11 +123,11 @@ function shipping({ archive, text, }: { readonly archive: string; readonly text:
 /**
  Runs the page assembly over one slice and reads the text it carries.
 
- @param archive - the archive's text for the slice
+ @param archive - archive's text for the slice
 
  @param text - what the consolidation shipped there
 
- @returns The slice's rewritten texts (none when the passes left it as it was)
+ @returns Slice's rewritten texts (none when the passes left it as it was)
  and the findings
 
  @example

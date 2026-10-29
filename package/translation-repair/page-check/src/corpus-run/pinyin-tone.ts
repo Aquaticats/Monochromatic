@@ -146,7 +146,7 @@ function isSpace(
 
  @param syllable - pinyin syllable
 
- @returns The bare letters
+ @returns Bare letters
 
  @example
  ```ts
@@ -233,7 +233,7 @@ function syllablesOf(
 
  @param character - Han character it reads
 
- @returns The rewrite in a one-item list, or an empty list
+ @returns Rewrite in a one-item list, or an empty list
 
  @example
  ```ts

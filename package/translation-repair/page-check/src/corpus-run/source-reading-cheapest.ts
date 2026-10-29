@@ -31,7 +31,7 @@ const NO_BLOCKS: Segment = {
 
  @param segments - runs of the source, in order
 
- @returns The fewest blocks; infinity where the words cannot be placed
+ @returns Fewest blocks; infinity where the words cannot be placed
 
  @example
  ```ts

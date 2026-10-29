@@ -286,7 +286,7 @@ export function traceDroppedDestinations(
 
  @param traces - one trace per dropped destination
 
- @returns A clause naming the slices, or saying they sit outside every slice
+ @returns Clause naming the slices, or saying they sit outside every slice
 
  @example
  ```ts

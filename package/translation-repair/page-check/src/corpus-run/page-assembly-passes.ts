@@ -57,7 +57,7 @@ export type PagePassesOutcome = {
 
  @param slices - preparation defining replacement spans
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param targetText - archive text the replacement spans address
 

@@ -222,7 +222,7 @@ function rewriteStart(
 
  @param state - where the scan stands
 
- @returns The date, or no part where none starts there
+ @returns Date, or no part where none starts there
 
  @example
  ```ts
@@ -284,7 +284,7 @@ function readingAt(
 
  @param text - text under scan
 
- @param ranges - the text's non-prose ranges
+ @param ranges - text's non-prose ranges
 
  @returns Rewrites in order, none overlapping
 

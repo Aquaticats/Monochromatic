@@ -27,7 +27,7 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 
  @param text - page or region
 
- @returns The folded reading
+ @returns Folded reading
 
  @example
  ```ts

@@ -36,7 +36,7 @@ const NOTHING: SourceSpans = {
 
  @param insideLink - whether the autolink stands inside the text of a link
 
- @returns The autolink as the stretch read as text where a table cuts it, otherwise the edit that writes it as a link, or as
+ @returns Autolink as the stretch read as text where a table cuts it, otherwise the edit that writes it as a link, or as
  its address inside the text of a link
 
  @example

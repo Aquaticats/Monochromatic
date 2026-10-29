@@ -59,7 +59,7 @@ function refusesToCompare(): never {
 /**
  A comparison that finds every page to differ, standing for a reading the page check reports.
 
- @returns The answer `differs`
+ @returns Answer `differs`
 
  @example
  ```ts

@@ -49,7 +49,7 @@ export type BlockReplacementWithNotes = {
 /**
  The finding that names the notes a replacement kept for its block.
 
- @param identity - the block's identity in the review's findings
+ @param identity - block's identity in the review's findings
 
  @param kept - notes added, as the block writes them
 
@@ -82,14 +82,14 @@ export function keptNotesFinding(
  A replacement for an archive block with the block's notes between
  translators put back where the replacement lacks them.
 
- @param blockText - the block as the archive writes it
+ @param blockText - block as the archive writes it
 
  @param replacement - what the review adopts for the block, empty for a removal
 
- @param original - the original section the block was reviewed against, whose
+ @param original - original section the block was reviewed against, whose
  own comments are the lanes' to carry and are never put back
 
- @returns The replacement with each missing note after it, and those notes
+ @returns Replacement with each missing note after it, and those notes
 
  @example
  ```ts

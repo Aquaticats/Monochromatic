@@ -52,7 +52,7 @@ type NameRewrite = {
 
  @param archiveText - every archive slice joined
 
- @returns The names' forms
+ @returns Names' forms
 
  @example
  ```ts
@@ -129,7 +129,7 @@ function nameForms(
 
  @param text - shipped text
 
- @param forms - the archive's name forms
+ @param forms - archive's name forms
 
  @returns Rewritten text and each rewrite
 

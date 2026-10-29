@@ -43,7 +43,7 @@ export type LiteralBlockReading = {
 
  @param isRootChild - whether the node stands at the top of the text
 
- @returns The stretches read as they stand and the rewrites, none of the first for a fence
+ @returns Stretches read as they stand and rewrites, none of the first for a fence
 
  @example
  ```ts

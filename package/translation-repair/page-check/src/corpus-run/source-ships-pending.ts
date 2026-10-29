@@ -140,7 +140,7 @@ export function footnoteStateOf(
 
  @param node - block
 
- @returns The state with the line the block ends on
+ @returns State with the line the block ends on
 
  @example
  ```ts

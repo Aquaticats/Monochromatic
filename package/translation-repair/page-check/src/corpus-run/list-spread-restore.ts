@@ -416,7 +416,7 @@ type ListRespace = {
 
  @param left - one list
 
- @param right - the other
+ @param right - other
 
  @returns True when both are numbered or both bulleted, with as many items
 

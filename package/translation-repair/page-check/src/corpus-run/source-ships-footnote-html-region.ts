@@ -52,9 +52,9 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
  What ends a block of raw HTML of the first five kinds, by what the block starts with: a comment, a processing instruction, a
  declaration, a CDATA section and a raw text element. These do not end at a blank line, and the other two kinds do.
 
- @param text - the text of the block's first line
+ @param text - text of the block's first line
 
- @returns The characters that end it, an empty string for a block a blank line ends
+ @returns Characters that end it, empty string for a block a blank line ends
 
  @example
  ```ts

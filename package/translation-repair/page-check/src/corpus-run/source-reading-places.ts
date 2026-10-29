@@ -73,7 +73,7 @@ function placeAt(
 
  @param mayStand - whether the block may stand at a place
 
- @returns The place; infinity where there is none
+ @returns Place; infinity where there is none
 
  @example
  ```ts
@@ -144,7 +144,7 @@ function keepCheapest(
 
  @param placings - where the blocks before can end
 
- @returns The same as a list
+ @returns Same as a list
 
  @example
  ```ts
@@ -171,7 +171,7 @@ function placingsList({ placings, }: { readonly placings: Placings; },): readonl
 
  @param froms - places the blocks before can end at, in the order of the page
 
- @returns The places that cost less than each one before them, in the order of the page
+ @returns Places that cost less than each one before them, in the order of the page
 
  @example
  ```ts
@@ -208,7 +208,7 @@ function stairsOf({ froms, }: { readonly froms: readonly Placing[]; },): readonl
 
  @param canStartAt - whether the block may start at a place
 
- @returns The places in the order of the page, each with the cost of the place it follows
+ @returns Places in the order of the page, each with the cost of the place it follows
 
  @example
  ```ts
@@ -282,7 +282,7 @@ function exactStartsOf(
  @param ahead - what the blocks after this one ask of the places it ends at; nothing, so that every place is written, when
  absent
 
- @param bound - a cost some way of placing all the blocks is known to have: a place that costs as much is not written, since
+ @param bound - cost some way of placing all the blocks is known to have: a place that costs as much is not written, since
  no way through it costs less; infinity when absent
 
  @returns Where the block can end, with the cost, in the order of the page; none when the page shows its words nowhere

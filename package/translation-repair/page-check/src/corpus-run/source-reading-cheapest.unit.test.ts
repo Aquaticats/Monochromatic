@@ -34,7 +34,7 @@ const MOST_GROWTH = 8;
 
  @param blocks - how many blocks the source has
 
- @returns The arguments of the comparison
+ @returns Arguments of the comparison
 
  @example
  ```ts
@@ -87,7 +87,7 @@ function sameWordsOf({ blocks, }: { readonly blocks: number; },): Parameters<typ
 
  @param runs - how many times to run it
 
- @returns The least time of a run, in milliseconds
+ @returns Least time of a run, in milliseconds
 
  @example
  ```ts

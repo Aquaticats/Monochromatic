@@ -105,7 +105,7 @@ function shapeOf(
 
  @param start - word's first offset
 
- @returns The previous word in lower case, or the empty string
+ @returns Previous word in lower case, or the empty string
 
  @example
  ```ts
@@ -146,7 +146,7 @@ function previousWord(
 
  @param mother - Canadian form in lower case
 
- @returns The Canadian form, or the word as written
+ @returns Canadian form, or the word as written
 
  @example
  ```ts
@@ -195,7 +195,7 @@ function motherWord(
  @param blockStarts - start offsets of every top-level block the real parse
  reads in this text, ascending
 
- @returns The respelled or the written word
+ @returns Respelled or written word
 
  @example
  ```ts
@@ -256,7 +256,7 @@ function capitalWord(
  @param blockStarts - start offsets of every top-level block the real parse
  reads in this text, ascending
 
- @returns The Canadian form, or the word as written
+ @returns Canadian form, or the word as written
 
  @example
  ```ts
@@ -381,7 +381,7 @@ function sentenceBlockStarts({ text, }: { readonly text: string; },): readonly n
 
  @param text - text under scan
 
- @param ranges - the text's non-prose ranges
+ @param ranges - text's non-prose ranges
 
  @param kept - lower-case words the original writes in English, which keep
  their spelling

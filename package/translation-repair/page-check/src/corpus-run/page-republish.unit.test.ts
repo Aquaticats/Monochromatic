@@ -217,7 +217,7 @@ async function settledRun(
 
  @param targetText - archive English to hand back
 
- @returns The reader
+ @returns Reader
 
  @example
  ```ts
@@ -256,7 +256,7 @@ const SAME_PAIR = pairOf({
 
  @param readPair - reader for the entry's pair
 
- @returns The one entry's outcome
+ @returns One entry's outcome
 
  @example
  ```ts
@@ -292,7 +292,7 @@ async function republishIn(
 
  @param run - directories holding both
 
- @returns The verdict
+ @returns Verdict
 
  @example
  ```ts

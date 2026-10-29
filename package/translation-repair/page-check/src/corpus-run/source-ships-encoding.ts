@@ -205,7 +205,7 @@ const BACKTICK_REFERENCE = '&#96;';
 
  @param character - one character of the text
 
- @returns The character with a backslash before it where Markdown reads it as syntax, a backtick as a character reference
+ @returns Character with a backslash before it where Markdown reads it as syntax, a backtick as a character reference
 
  @example
  ```ts

@@ -100,7 +100,7 @@ function marksLengthOf({ line, }: { readonly line: string; },): number {
 
  @param typed - alternative text as typed
 
- @returns The text with the marks at the start of each line after the first written as spaces, of the same length
+ @returns Text with the marks at the start of each line after the first written as spaces, of the same length
 
  @example
  ```ts
@@ -132,7 +132,7 @@ function withoutContainerMarks({ typed, }: { readonly typed: string; },): string
 
  @param alternative - where the alternative text stands in it
 
- @returns The stretches in text order, none where the alternative text holds none or is not one paragraph
+ @returns Stretches in text order, none where the alternative text holds none or is not one paragraph
 
  @example
  ```ts
@@ -245,7 +245,7 @@ function heldInAlternativeOf(
 
  @param range - where the node stands
 
- @returns The alternative text less its code spans and angle autolinks, which are not text, and the second label of a
+ @returns Alternative text less its code spans and angle autolinks, which are not text, and the second label of a
  full reference as the stretches read as text; and the autolinks written as their addresses as the edits
 
  @example

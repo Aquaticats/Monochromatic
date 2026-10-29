@@ -29,11 +29,11 @@ const CURLY_LANE = '“Purr,” said the cat. “Warm.” “Soft.” It’s the
 /**
  What the pass writes for each slice of a page, the last slice replaced by a lane.
 
- @param archives - the archive text of every slice but the last, in order
+ @param archives - archive text of every slice but the last, in order
 
- @param lane - the text a lane wrote for the last slice
+ @param lane - text a lane wrote for the last slice
 
- @returns The text the page carries at each slice after the pass
+ @returns Text the page carries at each slice after the pass
 
  @example
  ```ts

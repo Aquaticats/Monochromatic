@@ -57,7 +57,7 @@ function bracketedAltPage({ text, }: { readonly text: string; },): string {
 
  @param source - text of a run of slices
 
- @returns The answer of the comparison
+ @returns Answer of the comparison
 
  @example
  ```ts

@@ -28,7 +28,7 @@ export type OverlapIndex = {
 
  @param ranges - stretches, in any order
 
- @returns The index to ask
+ @returns Index to ask
 
  @example
  ```ts
@@ -66,7 +66,7 @@ export function overlapIndexOf({ ranges, }: { readonly ranges: readonly TextRang
 /**
  Whether a stretch shares a character with any stretch of a list.
 
- @param index - the list, as {@link overlapIndexOf} puts it
+ @param index - list, as {@link overlapIndexOf} puts it
 
  @param range - stretch
 

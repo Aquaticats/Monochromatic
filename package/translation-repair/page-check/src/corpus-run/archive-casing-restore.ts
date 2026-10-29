@@ -196,7 +196,7 @@ export function isTitleCase(
 
  @param text - shipped text
 
- @param forms - the archive's capital forms
+ @param forms - archive's capital forms
 
  @returns Rewritten text and each spelling it changed
 

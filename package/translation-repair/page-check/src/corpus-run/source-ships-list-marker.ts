@@ -196,7 +196,7 @@ export function isIndentedCodeBlock(
 
  @param start - index of the first character of the line's content
 
- @returns The edit that escapes the character that makes the marker, none when the line starts with no marker
+ @returns Edit that escapes the character that makes the marker, none when the line starts with no marker
 
  @example
  ```ts

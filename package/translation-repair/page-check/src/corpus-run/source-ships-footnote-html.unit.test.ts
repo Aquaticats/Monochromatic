@@ -21,7 +21,7 @@ import { footnoteOpensRawHtml, } from '../../dist/final/node/index.mjs';
 
  @param start - index of the definition's label
 
- @returns The answer for the definition held to the end of the text
+ @returns Answer for the definition held to the end of the text
 
  @example
  ```ts

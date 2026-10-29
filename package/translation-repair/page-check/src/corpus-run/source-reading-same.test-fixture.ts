@@ -32,7 +32,7 @@ type EncodedReading = {
 
  @param source - text of a run of slices
 
- @returns The page text and the answer of the comparison
+ @returns Page text and answer of the comparison
 
  @example
  ```ts
