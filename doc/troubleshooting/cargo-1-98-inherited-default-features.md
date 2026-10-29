@@ -132,9 +132,27 @@ podman run --rm --memory=2g --cpus=2 --security-opt label=disable \
   on host nightly 1.101 (`--offline`) and inside `localhost/monochromatic/ide`.
 - Member `{ workspace = true }` with any workspace entry.
 
+### Why this repository had cargo 1.98 at all
+
+The repository builds everything with the nightly `toolchain.lock.json` pins (owner, 2026-10-29).
+`package/desktop-app/terminal/Containerfile` installed floating `--default-toolchain stable` instead,
+and `package/desktop-app/ide/Containerfile` starts `FROM localhost/monochromatic/terminal`,
+so the IDE image carried whatever stable was current when it was built (1.98.0).
+
 ## Verified workarounds
 
-### Disable default features in the workspace entry (adopted)
+### Install the pinned nightly in the image (adopted, primary fix)
+
+Commit `8652ba7d7f` replaces `--default-toolchain stable` with `ARG RUST_TOOLCHAIN=nightly-2026-10-29`
+in the terminal, `nested-wayland-session`, and music-player Linux Containerfiles,
+following `package/music-player/desktop-app/Containerfile.windows-gnu`.
+Tradeoff:
+ the build context is the package directory,
+ so each default is synced with `toolchain.lock.json` by hand
+ (the windows-gnu default had stayed at `nightly-2026-10-21` while the lock moved to `nightly-2026-10-29`);
+ `--build-arg RUST_TOOLCHAIN=` overrides it.
+
+### Disable default features in the workspace entry (also adopted)
 
 `package/dev-script/file-enforcer/src/cargo/catalog/default-features.ts` renders
 `default-features = false` into a crate's generated entry when every catalog site of that dependency
@@ -148,11 +166,6 @@ Tradeoffs:
   The remedy is to make the sites agree.
 - The generated table differs between crates for the same catalog entry,
   which is fine because each crate is its own workspace root.
-
-### Raise the minimum cargo to 1.99
-
-Rejected for now: the IDE image pins cargo 1.98.0, and the catalog must not depend on which
-toolchain a consumer has. It also would not help pre-2024-edition crates, which still ignore the member key.
 
 ## What does not work
 

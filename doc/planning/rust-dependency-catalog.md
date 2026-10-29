@@ -823,11 +823,23 @@ Fix, commit `d1477a13ba`:
 Verified with `cargo metadata --locked` for all seven affected crates on host nightly and on cargo 1.98.0,
  with the pre-fix ide manifest still failing on 1.98.0 as the control.
 
-Consequence for verification:
- manifest changes from the catalog are checked on the oldest cargo a consumer builds with
- (currently 1.98.0 in `localhost/monochromatic/ide`),
- not only the host nightly.
-The CI drift check (task 10) should include that oldest-cargo `cargo metadata` pass.
+Owner correction (2026-10-29):
+ "we should always use nightly rust for everything!"
+The 1.98 cargo came from `package/desktop-app/terminal/Containerfile` installing floating `--default-toolchain stable`
+ (the IDE image is built `FROM localhost/monochromatic/terminal`);
+ `nested-wayland-session` and the music-player Linux image did the same.
+Commit `8652ba7d7f` makes each of them install `ARG RUST_TOOLCHAIN`,
+ defaulting to the `toolchain.lock.json` pin (`nightly-2026-10-29`),
+ the pattern `package/music-player/desktop-app/Containerfile.windows-gnu` already used
+ (its default had drifted to `nightly-2026-10-21` and was bumped).
+So the catalog targets the pinned nightly only;
+ the `default-features = false` rendering stays,
+ since it is also what pre-2024 editions need on every cargo.
+The `ARG` defaults are synced by hand,
+ which is how the windows-gnu default drifted.
+`package/forbidden-strings/core/mutants.Containerfile` still uses `FROM docker.io/library/rust:1`;
+ it sits in another session's uncommitted rename batch,
+ which was asked to switch it when the batch lands.
 
 ## Rejected
 
