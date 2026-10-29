@@ -10,8 +10,9 @@
  The retired TypeScript wrapper is not part of the image; the drivers that ran against it, and the step that rebuilt
  it from its pinned revision, are recorded in `doc/handover/cli-git-native-interop.md`.
 
- Usage: `node bin/interop-native-container.ts <driver> [arguments...]`,
+ Usage: `node bin/interop-native-container.ts [--memory <size>] [--cpus <count>] <driver> [arguments...]`,
  where `<driver>` names a file under `native-interop/` without its `.ts` suffix.
+ The limit options come before the driver name; everything after it belongs to the driver.
  */
 import {
   cp,
@@ -26,6 +27,12 @@ import {
   resolve,
 } from 'node:path';
 
+import {
+  buildLimitArguments,
+  parallelJobs,
+  parseContainerLimitOptions,
+  runLimitArguments,
+} from './container-limits.ts';
 import {
   scannerSnapshotEntries,
   type SnapshotEntry,
@@ -228,10 +235,22 @@ function crateVersionOf(manifest: string): { readonly version?: string; } {
 
 // Build the image once per call, then run the named driver in it under the gate's bounds without a PID cap.
 /**
+ Container limits from the options in front of the driver name, and the driver with its arguments.
+ Only leading options are read, because everything after the driver name belongs to the driver.
+ */
+const {
+  limits: containerLimits,
+  rest: driverCommand,
+} = parseContainerLimitOptions({
+  options: process.argv
+    .slice(2),
+  acceptPidsLimit: false,
+  leadingOnly: true,
+});
+/**
  Driver name and the arguments passed on to it.
  */
-const [driver, ...driverArguments] = process.argv
-  .slice(2);
+const [driver, ...driverArguments] = driverCommand;
 if ((driver === undefined) || (!isDriverName(driver)))
   throw new NativeVerificationError('Name one driver under native-interop/ in lowercase words and dashes.');
 /**
@@ -278,7 +297,7 @@ await writeFile(
     'COPY clippy.toml /work/clippy.toml',
     'RUN ["mkdir", "--parents", "/home/tester/.cargo", "/work/scratch"]',
     'RUN ["chown", "--recursive", "1000:1000", "/work/package", "/work/scratch", "/home/tester"]',
-    'ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0',
+    `ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_INCREMENTAL=0`,
     `COPY --from=${nodeImage} /usr/local/bin/node /usr/local/bin/node`,
     'USER 1000:1000',
     'WORKDIR /work/package/git-policy/cli',
@@ -301,9 +320,7 @@ await runCommand({
     '--network=none',
     '--http-proxy=false',
     '--pull=never',
-    '--memory=2g',
-    '--cpu-period=100000',
-    '--cpu-quota=200000',
+    ...buildLimitArguments(containerLimits),
     '--tag',
     interopImage,
     context.path,
@@ -329,14 +346,16 @@ const inspected = await runCommand({
 const image = inspected.stdout
   .trim();
 /**
- Bounds of the driver container: removed on exit, no network, 2 GiB and 2 CPUs, with no process cap.
+ Bounds of the driver container: removed on exit, no network, and the memory and CPUs of the container limits, with no process cap.
  */
 const limits = [
   '--rm',
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
+  ...runLimitArguments({
+    limits: containerLimits,
+    withPidsLimit: false,
+  }),
 ];
 await writeFile(
   join(
