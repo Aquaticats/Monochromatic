@@ -72,7 +72,15 @@ function endMarkOf({ text, }: { readonly text: string; },): string {
     return '?>';
   if (lower.startsWith('<![cdata[',))
     return ']]>';
-  if (lower.startsWith('<!',) && LETTERS.includes(lower.charAt(2,),) && (lower.charAt(2,) !== ''))
+  /**
+   The character after `<!`, empty when the text ends there.
+   */
+  const third = lower.charAt(2,);
+  /**
+   Whether the text starts a declaration: `<!` and a letter.
+   */
+  const isDeclaration = lower.startsWith('<!',) && (third !== '');
+  if (isDeclaration && LETTERS.includes(third,))
     return '>';
   /**
    The element the block starts with, when it is one of those.
@@ -88,8 +96,11 @@ function endMarkOf({ text, }: { readonly text: string; },): string {
  block of the last two kinds, or at the line that holds what ends a block of the first five, or at the end of the footnote.
 
  @param source - text
+
  @param range - where the footnote stands, from its label
+
  @param prefix - what the container puts before the label on its line
+
  @param from - where the lines start
 
  @returns Index where the lines end
@@ -122,12 +133,14 @@ function regionEndOf(
   /**
    The first line of the block, less the white space before it.
    */
-  const first = source
-    .slice(
-      bodyAt,
-      from,
-    )
-    .trim();
+  const lineText = source.slice(
+    bodyAt,
+    from,
+  );
+  /**
+   The same less its white space.
+   */
+  const first = lineText.trim();
   /**
    What ends the block, none where a blank line does.
    */

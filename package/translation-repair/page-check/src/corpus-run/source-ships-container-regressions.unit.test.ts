@@ -14,9 +14,16 @@
  @module
  */
 
-import { describe, } from '@monochromatic-dev/module-test/ts';
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/module-test/ts';
 
-import { readerEqualityCases, } from './source-reader-equality.test-fixture.ts';
+import {
+  encodeAsLiteralMdx,
+  readingDifferenceOf,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Texts a reader must see as the source shows them: what the case is, and the text.
@@ -142,5 +149,16 @@ const CASES: readonly (readonly [string, string])[] = [
 
 await describe({
   name: 'a footnote definition in a container beside a table or a comment opener',
-  children: readerEqualityCases({ cases: CASES, },),
+  children: CASES.map(function caseOf([name, text,],): ReturnType<typeof it> {
+    return it({
+      name: `SHOWS THE SOURCE TEXT FOR ${name}`,
+      fn: function readsAsTheSourceDoes(): Promise<void> {
+        expect(readingDifferenceOf({
+          source: text,
+          carried: encodeAsLiteralMdx({ text, },),
+        },).kind,).toBe('same',);
+        return Promise.resolve();
+      },
+    },);
+  },),
 },);

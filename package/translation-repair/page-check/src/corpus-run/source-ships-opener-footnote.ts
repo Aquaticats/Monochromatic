@@ -201,8 +201,8 @@ function splitFlowsOf(
     if (line.start === range.start)
       continue;
     // A line in a block of raw HTML of the source is text to its reader, and the page writes it as text.
-    if (htmlRanges.some(function holds(html,): boolean {
-      return (html.start <= line.start) && (line.start < html.end);
+    if (htmlRanges.some(function holds(block,): boolean {
+      return (block.start <= line.start) && (line.start < block.end);
     },))
       continue;
     /**

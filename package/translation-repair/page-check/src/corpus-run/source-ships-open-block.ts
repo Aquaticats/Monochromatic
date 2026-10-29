@@ -41,6 +41,15 @@ function isBlank({ text, }: { readonly text: string; },): boolean {
 const BEFORE_LABEL = ' \t>-*+0123456789.)';
 
 /**
+ Characters that cannot stand in a footnote label.
+ */
+const LABEL_BREAKS: ReadonlySet<string> = new Set([
+  ']',
+  ' ',
+  '\t',
+],);
+
+/**
  Whether an index follows the label of a footnote definition on its line, with nothing between but white space.
 
  @param text - text
@@ -91,11 +100,19 @@ function followsFootnoteLabel(
    */
   const label = head.slice(
     open + 2,
-    head.length - 2,
+    -2,
   );
-  return (!label.includes(']',)) && (!/\s/u.test(label,)) && Array.from(head.slice(0, open,),).every(function isMark(character,): boolean {
-    return BEFORE_LABEL.includes(character,);
-  },);
+  if (Array.from(label,).some(function endsLabel(character,): boolean {
+    return LABEL_BREAKS.has(character,);
+  },))
+    return false;
+  return Array.from(head.slice(
+    0,
+    open,
+  ),)
+    .every(function isMark(character,): boolean {
+      return BEFORE_LABEL.includes(character,);
+    },);
 }
 
 /**
