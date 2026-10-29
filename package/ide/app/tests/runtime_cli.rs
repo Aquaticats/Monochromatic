@@ -6,7 +6,7 @@ use std::process::Command;
 /// Help succeeds even when no build-specific environment is supplied.
 #[test]
 fn runtime_help_does_not_prepare_assets() {
-    let fixture = tempfile::tempdir().expect("isolated helper directory");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated helper directory");
     let output = Command::new(env!("CARGO_BIN_EXE_ide-runtime"))
         .current_dir(fixture.path())
         .arg("--help")
@@ -37,7 +37,7 @@ fn runtime_rejects_unknown_operations() {
 /// Even a valid operation fails closed outside its target-owned configuration boundary.
 #[test]
 fn runtime_rejects_non_build_configuration_before_writing() {
-    let fixture = tempfile::tempdir().expect("isolated helper directory");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated helper directory");
     let outside = fixture.path().join("not-build-configuration");
     let output = Command::new(env!("CARGO_BIN_EXE_ide-runtime"))
         .current_dir(fixture.path())

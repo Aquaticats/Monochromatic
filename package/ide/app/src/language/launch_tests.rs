@@ -55,7 +55,7 @@ fn default_policy_spawns_the_resolved_program_unchanged() {
 
 #[test]
 fn command_with_a_separator_resolves_against_the_project_root() {
-    let project = tempfile::tempdir().expect("project");
+    let project = crate::test_scratch::scratch().expect("project");
     let root = canonical(&project);
     fs::create_dir_all(root.join("node_modules/tool/bin")).expect("tool directory");
     write_mode(&root.join("node_modules/tool/bin/server"), 0o755);
@@ -99,7 +99,7 @@ fn bare_name_is_searched_on_the_path_and_resolved_absolute() {
 ///  while the project itself as state would make all of it writable.
 #[test]
 fn state_directory_inside_the_project_is_accepted_but_the_project_itself_is_not() {
-    let project = tempfile::tempdir().expect("project");
+    let project = crate::test_scratch::scratch().expect("project");
     let root = canonical(&project);
     assert_eq!(
         check_state_directory(&root.join(".cache/monochromatic-ide/language"), &root),
@@ -111,7 +111,7 @@ fn state_directory_inside_the_project_is_accepted_but_the_project_itself_is_not(
 
 #[test]
 fn state_directory_containing_the_project_is_rejected() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     fs::create_dir(&root).expect("project");
     let reason = check_state_directory(&canonical(&parent), &root)
@@ -121,8 +121,8 @@ fn state_directory_containing_the_project_is_rejected() {
 
 #[test]
 fn state_directory_reached_through_a_link_to_the_project_itself_is_rejected() {
-    let project = tempfile::tempdir().expect("project");
-    let elsewhere = tempfile::tempdir().expect("elsewhere");
+    let project = crate::test_scratch::scratch().expect("project");
+    let elsewhere = crate::test_scratch::scratch().expect("elsewhere");
     let root = canonical(&project);
     let link = canonical(&elsewhere).join("link");
     std::os::unix::fs::symlink(&root, &link).expect("link");
@@ -133,7 +133,7 @@ fn state_directory_reached_through_a_link_to_the_project_itself_is_rejected() {
 
 #[test]
 fn sibling_state_directory_is_accepted_even_before_it_exists() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     fs::create_dir(&root).expect("project");
     assert_eq!(
@@ -145,7 +145,7 @@ fn sibling_state_directory_is_accepted_even_before_it_exists() {
 
 #[test]
 fn preparation_creates_directories_and_empties_scratch_below_the_state_root() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -173,7 +173,7 @@ fn preparation_creates_directories_and_empties_scratch_below_the_state_root() {
 #[test]
 fn preparation_empties_a_scratch_directory_without_replacing_it() {
     use std::os::unix::fs::MetadataExt;
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
@@ -214,7 +214,7 @@ fn preparation_empties_a_scratch_directory_without_replacing_it() {
 /// and one that leads inside it is replaced by a directory while what it led to stays.
 #[test]
 fn preparation_does_not_follow_a_link_where_the_scratch_directory_belongs() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     let other = canonical(&parent).join("other");
@@ -261,7 +261,7 @@ fn preparation_does_not_follow_a_link_where_the_scratch_directory_belongs() {
 
 #[test]
 fn preparation_refuses_directories_outside_the_state_root_or_inside_the_project() {
-    let parent = tempfile::tempdir().expect("parent");
+    let parent = crate::test_scratch::scratch().expect("parent");
     let root = canonical(&parent).join("project");
     let state = canonical(&parent).join("state");
     let other = canonical(&parent).join("other");

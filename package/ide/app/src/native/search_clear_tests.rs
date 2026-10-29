@@ -34,7 +34,7 @@ fn search_clear_cell_is_48px_clears_the_query_and_results_and_keeps_focus() {
     // ```ts
     // const fixture = mkdtempSync(...); writeFileSync(join(fixture, 'needle-file.txt'), 'needle here');
     // ```
-    let fixture = tempfile::tempdir().expect("disposable search-clear project");
+    let fixture = crate::test_scratch::scratch().expect("disposable search-clear project");
     fs::write(fixture.path().join("needle-file.txt"), "needle here").expect("search fixture");
     let reader = reader(fixture.path());
     // What: `&reader.window` borrows the window out of the reader record.

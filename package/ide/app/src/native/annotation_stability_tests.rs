@@ -101,7 +101,7 @@ const ABOVE_UNDERLINE: usize = 17;
 /// function fixtureReader(text: string): [TempDir, Reader];
 /// ```
 fn fixture_reader(text: &str) -> (tempfile::TempDir, Reader) {
-    let directory = tempfile::tempdir().expect("disposable stability project");
+    let directory = crate::test_scratch::scratch().expect("disposable stability project");
     fs::write(directory.path().join("notes.txt"), text).expect("stability fixture");
     let opened = reader(directory.path(), "notes.txt");
     return (directory, opened);

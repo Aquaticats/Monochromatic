@@ -27,7 +27,7 @@ use std::{
 /// A missing current row waits for real directory changes instead of rebuilding the ListView every timer tick.
 #[test]
 fn missing_reveal_keeps_the_existing_model_until_tree_changes() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let path = fixture.path().join("source.txt");
     fs::write(&path, "source").expect("source fixture");
     let workspace = Workspace::new(fixture.path()).expect("workspace");
@@ -94,7 +94,7 @@ fn missing_reveal_keeps_the_existing_model_until_tree_changes() {
 /// A root lost before its first read must not claim that a previous snapshot exists.
 #[test]
 fn initial_directory_failure_reports_absent_snapshot_and_recovers() {
-    let fixture = tempfile::tempdir().expect("disposable project parent");
+    let fixture = crate::test_scratch::scratch().expect("disposable project parent");
     let root = fixture.path().join("project");
     fs::create_dir(&root).expect("initial directory");
     let workspace = Workspace::new(&root).expect("workspace");
@@ -137,7 +137,7 @@ fn initial_directory_failure_reports_absent_snapshot_and_recovers() {
 /// Inside symlink aliases converge on the canonical row without resetting an already displayed document.
 #[test]
 fn contained_alias_open_preserves_current_selection_and_stops_reveal_updates() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let path = fixture.path().join("source.txt");
     fs::write(&path, "source").expect("source fixture");
     symlink(&path, fixture.path().join("alias.txt")).expect("inside alias");

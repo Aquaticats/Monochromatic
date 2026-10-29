@@ -126,7 +126,7 @@ fn reply(worker: &mut ReloadWorker) -> ReloadReply {
 ///  an old one is read.
 #[test]
 fn a_quiet_read_drops_a_file_written_within_the_quiet_period() {
-    let fixture = tempfile::tempdir().expect("disposable source directory");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
     let path = fixture.path().join("source.txt");
     let document = Document::new(DISPLAYED);
     let now = SystemTime::now();
@@ -157,7 +157,7 @@ fn a_quiet_read_drops_a_file_written_within_the_quiet_period() {
 ///  and reads the same file once quiet.
 #[test]
 fn the_worker_reports_a_recent_write_instead_of_its_bytes() {
-    let fixture = tempfile::tempdir().expect("disposable source directory");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable source directory");
     let path = fixture.path().join("source.txt");
     let document = Document::new(DISPLAYED);
     let mut worker = ReloadWorker::new().expect("start source worker");

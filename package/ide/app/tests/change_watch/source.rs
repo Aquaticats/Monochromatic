@@ -46,7 +46,7 @@ fn classification(watcher: &mut ChangeWatcher, what: &str) -> Option<SourceChang
 ///  and removing are settled.
 #[test]
 fn displayed_file_changes_are_settled_only_when_finished() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let file = root.join("view.txt");
@@ -127,7 +127,7 @@ fn displayed_file_changes_are_settled_only_when_finished() {
 ///  a real write still does.
 #[test]
 fn the_ides_own_reads_report_nothing() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");

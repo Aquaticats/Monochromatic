@@ -360,7 +360,7 @@ fn labelled(window: &AppWindow, label: &str) -> usize {
 ///  and each ignored row says so in its accessible label while a plain row does not.
 #[test]
 fn ignored_rows_are_flagged_in_the_model_and_named_in_the_accessibility_tree() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     project(fixture.path());
     let shown = reader(fixture.path(), "plain.txt");
     let window = &shown.window;
@@ -429,7 +429,7 @@ fn ignored_rows_are_flagged_in_the_model_and_named_in_the_accessibility_tree() {
 ///  and a folder outside any work tree dims nothing.
 #[test]
 fn a_changed_gitignore_dims_and_undims_rows_while_the_window_runs() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     project(fixture.path());
     let shown = reader(fixture.path(), "plain.txt");
     let window = &shown.window;
@@ -505,7 +505,7 @@ fn a_changed_gitignore_dims_and_undims_rows_while_the_window_runs() {
 ///  no row is flagged and no label carries the suffix.
 #[test]
 fn outside_a_work_tree_no_row_is_flagged_or_named_ignored() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     project(fixture.path());
     fs::remove_dir(fixture.path().join(".git")).expect("remove the git folder");
     let shown = reader(fixture.path(), "plain.txt");

@@ -105,7 +105,7 @@ fn searching() -> (tempfile::TempDir, Reader) {
     // ```ts
     // const fixture = mkdtempSync(...); writeFileSync(join(fixture, 'only.txt'), 'only');
     // ```
-    let fixture = tempfile::tempdir().expect("disposable box project");
+    let fixture = crate::test_scratch::scratch().expect("disposable box project");
     fs::write(fixture.path().join("only.txt"), "only").expect("box fixture");
     let opened = reader(fixture.path());
     resize(&opened.window, 1100.0, 660.0);
