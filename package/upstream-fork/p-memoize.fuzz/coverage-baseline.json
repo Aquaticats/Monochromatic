@@ -2,9 +2,9 @@
   "cache-storage.ts": 2,
   "errors.ts": 6,
   "index.ts": 1,
-  "memoized-cache-store.ts": 1,
+  "memoized-cache-store.ts": 2,
   "mimic-function.ts": 6,
-  "p-memoize-clear.ts": 2,
-  "p-memoize-decorator.ts": 4,
-  "p-memoize.ts": 5
+  "p-memoize-clear.ts": 4,
+  "p-memoize-decorator.ts": 6,
+  "p-memoize.ts": 8
 }

@@ -229,13 +229,22 @@ async function aggregate(coverageDir: string,): Promise<CoverageCounts> {
         );
     }
   return Object.fromEntries(
-    [...counts.entries(),].toSorted(function byKey(
-      left,
-      right,
-    ): number {
-      return left[0]
-        .localeCompare(right[0],);
-    },),
+    [...counts.keys(),]
+      .toSorted(function byName(
+        left: string,
+        right: string,
+      ): number {
+        return left.localeCompare(right,);
+      },)
+      .map(function toEntry(file: string,): readonly [
+        string,
+        number,
+      ] {
+        return [
+          file,
+          counts.get(file,) ?? 0,
+        ];
+      },),
   );
 }
 
@@ -267,8 +276,12 @@ function checkBaseline({
   /**
    Human-readable regression lines.
    */
-  const regressions = [...baseline.entries(),]
-    .flatMap(function compare([file, expected],): readonly string[] {
+  const regressions = [...baseline.keys(),]
+    .flatMap(function compare(file: string,): readonly string[] {
+    /**
+     Covered functions the baseline expects for this file.
+     */
+      const expected = baseline.get(file,) ?? 0;
     /**
      Covered functions for this file in the current run.
      */
