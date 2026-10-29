@@ -361,9 +361,16 @@ an upper bound since flagged negatives are unreviewed).
 Scanning is local and stream-based;
 output carries session id,
 block index and pattern ids only,
-never thinking text,
-since any log lands in a pushed repository.
-Wiring a shadow trigger and any Luna leg over non-thinking text stay open.
+never thinking text.
+The shadow trigger is built
+(commit `ee637f1b3b`):
+the `cctd` Claude Code `Stop` hook
+of `package/claude-code-plugin/thinking-dismissal`,
+registered beside `ccsr` in `.claude/settings.local.json`,
+appending one metadata-only record per stop to
+`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`.
+It records and never blocks.
+Any Luna leg over non-thinking text stays open.
 
 ## Scratch artifacts
 
@@ -479,6 +486,11 @@ and safe to delete:
   was never requested work,
   so the tier-3 hit list stays a research artifact
   and no site gets fixed without a separate request.
+- Ruled by the owner 2026-10-29:
+  graduation is premature ("Not yet"),
+  and the missing piece is a Claude Code hook,
+  which is now built as `cctd`
+  (commit `ee637f1b3b`).
 
 ## Shadow runs so far
 
