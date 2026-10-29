@@ -21,6 +21,7 @@
     "@monochromatic-dev/claude-code-plugin-source": "workspace:*",
     "@monochromatic-dev/claude-code-plugin-stop-reminder": "workspace:*",
     "@monochromatic-dev/claude-code-plugin-terminal-title": "workspace:*",
+    "@monochromatic-dev/claude-code-plugin-thinking-dismissal": "workspace:*",
     "@monochromatic-dev/git-clone-size-cli": "workspace:*",
     "@monochromatic-dev/mvm-cli": "workspace:*",
     "@monochromatic-dev/open-code-review-issue-cli": "workspace:*",

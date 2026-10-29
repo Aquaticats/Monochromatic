@@ -1,0 +1,20 @@
+{
+  "name": "thinking-dismissal",
+  "description": "Shadow-records cost dismissals found in the session's thinking blocks, locally and as metadata only.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Aquaticat"
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bundle/node/index.mjs"
+          }
+        ]
+      }
+    ]
+  }
+}
