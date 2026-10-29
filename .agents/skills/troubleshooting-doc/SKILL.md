@@ -649,6 +649,16 @@ Run this whenever the user asks whether a draft is ready,
    and what the tracker says issues are for.
     Never invent an answer for a field.
     List those fields outside the fenced block.
+    A checkbox such as "I am working on a fix" says the poster will open the pull request,
+   and the form may assign the issue to them.
+    Tick it whenever the doc records a prototyped fix that passes its verification,
+   with no question to the user:
+   the prototype is the plan,
+   and an unticked box invites someone else to start the same fix.
+    Leave it unticked when there is no prototype.
+    After ticking,
+   write down in a handover how the pull request will be posted,
+   so the claim does not outlive the intent.
 4. Read what automation does to a new filing:
     triage bots,
    auto-labelers,

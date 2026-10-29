@@ -515,6 +515,20 @@ directory `patches/`) instead of attaching them.
 The issue type `Bug` that the form sets could not be set through the API by a non-maintainer,
 so the type is empty;
 the triage automation added the label `area: monorepo`.
+The form's checkbox "I am working on a fix" (field `working-on-fix`,
+which says ticking it assigns the issue to the poster)
+was left unticked.
+No reason was recorded for that.
+It should have been ticked,
+because this doc already held a prototyped and verified fix for both stacks,
+and the owner's rule is that a prototyped fix ticks the box without asking (stated 2026-10-29).
+The issue had no assignee when `snmsoodan` opened a pull request for it.
+A search of `pnpm/pnpm` code for `working-on-fix` found only the two issue templates,
+no workflow,
+so whether ticking would have assigned the issue,
+or kept others off it,
+was not established.
+The skill now ticks such a checkbox whenever a verified prototype exists.
 
 Outcome,
 read on 2026-10-29 from the issue timeline and the pull request:
