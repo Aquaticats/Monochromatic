@@ -60,6 +60,15 @@ No package has moved on `main` yet.
    corpora) moved along with `git mv`;
   `package/cli/` still holds `markdown-lint` (untracked debris) and `nested-wayland-session` (held).
 
+Local `main` is behind `origin/main` (auto-push published merge `fef40ffc25` and left `main` alone).
+The guard work upstream changed four files the staged batch also rewrites:
+ `doc/troubleshooting/forbidden-strings-appendix-self-match.md`,
+ `doc/troubleshooting/forbidden-strings-builtin-rule-fixture-tokens.md`,
+ `package/git-policy/cli/SPEC.md`,
+ `package/git-policy/cli/src/native/policy_forbidden_strings_tests.rs`.
+Expect merge conflicts there when the batch commit is merged with `origin/main`;
+resolve by keeping upstream content and re-applying the path rewrite.
+
 ### Why it is blocked
 
 The commit guard's `security/forbidden-strings` policy rescans renamed files,
@@ -94,6 +103,13 @@ User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publ
    with pathspecs for the three files,
   `git push origin HEAD:main` (rebase onto `origin/main` and retry on a race),
   remove the worktree.
+- Since the Rust catalog migration (`fd0bd03540`),
+   `package/git-policy/cli.fuzz/Cargo.toml` pins `monochromatic-git-policy-cli` with `version = "=<x>"`,
+  so a guard release bumps four files,
+   not the three of `00c4e28af4`:
+   that pin moves to `=0.2.10` too
+   (hand-edited to the value the catalog sync derives;
+    confirm with file-enforcer `--check` once back in the main worktree).
 - Do not cut the release from the main worktree:
    its `git-policy/cli/Cargo.toml` carries the staged batch's path rewrite.
 - After `cargo-publish.yml` succeeds:
