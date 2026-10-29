@@ -5975,6 +5975,58 @@ The hook record of the scratch build, for the next verifier
         }
 ```
 
+## Guards repaired, per-process scratch landed, press events explained, 2026-10-29
+
+Every guard inspection was run once from a clean tree, in parallel (FHU), and two broke for real reasons; both are fixed at the cause:
+- `inspect:annotation-guards`:
+  three anchors had gone stale
+  (`rows-wait-for-scrolling` and `view-kept-still` follow the rename `kept` to `still` in `src/native/rows.rs`;
+  `selected-underline-ink` follows its line to `src/tile_scene/frame.rs`).
+  After the repair the whole guard passes (65 anchors found exactly once, every guard failing when removed and passing when restored).
+- `inspect:source-guards`:
+  the five anchors named earlier
+  (`stack-slices-abut`, `minimap-press-column`, `minimap-press-centers`, `minimap-press-caret`, `minimap-shift-anchor`)
+  and `refused-tile-keeps-image`, whose mutation no longer compiled because `submit_tile` takes the window first.
+  `hover-asked-marked` failed once under load: with the mark removed the test fails at its second assertion
+  ("the same rest asked again") when answers outpace the ticks, and at its first ("no hover appeared for the resting pointer") otherwise.
+  Both are the mutated code failing the test, so a guard's `failure` may now be a list of messages.
+  All 267 source guards pass in six shards (each shard its own unit and its own log directory after the first run
+  shared one log file and lost the failure's shard; the artifact directories still named it).
+  The nine repeated anchors need no change: the guards that use them pass.
+- Commit `ed3407b01a` (on `origin/main`).
+- `inspect:theme-guards`, `ignored`, `watch`, `language`, `language-lifecycle`, `language-navigation`, `search`, `sidebar`, `find` all pass.
+
+Per-process scratch (agent `a816e6a0722ddb714`, branch `worktree-agent-a816e6a0722ddb714`, merged as `d4b0354b1f`, on `origin/main` at `a800292c31`):
+- Each IDE process binds `<server state>/tmp-<pid>-<hex nanos>` as `/tmp`, holds an exclusive lock on the `.lock` file beside it,
+  and removes sibling directories of that shape whose lock is free.
+  The old shared `tmp` is never touched.
+- Reviewed by reading the diff (`src/language/launch/scratch.rs`, `state.rs`, `recipe.rs`).
+- Merged gates on the merge tree: `lint:rustfmt`, `lint:clippy`, `test:language` 386 of 386, `test` 821 of 821, `test:native` 350 of 350,
+  `test:bin` 71 of 71, `inspect:language-guards` including `scratch-per-process`, `scratch-lock-held`, `scratch-ended-removed`
+  (each baseline passing, removed failing, restored passing).
+- The agent's measurement (three processes at a time on one project): the old binary lost a file the server created in 30 of 30 trials
+  and again in 30 of 30 for the same-binary control, the new one in 0 of 30; a killed process's directory stayed in 10 of 10 and the next launch removed it in 10 of 10.
+- `inspect:language-confinement` had a hard-coded `typescript@7.0.2` store path that no longer exists (the catalog pins `7.1.0-beta`);
+  it now copies the newest `typescript@7` entry by prefix.
+  The agent's patched copy gave 114 PASS and 0 FAIL.
+- Known limits (also in `doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md`):
+  a dead process's directory stays until the next launch of that server on that project;
+  a server can delete a neighbour's lock file (the state folder is writable in the sandbox, the same boundary as before).
+
+Two of 210 press events (agent `a1ba2331a7bd7b972`, docs only, merged as `6c2ae6af8b`): explained as late log lines in the section above.
+The log writer thread sat in `write(1)` (state `D`, `folio_wait_bit_common`) for up to 2.75 s on this btrfs host;
+`WAYLAND_DEBUG` writes from the window thread and stalls the press itself.
+Not shown: that the original two were this, and what holds the folio bit.
+
+Peer session `monochromatic-db` is planning to move packages into product categories (`doc/planning/generic-category-elimination.md`).
+It holds `package/desktop-app/ide`, `package/cli/nested-wayland-session` and `package/desktop-app/terminal` until I tell it they are idle.
+Send it that message (SendMessage to `monochromatic-db`) when the 0.1.3 release below is done and the scratch worktrees are gone.
+
+Next, in order:
+- Release IDE 0.1.3 (the shipped binary changed with the scratch directories): bump `Cargo.toml`, refresh `Cargo.lock` with `task-run //package/desktop-app/ide:fetch`,
+  dry run, read it, real dispatch, `sha256sum --check` and `gh attestation verify`, then build and install and have the verifier agent check the installed binary.
+- Remove the scratch worktrees (`~/temp/agent/fix-guards`, `~/temp/agent/land-scratch`), the two agent worktrees and branches, `~/temp/agent/guard-cache`, the guard log directories and the `ide-source-guard-*` and `ide-language-confinement-*` artifact directories.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
