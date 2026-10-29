@@ -22,8 +22,8 @@ import {
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import { setImmediate as nextTurn, } from 'node:timers/promises';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
 import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 import {
@@ -86,11 +86,39 @@ const ENTRY_PIN = {
 } as const;
 
 /**
+ Rendezvous that keeps the calls of one stage in flight until the slices have overlapped, in place of a sleep.
+
+ A call holds here until more calls are in flight at its stage than a single slice ever puts there, which only a
+ second slice running beside the first can do. The rendezvous then stays open, so a call that comes later is not held.
+ */
+type PeerGate = {
+  /**
+   Calls in flight at once that one slice alone reaches, so more than this is a second slice.
+   */
+  readonly above: number;
+
+  /**
+   Releases of the calls held, each of which settles the wait of one call.
+   */
+  readonly waiting: (() => void)[];
+
+  /**
+   Whether the stage has had more than {@link PeerGate.above} calls in flight at once.
+   */
+  open: boolean;
+};
+
+/**
  Successful model calls in flight for one pass stage.
  */
 type PassStageConcurrency = {
   now: number;
   peak: number;
+
+  /**
+   Rendezvous holding the stage's calls until a second slice is in flight, absent for the arm that only yields a turn.
+   */
+  readonly gate?: PeerGate;
 };
 
 /**
@@ -105,38 +133,129 @@ type PassConcurrency = {
 };
 
 /**
+ Builds the zeroed instrument for one stage.
+
+ @param above - calls in flight at once that one slice reaches at this stage; absent for an instrument with no
+ rendezvous
+
+ @returns Counters at zero, holding the stage's calls at a rendezvous when `above` is given
+
+ @example
+ ```ts
+ const stage = emptyStage({ above: 5, },);
+ ```
+ */
+function emptyStage({ above, }: { readonly above?: number; } = {},): PassStageConcurrency {
+  return {
+    now: 0,
+    peak: 0,
+    // Conditional spread keeps the stage without a rendezvous where the arm has no baseline.
+    ...((above === undefined) ? {} : { gate: { above, waiting: [], open: false, }, }),
+  };
+}
+
+/**
  Builds zeroed instruments for one pass arm.
+
+ @param baseline - arm that ran one slice at a time, whose peaks are what one slice alone reaches at each stage; when
+ given, the instruments hold every stage's calls until more are in flight than that peak, so only slices overlapping
+ can release them
 
  @returns Independent activity counters per per-slice driver
 
  @example
  ```ts
- const activity = emptyPassConcurrency();
+ const serial = emptyPassConcurrency();
+ const overlapped = emptyPassConcurrency({ baseline: serial, },);
  ```
  */
-function emptyPassConcurrency(): PassConcurrency {
+function emptyPassConcurrency({ baseline, }: { readonly baseline?: PassConcurrency; } = {},): PassConcurrency {
+  if (baseline === undefined) {
+    return {
+      repair: emptyStage(),
+      refine: emptyStage(),
+      translate: emptyStage(),
+      contest: emptyStage(),
+      consolidate: emptyStage(),
+    };
+  }
   return {
-    repair: {
-      now: 0,
-      peak: 0,
-    },
-    refine: {
-      now: 0,
-      peak: 0,
-    },
-    translate: {
-      now: 0,
-      peak: 0,
-    },
-    contest: {
-      now: 0,
-      peak: 0,
-    },
-    consolidate: {
-      now: 0,
-      peak: 0,
+    repair: emptyStage({ above: baseline.repair.peak, },),
+    refine: emptyStage({ above: baseline.refine.peak, },),
+    translate: emptyStage({ above: baseline.translate.peak, },),
+    contest: emptyStage({ above: baseline.contest.peak, },),
+    consolidate: emptyStage({ above: baseline.consolidate.peak, },),
+  };
+}
+
+/**
+ Keeps one call in flight at its stage, so the stage's counters see it beside the calls that run alongside it.
+
+ THE HOLD IS WHAT MAKES THE PEAK MEAN ANYTHING. A call that returns at once is counted in and out within one turn, so
+ two slices could overlap and the peak still read one slice's worth. A call of the arm without a rendezvous yields one
+ event-loop turn, which lets the calls of its own slice start beside it; a loaded machine can only lower the peak that
+ arm reads, which is the figure the other arm's rendezvous is set against. A call of the arm with a rendezvous waits for
+ the event itself, more calls in flight than one slice reaches, and no timer decides it.
+
+ @param stage - counters and rendezvous of the stage the call belongs to
+
+ @param signal - the call's abort, which ends the wait with its reason so a rendezvous that is never reached fails
+ the case at the entry's hard cap and does not hold the run
+
+ @throws The signal's reason when the call is aborted while it waits at the rendezvous
+
+ @example
+ ```ts
+ await holdInFlight({ stage: activity.repair, signal: request.signal, },);
+ ```
+ */
+async function holdInFlight(
+  {
+    stage,
+    signal,
+  }: {
+    readonly stage: PassStageConcurrency;
+    readonly signal: AbortSignal;
+  },
+): Promise<void> {
+  stage.now += 1;
+  stage.peak = Math.max(
+    stage.peak,
+    stage.now,
+  );
+  /**
+   Takes the call out of the count however the hold ends.
+   */
+  using _inFlight = {
+    [Symbol.dispose]: function leave(): void {
+      stage.now -= 1;
     },
   };
+  signal.throwIfAborted();
+  const { gate, } = stage;
+  if ((gate !== undefined) && (!gate.open)) {
+    if (stage.now > gate.above) {
+      gate.open = true;
+      for (const release of gate.waiting.splice(0,))
+        release();
+    }
+    else {
+      /**
+       Hold this call waits in, settled by the call that opens the rendezvous or rejected by the abort.
+       */
+      const held = Promise.withResolvers<void>();
+      gate.waiting.push(held.resolve,);
+      signal.addEventListener(
+        'abort',
+        function endHold(): void {
+          held.reject(signal.reason,);
+        },
+        { once: true, },
+      );
+      await held.promise;
+    }
+  }
+  await nextTurn();
 }
 
 /**
@@ -832,7 +951,8 @@ function replyFor(
 
  @param failWith - what those calls throw; a plain error when absent
 
- @param activity - optional admission instrument for every per-slice driver
+ @param activity - optional admission instrument for every per-slice driver; each stage call it covers stays in flight
+ until the instrument lets it go (`holdInFlight`)
 
  @param coverageScript - whether coverage roster answers or loses every voice
 
@@ -964,13 +1084,7 @@ function entryClient(
                 ? activity?.translate
                 : undefined;
       if (stageActivity !== undefined) {
-        stageActivity.now += 1;
-        stageActivity.peak = Math.max(
-          stageActivity.peak,
-          stageActivity.now,
-        );
-        await wait(10,);
-        stageActivity.now -= 1;
+        await holdInFlight({ stage: stageActivity, signal: request.signal, },);
       }
 
       /**
@@ -1384,9 +1498,10 @@ await describe({
         }
 
         /**
-         Activity with two slices handed in.
+         Activity with two slices handed in. Every stage holds its calls until more are in flight than the sequential arm's
+         peak, so the comparison below rests on a rendezvous the slices reached and no sleep.
          */
-        const overlapped = emptyPassConcurrency();
+        const overlapped = emptyPassConcurrency({ baseline: serial, },);
         {
           using dial = dialSaying({ says: 'several', },);
           await using dirs = await throwawayDirs();
