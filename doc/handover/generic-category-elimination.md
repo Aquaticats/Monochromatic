@@ -159,8 +159,8 @@ User decisions taken during execution
    "just do new releases through npm-publish.yml now"):
    `logger-core` 0.4.6 and `fs-path-core` 0.2.2 (`66e9826bab`, version bump and changelog only).
   Runs 40863033623 and 40863038503 succeeded (pack and publish);
-   npm printed `+ @monochromatic-dev/logger-core@0.4.6`,
-   a signed provenance statement (Sigstore log index 3565726298),
+   npm printed `+ @monochromatic-dev/logger-core@0.4.6` and `+ @monochromatic-dev/fs-path-core@0.2.2`,
+   a signed provenance statement for each (Sigstore log indexes 3565726298 and 3565721940),
    and "Your package is being processed".
   At this update the registry did not list 0.4.6 or 0.2.2 yet;
    a check was waiting up to 15 minutes.
