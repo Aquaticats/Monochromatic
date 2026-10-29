@@ -369,20 +369,22 @@ const tasks: Record<string, TaskDefinition> = {
     run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts',
   },
   'rust:verify': {
-    description: 'Check every locked Rust registry version against rust-catalog.toml\'s trust policy (CI)',
+    description: 'Check Rust registry versions locked since a base revision (default HEAD; CI passes --base) against rust-catalog.toml\'s trust policy',
     run: 'node package/dependency-catalog/cli-rust-update/src/cli.ts --verify',
   },
   'lint:monochromatic-lint': {
     description: 'Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths',
     run: 'monochromatic-lint',
   },
-  'npm:module:pack': {
-    description: 'Pack the publishable workspace modules',
-    run: 'pnpm pack --recursive',
+  // Same commands as mise.no-env.toml's npm:package:* tasks: npm-publish.yml releases one package at a time,
+  // so packing and publishing touch only package/$NPM_PACKAGE, never the whole workspace.
+  'npm:package:pack': {
+    description: 'Pack the package at package/$NPM_PACKAGE for the targeted npm trusted-publisher workflow',
+    run: 'pnpm --filter "./package/$NPM_PACKAGE" pack --pack-destination "$NPM_PACK_DIR"',
   },
-  'npm:module:publish': {
-    description: 'Publish the packed workspace modules',
-    run: 'pnpm publish --recursive --no-git-checks',
+  'npm:package:publish': {
+    description: 'Publish the packed package release using npm trusted publishing',
+    run: 'npm publish "$NPM_PACK_DIR"/*.tgz --access public --provenance --registry=https://registry.npmjs.org',
   },
   'changeset:add': {
     description: 'Add a changeset',
