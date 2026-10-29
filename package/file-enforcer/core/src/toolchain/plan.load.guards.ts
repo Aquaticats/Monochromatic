@@ -166,9 +166,9 @@ export function parseRequest(
   if ((present.length !== 1) || ((typeof text) !== 'string'))
     return fail('request needs exactly one string intent (track, pinned or channel)',);
   if (key === 'pinned')
-    return { pinned: String(text,), };
+    return { pinned: text, };
   if (key === 'channel')
-    return { channel: String(text,), };
+    return { channel: text, };
   if (text !== 'latest')
     return fail('request.track must be latest',);
   return { track: 'latest', };
@@ -385,7 +385,9 @@ function parsePostinstallRun(
     readonly fail: Fail;
   },
 ): PostinstallRun {
-  if ((!isRecord(value,)) || ((typeof value.sourceBin) !== 'string') || (value.sourceBin === '')
+  if ((!isRecord(value,))
+    || ((typeof value.sourceBin) !== 'string')
+    || (value.sourceBin === '')
     || (!isNameList(value.args,)))
     return fail('options.postinstall.run must be { sourceBin, args: [names] }',);
   return {
@@ -422,7 +424,10 @@ function parsePostinstall(
     readonly fail: Fail;
   },
 ): PostinstallStep {
-  if (isRecord(value,) && (value.when === 'always') && (value.run !== undefined) && (value.link === undefined))
+  if (isRecord(value,)
+    && (value.when === 'always')
+    && (value.run !== undefined)
+    && (value.link === undefined))
     return parsePostinstallRun({
       value: value.run,
       fail,
@@ -471,9 +476,9 @@ function parsePostinstallLink(
   return {
     when: 'always',
     link: {
-      sourceBin: String(link.sourceBin,),
-      linkName: String(link.linkName,),
-      ...(link.linkDir === undefined ? {} : { linkDir: String(link.linkDir,), }),
+      sourceBin: link.sourceBin,
+      linkName: link.linkName,
+      ...(link.linkDir === undefined ? {} : { linkDir: link.linkDir, }),
     },
   };
 }
@@ -603,28 +608,40 @@ export function parseOptions(
   if (unknownKey !== undefined)
     return fail(`options.${unknownKey} is not a known option`,);
   /**
-   Name-list options, each zero or one list.
+   Rustup components to add, absent when the option is unset.
    */
   const [rustComponents,] = nameListOption({
     key: 'rustComponents',
     value: value.rustComponents,
     fail,
   },);
+  /**
+   Rustup targets to add, absent when the option is unset.
+   */
   const [rustTargets,] = nameListOption({
     key: 'rustTargets',
     value: value.rustTargets,
     fail,
   },);
+  /**
+   Cargo features to enable, absent when the option is unset.
+   */
   const [cargoFeatures,] = nameListOption({
     key: 'cargoFeatures',
     value: value.cargoFeatures,
     fail,
   },);
+  /**
+   Packages allowed to run build scripts, absent when the option is unset.
+   */
   const [allowBuilds,] = nameListOption({
     key: 'allowBuilds',
     value: value.allowBuilds,
     fail,
   },);
+  /**
+   Android SDK packages to install, absent when the option is unset.
+   */
   const [androidPackages,] = nameListOption({
     key: 'androidPackages',
     value: value.androidPackages,
@@ -653,7 +670,7 @@ export function parseOptions(
     ...(allowBuilds === undefined ? {} : { allowBuilds, }),
     ...(androidPackages === undefined ? {} : { androidPackages, }),
     ...(isRecord(cargoGit,) ? { cargoGit: { url: String(cargoGit.url,), }, } : {}),
-    ...((typeof assetPattern) === 'string' ? { assetPattern: String(assetPattern,), } : {}),
+    ...((typeof assetPattern) === 'string' ? { assetPattern, } : {}),
     ...(isStringRecord(binAliases,) ? { binAliases, } : {}),
     ...(postinstall === undefined ? {} : { postinstall: parsePostinstall({
       value: postinstall,
@@ -726,8 +743,8 @@ export function parseArtifacts(
             return [
               platform,
               {
-                url: String(entry.url,),
-                sha256: String(entry.sha256,),
+                url: entry.url,
+                sha256: entry.sha256,
               },
             ];
           },),),
