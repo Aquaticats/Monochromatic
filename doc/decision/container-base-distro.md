@@ -89,7 +89,9 @@ The owner chose to keep each release's current floor:
   The owner chose Ubuntu 24.04 for release images ("Do Ubuntu 24.04 for release images instead."),
    so container-built releases share the floor of the Ubuntu 24.04 release runners.
   Release images carry the `24.04` tag on purpose:
-   the tag is what fixes the glibc floor.
+   the tag is what fixes the glibc floor
+   (Launchpad lists glibc `2.39-0ubuntu8.9` in noble's Updates and Security pockets on 2026-10-29,
+   and `ldd --version` in `docker.io/library/ubuntu:24.04` printed `ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39`).
   Example:
    IDE release binaries are compiled in `localhost/monochromatic/ide`,
    which is built from the terminal image,
