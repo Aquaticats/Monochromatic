@@ -31,15 +31,30 @@
  function, `<module>` outside one.
 
  OUT OF ITS REACH: a timer reached through `globalThis` or another object,
- a key outside `BOUND_KEYS` (a retry backoff, a poll interval, a field a
- report reads), a Bedrock client a production function builds for a test
+ a key outside `BOUND_KEYS` (a retry backoff, a field a report reads), a
+ Bedrock client a production function builds for a test
  (`configureProviders` handed a Bedrock key, which takes no override; none
  does so, by the census of B416), a duration handed through an environment
- variable as text,
- an elapsed time a case measures with `performance.now` and compares, and a
- sleep inside a child process's script text. Waits a case's work takes, such
- as `baseMs` or `pollMs`, are left out on purpose: load only lengthens them,
+ variable as text, a sleep inside a child process's script text, and a wait
+ reached through a router or a reader built over the budgets, which the
+ budget finder below does not follow. Waits a case's work takes, such
+ as `baseMs`, are left out on purpose: load only lengthens them,
  and a race against one shows up at the bound or the sleep on its other side.
+
+ THE WAITS ON THE REAL CLOCK THAT NO TIMER CALL NAMES (ledger B995): three
+ forms the cooldown round of B985 found a test could sleep on with none of the
+ reads above in sight. A `pollMs`, the slice a wait on a provider's hold sleeps
+ in, is a bound key, except inside a function that puts a fake clock under the
+ case: one that calls `useFakeTimers`, one that calls a function of its own
+ file that does (`fakeClockStarted`), or one that calls a name imported from a
+ module whose path holds `fake-clock` (`readOnFakeClock`). Every call of
+ `performance.now`, which an elapsed time is read off the real clock with, is a
+ finding, keyed with the value `(none)`. A `createProviderBudgets` call
+ imported from the built entry of its package or from the package's name, in a
+ file that also imports `readBudgetsPastHolds` or `waitOutHold`, is a finding
+ keyed with the value `(none)` when its options literal names no `now` key of
+ its own (a spread does not count), since the budgets then judge a hold against
+ the real monotonic clock and the wait sleeps it out for real.
 
  THE HOLDS A TEST REGISTERS FOR A PROVIDER, which reach a sleep through a client's reader of holds and not through
  a timer call (ledger B817): a hold of 1000 ms or more written onto a member named `holds` (`rig.holds.synthetic = N`),
@@ -79,11 +94,14 @@ import {
   readPackageSource,
 } from './family-source.test-fixture.ts';
 import {
+  ancestorsOf,
   childNodes,
   identifierName,
   isTreeNode,
   literalText,
   memberName,
+  nodesUnder,
+  parentsOf,
   parseSource,
   type SourceText,
   type TreeNode,
@@ -130,6 +148,58 @@ const BUILT_INDEX_SUFFIX = 'dist/final/node/index.mjs';
 const BEDROCK_CLIENT_NAME = 'createBedrockClient';
 
 /**
+ Name the built package exports the budgets' builder under, which judges a hold against the options' `now` and, where
+ they name none, against the real monotonic clock (`provider-budget.ts`).
+ */
+const BUDGETS_BUILDER_NAME = 'createProviderBudgets';
+
+/**
+ Location of the module that declares the budgets' builder.
+ */
+const BUDGETS_BUILDER_MODULE = 'provider/provider-budget.ts';
+
+/**
+ Names the budget wait is exported under, which sleep out a hold in slices (`budget-hold-wait.ts`).
+ */
+const BUDGET_WAIT_NAMES: ReadonlySet<string> = new Set([
+  'readBudgetsPastHolds',
+  'waitOutHold',
+],);
+
+/**
+ Location of the module that declares the budget wait.
+ */
+const BUDGET_WAIT_MODULE = 'provider/budget-hold-wait.ts';
+
+/**
+ Forms of the poll key, as a value and as a destructured default, which a fake clock under the case makes harmless:
+ the slices of the wait are then ticked past and no real time passes.
+ */
+const POLL_FORMS: ReadonlySet<string> = new Set([
+  'pollMs:',
+  'pollMs =',
+],);
+
+/**
+ Name of the call that installs a fake clock on a case's sandbox.
+ */
+const FAKE_CLOCK_INSTALL = 'useFakeTimers';
+
+/**
+ Part of the path of a fixture module whose exports run a reading on a fake clock (`run-seats-fake-clock`).
+ */
+const FAKE_CLOCK_MODULE_PART = 'fake-clock';
+
+/**
+ Node kinds that open a function, whose body a fake clock installed inside it covers.
+ */
+const FUNCTION_KINDS: ReadonlySet<string> = new Set([
+  'ArrowFunctionExpression',
+  'FunctionDeclaration',
+  'FunctionExpression',
+],);
+
+/**
  Forms of the stream bound keys, as a value and as a destructured default,
  whose value `'unbounded'` arms no timer: the Bedrock client hands an
  unbounded model's attempts to the transport as they are.
@@ -174,6 +244,7 @@ const BOUND_KEYS: ReadonlySet<string> = new Set([
   'idleMs',
   'modelHoldMs',
   'perCallTimeoutMs',
+  'pollMs',
   'rateLimitBackoffMs',
   'roundMs',
   'runBudgetMs',
@@ -1416,6 +1487,22 @@ type TimerNames = {
    Local names of `createBedrockClient` from the built package.
    */
   readonly bedrockClients: ReadonlySet<string>;
+
+  /**
+   Local names of `createProviderBudgets` from the provider package.
+   */
+  readonly budgetBuilders: ReadonlySet<string>;
+
+  /**
+   Whether the file imports a budget wait (`readBudgetsPastHolds` or `waitOutHold`), which sleeps a hold out on the
+   clock the budgets read.
+   */
+  readonly drivesBudgetWaits: boolean;
+
+  /**
+   Local names imported from a fixture module that runs a reading on a fake clock.
+   */
+  readonly fakeClocks: ReadonlySet<string>;
 };
 
 /**
@@ -1458,6 +1545,18 @@ function timerNamesOf(
    Local names of the Bedrock client's builder.
    */
   const bedrockClients = new Set<string>();
+  /**
+   Local names of the budgets' builder.
+   */
+  const budgetBuilders = new Set<string>();
+  /**
+   Local names of the budget waits.
+   */
+  const budgetWaits = new Set<string>();
+  /**
+   Local names of what a fake-clock fixture module exports.
+   */
+  const fakeClocks = new Set<string>();
   for (const statement of (program.body as readonly TreeNode[])) {
     if (statement.type !== 'ImportDeclaration')
       continue;
@@ -1492,6 +1591,12 @@ function timerNamesOf(
         hangStops.add(local,);
       if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === BEDROCK_CLIENT_MODULE)) && (exported === BEDROCK_CLIENT_NAME))
         bedrockClients.add(local,);
+      if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === BUDGETS_BUILDER_MODULE)) && (exported === BUDGETS_BUILDER_NAME))
+        budgetBuilders.add(local,);
+      if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === BUDGET_WAIT_MODULE)) && BUDGET_WAIT_NAMES.has(exported,))
+        budgetWaits.add(local,);
+      if (landsAt.includes(FAKE_CLOCK_MODULE_PART,))
+        fakeClocks.add(local,);
     }
   }
   return {
@@ -1499,6 +1604,9 @@ function timerNamesOf(
     waits,
     hangStops,
     bedrockClients,
+    budgetBuilders,
+    drivesBudgetWaits: budgetWaits.size > 0,
+    fakeClocks,
   };
 }
 
@@ -1519,30 +1627,39 @@ type BoundRead = {
 };
 
 /**
- Whether the options a Bedrock client is built with name its stream bound
- override, whose value the object walk then reads; options that are no
- object literal, or carry it only through a spread, do not.
+ Whether the options a call is built with name one key, whose value the object walk then reads where the key is a
+ bound; options that are no object literal, or carry the key only through a spread, do not.
 
  @param options - first argument of the call
 
- @returns Whether the literal names `streamBoundMsOverride` as a key of its own
+ @param key - option key looked for
+
+ @returns Whether the literal names the key as a key of its own
 
  @example
  ```ts
- const named = namesStreamBoundOverride({ options: args[0], },);
+ const named = namesOptionKey({ options: args[0], key: 'streamBoundMsOverride', },);
  ```
  */
-function namesStreamBoundOverride({ options, }: { readonly options: unknown; },): boolean {
+function namesOptionKey(
+  {
+    options,
+    key,
+  }: {
+    readonly options: unknown;
+    readonly key: string;
+  },
+): boolean {
   /**
    The options inside any parentheses and casts.
    */
   const { inner, } = unwrapped({ node: options, },);
   if ((!isTreeNode(inner,)) || (inner.type !== 'ObjectExpression'))
     return false;
-  return (inner.properties as readonly TreeNode[]).some(function namesOverride(property,): boolean {
+  return (inner.properties as readonly TreeNode[]).some(function namesKey(property,): boolean {
     return (property.type === 'Property')
       && (property.computed !== true)
-      && ((identifierName({ node: property.key, },) || literalText({ node: property.key, },)) === 'streamBoundMsOverride');
+      && ((identifierName({ node: property.key, },) || literalText({ node: property.key, },)) === key);
   },);
 }
 
@@ -1578,10 +1695,25 @@ function callBounds(
    */
   const args = node.arguments as readonly unknown[];
   if (isTreeNode(callee,) && (callee.type === 'MemberExpression')) {
-    return ((memberName({ node: callee, },) === 'timeout') && (identifierName({ node: callee.object, },) === 'AbortSignal'))
-      ? [{
+    /**
+     The method the call names.
+     */
+    const method = memberName({ node: callee, },);
+    /**
+     The object it is called on, empty for anything but a plain identifier.
+     */
+    const owner = identifierName({ node: callee.object, },);
+    if ((method === 'timeout') && (owner === 'AbortSignal')) {
+      return [{
         form: 'AbortSignal.timeout',
         value: args[0],
+      },];
+    }
+    // An elapsed time read off the real clock, which a loaded machine stretches (ledger B995).
+    return ((method === 'now') && (owner === 'performance'))
+      ? [{
+        form: 'performance.now',
+        value: undefined,
       },]
       : [];
   }
@@ -1590,10 +1722,25 @@ function callBounds(
    */
   const name = identifierName({ node: callee, },);
   if (names.bedrockClients.has(name,)) {
-    return namesStreamBoundOverride({ options: args[0], },)
+    return namesOptionKey({
+      options: args[0],
+      key: 'streamBoundMsOverride',
+    },)
       ? []
       : [{
         form: `${name} of the built package`,
+        value: undefined,
+      },];
+  }
+  // Budgets with no clock of their own judge a hold on the real monotonic clock, which a wait in the same file sleeps out.
+  if (names.drivesBudgetWaits && names.budgetBuilders.has(name,)) {
+    return namesOptionKey({
+      options: args[0],
+      key: 'now',
+    },)
+      ? []
+      : [{
+        form: `${name} with no now`,
         value: undefined,
       },];
   }
@@ -2010,6 +2157,83 @@ function valueText(
 }
 
 /**
+ The functions a fake clock covers: each one that calls `useFakeTimers`, a function of its own file that does, or a
+ name imported from a fake-clock fixture, directly or through a function nested in it. A read inside such a function
+ sleeps on the fake clock when the case ticks it, so no real time passes (ledger B995).
+
+ @param program - file's program
+
+ @param imported - local names imported from a module that runs a reading on a fake clock
+
+ @returns Every function node that holds such a call
+
+ @example
+ ```ts
+ const covered = fakedFunctionsOf({ program, imported: names.fakeClocks, },);
+ ```
+ */
+function fakedFunctionsOf(
+  {
+    program,
+    imported,
+  }: {
+    readonly program: TreeNode;
+    readonly imported: ReadonlySet<string>;
+  },
+): ReadonlySet<TreeNode> {
+  /**
+   Each node's parent, to find the functions around a call.
+   */
+  const parents = parentsOf({ program, },);
+  /**
+   Names of calls that put a fake clock under the function around them, growing as a function that makes one is met.
+   */
+  const installs = new Set<string>([
+    FAKE_CLOCK_INSTALL,
+    ...imported,
+  ],);
+  /**
+   Functions found to hold a call that installs a fake clock.
+   */
+  const covered = new Set<TreeNode>();
+  /**
+   Calls in source order, so a function declared before its caller is known to install a clock by then.
+   */
+  const calls = nodesUnder({ root: program, },)
+    .filter(function isCall(node,): boolean {
+      return node.type === 'CallExpression';
+    },)
+    .toSorted(function bySource(left, right,): number {
+      return left.start - right.start;
+    },);
+  for (const call of calls) {
+    /**
+     The callee inside any parentheses and casts.
+     */
+    const { inner: callee, } = unwrapped({ node: call.callee, },);
+    /**
+     The name the call goes by: the method of a member call, the identifier otherwise.
+     */
+    const name = (isTreeNode(callee,) && (callee.type === 'MemberExpression'))
+      ? memberName({ node: callee, },)
+      : identifierName({ node: callee, },);
+    if (!installs.has(name,))
+      continue;
+    for (const holder of ancestorsOf({
+      node: call,
+      parents,
+    },)) {
+      if (!FUNCTION_KINDS.has(holder.type,))
+        continue;
+      covered.add(holder,);
+      if ((holder.type === 'FunctionDeclaration') && isTreeNode(holder.id,))
+        installs.add(identifierName({ node: holder.id, },),);
+    }
+  }
+  return covered;
+}
+
+/**
  Every bound on the real clock in the test files and fixtures given whose
  value is not the shared hang stop, keyed `path#site: form value`.
 
@@ -2048,11 +2272,20 @@ function unsharedBounds({ files, }: { readonly files: readonly SourceText[]; },)
       readonly node: TreeNode;
       readonly site: string;
       readonly holding: boolean;
+      readonly faked: boolean;
     }[] = [{
       node: program,
       site: '<module>',
       holding: false,
+      faked: false,
     },];
+    /**
+     The functions a fake clock covers, inside which a poll slice is ticked past and sleeps nothing.
+     */
+    const covered = fakedFunctionsOf({
+      program,
+      imported: names.fakeClocks,
+    },);
     /**
      Top-level constants of the file and the numbers they spell, which a hold may be written as.
      */
@@ -2065,7 +2298,12 @@ function unsharedBounds({ files, }: { readonly files: readonly SourceText[]; },)
         node,
         site,
         holding,
+        faked,
       } = next;
+      /**
+       Whether a fake clock covers the node: it sits in, or is, a function that installs one.
+       */
+      const fakedHere = faked || covered.has(node,);
       /**
        Enclosing named function for the node's children.
        */
@@ -2087,6 +2325,8 @@ function unsharedBounds({ files, }: { readonly files: readonly SourceText[]; },)
         },),
       ];
       for (const read of reads) {
+        if (fakedHere && POLL_FORMS.has(read.form,))
+          continue;
         /**
          The value inside any parentheses and casts.
          */
@@ -2114,6 +2354,7 @@ function unsharedBounds({ files, }: { readonly files: readonly SourceText[]; },)
           node: child,
           site: here,
           holding: holdingBelow,
+          faked: fakedHere,
         };
       },),);
     }
@@ -2247,7 +2488,7 @@ await describe({
               '  const { idleMs, } = { idleMs: HANG_STOP_MS, };',
               '  void idleMs;',
               '}',
-              'export const steady = performance.now() + globalThis.setTimeout(purr, 9,) + timers.setTimeout(purr, 9,);',
+              'export const steady = globalThis.setTimeout(purr, 9,) + timers.setTimeout(purr, 9,);',
             ].join('\n',),
             isTest: true,
           },
@@ -2422,6 +2663,98 @@ await describe({
           'litter.unit.test.ts#rigFor: holds.hyper = 2_000',
           'litter.unit.test.ts#rigFor: holds.openrouter = held',
           'litter.unit.test.ts#rigFor: holds.synthetic = LONG_MS',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A POLL SLICE, A READ OF performance.now AND BUDGETS BUILT WITH NO now beside a budget wait, under '
+        + 'any local name, and leaves the poll slice inside a function that installs a fake clock (by useFakeTimers, by '
+        + 'a function of the file that does, or by a name from a fake-clock fixture), budgets that name now, budgets '
+        + 'in a file with no budget wait, and a builder the test declares itself (the cooldown round of ledger B985 '
+        + 'left two 40 ms sleeps that none of these reads could see)',
+      fn: async () => {
+        /**
+         Waits on the real clock in three shapes, the same reads on a fake clock, and look-alikes.
+         */
+        const files: readonly SourceText[] = [
+          {
+            path: 'tabby-waits.unit.test.ts',
+            text: [
+              'import { createProviderBudgets as budgetsFor, createProviderBudgets, readBudgetsPastHolds, } from '
+                + '\'../dist/final/node/index.mjs\';',
+              'import { readOnFakeClock, } from \'./tabby-fake-clock.test-fixture.ts\';',
+              'const SLICE = 5;',
+              'function fakeClockStarted({ sinon, }: { sinon: unknown; },): unknown {',
+              '  return sinon.useFakeTimers({ toFake: [\'setTimeout\', \'clearTimeout\',], shouldClearNativeTimers: true, },);',
+              '}',
+              'export async function napOnTheRealClock(budgets: unknown, clock: { now: number; },): Promise<number> {',
+              '  createProviderBudgets({ maxHoldMs: 1, },);',
+              '  budgetsFor({ maxHoldMs: 1, ...clock, },);',
+              '  createProviderBudgets({ maxHoldMs: 1, now: () => clock.now, },);',
+              '  const started = performance.now();',
+              '  await readBudgetsPastHolds({ budgets, pollMs: SLICE, },);',
+              '  return performance.now() - started;',
+              '}',
+              'export function readsFromADefault({ pollMs = 3, }: { pollMs?: number; },): number { return pollMs; }',
+              'export async function napOnASandboxClock({ sinon, budgets, }: { sinon: unknown; budgets: unknown; },): Promise<void> {',
+              '  const clock = sinon.useFakeTimers({ toFake: [\'setTimeout\', \'clearTimeout\',], shouldClearNativeTimers: true, },);',
+              '  const reading = readBudgetsPastHolds({ budgets, pollMs: 10, },);',
+              '  await clock.tickAsync(20,);',
+              '  await reading;',
+              '}',
+              'export async function napOnAStartedClock({ sinon, budgets, }: { sinon: unknown; budgets: unknown; },): Promise<void> {',
+              '  using fake = fakeClockStarted({ sinon, },);',
+              '  void performance.now();',
+              '  await readBudgetsPastHolds({ budgets, pollMs: 10, },);',
+              '}',
+              'export async function napThroughAFixture({ sinon, budgets, }: { sinon: unknown; budgets: unknown; },): Promise<void> {',
+              '  await readOnFakeClock({',
+              '    sinon,',
+              '    holdMs: 40,',
+              '    pollMs: 5,',
+              '    reading: async ({ signal, },) => await readBudgetsPastHolds({ budgets, pollMs: 5, signal, },),',
+              '  },);',
+              '}',
+            ].join('\n',),
+            isTest: true,
+          },
+          {
+            path: 'siamese-waits.unit.test.ts',
+            text: [
+              'import { createProviderBudgets, waitOutHold, } from \'@monochromatic-dev/translation-repair-provider\';',
+              'export const budgets = createProviderBudgets({ maxHoldMs: 1, },);',
+              'export const waiting = waitOutHold;',
+            ].join('\n',),
+            isTest: true,
+          },
+          {
+            path: 'calico-budgets.unit.test.ts',
+            text: [
+              'import { readBudgetsPastHolds, } from \'../dist/final/node/index.mjs\';',
+              'function createProviderBudgets(options: unknown,): unknown { return options; }',
+              'export const budgets = createProviderBudgets({ maxHoldMs: 1, },);',
+              'export const waiting = readBudgetsPastHolds;',
+            ].join('\n',),
+            isTest: true,
+          },
+          {
+            path: 'ragdoll-budgets.unit.test.ts',
+            text: [
+              'import { createProviderBudgets, } from \'../dist/final/node/index.mjs\';',
+              'export const budgets = createProviderBudgets({ maxHoldMs: 1, },);',
+            ].join('\n',),
+            isTest: true,
+          },
+        ];
+        expect(unsharedBounds({ files, },),).toEqual([
+          'siamese-waits.unit.test.ts#<module>: createProviderBudgets with no now (none)',
+          'tabby-waits.unit.test.ts#napOnAStartedClock: performance.now (none)',
+          'tabby-waits.unit.test.ts#napOnTheRealClock: budgetsFor with no now (none)',
+          'tabby-waits.unit.test.ts#napOnTheRealClock: createProviderBudgets with no now (none)',
+          'tabby-waits.unit.test.ts#napOnTheRealClock: performance.now (none)',
+          'tabby-waits.unit.test.ts#napOnTheRealClock: performance.now (none)',
+          'tabby-waits.unit.test.ts#napOnTheRealClock: pollMs: SLICE',
+          'tabby-waits.unit.test.ts#readsFromADefault: pollMs = 3',
         ],);
       },
     },),
