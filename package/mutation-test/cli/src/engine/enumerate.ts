@@ -288,6 +288,7 @@ export function enumerateMutants(options: {
       rules,
       line: mutant.line,
       operator: mutant.operator,
+      replacement: mutant.replacement,
     },);
     /**
      Highest-priority covering rule, when any.
