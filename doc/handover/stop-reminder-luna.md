@@ -109,7 +109,8 @@ Three separate decisions are put to the owner, each with measured numbers in the
 - Run the wording checks inside a chain once per trigger, as the parked-decision check already does.
   On the logged chain stops this flags 14 stops nothing else blocked, including the 23:11 and 10:31 misses,
   one false hit ("as it should be"), and no trailing questions.
-- Keep or drop the earlier stops as Luna context on repeated stops.
+- Send the earlier stops to Luna on every repeated stop, never, or only when a background task is running.
+  All three verified repeated false blocks had tasks running, and four of the eight repeated misses had none.
 - Block when the always-blocking labels together reach 0.8 and no single label reaches 0.60.
   In the logs this happened 3 times in 832 released stops, and this stop (0.95) would be a fourth.
 

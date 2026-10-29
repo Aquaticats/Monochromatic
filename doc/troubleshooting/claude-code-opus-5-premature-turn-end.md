@@ -1184,7 +1184,10 @@ Of the kept phrases about 15 stops are newly flagged, and every snippet I read w
 measured the net effect on collisions", "I haven't looked into it", "I did not rerun scoped mutation").
 The bare adjectives `unexplained` and `unmeasured` were left out for the reason `untested` was: the snippets
 mostly describe a thing ("an unexplained abnormality"), not the agent's own gap.
-The built hook blocks the 23:11 report on `"i didn't measure"`, and passes "I tried the build and it passed".
+The built hook blocks the 23:11 report on `"i didn't measure"` when `stop_hook_active` is false, and passes "I tried the
+build and it passed".
+The real 23:11 stop came after a first block in its turn, and the log of that day does not record the flag, so whether
+this fix covers that exact stop in production depends on a chain gate that was not yet in question.
 
 The chain gate is not the lever for the 10:31 stop, and the paragraph that called it an owner decision is withdrawn.
 Luna was asked inside the chain and scored `waits_on_user` at 0.59.
@@ -1280,8 +1283,8 @@ phrase check then blocked it on `i haven't checked`, so the reminder said to sea
 The trailing-question detector needs a literal `?` and found none.
 The 10:31 stop in the Slint session ("Say so if you want it") is the same shape and was inside a blocked chain.
 Luna with the assistant text of every earlier stop in the turn, on the full text of both messages and through the
-shipped code, did not catch either: the one-line reply stayed at `work_closed` 0.94 (0.97 with history), and the long report
-moved from `work_closed` 0.29 to 0.51 and from a block mass of 0.65 to 0.41.
+shipped code, did not catch either: the one-line reply stayed at `work_closed` 0.94 (0.97 with history),
+and the long report moved from `work_closed` 0.29 to 0.51 and from a block mass of 0.65 to 0.41.
 So turn history is not the fix here; it lowered the report's score.
 An earlier version of this paragraph said history left both scores unchanged; that was measured on the 600-character
 tail of the report and is retracted.
@@ -1435,6 +1438,19 @@ How often Luna splits between blocking labels, over the 832 released stops that 
 - Of the 3, one is the 10:31 stop (mass 0.80, the owner's nudge followed), one drew a human reply that was a new problem
   report and not a nudge, and one was blocked by something else.
 - This stop has mass 0.95 and would be a fourth.
+
+How the history effect splits by running tasks, from the verdict rows of the labelled repeated stops:
+
+- All three verified repeated false blocks had background tasks running (1, 7 and 7).
+- Of the eight repeated misses, four had none running: the 03:10 stop, the 10:31 stop, the 23:11 report and a stop on
+  2026-10-19 at 16:53.
+  The other four had one to seven running, and history lowers their block mass (0.42 to 0.01, 0.23 to 0.01,
+  0.43 to 0.23 and 0.02 to 0.01).
+- Sending history only when a task is running would keep the false-block fix and judge the no-task stops on the final
+  message alone.
+  Alone, the 03:10 stop scores 0.99 and blocks; the 10:31 stop (0.59) and the 23:11 report (0.48) still release, and
+  are covered by the parked-decision check and the admitted-gap phrases instead.
+- The rule is fitted to ten stops.
 
 Owner decisions pending, each a separate question:
 
