@@ -225,6 +225,13 @@ named for that subject and listed here.
   - [Files a later run reads back](mistake-prevention-stored-files-and-cached-decisions.md#files-a-later-run-reads-back)
   - [File names derived from an input](mistake-prevention-stored-files-and-cached-decisions.md#file-names-derived-from-an-input)
   - [Facts a cache gate reads](mistake-prevention-stored-files-and-cached-decisions.md#facts-a-cache-gate-reads)
+- [Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md):
+  Rules for two checks that are made once and then relied on:
+  which commits a branch holds,
+  and the figures one session tells another.
+  Sections:
+  - [Which commits a branch holds](mistake-prevention-commit-checks-and-figures-told-to-others.md#which-commits-a-branch-holds)
+  - [Figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#figures-told-to-others)
 
 ## Before a run launches
 

@@ -161,6 +161,19 @@ The gate's `PATH` builder had dropped the entries of the main checkout,
 and the fresh gate trees had never been synced.
 Round 8's own red cases in `tr-w357` were the same missing program in a tree that predated the cutover (ledger B980).
 
+A rotation sweep started in `tr-g224` while gate g224 rebuilt `dist` in the same tree,
+and its salt-9 canary failed with `ERR_MODULE_NOT_FOUND` on `translation-repair-markup/dist/final/node/index.mjs`
+(ledger M297).
+Gate g223 on the merge `b12cdc5d23` of main into the cooldown branch went red in the type check,
+the oxlint run and the unit tests of `pass-entry`,
+though the merge itself was clean:
+the branch's begin-entry case at `pass-entry.unit.test.ts:1501` lacked `attempt`,
+which the stamps that main carried at `112f6274fc` had made required (ledger M298).
+Gate g215 failed `run-client-create.unit.test.ts:480` under host load,
+and the case passed alone:
+the rig counted turns of the event loop (fixed in `df2350a6ee`,
+ledger B965 and M299).
+
 The rule:
 a gate tree is set up in this order before its first gate:
 `mise run prepare:pnpm:install`,
@@ -174,6 +187,15 @@ after a subagent merges main across a change to the toolchain,
 the lead syncs that subagent's tree.
 A failure that names a missing program or a shim with no version is read as a tree with no sync
 before it is read as a case that is red.
+A rotation sweep runs beside a gate only in another worktree:
+in the gate's own tree it starts after the gate ends,
+since the gate rebuilds `dist` and the sweep reads it.
+After main is merged into a branch,
+`lint:types` runs on the merged head before a full gate,
+because a merge with no conflict can still make a field required that the branch's cases leave out.
+A red case is run alone before it is judged:
+a case that fails under the load of a gate and passes alone is looked at for a rig that depends on timing,
+and one that fails alone is read for its message.
 
 What enforces it:
 habit,

@@ -106,7 +106,15 @@ when it passed its 1,000-line bound.
   and a report whose premises about a census the log did not bear out (M270).
 - [Audit ledger: process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md):
   The lead's own slips as they were collected at the close of each batch of work,
-  and in merging the work of two rounds.
+  and in merging the work of two rounds,
+  with those of the gates and messages of round 8 and the toolchain cutover (M295 and M297 to M303):
+  a corrective comment held for the landing,
+  a sweep beside a gate in its own tree,
+  a merge of main that went to a full gate without the type check,
+  a red case judged before it was run alone,
+  a brief that named a lint task that does not apply the wrap configuration,
+  a check of a branch by a listing that names a branch holding either commit,
+  and a gate time told unmeasured.
 - [Audit ledger: process mistakes, the package split](audit-ledger-process-the-package-split.md):
   The mistakes of the split of the package into 36:
   a dry run that never linted,
@@ -128,7 +136,9 @@ when it passed its 1,000-line bound.
   which then brought in three doc lines that fail the scan (M294).
 - [Audit ledger: process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md):
   Turns that ended with work still listed,
-  and waits spent polling.
+  and waits spent polling,
+  a branch held for a clean re-check where no rule said when it lands (M296),
+  and the output of a background command read before it finished (M301).
 - [Audit ledger: process mistakes, docs that grow or go stale](audit-ledger-process-docs-that-grow-or-go-stale.md):
   Docs left stale after the state they describe moved,
   docs that grew past reading,
