@@ -1499,6 +1499,8 @@ await describe({
         await capturedLines({
           body: async () => {
             await settleEntry({
+              attempt: ATTEMPT,
+              wallClock: fixedWallClock,
               client: {
                 ...entryClient({ served, },),
                 beginEntry: function beginEntry({ entryId, },): void {
