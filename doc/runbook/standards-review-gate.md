@@ -21,6 +21,28 @@ In shadow phase any agent may run it on such a diff;
 nothing is required,
 and nothing is blocked either way.
 
+## Whose landings it shadows
+
+Agent sessions landing diffs in this repo:
+Claude Code first,
+since its dismissals started this work
+and `CLAUDE.md` is generated for it,
+and every other harness that lands here,
+this one included.
+The subject is the diff,
+not the harness:
+a shadow run attaches to the landing it sits beside.
+
+In shadow phase the landing session triggers the run
+on its own diffs
+and appends to the log.
+Nothing forces it,
+so an empty log means no run happened
+and never means there was nothing to catch.
+A non-blocking landing hook that runs the review
+and only logs is the unvolunteered alternative,
+kept for the graduation discussion.
+
 ## How to run it
 
 1.

@@ -404,6 +404,12 @@ and safe to delete:
   Built as `doc/runbook/standards-review-gate.md`
   with `doc/audit/standards-review-gate-shadow.md`
   (commit `d6c6777974`).
+- Subject named 2026-10-29 at the owner's question "shadowing who":
+  the gate shadows agent landings in this repo,
+  Claude Code first and every harness that lands here,
+  triggered by the landing session on its own diffs while shadowing.
+  An empty log means no run happened,
+  never that there was nothing to catch.
 
 ## Next action
 
