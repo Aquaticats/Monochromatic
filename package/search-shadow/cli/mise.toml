@@ -55,7 +55,9 @@ execFileSync('podman', ['build', '--pull=never', '--memory=2g', '--cpu-period=10
 rmSync(context, { recursive: true, force: true })
 
 // Runs one shell snippet in a fresh container with no network, bounded memory, CPU and processes.
-const inContainer = (script) => spawnSync('podman', ['run', '--rm', '--pull=never', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=256', IMAGE, 'sh', '-c', script], { encoding: 'utf8' })
+const runRaw = (script) => spawnSync('podman', ['run', '--rm', '--pull=never', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=256', IMAGE, 'sh', '-c', script], { encoding: 'utf8' })
+// Every container starts empty, so each check links the shadows into /shadow-bin first.
+const inContainer = (script) => runRaw(`search-shadow link /shadow-bin > /dev/null; ${script}`)
 
 const failures = []
 const check = (label, ok, detail) => {
@@ -65,7 +67,7 @@ const check = (label, ok, detail) => {
 
 // Every name the crate shadows except fdfind (the Debian name of fd) must be linked, because its real tool is installed here.
 const expectLinked = ['rg', 'grep', 'egrep', 'fgrep', 'ugrep', 'ug', 'ag', 'ack', 'find', 'fd', 'bfs', 'tree', 'du', 'ncdu', 'tokei', 'cloc']
-const linkRun = inContainer('search-shadow link /shadow-bin')
+const linkRun = runRaw('search-shadow link /shadow-bin')
 const linkedNames = linkRun.stdout.split('\\n').filter((line) => line.startsWith('linked ')).map((line) => basename(line.split(' ')[1]))
 for (const name of expectLinked) {
   check(`link: ${name} is linked`, linkedNames.includes(name), `linked: ${linkedNames.join(',')} skipped: ${linkRun.stdout}`)
@@ -80,7 +82,9 @@ for (const name of linkedNames) {
 }
 
 // The disk priority reaches the real process: a grep blocked on a FIFO and a find blocked in -exec both report best-effort level 7.
-const grepPriority = inContainer('mkfifo /tmp/in; (PATH=/shadow-bin:$PATH grep foo < /tmp/in > /dev/null) & sleep 0.3; ionice -p $(pgrep --newest --exact grep); echo foo > /tmp/in; wait')
+// The FIFO is opened read-write on descriptor 3 first, so the shell does not block on the redirection before grep starts;
+// grep then waits for input on it, is inspected, and is killed.
+const grepPriority = inContainer('mkfifo /tmp/in; exec 3<>/tmp/in; (PATH=/shadow-bin:$PATH grep foo <&3 > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact grep); kill $(pgrep --newest --exact grep); wait')
 check('priority: a shadowed grep runs at best-effort level 7', grepPriority.stdout.includes('best-effort: prio 7'), grepPriority.stdout + grepPriority.stderr)
 const findPriority = inContainer('mkdir /tmp/d && touch /tmp/d/f; (PATH=/shadow-bin:$PATH find /tmp/d -type f -exec sleep 2 \\\\; > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact find); wait')
 check('priority: a shadowed find runs at best-effort level 7', findPriority.stdout.includes('best-effort: prio 7'), findPriority.stdout + findPriority.stderr)

@@ -181,6 +181,17 @@ fn find_lets_bounded_walks_through() {
     assert_eq!(find_refusal("find", &texts(&["."]), true, root.path(), home.path()), None);
 }
 
+/// `--version` and `--help` never walk, so they pass even where the implied start point is a repository root.
+#[test]
+fn find_lets_the_information_flags_through() {
+    let root = repository();
+    let home = tempfile::tempdir().expect("make a temporary directory");
+
+    assert_eq!(find_refusal("find", &texts(&["--version"]), false, root.path(), home.path()), None);
+    assert_eq!(find_refusal("bfs", &texts(&["--help"]), false, root.path(), home.path()), None);
+    assert_eq!(find_refusal("find", &texts(&["-version"]), false, root.path(), home.path()), None);
+}
+
 /// What:     `fn invocation(...) -> Invocation` declares a helper that builds the record the dispatcher reads.
 /// Why:      The dispatcher tests need one for each tool name.
 ///
