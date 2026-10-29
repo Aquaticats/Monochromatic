@@ -243,7 +243,18 @@ Next action:
  the contract is a flagged choice;
 adoption waits for explicit acceptance and would reopen the vet
 for the chosen candidate.
-A Pants pilot (pantsbuild.org) runs as a fourth candidate after the user
-directed "Pilot and compare with Pants first";
-its measured comparison joins this ranking when the probe returns,
-and the contract question is asked again with all four candidates.
+Four disposable probes run as further candidates after the user directed
+"Pilot and compare with Pants first"
+and then "Pilot and compare Poe the Poet,
+projen,
+Buck2 too":
+ Pants,
+Poe the Poet,
+projen,
+and Buck2,
+each against the same parity-gate catalog in a spaced scratch fixture.
+When their measured reports return,
+a single comparison doc joins them with pnpm,
+Nadle,
+and meow,
+and the contract question is asked again with every candidate.
