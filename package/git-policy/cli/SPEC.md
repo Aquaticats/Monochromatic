@@ -2718,8 +2718,8 @@ A forwarded `merge` therefore runs the isolated merge below
 after the landing lock is held and a foreign `index.lock` has cleared,
 and forwards to native Git unchanged in every case marked "forward".
 
-0.  Recover isolated merges whose owner died (see "Recovery"), before anything reads the checkout.
-1.  Forward unless the command, after alias resolution, is a builtin `merge`
+1.  Recover isolated merges whose owner died (see "Recovery"), before anything reads the checkout.
+2.  Forward unless the command, after alias resolution, is a builtin `merge`
     whose arguments read as one commit-ish and only these options, in full spelling:
     `-m <message>` (also `-m<message>`, `--message <message>`, `--message=<message>`, repeated),
     `--no-edit`, `--ff`, `--no-ff`, `-q`, `--quiet`, `-v`, `--verbose`, `--stat`, `--no-stat`, `-n`,
