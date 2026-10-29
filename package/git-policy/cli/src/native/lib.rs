@@ -606,6 +606,9 @@ pub mod hook_dispatch_entries;
 /// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
 pub mod hook_dispatch;
 
+/// Whether a commit event can have a user hook, so an event without one needs no dispatcher entry.
+pub mod hook_presence;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 

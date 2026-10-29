@@ -14,6 +14,7 @@
 use super::diagnostic_log::debug;
 use super::forwarding::git_command;
 use super::hook_dispatch_plan::HookDispatchPlan;
+use super::hook_presence::event_may_have_user_hook;
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -46,6 +47,8 @@ pub struct PostCommitHookError(pub String);
 pub enum PostCommitHookOutcome {
     /// `hook.post-commit.enabled=false` disabled the event; nothing ran.
     Disabled,
+    /// No user hook existed for the event when it came due; no author lookup, lock or hook runner started.
+    Absent,
     /// The hook runner's status, which the caller ignores.
     Ran(i32),
 }
@@ -76,11 +79,12 @@ pub struct PostCommitHookRequest<'a> {
 /// What:
 ///  Run `post-commit` once for a landed commit.
 /// Why:
-///   The order matches the incumbent: disabled check, author lookup, hook lock, hook run, lock release.
+///   The order matches the incumbent: disabled check, author lookup, hook lock, hook run, lock release;
+///  an event with no user hook (looked up now, after the landing) runs none of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (plan.disabledEvents.includes('post-commit')) return; await using lock = plan.skipHookLock ? undefined : await acquireOwnerLock(...); await runTransactionGit(...);
+/// if (plan.disabledEvents.includes('post-commit') || !mayHaveHook(plan, 'post-commit')) return; await using lock = plan.skipHookLock ? undefined : await acquireOwnerLock(...); await runTransactionGit(...);
 /// ```
 pub fn run_post_commit_hook(
     request: PostCommitHookRequest,
@@ -93,6 +97,10 @@ pub fn run_post_commit_hook(
             "post-commit disabled by hook.post-commit.enabled=false",
         );
         return Ok(PostCommitHookOutcome::Disabled);
+    }
+    if !event_may_have_user_hook(request.plan, "post-commit") {
+        debug("runPostCommitHook", "no user post-commit hook; nothing to run");
+        return Ok(PostCommitHookOutcome::Absent);
     }
     let mut environment: Vec<(OsString, OsString)> =
         read_author_environment(request.context, request.worktree, request.landed_oid)?;

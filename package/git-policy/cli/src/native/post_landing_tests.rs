@@ -39,6 +39,7 @@ fn plan(lock: &std::path::Path, disabled: &[&str]) -> HookDispatchPlan {
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: false,
+        named_hooks_possible: true,
     };
 }
 

@@ -20,6 +20,7 @@ fn sample_plan(config_parameters: ConfigParameters, skip_hook_lock: bool) -> Hoo
         lease: String::from("{\"directory\":\"/d\",\"token\":\"t\"}"),
         hook_lock_path: String::from("/repo/.git/cli-git/hook.lock"),
         skip_hook_lock,
+        named_hooks_possible: true,
     };
 }
 
@@ -403,6 +404,35 @@ fn a_value_the_snapshot_does_not_model_starts_git() {
     remove(root.as_path());
 }
 
+/// A hook defined by name, by its event or by its command, makes the plan keep every event; other hook keys do not.
+#[test]
+fn named_hook_keys_decide_whether_the_plan_keeps_every_event() {
+    let root: PathBuf = fixture("hook-plan-named-hooks");
+    let repository_root: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    for (text, expected) in [
+        ("", false),
+        ("[hook \"pre-commit\"]\n\tenabled = false\n[hook]\n\tjobs = 2\n", false),
+        ("[hook \"mine\"]\n\tevent = pre-commit\n", true),
+        ("[hook \"mine\"]\n\tcommand = true\n", true),
+        ("[hook \"a.b\"]\n\tevent = commit-msg\n\tcommand = true\n\tenabled = false\n", true),
+    ] {
+        std::fs::write(
+            repository_root.join(".git").join("config"),
+            format!("[core]\n\trepositoryformatversion = 0\n{text}"),
+        )
+        .expect("config");
+        let snapshot: ConfigSnapshot = read_config_snapshot(&context, repository_root.as_path()).expect("snapshot");
+        let plan: HookDispatchPlan = compute_hook_dispatch_plan(&HookPlanInputs {
+            snapshot: Some(&snapshot),
+            ..plan_inputs(&context, repository_root.as_path())
+        })
+        .expect("plan");
+        assert_eq!(plan.named_hooks_possible, expected, "{text}");
+    }
+    remove(root.as_path());
+}
+
 /// For each configuration, the plan from the snapshot equals the plan from Git's own reads, errors included.
 #[test]
 fn the_snapshot_plan_equals_the_plan_from_git_reads() {
@@ -437,7 +467,15 @@ fn the_snapshot_plan_equals_the_plan_from_git_reads() {
             ..plan_inputs(&context, repository_root.as_path())
         });
         let from_git = compute_hook_dispatch_plan(&plan_inputs(&context, repository_root.as_path()));
-        assert_eq!(from_snapshot, from_git, "{text}");
+        // Only the snapshot can say that the configuration names no hooks; without it the plan assumes it may.
+        if let (Ok(counted), Ok(spawned)) = (&from_snapshot, &from_git) {
+            assert!(!counted.named_hooks_possible, "{text}");
+            assert!(spawned.named_hooks_possible, "{text}");
+        }
+        let comparable = from_git.map(|plan| {
+            return HookDispatchPlan { named_hooks_possible: false, ..plan };
+        });
+        assert_eq!(from_snapshot, comparable, "{text}");
     }
     remove(root.as_path());
 }

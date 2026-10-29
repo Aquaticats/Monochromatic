@@ -140,6 +140,10 @@ pub struct HookDispatchPlan {
     pub hook_lock_path: String,
     /// Whether hooks skip the hook lock.
     pub skip_hook_lock: bool,
+    /// Whether the configuration may define hooks by name (`hook.<name>.event` or `.command`), which run for their
+    ///  event whatever the hooks directory holds; `true` when the configuration was not inspected.
+    ///  Not recorded in `plan.json`: the dispatchers never read it, and a plan read back says `true`.
+    pub named_hooks_possible: bool,
 }
 
 /// What:
@@ -551,6 +555,7 @@ pub fn compute_hook_dispatch_plan(
             "hook lock path",
         )?,
         skip_hook_lock: inputs.concurrent_commits || inputs.inherited_lease_valid,
+        named_hooks_possible: inputs.snapshot.is_none_or(ConfigSnapshot::defines_named_hook),
     };
     return Ok(plan);
 }
@@ -667,6 +672,7 @@ pub fn parse_hook_dispatch_plan(text: &str) -> Option<HookDispatchPlan> {
         lease: String::from(string_field(&object, "lease")?),
         hook_lock_path: String::from(string_field(&object, "hookLockPath")?),
         skip_hook_lock: object.get("skipHookLock")?.as_bool()?,
+        named_hooks_possible: true,
     });
 }
 
