@@ -7,11 +7,11 @@ The user chose one pass (not one layer per run) on 2026-10-29.
 ## Constraint from the user (2026-10-29)
 
 The repository is migrating away from mise.
-Do not rely on it: run `cargo clippy --all-targets -- --deny warnings` and `cargo nextest run` in the crate directory,
-and TypeScript tests with `node <file>`.
+Do not rely on it more: running existing tasks through `mise run` stays fine in this session, but add no new
+mise tasks, `[env]` entries or `mise.toml` content for this issue.
 So the fix cannot depend on a `TMPDIR` entry in the root `mise.toml` `[env]`, and the `mise.toml` files that mention
-`/tmp` are being replaced rather than fixed in place.
-The first clippy sweep (unit `issue-1810-sweep`) predates this and ran each crate through `mise run`.
+`/tmp` are being replaced by the migration rather than fixed in place.
+The first clippy sweep (unit `issue-1810-sweep`) ran each crate through `mise run //package/<path>:lint:clippy`.
 
 ## Ownership
 
