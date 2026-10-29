@@ -460,6 +460,64 @@ On the repo's cargo (`1.101.0-nightly`),
 So a release age can bound a full re-resolution but not a selective `cargo update <spec>`.
 The index `pubtime` field it relies on was stabilized in Rust 1.94.0.
 
+The crates.io sparse index also records `pubtime` per version
+ (`https://index.crates.io/an/yh/anyhow`, last line:
+ `{"name":"anyhow","vers":"1.0.104","pubtime":"2026-07-18T20:59:37Z"}`),
+ so the update can check every newly locked version against the release age with stable `cargo update`,
+ independent of the unstable flag.
+
+The repo's JS policy is strict:
+ `minimumReleaseAge: 1440`,
+ `minimumReleaseAgeExclude` (scope globs with rationale comments),
+ `minimumReleaseAgeStrict: true`,
+ `minimumReleaseAgeIgnoreMissingTime: false`.
+`package/dev-script/deps-update` (`mise run deps:update`) describes itself as running
+ `pnpm update --recursive --no-save` and reporting strict refusals
+ (`doc/troubleshooting/pnpm-update-no-save-strict-release-age.md`).
+Owner direction (2026-10-29):
+ the owner did not know this package existed;
+ treat it as unusable and build nothing on it.
+Its report format may still inform the Rust update's diagnostics as a description,
+ not as code to extend.
+The owner of the Rust recursive update is therefore open.
+
+### Trust policy
+
+Owner correction:
+ crates.io does carry trust evidence,
+ so a pnpm-style `trustPolicy` can work through heuristics.
+pnpm's `trustPolicy: no-downgrade` (set in this repo's `pnpm-workspace.yaml`) fails "if a package's trust level has
+ decreased compared to previous releases",
+ judged by publish date,
+ ignoring prereleases for a stable install;
+ `trustPolicyExclude`,
+ `trustPolicyIgnoreAfter`,
+ `trustPolicyExcludePrune`,
+ and `trustLockfile` refine it (`docs/settings/dependency-resolution.md`).
+
+Per-version evidence from `https://crates.io/api/v1/crates/<name>/versions`:
+
+- `trustpub_data`:
+   set when the version was published through Trusted Publishing,
+   with `provider`,
+   `repository`,
+   `run_id`,
+   and `sha`
+   (present on the newest `libc` and `cc` releases,
+   `rust-lang/libc` and `rust-lang/cc-rs`;
+   null on the newest `anyhow`,
+   `tokio`,
+   and `clap`,
+   which carry a `published_by` user instead).
+- `published_by` and `audit_actions`:
+   the publishing account.
+- `repository`:
+   the crate's declared repository URL for that version.
+
+The lockfiles hold 1388 distinct registry `name@version` pairs across 1024 crate names
+ (measured 2026-10-29),
+ so whole-lockfile verification needs cached API results.
+
 [rust-lang/cargo#16271]: https://github.com/rust-lang/cargo/issues/16271
 
 ### Named catalog selection
