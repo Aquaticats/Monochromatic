@@ -379,14 +379,25 @@ Draft of a new issue,
 not filed.
 The duplicate search found nothing,
 so this is a new-issue draft and not a comment.
-It carries the disclosure footer that pnpm's `CONTRIBUTING.md` asks for.
-A human has not yet read it or re-run the reproduction,
-and the draft says what still needs that.
+The block below is the issue exactly as it would be posted:
+it holds no notes to the filer,
+and it carries the disclosure footer that pnpm's `CONTRIBUTING.md` asks for.
+
+Before anyone posts it:
+
+- Re-run the reproduction (with the setup in the block) and read the cited source,
+  because no human has yet done either,
+  and the footer claims an agent wrote it,
+  not that a person checked it.
+- Attach the patch file `pnpm-missing-workspace-link-repeat-install-fast-path.patch` from this directory;
+  the block says it is attached.
+- Pick labels from the tracker's own set;
+  none were looked up here.
+- Decide whether to open a pull request instead of an issue.
+  `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
 ~~~md
 Title: `pnpm install` reports "Already up to date" and leaves a declared `workspace:` dependency link missing (12.16.1)
-
-Labels: none known; the tracker's label set was not read.
 
 When manifests, lockfile and settings still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
 the repeat-install fast path returns before linking.
@@ -397,7 +408,16 @@ treats a link that exists but points nowhere as stale and an absent entry as hea
 The doc comment says a missing entry is not a broken link because skipped optional and excluded dependencies have none,
 but a non-optional `workspace:` dependency under the isolated linker has no such reason.
 
-Reproduction (pnpm 12.16.1, offline, two projects, `app` declares `"lib": "workspace:*"`):
+Reproduction (pnpm 12.16.1, default linker, no registry access needed):
+
+```text
+pnpm-workspace.yaml:   packages:
+                         - app
+                         - lib
+package.json:          {"name":"ws-root","private":true,"version":"1.0.0"}
+lib/package.json:      {"name":"lib","version":"1.0.0"}
+app/package.json:      {"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:*"}}
+```
 
 1. `pnpm install --offline`; `app/node_modules/lib` exists.
 2. `rm app/node_modules/lib`.
@@ -407,12 +427,13 @@ Reproduction (pnpm 12.16.1, offline, two projects, `app` declares `"lib": "works
 Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
 entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
 install's scope holds every project.
-A prototype with a failing-then-passing integration test is in the attached patch
-(7 files, 120 insertions, 2 deletions); the diff, the commands and the limits of its verification are written up at
-`doc/troubleshooting/pnpm-missing-workspace-link-repeat-install-fast-path.md` in the reporter's repository.
-Known limits: after the fix the repeat install still prints `Already up to date` although it relinked,
-and about 190 CLI repeat-install tests could not pass in the reporter's container in either arm.
+A prototype patch is attached (7 files, 120 insertions, 2 deletions).
+Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
+and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
+and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
+Known limits: after the change a repeat install still prints `Already up to date` although it has relinked,
+and about 190 of the `pnpm-cli` repeat-install tests could not pass in the sandbox used, with or without the change,
+so the regression evidence for those is limited.
 
 Written by an agent (Claude Code, claude-sonnet-5-5).
-Not yet verified by a human: the reproduction steps, the source citations, and the prototype diff.
 ~~~
