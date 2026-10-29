@@ -239,7 +239,9 @@ fn helper_auto_pushes() {
         lfs_pre_push: None,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
-    let mut err: Vec<u8> = Vec::new();
+    // The terminal text goes to a file as it is written, so a case can see that this helper waits, while it waits.
+    let terminal: PathBuf = result.with_extension("terminal");
+    let mut err: std::fs::File = std::fs::File::create(&terminal).expect("terminal file");
     let reported = auto_push(&git_context, &landed, &mut err).expect("auto-push ran");
     let outcome = match reported.outcome {
         AutoPushOutcome::Skipped => "skipped",
@@ -253,7 +255,8 @@ fn helper_auto_pushes() {
         reported.shown.replace('\n', "\\n"),
     );
     std::fs::write(&result, body).expect("write outcome");
-    std::io::Write::write_all(&mut std::io::stderr(), &err).expect("terminal");
+    let shown_terminal: Vec<u8> = std::fs::read(&terminal).expect("terminal text");
+    std::io::Write::write_all(&mut std::io::stderr(), &shown_terminal).expect("terminal");
 }
 
 /// Racing processes on one branch: fewer pushes than commits, and every commit reaches the remote.
@@ -342,7 +345,12 @@ fn a_joined_push_failure_is_reported_by_every_commit_it_covered() {
         assert!(Instant::now() < deadline, "the second helper never started");
         std::thread::sleep(Duration::from_millis(20));
     }
-    std::thread::sleep(Duration::from_secs(1));
+    // The failing push is released only once the second helper has said that it waits behind it.
+    let waiting_notice = result_b.with_extension("terminal");
+    while !std::fs::read_to_string(&waiting_notice).is_ok_and(|text| { return text.contains("waiting for process"); }) {
+        assert!(Instant::now() < deadline, "the second helper never said that it waits");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     std::fs::write(&release, "").expect("release the failing push");
     let (report_a, _terminal_a) = finish(first, &result_a);
     let (report_b, _terminal_b) = finish(second, &result_b);

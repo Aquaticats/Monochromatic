@@ -259,6 +259,9 @@ fn inherited_lease_requires_the_published_live_token() {
 }
 
 /// A blocking acquisition announces a live holder once on stderr, waits until it releases, then takes the lock.
+///  The first notice releases the holder, so the wait provably happened, whatever the host's speed.
+///  Exactly one line is out because the holder is seen gone one poll after the release, and the next line is an
+///  interval of ten seconds away.
 #[cfg(unix)]
 #[test]
 fn waiter_names_a_live_holder_and_takes_the_lock_after_release() {
@@ -269,15 +272,11 @@ fn waiter_names_a_live_holder_and_takes_the_lock_after_release() {
         .expect("attempt")
         .expect("free");
     let holder_pid: i64 = i64::from(std::process::id());
-    let releaser = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
-        return held.release();
-    });
-    let mut stderr: Vec<u8> = Vec::new();
+    let shared: SharedSink = SharedSink::default();
+    let mut sink: ActionSink = ActionSink::new(&shared, 1, move || { held.release().expect("the holder lets go"); });
     let lease: WorktreeCopyLease =
-        acquire_worktree_copy_lock(common.as_path(), &mut stderr).expect("taken after release");
-    releaser.join().expect("releaser").expect("released");
-    let line: String = String::from_utf8(stderr).expect("utf8");
+        acquire_worktree_copy_lock(common.as_path(), &mut sink).expect("taken after release");
+    let line: String = shared.text();
     assert_eq!(
         line.matches("cli-git: waiting for PID ").count(),
         1,
