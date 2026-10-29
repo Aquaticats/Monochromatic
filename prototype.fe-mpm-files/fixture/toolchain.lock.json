@@ -1,0 +1,1652 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",
+  "tools": {
+    "bin": {
+      "request": {
+        "pinned": "0.29.4"
+      },
+      "version": "0.29.4",
+      "route": "archive",
+      "bins": [
+        "bin"
+      ],
+      "env": {},
+      "options": {
+        "bootstrap": {
+          "distribution": "standalone-binary"
+        }
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_arm64",
+          "sha256": "706d5576d64f4ce66136f866cf51b92b2d0c2cc087e2cd17f32cd390b68e52cf"
+        },
+        "linux-x64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_linux_amd64",
+          "sha256": "f7a179a813675bde2d8cf0ad3b4ae1d7bb1c6732daf623fb8deeba9f5f4782a7"
+        },
+        "macos-arm64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_darwin_arm64",
+          "sha256": "690ba4c3bbf8074a93da6b1ae86484bf43265f4b144d2b9de0ece7ae994414b9"
+        },
+        "macos-x64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_darwin_amd64",
+          "sha256": "4b71583e1227b911a0448be522cb09d359bb7160b24ff1f6a7dfac8595f741d4"
+        },
+        "windows-arm64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_windows_arm64.exe",
+          "sha256": "8521509a2991d07f07a57aa75b98505da1c12ed8145ff8b4c1412730de27b901"
+        },
+        "windows-x64": {
+          "url": "https://github.com/marcosnils/bin/releases/download/v0.29.4/bin_0.29.4_windows_amd64.exe",
+          "sha256": "d4606c4b310d222ae222286d98a305f2ac0678f80a91ffe695d4be9260689c76"
+        }
+      }
+    },
+    "mpm": {
+      "request": {
+        "pinned": "8.2.0"
+      },
+      "version": "8.2.0",
+      "route": "mpm-uvx",
+      "manager": "uvx",
+      "packageId": "meta-package-manager",
+      "bins": [
+        "mpm",
+        "meta-package-manager"
+      ],
+      "env": {},
+      "options": {
+        "bootstrap": {
+          "requiresTool": "uv",
+          "distribution": "wheel"
+        }
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
+          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+        },
+        "linux-arm64-musl": {
+          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
+          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+        },
+        "linux-x64": {
+          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
+          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+        },
+        "linux-x64-musl": {
+          "url": "https://files.pythonhosted.org/packages/67/74/66f247a48fe22e95486ecf9a0e41aed03a643c2067c22e81e38d2d6ce7fd/meta_package_manager-8.2.0-py3-none-any.whl",
+          "sha256": "6b5cb8036f3f9dee5659de91786572a99ab332be80a82a8484bf86783400c292"
+        }
+      }
+    },
+    "bun": {
+      "request": {
+        "pinned": "1.3.14"
+      },
+      "version": "1.3.14",
+      "route": "bin-sourced",
+      "bins": [
+        "bun",
+        "bunx"
+      ],
+      "env": {},
+      "options": {
+        "binAliases": {
+          "bunx": "bun"
+        }
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64.zip",
+          "sha256": "a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64-musl.zip",
+          "sha256": "b98e0ad3625c5c00d1d5b5ff55605c7adddbfae151861e68ade57b2d3b8703bb"
+        },
+        "linux-x64": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip",
+          "sha256": "951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f"
+        },
+        "linux-x64-baseline": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-baseline.zip",
+          "sha256": "a063908ae08b7852ca10939bbdc6ceed3ddabce8fb9402dce83d65d73b36e6c7"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-musl.zip",
+          "sha256": "14bd9aedeebf1dba67e8def9531c89bc989ecfdf1de42e5bfcaf1b8cd9294719"
+        },
+        "linux-x64-musl-baseline": {
+          "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64-musl-baseline.zip",
+          "sha256": "56a7d6806cf155536c0178f0ea5fbd098e684fa509ebdb4fc0a7e19fb65382dc"
+        }
+      }
+    },
+    "pnpm": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "12.16.1",
+      "route": "bin-sourced",
+      "bins": [
+        "pn",
+        "pnpm",
+        "pnpx",
+        "pnx"
+      ],
+      "env": {},
+      "options": {
+        "binAliases": {
+          "pn": "pnpm",
+          "pnpx": "pnpm",
+          "pnx": "pnpm"
+        }
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64.tar.gz",
+          "sha256": "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64-musl.tar.gz",
+          "sha256": "1bb5df66cef8ec77089167e52111ce4515ea36c465ca3068e1ac96fe0338bcc1"
+        },
+        "linux-x64": {
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz",
+          "sha256": "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64-musl.tar.gz",
+          "sha256": "2ce798ca1565730137fb9b1871b17297e195a06383de69f3d76041b64a4c4e72"
+        }
+      }
+    },
+    "cargo:fd-find": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "10.5.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "fd-find",
+      "bins": [
+        "fd"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "ripgrep": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "15.2.0",
+      "route": "bin-sourced",
+      "bins": [
+        "rg"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d"
+        },
+        "linux-x64": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
+        }
+      }
+    },
+    "cargo:fastmod": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.4.4",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "fastmod",
+      "bins": [
+        "fastmod"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:cargo-fuzz": {
+      "request": {
+        "pinned": "0.13.2"
+      },
+      "version": "0.13.2",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-fuzz",
+      "bins": [
+        "cargo-fuzz"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "node": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "26.13.0",
+      "route": "archive",
+      "bins": [
+        "node",
+        "npm",
+        "npx"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-arm64.tar.gz",
+          "sha256": "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791"
+        },
+        "linux-arm64-musl": {
+          "url": "https://unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-arm64-musl.tar.gz",
+          "sha256": "f3dda772ba0c1f2cd6fec46f6ec24687584767f2c3f9117a47edf191e7786720"
+        },
+        "linux-x64": {
+          "url": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.gz",
+          "sha256": "5848553868b402d3fabb5b09270649977780a390f832155721025a08b5104455"
+        },
+        "linux-x64-musl": {
+          "url": "https://unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-x64-musl.tar.gz",
+          "sha256": "c6c738fe564c3eb053172bfd4ca1166eec8bc076f84231a2ea70165e316f5809"
+        }
+      }
+    },
+    "harper-cli": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "3.0.0",
+      "route": "bin-sourced",
+      "bins": [
+        "harper-cli"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "5b583c04ffcbda2abfaee3ac13c7f0e2d64f71899aff27adfe293a1194b460f7"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "5b583c04ffcbda2abfaee3ac13c7f0e2d64f71899aff27adfe293a1194b460f7"
+        },
+        "linux-x64": {
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d136a76d75cfc95d778da1aedc36958faa90cf47f43801f4cbfc7b8323d5404a"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/Automattic/harper/releases/download/v3.0.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d136a76d75cfc95d778da1aedc36958faa90cf47f43801f4cbfc7b8323d5404a"
+        }
+      }
+    },
+    "dprint": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.64.3",
+      "route": "bin-sourced",
+      "bins": [
+        "dprint"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/dprint/dprint/releases/download/0.64.3/dprint-aarch64-unknown-linux-gnu.zip",
+          "sha256": "c820bfc67b0cd6f5f0fa4d00ecdcb056944c86030859f5e50151c88d9164b30d"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/dprint/dprint/releases/download/0.64.3/dprint-aarch64-unknown-linux-musl.zip",
+          "sha256": "61c8936368ff4030a615ce43853adc5a0707ff77973743d0a691aee2cbf64723"
+        },
+        "linux-x64": {
+          "url": "https://github.com/dprint/dprint/releases/download/0.64.3/dprint-x86_64-unknown-linux-gnu.zip",
+          "sha256": "f71cb7e22d6776439eba168d5cb296092d6413fea7148fe4d70684a2702a4fee"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/dprint/dprint/releases/download/0.64.3/dprint-x86_64-unknown-linux-musl.zip",
+          "sha256": "f105dbc2b0bc0d83c644fcabc3e7bd8779469c0d9faeda48365c58b389d5a443"
+        }
+      }
+    },
+    "uv": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.13.6",
+      "route": "archive",
+      "bins": [
+        "uv",
+        "uvx"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "229e194255c7958d86d56e8790d969a6f74736592133f0dfd0076f754c642c1d"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "819692e404d23e5aae6bc44c0e260f1f5492fd1910ab4693b2c650f926dbe800"
+        },
+        "linux-x64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.13.6/uv-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "5d61f26b6c7213779eda90edc6971ea6b0b796bfb8d49a574c8ad69b59838548"
+        }
+      }
+    },
+    "hyperfine": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "2.0.0",
+      "route": "bin-sourced",
+      "bins": [
+        "hyperfine"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "f8244d1e17f8da23ee6b3ae2cdc04a6a185a450f6b74e09bff12e498038fcbc9"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "f8244d1e17f8da23ee6b3ae2cdc04a6a185a450f6b74e09bff12e498038fcbc9"
+        },
+        "linux-x64": {
+          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ae2beda2ac99c098427e4f755244552daf20e514422889cca6d44421e2d93c87"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/sharkdp/hyperfine/releases/download/v2.0.0/hyperfine-v2.0.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "38e59087bd65520930a13cf513d8a493b7043741e8ad62349a8a9929eb61bc5c"
+        }
+      }
+    },
+    "caddy": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "2.11.7",
+      "route": "bin-sourced",
+      "bins": [
+        "caddy"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_arm64.tar.gz",
+          "sha256": "d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_arm64.tar.gz",
+          "sha256": "d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42"
+        },
+        "linux-x64": {
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
+          "sha256": "727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz",
+          "sha256": "727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b"
+        }
+      }
+    },
+    "watchexec": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "2.8.0",
+      "route": "bin-sourced",
+      "bins": [
+        "watchexec"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-aarch64-unknown-linux-gnu.tar.xz",
+          "sha256": "aaa5eb7e62e9ce99cad7f14260265aaa9df8884e195c0661ab011825a6d61634"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-aarch64-unknown-linux-musl.tar.xz",
+          "sha256": "3961878b21e3c1729279322f4007dd5bbf0032110fbcb5e7b983946a9ceb3bf6"
+        },
+        "linux-x64": {
+          "url": "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-unknown-linux-gnu.tar.xz",
+          "sha256": "21839e9840ef592b4d571885ccbd692f54ae5bd4231f3caf29fcf31fa7723afe"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/watchexec/watchexec/releases/download/v2.8.0/watchexec-2.8.0-x86_64-unknown-linux-musl.tar.xz",
+          "sha256": "35ea667cbe4bc96c23ba2a1f46c94c46bc385b67165e3bf621c0e7e4959aa99b"
+        }
+      }
+    },
+    "sops": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "3.13.3",
+      "route": "bin-sourced",
+      "bins": [
+        "sops"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.arm64",
+          "sha256": "53b0abacd38ef1b12a66d6c100956691b9cefce018d91f81e73ddf7438b94d77"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.arm64",
+          "sha256": "53b0abacd38ef1b12a66d6c100956691b9cefce018d91f81e73ddf7438b94d77"
+        },
+        "linux-x64": {
+          "url": "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64",
+          "sha256": "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64",
+          "sha256": "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b"
+        }
+      }
+    },
+    "age": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.3.2",
+      "route": "archive",
+      "bins": [
+        "age",
+        "age-inspect",
+        "age-keygen",
+        "age-plugin-batchpass",
+        "age-plugin-pq",
+        "age-plugin-tag",
+        "age-plugin-tagpq"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-arm64.tar.gz",
+          "sha256": "6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-arm64.tar.gz",
+          "sha256": "6b8dc4333c53a5a57c9e5834e3a48f92605d7154014cd07269ff3327db5d37f4"
+        },
+        "linux-x64": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz",
+          "sha256": "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz",
+          "sha256": "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
+        }
+      }
+    },
+    "rust": {
+      "request": {
+        "channel": "nightly"
+      },
+      "version": "nightly-2026-10-29",
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "packageId": "nightly-2026-10-29",
+      "bins": [
+        "cargo",
+        "cargo-clippy",
+        "cargo-fmt",
+        "clippy-driver",
+        "rust-gdb",
+        "rust-gdbgui",
+        "rust-lldb",
+        "rustc",
+        "rustdoc",
+        "rustfmt",
+        "rustup"
+      ],
+      "env": {
+        "RUSTUP_TOOLCHAIN": "nightly-2026-10-29"
+      },
+      "options": {
+        "rustComponents": [
+          "clippy",
+          "rust-src",
+          "llvm-tools",
+          "rustc-dev"
+        ],
+        "rustTargets": [
+          "aarch64-linux-android",
+          "x86_64-linux-android"
+        ]
+      },
+      "artifacts": {}
+    },
+    "cargo-binstall": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.26.1",
+      "route": "bin-sourced",
+      "bins": [
+        "cargo-binstall"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-gnu.tgz",
+          "sha256": "5e1413cda21a619b9eb66477c9a78904aadc70e724855d2b3572209ed12f67c3"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-musl.tgz",
+          "sha256": "243dbea9976495f0a5640f856283b5b3d934113381c9a1fba347c9e4b1fea142"
+        },
+        "linux-x64": {
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-gnu.tgz",
+          "sha256": "97d3fe139df2eb0947e9db09c129e4381847440a4622d2a94fc38ce4bd52f378"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-musl.tgz",
+          "sha256": "43d379fef8cb450961a14ff113e7bce7b5e1e52db709c776d186f928d8a20a40"
+        }
+      }
+    },
+    "cargo:timeout-cli": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.1.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "timeout-cli",
+      "bins": [
+        "timeout"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:cargo-dylint": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "6.3.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-dylint",
+      "bins": [
+        "cargo-dylint"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:dylint-link": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "6.3.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "dylint-link",
+      "bins": [
+        "dylint-link"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:cargo-nextest": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.9.150",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-nextest",
+      "bins": [
+        "cargo-nextest"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:cargo-about": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.9.3",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-about",
+      "bins": [
+        "cargo-about"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:monochromatic-lint": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.4.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-lint",
+      "bins": [
+        "monochromatic-lint"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:monochromatic-git-policy-cli": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.4.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-git-policy-cli",
+      "bins": [
+        "cli-git-native"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "cli-git-native",
+            "linkName": "git",
+            "linkDir": ".cache/cli-git-bin"
+          }
+        }
+      },
+      "artifacts": {}
+    },
+    "cargo:monochromatic-search-shadow": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.2.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-search-shadow",
+      "bins": [
+        "search-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "run": {
+            "sourceBin": "search-shadow",
+            "args": [
+              "link",
+              ".cache/search-shadow-bin"
+            ]
+          }
+        }
+      },
+      "artifacts": {}
+    },
+    "cargo:monochromatic-mpm-shadow": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.1.1",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-mpm-shadow",
+      "bins": [
+        "mpm-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "mpm-shadow",
+            "linkName": "mpm",
+            "linkDir": ".cache/mpm-shadow-bin"
+          }
+        }
+      },
+      "artifacts": {}
+    },
+    "cargo:monochromatic-nested-wayland-session": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.6.2",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-nested-wayland-session",
+      "bins": [
+        "monochromatic-nested-wayland-session"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cmake": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "4.4.5",
+      "route": "archive",
+      "bins": [
+        "ccmake",
+        "cmake",
+        "cmake-gui",
+        "cpack",
+        "ctest"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-aarch64.tar.gz",
+          "sha256": "301d5063ab259577c1b57ce5490b1aab9ea5c56dc4c822f73499553dab94925f"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-aarch64.tar.gz",
+          "sha256": "301d5063ab259577c1b57ce5490b1aab9ea5c56dc4c822f73499553dab94925f"
+        },
+        "linux-x64": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz",
+          "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/Kitware/CMake/releases/download/v4.4.5/cmake-4.4.5-linux-x86_64.tar.gz",
+          "sha256": "ed85135c5a5135b45e50423cb406dea04ca3338da0b8ef3c9ede963559680be0"
+        }
+      }
+    },
+    "cargo:apple-codesign": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.29.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "apple-codesign",
+      "bins": [
+        "rcodesign"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "zig": {
+      "request": {
+        "pinned": "0.15.2"
+      },
+      "version": "0.15.2",
+      "route": "archive",
+      "bins": [
+        "zig"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://ziglang.org/download/0.15.2/zig-aarch64-linux-0.15.2.tar.xz",
+          "sha256": "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f"
+        },
+        "linux-arm64-musl": {
+          "url": "https://ziglang.org/download/0.15.2/zig-aarch64-linux-0.15.2.tar.xz",
+          "sha256": "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f"
+        },
+        "linux-x64": {
+          "url": "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz",
+          "sha256": "02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239"
+        },
+        "linux-x64-musl": {
+          "url": "https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz",
+          "sha256": "02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239"
+        }
+      }
+    },
+    "cargo:slint-lsp": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.18.1",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "slint-lsp",
+      "bins": [
+        "slint-lsp"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:slint-viewer": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.18.1",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "slint-viewer",
+      "bins": [
+        "slint-viewer"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "conda:bubblewrap": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.13.1",
+      "route": "archive",
+      "manager": "conda",
+      "packageId": "bubblewrap",
+      "bins": [
+        "bwrap"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://conda.anaconda.org/conda-forge/linux-aarch64/bubblewrap-0.13.1-hfe774f5_0.conda",
+          "sha256": "4290eb42ec2a0353d6e66096565e3c35d181d1f7f1e98ad729308cbf18a643f8"
+        },
+        "linux-arm64-musl": {
+          "url": "https://conda.anaconda.org/conda-forge/linux-aarch64/bubblewrap-0.13.1-hfe774f5_0.conda",
+          "sha256": "4290eb42ec2a0353d6e66096565e3c35d181d1f7f1e98ad729308cbf18a643f8"
+        },
+        "linux-x64": {
+          "url": "https://conda.anaconda.org/conda-forge/linux-64/bubblewrap-0.13.1-haf0a511_0.conda",
+          "sha256": "32ceb8953a90ef961d6111a097ef23b5c9fda051c2e03e2735f40ced2fde7357"
+        },
+        "linux-x64-musl": {
+          "url": "https://conda.anaconda.org/conda-forge/linux-64/bubblewrap-0.13.1-haf0a511_0.conda",
+          "sha256": "32ceb8953a90ef961d6111a097ef23b5c9fda051c2e03e2735f40ced2fde7357"
+        }
+      }
+    },
+    "taplo": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.10.0",
+      "route": "archive",
+      "bins": [
+        "taplo",
+        "taplo-linux-x86_64"
+      ],
+      "env": {},
+      "options": {
+        "binAliases": {
+          "taplo-linux-x86_64": "taplo"
+        }
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz",
+          "sha256": "033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-aarch64.gz",
+          "sha256": "033681d01eec8376c3fd38fa3703c79316f5e14bb013d859943b60a07bccdcc3"
+        },
+        "linux-x64": {
+          "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
+          "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
+          "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+        }
+      }
+    },
+    "tombi": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.9.8",
+      "route": "bin-sourced",
+      "bins": [
+        "tombi"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307"
+        },
+        "linux-x64": {
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118"
+        }
+      }
+    },
+    "marksman": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "2026-02-08",
+      "route": "bin-sourced",
+      "bins": [
+        "marksman"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-arm64",
+          "sha256": "db8e124527f7f8048e3e6c91821b9c52ef173d92c01e47d221bf1337afd962fb"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-arm64",
+          "sha256": "db8e124527f7f8048e3e6c91821b9c52ef173d92c01e47d221bf1337afd962fb"
+        },
+        "linux-x64": {
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-x64",
+          "sha256": "be5098e8213219269c47fc0d916a66fa31ce0602ec967475c722260aabf26087"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/artempyanykh/marksman/releases/download/2026-02-08/marksman-linux-x64",
+          "sha256": "be5098e8213219269c47fc0d916a66fa31ce0602ec967475c722260aabf26087"
+        }
+      }
+    },
+    "rumdl": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.3.2",
+      "route": "bin-sourced",
+      "bins": [
+        "rumdl"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "bdfca7a602f893fbe5d73d5e38f73b31f45a21d3bcf385b6ea819997d0449ec3"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "afc6dd91f1c4f2a8cf4a40ab99f8e52e06e6dddfc5334f1c1db8b158d353d143"
+        },
+        "linux-x64": {
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "f527d1374765d826c1627ceab3d1f46e548268731a495b5b12a3af529b3d79e8"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "395c4061041c5a25301c7b3564a93c4a661ed4df93427a77b6fc9e426ec8a13a"
+        }
+      }
+    },
+    "github:Feel-ix-343/markdown-oxide": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.25.12",
+      "route": "bin-sourced",
+      "bins": [
+        "markdown-oxide"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/Feel-ix-343/markdown-oxide/releases/download/v0.25.12/markdown-oxide-v0.25.12-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "6634b644ff0bcc1b8fb27cc518f82618547ec43fe19d515a890e8e8756950020"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/Feel-ix-343/markdown-oxide/releases/download/v0.25.12/markdown-oxide-v0.25.12-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "6634b644ff0bcc1b8fb27cc518f82618547ec43fe19d515a890e8e8756950020"
+        },
+        "linux-x64": {
+          "url": "https://github.com/Feel-ix-343/markdown-oxide/releases/download/v0.25.12/markdown-oxide-v0.25.12-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ad4248cf5d3f0e9d9f120b579501c45dad9c46bfcb4ddec36d2cb85d68a58828"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/Feel-ix-343/markdown-oxide/releases/download/v0.25.12/markdown-oxide-v0.25.12-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "ad4248cf5d3f0e9d9f120b579501c45dad9c46bfcb4ddec36d2cb85d68a58828"
+        }
+      }
+    },
+    "zizmor": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.31.1",
+      "route": "bin-sourced",
+      "bins": [
+        "zizmor"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "37eebbd5762a44f262d94875431b14a6d2402991e90a685113ea97b8b41be833"
+        },
+        "linux-x64": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99"
+        }
+      }
+    },
+    "npm:yaml-language-server": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "2.0.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "yaml-language-server",
+      "bins": [
+        "yaml-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:@actions/languageserver": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.3.61",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "@actions/languageserver",
+      "bins": [
+        "actions-languageserver"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:@ansible/ansible-language-server": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "26.6.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "@ansible/ansible-language-server",
+      "bins": [
+        "ansible-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:vscode-langservers-extracted": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "4.10.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "vscode-langservers-extracted",
+      "bins": [
+        "vscode-css-language-server",
+        "vscode-eslint-language-server",
+        "vscode-html-language-server",
+        "vscode-json-language-server",
+        "vscode-markdown-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "superhtml": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.7.0",
+      "route": "bin-sourced",
+      "bins": [
+        "superhtml"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz",
+          "sha256": "9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/aarch64-linux.tar.xz",
+          "sha256": "9fa2ed1ec830464c38929531693e7129ae6df3ccb1bb3f01fec3322ed5759fc5"
+        },
+        "linux-x64": {
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz",
+          "sha256": "b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/kristoff-it/superhtml/releases/download/v0.7.0/x86_64-linux-musl.tar.xz",
+          "sha256": "b75c6eeef539416096eac38729ee54e5f3b248f039cab4f57660f29a88742f68"
+        }
+      }
+    },
+    "npm:bash-language-server": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "5.8.1",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "bash-language-server",
+      "bins": [
+        "bash-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:dockerfile-language-server-nodejs": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.15.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "dockerfile-language-server-nodejs",
+      "bins": [
+        "docker-langserver"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:@microsoft/compose-language-service": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.0.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "@microsoft/compose-language-service",
+      "bins": [
+        "docker-compose-langserver"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "github:docker/docker-language-server": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.20.1",
+      "route": "bin-sourced",
+      "bins": [
+        "docker-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/docker/docker-language-server/releases/download/v0.20.1/docker-language-server-linux-arm64-v0.20.1",
+          "sha256": "bd56c7815e0a22cfb708669f3d5e817de91d9b54039ff7e52867142a132ad8d7"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/docker/docker-language-server/releases/download/v0.20.1/docker-language-server-linux-arm64-v0.20.1",
+          "sha256": "bd56c7815e0a22cfb708669f3d5e817de91d9b54039ff7e52867142a132ad8d7"
+        },
+        "linux-x64": {
+          "url": "https://github.com/docker/docker-language-server/releases/download/v0.20.1/docker-language-server-linux-amd64-v0.20.1",
+          "sha256": "01907aa5b0eae11e44cffea0a993d08aa155542a9af570295dd1dff39e67692a"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/docker/docker-language-server/releases/download/v0.20.1/docker-language-server-linux-amd64-v0.20.1",
+          "sha256": "01907aa5b0eae11e44cffea0a993d08aa155542a9af570295dd1dff39e67692a"
+        }
+      }
+    },
+    "llama.cpp": {
+      "request": {
+        "pinned": "b9829"
+      },
+      "version": "b9829",
+      "route": "archive",
+      "bins": [
+        "ggml-rpc-server",
+        "llama",
+        "llama-batched-bench",
+        "llama-bench",
+        "llama-cli",
+        "llama-completion",
+        "llama-debug-template-parser",
+        "llama-fit-params",
+        "llama-gemma3-cli",
+        "llama-gguf-split",
+        "llama-imatrix",
+        "llama-llava-cli",
+        "llama-minicpmv-cli",
+        "llama-mtmd-cli",
+        "llama-mtmd-debug",
+        "llama-perplexity",
+        "llama-quantize",
+        "llama-qwen2vl-cli",
+        "llama-results",
+        "llama-server",
+        "llama-template-analysis",
+        "llama-tokenize",
+        "llama-tts"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b9829/llama-b9829-bin-ubuntu-arm64.tar.gz",
+          "sha256": "684f2f4c3e449cf65b560f866905ff38c27e0645615aa36a217e8d1d86df0e55"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b9829/llama-b9829-bin-ubuntu-arm64.tar.gz",
+          "sha256": "684f2f4c3e449cf65b560f866905ff38c27e0645615aa36a217e8d1d86df0e55"
+        },
+        "linux-x64": {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b9829/llama-b9829-bin-ubuntu-x64.tar.gz",
+          "sha256": "be52668d34106d1fccf4ddff63ad7be7c938c3cb3bdaf565eaeff01200810e5f"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/ggml-org/llama.cpp/releases/download/b9829/llama-b9829-bin-ubuntu-x64.tar.gz",
+          "sha256": "be52668d34106d1fccf4ddff63ad7be7c938c3cb3bdaf565eaeff01200810e5f"
+        }
+      }
+    },
+    "opentofu": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.13.2",
+      "route": "bin-sourced",
+      "bins": [
+        "tofu"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_arm64.tar.gz",
+          "sha256": "88e2d9e3f94f97b76ab2faf55ade87578f56aed19c5e45fa139d70e994366d1f"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_arm64.tar.gz",
+          "sha256": "88e2d9e3f94f97b76ab2faf55ade87578f56aed19c5e45fa139d70e994366d1f"
+        },
+        "linux-x64": {
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_amd64.tar.gz",
+          "sha256": "ac05d9952662c7db28dd57e93f0a68018837bfdf9342384ec0987977c16a9645"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/opentofu/opentofu/releases/download/v1.13.2/tofu_1.13.2_linux_amd64.tar.gz",
+          "sha256": "ac05d9952662c7db28dd57e93f0a68018837bfdf9342384ec0987977c16a9645"
+        }
+      }
+    },
+    "hcloud": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.70.2",
+      "route": "bin-sourced",
+      "bins": [
+        "hcloud"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/hetznercloud/cli/releases/download/v1.70.2/hcloud-linux-arm64.tar.gz",
+          "sha256": "05820ba0e3141b212c7cff036d1bd7cd35843e96d7033c2036ffe76253ebbea8"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/hetznercloud/cli/releases/download/v1.70.2/hcloud-linux-arm64.tar.gz",
+          "sha256": "05820ba0e3141b212c7cff036d1bd7cd35843e96d7033c2036ffe76253ebbea8"
+        },
+        "linux-x64": {
+          "url": "https://github.com/hetznercloud/cli/releases/download/v1.70.2/hcloud-linux-amd64.tar.gz",
+          "sha256": "b844bd28240112b0254183ba5266d0a0f59a6167c196636936459755efb88050"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/hetznercloud/cli/releases/download/v1.70.2/hcloud-linux-amd64.tar.gz",
+          "sha256": "b844bd28240112b0254183ba5266d0a0f59a6167c196636936459755efb88050"
+        }
+      }
+    },
+    "npm:typescript-language-server": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "6.0.2",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "typescript-language-server",
+      "bins": [
+        "typescript-language-server"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "cargo:coreutils": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.12.0",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "coreutils",
+      "bins": [
+        "coreutils"
+      ],
+      "env": {},
+      "options": {
+        "cargoFeatures": [
+          "unix"
+        ]
+      },
+      "artifacts": {}
+    },
+    "npm:socket": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.12.1",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "socket",
+      "bins": [
+        "socket",
+        "socket-npm",
+        "socket-npx",
+        "socket-pnpm",
+        "socket-yarn"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:wrangler": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "4.155.0",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "wrangler",
+      "bins": [
+        "cf-wrangler",
+        "wrangler",
+        "wrangler2"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "npm:pagefind": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.5.2",
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "pagefind",
+      "bins": [
+        "pagefind"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "betterleaks": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "1.9.0",
+      "route": "bin-sourced",
+      "bins": [
+        "betterleaks"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_arm64.tar.gz",
+          "sha256": "1d39116e0a58dc94574715e2aa12a2dbd5062f193eee3fec011fef6ba06bd13b"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_arm64.tar.gz",
+          "sha256": "1d39116e0a58dc94574715e2aa12a2dbd5062f193eee3fec011fef6ba06bd13b"
+        },
+        "linux-x64": {
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz",
+          "sha256": "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz",
+          "sha256": "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7"
+        }
+      }
+    },
+    "java": {
+      "request": {
+        "channel": "temurin-21"
+      },
+      "version": "temurin-21.0.13+9.0.LTS",
+      "route": "archive",
+      "bins": [
+        "jar",
+        "jarsigner",
+        "java",
+        "javac",
+        "javadoc",
+        "javap",
+        "jcmd",
+        "jconsole",
+        "jdb",
+        "jdeprscan",
+        "jdeps",
+        "jfr",
+        "jhsdb",
+        "jimage",
+        "jinfo",
+        "jlink",
+        "jmap",
+        "jmod",
+        "jpackage",
+        "jps",
+        "jrunscript",
+        "jshell",
+        "jstack",
+        "jstat",
+        "jstatd",
+        "jwebserver",
+        "keytool",
+        "rmiregistry",
+        "serialver"
+      ],
+      "env": {
+        "JAVA_HOME": "java/temurin-21.0.13+9.0.LTS"
+      },
+      "options": {},
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.13_9.tar.gz",
+          "sha256": "e3522e707fc7dbe2a72c30746b1e7068301a0213ecd213d4491f35a14eb55578"
+        },
+        "linux-arm64-musl": {
+          "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_aarch64_alpine-linux_hotspot_21.0.13_9.tar.gz",
+          "sha256": "a41f2d7b886ed318db51543cd045d94dd35179f66df302e6c3fd48a41a6dd9f5"
+        },
+        "linux-x64": {
+          "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_x64_linux_hotspot_21.0.13_9.tar.gz",
+          "sha256": "d7f5d5cf865a2902b70ff549b97586a7d3f234e016f041ab447ea740c7d66d1c"
+        },
+        "linux-x64-musl": {
+          "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_x64_alpine-linux_hotspot_21.0.13_9.tar.gz",
+          "sha256": "dc453842ee3f24710258f42a95bdfe5c2bfc0ca9d70c12f950ead82aee0c8361"
+        }
+      }
+    },
+    "android-sdk": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "23.0",
+      "route": "android-sdk",
+      "bins": [
+        "android",
+        "apkanalyzer",
+        "avdmanager",
+        "d8",
+        "lint",
+        "profgen",
+        "r8",
+        "resourceshrinker",
+        "retrace",
+        "screenshot2",
+        "adb",
+        "etc1tool",
+        "fastboot",
+        "hprof-conv",
+        "make_f2fs",
+        "make_f2fs_casefold",
+        "mke2fs"
+      ],
+      "env": {
+        "ANDROID_HOME": "android-sdk/23.0",
+        "ANDROID_SDK_ROOT": "android-sdk/23.0"
+      },
+      "options": {
+        "androidPackages": [
+          "platforms/android-37.0",
+          "build-tools/37.0.0",
+          "ndk/29.0.13846066",
+          "platform-tools"
+        ]
+      },
+      "artifacts": {
+        "linux-arm64": {
+          "url": "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip",
+          "sha256": "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
+        },
+        "linux-arm64-musl": {
+          "url": "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip",
+          "sha256": "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
+        },
+        "linux-x64": {
+          "url": "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip",
+          "sha256": "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
+        },
+        "linux-x64-musl": {
+          "url": "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip",
+          "sha256": "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8"
+        }
+      }
+    },
+    "cargo:cargo-ndk": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "4.1.2",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-ndk",
+      "bins": [
+        "cargo-ndk",
+        "cargo-ndk-env",
+        "cargo-ndk-runner",
+        "cargo-ndk-test"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    },
+    "pipx:slopo": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.9.0",
+      "route": "mpm-uvx",
+      "manager": "uvx",
+      "packageId": "slopo",
+      "bins": [
+        "slopo"
+      ],
+      "env": {},
+      "options": {},
+      "artifacts": {}
+    }
+  }
+}

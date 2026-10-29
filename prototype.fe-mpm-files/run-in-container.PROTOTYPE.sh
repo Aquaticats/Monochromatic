@@ -9,4 +9,4 @@ shift
 exec systemd-run --user --unit="fe-proto-probe-$$" --wait --pipe --collect \
   --property=MemoryMax=4G --property=CPUQuota=200% \
   podman run --rm --memory=2g --cpus=2 --security-opt label=disable \
-  --volume "$here":/proto:ro "$@" localhost/fe-proto-base:2 sh "/proto/$script"
+  --volume "$here":/proto:ro "$@" localhost/fe-proto-base:2 bash "/proto/$script" ${PROTO_ARGS:-}

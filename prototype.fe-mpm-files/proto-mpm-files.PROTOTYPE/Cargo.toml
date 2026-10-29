@@ -1,0 +1,17 @@
+# PROTOTYPE (throwaway): answers who writes and checks mpm.packages.toml / mpm.managers.toml. Not for publication.
+[package]
+name = "proto-mpm-files-prototype"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[[bin]]
+name = "proto-mpm-shadow"
+path = "src/bin/proto_mpm_shadow.rs"
+
+[[bin]]
+name = "proto-file-enforcer"
+path = "src/bin/proto_file_enforcer.rs"

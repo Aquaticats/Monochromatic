@@ -1,0 +1,39 @@
+// PROTOTYPE scenario plan, second revision: pycowsay pin bumped, cargo-ndk added (pinned, an older version on purpose).
+{
+  "tools": {
+    "rust": {
+      "request": { "channel": "nightly" },
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "bins": ["cargo", "rustc"]
+    },
+    "cargo:timeout-cli": {
+      "request": { "track": "latest" },
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "timeout-cli",
+      "bins": ["timeout"]
+    },
+    "cargo:cargo-ndk": {
+      "request": { "pinned": "4.1.1" },
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "cargo-ndk",
+      "bins": ["cargo-ndk"]
+    },
+    "pipx:pycowsay": {
+      "request": { "pinned": "0.0.0.2" },
+      "route": "mpm-uvx",
+      "manager": "uvx",
+      "packageId": "pycowsay",
+      "bins": ["pycowsay"]
+    },
+    "npm:is-odd": {
+      "request": { "pinned": "2.0.0" },
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "is-odd",
+      "bins": []
+    }
+  }
+}

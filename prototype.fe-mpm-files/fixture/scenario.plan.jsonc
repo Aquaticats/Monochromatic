@@ -1,0 +1,34 @@
+// PROTOTYPE scenario plan (trimmed): one tool per mpm section plus the rustup toolchain.
+// Same shape as the lock's declaration fields; version and artifacts live only in the lock.
+{
+  "tools": {
+    "rust": {
+      // channel request: the version comes from `update`, never from this file
+      "request": { "channel": "nightly" },
+      "route": "rustup-toolchain",
+      "manager": "rustup",
+      "bins": ["cargo", "rustc"]
+    },
+    "cargo:timeout-cli": {
+      "request": { "track": "latest" },
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "timeout-cli",
+      "bins": ["timeout"]
+    },
+    "pipx:pycowsay": {
+      "request": { "pinned": "0.0.0.1" },
+      "route": "mpm-uvx",
+      "manager": "uvx",
+      "packageId": "pycowsay",
+      "bins": ["pycowsay"]
+    },
+    "npm:is-odd": {
+      "request": { "pinned": "2.0.0" },
+      "route": "mpm-pnpm",
+      "manager": "pnpm",
+      "packageId": "is-odd",
+      "bins": []
+    }
+  }
+}
