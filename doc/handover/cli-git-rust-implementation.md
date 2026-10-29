@@ -2981,6 +2981,35 @@ Stall reproduction results (user asked to reproduce, not to change the bound; me
 - Wrapper cost, measured: `reset --hard` 3 ms (1 git process), mixed `reset` 37 ms (5 execs), `cli-git check` 16 ms (8),
   so nothing there is near the 5-second bound. The commit is the heavy path (see the commit-path bullet above): sync
   calls 43, now 41 after `perf(git-policy/cli): feed git's stdin scratch file without syncing it`.
+- Permanent tests written from the investigation (user asked why they were scratch): the owner-lock waits end on
+  events (`7fffca336a`); `binary_fork_failure_tests.rs` fails the Nth `clone3` of an explicit-path commit under
+  `strace` for 60 indices and requires a bounded end with a message, a succeeding next command and a consistent
+  repository with nothing left, with a positive control (skips with a message where `strace` is absent, so it runs in
+  the host suite and not in the gate container); `a_marker_naming_a_missing_object_is_still_a_conclusion` pins why the
+  three pseudoref probes stay `rev-parse --verify` (a batched `cat-file --batch-check` reports a dangling marker as
+  missing and would turn a merge into a plain commit that drops the merge parent).
+- Bug found by that sweep and fixed: a landing that failed after `migrate_shadow_objects` and before its landing
+  record leaked `pack-*.keep` (the caller removes the transaction directory, recovery never saw the pack). Steps are
+  now `record_landing`; a failure while the directory is not yet preserved removes the keep. The deterministic test
+  `landing_crash::a_failure_before_the_landing_record_removes_the_keep` (pause at `objects-migrated`, block the
+  pre-landing copy with a directory) failed before the fix and passes after.
+- Spawn batching outcome (user chose all three groups; two were refused on evidence): the four `hook.<event>.enabled`
+  reads are one `--type=bool --get-regexp` call (`ef68198c51`, last value wins, checked on git 2.56.0, shown failing with
+  first-value-wins). The pseudoref batch is refused (dangling marker above). The `core.hooksPath` plus maintenance
+  config merge is refused: they run in different phases, one is `--type=path`, and sharing a snapshot needs path
+  expansion reimplemented. Commit spawns went 48 to 45.
+- Sync sites of one explicit-path commit, in call order (strace -k, 42 calls): `ensure_transaction_root` syncs `.git`
+  (twice) and `cli-git-captures` even when nothing was created (3, zero risk to skip); transaction publication
+  (`owner.json`, `.pending`, `cli-git-transactions`: 3); `preparing.json` + dir; `store-held.json`; shadow
+  `packed-refs`; capture lock `owner.json`; `worktree-id` + dir; `sequence` tmp + dir; `captured.json`; `plan.json`;
+  four hook-lock candidates (`owner.json`, one per hook event and post-commit); `prepared.json` + dir; landing lock
+  `owner.json`; `index-lock-1.json` + dir; `index~pid.lock`; three Git pack temp files; `landing-1.json` + dir;
+  `ref-updated.json` + dir; landed-capture record + dir + root; `index.lock` + `.git`; `index-installed` + dir; two
+  `sync_parent` calls after `remove_transaction_directory`. Slice order for the journal (advisor): 1) skip syncs of a
+  directory that was not changed, 2) skip the two post-removal syncs, 3) defer directory syncs to the barriers (file
+  fsync already persists the entry on ext4, XFS and btrfs), 4) torn-record tolerance for pre-landing records with a
+  mutation harness that tears, drops and reorders records (a kill is not a power loss: SIGKILL leaves the page cache),
+  5) only then drop file syncs of pre-landing records. Lock-candidate syncs stay.
 - Journal records cost two syncs each (file, then directory) by `write_journal_record`; lock candidates sync
   `owner.json` before publication so a power loss cannot leave a malformed blocking record (fail-closed, would stick
   every acquirer). Cutting those is a durability decision for the user, not made yet.
