@@ -4,6 +4,8 @@
  The image bakes the whole repository with a frozen pnpm install; its
  tag derives from the lockfile and Containerfile contents so dependency
  or runtime changes rebuild while unrelated edits reuse the cache.
+ Its base is the newest CachyOS image the host CPU runs
+ (doc/decision/container-base-distro.md), which is part of the tag too.
  
  @example
  ```ts
@@ -23,6 +25,10 @@ import spawn from 'nano-spawn';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
+import {
+  CACHYOS_IMAGE_BUILD_ARGUMENT_NAME,
+  resolveBaseImage,
+} from '@monochromatic-dev/test-harness-core-matrix/ts';
 
 /**
  Module logger for host-side image management.
@@ -97,27 +103,31 @@ async function listFilesSorted(dir: string,): Promise<readonly string[]> {
  Computes the image reference for the current repo state.
  
  The hash covers dependency identity (lockfile), build recipe
- (Containerfile plus ignore list), and this package's own sources,
- because containers execute the baked copy of that source; without the
- source hash a container-side change would silently reuse stale images.
- 
- @param options - Repository root.
- 
+ (Containerfile plus ignore list), this package's own sources,
+ because containers execute the baked copy of that source (without the
+ source hash a container-side change would silently reuse stale images),
+ and the base image, so hosts on different CPU levels never share an image
+ built for another level.
+
+ @param options - Repository root and the resolved base image reference.
+
  @returns Image reference including content-derived tag.
- 
+
  @example
  ```ts
- await imageReference({ repoRoot });
+ await imageReference({ repoRoot, baseImage: 'docker.io/cachyos/cachyos-v4:latest' });
  // 'localhost/mutation-test-runtime:3fc9...'
  ```
  */
 export async function imageReference(options: {
   readonly repoRoot: string;
+  readonly baseImage: string;
 },): Promise<string> {
   /**
    Content hash over inputs that must trigger a rebuild.
    */
   const hash = createHash('sha256',);
+  hash.update(options.baseImage,);
   /**
    Source directories inside the container's execution closure; host
    orchestration changes must not force image rebuilds.
@@ -226,7 +236,10 @@ async function imageExists(reference: string,): Promise<boolean> {
  @returns Usable image reference.
  
  @throws Error when skipping the build but no image exists.
- 
+
+ @throws NoAlpineVariantError (from test-harness-core-matrix) on a host that is not x86-64,
+ because this image has no Alpine variant.
+
  @example
  ```ts
  const image = await ensureRuntimeImage({ repoRoot, skipImageBuild: false });
@@ -244,9 +257,20 @@ export async function ensureRuntimeImage(options: {
     l,
   },);
   /**
-   Content-derived image reference for the current repo state.
+   Base image this host's CPU level runs.
    */
-  const reference = await imageReference({ repoRoot: options.repoRoot, },);
+  const base = await resolveBaseImage({
+    imageName: IMAGE_REPOSITORY,
+    alpineVariant: false,
+  },);
+  rl.info(`base image ${base.image}: ${base.reason}`,);
+  /**
+   Content-derived image reference for the current repo state and base.
+   */
+  const reference = await imageReference({
+    repoRoot: options.repoRoot,
+    baseImage: base.image,
+  },);
 
   if (await imageExists(reference,)) {
     rl.info(`reusing image ${reference}`,);
@@ -261,6 +285,8 @@ export async function ensureRuntimeImage(options: {
     'podman',
     [
       'build',
+      '--build-arg',
+      `${CACHYOS_IMAGE_BUILD_ARGUMENT_NAME}=${base.image}`,
       '--file',
       join(
         options.repoRoot,
