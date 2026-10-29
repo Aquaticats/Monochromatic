@@ -752,3 +752,162 @@ M294,
 a merge that brought in lines no gate had seen,
 and M238,
 a merge of two rounds' work on the same file.
+
+## M316: a queued item and a launch command were not written where a later session would find them
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+- The queue held an item called "Haiku cap reading" in two places of the handover,
+  and no brief or note defined it.
+  The lead defined it when it looked for it:
+  after the XingZ6022 read lands,
+  run the read-only cap census in a scratch tree so that it covers the XingZ6022 log,
+  and read the row of the `claude-haiku` card against the card's cap,
+  as was done for Xiaomi (5098).
+  The notes call this a queue item written without its definition.
+- The notes say that no launch line of a gate was recorded before gate g239.
+  The lead wrote the form into the handover while that gate ran.
+  The notes hold no full command for a sweep:
+  they give the unit name,
+  the tree,
+  the log name,
+  the memory and processor limits and the wait bound,
+  and not the command.
+
+Prevention:
+`mistake-prevention-docs-and-references.md`,
+"References in code and docs",
+for the item:
+a queued item is written with its definition,
+and not only its name.
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools",
+for the launch:
+the form of a gate launch and what the notes hold of a sweep launch are recorded there,
+and the full form of a sweep is written into the handover when it is next launched.
+
+Recurrence:
+M55,
+a launch whose handover did not say what was launching and why,
+and D26,
+an open-work list that was task numbers naming work recorded nowhere else.
+
+## M317: a landing lost the user bus under the keyless wrapper, a worktree was added during a retire, and a partial rules file reached a tree
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+The notes had held the first two lessons before these slips,
+the first on 2026-10-23 and the second in the stretch of gate g203,
+and neither had reached a package doc.
+
+- Landing of round w368 failed on its first attempt,
+  before any build.
+  The lead ran `land-from-scratch.ts` under `env --ignore-environment PATH HOME`,
+  which drops `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS`,
+  so the script's `systemd-run --user` could not reach the user bus.
+  A merge (`d444f2cdea` over main `3659c961a1`) stayed unpushed in `tr-g231`.
+  The rerun kept the two variables,
+  which hold no key.
+- The lead started `setup-w374.ts`,
+  which adds a worktree,
+  while a batch retire was removing others.
+  The hook of cli-git failed resolving `tr-w370` mid-removal.
+  The add itself succeeded (`tr-w374` was clean at `b74f010d74`),
+  and the install,
+  the sync and the tree path ran after the retire ended.
+- The lead called a helper,
+  `branch-only/ancestors-on-branch.ts`,
+  before it wrote it.
+- The agent of round w374 ran `mise run sync:files` in its tree,
+  which wrote a forbidden-strings rules file of 11,064 bytes where the full file is 14,950 bytes,
+  so its commit-time scans may have read fewer rules.
+  The lead replaced the file with the full one from `tr-w377` before committing,
+  and read 14,950 bytes in the landing tree `tr-g240`.
+
+Prevention:
+`mistake-prevention-merging-and-landing-rounds.md`,
+"Landing a tree".
+
+Recurrence:
+M242,
+where the rules file was missing in a new worktree.
+No record names the user bus,
+a worktree added during a retire,
+or a helper called before it was written.
+
+## M318: causes and the behaviour of other tools were told before the reading that settles them, and five were corrected
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+- The reader of XingZ6022 hit `EDQUOT` on the harness folder under `/tmp`.
+  The lead told the owner that deleting a 752 MB task output of another session would likely stop the errors.
+  It then measured.
+  `/tmp` is a tmpfs with `usrquota`,
+  and `quota` showed uid 1000 at 4,988 MB of a 13,108 MB limit.
+  The file was not near the limit,
+  usage had reached 13 GB for a short time during the read,
+  and the cause was not found.
+  The lead retracted the message.
+- After gate g230 the lead wrote that `toolchain:sync` does not compare the exposed binary's version with the lock.
+  A peer first answered that it compares the lock version only,
+  then corrected itself:
+  it compares the shared cargo record (`cargo binstall --list`) with the lock
+  (`isAtLockedVersion` in `sync.ts`,
+  `versionMatches` in `status.ts`).
+  Why the trees reported the linter as unchanged is unexplained,
+  and the notes say it was not investigated.
+- The lead took a file's modify time for the time of an install.
+  The mtime of the linter binary was the archive's.
+  The birth time,
+  12:37:41 UTC,
+  was the install.
+- The lead's own message called the 15 failures of gate g230 typography cases.
+  They were 15 failing `[FAIL]` lines across the gate's suites,
+  all typography's.
+  The lead's commit `1787ded` corrects the wording of B1015.
+- The lead read the red `run.test-unit` step of gate g235 as a merge interaction.
+  `f7f20ef969` is an ancestor of `49561dcba9`,
+  and the cause was the round's own,
+  three test files it did not move (M323).
+  The lead retracted the reading.
+
+Prevention:
+`mistake-prevention-commit-checks-and-figures-told-to-others.md`,
+"Causes and tool behaviours told to others".
+
+Recurrence:
+M303,
+a gate time told to a peer unmeasured,
+M270,
+a report whose premises the log did not bear out,
+and M265,
+a generation called unstored while a live pass wrote it.
+
+## M319: a hash that no command had printed was passed to a merge, and a count was given from memory
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+- The lead passed `setup-redo.ts g240` a full hash for the head of round w374,
+  `1a6c9296b2bda8a6...`,
+  which it had made up from the ten characters it knew.
+  Git refused the merge with "not something we can merge",
+  and nothing changed.
+  The lead merged by hand with the short hash read from git.
+- The lead's summary said that 19 old worktrees remained.
+  The count was 18 clean worktrees and `tr-w321`,
+  which held an install artifact in `pnpm-lock.yaml`.
+
+Prevention:
+`mistake-prevention-commit-checks-and-figures-told-to-others.md`,
+"Hashes given to a command" for the first,
+and "Figures told to others" for the second.
+
+Recurrence:
+M16,
+M39 and M49,
+hashes typed by hand into messages,
+and M303,
+a figure told unmeasured.

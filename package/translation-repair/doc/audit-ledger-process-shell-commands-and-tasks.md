@@ -847,7 +847,8 @@ a task named to the owner,
 or in a brief,
 is quoted with its `description` line read from its `mise.toml` in the same turn.
 `mistake-prevention-shell-edits-commits-and-agents.md`,
-"Questions to the owner".
+"Questions to the owner"
+(moved on 2026-10-29 to `mistake-prevention-questions-to-the-owner-and-rulings.md`).
 
 ## M282: the lead chained five steps and captured exit codes with `;` through a whole session
 
@@ -921,3 +922,35 @@ M132,
 listings of several hundred file names printed where a count would have done,
 and M117,
 where a line range was counted off a print whose first line the tool had trimmed.
+
+## M315: the lead chained with `;` four times, sent two Edits to one file again, and ran a `git fetch` outside the keyless wrapper
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes,
+for the rounds from w363 to w377.
+
+- Four commands joined their steps with `;`:
+  the merge check,
+  a search for an existing enforcer,
+  the read of a fix commit (`bwu1vqnqm`),
+  and the merge-base check made when gate g235 went red.
+- Two Edit calls went to the one file of the temporary-directory scan in one block.
+  Both applied,
+  and the lead read the file back.
+- One `git fetch` ran in the main checkout without the keyless wrapper.
+- A large read is named in the notes as a slip,
+  with no more detail than that.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Shell commands":
+the rules stand as written,
+and the recurrence is recorded there with the agents' breaks of the same rounds (M321).
+
+Recurrence:
+M282,
+`;` used to keep an exit code through a whole session,
+M244,
+five `;` chains in one session,
+and M306,
+two Edit calls to one file in the same block.

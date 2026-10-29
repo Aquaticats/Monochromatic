@@ -211,3 +211,214 @@ M291,
 where blocks were added to files near a line limit,
 and M300,
 where a Markdown finding reached a gate.
+
+## M321: the agents of seven rounds broke the shell, edit, output, wait and worktree rules, and the lead found it in their hand-backs
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes of each hand-back.
+The rounds are w363 (B996),
+w366 (B1005),
+w369 (B1020 to B1025),
+w370 (B1030),
+w374 (B1045 to B1047),
+w376 (B1035)
+and w377 (B1040),
+and the read-only measurement of B1047.
+
+- Round w363:
+  the first provider build ran without `cd` and wrote ignored build output (`dist/final/node`) in the main checkout
+  for eight packages
+  (markup,
+  document-structure,
+  shared-contract,
+  typography,
+  glossary,
+  house-rule,
+  provider-stream
+  and provider);
+  tracked status did not change,
+  and the output was left in place because it is ignored and other sessions build there.
+  The agent's case R1 made a microtask spin of about 180 seconds,
+  a busy loop under the ban on synthetic load,
+  and `TaskStop` ended it.
+  A `timeout` wrapper went round the run of R9,
+  two commands ran without `PATH`,
+  and some `rg` outputs were too wide.
+- Round w366:
+  many parallel Edits to one file,
+  an Edit and its reader in one block,
+  an `ls` of the harness task folder (refused),
+  `rg --max-count` caps,
+  a `ps -eo` listing of all processes,
+  and the source-scan unit tests run four times.
+- Round w369:
+  parallel Edits to one file,
+  an Edit and a build in one block,
+  `head -n 6`,
+  `sleep 1`,
+  whole large logs read,
+  and three waiters of the form `timeout 3300 tail --pid=<its own shell>`,
+  which sat idle for 40 to 50 minutes until the lead stopped them by process id.
+- Round w370:
+  one `;` chain,
+  parallel Edits to one file three times,
+  and polls of `git log`.
+- Round w374:
+  two scripts of `node` that patched files instead of the Edit tool,
+  commands without the keyless prefix,
+  two Edits to one file in one block,
+  one extra full run of the slice-reading tests,
+  and a `mise run sync:files` that rewrote the tracked `mise.toml`
+  (the agent restored it by a shell write)
+  and wrote a rules file of 11,064 bytes (M317).
+- Round w376:
+  one `;` chain,
+  one `for` loop (read-only),
+  two Edit and read pairs in one block,
+  and the source-scan unit tests run five times to fix Markdown line breaks.
+- Round w377:
+  three pairs of Edits to one file,
+  short flags,
+  and the source-scan unit tests run three times.
+- The read-only measurement of B1047:
+  one wait on a process id found with `pgrep`,
+  which returned at once.
+
+Counted by round,
+two Edits to one file in one block were made in five of the seven rounds,
+an Edit with the command that reads it in three,
+and a `;` chain in two.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Shell commands",
+"How an agent waits"
+and "Briefs and hand-backs":
+the rules stand as written,
+a brief opens with the forms broken and the number of rounds that broke each,
+and a wait is on a process id its sender started.
+The lead's notes say that future briefs add the last rule:
+wait only on a process id the agent started,
+never on one found by `pgrep`,
+and never on the agent's own shell.
+
+Recurrence:
+M304,
+the breaches the agent of round 8 listed,
+M272 and M273,
+breaks that agents listed in their own notes,
+and M189 to M197,
+where agents sent two or three edits to one file in one batch.
+
+## M322: seven messages of commits said what their diffs did not, and five subjects or bodies passed the length limits
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Messages that were wrong:
+- `8bc09565ec` (w363) said 12 reads and 10 listed.
+  The count is 13 reads,
+  2 converted
+  and 11 listed in 6 keys.
+  `61b56b3602` and B996 correct it.
+- `c4d4c80277` (w367) gave counts of cases that did not match.
+  The file holds 8 cases,
+  2 of them new,
+  and 4 of the 8 fail.
+  B1011 corrects it.
+- `325cfb3585` (w369) claimed a fix where the commit holds tests.
+  The change of verdict is in `add3f1b27e`.
+- `49561dcba9` (w369) said that existing cases follow generation 22.
+  Three run test files with 23 literals of 21 did not (M323).
+- `65ae605fd2` (w371) said seven new cases.
+  The diff adds eight.
+- `1f2bb6aef6` (w371) omitted that the commit also rewrote the red test file
+  (`TWO_GAPS_ENTRY`,
+  `baseSignal`
+  and `coverageScript`).
+- `b3e4d5e2cc` (w364) said 4,030 and "one more than the lead's 4,029".
+  The count is 4,031.
+
+Corrective comments were posted for all of these once the commits were on GitHub
+(207247634,
+207272199,
+207272204,
+207272209,
+207272214,
+207283978
+and 207298662).
+
+Messages that were too long,
+for which the lead posted no comment:
+- the subject of `6253eb52bc` (w368) was 109 columns,
+  and the lead's own `1787ded` was 116;
+- the subjects of `65ae605fd2` and `227d4118b6` (w371) were long;
+- the body lines of `e539103c5d` (w370) passed 120 columns.
+The lead's ruling,
+with the earlier `bd298c1d40` (114 columns) as its precedent,
+is that length is style,
+and a corrective comment is for a message that says something wrong.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Commit messages":
+the rule that a count comes from a command run on the staged diff stands,
+and the limit of 100 columns for a subject and 120 for a body line is written there,
+counted by a command before the commit.
+
+Recurrence:
+M267,
+a body that miscounted the guards it pins,
+M274 and M281,
+messages checked against their diffs,
+and M312,
+a count that a message gave for a constant it had replaced.
+
+## M323: the merges of rounds dropped a line, missed the tests that print a constant, and carried a break outside the conflicts
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+- The merge in `tr-w367` removed the index line of B996 from `audit-ledger-entries-by-id.md`,
+  on the ground that main had deleted it.
+  Main had never had the line:
+  round w363,
+  which added it,
+  had not landed.
+  The lead caught it and restored the line in a commit on `tr-w367`.
+- Round w369 moved the artifact generation to 22
+  and missed three run test files that print `read-at-generation=21`
+  (verify-published,
+  verify-published-run
+  and verify-published-entry),
+  23 literals in all.
+  Gate g235 was red in `run.test-unit` with 20 failing cases and 3 suite lines.
+  The hand-back listed no run of the run package's tests.
+  The lead moved the literals and gate g235b was green.
+- Round w371 had added a case in `verify-published-run.unit.test.ts` that expected `read-at-generation=21`
+  while round w369 moved the generation to 22.
+  Gate g237 was red in `run.test-unit` on that one case and its suite line.
+  This one was a real merge interaction,
+  and the lead's fix is in `b74f010d74`.
+- The merge agent of round w376 kept a `parked` hook that `702d149a74` had made dead,
+  and `lint:types` of corpus-pass failed with 4 errors until `00c80c7d0d`.
+  It also dropped a check of `passBoundOf` and the start of the day in `run-seats-futile.ts`
+  because the pass bound was gone.
+  That the behaviour stayed the same was the agent's reading and not a run,
+  and gate g239 had to confirm it.
+
+Prevention:
+`mistake-prevention-merging-and-landing-rounds.md`,
+"Lines a merge keeps or drops",
+"Constants that tests print"
+and "Behaviour a merge carries outside its conflicts".
+
+Recurrence:
+M174,
+a merged tree that held three slips the gate found,
+M238,
+a merge of two rounds' work on one file,
+B701,
+two identical additions that git merged without a conflict,
+and M310,
+two rounds that collided on the ledger indexes.

@@ -183,6 +183,8 @@ An install on the current main rewrote `pnpm-lock.yaml` in the gate trees `tr-g2
 The `git checkout --detach` of gate g227 was refused by cli-git over the dirty tree,
 and each gate tree was dirty again when it was retired,
 so the retire script refused to remove it (ledger M308).
+No launch line of a gate was recorded in the notes before gate g239,
+and none for a sweep stands in them now (ledger M316).
 
 The rule:
 a gate tree is set up in this order before its first gate:
@@ -222,6 +224,48 @@ in scratch tooling:
 a subagent leaves the file as it is and reports it in its hand-back.
 The lockfile belongs to another session,
 and no gate tree and no round commits it or changes it.
+A gate is launched from the plain shell as a user unit of its own.
+The notes recorded the line on 2026-10-29 (UTC) while gate g239 ran,
+in a shorthand that opens `env -i PATH HOME XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS systemd-run --user`.
+The block expands the short flag and the bare variable names,
+and the expanded line was not run in the round that wrote it.
+The four variables that `env` passes hold no key,
+and the user bus needs the last two of them (ledger M317).
+`<tr-fan>` is the lead's scratch folder,
+`/var/home/user/temp/agent/tr-fan`,
+and `gate-family.ts` is a scratch script of the lead's outside the repository.
+The hash it takes is the full hash of the head,
+copied from a git command that printed it (see "Hashes given to a command" in
+`mistake-prevention-commit-checks-and-figures-told-to-others.md`).
+
+```bash
+# launch form of a gate; the four variables of env pass through as they stand
+env --ignore-environment PATH="${PATH}" HOME="${HOME}" \
+  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS}" \
+  systemd-run --user --unit=tr-gate-gNNN --collect \
+  --property=MemoryMax=32G --property=CPUQuota=2400% \
+  --working-directory=<tr-fan> \
+  --setenv=PATH="$(cat tree-path-gNNN.txt)" --setenv=HOME \
+  --property=StandardOutput=file:<tr-fan>/gate-gNNN.out \
+  --property=StandardError=file:<tr-fan>/gate-gNNN.err \
+  <node from the tree path> s245/split/gate-family.ts <full hash> gate-gNNN <tree>
+```
+
+The gate's verdict is in `gate-gNNN/summary.txt`:
+`gate-gNNN.out` holds only the wrapper lines of systemd.
+The limits are sized to the host (28 threads and about 41 GiB available when they were set),
+and a gate waits on its unit's process id with a bound of 7,200 seconds.
+A rotation sweep is a unit of its own too,
+named `tr-sweep-gNNN`
+(`tr-sweep-wNNN` when it runs in a round's own tree),
+started in the tree it tests once the gate of that tree has ended,
+with its log in `sweep-gNNN.log` of the scratch folder.
+Its limits were `MemoryMax=8G` and `CPUQuota=800%` beside a gate,
+and 16G and 2000% once the gate had ended,
+and the one note that gives its wait bound gives 3,600 seconds.
+The notes hold no full command for a sweep.
+The next launch writes its full line into the handover,
+and the line is added here from there.
 
 What enforces it:
 habit,

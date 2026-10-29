@@ -4,11 +4,13 @@ Rules for how the work is carried out:
 shell commands,
 lint and edits,
 commit messages,
-questions to the owner,
 and work handed to agents.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
+Its section "Questions to the owner" moved to
+[Preventing mistakes: questions to the owner and rulings](mistake-prevention-questions-to-the-owner-and-rulings.md)
+on 2026-10-29.
 
 ## Shell commands
 
@@ -226,6 +228,16 @@ one chained five `&&` steps,
 and twice an edit went in one batch with the command that read the edited file (ledger M282).
 An exit code is kept with `|| printf`,
 which needs no `;`.
+On 2026-10-29 (UTC) the lead chained with `;` four times in one stretch,
+sent two Edits to one file in one block once more,
+and ran a `git fetch` outside the keyless wrapper (ledger M315).
+The agents of seven rounds listed the same breaks again:
+two Edits to one file in one block in five of the seven,
+an Edit and the command that reads it in one block in three,
+`;` chains and a shell loop,
+commands without the keyless wrapper or without `cd`,
+`rg --max-count` and other caps on evidence,
+and in one round a busy loop of about 180 seconds (ledger M321).
 
 ## Lint and edits
 
@@ -592,53 +604,20 @@ and the message names the constant the count is for:
 the message of `d599b87fab` said "none at the cap" of a cap it had just replaced,
 which was true of the old cap of 13,082 only,
 and a commit comment corrected it (ledger M312).
+On 2026-10-29 (UTC) seven messages of the rounds said what their diffs did not
+(a count of reads,
+of cases or of lines,
+a fix where the diff held tests,
+and a generation moved for cases that did not move),
+and five subjects or bodies passed the length limits (ledger M322).
+A subject stays under 100 columns and a body line under 120,
+counted by a command before the commit.
+A message that says something wrong gets a corrective comment once its commit is on GitHub;
+one that is only too long is style and gets none.
 
 What enforces it:
 habit,
 which failed twice in one hour on the issue numbers.
-
-## Questions to the owner
-
-What happened:
-an adopted reading parked in docs across a compaction (M7);
-a measurable question asked instead of measured (M8);
-a fix started against a ruling (M15);
-quality calls put to the owner as design questions (M30).
-Later rounds took the alternatives of recorded vetoes,
-and the page of veto choices for the owner,
-which collects paragraphs by a marker phrase,
-did not read their closing notes,
-so the old veto paragraphs stayed on that page as live cards,
-asking the owner to keep or veto behaviour that no longer existed (ledger M146).
-A question described an idiom's sense that three of its four occurrences in the corpus contradict,
-and the owner chose an option on that description (ledger M148).
-
-The rule:
-measure what can be measured before asking.
-A sense,
-count or reading an option rests on is measured over the pinned corpus before the question is asked,
-every occurrence read.
-A choice that differs only in the quality of the result is decided for quality,
-built,
-recorded,
-and open to veto.
-A ruling goes into [the design commitments](design-commitments.md) the turn it is given,
-and a finding is checked against them before any fix starts.
-When a later round takes the alternative of a recorded veto,
-the lead writes the closing note,
-lists the item ids the page of veto choices holds for the old paragraph,
-and turns each reversed choice into a pointer on the page,
-or removes it,
-before the page is rebuilt,
-then drives the page again.
-The owner ruled on 2026-10-10 (UTC) that a choice left unmarked on the page of veto choices counts as kept.
-A mise task named in a question to the owner is quoted with its `description` line,
-read from its `mise.toml` in the same turn,
-so the approval names the command that runs (ledger M277).
-
-What enforces it:
-habit,
-and the commitments page.
 
 ## Work merged from parallel briefs
 
@@ -747,6 +726,21 @@ the last two empty when read (ledger M305).
 An empty output file is the sign of a command still running,
 never of a command that printed nothing,
 and the turn ends until the harness reports that the command finished.
+Eight more reads came too early later the same day (ledger M313),
+among them a search and a dry run that had been started in the background:
+a started command's output file is opened only after the harness has reported that command,
+and the turn names the task whose report it saw.
+A command whose only purpose is to pass time is never sent:
+five of the lead's waited on its own shell's process id,
+on process id 1 or on one found with `pgrep` (ledger M314),
+and the agents of two rounds did the same (ledger M321).
+While a background command runs,
+the turn does other queued work or ends.
+A wait that is wanted is on a process id its sender started,
+bounded by `timeout N tail --pid=<pid> --follow /dev/null`,
+never on one found with `pgrep` or `ps`,
+which can match the wait's own shell,
+and never on the shell's own.
 
 What enforces it:
 the shared facts every brief points to carry the waiting rule and the exact unit form;
@@ -970,6 +964,12 @@ and never into a round of its own.
 A branch is not held for a clean re-check:
 the Claude route took 20 re-checks and 22 fix rounds,
 and only re-checks 13 and 14 found a major issue (ledger M296).
+In the seven rounds of 2026-10-29 (UTC) the forms broken most were two Edits to one file in one block (five rounds),
+an Edit with the command that reads it (three)
+and a `;` chain (two);
+a brief opens its rules with those forms and those counts (ledger M321).
+The hand-back of a merge states which tests it ran on the merged head,
+and a behaviour carried outside the conflicts is backed by a run or labelled a reading (ledger M323).
 
 What enforces it:
 habit,

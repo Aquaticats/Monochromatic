@@ -21,7 +21,10 @@ when it passed its 1,000-line bound.
   a prescribed command changed and run from the wrong folder,
   the breaks that agents and the main session listed in their own notes (M272 and M273),
   two Edit calls to one file in one block (M306),
-  and a search with no file filter and a misread line offset (M311).
+  a search with no file filter and a misread line offset (M311),
+  `;` chains,
+  a repeated Edit pair
+  and an unwrapped `git fetch` in the rounds from w363 to w377 (M315).
 - [Audit ledger: process mistakes,
   launch checks and cache versions](audit-ledger-process-launch-checks-and-cache-versions.md):
   What went unchecked before a run launched:
@@ -72,7 +75,8 @@ when it passed its 1,000-line bound.
   What was put to the owner wrongly:
   measurable questions,
   options the evidence contradicts,
-  and requests the owner had ruled out.
+  requests the owner had ruled out,
+  and a ruling read for work it did not reach (M320).
 - [Audit ledger: process mistakes, agents and briefs](audit-ledger-process-agents-and-briefs.md):
   What went wrong in delegating work:
   briefs that left something out,
@@ -107,14 +111,21 @@ when it passed its 1,000-line bound.
   a report that the tool refused to write,
   a report whose premises about a census the log did not bear out (M270),
   the rule breaches that the agent of round 8 listed in its hand-back (M304),
-  and a brief for the caps round that named a census root a live pass writes to,
-  with four more slips of that round (M312).
+  a brief for the caps round that named a census root a live pass writes to,
+  with four more slips of that round (M312),
+  the rule breaches of the agents of seven rounds from w363 to w377 (M321),
+  seven commit messages that said what their diffs did not (M322),
+  and merges that dropped a line,
+  missed the tests that print a constant
+  and carried a break (M323).
 - [Audit ledger: process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md):
   The lead's own slips as they were collected at the close of each batch of work,
   and in merging the work of two rounds,
   with those of the gates and messages of round 8,
-  the toolchain cutover and the caps round
-  (M295 and M297 to M303 and M308 to M310):
+  the toolchain cutover,
+  the caps round
+  and the rounds from w363 to w377
+  (M295 and M297 to M303 and M308 to M310 and M316 to M319):
   a corrective comment held for the landing,
   a sweep beside a gate in its own tree,
   a merge of main that went to a full gate without the type check,
@@ -124,7 +135,11 @@ when it passed its 1,000-line bound.
   a gate time told unmeasured,
   a lockfile that an install rewrote in every gate tree,
   a gate beside two sweeps whose step went red on a timeout,
-  and two rounds that collided on the ledger indexes at landing.
+  two rounds that collided on the ledger indexes at landing,
+  a queued item and a launch command left undefined (M316),
+  a landing that lost the user bus and a partial rules file in a tree (M317),
+  causes and tool behaviour told before they were read (M318),
+  and a hash and a count that no command had shown (M319).
 - [Audit ledger: process mistakes, the package split](audit-ledger-process-the-package-split.md):
   The mistakes of the split of the package into 36:
   a dry run that never linted,
@@ -151,7 +166,9 @@ when it passed its 1,000-line bound.
   a branch held for a clean re-check where no rule said when it lands (M296),
   the output of a background command read before it finished (M301),
   and three such reads in one day,
-  two of them of empty files (M305).
+  two of them of empty files (M305),
+  eight more such reads (M313),
+  and five commands of the lead's that only passed time (M314).
 - [Audit ledger: process mistakes, docs that grow or go stale](audit-ledger-process-docs-that-grow-or-go-stale.md):
   Docs left stale after the state they describe moved,
   docs that grew past reading,
