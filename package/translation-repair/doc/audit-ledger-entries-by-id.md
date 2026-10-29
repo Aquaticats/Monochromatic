@@ -466,6 +466,7 @@ which lists every file of this record.
 - [B965, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B970 to B979, the footnote readings, the containers regressions and the placing of the block comparison][b970-ledger]
 - [B980, the toolchain cutover: the lock reader of B700 and the gate's lookup of the lint program](audit-ledger-copies-in-production-code.md)
+- [B985, real-clock waits left in tests after the cooldown round](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

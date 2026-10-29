@@ -913,11 +913,6 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: FAKE_NAP,
   },
-  'corpus-pass/corpus-run/pass-entry.unit.test.ts#entryClient: wait of module-async-time 10': {
-    count: 1,
-    bound: 'other',
-    reason: SAME_TURN_METER,
-  },
   'corpus-pass/corpus-run/pass-reseat.unit.test.ts#<module>: holds.synthetic = DRY_HOLD_MS': {
     count: 6,
     bound: 'other',
