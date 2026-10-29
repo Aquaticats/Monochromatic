@@ -20,6 +20,8 @@
 use super::content_digest::{ContentDigest, digest_file};
 /// The fail-closed recovery failure.
 use super::recovery_error::{RecoveryError, io_failure};
+/// The steps that finish a retained transaction by hand.
+use super::recovery_manual_steps::finish_by_hand_steps;
 /// The records the message describes.
 use super::transaction_journal::{LandingOperation, LandingRecord, PreparingRecord, landing_record_filename};
 /// `Path` is a borrowed filesystem path.
@@ -127,12 +129,7 @@ pub fn verify_snapshot(
         "The {} {} does not match the length and hash that {landing_file} recorded for it \
          (recorded {} bytes with hash {}, found {} bytes with hash {}), so {}. \
          {branch_state}, and recovery changed neither the branch nor the real index {}. \
-         Recovery retained the transaction at {}. \
-         To finish by hand, first check that no Git command is running in this repository. \
-         Then remove {}.lock (if it exists), {} (if it exists) and {}, \
-         run `git status`, and if the index does not match HEAD, run `git reset`, \
-         which makes the index match HEAD and leaves the worktree files unchanged. \
-         Every guarded command stops until {} is removed.",
+         Recovery retained the transaction at {}. {}",
         role.label(),
         named,
         expected.length,
@@ -142,10 +139,7 @@ pub fn verify_snapshot(
         role.consequence(),
         preparing.real_index_path,
         directory.display(),
-        preparing.real_index_path,
-        preparing.shadow_path,
-        directory.display(),
-        directory.display(),
+        finish_by_hand_steps(directory, Some(preparing)),
     )));
 }
 

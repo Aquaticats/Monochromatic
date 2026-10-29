@@ -641,6 +641,12 @@ pub mod recovery_completion;
 /// The check that an index snapshot still holds the bytes the landing wrote.
 pub mod recovery_snapshot;
 
+/// The steps that finish a retained transaction by hand.
+pub mod recovery_manual_steps;
+
+/// The refusal to discard a transaction whose branch moved but whose records say otherwise.
+pub mod recovery_contradiction;
+
 /// The `.keep` files protecting a landing's migrated pack.
 pub mod pack_keep;
 

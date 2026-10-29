@@ -202,6 +202,9 @@ recovered.
 
 #### Read first: the cases that matter
 
+The first bullet (torn snapshots) and the silent-inconsistency bullet describe the state when the harness was written;
+follow-ups 1 and 2 after the phase listings record how each was resolved, and the listings were updated to match.
+
 - Two index snapshots are not synced today and the table shows what tearing them does. `pre-landing-1.index` and
   `post-1.index` are written by a plain copy and by Git (the sync-site table in the handover has no sync for either,
   and Git's default `core.fsync=committed,-loose-object` excludes `index`, per `git help config`). The landing record
@@ -336,12 +339,12 @@ Undamaged: completes.
 - `T/conclusion/store-held.json`: all applicable damages sticks
 - `T/hooks/plan.json`: all applicable damages completes
 - `T/index-lock-1.json`: all applicable damages completes
-- `T/landing-1.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/landing-1.json`: empty sticks; half sticks; delete sticks
 - `T/owner.json`: all applicable damages sticks
 - `T/post-1.index`: empty sticks; half sticks; delete sticks
 - `T/pre-landing-1.index`: all applicable damages sticks
 - `T/prepared.json`: all applicable damages completes
-- `T/preparing.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/preparing.json`: empty sticks; half sticks; delete sticks
 - `T/ref-updated.json`: empty sticks; half sticks; delete completes
 - `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
 - `index.lock`: all applicable damages sticks
@@ -423,6 +426,47 @@ emptied `post-1.index` case with `fatal: .git/index: index file smaller than exp
 `a_snapshot_that_differs_from_its_digest_is_refused_by_name`,
 `a_normalization_names_the_branch_it_left_alone_and_a_missing_snapshot_names_the_file`). With `postDigest` no longer
 written, `damage_at_ref_updated` fails the same way. All passed again after restoring.
+
+### J3 follow-up 2: the two silent-inconsistency cases
+
+Cause, read from `recover_dead_transaction` in `recovery_landing.rs`: a directory without `preparing.json` was removed as
+"stopped before capture", and a directory with `preparing.json` but no `landing-<n>.json` was discarded as "never landed",
+whatever else it held. At `ref-updated` both deletions left `ref-updated.json` (and, for the second, the landing record)
+in place, so recovery removed the directory of a commit that was already on the branch and exited 0 with the index
+never reconciled.
+
+Detection is possible without any extra sync, because the journal writes `preparing.json` first, `landing-<n>.json`
+before the compare-and-swap and `ref-updated.json` after it, each synced before the next. `recovery_contradiction.rs`
+now refuses to discard, and fails closed with the evidence, the directory and the by-hand steps, when:
+
+- `preparing.json` is missing and the directory holds a landing record or `ref-updated.json`;
+- `preparing.json` is present, no landing record exists and `ref-updated.json` exists;
+- `preparing.json` is present, neither record exists, and the target's reflog holds this transaction's nonce entry
+  (this also finds a move whose marker was lost together with the landing record). It costs one `git reflog show` in the
+  recovery of a dead transaction that has no landing record, a crash residue and never a normal commit. A reflog that
+  cannot be read is treated as no evidence, so a repository that does not keep reflogs for its branch is not covered.
+
+An `index-installed` marker exempts the directory (the install finished, nothing remains to reconcile), which keeps
+`index-installed|landing-1.json|delete` and `index-installed|preparing.json|delete` at `completes`.
+
+Repair was judged not possible: the landing record held the post-index identity and digest, the pre-landing identity, the
+real index lock identity and the expected old value, and `preparing.json` held the target, the real index path and the
+shadow path. Without the first, recovery cannot tell which file is the post-index, whether it is intact, or whether the
+`index.lock` on disk is the transaction's; without the second it does not know the branch or the index. Regenerating the
+post-index from the branch tip was not attempted. What cannot be detected: a directory that lost `preparing.json` and
+every landing record and marker (nothing in it shows the move), and a branch whose reflog is off or unreadable.
+
+Outcome table changes (247 cases regenerated; exactly these two lines differ, every other cell is identical):
+
+- `ref-updated|cli-git-transactions/<id>/landing-1.json|delete`: `inconsistent!commit-exit-0` becomes `sticks`.
+- `ref-updated|cli-git-transactions/<id>/preparing.json|delete`: `inconsistent` becomes `sticks`.
+
+Totals after follow-ups 1 and 2: silently inconsistent 2 to 0, corrupt real index 2 to 0, sticks 63 to 67.
+
+Guards shown failing: with the check made to return at once, `damage_at_ref_updated` fails at
+`ref-updated|cli-git-transactions/<id>/landing-1.json|delete` (left `sticks`, the old cell right) and three of the four
+`recovery_contradiction` tests fail; with the install-marker exemption disabled,
+`installed_and_unmoved_transactions_are_discarded_as_before` fails. All passed again after restoring.
 
 ## Results of the hook-entry and configuration-snapshot slices
 

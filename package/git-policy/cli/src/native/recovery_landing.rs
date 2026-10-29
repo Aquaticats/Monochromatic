@@ -29,6 +29,8 @@ use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::debug;
 /// Transaction keeps.
 use super::pack_keep::remove_transaction_keeps;
+/// The refusal to discard a transaction whose branch moved without a usable landing record.
+use super::recovery_contradiction::refuse_unreconciled_landing;
 /// The landed-or-not decision and index completion.
 use super::recovery_completion::{IndexCompletion, commit_landed, complete_index};
 /// The fail-closed recovery failure.
@@ -235,7 +237,9 @@ pub fn recover_dead_transaction(
             directory.display()
         )));
     }
-    let Some(preparing) = read_preparing(directory)? else {
+    let preparing_record: Option<PreparingRecord> = read_preparing(directory)?;
+    refuse_unreconciled_landing(&place.git, place.cwd.as_path(), directory, names.as_slice(), preparing_record.as_ref())?;
+    let Some(preparing) = preparing_record else {
         debug(
             "recoverDeadTransaction",
             format!("dead owner stopped before capture: {}", directory.display()).as_str(),
