@@ -4,8 +4,6 @@
  @module
  */
 
-import type { RustCatalogEntry, } from '@monochromatic-dev/module-rust-catalog/ts';
-
 import {
   childPairs,
   type LocatedDocument,
@@ -24,7 +22,10 @@ import {
   lineStart,
   type Splice,
 } from './text-splice.ts';
-import type { UseSite, } from './types.ts';
+import type {
+  GeneratedEntry,
+  UseSite,
+} from './types.ts';
 
 //region Shared
 
@@ -428,7 +429,7 @@ export function generatedTableSplices(
   }: {
     readonly source: string;
     readonly located: LocatedDocument;
-    readonly entries: ReadonlyMap<string, RustCatalogEntry>
+    readonly entries: ReadonlyMap<string, GeneratedEntry>
   },
 ): readonly Splice[] {
   /**

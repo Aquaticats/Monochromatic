@@ -137,7 +137,7 @@ anyhow = ">=1"
 arc-swap = ">=1"
 base64 = ">=0.23"
 clap = ">=4"
-futures-util = ">=0.3"
+futures-util = { version = ">=0.3", default-features = false }
 globset = ">=0.4"
 helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
@@ -145,17 +145,17 @@ helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b
 i-slint-backend-testing = "=1.18.1"
 i-slint-backend-winit = ">=1.18.1"
 ignore = ">=0.4"
-notify = ">=8.2.0"
+notify = { version = ">=8.2.0", default-features = false }
 parley = ">=0.11"
 serde = ">=1"
 serde_json = ">=1"
-slint = ">=1.18.1"
+slint = { version = ">=1.18.1", default-features = false }
 slint-build = ">=1.18.1"
 tempfile = ">=3"
 tokio = ">=1.50"
 toml = ">=1.1"
 tracing = ">=0.1"
-tracing-log = ">=0.2"
+tracing-log = { version = ">=0.2", default-features = false }
 tracing-subscriber = ">=0.3"
-tree-house = ">=0.4"
-vello = ">=0.11"
+tree-house = { version = ">=0.4", default-features = false }
+vello = { version = ">=0.11", default-features = false }

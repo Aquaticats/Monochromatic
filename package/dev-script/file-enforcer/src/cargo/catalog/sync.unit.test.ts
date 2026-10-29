@@ -188,6 +188,58 @@ await describe({
     },),
 
     it({
+      name: 'disables default features in the generated entry when every site in the crate does, so cargo before 1.99 accepts the sites',
+      fn: async () => {
+        /**
+         Sync where crate a disables defaults on every site and crate b keeps them.
+         */
+        const result = run({
+          catalog: ['[catalog]', 'futures-util = ">=0.3"', 'git-dep = { git = "https://example.com/g", rev = "abc" }',],
+          manifests: [
+            crate({
+              dir: 'package/cli/a',
+              body: [
+                '[dependencies]',
+                'futures-util = { workspace = true, default-features = false, features = ["std"] }',
+                'git-dep = { workspace = true, default-features = false }',
+                '',
+                '[dev-dependencies]',
+                'futures-util = { version = "0.3", default-features = false }',
+              ],
+            },),
+            crate({ dir: 'package/cli/b', body: ['[dependencies]', 'futures-util = { workspace = true }',], },),
+          ],
+        },);
+        expect(manifestText({ result, dir: 'package/cli/a', },),).toContain(
+          '[workspace.dependencies]\nfutures-util = { version = ">=0.3", default-features = false }\ngit-dep = { git = "https://example.com/g", rev = "abc", default-features = false }\n',
+        );
+        expect(manifestText({ result, dir: 'package/cli/a', },),).toContain('[dev-dependencies]\nfutures-util = { workspace = true, default-features = false }\n',);
+        expect(manifestText({ result, dir: 'package/cli/b', },),).toContain('[workspace.dependencies]\nfutures-util = ">=0.3"\n',);
+      },
+    },),
+
+    it({
+      name: 'reports a crate whose sites disagree on default features',
+      fn: async () => {
+        expect(issues({
+          catalog: ['[catalog]', 'futures-util = ">=0.3"',],
+          manifests: [
+            crate({
+              dir: 'package/cli/a',
+              body: [
+                '[dependencies]',
+                'futures-util = { workspace = true, default-features = false }',
+                '',
+                '[dev-dependencies]',
+                'futures-util = { workspace = true }',
+              ],
+            },),
+          ],
+        },),).toEqual(['package/cli/a/Cargo.toml futures-util',],);
+      },
+    },),
+
+    it({
       name: 'raises an existing floor when a literal needs a newer release',
       fn: async () => {
         /**
@@ -246,7 +298,7 @@ await describe({
           },),],
         },);
         expect(manifestText({ result, dir: 'package/cli/a', },),).toContain('smithay = { workspace = true, default-features = false }',);
-        expect(manifestText({ result, dir: 'package/cli/a', },),).toContain('[workspace.dependencies]\nsmithay = "=0.7.0"\n',);
+        expect(manifestText({ result, dir: 'package/cli/a', },),).toContain('[workspace.dependencies]\nsmithay = { version = "=0.7.0", default-features = false }\n',);
       },
     },),
 
