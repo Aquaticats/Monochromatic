@@ -569,6 +569,33 @@ Its report format may still inform the Rust update's diagnostics as a descriptio
  not as code to extend.
 The owner of the Rust recursive update is therefore open.
 
+Correction (2026-10-29,
+ after the owner accepted "strict release age from `pubtime`, refusing and reporting"):
+ that item misread pnpm.
+pnpm's `minimumReleaseAge` "defines the minimum number of minutes that must pass after a version is published before
+ pnpm will install it",
+ so resolution picks the newest version old enough;
+ `minimumReleaseAgeStrict` "controls how pnpm behaves when no version of a dependency satisfies the
+ `minimumReleaseAge` constraint within the requested range":
+ `true` fails,
+ `false` falls back to a younger version
+ (`docs/settings/dependency-resolution.md`).
+Adopted under rule `EPR`:
+ the update runs `cargo -Zunstable-options generate-lockfile --publish-time <now minus minimumReleaseAge>` in each
+ crate root,
+ a resolver-level constraint with pnpm's semantics,
+ and a full re-resolution matches the update now that selective updates are omitted.
+Packages in `minimumReleaseAgeExclude` are then moved to their newest release with `cargo update <name>`,
+ and every newly locked version is checked against `pubtime`;
+ a young version that is not excluded fails the run.
+With strict off,
+ a failed constrained resolution falls back to an unconstrained one.
+The sparse index carries `pubtime` back to old releases
+ (`anyhow` 0.0.0 shows `2019-10-05T19:52:26Z`),
+ so `minimumReleaseAgeIgnoreMissingTime` rarely applies.
+`minimumReleaseAgeExcludePrune` (pnpm default `false`) joins the kept settings as the sibling of
+ `trustPolicyExcludePrune`.
+
 ### Trust policy
 
 Owner correction:

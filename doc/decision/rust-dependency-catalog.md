@@ -37,6 +37,7 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    `minimumReleaseAgeExclude`,
    `minimumReleaseAgeStrict` (true),
    `minimumReleaseAgeIgnoreMissingTime` (false),
+   `minimumReleaseAgeExcludePrune`,
    `trustPolicy` (`no-downgrade`),
    `trustPolicyExclude`,
    `trustPolicyIgnoreAfter`,
@@ -71,7 +72,10 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    runs `cargo update` in every crate root
    (the `pnpm -r --no-save update` counterpart),
    with dry run,
-   strict release age from the sparse index `pubtime`,
+   pnpm's release-age semantics (newest version old enough;
+   strict fails when none is)
+   through `cargo -Zunstable-options generate-lockfile --publish-time`,
+   with excluded packages updated afterwards and every new version checked against the sparse index `pubtime`,
    and a heuristic `no-downgrade` trust policy from the crates.io API
    (Trusted Publishing above a known token publisher above a first-time publisher;
    a changed trusted-publishing repository or declared `repository` fails),
