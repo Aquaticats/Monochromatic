@@ -5619,6 +5619,48 @@ Full accounts with counts:
   `windows`-gated wheel,
   OCR of the gutter) was kept only in the session scratch and removed.
 
+## IDE 0.1.2 released, the task.ts port and the positional argument fix, 2026-10-29
+
+Purpose:
+ record how the release that was blocked by the mise elimination went out, and what the port changed.
+
+Result:
+- `ide-v0.1.2` is published as a pre-release at `5daf37805d` (run 40817258210, workflow `ide-release.yml` on `main`).
+  Assets: `ide-0.1.2-linux-x64.tar.gz`, `ide-0.1.2-linux-arm64.tar.gz`, `ide-0.1.2-third-party-licenses.txt`, `SHA256SUMS`.
+  `sha256sum --check --ignore-missing SHA256SUMS` passed for all three files;
+  `gh attestation verify` exited 0 for both archives.
+- The earlier `HTTP 403` at `gh release create` did not recur at this commit.
+  Its cause was never found (it followed the target commit: refused at `5750e0b9c3` and its parents, accepted at three other commits).
+  A recurrence needs the same probe as before (a draft release and a `POST git/refs` at the failing commit).
+- Compositor 0.6.2 was released earlier (`monochromatic-nested-wayland-session-v0.6.2`).
+
+Changes:
+- `ccfb92061a` adds `package/desktop-app/ide/task.ts` (69 tasks) and `package/desktop-app/terminal/task.ts` (17 tasks),
+  translated from the two `mise.toml` files by a scratch converter:
+  `[vars]` inlined, the top-level `[env]` carried on every task, nested `mise run` turned into `task-run`,
+  `//:name` root references turned into the bare root name (task-run resolves root tasks that way).
+  The converter's check only proves the literal round trip;
+  the behaviour was proven by running the tasks.
+- `d18508ef38` makes `task-run` set one `usage_<name>` variable per positional `arg`, as mise did,
+  and strips the `[ ]` or `< >` from arg names in `parseUsageSpec`.
+  Before it, `inspect:bundle dist/... target/... inventory,license-texts,crate-licenses` ignored the check filter and ran every check,
+  including the ones that need a Wayland session, and failed both build legs of dry run 40813104171.
+  Positive control: before the bracket strip the probe printed empty values;
+  after it `file`, `runtime` and `only` arrived and the variadic `[args]` case still printed the whole list.
+
+Evidence:
+- Dry run 40815213479 (`4d3b201dc2`): detect, both builds, checksums and release all green, no failing step.
+- Real run 40817258210: the same five jobs green.
+- Locally, `task-run //package/desktop-app/ide:inspect:no-software-renderer` exited 0.
+
+Limits:
+- The other ported IDE and terminal tasks were exercised only by the two runs above for the ones the workflow calls
+  (`bundle`, `image`, `inspect:bundle`, `inspect:no-software-renderer`);
+  the rest (tests, other inspections, `run`) have not been run through `task-run`.
+- `mise.toml` still exists beside both `task.ts` files and is unchanged; the two are not kept in sync by anything.
+- The installed `~/.local/bin/monochromatic-ide` is the build of `8c60a4afb3`, which prints 0.1.1 and has the same IDE sources as the 0.1.2 release.
+- Still unexplained and unchanged: the stalled-launch tall map (36,456 px), and the 403 above.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
