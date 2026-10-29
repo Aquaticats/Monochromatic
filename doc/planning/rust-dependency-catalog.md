@@ -985,9 +985,15 @@ By publish age: 38 older than 30 days, 29 older than 180 days, 20 older than 365
 The list with dates is in `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
 The API-rich cache was restored over the dump-filled one afterwards.
 
-pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustChecks.ts`, 2026-10-29):
- the trust check runs inside version picking (`pickWithoutTrustDowngrade`), so a frozen-lockfile install never re-checks locked versions;
- history is ordered by publish date, not semver ("Trust checks are based solely on publish date, not semver");
+pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustChecks.ts`
+ and `pnpm11/docs/settings/dependency-resolution.md`, 2026-10-29):
+ the trust check runs inside version picking (`pickWithoutTrustDowngrade`),
+ and, separately, `trustLockfile` (added in v11.3.0, default `false`) makes `pnpm install`
+ "re-apply `minimumReleaseAge` and `trustPolicy` to every entry in the loaded lockfile";
+ its docs reserve `trustLockfile: true` for "closed-source projects where every commit comes from a trusted author".
+ (Correction: the first question to the owner said pnpm never re-checks locked versions.
+ That was wrong, and the owner re-decided with the corrected fact.)
+ History is ordered by publish date, not semver ("Trust checks are based solely on publish date, not semver");
  `trustPolicyIgnoreAfter` skips versions published more than that many minutes ago;
  and a picked version that fails is set aside and the picker retries the next candidate (up to 1000 times)
  instead of failing the install.
@@ -995,10 +1001,14 @@ pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustCheck
 
 Owner decisions (2026-10-29, question tool):
 
-- Verify scope: "New versions only".
-   `--verify` checks only registry versions that some `Cargo.lock` holds and the same lockfile at the merge base with `main` did not,
-   as pnpm checks trust only while resolving.
-   CI needs `main`'s history for the merge base.
+- Verify scope: "New versions only", kept after the correction:
+   the owner "never had and never will accept PRs containing a lockfile change",
+   so every committed lockfile comes from the owner's own sessions,
+   which is the trusted-base case pnpm's `trustLockfile: true` exists for.
+   `--verify --base <rev>` checks only registry versions that some `Cargo.lock` holds and the same lockfile at `<rev>` did not.
+   Commits auto-push straight to `main`, so a merge base with `main` would always be empty there;
+   CI passes the push's previous commit (`github.event.before`) as the base,
+   and needs that commit fetched.
 - `trustPolicyIgnoreAfter = 525600` (365 days) in `rust-catalog.toml`.
 - Toolchain plan data: "Add a *.data.ts pattern".
    `plan.tools.ts` and `plan.artifacts.ts` are data, not code ("the 300 line limit doesn't apply to non-code"),

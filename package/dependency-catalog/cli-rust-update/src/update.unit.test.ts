@@ -26,7 +26,10 @@ import type { VersionRecord, } from './policy.ts';
 import { pruneExcludes, } from './prune.ts';
 import type { Registry, } from './registry.ts';
 import { updateRustLockfiles, } from './update.ts';
-import { verifyRustLockfiles, } from './verify.ts';
+import {
+  type ReadBaseLock,
+  verifyRustLockfiles,
+} from './verify.ts';
 
 //region Fixtures
 
@@ -190,6 +193,24 @@ const DOWNGRADED_HISTORY: readonly VersionRecord[] = [
   { num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', publisherId: '9', trustpubRepository: '', repository: 'https://github.com/o/dep', },
 ];
 
+/**
+ Base-revision reader that returns the same lockfile text for every crate.
+
+ @param source - lockfile text at the base, empty for a lockfile the base lacked
+
+ @returns reader for the verification
+
+ @example
+ ```ts
+ baseLocks(lock('1.0.0'));
+ ```
+ */
+function baseLocks(source: string,): ReadBaseLock {
+  return async function readBaseLock(): Promise<string> {
+    return await Promise.resolve(source,);
+  };
+}
+
 //endregion Fixtures
 
 await describe({
@@ -279,10 +300,10 @@ await describe({
   name: verifyRustLockfiles.name,
   children: [
     it({
-      name: 'checks every locked version, not only new ones',
+      name: 'checks a version that no lockfile held at the base',
       fn: async () => {
         /**
-         Repository whose committed lock already holds the downgraded release.
+         Repository whose working lock moved to the downgraded release.
          */
         await using repo = await makeRepo(catalog([],),);
         /**
@@ -290,8 +311,38 @@ await describe({
          */
         const { root, } = repo;
         await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.1',),);
-        expect((await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), },)).length,).toBe(1,);
-        expect(await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(TRUSTED_HISTORY,), },),).toEqual([],);
+        expect((await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), readBaseLock: baseLocks(lock('1.0.0',),), },)).length,).toBe(1,);
+        expect(await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(TRUSTED_HISTORY,), readBaseLock: baseLocks(lock('1.0.0',),), },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'skips a version the base already locked, even when its history would fail',
+      fn: async () => {
+        /**
+         Repository whose base and working lock both hold the downgraded release.
+         */
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.1',),);
+        expect(await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), readBaseLock: baseLocks(lock('1.0.1',),), },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'treats a lockfile absent at the base as new in full',
+      fn: async () => {
+        /**
+         Repository whose crate has no lockfile at the base.
+         */
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.1',),);
+        expect((await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), readBaseLock: baseLocks('',), },)).length,).toBe(1,);
       },
     },),
   ],
@@ -327,15 +378,36 @@ await describe({
     it({
       name: 'selects update by default and one mode per flag, rejecting unknown or combined flags',
       fn: async () => {
-        expect(parseMode([],),).toBe('update',);
-        expect(parseMode(['--dry-run',],),).toBe('dry-run',);
-        expect(parseMode(['--verify',],),).toBe('verify',);
-        expect(parseMode(['--help',],),).toBe('help',);
+        expect(parseMode([],),).toEqual({ mode: 'update', base: 'HEAD', },);
+        expect(parseMode(['--dry-run',],),).toEqual({ mode: 'dry-run', base: 'HEAD', },);
+        expect(parseMode(['--verify',],),).toEqual({ mode: 'verify', base: 'HEAD', },);
+        expect(parseMode(['--help',],),).toEqual({ mode: 'help', base: 'HEAD', },);
         expect(function unknown(): void {
           parseMode(['--force',],);
         },).toThrow('unknown argument',);
         expect(function combined(): void {
           parseMode(['--dry-run', '--verify',],);
+        },).toThrow('at most one flag',);
+      },
+    },),
+    it({
+      name: 'takes one --base revision after --verify only',
+      fn: async () => {
+        expect(parseMode(['--verify', '--base', 'abc123',],),).toEqual({ mode: 'verify', base: 'abc123', },);
+        expect(function missingRevision(): void {
+          parseMode(['--verify', '--base',],);
+        },).toThrow('--verify accepts only --base <rev>',);
+        expect(function flagAsRevision(): void {
+          parseMode(['--verify', '--base', '--dry-run',],);
+        },).toThrow('--verify accepts only --base <rev>',);
+        expect(function extraArgument(): void {
+          parseMode(['--verify', '--base', 'a', 'b',],);
+        },).toThrow('--verify accepts only --base <rev>',);
+        expect(function otherFlag(): void {
+          parseMode(['--verify', '--dry-run',],);
+        },).toThrow('--verify accepts only --base <rev>',);
+        expect(function baseWithoutVerify(): void {
+          parseMode(['--dry-run', '--base', 'a',],);
         },).toThrow('at most one flag',);
       },
     },),

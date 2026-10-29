@@ -85,7 +85,15 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    (checked against `/api/v1/crates/<name>/owners` only for a release that would otherwise be refused),
    and only a change between two declared `repository` values fails;
    an undeclared value on either side carries no evidence.
-   The CI check re-verifies every locked registry version.
+   The CI check re-verified every locked registry version.
+   Amended by the owner on 2026-10-29:
+   the CI check covers only registry versions that no `Cargo.lock` held at a base revision
+   (the pushed range's previous commit or a pull request's base),
+   the counterpart of pnpm's `trustLockfile: true`,
+   because the owner never accepts pull requests that change a lockfile,
+   so committed lockfiles are part of the trusted base;
+   and `trustPolicyIgnoreAfter = 525600` (365 days) skips older releases.
+   The first full cold check had found 41 findings on long-locked releases.
    Amended by the owner on 2026-10-29:
    a cold cache is filled from the crates.io database dump (`https://static.crates.io/db-dump.tar.gz`,
    rebuilt daily, no rate limit), which crates.io's data-access policy lists ahead of the API,

@@ -29,6 +29,9 @@ trustPolicyExclude = [
   "wayland-server@0.31.14",
 ]
 trustPolicyExcludePrune = true
+# 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
+# and minimumReleaseAge already holds back new ones.
+trustPolicyIgnoreAfter = 525600
 
 [catalog]
 aho-corasick = ">=1"

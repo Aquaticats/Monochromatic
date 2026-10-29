@@ -111,13 +111,26 @@ jobs:
           key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
           restore-keys: |
             rust-catalog-trust-
-      # Re-checks every locked registry version against the trust policy (pnpm's trustLockfile: false).
-      # A cold cache costs about 1024 crates.io requests at one per second, so about 17 minutes.
+      # Checks only registry versions that no Cargo.lock held at the base revision, the counterpart of
+      # pnpm's trustLockfile: true: lockfile changes come only from the owner (doc/decision/rust-dependency-catalog.md).
+      # The base is the pushed range's previous commit, or the pull request's base; only that commit is fetched.
+      # A full cold check of all 1388 locked versions took 914 s and 187 API requests on 2026-10-29,
+      # so the 25-minute budget covers even a branch that relocks everything.
       - name: Rust lockfile trust verification
         id: rust_trust
         continue-on-error: true
         timeout-minutes: 25
-        run: task-run rust:verify
+        shell: bash
+        env:
+          VERIFY_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          base="${VERIFY_BASE}"
+          if [ -z "${base}" ]; then
+            base="$(git rev-parse HEAD~1)"
+          fi
+          git fetch --no-tags --depth=1 origin "${base}"
+          task-run rust:verify -- --base "${base}"
       - name: Save Rust trust cache
         if: always()
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
