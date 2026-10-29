@@ -71,6 +71,11 @@ export {
   standingKeptUnendorsed,
 } from './consolidate-slice-buy.ts';
 export {
+  settleRefusedStanding,
+  settleWithoutSlate,
+  shipWinnerBeforeSlate,
+} from './consolidate-settle-unseated.ts';
+export {
   readStandingVerdict,
   type StandingVerdict,
 } from './consolidate-standing-verdict.ts';
