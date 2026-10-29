@@ -470,6 +470,7 @@ which lists every file of this record.
 - [B990, the Xiaomi checker card that still rode the pooled 99th after the cap rule could read its calls](audit-ledger-the-cap-census-and-the-xiaomi-cap.md)
 - [B991, the cap census naming every dangling link under the agent root and burying its summary](audit-ledger-the-cap-census-and-the-xiaomi-cap.md)
 - [B995, two 40 ms sleeps behind a scan that could not see polls, elapsed readings or clockless budgets](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
+- [B996, the hold-wait cases still on the real clock, and eight of ten that passed with the wait removed](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [B1010, the wait for a provider whose return served nothing][b837-floors-ledger]
 - [B1011 to B1013, the removed memory of skipped slices, the XingZ6020 replay and the cache account](audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md)
 - [B1015, the lint binary pin that said 0.3.0 while the lock recorded 0.4.0, and the refusals that named dropped tools](audit-ledger-copies-in-production-code.md)
