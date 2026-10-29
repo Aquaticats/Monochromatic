@@ -14,7 +14,10 @@ which lists every file of this record.
 
 Status:
 fixed on 2026-10-29 (UTC),
-tests `be445c4aa6` (corpus-pass, with the scan's list in `source-scan`) and `6c4e41e410` (provider),
+tests `be445c4aa6`
+(corpus-pass, with the scan's list in `source-scan`)
+and `6c4e41e410`
+(provider),
 cache versions none.
 A member of the family of B318 and B817:
 a test that waits on the real clock pays the wait in every gate and lets host load decide what it reads.
@@ -36,7 +39,12 @@ Where the waits stood:
   on budgets with no injected monotonic clock.
 
 What the first wait was for:
-the scripted client counts the calls in flight at each of five stages (repair, refine, translate, contest, consolidate),
+the scripted client counts the calls in flight at each of five stages
+(repair,
+refine,
+translate,
+contest,
+consolidate),
 and a call returned at once would be counted in and out within one turn.
 The ten milliseconds kept each call in flight so that the calls of a second slice,
 started beside the first by the overlap driver,
@@ -45,8 +53,18 @@ The case's assertion depended on the wait:
 without a hold every peak reads one slice's worth,
 and `overlapped.peak` is not above `serial.peak`.
 Measured on the parent with a temporary print,
-the sequential arm peaked at 5, 3, 5, 5 and 6 calls (the calls of one slice, which are several voices at once)
-and the overlapped arm at 10, 6, 10, 10 and 12.
+the sequential arm peaked at 5,
+3,
+5,
+5
+and 6 calls
+(the calls of one slice,
+which are several voices at once)
+and the overlapped arm at 10,
+6,
+10,
+10
+and 12.
 So a count of calls cannot tell a second slice from the voices of the first,
 and the content of a call cannot either:
 the repair critic's sheet names both slices.
