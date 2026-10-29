@@ -57,9 +57,17 @@ Make `monochromatic-lint` ban long shell in `.github/workflows/*.{yml,yaml}`.
   `.sh` (bash, sh, zsh), `.fish`, `.ps1` (pwsh) and `.cmd` (cmd).
 - **Default `max`:** 2 lines.
   The repository owner's reason: any longer and TypeScript should be used.
-- **Pipes and `&&`:** the repository owner also wants these banned, by a plain string scan,
-  because they are tell-tale signs of too much shell.
-  Rule shape and scan precision are open.
+- **Banned constructs:** the repository owner also wants these banned, by a string scan,
+  because they are tell-tale signs of too much shell:
+  `|`, `&&`, `||`, `|&`, `;`, `$(...)` and backticks.
+  The owner chose this widest option over pipes and `&&` alone.
+- **Scan precision:** the scan skips `${{ }}` expressions, quoted strings and comments.
+  Adopted consequence, open to veto: inside double quotes Bash and Zsh still execute `$(...)` and backticks,
+  so those two are flagged there, while `|`, `&&` and `;` inside any quotes are not.
+- **Ratchet for the banned constructs:** the rule takes an occurrence `max` per run body, default 0,
+  and a ratchet block sets it to the file's current worst body.
+- **Line counting:** every physical non-blank, non-comment line counts,
+  including `\` continuations and heredoc content.
 - **Unresolvable `shell:`:** a `shell:` value that is an expression, such as `${{ matrix.shell }}`,
   is a `core/processing-failure` finding at the value.
 - **Host files:** `.github/workflows/*.{yml,yaml}` and composite actions
@@ -82,8 +90,8 @@ Counting only non-blank, non-comment lines, measured 2026-10-29 with a scratch s
 
 ## Open
 
-- Rule names, scan precision and ratchet form for the pipe and `&&` ban.
-- How `\` continuations and heredoc bodies count toward `max`.
+- Rule name and structure for the banned constructs, and whether the construct list is per dialect.
+- Whether directives may suppress the rules.
 - Choice of YAML parser,
   which must expose byte offsets of block scalar content.
 - Whether inline directives (`#` comments) can suppress the rules in YAML.
