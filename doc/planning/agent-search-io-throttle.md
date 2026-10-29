@@ -181,6 +181,21 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   a single-read probe that could not resolve a difference to begin with, not evidence that the flags do nothing under
   concurrent reads.
 
+- dm-crypt workqueue trial with a real job: `mise run //:lint:oxlint` over the whole repository (8,176 files, 488 rules,
+  16 threads; it finds 18,203 warnings and 7,044 errors, so the task exits 1 by design), run as a capped transient unit
+  (`MemoryMax=24G`, `CPUQuota=1600%`) after dropping the page cache. Counters are system-wide `/proc/diskstats` deltas,
+  so they include other sessions. All three runs per arm are comparable; the first run of each arm was not systematically different.
+  - Flags on (`no_read_workqueue`, `no_write_workqueue`): 78.6 s, 108.6 s, 107.3 s; `nvme0n1` read wait 2.96, 2.88, 7.76 ms;
+    `dm-1` read wait 5.80, 7.10, 24.96 ms.
+  - Flags off (defaults, after `cryptsetup refresh ... --allow-discards`; table back to `1 allow_discards`): 98.4 s, 80.6 s,
+    102.5 s; `nvme0n1` read wait 2.94, 2.52, 5.52 ms; `dm-1` read wait 6.18, 5.97, 12.84 ms.
+  - The wall-time ranges overlap fully (78.6 to 108.6 s against 80.6 to 102.5 s); means 98.2 s against 93.8 s. The
+    workqueue bypass has no effect this measurement can resolve, so the live mapping was returned to its defaults.
+  - One whole-repo lint issues about 53,000 to 116,000 reads on `nvme0n1` (1.4 to 4.0 GiB) in 80 to 110 seconds, roughly 800 to
+    1,100 reads per second from a single job, which is the load level at which other readers saw 8 ms median cold-read waits.
+  - `dm-1` read wait is about twice `nvme0n1`'s in calmer runs in both arms, so the extra wait above the drive is not the
+    dm-crypt workqueue.
+
 Implication for the I/O limit: a broad search by an agent produces exactly the spread-out cold-read pattern that is
 slowest on this drive, and concurrent readers multiply the wait for everyone, so bounding the agents' read rate
 (the bandwidth cap on `/dev/nvme0n1` is shown to work) addresses the actual bottleneck.
