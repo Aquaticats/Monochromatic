@@ -3,7 +3,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   isAbsolute,
   join,
@@ -649,7 +649,7 @@ export async function createTempFixtureFile(
    Unique temp directory owning this fixture copy.
    */
   const dirPath = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     tempPrefix,
   ),);
   /**

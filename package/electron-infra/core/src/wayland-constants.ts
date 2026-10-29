@@ -7,7 +7,7 @@
  ```
  */
 
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -88,7 +88,7 @@ export function defaultNestedWaylandBinary(
  console.log(boundaryFixtureRootParent);
  ```
  */
-export const boundaryFixtureRootParent: string = tmpdir();
+export const boundaryFixtureRootParent: string = scratchRoot();
 
 /**
  Nested test screen size.
