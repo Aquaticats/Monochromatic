@@ -66,7 +66,7 @@ function rowDivergence(
 
  @param slices - slices the rebuild carved
 
- @returns The first departure, empty when every row matches
+ @returns First departure, empty when every row matches
 
  @example
  ```ts

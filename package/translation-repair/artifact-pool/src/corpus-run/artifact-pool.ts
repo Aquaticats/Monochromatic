@@ -79,7 +79,7 @@ export type PoolPolicy = {
 
  @param env - environment of the process the entry runs in
 
- @returns The policy, read and not yet checked for a contradiction, which
+ @returns Policy, read and not yet checked for a contradiction, which
  `resolvePool` refuses
 
  @example
@@ -110,7 +110,7 @@ export function readPoolPolicy({ env, }: { readonly env: Readonly<NodeJS.Process
 
  @param artifactsDir - directory holding one JSON per settled entry
 
- @param names - the caller's own listing of that directory, censused in
+ @param names - caller's own listing of that directory, censused in
  place of a second listing where given
 
  @param policy - generation policy the entry read (`readPoolPolicy`)

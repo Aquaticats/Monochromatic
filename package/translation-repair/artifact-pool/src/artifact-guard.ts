@@ -63,7 +63,7 @@ export class ArtifactParseError extends Error {
 
  @param error - what the catch caught
 
- @returns The refusal
+ @returns Refusal
 
  @throws The caught value unchanged when it is anything but an artifact
  parse refusal, an unexpected state that must keep propagating

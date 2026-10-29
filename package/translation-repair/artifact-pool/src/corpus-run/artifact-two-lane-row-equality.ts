@@ -28,7 +28,7 @@ import type {
 
  @param left - one outcome
 
- @param right - the other
+ @param right - other
 
  @returns Whether they name the same member carrying the same wording
 
@@ -61,7 +61,7 @@ export function outcomesEqual(
 
  @param left - one delivery
 
- @param right - the other
+ @param right - other
 
  @returns Whether they name the same member for the same reason
 
@@ -95,7 +95,7 @@ export function deliveriesEqual(
 
  @param left - one reading
 
- @param right - the other
+ @param right - other
 
  @returns Whether they name the same member with the same contents
 
@@ -171,7 +171,7 @@ type FieldCheck = {
 
  @param left - one row
 
- @param right - the other row
+ @param right - other row
 
  @returns Field names that differ
 
