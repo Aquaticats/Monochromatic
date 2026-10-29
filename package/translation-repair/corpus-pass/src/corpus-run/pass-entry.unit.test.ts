@@ -95,7 +95,7 @@ type PeerGate = {
   /**
    Calls in flight at once that one slice alone reaches, so more than this is a second slice.
    */
-  readonly above: number;
+  readonly sliceReach: number;
 
   /**
    Releases of the calls held, each of which settles the wait of one call.
@@ -103,7 +103,7 @@ type PeerGate = {
   readonly waiting: (() => void)[];
 
   /**
-   Whether the stage has had more than {@link PeerGate.above} calls in flight at once.
+   Whether the stage has had more than {@link PeerGate.sliceReach} calls in flight at once.
    */
   open: boolean;
 };
@@ -135,22 +135,22 @@ type PassConcurrency = {
 /**
  Builds the zeroed instrument for one stage.
 
- @param above - calls in flight at once that one slice reaches at this stage; absent for an instrument with no
+ @param sliceReach - calls in flight at once that one slice reaches at this stage; absent for an instrument with no
  rendezvous
 
- @returns Counters at zero, holding the stage's calls at a rendezvous when `above` is given
+ @returns Counters at zero, holding the stage's calls at a rendezvous when `sliceReach` is given
 
  @example
  ```ts
- const stage = emptyStage({ above: 5, },);
+ const stage = emptyStage({ sliceReach: 5, },);
  ```
  */
-function emptyStage({ above, }: { readonly above?: number; } = {},): PassStageConcurrency {
+function emptyStage({ sliceReach, }: { readonly sliceReach?: number; } = {},): PassStageConcurrency {
   return {
     now: 0,
     peak: 0,
     // Conditional spread keeps the stage without a rendezvous where the arm has no baseline.
-    ...((above === undefined) ? {} : { gate: { above, waiting: [], open: false, }, }),
+    ...((sliceReach === undefined) ? {} : { gate: { sliceReach, waiting: [], open: false, }, }),
   };
 }
 
@@ -180,11 +180,11 @@ function emptyPassConcurrency({ baseline, }: { readonly baseline?: PassConcurren
     };
   }
   return {
-    repair: emptyStage({ above: baseline.repair.peak, },),
-    refine: emptyStage({ above: baseline.refine.peak, },),
-    translate: emptyStage({ above: baseline.translate.peak, },),
-    contest: emptyStage({ above: baseline.contest.peak, },),
-    consolidate: emptyStage({ above: baseline.consolidate.peak, },),
+    repair: emptyStage({ sliceReach: baseline.repair.peak, },),
+    refine: emptyStage({ sliceReach: baseline.refine.peak, },),
+    translate: emptyStage({ sliceReach: baseline.translate.peak, },),
+    contest: emptyStage({ sliceReach: baseline.contest.peak, },),
+    consolidate: emptyStage({ sliceReach: baseline.consolidate.peak, },),
   };
 }
 
@@ -234,7 +234,7 @@ async function holdInFlight(
   signal.throwIfAborted();
   const { gate, } = stage;
   if ((gate !== undefined) && (!gate.open)) {
-    if (stage.now > gate.above) {
+    if (stage.now > gate.sliceReach) {
       gate.open = true;
       for (const release of gate.waiting.splice(0,))
         release();
@@ -1499,7 +1499,7 @@ await describe({
 
         /**
          Activity with two slices handed in. Every stage holds its calls until more are in flight than the sequential arm's
-         peak, so the comparison below rests on a rendezvous the slices reached and no sleep.
+         peak, so the comparison that follows rests on a rendezvous the slices reached and no sleep.
          */
         const overlapped = emptyPassConcurrency({ baseline: serial, },);
         {
