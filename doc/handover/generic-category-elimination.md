@@ -100,8 +100,14 @@ The push run (40839353612) hung in "Wait for the required forbidden-strings rele
  its `sed` kept the `=` of the catalog's `version = "=0.5.0"` pin and never matched the index.
 Fixed in `306db1a809`;
  the hung run was cancelled and the publish re-dispatched as run 40841403741 (`crate=monochromatic-git-policy-cli`).
+That run was a dry run:
+ the `dry-run` dispatch input defaults to `true`,
+ so crates.io stayed at 0.2.9 and `toolchain:update` found nothing new.
+Real publish:
+ run 40842186559 (`--field dry-run=false`).
 Remaining:
- wait for run 40841403741,
+ wait for run 40842186559,
+ confirm 0.2.10 in the crates.io index,
  then `mise run toolchain:update` and `mise run toolchain:sync`.
 
 User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publish.yml`).
