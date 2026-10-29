@@ -3778,3 +3778,41 @@ This block supersedes the land order and open items of the blocks since "State a
 - Lesson: when main moves between a merge and its fast-forward (it does every few minutes), do the merge of main and
   the `git merge --ff-only "$(git -C <worktree> rev-parse HEAD)"` in one command; a merge in a worktree with a
   hook-modified `doc/audit/standards-review-gate-shadow.md` is refused, so merge in a fresh worktree.
+
+## State at 2026-10-29 (night, final): 0.4.0 released and installed
+
+This block supersedes "State at 2026-10-29 (night, later)".
+
+- Container gate on `b0624e8569`: 2568 tests run, 2568 passed, 5 skipped, exit 0 (unit `cli-git-gate-final`, 9 min 4
+  s). It also exercised the converted runner `test-native-container.ts`.
+- Release 0.4.0: commit `ac3aac75ff` ("merge beside staged changes, wait notices, native Git LFS upload, hooks off for
+  real Git, scratch off /tmp"); publish run 40914165842; crates.io 16:43:41Z; GitHub release
+  `monochromatic-git-policy-cli-v0.4.0` (16:46:14Z) with the x86_64 and aarch64 Linux tarballs.
+- Production adoption (user chose "run the full update"): production `git` was pinned at 0.2.13 in `mpm.packages.toml`
+  (0.3.0 was never adopted). `toolchain:update` has only `--check` and `--global`, no per-tool choice, so the same run
+  moved `tombi` 1.9.7 to 1.9.8 and `npm:socket` 1.11.2 to 1.12.1. Committed as `47c152f71a` (lock, both mpm manifests,
+  `plan.tools.data.ts`, `plan.artifacts.data.ts`; the last also carries two empty artifact entries for the mpm and
+  search shadows that the generator writes and another session had pending). `toolchain:sync` then installed the three
+  tools. Warning printed by sync: the install is shared by every tree, and a tree whose lock still pins 0.2.13
+  replaces it back on its next sync; linked worktrees created before `47c152f71a` need a merge of main first.
+- Verified before the swap, on the downloaded release tarball against a throwaway repository
+  (`~/temp/agent/verify-040.ts`): native Git refused a non-fast-forward merge beside an unrelated staged file; the
+  wrapped merge succeeded with a two-parent commit and `staged.txt` stayed staged; `doctor` with only the four git-lfs
+  files exits 0 with the explanation; beside a foreign `pre-commit` hook it exits 1 and lists only the foreign hook on
+  stdout.
+- Verified after the swap on the real checkout: `git cli-git --help` lists `doctor`; the four git-lfs hook files are
+  back in `.git/hooks` (something ran git-lfs outside the wrapper) and `git cli-git doctor` exits 0 with the
+  explanation, as designed.
+- Defect found: the `doctor` line in `git cli-git --help` still says "exit 1 when any are found"; it exits 0 when only
+  git-lfs hook files are present. Fix it in the next release with a test that pins the help text.
+- Mutation wave 1 never ran: all logs `~/temp/agent/mutpar-w1-*.log.N` show
+  `podman image ... git-policy-native-test:w10: image not known`. The scoped task needs a gate image under the tag it
+  names. The gate leaves `localhost/git-policy-native-test:development`. Rerun waves with
+  `GIT_POLICY_NATIVE_IMAGE_TAG` equal to a built tag, and with `mutation-parallel.ts` updated for the `.ts` runners
+  and a clean worktree as `MUT_ROOT` (not `~/temp/agent/merge-slices`, which holds `.mjs` runners).
+- `~/temp/agent/wait-publish.ts` looks up the release by tag `v<version>`; this crate's tags are
+  `monochromatic-git-policy-cli-v<version>`. Fix before the next release.
+- Open: mutation waves over the new modules (`merge_isolation*`, `merge_options`, `wait_progress`, `child_watch`,
+  `lfs_pre_push`, `hooks_off`, `scratch_location`, `doctor`) and the 1804 files; load-flaky tests of task 66
+  (`discard::a_linked_worktree_runs_the_forms_only_while_clean`, `discard::reading_forms_are_never_rejected`); Windows
+  checks (task 30), including the `/dev/null/cli-git-no-hooks` hooks path; cleanup list in the previous block.
