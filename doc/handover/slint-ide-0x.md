@@ -6104,10 +6104,15 @@ The image split landed (`265c55d90c` terminal, `fd1bd8caf8` ide), 2026-10-29:
   newest glibc symbol 2.39 on both, same as the baseline run 40877021793.
   `monochromatic-db` checked the run with `gh` and recorded it in `doc/handover/cachyos-base-distro.md`.
 - `monochromatic-db` plans no further terminal or ide image change and will send the hash of any it commits.
+- Compositor release dry run, `cargo-publish.yml` dispatched with `crate=monochromatic-nested-wayland-session` and `dry-run=true`, run 40892542795 on `cab3f212d7`: success.
+  The non-skipped jobs were `nws-detect`, `nws-release-state`, `nws-publish-crate` (the `cargo publish --dry-run` path),
+  and `nws-build-binary` for `aarch64-unknown-linux-gnu` on `ubuntu-24.04-arm` and `x86_64-unknown-linux-gnu` on `ubuntu-24.04`;
+  `nws-create-release` stayed skipped because it is gated on `!inputs.dry-run`.
+  This covers the new package path `package/nested-wayland-session/cli`; the compositor's version was not bumped, so no real release was made.
+  Not shown: the glibc symbol version of the built compositor archive (the dry run keeps the artifact for one day and I did not inspect it).
 
 Next, in order:
 - If `monochromatic-db` sends a hash for a commit under `package/terminal` or `package/ide`, dry-run `ide-release.yml` on it and compare with run 40887621364 before any real release.
-- Before the next compositor release, dry-run the compositor release in `cargo-publish.yml` once, because the package path and the image changed since `monochromatic-nested-wayland-session-v0.6.2`.
 - Release the next IDE version when there is a change worth shipping (bump `version` in `package/ide/app/Cargo.toml`, `task-run //package/ide/app:fetch`, dry run, then dispatch with `--ref main --field dry-run=false`).
 - The compositor needs no release now; its manifest is covered by the same generator fix.
 
