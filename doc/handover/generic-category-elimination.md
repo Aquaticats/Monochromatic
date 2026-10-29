@@ -96,8 +96,12 @@ but is not installed yet.
 
 The release worktree is removed;
 the steps below record how it was cut.
+The push run (40839353612) hung in "Wait for the required forbidden-strings release":
+ its `sed` kept the `=` of the catalog's `version = "=0.5.0"` pin and never matched the index.
+Fixed in `306db1a809`;
+ the hung run was cancelled and the publish re-dispatched as run 40841403741 (`crate=monochromatic-git-policy-cli`).
 Remaining:
- wait for `cargo-publish.yml` on `aaeb6b25a5`,
+ wait for run 40841403741,
  then `mise run toolchain:update` and `mise run toolchain:sync`.
 
 User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publish.yml`).
