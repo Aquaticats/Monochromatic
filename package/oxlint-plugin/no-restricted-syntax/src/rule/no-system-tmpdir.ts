@@ -84,6 +84,28 @@ export const noSystemTmpdir: CreateOnceRule = {
           },);
         }
       },
+      VariableDeclarator(node: ForeignBorrowed<ESTree.VariableDeclarator>,): void {
+        if (node.id.type !== 'ObjectPattern' || node.init === null || node.init === undefined)
+          return;
+        /**
+         The imported module expression, unwrapped from an `await`.
+         */
+        const source = node.init.type === 'AwaitExpression' ? node.init.argument : node.init;
+        if (source.type !== 'ImportExpression' || source.source.type !== 'Literal')
+          return;
+        if (!OS_MODULE_SPECIFIERS.has(String(source.source.value,),))
+          return;
+        for (const property of node.id.properties) {
+          if (property.type !== 'Property' || property.computed || property.key.type !== 'Identifier')
+            continue;
+          if (property.key.name !== TMPDIR_NAME)
+            continue;
+          context.report({
+            node: property,
+            messageId: 'forbidden',
+          },);
+        }
+      },
       CallExpression(node: ForeignBorrowed<ESTree.CallExpression>,): void {
         /**
          Callee of the call under inspection.
