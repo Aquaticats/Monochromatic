@@ -35,7 +35,7 @@ fn kill_without_directory_parses() {
 /// A kill or pause marker with an absolute directory parses.
 #[test]
 fn kill_and_pause_with_absolute_directory_parse() {
-    let directory: PathBuf = std::env::temp_dir();
+    let directory: PathBuf = crate::test_support::fixture_root();
     let text: String = format!("landing-locked:kill:{}", directory.display());
     let signal = parse_phase_signal(&text).expect("valid kill");
     assert_eq!(signal.action, PhaseAction::Kill);

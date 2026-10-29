@@ -187,18 +187,18 @@ fn owner_file(directory: &std::path::Path, age: std::time::Duration) -> std::pat
 #[cfg(target_os = "linux")]
 #[test]
 fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
-    let directory = tempfile::tempdir().expect("scratch directory");
+    let directory: std::path::PathBuf = crate::test_support::fixture("owner-namespace-1");
     // A PID that names no process here: the old rule judged this owner dead.
     let mut owner: TransactionOwner = incumbent_owner();
     owner.owner_pid = i64::from(i32::MAX);
     owner.owner_pid_namespace = Some(String::from("pid:[1]"));
-    let fresh = owner_file(directory.path(), std::time::Duration::from_secs(30));
+    let fresh = owner_file(directory.as_path(), std::time::Duration::from_secs(30));
     assert_eq!(
         classify_transaction_owner_record(&owner, fresh.as_path()).expect("fresh"),
         OwnerLiveness::Alive
     );
     let old = owner_file(
-        directory.path(),
+        directory.as_path(),
         crate::pid_namespace::FOREIGN_OWNER_PATIENCE + std::time::Duration::from_secs(60),
     );
     assert_eq!(
@@ -211,8 +211,8 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_owner_of_this_namespace_or_none_is_judged_by_its_pid() {
-    let directory = tempfile::tempdir().expect("scratch directory");
-    let fresh = owner_file(directory.path(), std::time::Duration::from_secs(30));
+    let directory: std::path::PathBuf = crate::test_support::fixture("owner-namespace-2");
+    let fresh = owner_file(directory.as_path(), std::time::Duration::from_secs(30));
     let mut owner: TransactionOwner = incumbent_owner();
     owner.owner_pid = i64::from(i32::MAX);
     owner.owner_pid_namespace = crate::pid_namespace::current_pid_namespace();

@@ -66,7 +66,7 @@ pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 /// The directory fixtures are created in.
 ///  Cargo's per-target scratch directory, never `/tmp`: a shared tmpfs with a per-user quota fills up
 ///  when failing tests leave fixtures behind (issue 1809), and then every command of every session fails.
-fn fixture_root() -> PathBuf {
+pub fn fixture_root() -> PathBuf {
     let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE)
         .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
     std::fs::create_dir_all(&root).expect("fixture root");

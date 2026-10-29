@@ -63,6 +63,7 @@ fn a_valid_lease_makes_the_landing_nested_and_hands_back_the_ancestors_lock() {
         real_git: PathBuf::from(REAL_GIT),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let inherited: OwnerLock =
         acquire_landing_lock(&context, repo.as_path(), &layout, environment.as_slice()).expect("the ancestor's view");

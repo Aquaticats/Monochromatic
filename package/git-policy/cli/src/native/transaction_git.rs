@@ -23,6 +23,8 @@
 use super::forwarding::git_command;
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
+/// The repository scratch directory the input file is made in.
+use super::scratch_location::prepare_repository_scratch;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::{RetryStart, START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
@@ -58,6 +60,11 @@ pub struct GitContext {
     ///  `--git-dir`,
     ///  `-c`).
     pub global_prefix: Vec<OsString>,
+    /// The repository's common Git directory,
+    ///  where the input file of a request that carries input is made (`cli-git-scratch` inside it);
+    ///  `None` where the repository is not yet known,
+    ///  and a request with input then fails naming the defect.
+    pub common_dir: Option<PathBuf>,
 }
 
 /// What:
@@ -225,23 +232,34 @@ pub fn command_text(arguments: &[OsString]) -> String {
 /// What:
 ///  An already unlinked private file holding `bytes`,
 ///  opened for reading.
+///  The file is made in the repository scratch directory of `common_dir`,
+///  never in the system temporary directory.
 /// Why:
 ///   Git may write output before it reads all its input;
 ///  feeding input from a file instead
 ///       of a pipe can never deadlock and needs no writer thread.
 ///  The name is removed at once,
-///       so nothing is left behind even after a crash.
+///       so nothing is left behind even after a crash,
+///  and a crash inside that moment leaves a file that the next preparation of the directory
+///       sweeps once it is a day old.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// // child.stdin.end(input);
 /// ```
-fn input_file(bytes: &[u8]) -> std::io::Result<std::fs::File> {
+fn input_file(bytes: &[u8], common_dir: Option<&Path>) -> std::io::Result<std::fs::File> {
+    let Some(common) = common_dir else {
+        return Err(std::io::Error::other(
+            "cli-git has no repository scratch directory for the input of this Git command: the command was started \
+             before the repository was known, which is a defect in cli-git",
+        ));
+    };
+    let directory: PathBuf = prepare_repository_scratch(common)?;
     let unique: String = match random_uuid() {
         Ok(id) => id,
         Err(error) => return Err(std::io::Error::other(error.0)),
     };
-    let path: PathBuf = std::env::temp_dir().join(format!("cli-git-input-{unique}"));
+    let path: PathBuf = directory.join(format!("cli-git-input-{unique}"));
     write_exclusive_scratch(path.as_path(), bytes)?;
     let file: std::io::Result<std::fs::File> = std::fs::File::open(&path);
     // The open handle keeps the bytes readable after the name is gone. If the platform refuses
@@ -458,7 +476,7 @@ fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<G
     let mut command: Command = build_command(context, request);
     match &request.input {
         Some(bytes) => {
-            command.stdin(Stdio::from(input_file(bytes.as_slice())?));
+            command.stdin(Stdio::from(input_file(bytes.as_slice(), context.common_dir.as_deref())?));
         }
         None => {
             command.stdin(Stdio::null());

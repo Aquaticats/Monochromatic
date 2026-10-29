@@ -366,6 +366,7 @@ fn generated_configurations_agree_with_git() {
             real_git: PathBuf::from(crate::test_support::REAL_GIT),
             overlay,
             global_prefix: prefix,
+            common_dir: None,
         };
         compare_case(&context, repo.as_path(), format!("case {case}").as_str(), &mut tally);
     }

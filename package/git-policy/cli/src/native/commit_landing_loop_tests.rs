@@ -100,6 +100,7 @@ fn completions_are_retargeted_to_the_replayed_blobs() {
         real_git: PathBuf::from(REAL_GIT),
         overlay: Vec::<(OsString, OsString)>::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let environment: Vec<(OsString, OsString)> = Vec::new();
     let config = crate::config_schema::CliGitConfig::defaults();

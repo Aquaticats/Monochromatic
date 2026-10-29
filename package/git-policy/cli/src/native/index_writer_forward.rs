@@ -114,6 +114,8 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
         global_prefix: Vec::new(),
+        // The coordination queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let input: CoordinationInput<'_> = CoordinationInput {
         context: &context,

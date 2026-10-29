@@ -29,6 +29,7 @@ fn context_with_aliases(pairs: &[(&str, &str)]) -> GitContext {
         real_git: std::path::PathBuf::from(crate::test_support::REAL_GIT),
         overlay,
         global_prefix: Vec::new(),
+        common_dir: None,
     };
 }
 

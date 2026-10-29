@@ -280,6 +280,7 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
         describe_arguments(arguments).as_str(),
         query_deadline(&git.environment),
         STOP_GRACE,
+        git.environment.as_slice(),
     );
 }
 

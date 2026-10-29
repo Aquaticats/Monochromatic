@@ -130,6 +130,7 @@ impl RepositoryFacts for ScriptedFacts {
             real_git: PathBuf::from(REAL_GIT),
             overlay: Vec::new(),
             global_prefix: Vec::new(),
+            common_dir: None,
         };
     }
 }

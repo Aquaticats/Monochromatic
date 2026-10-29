@@ -225,7 +225,28 @@ pub(crate) fn git_context() -> crate::transaction_git::GitContext {
         real_git: PathBuf::from(REAL_GIT),
         overlay: isolated_overlay(),
         global_prefix: Vec::new(),
+        // The fixture contexts name no repository, so the input files of their commands are made in the scratch
+        // directory beside the fixtures, under the target directory and never in the system temporary directory.
+        common_dir: Some(fixture_root()),
     };
+}
+
+/// What:
+///  An environment whose home is a directory beside the fixtures,
+///  where the per-user scratch directory of a child runner is made.
+/// Why:
+///   Runners that take an environment make their output files under its home,
+///  so tests give them one under the target directory and never the real home or the system temporary directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const env = { HOME: join(fixtureRoot(), 'scratch-home') };
+/// ```
+pub(crate) fn scratch_environment() -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
+    return vec![(
+        std::ffi::OsString::from("HOME"),
+        fixture_root().join("scratch-home").into_os_string(),
+    )];
 }
 
 /// What:

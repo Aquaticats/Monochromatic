@@ -549,6 +549,11 @@ mod scanner_test_support;
 ///  crash-safe file primitives shared by every durable record.
 pub mod private_storage;
 
+/// Where short-lived private files live:
+///  the per-user scratch directory and the repository scratch directory,
+///  never the system temporary directory.
+pub mod scratch_location;
+
 /// Compact JSON records read and written with the incumbent's `JSON` semantics.
 pub mod json_record;
 

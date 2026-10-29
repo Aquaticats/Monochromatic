@@ -56,8 +56,8 @@ fn injects_atomic_immediately_after_push() {
         rewritten(&["push", "--atomic", "origin", "main"])
     );
     assert_eq!(
-        decide(&["-C", "/tmp/repo", "push", "origin", "main"]),
-        rewritten(&["-C", "/tmp/repo", "push", "--atomic", "origin", "main"])
+        decide(&["-C", "/fixture/repo", "push", "origin", "main"]),
+        rewritten(&["-C", "/fixture/repo", "push", "--atomic", "origin", "main"])
     );
     assert_eq!(decide(&["push"]), rewritten(&["push", "--atomic"]));
 }
