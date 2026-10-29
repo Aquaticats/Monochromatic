@@ -371,7 +371,8 @@ The last four run only where the file lists them.
 
 #### Content already in history is not scanned again
 
-`security/forbidden-strings` reads the bytes of a candidate only when no parent commit's tree already holds that exact blob.
+`security/forbidden-strings` reads the bytes of a candidate
+only when no parent commit's tree already holds that exact blob.
 A pure rename, a copy of an existing file, and a merge that brings a file only one parent has therefore pass,
 because a blob's object name is the hash of its bytes and the bytes are already in history.
 What counts as a parent depends on the command:
