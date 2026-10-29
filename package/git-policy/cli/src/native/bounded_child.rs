@@ -457,11 +457,7 @@ fn wait_bounded(
         if let Some(status) = waited {
             return Ok(status);
         }
-        let elapsed: Duration = started.elapsed();
-        if deadline_reached(elapsed, limits.timeout) {
-            stop(child);
-            return Err(ChildFailure::TimedOut(limits.timeout));
-        }
+        // A notice that is due goes out before the bound is checked, so a child stopped at its bound was announced.
         reporter.poll(|lasted, repeat| {
             return child_wait_line(&ChildWaitFacts {
                 waiting_for,
@@ -472,6 +468,11 @@ fn wait_bounded(
                 repeat,
             });
         });
+        let elapsed: Duration = started.elapsed();
+        if deadline_reached(elapsed, limits.timeout) {
+            stop(child);
+            return Err(ChildFailure::TimedOut(limits.timeout));
+        }
         // `.saturating_sub` is what is left of the bound, never less than nothing.
         std::thread::sleep(sleep_for(pause, limits.timeout.saturating_sub(elapsed)));
         pause = next_pause(pause);

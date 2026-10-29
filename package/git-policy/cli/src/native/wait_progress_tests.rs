@@ -127,27 +127,42 @@ fn the_child_line_names_the_wait_the_process_and_both_durations() {
     );
 }
 
-/// The reporter prints nothing before the grace, then a line at the grace and at every interval,
-///  and the line builder runs only for a printed line and learns whether it is a repeat.
+/// The reporter prints nothing before the grace, and the line builder does not run.
+///  The grace is an hour, so no host is slow enough to make the early poll late.
+#[test]
+fn the_reporter_prints_nothing_inside_the_grace() {
+    let mut sink: Vec<u8> = Vec::new();
+    let mut built: u32 = 0;
+    {
+        let mut reporter: WaitReporter<'_> = WaitReporter::start(
+            Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
+            &mut sink,
+        );
+        assert!(!reporter.poll(|_, _| { built += 1; return String::from("early"); }));
+    }
+    assert_eq!(built, 0, "the builder runs only when a line is printed");
+    assert!(sink.is_empty());
+}
+
+/// The reporter prints a line at the grace and at every interval after it, and the line builder runs only for a printed
+///  line and learns whether it is a repeat.
+///  It polls until three lines are out, so the count does not depend on how fast the host runs the loop.
 #[test]
 fn the_reporter_prints_at_the_pace_of_its_ticker() {
     let mut sink: Vec<u8> = Vec::new();
     let mut built: u32 = 0;
     {
         let mut reporter: WaitReporter<'_> = WaitReporter::start(
-            Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) },
+            Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
             &mut sink,
         );
-        assert!(!reporter.poll(|_, _| { built += 1; return String::from("early"); }));
-        let started: Instant = Instant::now();
         let mut printed: u32 = 0;
-        while printed < 3 && started.elapsed() < Duration::from_secs(10) {
+        while printed < 3 {
             if reporter.poll(|_, repeat| { built += 1; return format!("line repeat={repeat}"); }) {
                 printed += 1;
             }
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(printed, 3);
     }
     assert_eq!(built, 3, "the builder runs only when a line is printed");
     assert_eq!(

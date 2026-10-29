@@ -3,7 +3,7 @@
 //!  after the configured number of lost races.
 
 use super::*;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{ActionSink, SharedSink, fixture, remove};
 use crate::transaction_owner::{current_transaction_owner, encode_transaction_owner};
 use crate::transaction_registry::{OWNER_FILENAME, TRANSACTION_ROOT_NAME, ensure_transaction_root};
 
@@ -175,18 +175,23 @@ fn a_free_reservation_is_not_granted_to_a_younger_requester() {
     let older: PathBuf = transaction(&registry, FIRST, "2026-10-10T00:00:00.000Z", true);
     std::fs::write(older.join(RESERVATION_REQUEST_FILENAME), reservation_request_bytes(1)).expect("older request");
     let younger: PathBuf = transaction(&registry, SECOND, "2026-10-10T00:00:01.000Z", true);
+    // The younger request waits for the older one for a fixed limit, and the test joins it before the fixture goes:
+    // nothing writes into the fixture while it is removed, and a grant would end the wait early with `Ok(true)`.
     let registry_for_thread: PathBuf = registry.clone();
     let younger_for_thread: PathBuf = younger.clone();
-    std::thread::spawn(move || {
-        let mut reservation: LandingReservation =
+    let (outcome, waiting) = finishes_in_time(move || {
+        let mut waiting: LandingReservation =
             LandingReservation::open(&registry_for_thread, &younger_for_thread, SECOND, false);
-        // The younger request waits for the older one; the result is not checked, the thread only records a grant on disk.
-        let _ignored = reservation.reserve(1);
+        let outcome: Result<bool, ReservationError> =
+            waiting.reserve_noticing(1, Duration::from_millis(300), &mut Vec::<u8>::new());
+        return (outcome, waiting);
     });
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert!(matches!(outcome, Err(ReservationError::WaitTimedOut { holder_pid: None, .. })), "{outcome:?}");
     assert!(!registry.join(RESERVATION_LOCK_NAME).exists());
+    waiting.release().expect("the younger request is withdrawn");
     remove(root.as_path());
 }
+
 /// Run `work` on its own thread and fail the test when it has not finished after a ceiling,
 ///  so a wait that lost its limit fails instead of hanging the run.
 fn finishes_in_time<Output: Send + 'static>(work: impl FnOnce() -> Output + Send + 'static) -> Output {
@@ -234,8 +239,9 @@ const QUICK: Cadence = Cadence {
     interval: Duration::from_millis(60),
 };
 
-/// A transaction waiting behind a reservation holder prints a notice that names the holder, repeats it every interval,
-///  and ends at the limit with the holder named in the refusal.
+/// A transaction waiting behind a reservation holder prints a notice that names the holder and repeats it every interval.
+///  The third notice makes the holder let go, so the wait ends on that event and exactly three notices are out,
+///  however slowly the host runs the waiting thread.
 #[test]
 fn a_wait_behind_a_reservation_holder_names_it_and_repeats() {
     let (root, registry) = registry_of("replay-reservation-notice-holder");
@@ -246,27 +252,87 @@ fn a_wait_behind_a_reservation_holder_names_it_and_repeats() {
     assert!(holder.reserve(1).expect("granted"));
     let waiter: LandingReservation =
         LandingReservation::open(registry.as_path(), second_directory.as_path(), SECOND, false).with_cadence(QUICK);
-    let (failure, text) = finishes_in_time(move || {
-        let mut sink: Vec<u8> = Vec::new();
-        let failure: ReservationError = waiter
-            .await_slot_noticing(Duration::from_millis(500), &mut sink)
-            .expect_err("held past the limit");
-        return (failure, String::from_utf8(sink).expect("text"));
+    let shared: SharedSink = SharedSink::default();
+    let mut sink: ActionSink = ActionSink::new(&shared, 3, move || { holder.release().expect("the holder lets go"); });
+    finishes_in_time(move || {
+        waiter
+            .await_slot_noticing(Duration::from_secs(30), &mut sink)
+            .expect("the wait ends when the holder lets go");
     });
+    let text: String = shared.text();
     let holder_text: String = format!("still waiting for process {} to release the landing reservation", std::process::id());
-    assert!(text.matches(holder_text.as_str()).count() >= 3, "{text}");
-    assert!(text.contains("giving up after 0 seconds"), "{text}");
+    assert_eq!(text.matches(holder_text.as_str()).count(), 3, "{text}");
+    assert_eq!(text.lines().count(), 3, "{text}");
+    assert!(text.contains("giving up after 30 seconds"), "{text}");
     assert_eq!(text.matches("Hint:").count(), 1, "{text}");
-    assert!(matches!(failure, ReservationError::WaitTimedOut { holder_pid: Some(_), .. }), "{failure}");
-    holder.release().expect("released");
     remove(root.as_path());
 }
 
 /// A transaction that waits for the grant behind an older request is told its number in line,
 ///  and the notice says whose turn comes first.
+///  The third notice withdraws the older request, so the wait ends on that event with the grant and exactly three
+///  notices are out.
 #[test]
 fn a_queued_requester_is_told_its_place_in_line() {
     let (root, registry) = registry_of("replay-reservation-notice-place");
+    let older: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
+    let older_request: PathBuf = older.join(RESERVATION_REQUEST_FILENAME);
+    std::fs::write(&older_request, reservation_request_bytes(1)).expect("older request");
+    let younger: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
+    let shared: SharedSink = SharedSink::default();
+    let mut sink: ActionSink = ActionSink::new(&shared, 3, move || {
+        std::fs::remove_file(&older_request).expect("the older request is withdrawn");
+    });
+    let (granted, reservation) = finishes_in_time(move || {
+        let mut reservation: LandingReservation =
+            LandingReservation::open(registry.as_path(), younger.as_path(), SECOND, false).with_cadence(QUICK);
+        let granted: bool = reservation
+            .reserve_noticing(2, Duration::from_secs(30), &mut sink)
+            .expect("the grant follows the older request");
+        return (granted, reservation);
+    });
+    assert!(granted);
+    let text: String = shared.text();
+    assert_eq!(
+        text.matches("This is number 2 of 2 commits in line, so 1 will be served first.").count(),
+        3,
+        "{text}"
+    );
+    assert_eq!(text.matches("still waiting for older commits to take the landing reservation").count(), 3, "{text}");
+    reservation.release().expect("released");
+    remove(root.as_path());
+}
+
+/// A wait that reached its limit was announced first: the notice that is due goes out before the limit is checked,
+///  so this holds however slowly the host runs the waiting thread.
+#[test]
+fn a_refused_wait_behind_a_holder_was_announced_first() {
+    let (root, registry) = registry_of("replay-reservation-notice-refused");
+    let first_directory: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
+    let second_directory: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
+    let mut holder: LandingReservation =
+        LandingReservation::open(registry.as_path(), first_directory.as_path(), FIRST, false);
+    assert!(holder.reserve(1).expect("granted"));
+    let waiter: LandingReservation =
+        LandingReservation::open(registry.as_path(), second_directory.as_path(), SECOND, false).with_cadence(QUICK);
+    let (failure, text) = finishes_in_time(move || {
+        let mut sink: Vec<u8> = Vec::new();
+        let failure: ReservationError = waiter
+            .await_slot_noticing(Duration::from_millis(300), &mut sink)
+            .expect_err("held past the limit");
+        return (failure, String::from_utf8(sink).expect("text"));
+    });
+    let holder_text: String = format!("still waiting for process {} to release the landing reservation", std::process::id());
+    assert!(text.matches(holder_text.as_str()).count() >= 1, "{text}");
+    assert!(matches!(failure, ReservationError::WaitTimedOut { holder_pid: Some(_), .. }), "{failure}");
+    holder.release().expect("released");
+    remove(root.as_path());
+}
+
+/// The same for a transaction that waits for the grant behind an older request.
+#[test]
+fn a_refused_wait_behind_an_older_request_was_announced_first() {
+    let (root, registry) = registry_of("replay-reservation-notice-refused-queue");
     let older: PathBuf = transaction(registry.as_path(), FIRST, "2026-10-10T00:00:00.000Z", true);
     std::fs::write(older.join(RESERVATION_REQUEST_FILENAME), reservation_request_bytes(1)).expect("older request");
     let younger: PathBuf = transaction(registry.as_path(), SECOND, "2026-10-10T00:00:01.000Z", true);
@@ -275,12 +341,11 @@ fn a_queued_requester_is_told_its_place_in_line() {
             LandingReservation::open(registry.as_path(), younger.as_path(), SECOND, false).with_cadence(QUICK);
         let mut sink: Vec<u8> = Vec::new();
         let failure: ReservationError = reservation
-            .reserve_noticing(2, Duration::from_millis(500), &mut sink)
+            .reserve_noticing(2, Duration::from_millis(300), &mut sink)
             .expect_err("never first in line");
         return (failure, String::from_utf8(sink).expect("text"), reservation);
     });
-    assert!(text.matches("This is number 2 of 2 commits in line, so 1 will be served first.").count() >= 3, "{text}");
-    assert!(text.contains("still waiting for older commits to take the landing reservation"), "{text}");
+    assert!(text.contains("This is number 2 of 2 commits in line, so 1 will be served first."), "{text}");
     assert!(matches!(failure, ReservationError::WaitTimedOut { holder_pid: None, .. }), "{failure}");
     reservation.release().expect("released");
     remove(root.as_path());

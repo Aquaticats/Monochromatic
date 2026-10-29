@@ -318,16 +318,7 @@ pub fn wait_for_index_lock_within(
             };
             effects.sleep(backoff_ms.min(cap));
             state.live_ms += effects.now_ms() - iteration_started;
-            if state.live_ms >= live_limit_ms as f64 {
-                return Err(WaitFailure::LiveHolderTimedOut {
-                    lock_path: evidence.lock_path.clone(),
-                    pid: *pid,
-                    command: command.clone(),
-                    waited_ms: state.live_ms as u64,
-                    limit_ms: live_limit_ms,
-                    consequence: String::from(consequence),
-                });
-            }
+            // A notice that is due goes out before the limit is checked, so a refused wait was announced.
             if state.live_ticker.due(Duration::from_millis(state.live_ms as u64)) {
                 let repeat: String = proven_holder_progress_line(
                     *pid,
@@ -339,17 +330,20 @@ pub fn wait_for_index_lock_within(
                 );
                 effects.report(repeat.as_str());
             }
+            if state.live_ms >= live_limit_ms as f64 {
+                return Err(WaitFailure::LiveHolderTimedOut {
+                    lock_path: evidence.lock_path.clone(),
+                    pid: *pid,
+                    command: command.clone(),
+                    waited_ms: state.live_ms as u64,
+                    limit_ms: live_limit_ms,
+                    consequence: String::from(consequence),
+                });
+            }
             continue;
         }
         state.unproven_ms += effects.now_ms() - iteration_started;
-        if state.unproven_ms >= timeout_ms as f64 {
-            return Err(WaitFailure::UnprovenOwner {
-                evidence: Box::new(evidence),
-                verdict,
-                timeout_ms,
-                consequence: String::from(consequence),
-            });
-        }
+        // A notice that is due goes out before the budget is checked, so a refused wait was announced.
         if state.unproven_ticker.due(Duration::from_millis(state.unproven_ms as u64)) {
             let notice: String = unproven_progress_line(
                 evidence.lock_path.as_path(),
@@ -358,6 +352,14 @@ pub fn wait_for_index_lock_within(
                 timeout_ms,
             );
             effects.report(notice.as_str());
+        }
+        if state.unproven_ms >= timeout_ms as f64 {
+            return Err(WaitFailure::UnprovenOwner {
+                evidence: Box::new(evidence),
+                verdict,
+                timeout_ms,
+                consequence: String::from(consequence),
+            });
         }
         let sleep_started: f64 = effects.now_ms();
         effects.sleep(backoff_ms);

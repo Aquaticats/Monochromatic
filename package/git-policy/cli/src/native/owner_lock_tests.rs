@@ -833,10 +833,11 @@ struct RepeatCounter {
     slow: Vec<Duration>,
     /// Whether the first notice was printed at the start of the wait.
     announces: bool,
-    /// Told when this many slow notices arrived, so the test ends the wait on that event.
+    /// The holder's end of the wait: when this many slow notices arrived, the notice itself stops and collects it,
+    ///  so the wait ends on that event and no later notice can fit in, however loaded the host is.
     stop_after: usize,
-    /// The channel the stop is told on.
-    signal: std::sync::mpsc::Sender<()>,
+    /// The live holder, until the notice that ends the wait stops it.
+    holder: Option<Child>,
 }
 
 /// The counter records each call.
@@ -849,8 +850,13 @@ impl WaitNotice for RepeatCounter {
     /// Record a repeat and tell the test when enough arrived.
     fn slow(&mut self, waited: Duration) {
         self.slow.push(waited);
-        if self.slow.len() == self.stop_after {
-            self.signal.send(()).ok();
+        if self.slow.len() == self.stop_after
+            && let Some(mut holder) = self.holder.take()
+        {
+            // Stopping and collecting the holder here is synchronous: the next attempt finds a dead owner and takes the
+            // lock before any further notice is due.
+            holder.kill().expect("kill");
+            holder.wait().expect("reap");
         }
     }
 
@@ -866,17 +872,12 @@ impl WaitNotice for RepeatCounter {
 fn repeated_wait(name: &str, cadence: Cadence, announces: bool, stop_after: usize) -> RepeatCounter {
     let root: PathBuf = fixture(name);
     let lock_directory: PathBuf = root.join("push.lock");
-    let mut sleeper: Child = Command::new("sleep").arg("60").spawn().expect("sleeper");
+    let sleeper: Child = Command::new("sleep").arg("60").spawn().expect("sleeper");
     let pid: i64 = i64::from(sleeper.id());
     let identity: String = process_birth_identity(pid).expect("probe").expect("alive");
     plant(lock_directory.as_path(), pid, identity.as_str(), "foreign");
-    let (sender, receiver) = std::sync::mpsc::channel::<()>();
-    let mut counter: RepeatCounter = RepeatCounter { waiting: 0, slow: Vec::new(), announces, stop_after, signal: sender };
-    let killer = std::thread::spawn(move || {
-        receiver.recv_timeout(Duration::from_secs(20)).ok();
-        sleeper.kill().expect("kill");
-        sleeper.wait().expect("reap");
-    });
+    let mut counter: RepeatCounter =
+        RepeatCounter { waiting: 0, slow: Vec::new(), announces, stop_after, holder: Some(sleeper) };
     let outcome: Result<OwnerLock, OwnerLockError> = acquire_within(
         lock_directory.as_path(),
         Duration::from_millis(5),
@@ -884,7 +885,6 @@ fn repeated_wait(name: &str, cadence: Cadence, announces: bool, stop_after: usiz
         Duration::from_secs(30),
         cadence,
     );
-    killer.join().expect("the killer thread finishes");
     outcome.expect("the dead holder's lock is taken").release().expect("release");
     remove(&root);
     return counter;

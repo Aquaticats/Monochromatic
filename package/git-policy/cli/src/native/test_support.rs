@@ -44,6 +44,48 @@ impl std::io::Write for SharedSink {
     }
 }
 
+/// What:
+///  A sink that keeps what is written in a shared buffer and runs an action once, when the `after`th line is finished.
+/// Why:
+///   A control of a repeated notice ends the wait it watches from inside the notice that counts:
+///  the wait stops on that event and not on a timer,
+///  so the count of notices holds however slowly a loaded host runs the waiting thread.
+pub(crate) struct ActionSink {
+    /// The buffer the test reads.
+    shared: SharedSink,
+    /// How many lines were finished.
+    lines: usize,
+    /// The line after which the action runs.
+    after: usize,
+    /// The action, until it has run.
+    action: Option<Box<dyn FnOnce() + Send>>,
+}
+
+impl ActionSink {
+    /// A sink that copies into `shared` and runs `action` once the `after`th line is finished.
+    pub(crate) fn new(shared: &SharedSink, after: usize, action: impl FnOnce() + Send + 'static) -> Self {
+        return Self { shared: shared.clone(), lines: 0, after, action: Some(Box::new(action)) };
+    }
+}
+
+/// Writes are copied, and the action runs when the counted line is finished.
+impl std::io::Write for ActionSink {
+    /// Append the bytes, count finished lines, run the action at the counted one.
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        std::io::Write::write(&mut self.shared, bytes)?;
+        self.lines += bytes.iter().filter(|byte| { return **byte == b'\n'; }).count();
+        if self.lines >= self.after && let Some(action) = self.action.take() {
+            action();
+        }
+        return Ok(bytes.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
 /// How long the whole unit-test run may last before the watchdog ends it.
 /// The run takes under a minute, so a run past this limit has a test stuck behind something that never happens.
 const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);

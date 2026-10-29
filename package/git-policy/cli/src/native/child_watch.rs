@@ -274,12 +274,7 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
             continue;
         };
         let waited: Duration = since.elapsed();
-        if waited >= terms.limit {
-            state.expired = true;
-            state.since = None;
-            stop_process(pid);
-            continue;
-        }
+        // A notice that is due goes out before the bound is checked, so a child stopped at its bound was announced.
         if state.ticker.due(waited) {
             let line: String = child_wait_line(&ChildWaitFacts {
                 waiting_for,
@@ -292,6 +287,12 @@ fn watch_loop(shared: &Shared, waiting_for: &str, pid: u32, mut terms: WatchTerm
             state.printed += 1;
             // Terminal output error: a notice is advisory; a failed write must not stop the watch.
             let _written = writeln!(terms.notices, "{line}");
+            continue;
+        }
+        if waited >= terms.limit {
+            state.expired = true;
+            state.since = None;
+            stop_process(pid);
             continue;
         }
         let until_notice: Duration = state.ticker.next_in(waited);

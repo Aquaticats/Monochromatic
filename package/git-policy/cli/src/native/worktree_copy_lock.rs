@@ -549,6 +549,12 @@ fn wait_while_owner_lives(
     let mut ticker: Ticker = Ticker::announced_at_start(cadence);
     loop {
         std::thread::sleep(LIVE_OWNER_POLL);
+        // A notice that is due goes out before the limit is checked, so a refused wait was announced.
+        if ticker.due(started.elapsed()) {
+            let line: String = live_holder_progress_line(lock, owner, started.elapsed(), limit);
+            // The notice is advisory: a failed write to standard error must not stop the wait.
+            let _written = notices.write_all(line.as_bytes());
+        }
         if started.elapsed() >= limit {
             let message: String = format!(
                 "cli-git: gave up after waiting {} seconds for PID {}, which still holds worktree-copy settlement {}; {} sets how long cli-git waits. cli-git left the lock in place. To go on, let that process finish and run the command again, check with `ps` whether it is stuck and stop it if so, or raise the limit.",
@@ -558,11 +564,6 @@ fn wait_while_owner_lives(
                 LIVE_WAIT_VARIABLE
             );
             return Err(failure_with_cause(message.as_str(), None));
-        }
-        if ticker.due(started.elapsed()) {
-            let line: String = live_holder_progress_line(lock, owner, started.elapsed(), limit);
-            // The notice is advisory: a failed write to standard error must not stop the wait.
-            let _written = notices.write_all(line.as_bytes());
         }
         match read_published(lock)? {
             Published::Owner(current) if current.lease_token == owner.lease_token => {

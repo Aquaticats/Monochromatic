@@ -344,8 +344,9 @@ impl LandingReservation {
         let started: Instant = Instant::now();
         let mut reporter: WaitReporter<'_> = WaitReporter::start(self.cadence, notices);
         while self.held_by_another()? {
-            self.refuse_after(started, limit)?;
+            // A notice that is due goes out before the limit is checked, so a refused wait was announced.
             reporter.poll(|waited, repeat| { return self.wait_line(waited, limit, None, repeat); });
+            self.refuse_after(started, limit)?;
             std::thread::sleep(RESERVATION_POLL);
         }
         return Ok(());
@@ -447,8 +448,9 @@ impl LandingReservation {
                 self.held = Some(lock);
                 return Ok(true);
             }
-            self.refuse_after(started, limit)?;
+            // A notice that is due goes out before the limit is checked, so a refused wait was announced.
             reporter.poll(|waited, repeat| { return self.wait_line(waited, limit, place, repeat); });
+            self.refuse_after(started, limit)?;
             std::thread::sleep(RESERVATION_POLL);
         }
     }

@@ -492,6 +492,8 @@ fn a_waiting_commit_names_the_process_it_waits_for() {
 
 /// A commit that keeps waiting behind a live push repeats its notice at the interval,
 ///  each repeat naming the process, the branch, how long the wait has lasted and the limit.
+///  The third notice makes the pusher let go, so the wait ends on that event and exactly three notices are out,
+///  however slowly the host runs the waiting commit.
 #[test]
 fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
     let root = fixture("ap-waiting-repeat");
@@ -501,7 +503,7 @@ fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
     let mut git = push_git(&repo);
     git.environment.push((
         OsString::from(crate::bounded_push::LOCK_WAIT_VARIABLE),
-        OsString::from("3"),
+        OsString::from("120"),
     ));
     git.environment.push((
         OsString::from(crate::wait_progress::NOTICE_INTERVAL_VARIABLE),
@@ -515,16 +517,22 @@ fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
         &mut crate::owner_lock::SilentWait,
     )
     .expect("held");
-    let mut err: Vec<u8> = Vec::new();
+    let shared = crate::test_support::SharedSink::default();
+    let mut err = crate::test_support::ActionSink::new(&shared, 3, move || { drop(held); });
     let _result = auto_push(&git, &head_oid(&repo), &mut err).expect("auto-push");
-    let shown = String::from_utf8_lossy(&err).into_owned();
+    let shown = shared.text();
     let holder = format!("waiting for process {} to finish pushing {branch}", std::process::id());
     let lines: Vec<&str> = shown.lines().filter(|line| { return line.contains(holder.as_str()); }).collect();
-    assert!(lines.len() >= 3, "the start and two repeats: {shown}");
+    assert_eq!(lines.len(), 3, "the start and two repeats: {shown}");
     assert!(!lines[0].contains("seconds so far"), "{shown}");
-    assert!(lines[1].contains("(1 seconds so far); giving up after 3 seconds"), "{shown}");
-    assert!(lines[2].contains("(2 seconds so far); giving up after 3 seconds"), "{shown}");
-    drop(held);
+    // The repeats name the time waited, which only grows; its exact value depends on the host's speed.
+    let waited = |line: &str| -> u64 {
+        let tail = line.split('(').nth(1).expect("the time waited");
+        return tail.split(' ').next().expect("a number").parse().expect("whole seconds");
+    };
+    assert!(lines[1].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
+    assert!(lines[2].contains(" seconds so far); giving up after 120 seconds"), "{shown}");
+    assert!(waited(lines[1]) >= 1 && waited(lines[2]) >= waited(lines[1]), "{shown}");
     remove(&root);
 }
 

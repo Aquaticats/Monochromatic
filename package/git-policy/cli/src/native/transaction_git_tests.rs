@@ -1,7 +1,7 @@
 //! Controls for the transaction Git runner against real Git.
 
 use super::*;
-use crate::test_support::{SharedSink, executable, fixture, git_context, git_text, remove, repository};
+use crate::test_support::{ActionSink, SharedSink, executable, fixture, git_context, git_text, remove, repository};
 use crate::wait_progress::Cadence;
 
 /// Requests carry their arguments and nothing else by default.
@@ -295,27 +295,27 @@ fn runs_of(count: &Path) -> u32 {
 /// A pause that records nothing and waits for nothing, so the controls do not sleep.
 fn no_pause(_wait: Duration) {}
 
-/// A fake Git that runs for `FAKE_SECONDS` seconds before it answers.
-const SLOW_GIT: &[u8] = b"#!/bin/sh\nsleep \"$FAKE_SECONDS\"\necho slow\n";
+/// A fake Git that runs until the file `FAKE_RELEASE` names exists, and then answers.
+const SLOW_GIT: &[u8] = b"#!/bin/sh\nwhile [ ! -e \"$FAKE_RELEASE\" ]; do sleep 0.02; done\necho slow\n";
 
-/// A context running the slow fake Git and a request that gives it `seconds` to run.
-fn slow_run(root: &Path, seconds: &str) -> (GitContext, GitRequest) {
+/// A context running the slow fake Git and a request whose release file is `release`.
+fn slow_run(root: &Path, release: &Path) -> (GitContext, GitRequest) {
     let program: PathBuf = root.join("slow-git");
     executable(program.as_path(), SLOW_GIT);
     // The request sends no input, so it needs no scratch directory.
     let context: GitContext =
         GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
     let mut request: GitRequest = GitRequest::new(root, &["add", "--", "a.md"]);
-    request.environment = vec![(OsString::from("FAKE_SECONDS"), OsString::from(seconds))];
+    request.environment = vec![(OsString::from("FAKE_RELEASE"), release.as_os_str().to_os_string())];
     return (context, request);
 }
 
-/// Terms of a limit, a quick cadence and a shared sink.
-fn quick_terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
+/// Terms of a limit, a quick cadence and the given sink.
+fn quick_terms(limit: Duration, notices: Box<dyn std::io::Write + Send>) -> WatchTerms {
     return WatchTerms {
         limit,
-        cadence: Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) },
-        notices: Box::new(sink.clone()),
+        cadence: Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
+        notices,
     };
 }
 
@@ -323,11 +323,18 @@ fn quick_terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
 #[test]
 fn a_git_step_that_runs_long_is_announced_by_name() {
     let root: PathBuf = fixture("transaction-git-slow");
-    let (context, request) = slow_run(root.as_path(), "0.5");
+    let release: PathBuf = root.join("release");
+    let (context, request) = slow_run(root.as_path(), release.as_path());
     let sink: SharedSink = SharedSink::default();
-    let output: GitOutput =
-        run_git_once_with(&context, &request, &|| { return quick_terms(Duration::from_secs(60), &sink); })
-            .expect("finished");
+    // The third notice releases the stand-in, so the step ends on that event, whatever the host's speed.
+    let output: GitOutput = run_git_once_with(&context, &request, &|| {
+        let release_file: PathBuf = release.clone();
+        let counted: ActionSink = ActionSink::new(&sink, 3, move || {
+            std::fs::write(&release_file, b"").expect("release the fake Git");
+        });
+        return quick_terms(Duration::from_secs(60), Box::new(counted));
+    })
+    .expect("finished");
     assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "slow\n");
     let text: String = sink.text();
     assert!(text.lines().count() >= 3, "{text}");
@@ -340,14 +347,17 @@ fn a_git_step_that_runs_long_is_announced_by_name() {
 #[test]
 fn a_git_step_past_its_bound_is_stopped_and_reported_as_such() {
     let root: PathBuf = fixture("transaction-git-stuck");
-    let (context, request) = slow_run(root.as_path(), "30");
+    let never: PathBuf = root.join("never-made");
+    let (context, request) = slow_run(root.as_path(), never.as_path());
     let sink: SharedSink = SharedSink::default();
-    let failure: std::io::Error =
-        run_git_once_with(&context, &request, &|| { return quick_terms(Duration::from_millis(400), &sink); })
-            .expect_err("stopped at the bound");
+    let failure: std::io::Error = run_git_once_with(&context, &request, &|| {
+        return quick_terms(Duration::from_millis(400), Box::new(sink.clone()));
+    })
+    .expect_err("stopped at the bound");
     assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
     assert!(failure.to_string().starts_with("git add -- a.md did not finish within 0 seconds and was stopped"), "{failure}");
-    assert!(sink.text().lines().count() >= 2, "{}", sink.text());
+    // The notice that is due goes out before the bound is checked, so a stopped step was announced at least once.
+    assert!(sink.text().lines().count() >= 1, "{}", sink.text());
     remove(root.as_path());
 }
 

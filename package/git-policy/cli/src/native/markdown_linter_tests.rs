@@ -30,7 +30,7 @@ use crate::bounded_child::{ChildFailure, ChildLimits};
 use crate::config_schema::{MarkdownAutofixOptions, PolicyConfig};
 use crate::markdown_linter_output::{LintRun, RemainingFinding};
 use crate::policy_markdown::{LintRequest, MarkdownLinter};
-use crate::test_support::{SharedSink, executable, fixture, remove};
+use crate::test_support::{ActionSink, SharedSink, executable, fixture, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -533,12 +533,17 @@ fn the_real_linter_meets_the_contract() {
 #[test]
 fn a_linter_run_that_takes_long_names_the_file_it_checks() {
     let root: PathBuf = fixture("linter-notices");
-    let slow: PathBuf = stand_in(&root.join("slow"), "sleep 0.5\ncat");
+    let slow: PathBuf = stand_in(&root.join("slow"), "while [ ! -e release ]; do sleep 0.02; done\ncat");
     let sink: SharedSink = SharedSink::default();
+    // The third notice releases the stand-in, so the run ends on that event, whatever the host's speed.
+    let release: PathBuf = root.join("release");
+    let counted: ActionSink = ActionSink::new(&sink, 3, move || {
+        std::fs::write(&release, b"").expect("release the linter");
+    });
     let mut linter: ProcessLinter = process_linter(environment(slow.as_path(), &[]).as_slice(), LINTER_LIMITS, root.clone())
         .with_notices(
-            crate::wait_progress::Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) },
-            Box::new(sink.clone()),
+            crate::wait_progress::Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(20) },
+            Box::new(counted),
         );
     let run: Result<LintRun, String> = lint(&mut linter, root.as_path(), b"docs/a.md", b"a\n");
     assert!(run.is_ok(), "{run:?}");
