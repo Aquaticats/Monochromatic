@@ -147,7 +147,7 @@ export type DshAdvisorAgentSurface = {
    */
   readonly whenIdle: () => Promise<void>;
   /**
-   Persist one failed Advisor operation to the durable session log.
+   Persist one Advisor operation ledger to the durable session log.
    */
   readonly appendOperationRecord: (operation: AdvisorOperationSnapshot) => void;
   /**

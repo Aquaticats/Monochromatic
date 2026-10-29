@@ -203,6 +203,19 @@ export async function runDshAdvisorReview(
         ?.(operation,);
     },
   },);
+  /**
+   Operation ledger persisted for every completed operation.
+
+   The session record stores rendered tool text only, so attempt diagnostics
+   and usage survive in the durable `plugin:advisor/operation` record.
+   */
+  const {
+    operation,
+  } = result.details;
+  if (operation !== undefined)
+    options
+      .agent
+      .appendOperationRecord(operation,);
   return {
     result,
     progress: progressState.latest,
