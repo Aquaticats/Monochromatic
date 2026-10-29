@@ -74,12 +74,11 @@ fn the_rule_requires_exactly_one_final_line_feed() {
     }
 }
 
-/// The five preserved path families,
+/// The preserved path families,
 ///  each with its depth condition and a near miss.
 #[test]
 fn preserved_paths_keep_their_bytes() {
     for path in [
-        "package/forbidden-strings/cli.fuzz/seed/case",
         "package/forbidden-strings/core.fuzz/seed/case",
         "package/test-fixture/toml-edit/src/case.toml",
         "dist/final/node/index.mjs",
@@ -91,8 +90,10 @@ fn preserved_paths_keep_their_bytes() {
         assert!(is_final_newline_excluded(path.as_bytes()), "{path}");
     }
     for path in [
-        "package/forbidden-strings/cli.fuzz/seedling",
-        "x/package/forbidden-strings/cli.fuzz/seed/case",
+        "package/forbidden-strings/core.fuzz/seedling",
+        "x/package/forbidden-strings/core.fuzz/seed/case",
+        // Declared `-text` in its own `.gitattributes`, so the path list no longer names it.
+        "package/forbidden-strings/cli.fuzz/seed/case",
         "package/test-fixture/toml-edit/srcs/case",
         "dist/final/node",
         "pkg/dist/final/node",
