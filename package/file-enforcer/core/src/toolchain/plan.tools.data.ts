@@ -317,7 +317,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-lint',
     request: { track: 'latest' },
-    version: '0.3.0',
+    version: '0.4.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-lint',
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.2.12',
+    version: '0.2.13',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',

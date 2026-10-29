@@ -665,7 +665,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.3.0",
+      "version": "0.4.0",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-lint",
@@ -680,7 +680,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.2.12",
+      "version": "0.2.13",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-git-policy-cli",
