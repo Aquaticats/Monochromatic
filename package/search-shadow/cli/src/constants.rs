@@ -38,5 +38,18 @@ pub const EXEC_FAILED_EXIT_CODE: i32 = 126;
 /// The exit code for a bad `search-shadow` command line.
 pub const USAGE_EXIT_CODE: i32 = 2;
 
-/// The tool names that get a shadow link: the same names the real tools use on PATH.
-pub const SHADOWED_NAMES: &[&str] = &["rg", "grep", "find"];
+/// What:     `pub const SHADOWED_NAMES: &[&str] = &[...]` is the public list of tool names that get a shadow link: the names the
+///           real tools use on PATH. A link is made only for names whose real tool exists on this host, so the list may
+///           name tools that are not installed (for example `fdfind`, the Debian name of `fd`).
+/// Why:      The `link` subcommand reads it; the toolchain plan does not repeat it, so adding a tool is one change here.
+///           The groups: searchers (`rg`, `grep`, `egrep`, `fgrep`, `ugrep`, `ug`, `ag`, `ack`), finders (`find`, `fd`,
+///           `fdfind`, `bfs`, `tree`) and whole-tree readers (`du`, `ncdu`, `tokei`, `cloc`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const SHADOWED_NAMES: readonly string[] = ['rg', 'grep', 'egrep', /* ... */ 'cloc'];
+/// ```
+pub const SHADOWED_NAMES: &[&str] = &[
+    "rg", "grep", "egrep", "fgrep", "ugrep", "ug", "ag", "ack", "find", "fd", "fdfind", "bfs", "tree", "du", "ncdu", "tokei",
+    "cloc",
+];

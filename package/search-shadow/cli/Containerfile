@@ -1,0 +1,13 @@
+# Test image for `mise run //package/search-shadow/cli:test:container`: the real tools that the host lacks (ag, ack, ugrep,
+# bfs, ncdu, cloc, ...) next to the ones it has, plus the release binary, so every shadow can be checked against its real
+# tool without installing anything on the host. The binary is copied in (no mounts) and was built on a Fedora 44 host, so the
+# base image must have the same or a newer glibc; the task checks the image runs it.
+FROM registry.fedoraproject.org/fedora:latest
+
+# --skip-unavailable keeps the build going when a package is missing from the repository; the test then reports which shadow
+# links were skipped for lack of a real tool. fdfind is the Debian name of fd and is expected to stay unlinked.
+RUN dnf install --assumeyes --setopt=install_weak_deps=False --skip-unavailable \
+      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux \
+    && dnf clean all
+
+COPY search-shadow /usr/local/bin/search-shadow

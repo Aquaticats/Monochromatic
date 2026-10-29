@@ -41,7 +41,7 @@ use std::path::PathBuf;
 
 use crate::constants::{ALLOW_WIDE_VARIABLE, EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, REFUSED_EXIT_CODE};
 use crate::launch::replace_process;
-use crate::policy::refusal_for;
+use crate::policy::{Invocation, refusal_for};
 use crate::priority::lower_disk_priority;
 use crate::real_binary::find_in_path;
 
@@ -124,28 +124,35 @@ pub fn run_shim(name: &str, arguments: Vec<OsString>) -> i32 {
         readable_arguments.push(argument.to_string_lossy().to_string());
     }
 
-    let working_directory: PathBuf = env::current_dir().unwrap_or_default();
-    let in_repository_root: bool = working_directory.join(".git").exists();
-    let allow_wide: bool = env::var(ALLOW_WIDE_VARIABLE).unwrap_or_default() == "1";
-    let readable_directory: String = working_directory.to_string_lossy().to_string();
-
-    // What:     `if let Some(message) = refusal_for(...)` runs the block when the policy returned a refusal message.
-    //           `&readable_arguments` lends the list; `eprintln!` prints a line to standard error (a macro, hence `!`).
-    // Why:      Tell the caller why the search did not run, then stop with the refusal exit code.
+    // What:     `Invocation { ... }` builds the record every policy reads. `.to_string()` makes an owned copy of the tool name;
+    //           `env::var("HOME").unwrap_or_default()` reads HOME as text (empty when unset) and `PathBuf::from(...)` turns
+    //           text into an owned path.
+    // Why:      One value carries the facts the policies need: the arguments, the escape hatch, the stdin kind, and where
+    //           the tool will run.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const message = refusalFor(...);
+    // const invocation = { name, arguments: readableArguments, allowWide, stdinHasData: stdinHasData(), workingDirectory: process.cwd(), home: process.env.HOME ?? '' };
+    // ```
+    let invocation: Invocation = Invocation {
+        name: name.to_string(),
+        arguments: readable_arguments,
+        allow_wide: env::var(ALLOW_WIDE_VARIABLE).unwrap_or_default() == "1",
+        stdin_has_data: stdin_has_data(),
+        working_directory: env::current_dir().unwrap_or_default(),
+        home: PathBuf::from(env::var("HOME").unwrap_or_default()),
+    };
+
+    // What:     `if let Some(message) = refusal_for(&invocation)` runs the block when a policy returned a refusal message.
+    //           `&invocation` lends the record; `eprintln!` prints a line to standard error (a macro, hence `!`).
+    // Why:      Tell the caller why the tool did not run, then stop with the refusal exit code.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const message = refusalFor(invocation);
     // if (message !== undefined) { console.error(message); return 2; }
     // ```
-    if let Some(message) = refusal_for(
-        name,
-        &readable_arguments,
-        allow_wide,
-        in_repository_root,
-        stdin_has_data(),
-        &readable_directory,
-    ) {
+    if let Some(message) = refusal_for(&invocation) {
         eprintln!("{message}");
         return REFUSED_EXIT_CODE;
     }
