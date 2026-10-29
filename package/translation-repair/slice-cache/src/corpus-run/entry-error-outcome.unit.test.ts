@@ -49,6 +49,35 @@ const NOT_PARKED = { parked: false, } as const;
  */
 const PARK_RETURN = { parked: true, returnsInMs: 301_000, returnsAt: '19:15:08 UTC', } as const;
 
+/**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Attempt the cases print the line for: the entry's second, the one that began under a fresh cap.
+ */
+const SECOND_ATTEMPT = 2;
+
+/**
+ The clock time and attempt every line a case prints carries, straight after the status.
+ */
+const STAMP = 'at=2026-10-22T08:10:11.123Z attempt=2';
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ tallyCaughtEntry({ entryId: 'Cat', error, durationMs: 5, aborted: false, attempt: SECOND_ATTEMPT, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
 await describe({
   name: '',
   children: [
@@ -149,6 +178,8 @@ await describe({
             const dry = new EveryProviderDryError({ measured: 'every meter dry', },);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: dry,
               durationMs: 5,
               aborted: true,
@@ -163,6 +194,8 @@ await describe({
 
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: new Error('transport failed',),
               durationMs: 5,
               aborted: false,
@@ -194,6 +227,8 @@ await describe({
             },);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: withReturn,
               durationMs: 5,
               aborted: false,
@@ -204,6 +239,8 @@ await describe({
             expect(told,).toEqual([withReturn,],);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: new WritingBenchUnreachableError({
                 phase: 'lanes',
                 clauses: ['editors 0 of 3 reachable, floor 2',],
@@ -241,6 +278,8 @@ await describe({
             },);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: withReturn,
               durationMs: 5,
               aborted: true,
@@ -265,6 +304,8 @@ await describe({
             gate.parked = false;
             expect(tallyCaughtEntry({
               entryId: 'Dog',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: withReturn,
               durationMs: 5,
               aborted: false,
@@ -301,6 +342,8 @@ await describe({
             },);
             tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: lanes,
               durationMs: 5,
               aborted: true,
@@ -315,7 +358,7 @@ await describe({
             const [line,] = printed.lines.filter(function tally(text,): boolean {
               return text.startsWith('TALLY ',);
             },);
-            expect(line,).toContain('TALLY Cat status=PARKED returnsInMs=301000 returnsAt=19:15:08Z ms=5 ',);
+            expect(line,).toContain(`TALLY Cat status=PARKED ${STAMP} returnsInMs=301000 returnsAt=19:15:08Z ms=5 `,);
             expect(line?.indexOf('returnsAt=',) ?? (-1),).toBeLessThan(line?.indexOf(' error=',) ?? (-1),);
             expect(line?.indexOf('returnsAt=',) ?? (-1),).toBeGreaterThan(-1,);
           },
@@ -342,6 +385,8 @@ await describe({
             },);
             tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: noReturn,
               durationMs: 5,
               aborted: true,
@@ -352,6 +397,8 @@ await describe({
             },);
             tallyCaughtEntry({
               entryId: 'Dog',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: nearer,
               durationMs: 5,
               aborted: true,
@@ -362,6 +409,8 @@ await describe({
             },);
             tallyCaughtEntry({
               entryId: 'Eel',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: new Error('connection reset',),
               durationMs: 5,
               aborted: false,
@@ -378,9 +427,9 @@ await describe({
                 text.indexOf(' ms=',),
               );
             },),).toEqual([
-              'TALLY Cat status=PARKED returnsInMs=301000 returnsAt=19:15:08Z',
-              'TALLY Dog status=PARKED returnsInMs=301000 returnsAt=19:15:08Z',
-              'TALLY Eel status=ERROR',
+              `TALLY Cat status=PARKED ${STAMP} returnsInMs=301000 returnsAt=19:15:08Z`,
+              `TALLY Dog status=PARKED ${STAMP} returnsInMs=301000 returnsAt=19:15:08Z`,
+              `TALLY Eel status=ERROR ${STAMP}`,
             ],);
           },
         },),
@@ -406,6 +455,8 @@ await describe({
             function tallyParked(): void {
               tallyCaughtEntry({
                 entryId: 'Cat',
+                attempt: SECOND_ATTEMPT,
+                wallClock: fixedWallClock,
                 error: lanes,
                 durationMs: 5,
                 aborted: true,
@@ -439,6 +490,8 @@ await describe({
             },);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: dry,
               durationMs: 5,
               aborted: true,
@@ -449,6 +502,8 @@ await describe({
             },),).toEqual({ kind: 'stopped', },);
             expect(tallyCaughtEntry({
               entryId: 'Dog',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: dry,
               durationMs: 5,
               aborted: true,
@@ -458,10 +513,10 @@ await describe({
               },
             },),).toEqual({ kind: 'stopped', },);
             expect(printed.lines.some(function parkedLine(text,): boolean {
-              return text.startsWith('TALLY Cat status=PARKED returnsInMs=301000 returnsAt=19:15:08Z ms=5 ',);
+              return text.startsWith(`TALLY Cat status=PARKED ${STAMP} returnsInMs=301000 returnsAt=19:15:08Z ms=5 `,);
             },),).toBe(true,);
             expect(printed.lines.some(function incompleteLine(text,): boolean {
-              return text.startsWith('TALLY Dog status=INCOMPLETE ms=5 ',);
+              return text.startsWith(`TALLY Dog status=INCOMPLETE ${STAMP} ms=5 `,);
             },),).toBe(true,);
           },
         },),
@@ -481,6 +536,8 @@ await describe({
             const reset = new Error('connection reset',);
             tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: reset,
               durationMs: 5,
               aborted: false,
@@ -498,11 +555,63 @@ await describe({
         },),
 
         it({
+          name: 'STAMPS THE ERROR TALLY OF A CUT ENTRY with the clock time and the attempt, before the capped error text, '
+            + 'so a reader placing a fired hard cap in a time window finds which attempt it ended (2026-10-22, XingZ60: '
+            + 'attempt 2 began under a fresh cap and nothing on the line said so)',
+          fn: async (ctx,) => {
+            using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+            tallyCaughtEntry({
+              entryId: 'XingZ60',
+              error: new Error('Timeout: XingZ60 exceeded its 25200000ms deadline',),
+              durationMs: 25_200_743,
+              aborted: true,
+              attempt: 1,
+              wallClock: fixedWallClock,
+            },);
+            expect(printed.lines.length,).toBe(1,);
+            expect(
+              printed.lines[0]?.startsWith(
+                'TALLY XingZ60 status=ERROR at=2026-10-22T08:10:11.123Z attempt=1 ms=25200743 aborted=true error=',
+              ),
+            ).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'STAMPS EACH INTERRUPTED LINE with the clock time and the attempt, after the entry and before the finding',
+          fn: async (ctx,) => {
+            using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+            tallyCaughtEntry({
+              entryId: 'Cat',
+              error: new TranslationRepairInterruptedError({
+                reason: 'carried-evidence-lost',
+                findings: [
+                  'slice 3 lost its carried reading',
+                  'slice 5 lost its carried reading',
+                ],
+              },),
+              durationMs: 5,
+              aborted: false,
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
+            },);
+            expect(printed.lines.filter(function interrupted(text,): boolean {
+              return text.startsWith('INTERRUPTED ',);
+            },),).toEqual([
+              `INTERRUPTED Cat ${STAMP}: slice 3 lost its carried reading`,
+              `INTERRUPTED Cat ${STAMP}: slice 5 lost its carried reading`,
+            ],);
+          },
+        },),
+
+        it({
           name: 'FILES THE REFUSAL ALL THE SAME when the run gave no hook to tell',
           fn: async (ctx) => {
             using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
             expect(tallyCaughtEntry({
               entryId: 'Cat',
+              attempt: SECOND_ATTEMPT,
+              wallClock: fixedWallClock,
               error: new EveryProviderDryError({ measured: 'every meter dry', },),
               durationMs: 5,
               aborted: false,

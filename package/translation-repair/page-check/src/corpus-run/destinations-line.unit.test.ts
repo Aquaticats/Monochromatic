@@ -2,7 +2,8 @@
  Tests for the per-entry destinations line.
 
  WHAT THESE PIN: the line carries the three counts under stable names a grep
- can total, carries no address, and appends findings after the counts.
+ can total, carries no address, appends findings after the counts, and opens with the clock time it was printed at
+ and the attempt it belongs to, so a reader windowing a log by time can place it.
 
  @module
  */
@@ -14,14 +15,35 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import { destinationsLine, } from '../../dist/final/node/index.mjs';
 
+/**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ const line = destinationsLine({ entryId, destinations, attempt: 2, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
 await describe({
   name: destinationsLine.name,
   children: [
     it({
-      name: 'carries the three counts and no address',
+      name: 'carries the three counts and no address, after the clock time and the attempt',
       fn: async () => {
         const line = destinationsLine({
           entryId: 'BookshopCat',
+          attempt: 2,
+          wallClock: fixedWallClock,
           destinations: {
             source: [
               'https://example.org/tabby',
@@ -33,7 +55,7 @@ await describe({
           },
         },);
 
-        expect(line,).toBe('DESTINATIONS BookshopCat source=2 page=1 dropped=1',);
+        expect(line,).toBe('DESTINATIONS BookshopCat at=2026-10-22T08:10:11.123Z attempt=2 source=2 page=1 dropped=1',);
       },
     },),
 
@@ -42,6 +64,8 @@ await describe({
       fn: async () => {
         const line = destinationsLine({
           entryId: 'BookshopCat',
+          attempt: 2,
+          wallClock: fixedWallClock,
           destinations: {
             source: [],
             page: [],
@@ -51,7 +75,8 @@ await describe({
         },);
 
         expect(line,).toBe(
-          'DESTINATIONS BookshopCat source=0 page=0 dropped=0 destinations-mdx-downgraded (page)',
+          'DESTINATIONS BookshopCat at=2026-10-22T08:10:11.123Z attempt=2 source=0 page=0 dropped=0 '
+            + 'destinations-mdx-downgraded (page)',
         );
       },
     },),

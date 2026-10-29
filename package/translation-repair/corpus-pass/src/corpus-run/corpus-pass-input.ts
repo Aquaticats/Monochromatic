@@ -49,7 +49,7 @@ export type CorpusPassInput = {
   readonly pinSetting: CorpusPinSetting;
 
   /**
-   Ceiling one entry runs under, after any override.
+   Ceiling each attempt of an entry runs under, after any override.
    */
   readonly hardCapMs: number;
 
@@ -112,6 +112,12 @@ export type CorpusPassInput = {
    Monotonic clock in milliseconds, which setting the system clock does not move.
    */
   readonly now: () => number;
+
+  /**
+   Wall clock the time of every lifecycle line is read on (ledger B960); the process's own wall clock where absent, and a
+   case of its own to fix the instant. Durations stay on `now`.
+   */
+  readonly wallClock?: () => Date;
 
   /**
    Slices each entry keeps in flight, beside where the value came from, read

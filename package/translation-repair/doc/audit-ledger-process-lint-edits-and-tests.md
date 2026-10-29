@@ -6,7 +6,7 @@ edits aimed by a stale line number,
 tests that touched the real world,
 and seams added the wrong way.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M6: edits attempted on files not read

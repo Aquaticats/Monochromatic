@@ -366,7 +366,8 @@ TODO | DONE
 
     Launch-time dials,
     each printed above the work so the log says which run this was:
-    `TRANSLATION_REPAIR_SLICE_OVERLAP=<n>` (prints `OVERLAP <entry> value=<n> source=...` per entry),
+    `TRANSLATION_REPAIR_SLICE_OVERLAP=<n>`
+    (prints `OVERLAP <entry> at=<time> attempt=<n> value=<n> source=...` per attempt),
     `TRANSLATION_REPAIR_STRAGGLER_GRACE_MS=<ms>` (prints `STRAGGLER GRACE OVERRIDDEN by ...`),
     `TRANSLATION_REPAIR_WRITER_GRACE_MS=<ms>` (prints `WRITER GRACE OVERRIDDEN by ...`;
     the editor,
@@ -375,7 +376,7 @@ TODO | DONE
     the other rounds keep the round window).
     Unset,
     the writer rounds wait their built-in 180000 ms and the launch prints `WRITER GRACE built in`,
-    and the pass keeps four slices in flight (`OVERLAP <entry> value=4 source=fallback`);
+    and the pass keeps four slices in flight (`OVERLAP <entry> at=<time> attempt=<n> value=4 source=fallback`);
     since 2026-09-06 the plain launch is the production launch,
     and a dial is for a measured arm.
     A value the dial cannot read refuses the launch in one line naming the variable,
@@ -573,9 +574,65 @@ Each is the exact string the log carries.
     `DONE processed=` then reads short of `pending=` for money rather than for time.
     Raise the ceiling for a deliberately larger run.
 
+-   `START ... hard=<ms>ms hard-scope=per-attempt`,
+    on every launch.
+    The hard ceiling ends one attempt and the next attempt of the same entry begins under a fresh one,
+    so an entry that hits it and is re-attempted runs for more than the ceiling in one invocation,
+    which is not a ceiling that failed to fire.
+
+-   `at=<time> attempt=<n>`,
+    on every line the pass prints for an attempt of an entry
+    (`OVERLAP`,
+    `TALLY`,
+    `INTERRUPTED`,
+    `DESTINATIONS`,
+    `DEFECTS`,
+    `CLEANUP`,
+    `REATTEMPT`,
+    `STALLED`,
+    `INCOMPLETE`,
+    `NOT RESUMED`),
+    straight after the keyword and the entry
+    (and after the status on a `TALLY`,
+    or `queued` on a `REATTEMPT`).
+    `at=` is the time the line was rendered,
+    an ISO 8601 UTC time with milliseconds,
+    so a window of the log is found by it
+    (a settled `TALLY` is rendered before its page is persisted,
+    so it reads a little earlier than the `DESTINATIONS` line printed beside it);
+    `attempt=` is the number `attempts.json` holds for the entry,
+    so the `TALLY` of an attempt and the `REATTEMPT` after it print the same number.
+    A tally ending `error=Timeout: ... exceeded its ...ms deadline`,
+    a `REATTEMPT` after it and a later `attempt=` read as one cap ending one attempt,
+    and not as a cap that failed to fire.
+
+-   `at=<time>` alone,
+    on the lines of the pass itself:
+    `START` and `DONE` end with it,
+    as do the lines that stop the pass between entries
+    (`SOFT budget reached`,
+    `SPEND CEILING reached`,
+    `STOP every provider is out of budget`).
+    They belong to no attempt and carry no `attempt=`.
+    The `INCOMPLETE <id> at=<time>: <side> page absent at the pin` line is printed before any attempt exists,
+    so it carries `at=` straight after the entry and no `attempt=`,
+    and that absent field tells it from the `INCOMPLETE <id> at=<time> attempt=<n>:` line of an attempt.
+    The lines the tagged logger writes carry the logger's own time,
+    and those inside an attempt hold an `[attempt <n>]` bracket after the entry
+    (`[<entry>] [attempt <n>] ...`,
+    and `[<entry>] [runDocumentLanes] [repairPreparedDocument] [attempt <n>] ...`
+    for a lane's own lines,
+    where the function tags come first),
+    followed inside a slice by `[<lane> slice <i>]`,
+    with the lane `repair`,
+    `translate`,
+    `consolidation` or `contest`.
+    Search for the `[attempt <n>]` bracket and not for its place after the entry
+    (`package/translation-repair/doc/configuration.md` states the order).
+
 -   `CAP OVERRIDDEN`,
     only when `TRANSLATION_REPAIR_HARD_CAP_MINUTES` was set.
-    It names the per-entry ceiling actually in force.
+    It names the ceiling each attempt of an entry runs under actually in force.
 
 -   `CAP TOO TIGHT`,
     which is a warning and not a refusal.
@@ -585,12 +642,12 @@ Each is the exact string the log carries.
     nothing caches,
     and the queue drops each entry as stalled on its second try.
 
--   `REATTEMPT <id> queued`,
+-   `REATTEMPT <id> queued at=<time> attempt=<n>`,
     which is healthy only after resumable operational error or hard cap.
     Entry that bought more cache records goes to back of queue.
     Quality rejection and `status=INCOMPLETE` must never produce this line.
 
--   `TALLY <id> status=INCOMPLETE`,
+-   `TALLY <id> status=INCOMPLETE at=<time> attempt=<n>`,
     which means stage-local work remains.
     It is neither success,
     quality verdict,
@@ -598,7 +655,7 @@ Each is the exact string the log carries.
     Cache stays,
     but whole entry does not restart in same invocation.
 
--   `TALLY <id> status=PARKED returnsInMs=<n> returnsAt=<time>`,
+-   `TALLY <id> status=PARKED at=<time> attempt=<n> returnsInMs=<n> returnsAt=<time>`,
     which means the pass paused because NeuralWatt's energy returns at that time of day,
     written as an ISO 8601 time with `Z` for UTC,
     and the entry goes back to the front of the queue to run again after the wait.
@@ -613,7 +670,10 @@ Each is the exact string the log carries.
     The operator does nothing while the pass waits,
     and the log ends the wait one of two ways.
     When the pass resumes the entry,
-    the gate logs `the pass resumes` and the entry's next `TALLY` line is the one that counts.
+    the gate logs `the pass resumes`
+    (a logger line,
+    so it carries the logger's time)
+    and the entry's next `TALLY` line is the one that counts.
     When the pass budget (the soft time budget or a spend ceiling) ends during or after the wait,
     the log shows `PARKED`,
     `the pass resumes`,
@@ -625,7 +685,7 @@ Each is the exact string the log carries.
     A `PARKED` line with neither ending means the run was stopped during the wait,
     and the entry is likewise left resumable.
 
--   `STALLED <id>`,
+-   `STALLED <id> at=<time> attempt=<n>`,
     which is the earned-re-attempt rule refusing.
     The entry finished an attempt with no more cache records than it started with,
     so it is dropped for this invocation.

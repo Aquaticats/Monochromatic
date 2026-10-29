@@ -2,7 +2,8 @@
 
 Report and probe commands that printed a claim their own figures deny,
 or bought work nothing could use,
-and the examination of coverage rounds that were claimed to buy nothing (B811).
+the examination of coverage rounds that were claimed to buy nothing (B811),
+and the pass's per-entry lines that named neither the time nor the attempt they belong to (B960).
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -806,3 +807,104 @@ for three reasons.
 
 Commits:
 none.
+
+## B960: the pass's per-entry lines carried no clock time and no attempt, and START did not say the cap is per attempt
+
+Fixed on 2026-10-25 (UTC) in `4b85db7c20` (slice-cache),
+`7126ed31e4` (page-check) and `9780419baf` (corpus-pass),
+with the stamp writer in `89c495264a` (markup).
+Their cases were committed red first,
+in `541a576781`,
+`09d99aea15` and `7b711c6047`,
+and each failed on its parent for the missing field.
+
+Found on 2026-10-22 reading the `XingZ60` pass.
+Its log carried a `TALLY XingZ60` line with `status=ERROR`,
+`ms=25200743`,
+`aborted=true` and `error=Timeout: XingZ60 exceeded its 25200000ms deadline`,
+then a `REATTEMPT XingZ60` line for 310 more cache records,
+and the second attempt began under a fresh 420-minute cap.
+That is the design (`doc/configuration.md`,
+"The cap ends an attempt rather than an entry"),
+but nothing on those lines said when each was printed or which attempt it closed,
+and the `START` line said `hard=25200000ms` and no more.
+A reader looking for what happened inside a time window could not place a `TALLY`,
+a `REATTEMPT` or an `OVERLAP` line,
+and the cap read as one that had fired without ending the entry.
+
+What the census found
+(a read of every `console` call in the non-test source of `corpus-pass`,
+`slice-cache`,
+`page-check` and `artifact-pool`,
+of the other `translation-repair` packages,
+and of the tagged-logger calls of the pass packages):
+
+- No `console.log` line of the pass carried the time it was printed at.
+  Only the tagged logger's lines do (`[level] [iso] ...`,
+  the spelling `toISOString` writes),
+  which `isIsoStampText` reads back (B73).
+  `returnsAt=` on a `PARKED` tally is a time of day in the future.
+- Ten kinds of line are printed for an attempt of an entry:
+  `OVERLAP`,
+  `TALLY` for settled,
+  error,
+  incomplete,
+  parked and declined entries,
+  `INTERRUPTED`,
+  `DESTINATIONS`,
+  `DEFECTS`,
+  `CLEANUP`,
+  `REATTEMPT`,
+  `STALLED`,
+  `INCOMPLETE` and `NOT RESUMED`.
+- No code reads them:
+  a search of every non-test source for the keywords found only emitters and comments.
+  The readers are the tests that pin their text and the docs that quote them.
+
+The fix:
+
+- Each of those lines carries `at=<ISO 8601 UTC with milliseconds>` and `attempt=<n>` straight after its opening words
+  (the keyword and the entry,
+  and the status of a `TALLY` or the `queued` of a `REATTEMPT`),
+  before the other fields and before any capped text,
+  so a search by prefix still finds them.
+  `lifecycleStamp` in `markup/src/lifecycle-stamp.ts` writes the two fields in one place.
+- The clock is a parameter (`wallClock`,
+  the wall clock by default) all the way down,
+  and no case waits on the real one.
+  Durations stay on the monotonic clock.
+- The attempt is the number `attempts.json` holds once the pass has counted the attempt,
+  handed to the settlement by `runPassQueue` and to `runAttemptQueue` as `attemptOf`.
+  A `TALLY` and the `REATTEMPT` after it print the same number,
+  and a case with four earlier attempts counted prints 5 and 6.
+  A number that is not a whole number from 1 is refused with `LifecycleAttemptError`.
+- `START` says `hard=<ms>ms hard-scope=per-attempt`.
+- Handover,
+  planning and audit files that quote the lines as they were printed are records and are not rewritten.
+
+Cache versions:
+none moved.
+`git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' 5c40a5fcb9..HEAD` printed nothing,
+and its control over `c265e8df95~1..c265e8df95` printed `c265e8df95`.
+No prompt,
+model call or cached step input changed.
+
+Left open by this round and answered in round 2
+(`audit-ledger-lifecycle-line-stamps-round-two.md`,
+B961 to B964):
+
+- `SOFT budget reached`,
+  `SPEND CEILING reached` and `STOP every provider ...` carried no clock time.
+  `the pass resumes` is a tagged-logger line and always carried the logger's.
+- The logger's own per-entry lines carried the logger's stamp and no attempt number.
+- `CAP OVERRIDDEN` read "entries run under N minutes" without saying per attempt.
+
+Open to the owner's veto:
+the attempt counts every attempt of every invocation,
+because that is what `attempts.json` holds and the ordering already reads it,
+so a first attempt of a later invocation prints `attempt=5` for an entry already tried four times.
+A count within the invocation would restart at 1 and could not be found in any file.
+
+Recurrence:
+`mistake-prevention-messages-labels-and-counts.md`,
+"A lifecycle line a reader windows by time".

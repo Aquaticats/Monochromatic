@@ -24,6 +24,25 @@ import {
 import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { PASS_FALLBACK_OVERLAP, } from '@monochromatic-dev/translation-repair-slice-cache/ts/corpus-run/slice-overlap-dial.test-fixture.ts';
 
+/**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ const overlap = entryOverlap({ entryId: 'Tabby', setting, attempt: 2, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
 await describe({
   name: '',
   children: [
@@ -72,7 +91,8 @@ await describe({
       name: entryOverlap.name,
       children: [
         it({
-          name: 'LOGS the entry\'s OVERLAP line with the value and its source, and returns the value',
+          name: 'LOGS the entry\'s OVERLAP line with the clock time, the attempt, the value and its source, and returns the '
+            + 'value',
           fn: async (ctx,) => {
             using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
 
@@ -82,8 +102,12 @@ await describe({
                 overlap: 2,
                 source: 'TRANSLATION_REPAIR_SLICE_OVERLAP',
               },
+              attempt: 2,
+              wallClock: fixedWallClock,
             },),).toBe(2,);
-            expect(printed.lines,).toEqual(['OVERLAP Tabby value=2 source=TRANSLATION_REPAIR_SLICE_OVERLAP',],);
+            expect(printed.lines,).toEqual([
+              'OVERLAP Tabby at=2026-10-22T08:10:11.123Z attempt=2 value=2 source=TRANSLATION_REPAIR_SLICE_OVERLAP',
+            ],);
           },
         },),
       ],

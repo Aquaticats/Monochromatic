@@ -32,7 +32,7 @@ Paths here are written in the layout after the split.
 Where the notes name no prevention,
 the entry says so.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M239: the dry runs of the move built and ran the suite but never linted

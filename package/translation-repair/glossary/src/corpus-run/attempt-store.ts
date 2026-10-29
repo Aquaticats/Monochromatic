@@ -43,12 +43,88 @@ const l = contextRoot({ tag: 'translation-repair', },);
 export type AttemptMap = Map<string, number>;
 
 /**
+ Whether a value read from the attempts file can stand as an entry's attempt count.
+
+ A COUNT IS A NON-NEGATIVE WHOLE NUMBER THE PASS CAN ADD ONE TO. The pass adds one to the count it reads and the
+ lifecycle stamp of the lines it prints for the attempt refuses anything that is not a safe integer from 1 (ledger
+ B960), so a hand-edited 1.5, -3, 1e999 (which parses to Infinity), 1e20 or 9007199254740991 (whose successor is the
+ first integer past the safe integers) passed through would end the pass at its first entry, outside any `try`,
+ and again at every launch since the file keeps it.
+
+ @param value - what the file holds for one entry
+
+ @returns Whether it is a safe integer of at least zero whose successor is a safe integer too
+
+ @example
+ ```ts
+ const usable = isAttemptCount(1.5,); // => false
+ ```
+ */
+function isAttemptCount(value: unknown,): value is number {
+  if ((typeof value) !== 'number')
+    return false;
+  if (!Number.isSafeInteger(value,))
+    return false;
+  if (value < 0)
+    return false;
+  return Number.isSafeInteger(value + 1,);
+}
+
+/**
+ An entry's attempt count that one more attempt would take past the safe integers.
+
+ THE MESSAGE IS ALL AN OPERATOR GETS. The error is thrown in the queue's attempt callback, between two entries and
+ outside any `try`, so it ends the pass and reaches the person who ran it as the command's refusal text (ledger B963).
+ It therefore names the entry, the file and the count, says what the next launch does with the count and what the
+ operator can do, and it is not a stated refusal because the entry id is a name the corpus chose.
+
+ @example
+ ```ts
+ throw new AttemptCountError({ id: 'Kitten', count: Number.MAX_SAFE_INTEGER, attemptsPath: '/runs/attempts.json', },);
+ ```
+ */
+export class AttemptCountError extends Error {
+  /**
+   Names the entry, the file and the count it was asked to add one to.
+
+   @param id - entry whose attempt was being counted
+
+   @param count - count the entry holds
+
+   @param attemptsPath - file that holds the count, which the next launch reads
+   */
+  public constructor(
+    {
+      id,
+      count,
+      attemptsPath,
+    }: {
+      readonly id: string;
+      readonly count: number;
+      readonly attemptsPath: string;
+    },
+  ) {
+    super(
+      `${id} holds an attempt count of ${String(count,)} in ${attemptsPath}, and one more attempt would be no safe `
+        + 'integer, which that file and the stamp of a lifecycle line cannot hold; the count is kept as it is and '
+        + `this pass ends here, before ${id} runs. The next launch reads that count as 0 beside a warning naming `
+        + `${id} and ${attemptsPath}, so ${id} sorts first and its attempts are counted again from 1. To go on, `
+        + `launch again, or set the count of ${id} in ${attemptsPath} to a whole number below ${
+          String(Number.MAX_SAFE_INTEGER,)
+        } first.`,
+    );
+    this.name = 'AttemptCountError';
+  }
+}
+
+/**
  Reads the persisted attempt map, tolerating a missing or malformed file so a
  corrupt cache never aborts a run.
 
  @param attemptsPath - location of the attempts JSON
 
- @returns Entry-id to attempt-count map, empty when absent or unreadable
+ @returns Entry-id to attempt-count map, empty when absent or unreadable, each count that is no whole number from 0 to
+ the largest safe integer less one read as 0 beside a warning naming the entry, the file and the value
 
  @throws {@link Error} when the file exists and is readable but fails for any
  reason other than absence or malformed JSON
@@ -93,12 +169,18 @@ export async function readAttemptMap(attemptsPath: string,): Promise<AttemptMap>
           string,
           number,
         ] {
-          if ((typeof value) === 'number')
+          if (isAttemptCount(value,))
             return [
               id,
               value,
             ];
-          rl.warn(`attempts file counts ${id} as no number; read as 0, so ${id} sorts first`,);
+          rl.warn(
+            `attempts file ${attemptsPath} counts ${id} as ${
+              (typeof value) === 'number' ? String(value,) : JSON.stringify(value,)
+            }, which is no whole number from 0 to ${
+              String(Number.MAX_SAFE_INTEGER - 1,)
+            }; read as 0, so ${id} sorts first`,
+          );
           return [
             id,
             0,
@@ -152,28 +234,44 @@ export function attemptsOf(
 
  @param id - entry about to be attempted
 
+ @param attemptsPath - file the counts persist to, which a refusal names so the operator can find the count
+
  @mutates attempts - sets this entry's count to one past what it held
+
+ @throws {@link AttemptCountError} when one past the count is no safe integer, which leaves the count as it was
 
  @example
  ```ts
- countAttempt({ attempts, id: 'Kitten', },);
+ countAttempt({ attempts, id: 'Kitten', attemptsPath: '/runs/attempts.json', },);
  ```
  */
 export function countAttempt(
   {
     attempts,
     id,
+    attemptsPath,
   }: {
     readonly attempts: AttemptMap;
     readonly id: string;
+    readonly attemptsPath: string;
   },
 ): void {
+  /**
+   Count the entry holds now.
+   */
+  const count = attemptsOf({
+    attempts,
+    id,
+  },);
+  if (!Number.isSafeInteger(count + 1,))
+    throw new AttemptCountError({
+      id,
+      count,
+      attemptsPath,
+    },);
   attempts.set(
     id,
-    attemptsOf({
-      attempts,
-      id,
-    },) + 1,
+    count + 1,
   );
 }
 

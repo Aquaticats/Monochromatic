@@ -9,7 +9,7 @@ for the rounds that fixed the eighth and ninth reviews and the mistakes of the l
 are filed in
 [Audit ledger: process mistakes, agents and briefs in the consistency fix rounds](audit-ledger-process-agents-and-briefs-consistency-fix-rounds.md).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M118: a count an agent's permission check refused, asked of the lead

@@ -1,5 +1,9 @@
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
+import {
   discardSliceCache,
   openPictureReadingCache,
   openRefineSliceCache,
@@ -108,18 +112,27 @@ export async function openEntryCaches(
 
  @param dir - entry-owned cache directory
 
+ @param attempt - number of the entry's attempt that settled, as the pass's attempts file holds it, which a `CLEANUP`
+ line carries beside its clock time (ledger B960)
+
+ @param wallClock - clock the `CLEANUP` line's time is read on; the wall clock unless a test fixes it
+
  @example
  ```ts
- await retireSettledEntryCache({ entryId, dir, });
+ await retireSettledEntryCache({ entryId, dir, attempt, });
  ```
  */
 export async function retireSettledEntryCache(
   {
     entryId,
     dir,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
-    readonly dir: string
+    readonly dir: string;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
   },
 ): Promise<void> {
   try {
@@ -136,7 +149,14 @@ export async function retireSettledEntryCache(
     // success line and every reader counting statuses saw one entry as both.
     // What is left behind is a stale cache directory, which costs disk and
     // nothing else: the next run skips the entry on its artifact.
-    console.log(`CLEANUP ${entryId} cache=retained error=${tallyErrorText({ error, },)}`,);
+    console.log(
+      `CLEANUP ${entryId} ${
+        lifecycleStamp({
+          attempt,
+          wallClock,
+        },)
+      } cache=retained error=${tallyErrorText({ error, },)}`,
+    );
   }
 }
 

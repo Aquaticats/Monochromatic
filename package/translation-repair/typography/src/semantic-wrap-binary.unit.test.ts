@@ -23,6 +23,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
+import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure';
 
 import {
   LINT_BINARY_NAME,
@@ -265,56 +266,38 @@ await describe({
         },),
 
         it({
-          name: 'HOLDS THE PINNED VERSION TO THE ONE mise.lock RECORDS for the cargo tool, since the constant '
-            + 'and the lock are two writings of one fact; mise.toml asks for the latest release of a tool '
-            + 'this repository publishes, so the lock, not mise.toml, names the version installed',
+          name: 'HOLDS THE PINNED VERSION TO THE ONE toolchain.lock.json RECORDS for the cargo tool, since '
+            + 'the constant and the lock are two writings of one fact; the tool plan asks for the latest '
+            + 'release of a tool this repository publishes, so the lock names the version installed. '
+            + 'The lock was mise.lock until the toolchain moved to MPM on 2026-10-28',
           fn: async () => {
             /**
-             The repository's tool lock, four directory levels above this one.
+             The repository's tool lock, four directory levels above this one, parsed.
              */
-            const lockFile = await readFile(
-              join(
-                import.meta.dirname,
-                '..',
-                '..',
-                '..',
-                '..',
-                'mise.lock',
+            const lock: unknown = JSON.parse(
+              await readFile(
+                join(
+                  import.meta.dirname,
+                  '..',
+                  '..',
+                  '..',
+                  '..',
+                  'toolchain.lock.json',
+                ),
+                'utf8',
               ),
-              'utf8',
             );
             /**
-             The lock's lines, read in order.
+             The lock's table of tools, keyed by tool id.
              */
-            const lockLines = lockFile.split('\n',);
+            const tools = isJsonRecord(lock,) ? lock.tools : undefined;
             /**
-             Line opening the tool's entry.
+             The lint tool's entry in that table.
              */
-            const entryStart = lockLines.indexOf(`[[tools."cargo:${LINT_BINARY_NAME}"]]`,);
-            /**
-             Lines after the one opening the tool's entry, to the end of the lock.
-             */
-            const entryLines = lockLines.slice(entryStart + 1,);
-            /**
-             Index of the next table header, or the end of the lock when the tool's entry is the last.
-             */
-            const entryEnd = entryLines.findIndex(function opensTable(line,): boolean {
-              return line.startsWith('[',);
-            },);
-            /**
-             Number of lines the tool's entry holds.
-             */
-            const entryLength = (entryEnd === (-1)) ? entryLines.length : entryEnd;
-            /**
-             The entry's version line.
-             */
-            const versionLine = entryLines.slice(0, entryLength,)
-              .find(function namesVersion(line,): boolean {
-                return line.startsWith('version = ',);
-              },);
+            const entry = isJsonRecord(tools,) ? tools[`cargo:${LINT_BINARY_NAME}`] : undefined;
 
-            expect(entryStart,).not.toBe(-1,);
-            expect(versionLine,).toBe(`version = "${PINNED_LINT_BINARY_VERSION}"`,);
+            expect(isJsonRecord(entry,),).toBe(true,);
+            expect(isJsonRecord(entry,) ? entry.version : undefined,).toBe(PINNED_LINT_BINARY_VERSION,);
           },
         },),
       ],

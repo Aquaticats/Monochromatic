@@ -8,7 +8,10 @@
  */
 
 import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/module-logger/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
@@ -61,6 +64,57 @@ async function infoLinesOf(
   return lines;
 }
 
+/**
+ Writes one line through a lane logger and one through a stage logger inside attempt 2, slice 3 of the repair lane of
+ an entry, and collects what `console.info` received.
+
+ @param laneLogger - logger that writes `kneads`
+
+ @param stageLogger - logger that writes `stretches`
+
+ @returns The printed lines one by one, since the logger hands a run of lines of one level to the console as one call
+
+ @example
+ ```ts
+ const printed = await printedInOneSlice({ laneLogger, stageLogger, },);
+ ```
+ */
+async function printedInOneSlice(
+  {
+    laneLogger,
+    stageLogger,
+  }: {
+    readonly laneLogger: Pick<Logger, 'info'>;
+    readonly stageLogger: Pick<Logger, 'info'>;
+  },
+): Promise<readonly string[]> {
+  /**
+   Lines printed inside one slice.
+   */
+  const lines = await infoLinesOf({
+    run: async () => {
+      await inEntryLogContext({
+        entry: 'Tabby',
+        generation: 'nap-3',
+        attempt: 2,
+        run: async () => {
+          await inSliceLogContext({
+            lane: 'repair',
+            sliceIndex: 3,
+            run: async () => {
+              laneLogger.info('kneads',);
+              stageLogger.info('stretches',);
+            },
+          },);
+        },
+      },);
+    },
+  },);
+  return lines.flatMap(function split(text,): readonly string[] {
+    return text.split('\n',);
+  },);
+}
+
 await describe({
   name: '',
   concurrency: 1,
@@ -70,19 +124,23 @@ await describe({
       concurrency: DEFAULT_CONCURRENCY,
       children: [
         it({
-          name: 'READS empty outside any entry, the entry inside one, and entry, lane and slice inside a slice',
+          name: 'READS empty outside any entry, the entry and its attempt inside one, and entry, attempt, lane and slice '
+            + 'inside a slice (ledger B960)',
           fn: async () => {
             expect(currentLogContext(),).toStrictEqual({
               entry: '',
               generation: '',
+              attempt: '',
               lane: '',
               slice: '',
             },);
             await inEntryLogContext({
               entry: 'Tabby',
               generation: 'nap-3',
+              attempt: 2,
               run: async () => {
                 expect(currentLogContext().entry,).toBe('Tabby',);
+                expect(currentLogContext().attempt,).toBe('2',);
                 await inSliceLogContext({
                   lane: 'repair',
                   sliceIndex: 3,
@@ -90,14 +148,47 @@ await describe({
                     expect(currentLogContext(),).toStrictEqual({
                       entry: 'Tabby',
                       generation: 'nap-3',
+                      attempt: '2',
                       lane: 'repair',
                       slice: '3',
                     },);
                   },
                 },);
                 expect(currentLogContext().slice,).toBe('',);
+                expect(currentLogContext().attempt,).toBe('2',);
               },
             },);
+          },
+        },),
+        it({
+          name: 'KEEPS an entry\'s attempt apart from the attempt of the same entry run after it, since a second '
+            + 'attempt of one entry begins under a fresh context',
+          fn: async () => {
+            /**
+             Attempt each of two runs of one entry saw.
+             */
+            const seen: string[] = [];
+            for (
+              const attempt of [
+                1,
+                2,
+              ]
+            ) {
+              /* oxlint-disable no-await-in-loop -- the attempts of an entry run one after the other */
+              await inEntryLogContext({
+                entry: 'Tabby',
+                generation: 'nap-3',
+                attempt,
+                run: async () => {
+                  seen.push(currentLogContext().attempt,);
+                },
+              },);
+              /* oxlint-enable no-await-in-loop */
+            }
+            expect(seen,).toStrictEqual([
+              '1',
+              '2',
+            ],);
           },
         },),
         it({
@@ -109,6 +200,7 @@ await describe({
             const seen = await inEntryLogContext({
               entry: 'Calico',
               generation: 'nap-3',
+              attempt: 1,
               run: async () => await Promise.all([
                 1,
                 2,
@@ -139,7 +231,7 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'NAMES the entry, lane and slice after the root tag, and nothing outside an entry',
+          name: 'NAMES the entry, its attempt, lane and slice after the root tag, and nothing outside an entry',
           fn: async () => {
             /**
              Root logger under test.
@@ -153,7 +245,9 @@ await describe({
                 await inEntryLogContext({
                   entry: 'Tabby',
                   generation: 'nap-3',
+                  attempt: 2,
                   run: async () => {
+                    l.info('purr in the entry',);
                     await inSliceLogContext({
                       lane: 'repair',
                       sliceIndex: 3,
@@ -167,7 +261,10 @@ await describe({
               },
             },);
             expect(lines.some(function tagsSlice(line,): boolean {
-              return line.includes('[whiskers] [Tabby] [repair slice 3] purr in the slice',);
+              return line.includes('[whiskers] [Tabby] [attempt 2] [repair slice 3] purr in the slice',);
+            },),).toBe(true,);
+            expect(lines.some(function tagsEntry(line,): boolean {
+              return line.includes('[whiskers] [Tabby] [attempt 2] purr in the entry',);
             },),).toBe(true,);
             expect(lines.some(function bareOutside(line,): boolean {
               return line.includes('[whiskers] purr outside',);
@@ -175,7 +272,7 @@ await describe({
           },
         },),
         it({
-          name: 'ADDS only the lane and slice to a logger already tagged with the entry',
+          name: 'ADDS only the attempt, lane and slice to a logger already tagged with the entry',
           fn: async () => {
             /**
              Entry logger under test, tagged with the entry the way the pass
@@ -187,18 +284,120 @@ await describe({
              */
             const lines = await infoLinesOf({
               run: async () => {
-                await inSliceLogContext({
-                  lane: 'consolidation',
-                  sliceIndex: 7,
+                await inEntryLogContext({
+                  entry: 'Tabby',
+                  generation: 'nap-3',
+                  attempt: 4,
                   run: async () => {
-                    l.info('kneads',);
+                    await inSliceLogContext({
+                      lane: 'consolidation',
+                      sliceIndex: 7,
+                      run: async () => {
+                        l.info('kneads',);
+                      },
+                    },);
                   },
                 },);
               },
             },);
             expect(lines.some(function tagsSliceOnce(line,): boolean {
-              return line.includes('[Tabby] [consolidation slice 7] kneads',);
+              return line.includes('[Tabby] [attempt 4] [consolidation slice 7] kneads',);
             },),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'WRITES the attempt, lane and slice ONCE where a lane slice-tags its lines beneath an entry logger that '
+            + 'is slice-tagged too, and keeps the order of the tags a lane has always written (ledger B963)',
+          fn: async () => {
+            /**
+             Entry logger, slice-tagged as the pass builds it.
+             */
+            const entryLogger = sliceTagged({ l: tagged({ tag: 'Tabby', },), },);
+            /**
+             Lane logger over it, tagged with the lane's function and slice-tagged again, as `repairPreparedDocument` does.
+             */
+            const laneLogger = sliceTagged({
+              l: tagged({
+                tag: 'repairPreparedDocument',
+                l: entryLogger,
+              },),
+            },);
+            /**
+             A stage logger over the entry logger, tagged with a function only.
+             */
+            const stageLogger = tagged({
+              tag: 'editor',
+              l: entryLogger,
+            },);
+            /**
+             The printed lines one by one.
+             */
+            const printed = await printedInOneSlice({
+              laneLogger,
+              stageLogger,
+            },);
+            expect(printed.filter(function isLane(line,): boolean {
+              return line.includes('[Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',);
+            },).length,).toBe(1,);
+            expect(printed.filter(function isStage(line,): boolean {
+              return line.includes('[Tabby] [attempt 2] [repair slice 3] [editor] stretches',);
+            },).length,).toBe(1,);
+            expect(printed.map(function attemptTags(line,): number {
+              return line.split('[attempt 2]',).length - 1;
+            },),).toStrictEqual([
+              1,
+              1,
+            ],);
+          },
+        },),
+        it({
+          name: 'WRITES the attempt, lane and slice ONCE where a lane slice-tags its lines beneath a module root logger '
+            + 'instead of an entry logger, which is what `repairPreparedDocument` does when its caller hands it no '
+            + 'parent logger, and keeps the root\'s own order for a stage logger tagged over it (ledger B963)',
+          fn: async () => {
+            /**
+             Module root logger, as `repairPreparedDocument` defaults its parent logger to.
+             */
+            const rootLogger = contextRoot({ tag: 'translation-repair-pipeline', },);
+            /**
+             Lane logger over it, tagged with the lane's function and slice-tagged, as `repairPreparedDocument` builds it.
+             */
+            const laneLogger = sliceTagged({
+              l: tagged({
+                tag: 'repairPreparedDocument',
+                l: rootLogger,
+              },),
+            },);
+            /**
+             A stage logger over the root, tagged with a function only.
+             */
+            const stageLogger = tagged({
+              tag: 'editor',
+              l: rootLogger,
+            },);
+            /**
+             The printed lines one by one.
+             */
+            const printed = await printedInOneSlice({
+              laneLogger,
+              stageLogger,
+            },);
+            expect(printed.filter(function isLane(line,): boolean {
+              return line.includes(
+                '[translation-repair-pipeline] [Tabby] [repairPreparedDocument] [attempt 2] [repair slice 3] kneads',
+              );
+            },).length,).toBe(1,);
+            expect(printed.filter(function isStage(line,): boolean {
+              return line.includes(
+                '[translation-repair-pipeline] [Tabby] [attempt 2] [repair slice 3] [editor] stretches',
+              );
+            },).length,).toBe(1,);
+            expect(printed.map(function attemptTags(line,): number {
+              return line.split('[attempt 2]',).length - 1;
+            },),).toStrictEqual([
+              1,
+              1,
+            ],);
           },
         },),
         it({

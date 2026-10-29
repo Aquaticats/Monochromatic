@@ -4,7 +4,7 @@ Claims written without their evidence,
 in commit messages,
 the ledger and notes.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M9: a ledger claim written from a summary rather than measured

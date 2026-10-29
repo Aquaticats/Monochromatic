@@ -1,8 +1,12 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 
 import { armCallDeadline, } from '@monochromatic-dev/translation-repair-provider/ts';
-import { monotonicMs, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  monotonicMs,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { repairClaimEvidenceOf, } from '@monochromatic-dev/translation-repair-archive/ts';
+import { sliceTagged, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type CorpusPair,
   entryArchiveOriginalOf,
@@ -112,11 +116,16 @@ import {
  @param floorLimited - what earlier attempts of this pass left for this entry's translate slices that ended unfilled
  on a select bench below its floor
 
+ @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
+ the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
+
+ @param wallClock - clock those lines' times are read on; the wall clock unless a test fixes it
+
  @returns Whether an artifact was written
 
  @example
  ```ts
- const outcome = await runEntryPipeline({ client, entry, artifactsDir, entryCacheDir, ... },);
+ const outcome = await runEntryPipeline({ client, entry, artifactsDir, entryCacheDir, attempt, ... },);
  ```
  */
 export async function runEntryPipeline(
@@ -140,9 +149,13 @@ export async function runEntryPipeline(
     endRun,
     parked,
     floorLimited,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly client: RunClient;
     readonly entry: CorpusPair;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
@@ -166,6 +179,12 @@ export async function runEntryPipeline(
    Start time of this entry, for its duration.
    */
   const t0 = monotonicMs();
+
+  /**
+   Entry logger every stage of the entry writes through, which reads the log context at each line, so a line written
+   inside the entry's attempt names the attempt (ledger B963).
+   */
+  const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
 
   /**
    Per-entry hard-cap deadline. Disposal at return defuses the timer and
@@ -192,7 +211,7 @@ export async function runEntryPipeline(
      */
     const archiveOriginal = entryArchiveOriginalOf({
       entry,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
     if (archiveOriginal.kind === 'whole-page')
       return await recordEntryDecline({
@@ -204,6 +223,8 @@ export async function runEntryPipeline(
         corpusSha: pin.commitSha,
         note: archiveOriginal.note,
         startedAt: t0,
+        attempt,
+        wallClock,
       },);
 
     /**
@@ -235,7 +256,7 @@ export async function runEntryPipeline(
       pin,
       cache: readingCache,
       signal: deadline.callSignal,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       pictureSources,
       ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     },);
@@ -338,7 +359,7 @@ export async function runEntryPipeline(
     } = foldPassCarried({
       paired,
       admission: admissionAsRead,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
 
     /**
@@ -383,8 +404,7 @@ export async function runEntryPipeline(
      */
     const { unfilled, } = lanes.translate;
     for (const finding of unfilledPageFindings({ unfilled, },)) {
-      tagged({ tag: entry.id, },)
-        .warn(`entry ${entry.id}: ${finding}`,);
+      el.warn(`entry ${entry.id}: ${finding}`,);
     }
 
     /**
@@ -420,7 +440,7 @@ export async function runEntryPipeline(
       pipelineDigest,
       signal: deadline.callSignal,
       overlap,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       stageSettings,
     },);
 
@@ -450,7 +470,7 @@ export async function runEntryPipeline(
       pipelineDigest,
       signal: deadline.callSignal,
       overlap,
-      l: tagged({ tag: entry.id, },),
+      l: el,
       stageSettings,
     },);
 
@@ -473,7 +493,7 @@ export async function runEntryPipeline(
       contestSlices,
       ...settlement,
       targetText: settledArchiveText,
-      l: tagged({ tag: entry.id, },),
+      l: el,
     },);
 
     // This entry's TALLY line, read off the artifact BEFORE it is written.
@@ -500,7 +520,11 @@ export async function runEntryPipeline(
     /**
      Tally proven readable before any persistence.
      */
-    const tally = settledTallyLine({ artifact, },);
+    const tally = settledTallyLine({
+      artifact,
+      attempt,
+      wallClock,
+    },);
 
     // BEFORE THE ARTIFACT, for the same reason the tally line is read before it,
     // and for one more. A pass builds its skip set from the artifacts already on
@@ -511,6 +535,8 @@ export async function runEntryPipeline(
     printSettledLines({
       entryId: entry.id,
       tally,
+      attempt,
+      wallClock,
       published: await persistSettledEntry({
         artifact,
         slices: prepared.slices,
@@ -519,7 +545,7 @@ export async function runEntryPipeline(
         entryId: entry.id,
         publishDir,
         artifactsDir,
-        l: tagged({ tag: entry.id, },),
+        l: el,
         ...((prepared.archiveOriginalSpans === undefined)
           ? {}
           : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),
@@ -531,6 +557,8 @@ export async function runEntryPipeline(
     return tallyCaughtEntry({
       entryId: entry.id,
       error,
+      attempt,
+      wallClock,
       durationMs: monotonicMs() - t0,
       aborted: deadline.callSignal
         .aborted,

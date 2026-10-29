@@ -1,3 +1,7 @@
+import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import type { DestinationCheck, } from './dropped-destinations.ts';
 
 //region Destinations line
@@ -12,21 +16,30 @@ import type { DestinationCheck, } from './dropped-destinations.ts';
 
  @param destinations - what the publisher found on both sides
 
- @returns One line, `DESTINATIONS <id> source=N page=M dropped=K`, followed by
- any finding
+ @param attempt - number of the entry's attempt the page was published in, as the pass's attempts file holds it
+
+ @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
+
+ @returns One line, `DESTINATIONS <id> at=<time> attempt=<n> source=N page=M dropped=K`, followed by any finding
+
+ @throws `LifecycleAttemptError` (markup package) when the attempt is not a whole number from 1
 
  @example
  ```ts
- console.log(destinationsLine({ entryId: 'BookshopCat', destinations, },),);
+ console.log(destinationsLine({ entryId: 'BookshopCat', destinations, attempt: 2, },),);
  ```
  */
 export function destinationsLine(
   {
     entryId,
     destinations,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
     readonly destinations: DestinationCheck;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
   },
 ): string {
   /**
@@ -60,8 +73,12 @@ export function destinationsLine(
     },)
     .join('',);
 
-  return `DESTINATIONS ${entryId} source=${String(sourceCount,)} page=${String(pageCount,)} `
-    + `dropped=${String(droppedCount,)}${noted}`;
+  return `DESTINATIONS ${entryId} ${
+    lifecycleStamp({
+      attempt,
+      wallClock,
+    },)
+  } source=${String(sourceCount,)} page=${String(pageCount,)} dropped=${String(droppedCount,)}${noted}`;
 }
 
 //endregion Destinations line

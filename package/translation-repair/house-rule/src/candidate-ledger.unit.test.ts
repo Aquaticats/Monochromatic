@@ -404,8 +404,8 @@ await describe({
       },
     },),
     it({
-      name: 'NAMES the entry, pipeline, lane and slice a contest was judged for, so a reader can join it '
-        + 'to the artifact that shipped it (ledger A11)',
+      name: 'NAMES the entry, pipeline, attempt, lane and slice a contest was judged for, so a reader can join it '
+        + 'to the artifact that shipped it and to the attempt that judged it (ledger A11, B960)',
       fn: async () => {
         /**
          Throwaway this case writes into.
@@ -415,6 +415,7 @@ await describe({
         await inEntryLogContext({
           entry: 'Tabby',
           generation: 'nap-3',
+          attempt: 3,
           run: async function judgeTheEntry(): Promise<void> {
             await inSliceLogContext({
               lane: 'translate',
@@ -440,6 +441,7 @@ await describe({
         },),).toStrictEqual([{
           entry: 'Tabby',
           generation: 'nap-3',
+          attempt: '3',
           lane: 'translate',
           slice: '4',
         },],);

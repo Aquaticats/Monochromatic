@@ -28,6 +28,25 @@ import {
 } from '../../dist/final/node/index.mjs';
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ const line = defectsLine({ entryId, defects, attempt: 2, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  One consolidation slice as an artifact records it, shipping the kind given.
 
  @param sliceIndex - slice the record answers
@@ -245,15 +264,19 @@ await describe({
           fn: async () => {
             expect(defectsLine({
               entryId: 'WhiskerCat',
+              attempt: 2,
+              wallClock: fixedWallClock,
               defects: [],
             },),).toBe('',);
           },
         },),
         it({
-          name: 'NAMES THE ENTRY AND EVERY FAILED CHECK in the order they ran',
+          name: 'NAMES THE ENTRY AND EVERY FAILED CHECK in the order they ran, after the clock time and the attempt',
           fn: async () => {
             expect(defectsLine({
               entryId: 'WhiskerCat',
+              attempt: 2,
+              wallClock: fixedWallClock,
               defects: [
                 {
                   check: 'front-matter',
@@ -264,7 +287,7 @@ await describe({
                   message: 'entry WhiskerCat drops 1 whisker',
                 },
               ],
-            },),).toBe('DEFECTS WhiskerCat checks=front-matter,destinations',);
+            },),).toBe('DEFECTS WhiskerCat at=2026-10-22T08:10:11.123Z attempt=2 checks=front-matter,destinations',);
           },
         },),
       ],

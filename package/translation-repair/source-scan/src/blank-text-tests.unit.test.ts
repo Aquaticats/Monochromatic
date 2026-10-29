@@ -1995,6 +1995,10 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 2,
     why: ASSEMBLED,
   },
+  'typography/log-context.ts#attemptText': {
+    tests: 1,
+    why: ASSEMBLED,
+  },
   'typography/log-context.ts#laneSliceText': {
     tests: 1,
     why: ASSEMBLED,

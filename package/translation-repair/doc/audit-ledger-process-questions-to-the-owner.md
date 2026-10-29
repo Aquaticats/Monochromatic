@@ -5,7 +5,7 @@ measurable questions,
 options the evidence contradicts,
 and requests the owner had ruled out.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M7: an adopted reading parked in docs across a compaction
