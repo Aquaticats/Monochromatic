@@ -78,7 +78,9 @@ The `run` task itself ran this way with the host build path disabled, a scratch 
   C dependencies (libopus through CMake, bindgen for PipeWire) build with `zig cc`, and the build took 8 minutes 56 seconds here
   on a loaded host.
   The shared libraries the program loads at run time (`libfontconfig`, `libpipewire-0.3`) still come from the host.
-  Commit `4723d28bc9` applies this to the `run` task only; `run-quick` and `run-debug` still build with plain cargo in the container.
+  Commit `4723d28bc9` applies this to the `run` task, and commit `21e72de5c0` to `run-quick` (LTO off, `target/quick`) and `run-debug` (no `--release`).
+  With the host build path disabled, each started on the glibc 2.43 host with `--version` printing `music-player 0.1.13`,
+  and `objdump -T` listed no `GLIBC_2.4x` symbol; the newest version was `GLIBC_2.39` for both.
   The owner adopted it for now; issue #1814 tracks replacing Zig (candidates: polyfill-glibc, obggcc).
 - Build on an image whose glibc is not newer than the host's (a pinned older base, or the Ubuntu 24.04 release image).
   Tradeoff: it contradicts the owner's rule that base images track upstream.
