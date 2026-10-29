@@ -24,6 +24,7 @@ import {
   type CrateInfo,
   readCrateInfo,
 } from './crate-info.ts';
+import { generatedEntries, } from './default-features.ts';
 import { catalogSplices, } from './edit-catalog.ts';
 import {
   generatedTableSplices,
@@ -36,6 +37,7 @@ import {
   type Splice,
 } from './text-splice.ts';
 import type {
+  GeneratedEntry,
   ManifestFile,
   SyncIssue,
   SyncResult,
@@ -145,13 +147,13 @@ function resolveCrate(
     readonly issues: SyncIssue[];
   },
 ): {
-  readonly entries: ReadonlyMap<string, RustCatalogEntry>;
+  readonly entries: ReadonlyMap<string, GeneratedEntry>;
   readonly splices: readonly Splice[]
 } {
   /**
-   Generated entries for this crate.
+   Resolved catalog entries for this crate.
    */
-  const entries = new Map<string, RustCatalogEntry>();
+  const resolvedEntries = new Map<string, RustCatalogEntry>();
   /**
    Splices for this manifest's use sites.
    */
@@ -226,7 +228,7 @@ function resolveCrate(
           catalogName,
           name: site.name,
         },),);
-    entries.set(
+    resolvedEntries.set(
       site.name,
       entry,
     );
@@ -250,7 +252,11 @@ function resolveCrate(
     }
   }
   return {
-    entries,
+    entries: generatedEntries({
+      info,
+      resolvedEntries,
+      issues,
+    },),
     splices,
   };
 }

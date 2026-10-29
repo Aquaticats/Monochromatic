@@ -16,6 +16,11 @@ import {
   createStopRemindersHandler,
   stopRemindersDecision,
 } from './index.ts';
+import {
+  dismissalLead,
+  questionLead,
+  uncertaintyLead,
+} from './reminder-lead.ts';
 
 /**
  Fields a test varies on the built stop event; anything omitted keeps its default.
@@ -48,6 +53,27 @@ function stopEvent(overrides: StopEventOverrides = {},): StopInput {
     last_assistant_message: 'Done.',
     ...overrides,
   };
+}
+
+/**
+ Transcript line for a message the human typed, which closes the window the once-per-trigger scan reads.
+ */
+const HUMAN_LINE = JSON.stringify({ type: 'user', origin: { kind: 'human', }, message: { content: 'go', }, },);
+
+/**
+ Transcript line for the feedback record Claude Code writes when this hook blocks.
+
+ @param lead - opening sentence of the reminder the record carries
+
+ @returns one JSONL line
+
+ @example
+ ```ts
+ feedbackLine(uncertaintyLead('probably'));
+ ```
+ */
+function feedbackLine(lead: string,): string {
+  return JSON.stringify({ type: 'user', message: { content: `Stop hook feedback:\n${lead} Continue.`, }, },);
 }
 
 await describe({
@@ -139,7 +165,7 @@ await describe({
           },
         },),
         it({
-          name: "still blocks inside a chain, where the quality detectors no longer apply",
+          name: "reports a hedge inside a chain the first time and still appends the continuation",
           fn: async () => {
             const output = stopRemindersDecision({
               event: stopEvent({ stop_hook_active: true, last_assistant_message: "This probably works.", },),
@@ -147,7 +173,35 @@ await describe({
             },);
 
             expect(output.decision,).toBe("block",);
+            expect(output.reason,).toContain("uncertain language",);
+            expect(output.reason,).toContain("Resume the next item now",);
+          },
+        },),
+        it({
+          name: "leaves a hedge out of a chain once it was raised in this turn, keeping only the continuation",
+          fn: async () => {
+            const output = stopRemindersDecision({
+              event: stopEvent({ stop_hook_active: true, last_assistant_message: "This probably works.", },),
+              forcedContinuationAllowed: true,
+              transcriptLines: [HUMAN_LINE, feedbackLine(uncertaintyLead("probably",),),],
+            },);
+
+            expect(output.decision,).toBe("block",);
             expect(output.reason,).not.toContain("uncertain language",);
+            expect(output.reason,).toContain("Resume the next item now",);
+          },
+        },),
+        it({
+          name: "reports a different hedge inside a chain even after another was raised",
+          fn: async () => {
+            const output = stopRemindersDecision({
+              event: stopEvent({ stop_hook_active: true, last_assistant_message: "This is probably fine, maybe.", },),
+              forcedContinuationAllowed: false,
+              transcriptLines: [HUMAN_LINE, feedbackLine(uncertaintyLead("maybe",),),],
+            },);
+
+            expect(output.reason,).toContain("uncertain language",);
+            expect(output.reason,).toContain("probably",);
           },
         },),
         it({
@@ -188,7 +242,7 @@ await describe({
           },
         },),
         it({
-          name: "suppresses the dismissal report inside a chain, leaving only continuation",
+          name: "reports an uncited dismissal inside a chain the first time",
           fn: async () => {
             const output = stopRemindersDecision({
               event: stopEvent({ stop_hook_active: true, last_assistant_message: "This project doesn't use that.", },),
@@ -196,8 +250,44 @@ await describe({
             },);
 
             expect(output.decision,).toBe("block",);
+            expect(output.reason,).toContain("categorical dismissal",);
+          },
+        },),
+        it({
+          name: "leaves the dismissal out of a chain once it was raised in this turn, leaving only continuation",
+          fn: async () => {
+            const output = stopRemindersDecision({
+              event: stopEvent({ stop_hook_active: true, last_assistant_message: "This project doesn't use that.", },),
+              forcedContinuationAllowed: true,
+              transcriptLines: [HUMAN_LINE, feedbackLine(dismissalLead("project doesn't use",),),],
+            },);
+
+            expect(output.decision,).toBe("block",);
             expect(output.reason,).not.toContain("categorical dismissal",);
             expect(output.reason,).toContain("Resume the next item now",);
+          },
+        },),
+        it({
+          name: "asks through the question tool inside a chain the first time and not twice",
+          fn: async () => {
+            /**
+             Question the final message ends with.
+             */
+            const sentence = "Which package should I migrate first?";
+            const first = stopRemindersDecision({
+              event: stopEvent({ stop_hook_active: true, last_assistant_message: sentence, },),
+              forcedContinuationAllowed: true,
+            },);
+            const repeated = stopRemindersDecision({
+              event: stopEvent({ stop_hook_active: true, last_assistant_message: sentence, },),
+              forcedContinuationAllowed: true,
+              transcriptLines: [HUMAN_LINE, feedbackLine(questionLead(sentence,),),],
+            },);
+
+            expect(first.reason,).toContain("ends with a question to the user",);
+            expect(first.reason,).not.toContain("Resume the next item now",);
+            expect(repeated.reason,).not.toContain("ends with a question to the user",);
+            expect(repeated.reason,).toContain("Resume the next item now",);
           },
         },),
         it({

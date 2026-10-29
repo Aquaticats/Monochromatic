@@ -53,7 +53,7 @@ RUN ln --symbolic "$(command -v x86_64-w64-mingw32-windres)" /usr/local/bin/wind
 # build context is this package directory, not the repository root, so the lock cannot be read at build
 # time: this default is kept in sync with that key, and `--build-arg RUST_TOOLCHAIN=` overrides it.
 # The Windows GNU standard library is added as a target; the host stays x86_64-unknown-linux-gnu.
-ARG RUST_TOOLCHAIN=nightly-2026-10-21
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \

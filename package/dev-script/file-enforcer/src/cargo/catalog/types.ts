@@ -15,7 +15,7 @@ import type { RustCatalogEntry, } from '@monochromatic-dev/module-rust-catalog/t
 
  @example
  ```ts
- const manifest: ManifestFile = { path: 'package/cli/forbidden-strings/Cargo.toml', source: '[package]\n', };
+ const manifest: ManifestFile = { path: 'package/forbidden-strings/cli/Cargo.toml', source: '[package]\n', };
  ```
  */
 export type ManifestFile = {
@@ -59,6 +59,7 @@ export type UseSiteKind = 'catalog' | 'literal' | 'path';
    kind: 'literal',
    literal: { kind: 'registry', version: '1', },
    path: '',
+   disablesDefaultFeatures: false,
  };
  ```
  */
@@ -75,6 +76,28 @@ export type UseSite = {
    Relative path of an internal dependency; empty for other kinds.
    */
   readonly path: string;
+  /**
+   Whether the entry writes `default-features = false`.
+   Cargo before 1.99 rejects that key beside `workspace = true` unless the
+   workspace entry also disables default features, so the generated entry must carry it.
+   */
+  readonly disablesDefaultFeatures: boolean;
+};
+
+/**
+ One entry of a crate's generated `[workspace.dependencies]` table.
+
+ @example
+ ```ts
+ const generated: GeneratedEntry = { entry: { kind: 'registry', version: '>=0.3', }, defaultFeatures: false, };
+ ```
+ */
+export type GeneratedEntry = {
+  readonly entry: RustCatalogEntry;
+  /**
+   False when every use site in the crate disables default features.
+   */
+  readonly defaultFeatures: boolean;
 };
 
 //endregion Inputs
