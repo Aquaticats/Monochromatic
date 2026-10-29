@@ -504,10 +504,17 @@ with the default policy of not filing.
 
 Decision:
 constraints 1 to 6 hold with the caveats written above,
-so the draft below is fileable;
-nothing was filed or posted for this report.
+so the draft below was fileable.
 Filing is an outward-facing action on a third-party tracker,
-so `AGENTS.md` requires the repository owner's go-ahead before anything is posted.
+so `AGENTS.md` requires the repository owner's go-ahead before anything is posted;
+the owner chose "file the issue only" on 2026-10-29 and the issue was filed as
+[pnpm/pnpm#17485](https://github.com/pnpm/pnpm/issues/17485).
+The filed body follows pnpm's bug form field by field and links both patches from the reproduction repository
+(commit `81b20eb412`,
+directory `patches/`) instead of attaching them.
+The issue type `Bug` that the form sets could not be set through the API by a non-maintainer,
+so the type is empty;
+the triage automation added the label `area: monorepo`.
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
 cargo workspace,
@@ -526,7 +533,8 @@ though `bun-install.md` and `cargo-workspace.md` were not opened to rule out a b
 ## Upstream filing artifact
 
 Draft of a new issue,
-not filed.
+filed as pnpm/pnpm#17485 on 2026-10-29 (the block is the pre-filing draft;
+the filed text rearranges it into the form's fields and replaces "attached" with links).
 The duplicate search found nothing,
 so this is a new-issue draft and not a comment.
 The block below is the issue exactly as it would be posted:
