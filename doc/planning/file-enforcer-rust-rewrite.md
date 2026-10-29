@@ -258,12 +258,13 @@ and history.
   `[workspace.dependencies]` through the dependency-catalog Rust library,
   `.browserslistrc.resolved.local.json` through `browserslist-rs`,
   `.config/mise/conf.d/10-bin.local.toml`,
-  `mpm.packages.toml` and `mpm.managers.toml` from the lock,
   and,
   through `user write`,
   the JetBrains Harper policy.
-- Outputs file-enforcer checks but never writes:
-  `toolchain.lock.json` against `toolchain.plan.jsonc`.
+- file-enforcer has no toolchain role.
+- Deleted outright:
+  `mpm.packages.toml` and `mpm.managers.toml`,
+  in both the repository and the global scope.
 - Gone from file-enforcer:
   the generated root `mise.toml` (now hand-written plus committed `conf.d`),
   the rules file and its seed (the scanner reads a comma-separated list),
@@ -283,7 +284,9 @@ and history.
   `lock` (offline),
   `bin-paths`,
   each with `--global`;
-  the only writer of `toolchain.lock.json`;
+  the only writer and checker of `toolchain.lock.json`
+  (`mpm-shadow lock --check` is the toolchain drift gate in CI beside `file-enforcer check`);
+  rustup channels and cargo-binstall tools install directly from the lock;
   first versions of new npm and PyPI tools from the registries,
   later ones from `mpm outdated`;
   native lookups for the rest,
@@ -1094,6 +1097,36 @@ You have podman.
 You can prototype."
 A throwaway prototype in a linked worktree and a podman container runs the real mpm and the candidate flows
 before the question returns.
+
+Prototype:
+[`doc/research/file-enforcer-rust-rewrite-mpm-files-prototype.md`](../research/file-enforcer-rust-rewrite-mpm-files-prototype.md)
+(branch `prototype/fe-mpm-files`,
+head `fb874028f9`).
+Asked again with its evidence,
+the user chose "Drop both;
+mpm-shadow checks".
+
+- `mpm.packages.toml` and `mpm.managers.toml` are deleted in both scopes:
+  mpm 8.2.0 ignored their versions for cargo and pnpm,
+  pinned rustup only because the package name is the channel,
+  and matched the direct `cargo binstall --version` byte for byte;
+  the only code reader was the rustup call that already falls back to `rustup toolchain install`.
+- mpm-shadow installs rustup channels and cargo-binstall tools directly from the lock,
+  and `mpm-shadow lock --check` is the toolchain drift gate in CI beside `file-enforcer check`.
+- file-enforcer has no toolchain role;
+  the earlier "lock's plan fields equal the plan" check moves to `mpm-shadow lock --check`.
+- `doc/decision/mpm-toolchain-adoption.md` (the restore manifest generated from the plan,
+  `:92-112`,
+  `:201-223`) is amended at acceptance.
+- Follow-up recorded,
+  not solved:
+  a consistent hand edit of a resolved lock version passes every gate,
+  so the lock needs its own integrity check (artifact URL against version,
+  or a digest) or a scheduled `update --check`.
+- Note:
+  the prototype branch was auto-pushed to `origin`,
+  as `APG` in `AGENTS.md` says auto-push does;
+  it stays as the primary source.
 
 #### Process lessons: deferred to issue #1817
 
