@@ -159,6 +159,22 @@ install 3 exit 0 output: Scope: all 3 workspace projects | Already up to date | 
 install --force exit 0 link exists: true
 ```
 
+### The draft's own reproduction
+
+The steps of the issue draft (an `app` project depending on `lib` through `workspace:*`) were run exactly as written on 2026-10-29,
+in a throwaway workspace with its own `HOME`,
+with the installed `pnpm` 12.16.1.
+The first harness above used a different layout,
+so this run is what backs the draft:
+
+```text
+pnpm 12.16.1
+step 1: install exit 0 | app/node_modules/lib: symlink -> ../../lib | output: Scope: all 3 workspace projects / Already up to date / Done in 135ms using pnpm v12.16.1
+step 2: after rm: absent
+step 3: install exit 0 | link: absent | output: Scope: all 3 workspace projects / Already up to date / Done in 20ms using pnpm v12.16.1
+step 4: install --force exit 0 | link: symlink -> ../../lib
+```
+
 ### Patterns that work
 
 - The first install after a manifest change (install 2):
@@ -420,7 +436,7 @@ Title: `pnpm install` reports "Already up to date" and leaves a declared `worksp
 
 When manifests, lockfile and settings still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
 the repeat-install fast path returns before linking.
-Its only link check, `direct_dependency_link_dangling` in
+Its check on individual links, `direct_dependency_link_dangling` in
 [`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168),
 treats a link that exists but points nowhere as stale and an absent entry as healthy
 ([`is_dangling_link`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207): `fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()`).
@@ -438,7 +454,7 @@ lib/package.json:      {"name":"lib","version":"1.0.0"}
 app/package.json:      {"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:*"}}
 ```
 
-1. `pnpm install --offline`; `app/node_modules/lib` exists.
+1. `pnpm install --offline`; `app/node_modules/lib` exists, a symlink to `../../lib` (this install also ends with `Already up to date`).
 2. `rm app/node_modules/lib`.
 3. `pnpm install --offline` prints `Already up to date`, exits 0 and leaves the link absent.
 4. `pnpm install --offline --force` restores it.
@@ -450,8 +466,10 @@ A prototype patch is attached (7 files, 120 insertions, 2 deletions).
 Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
 and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
 and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
-Known limits: after the change a repeat install still prints `Already up to date` although it has relinked,
-and about 190 of the `pnpm-cli` repeat-install tests could not pass in the sandbox used, with or without the change,
+Known limits: with the change the install pipeline runs and the link is restored (the new test asserts the link),
+but the output still ends with `Already up to date`;
+that message also ends the first install above, which does create the link, so it is not specific to this case.
+About 190 of the `pnpm-cli` repeat-install tests could not pass in the sandbox used, with or without the change,
 so the regression evidence for those is limited.
 
 Written by an agent (Claude Code, claude-sonnet-5-5).
