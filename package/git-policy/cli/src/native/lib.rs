@@ -588,6 +588,10 @@ pub mod iso_time;
 /// The filesystem identity recorded with every real `index.lock` a transaction creates.
 pub mod filesystem_identity;
 
+/// The Linux filesystem UUID of a path read from the mount table and the udev database instead of `findmnt`.
+#[cfg(target_os = "linux")]
+pub mod filesystem_identity_mount;
+
 /// Running real Git for transaction,
 ///  recovery and landing work.
 pub mod transaction_git;
