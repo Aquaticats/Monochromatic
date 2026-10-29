@@ -268,6 +268,38 @@ each bounded by what can cut it.
   since the loop reads again after every wait.
   A hold on a provider that adds no seat to such a bench cannot bring it back and is not waited for,
   which includes DeepSeek on a wide bench the wet providers already reach through its one seat.
+  A hold on a provider whose last return served nothing is not waited for either
+  (the owner's answer of 2026-10-29,
+  "Remember futile returns",
+  chosen over "wait if it lifts bench" and over "quorum only";
+  measured on XingZ6020,
+  where Synthetic refused again each time it came back,
+  31,509.8 s of holds bought 3 gates).
+  A return is the end of a hold a refusal set,
+  and it served nothing when the provider refused again after the end,
+  in the same entry,
+  with no call it answered in between (the router's `markServed`).
+  Every kind of hold counts,
+  a refusal cooldown,
+  a rate-limit backoff and a wait the refusal states,
+  and a hold of no time has no return.
+  The budgets keep the mark (`provider-budget-futile-returns.ts`) and the client carries it as `futileReturns`;
+  the reader leaves those holds out and says so on a line of its own,
+  naming the phase,
+  the provider and the return (`run-seats-futile.ts`).
+  A call the provider answers clears the mark,
+  the next entry begins with none,
+  and the provider stays routable.
+  The mark yields where the cooldown give-up yields,
+  which the owner reaffirmed the same day:
+  when the provider is the only writing provider not dry,
+  or with it back no bench floor would stay unmet where without it one is.
+  The give-up stays beside it.
+  **The reach to every kind of hold and every lift,
+  and the scope of one entry,
+  are the round's choices and are open to the owner's veto.**
+  The record is ledger B1010,
+  and the replay over XingZ6020 is B1012.
   When a bench is seated short,
   a warning names it,
   the reachable and needed counts,

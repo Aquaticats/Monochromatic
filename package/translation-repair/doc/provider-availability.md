@@ -359,6 +359,60 @@ The rules are the lead's of 2026-10-25 and are open to the owner's veto;
 the owner kept the gather quorums above two and the bench waits as they were the same day.
 The record is ledger B965.
 
+## A provider whose last return served nothing is not waited for (2026-10-29)
+
+The cooldown give-up reads one kind of hold.
+XingZ6020 also showed the same loop at the hold's own length:
+Synthetic refused again each time it came back,
+and the waits for it summed to 31,509.8 s (146.8 min of wall clock) in the lane contest and the consolidation
+and bought 3 consolidation gates.
+The owner was asked on 2026-10-29 whether a stage short of a bench should wait for a provider on hold,
+and chose "Remember futile returns":
+wait where the return would lift the bench to its floor or its quorum,
+and skip a provider whose returns served nothing.
+
+A return is the end of a hold a refusal set.
+It served nothing when the provider refused again after the end,
+in the same entry,
+and the router reported no call the provider answered after the end.
+Every kind of hold counts (a refusal cooldown,
+the rate-limit backoff,
+a wait the refusal states),
+and a hold of no time has none.
+The budgets keep the mark (`provider-budget-futile-returns.ts`)
+and list it as `futileReturns`;
+the seat reader leaves the holds of the listed providers out of what it waits for (`run-seats-futile.ts`),
+so a stage short of a bench goes on short,
+and it says so on a line that names the phase,
+the provider,
+the hold that ended and how soon the provider refused again.
+The provider stays routable.
+A call it answers clears the mark,
+so it is waited for again after it serves,
+and the next entry begins with none.
+
+The mark yields where the give-up yields.
+When the provider is the only writing provider not dry,
+or with it back no bench floor the entry needs would be left unmet while without it one is,
+waiting is what lets the entry finish,
+and `futileReturns` does not list it.
+The two share the decision (`waitingHelps` in `provider-budget-give-up-aside.ts`).
+The give-up stays:
+it also decides what the router's wait for a provider on hold takes,
+takes the provider out of routing for the entry,
+and lasts past a served call.
+For a refusal cooldown the seat reader's wait is skipped by both,
+and replayed over XingZ6020 the give-up alone spends 0 s in those two phases,
+where the rule alone spends 1,472.0 s with the mark forgotten at each phase and 974.5 s for the entry
+(ledger B1012).
+
+The rule is not limited to a lift across the floor that stays short of the quorum.
+Over XingZ6020 it also skips the translate lane's waits,
+among them the four that were followed by 25 served calls.
+The scope of one entry and the reach to every lift are the round's choices and are open to the owner's veto.
+The record is ledger B1010,
+and the pass's memory of skipped slices that the owner removed the same day is B1011.
+
 ## Gemma's pictures reach OpenRouter since 2026-10-21
 
 With Bedrock's key expired,

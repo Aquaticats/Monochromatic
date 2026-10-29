@@ -471,6 +471,8 @@ which lists every file of this record.
 - [B991, the cap census naming every dangling link under the agent root and burying its summary](audit-ledger-the-cap-census-and-the-xiaomi-cap.md)
 - [B995, two 40 ms sleeps behind a scan that could not see polls, elapsed readings or clockless budgets](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [B996, the hold-wait cases still on the real clock, and eight of ten that passed with the wait removed](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
+- [B1010, the wait for a provider whose return served nothing][b837-floors-ledger]
+- [B1011 to B1013, the removed memory of skipped slices, the XingZ6020 replay and the cache account](audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

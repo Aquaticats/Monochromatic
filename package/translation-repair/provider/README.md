@@ -39,6 +39,7 @@ The groups that follow name the main ones.
   `createProviderBudgets`,
   `createRefusalHolds`,
   `createGiveUpAside`,
+  `createFutileReturns`,
   `writingProviderFloor`,
   `readEveryMeter`,
   `EveryProviderDryError`,
@@ -49,6 +50,7 @@ The groups that follow name the main ones.
   `provider-budget.ts`,
   `provider-budget-refusal-holds.ts`,
   `provider-budget-give-up-aside.ts`,
+  `provider-budget-futile-returns.ts`,
   `provider-meters.ts`,
   and `request-pace.ts`.
 - Provider clients:
@@ -256,6 +258,30 @@ Round 3 worded the rule otherwise,
 and round 4 superseded that wording.
 The record is [ledger B965][b965-entry],
 and the rule is open to the owner's veto.
+
+A return that served nothing is marked beside the give-up
+(`provider-budget-futile-returns.ts`,
+the owner's answer of 2026-10-29,
+"Remember futile returns").
+A return is the end of a hold a refusal set,
+of any kind (a cooldown,
+the rate-limit backoff,
+a wait the refusal states),
+and it served nothing when the provider refused again after the end,
+in the entry,
+with no call the router reported as answered (`markServed`) after it.
+`futileReturns` lists those providers with the hold that ended and how soon the provider refused again,
+and the seat reader does not wait for their holds while a bench is short.
+A served call clears the mark and the next entry begins with none.
+The provider stays routable,
+and the give-up's two exceptions apply to the mark as well:
+a provider that is the only writing provider not dry,
+or whose return would leave no bench floor unmet where without it one is,
+is not listed.
+The give-up stays beside it:
+it also sets what the router's wait for a provider on hold takes,
+and it takes the provider out of routing for the entry.
+The record is [ledger B1010][b1010-entry].
 
 ## Family dependencies
 
@@ -482,3 +508,5 @@ not each repeat's figure.
 
 [b965-entry]:
   ../doc/audit-ledger-providers-and-seats-a-run-holds-out.md#b965-the-seat-reader-waited-out-the-refusal-cooldown-of-a-provider-that-refused-at-once-after-it-for-every-slice
+[b1010-entry]:
+  ../doc/audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md#b1010-a-stage-waited-for-a-provider-whose-return-had-served-nothing

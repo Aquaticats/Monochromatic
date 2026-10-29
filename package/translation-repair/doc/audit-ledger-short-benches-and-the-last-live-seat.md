@@ -233,6 +233,9 @@ The translate hook's re-read under the floor,
 which this entry first listed as a limit,
 landed in red `9991ee7cd1` and fix `2e76c32d0f`.
 The first-time buy that this entry left open is B839.
+The memory this entry decided was removed on 2026-10-29 at the owner's word (B1011):
+what follows under "Decided" is the record of what the memory did,
+and the skip of B839 stands without it.
 
 What `XingZ6020` showed:
 slices 88 to 105 of the translate lane were tried in the first attempt
