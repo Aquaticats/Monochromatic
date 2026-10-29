@@ -92,6 +92,36 @@ No `pi` process was running when this was checked, so its cgroup placement is un
   Repository rules forbid bash wrappers, so a shadow would be a Node or Rust executable, whose start-up cost per call is unmeasured.
   A shadow can throttle (run the real binary at a low I/O class or weight) or reject; throttling changes no results.
 
+## The NVMe itself
+
+Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature`, `smartctl --all`, `lspci -vv`, `dmsetup table`).
+
+- Controller: Realtek RTS5772DL, DRAM-less (`lspci` PCI ID `10ec:5772`), model string `SPCC M.2 PCIe SSD`,
+  firmware `VF101C68`, NVMe 1.4, 2.04 TB, one 512-byte-LBA namespace.
+  It asks the host for a Host Memory Buffer: `hmpre` 16384 and `hmmin` 8192 (the libnvme manual defines both as the
+  preferred and minimum size the host is requested to allocate).
+- `maxcmd` is 4. libnvme defines it as "the maximum number of commands that the controller processes at one time"
+  ([mankier.com/2/nvme_id_ctrl](https://www.mankier.com/2/nvme_id_ctrl)). Read literally, the controller works on
+  four commands at once whatever queue depth the host submits; this is not yet measured, and an independent review of this chip was not found
+  (the roadmap listing at [anandtech.com/show/21441](https://anandtech.com/show/21441) leaves 4K random IOPS blank).
+- Not the cause: the PCIe link is Gen4 x4 (16GT/s, width x4), temperature 46 C with every thermal counter zero,
+  3% of endurance used, no media errors, 287 TB read and 93.6 TB written over 10,626 power-on hours, 75 unsafe shutdowns.
+- Power states: APST is enabled. After 100 ms idle the drive enters state 3 (exit latency 10 ms),
+  and after 2000 ms idle state 4 (exit latency 60 ms). `nvme_core.default_ps_max_latency_us` is 100000, which permits both.
+  Bursty access therefore pays 10 to 60 ms on the first command after a pause; the effect is unmeasured.
+- Queue settings: `queue_count` 17, `nr_requests` 256, `max_sectors_kb` 128, `read_ahead_kb` 128, write cache on,
+  `wbt_lat_usec` 0, `io_poll` 0.
+- dm-crypt above it (`aes-xts-plain64`, `allow_discards` only): none of `no_read_workqueue`, `no_write_workqueue`,
+  `same_cpu_crypt` or `submit_from_crypt_cpus` is set, so reads and writes go through dm-crypt's internal workqueues.
+  The kernel documentation only describes these flags and gives no performance guidance
+  ([docs.kernel.org dm-crypt](https://docs.kernel.org/admin-guide/device-mapper/dm-crypt.html)),
+  so their effect on this drive needs a measurement.
+
+Candidate measurements, none run yet:
+
+- Queue-depth sweep of 4 KiB random reads on the raw device read-only, against the same sweep through the LUKS mapping.
+- First-read latency after an idle gap with APST on, then with APST off (`nvme set-feature -f 0x0c -v 0`, reversible).
+
 ## Commits are a second I/O consumer
 
 While this note was committed, `ps` showed three concurrent shadow-repository `git commit` processes
