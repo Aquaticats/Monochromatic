@@ -6045,8 +6045,10 @@ Installed and verified, 2026-10-29:
   while running, exactly `tmp-<pid>-<hex>` and `tmp-<pid>-<hex>.lock` existed and the lock was held (`flock --nonblock` exit 1);
   after `kill -9` the directory and lock file stayed and the lock was free (exit 0);
   the next launch logged `removed the scratch directory of an ended process` and also answered a hover 1 of 1.
-  After a clean quit the directory stayed until the next launch (consistent with the module doc); a third launch to confirm that removal was not run.
   Two launches, two hovers, one Ctrl+click, one kill; no synthetic load; no units or processes left.
+- Clean-quit case, second verifier run (fresh project and cache, two launches): after a clean `quit` the first IDE's `tmp-<pid>-<hex>` directory and `.lock` stayed (2 entries);
+  the second IDE on the same project logged `removed the scratch directory of an ended process` once, and the listing then held only the second IDE's own two entries (stale 1 and 1 before, 0 and 0 after).
+  The second IDE's own directory after its quit was not listed.
 - Scratch worktrees `land-scratch` and `rel-0-1-3` removed.
   `monochromatic-db` was told the three packages are idle and answered that it moves them after its cli batch (it will message me).
   It recorded that `ide-release.yml`, the `//package/desktop-app/ide` task addresses and this handover carry package paths that must change with the move.
