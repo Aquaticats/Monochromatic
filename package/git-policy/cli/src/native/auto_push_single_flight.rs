@@ -238,6 +238,7 @@ pub fn push_command(git: &PushGit, arguments: &[OsString]) -> Command {
 /// ```
 pub fn git_command(git: &PushGit, arguments: &[OsString]) -> Command {
     let mut command = Command::new(&git.real_git);
+    super::hooks_off::disable_traditional_hooks(&mut command, arguments);
     command
         .current_dir(&git.cwd)
         .env_clear()

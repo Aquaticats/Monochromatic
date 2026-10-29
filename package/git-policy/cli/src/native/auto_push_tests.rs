@@ -99,10 +99,9 @@ fn repo_with_remote_and_pre_push(root: &Path, code: i32) -> (PathBuf, PathBuf) {
     )
     .expect("pre-push hook");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
-    git(
-        &repo,
-        &["config", "core.hooksPath", hooks.to_str().expect("utf-8")],
-    );
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    git(&repo, &["config", "hook.control.event", "pre-push"]);
+    git(&repo, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
     return (repo, log);
 }
 

@@ -78,7 +78,8 @@ fn read_only_commands_start_at_most_the_location_query() {
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     executable(
         fixture.root.join("shim/git").as_path(),
-        b"#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n",
+        // The hooks-off option the wrapper puts first is not part of the count's question, so the log leaves it out.
+        b"#!/bin/sh\nargs=\"$*\"\nargs=\"${args#-c core.hooksPath=/dev/null/cli-git-no-hooks }\"\nprintf '%s\\n' \"$args\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n",
     );
     // Invalid configuration and a legacy file: reading either would stop the command.
     std::fs::write(repo.join(CONFIG_FILE_NAME), "this is not JSONC").expect("invalid");

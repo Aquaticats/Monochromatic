@@ -74,10 +74,9 @@ fn scenario(name: &str, sleep_seconds: &str) -> Scenario {
     let pre_push = hooks.join("pre-push");
     std::fs::write(&pre_push, pre_push_script(&log, &gate, sleep_seconds)).expect("pre-push");
     std::fs::set_permissions(&pre_push, std::fs::Permissions::from_mode(0o755)).expect("mode");
-    git(
-        &repo,
-        &["config", "core.hooksPath", hooks.to_str().expect("utf-8")],
-    );
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    git(&repo, &["config", "hook.control.event", "pre-push"]);
+    git(&repo, &["config", "hook.control.command", pre_push.to_str().expect("utf-8")]);
     git(
         &repo,
         &["commit", "--quiet", "--allow-empty", "--message=base"],

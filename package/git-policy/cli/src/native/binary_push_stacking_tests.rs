@@ -36,11 +36,9 @@ fn install_hook(fixture: &Fixture, repo: &Path, record: &Path, exit_when_stacked
     );
     std::fs::write(&hook, source).expect("hook source");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("hook mode");
-    git(
-        fixture,
-        repo,
-        &["config", "core.hooksPath", hooks.to_str().expect("utf-8")],
-    );
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    git(fixture, repo, &["config", "hook.control.event", "pre-push"]);
+    git(fixture, repo, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
 }
 
 /// Commit `text` to `name` with real Git, so no auto-push runs.
@@ -139,7 +137,9 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
     let lines = record_lines(&race);
-    assert_eq!(hook_runs(&race), 2, "{lines:?}");
+    // A configuration hook also runs in the wrapper's dry-run probes (the probe replaces only the hooks directory):
+    //  the scope probe and the push, then the integration probe, the stacked push's scope probe and the stacked push.
+    assert_eq!(hook_runs(&race), 5, "{lines:?}");
     assert_eq!(lines.first().map(String::as_str), Some("marker=unset"), "{lines:?}");
     assert!(stacked_push_ran(&race), "the merge went through a stacked push: {lines:?}");
     assert!(lines.contains(&format!("pushed={published}")), "the hook saw the merge: {lines:?}");

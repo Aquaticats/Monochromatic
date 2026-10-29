@@ -172,10 +172,9 @@ fn advancing_hook(scenario: &Scenario, limit: u32) -> PathBuf {
     );
     std::fs::write(&hook, script).expect("hook");
     std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).expect("mode");
-    git(
-        &scenario.local,
-        &["config", "core.hooksPath", hooks.to_str().expect("utf-8")],
-    );
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    git(&scenario.local, &["config", "hook.control.event", "reference-transaction"]);
+    git(&scenario.local, &["config", "hook.control.command", hook.to_str().expect("utf-8")]);
     return counter;
 }
 

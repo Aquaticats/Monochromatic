@@ -141,3 +141,7 @@ mod lfs_pre_push;
 /// The same upload with the real `git-lfs` against an LFS server written inline.
 #[path = "binary_lfs_server_tests.rs"]
 mod lfs_server;
+
+/// Traditional hooks never run through the wrapper, and `git cli-git doctor` explains the Git LFS shims.
+#[path = "binary_hooks_off_tests.rs"]
+mod hooks_off;

@@ -629,6 +629,9 @@ pub mod doctor;
 /// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
 pub mod lfs_pre_push;
 
+/// Every real-Git start of the wrapper carries `core.hooksPath` pointing at a directory that never exists.
+pub mod hooks_off;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 

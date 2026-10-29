@@ -265,6 +265,8 @@ pub fn plan_invocation(
 /// function runProcess(args: string[], environment: [string, string][]): number;
 /// ```
 pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+    // From here on every real-Git start of this process runs with traditional hooks off.
+    super::hooks_off::activate();
     // Git starts the LFS pre-push hook as `cli-git lfs-pre-push <remote> <url>`; it needs no repository facts.
     if let Some(hook_arguments) = hook_entry_arguments(arguments) {
         return run_hook_entry(hook_arguments);

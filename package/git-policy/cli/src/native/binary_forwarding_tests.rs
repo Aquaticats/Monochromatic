@@ -114,7 +114,8 @@ fn argument_bytes_reach_git_unchanged() {
         .args(probe_arguments.as_slice()),
         b"",
     );
-    let mut expected: Vec<u8> = b"11\0version\0".to_vec();
+    // The wrapper's own hooks-off option comes first; the caller's bytes follow it unchanged.
+    let mut expected: Vec<u8> = b"13\0-c\0core.hooksPath=/dev/null/cli-git-no-hooks\0version\0".to_vec();
     for argument in &adversarial {
         expected.extend_from_slice(argument.as_bytes());
         expected.push(0);

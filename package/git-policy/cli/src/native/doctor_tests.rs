@@ -191,3 +191,112 @@ fn outside_a_repository_the_command_fails_with_status_two() {
     assert!(stderr.starts_with("git cli-git doctor: "), "{stderr}");
     remove(root.as_path());
 }
+
+/// Write the shim git-lfs writes for `name` into the default hooks directory.
+#[cfg(unix)]
+fn write_shim(repo: &Path, name: &str) -> PathBuf {
+    let path: PathBuf = repo.join(".git/hooks").join(name);
+    executable(path.as_path(), lfs_shim_text(name).as_bytes());
+    return path;
+}
+
+/// The shim text is the one git-lfs 3.8.0 writes: its first, last and name-bearing lines.
+#[test]
+fn the_shim_text_carries_the_hook_name_and_ends_with_a_line_feed() {
+    let text: String = lfs_shim_text("post-merge");
+    assert!(
+        text.starts_with(
+            "#!/bin/sh\ncommand -v git-lfs >/dev/null 2>&1 || { printf >&2 \"\\n%s\\n\\n\" \"This repository is configured for Git LFS"
+        ),
+        "{text}"
+    );
+    assert!(text.contains("deleting the 'post-merge' file in the hooks directory"), "{text}");
+    assert!(text.ends_with("\ngit lfs post-merge \"$@\"\n"), "{text}");
+    assert!(!text.contains("{{Command}}"));
+}
+
+/// Only shims alone end with status 0, nothing on standard output, and a report on standard error that says what
+///  is happening, that it is normal, and that nothing needs doing.
+#[cfg(unix)]
+#[test]
+fn only_git_lfs_shims_exit_zero_with_the_explanation() {
+    let root: PathBuf = fixture("doctor-shims-only");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let pre_push: PathBuf = write_shim(repo.as_path(), "pre-push");
+    write_shim(repo.as_path(), "post-checkout");
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!((code, stdout.as_str()), (0, ""));
+    for needle in [
+        "the Git LFS shims, byte for byte, and nothing needs doing",
+        pre_push.to_str().expect("UTF-8"),
+        "writes these files again whenever it cleans a file in a Git that cli-git did not start",
+        "so they can come back after you delete them",
+        "this is normal",
+        "uploads the LFS objects itself before every push",
+        "starts Git with traditional hooks off",
+        "never run through cli-git",
+        "delete them or leave them",
+        "/usr/bin/git",
+    ] {
+        assert!(stderr.contains(needle), "{needle}: {stderr}");
+    }
+    assert!(!stderr.contains("unsupported"), "{stderr}");
+    remove(root.as_path());
+}
+
+/// A foreign hook beside the shims ends with status 1 and lists only the foreign hook on standard output;
+///  the shims are explained apart.
+#[cfg(unix)]
+#[test]
+fn a_foreign_hook_beside_shims_still_ends_with_status_one() {
+    let root: PathBuf = fixture("doctor-shims-and-foreign");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let shim: PathBuf = write_shim(repo.as_path(), "post-commit");
+    executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1);
+    assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
+    assert!(stderr.contains("unsupported"), "{stderr}");
+    assert!(stderr.contains(shim.to_str().expect("UTF-8")), "{stderr}");
+    assert!(stderr.contains("nothing needs doing"), "{stderr}");
+    remove(root.as_path());
+}
+
+/// A shim that differs by one byte, a shim under another hook's name, a link, and a missing final line feed are
+///  ordinary unsupported hooks.
+#[cfg(unix)]
+#[test]
+fn a_modified_misnamed_or_linked_shim_is_an_unsupported_hook() {
+    let root: PathBuf = fixture("doctor-shims-lookalikes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hooks: PathBuf = repo.join(".git/hooks");
+    let mut edited: String = lfs_shim_text("pre-push");
+    edited.push('#');
+    executable(hooks.join("pre-push").as_path(), edited.as_bytes());
+    executable(hooks.join("post-commit").as_path(), lfs_shim_text("post-merge").as_bytes());
+    let mut without_line_feed: String = lfs_shim_text("post-checkout");
+    without_line_feed.pop();
+    executable(hooks.join("post-checkout").as_path(), without_line_feed.as_bytes());
+    executable(root.join("target-shim").as_path(), lfs_shim_text("post-merge").as_bytes());
+    std::os::unix::fs::symlink(root.join("target-shim"), hooks.join("post-merge")).expect("link");
+    executable(hooks.join("update").as_path(), lfs_shim_text("update").as_bytes());
+    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 1);
+    assert_eq!(stdout.lines().count(), 5, "{stdout}");
+    assert!(!stderr.contains("the Git LFS shims, byte for byte"), "{stderr}");
+    remove(root.as_path());
+}
+
+/// Every one of the four names is recognized with its own text.
+#[cfg(unix)]
+#[test]
+fn each_of_the_four_shims_is_recognized() {
+    let root: PathBuf = fixture("doctor-shims-all");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
+        assert!(is_lfs_shim(write_shim(repo.as_path(), name).as_path()), "{name}");
+    }
+    let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!((code, stdout.as_str()), (0, ""));
+    remove(root.as_path());
+}
