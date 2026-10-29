@@ -21,6 +21,9 @@ const HELPER_READY: &str = "OWNER_LOCK_TEST_HELPER_READY";
 ///  in milliseconds,
 ///  the helper holds the lock before releasing.
 const HELPER_HOLD_MS: &str = "OWNER_LOCK_TEST_HELPER_HOLD_MS";
+/// Variable naming a file whose appearance tells the helper to release at once,
+///  so a test frees the lock on an event instead of racing a timer.
+const HELPER_RELEASE: &str = "OWNER_LOCK_TEST_HELPER_RELEASE";
 
 /// Helper process body,
 ///  started by other tests:
@@ -40,14 +43,46 @@ fn helper_holds_a_lock() {
         .expect("acquire")
         .expect("free");
     std::fs::write(&ready, std::process::id().to_string()).expect("announce");
-    std::thread::sleep(Duration::from_millis(hold));
+    // With a release file the hold is only a safety cap; the file ends it as soon as the test creates it.
+    let release: Option<PathBuf> = std::env::var_os(HELPER_RELEASE).map(PathBuf::from);
+    let waited: Instant = Instant::now();
+    while release.as_ref().is_none_or(|path| !path.exists())
+        && waited.elapsed() < Duration::from_millis(hold)
+    {
+        std::thread::sleep(Duration::from_millis(5));
+    }
     lock.release().expect("release");
 }
 
 /// Start the helper on `lock_directory` and wait until it holds the lock.
 fn start_holder(root: &Path, lock_directory: &Path, hold_ms: u64) -> Child {
+    return spawn_holder(root, lock_directory, hold_ms, None);
+}
+
+/// The longest a releasable holder holds without being told to release,
+///  so a test that never releases it still ends.
+const RELEASABLE_HOLD_CAP_MS: u64 = 60_000;
+
+/// Start a helper that holds the lock until the returned file appears,
+///  and wait until it holds the lock.
+/// A test frees the lock on an event it controls,
+///  so no timer decides whether the acquirer found the lock held.
+fn start_releasable_holder(root: &Path, lock_directory: &Path) -> (Child, PathBuf) {
+    let release: PathBuf = root.join("release");
+    let child: Child = spawn_holder(
+        root,
+        lock_directory,
+        RELEASABLE_HOLD_CAP_MS,
+        Some(release.as_path()),
+    );
+    return (child, release);
+}
+
+/// Start the helper process and wait until it holds the lock.
+fn spawn_holder(root: &Path, lock_directory: &Path, hold_ms: u64, release: Option<&Path>) -> Child {
     let ready: PathBuf = root.join(format!("ready-{hold_ms}"));
-    let child: Child = Command::new(std::env::current_exe().expect("test binary"))
+    let mut command: Command = Command::new(std::env::current_exe().expect("test binary"));
+    command
         .args([
             "--exact",
             "owner_lock::tests::helper_holds_a_lock",
@@ -57,9 +92,11 @@ fn start_holder(root: &Path, lock_directory: &Path, hold_ms: u64) -> Child {
         ])
         .env(HELPER_LOCK, lock_directory)
         .env(HELPER_READY, &ready)
-        .env(HELPER_HOLD_MS, hold_ms.to_string())
-        .spawn()
-        .expect("start the helper");
+        .env(HELPER_HOLD_MS, hold_ms.to_string());
+    if let Some(path) = release {
+        command.env(HELPER_RELEASE, path);
+    }
+    let child: Child = command.spawn().expect("start the helper");
     let started: Instant = Instant::now();
     while !ready.exists() {
         assert!(
@@ -129,6 +166,25 @@ impl WaitNotice for WaitCounter {
     }
 }
 
+/// Counts how often the wait notice ran,
+///  and releases the helper holding the lock the first time,
+///  so the wait ends on that event.
+struct ReleaseOnWait {
+    /// Number of notices.
+    count: u32,
+    /// The file whose appearance makes the helper release.
+    release: PathBuf,
+}
+
+/// The first notice frees the lock the acquirer is waiting for.
+impl WaitNotice for ReleaseOnWait {
+    /// Record one notice and release the holder.
+    fn waiting(&mut self) {
+        self.count += 1;
+        std::fs::write(&self.release, b"release").expect("tell the helper to release");
+    }
+}
+
 /// A live holder blocks a try,
 ///  and a waiting acquirer gets the lock once it is released,
 /// after exactly one wait notice.
@@ -136,7 +192,8 @@ impl WaitNotice for WaitCounter {
 fn a_live_holder_blocks_until_it_releases() {
     let root: PathBuf = fixture("owner-lock-live");
     let lock_directory: PathBuf = root.join("landing.lock");
-    let mut holder: Child = start_holder(root.as_path(), lock_directory.as_path(), 400);
+    let (mut holder, release): (Child, PathBuf) =
+        start_releasable_holder(root.as_path(), lock_directory.as_path());
     let held_token: String = token_of(lock_directory.as_path());
     assert!(
         try_acquire_owner_lock(lock_directory.as_path(), None)
@@ -148,23 +205,21 @@ fn a_live_holder_blocks_until_it_releases() {
         held_token,
         "the live lock is untouched"
     );
-    let mut counter: WaitCounter = WaitCounter::default();
-    let started: Instant = Instant::now();
+    let mut counter: ReleaseOnWait = ReleaseOnWait {
+        count: 0,
+        release,
+    };
     let lock: OwnerLock =
         acquire_owner_lock(lock_directory.as_path(), DEFAULT_POLL_DELAY, &mut counter)
             .expect("acquire after release");
-    assert!(
-        started.elapsed() >= Duration::from_millis(100),
-        "the acquirer waited"
-    );
-    assert_eq!(counter.count, 1);
+    assert_eq!(counter.count, 1, "the acquirer waited, once");
     assert_ne!(lock.token(), held_token);
     assert_eq!(lock.directory(), lock_directory.as_path());
     assert!(holder.wait().expect("helper exit").success());
     lock.release().expect("release");
     assert_eq!(
         entries(root.as_path()),
-        ["ready-400"],
+        ["ready-60000", "release"],
         "no candidate or stale lock remains"
     );
     remove(root.as_path());
@@ -642,15 +697,17 @@ fn a_bounded_wait_takes_a_free_lock_and_one_freed_in_time() {
     .expect("a free lock is taken even with no time to wait");
     assert_eq!(counter.count, 0);
     first.release().expect("release");
-    let mut holder: Child = start_holder(root.as_path(), lock_directory.as_path(), 300);
+    let (mut holder, release): (Child, PathBuf) =
+        start_releasable_holder(root.as_path(), lock_directory.as_path());
+    let mut releasing: ReleaseOnWait = ReleaseOnWait { count: 0, release };
     let second: OwnerLock = acquire_owner_lock_for(
         lock_directory.as_path(),
         DEFAULT_POLL_DELAY,
-        &mut counter,
+        &mut releasing,
         Duration::from_secs(60),
     )
     .expect("freed within the limit");
-    assert_eq!(counter.count, 1);
+    assert_eq!(releasing.count, 1);
     assert!(holder.wait().expect("helper exit").success());
     second.release().expect("release");
     remove(root.as_path());
@@ -690,6 +747,8 @@ struct SlowCounter {
     waiting: u32,
     /// Slow-wait notices with the time each reported.
     slow: Vec<Duration>,
+    /// Told on the first slow notice, when a test ends the wait on that event.
+    signal: Option<std::sync::mpsc::Sender<()>>,
 }
 
 /// The counter records each call.
@@ -702,6 +761,9 @@ impl WaitNotice for SlowCounter {
     /// Record a slow-wait notice.
     fn slow(&mut self, waited: Duration) {
         self.slow.push(waited);
+        if let Some(signal) = &self.signal {
+            signal.send(()).ok();
+        }
     }
 }
 
@@ -717,24 +779,34 @@ fn a_slow_wait_sends_one_slow_notice() {
     let pid: i64 = i64::from(sleeper.id());
     let identity: String = process_birth_identity(pid).expect("probe").expect("alive");
     plant(lock_directory.as_path(), pid, identity.as_str(), "foreign");
-    let mut counter: SlowCounter = SlowCounter::default();
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let mut counter: SlowCounter = SlowCounter {
+        signal: Some(sender),
+        ..SlowCounter::default()
+    };
+    // The holder dies a while after the slow notice, so the wait ends on that event and no wall-clock window
+    // decides the outcome; the pause lets a notice sent at every poll show up as more than one.
+    let killer = std::thread::spawn(move || {
+        receiver.recv_timeout(Duration::from_secs(10)).ok();
+        std::thread::sleep(Duration::from_millis(100));
+        sleeper.kill().expect("kill");
+        sleeper.wait().expect("reap");
+    });
     let outcome: Result<OwnerLock, OwnerLockError> = acquire_within(
         lock_directory.as_path(),
         Duration::from_millis(5),
         &mut counter,
-        Duration::from_millis(400),
+        Duration::from_secs(20),
         Duration::from_millis(100),
     );
-    sleeper.kill().expect("kill");
-    sleeper.wait().expect("reap");
-    assert!(matches!(
-        outcome,
-        Err(OwnerLockError::WaitTimedOut { .. })
-    ));
+    killer.join().expect("the killer thread finishes");
+    outcome
+        .expect("the dead holder's lock is taken once the wait sees it gone")
+        .release()
+        .expect("release");
     assert_eq!(counter.waiting, 1);
     assert_eq!(counter.slow.len(), 1, "{:?}", counter.slow);
     assert!(counter.slow[0] >= Duration::from_millis(100), "{:?}", counter.slow);
-    assert!(counter.slow[0] < Duration::from_millis(390), "{:?}", counter.slow);
     let mut quick: SlowCounter = SlowCounter::default();
     let free: OwnerLock = acquire_within(
         root.join("free.lock").as_path(),
