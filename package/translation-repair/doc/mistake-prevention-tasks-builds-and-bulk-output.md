@@ -3,6 +3,7 @@
 Rules for running the repository's tasks and builds:
 where a task runs from,
 which install a build uses,
+which tools a gate tree runs,
 and where large output goes.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
@@ -143,3 +144,38 @@ habit for the names,
 the directories,
 the sources a brief names
 and the file-enforcer run before a package lands.
+
+## Gate trees and their tools
+
+What happened:
+after the repository moved its tools to MPM,
+gate g219 on the merge of main passed 3181 cases and failed 694,
+and its source scans exited 1.
+The typography package runs `monochromatic-lint` by name,
+and on the gate's `PATH` that name reached the shim of `mise`,
+which printed `mise ERROR No version is set for shim`.
+The tools now live in a directory of each worktree,
+`.cache/toolchain-bin`,
+which `mise run toolchain:sync` makes.
+The gate's `PATH` builder had dropped the entries of the main checkout,
+and the fresh gate trees had never been synced.
+Round 8's own red cases in `tr-w357` were the same missing program in a tree that predated the cutover (ledger B980).
+
+The rule:
+a gate tree is set up in this order before its first gate:
+`mise run prepare:pnpm:install`,
+then `mise run toolchain:sync`,
+which needs the installed `node_modules`.
+The gate's `PATH` puts `<tree>/.cache/toolchain-bin`,
+`<tree>/.cache/cli-git-bin` and `<tree>/node_modules/.bin` first
+and leaves out the directory of the `mise` shims.
+A subagent never runs `toolchain:sync`:
+after a subagent merges main across a change to the toolchain,
+the lead syncs that subagent's tree.
+A failure that names a missing program or a shim with no version is read as a tree with no sync
+before it is read as a case that is red.
+
+What enforces it:
+habit,
+and the lead's `PATH` builder for gates,
+which is scratch tooling outside the repository.
