@@ -22,7 +22,7 @@
 /// Building a Git child from an argument array and an overlay.
 use super::forwarding::git_command;
 /// Private exclusive files for standard input.
-use super::private_storage::write_private_file;
+use super::private_storage::write_exclusive_scratch;
 /// Unique temporary names.
 use super::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
@@ -238,7 +238,7 @@ fn input_file(bytes: &[u8]) -> std::io::Result<std::fs::File> {
         Err(error) => return Err(std::io::Error::other(error.0)),
     };
     let path: PathBuf = std::env::temp_dir().join(format!("cli-git-input-{unique}"));
-    write_private_file(path.as_path(), bytes)?;
+    write_exclusive_scratch(path.as_path(), bytes)?;
     let file: std::io::Result<std::fs::File> = std::fs::File::open(&path);
     // The open handle keeps the bytes readable after the name is gone. If the platform refuses
     // to remove an open file, the private file stays behind and the error is ignored.
