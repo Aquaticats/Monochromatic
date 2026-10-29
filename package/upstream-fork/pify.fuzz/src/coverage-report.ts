@@ -66,7 +66,7 @@ type CoverageCounts = Readonly<Record<string, number>>;
 /**
  Package source marker; only files beneath it are gated.
  */
-const SOURCE_MARKER = `${sep}package${sep}module${sep}pify-fork${sep}src${sep}`;
+const SOURCE_MARKER = `${sep}package${sep}upstream-fork${sep}pify${sep}src${sep}`;
 
 /**
  Tests whether a package-relative path is a gate target: a non-test source file
