@@ -792,3 +792,129 @@ B700,
 which records the fact and its first reader,
 and M278 and M280,
 which record a build that ran another tree's tools and a tree tested on another commit's install.
+
+## B1015: the lint binary pin said 0.3.0 while the lock recorded 0.4.0, and the refusals named dropped tools
+
+Status:
+fixed on 2026-10-29 (UTC) in `6253eb52b`.
+`b750a8899f` (2026-10-29,
+`chore(toolchain)`) moved the `"cargo:monochromatic-lint"` entry of `toolchain.lock.json`
+to 0.4.0 when another session released the crate,
+and it touched no file of typography.
+The owner ruled on the same day through the question tool,
+verbatim:
+"Tell it to release 0.4 and move typography to 0.4".
+
+This is the move of the constant that follows the two of B700 (0.1.2 to 0.2.0 and 0.2.0 to 0.3.0),
+and the same fact in two writings.
+With the lock at 0.4.0 and the constant at 0.3.0,
+15 cases of the typography unit tests that wrap through the real program threw
+`LintBinaryVersionError: monochromatic-lint is version 0.4.0, but shipped text is wrapped by version 0.3.0 only`,
+and a corpus pass would have stopped at its first wrap.
+The agreement case that B980 moved onto `toolchain.lock.json` would have failed too,
+and it is a unit test of typography,
+which the commit that moved the lock did not touch,
+so whether anything ran it then is not recorded.
+
+Whether the wrap rule changed was read from the linter's history,
+`monochromatic-lint-v0.3.0..monochromatic-lint-v0.4.0` over `package/linter/monochromatic-lint`,
+and then measured.
+No commit changes what `markdown/semantic-line-breaks` does:
+
+- `71352ac59d` reflows comments in `markdown_semantic_breaks.rs`,
+  the rule's only file,
+  and changes no code.
+- `2deb5bfa79` replaces `partition_point` with named `binary_search` folds in `markdown_positions.rs` and
+  `rust_source.rs`,
+  which the position map the rule reads goes through,
+  and keeps the count each search returned.
+- `c7adda99a5` moves the arena walk to `markdown_traversal.rs` unchanged,
+  and `fd9df3030c` marks the `catch_unwind` closure in `markdown_source.rs` with a lint expectation.
+- `44c650dae0`,
+  `baf9ead5ac`,
+  `79ff3e02e1`,
+  `2fad6fd4cf` and `de947eb794` add the nine `shell/` rule ids and the reading of workflow `run:` steps
+  (`.github/workflows` and composite actions),
+  and `d34026bb22` and `d659a87347` change only the failure text for an unregistered rule name.
+- `Cargo.lock` differs by the crate's own version line alone,
+  and the Markdown parser crates stay at `satteri-pulldown-cmark` 0.6.3,
+  `satteri-arena` 0.3.1 and `satteri-ast` 0.5.3.
+
+The measurement ran 0.3.0 (the release artifact,
+installed by `cargo binstall` into a scratch directory)
+and 0.4.0 (the tree's `.cache/toolchain-bin/monochromatic-lint`,
+a link into `~/.cargo/bin`)
+over 8476 inputs,
+one process at a time,
+with typography's `semantic-wrap.config.jsonc`,
+the file name `passage.md` and the arguments `semantic-wrap-binary.ts` passes:
+
+- 21 passages of the typography tests,
+  copied by hand from the inline literals of the three `semantic-wrap*` test files
+  and `semantic-wrap-binary.unit.test.ts`,
+  the 1.1 million character one included.
+- The sources (`people/*/page.md`) and archives (`people/*/page.en.md`) of 92 pages at corpus commit `a41fc607ea`,
+  read with `git show`:
+  92 whole files and 2756 paragraphs of the sources,
+  92 whole files and 2672 paragraphs of the archives,
+  and,
+  beyond the ask,
+  the 92 files and 2751 paragraphs of `page.zh_hant.md`.
+  A paragraph is a run of lines between blank lines outside a code fence,
+  and 95 front matter paragraphs of each of the sources and archives are among them.
+
+All 8476 gave the same standard output,
+exit status and standard error under both:
+status 0 and empty standard error throughout,
+no difference in any of the 21 test passages,
+5612 source and archive inputs,
+or 2843 `page.zh_hant.md` inputs.
+The comparator was shown able to find a difference first:
+it flags one appended space and one changed status on a real reply,
+and 0.3.0 itself changed its input in 15 of the 21 passages,
+1586 of 2672 archive paragraphs,
+91 of 92 archive files,
+59 of 2756 source paragraphs and 32 of 92 source files,
+so the wrap acts on this material and the comparison is not between two programs that do nothing.
+
+The cache decision is that no cache version moves.
+`wrapReplacementText` writes the bytes `monochromatic-lint` returns,
+the bytes are the same under both versions on every input measured,
+and `semantic-wrap.ts` wraps text on its way out of a cache rather than into it,
+so a stored record holds the lane's text and a replay returns what it returned.
+The cache-account audit (`mise run //package/translation-repair/slice-cache:cache-account-audit`,
+run without `--runs-under`) lists `6253eb52b` among the source commits that no account names,
+as it lists every commit of typography,
+with all eight versions as the ones it rides inside;
+it read no slice-cache record in this tree (`slice-cache records read: 0`),
+so it says nothing about the caches of a launch,
+and the decision rests on the byte comparison of the measurement.
+
+The refusal text was written before the repository's tools moved to `toolchain.lock.json`.
+`LintBinaryMissingError` and `LintBinaryVersionError` told the reader to run `mise install`,
+named `mise.toml` as the place the tool is pinned,
+and asked for a start under `mise exec --`;
+`semantic-wrap-binary.ts` said `mise.toml` pins the tool.
+They now advise `mise run toolchain:sync` (the tool is `"cargo:monochromatic-lint"` in `toolchain.lock.json`),
+the `cargo binstall monochromatic-lint@0.4.0` line,
+and a start under `mise run` or with the tree's `.cache/toolchain-bin` directory first on the `PATH`,
+which is the form the root `mise.toml` and the gate trees of B980 use.
+The cases in `semantic-wrap-binary-error.unit.test.ts` and `semantic-wrap-binary.unit.test.ts` pin the new words
+and,
+in the error cases,
+that `mise install`,
+`mise.toml` and `mise exec` no longer appear.
+`mise exec --` is not named as a remedy any more,
+since nothing in this repository shows what it adds to the `PATH`.
+
+Not verified here:
+the release binaries were not rebuilt from the tags,
+so that the released binary was built from the `Cargo.lock` read here rests on the measurement alone.
+The inputs are the paragraphs and whole files of the pinned pages,
+not the slices a lane produces,
+and the hand-copied test passages stand for the inline literals as they stood on 2026-10-29.
+
+Recurrence:
+B700 and B980,
+which record the constant,
+its guard and the toolchain move this entry follows.
