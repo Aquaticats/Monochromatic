@@ -1,5 +1,11 @@
 # cli-git and unified-linter implementation
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`.
+
 ## Authority
 
 Implementation authorized on 2026-10-04 by the user's "Do it."
@@ -2856,3 +2862,24 @@ The manifest now pins unicode-ident 1.0.24 and unicode-properties 0.1.4,
 the same Unicode 17 pair as the incumbent;
 compilation and the Rust container suite pass.
 An explicit dependency-fetch task prepares all target archives before offline vendoring.
+
+## Issue 1804: stack concurrent changes on push (2026-10-29)
+
+User instruction: "Look at gh issue #1804", then chose "Reproduce in podman, then propose".
+No implementation until the user approves a plan in `doc/planning/`.
+The issue (open, `needs-triage`, no comments) mixes three failures that need separate evidence:
+- an explicit `git push origin HEAD:main` rejected as non-fast-forward from a detached linked worktree;
+- the detached-HEAD message "skipping auto-push";
+- the "auto-push failed" message when a linked worktree branch name differs from its upstream `origin/main`.
+Reproduced 2026-10-29 in podman with the installed wrapper (log `~/temp/agent/podman-1804/repro.log`;
+a first run was invalid because the wrapper link failed, so it was discarded):
+- an explicit push is rejected and never integrated (the wrapper only adds `--atomic`);
+- a detached HEAD skips auto-push by design;
+- a branch named differently from its upstream (`feature` tracking `origin/main`) fails every auto-push with git's
+  `fatal: The upstream branch of your current branch does not match`, with no race needed;
+  `reconcile_divergent_push` never runs because the output has no `[rejected]`;
+- control: auto-push on a checked-out `main` already merges and fast-forwards.
+Proposal written: `doc/planning/cli-git-stack-concurrent-pushes.md` (change A: push to the tracked ref on a name mismatch;
+change B: reconcile a stale-rejected explicit push by reusing the loop).
+Open: the user's decisions on merge vs rebase, scope of explicit pushes, and detached HEAD handling.
+Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).

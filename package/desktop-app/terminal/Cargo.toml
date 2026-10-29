@@ -71,7 +71,7 @@ slint-build = { workspace = true }
 [workspace.dependencies]
 anyhow = ">=1"
 i-slint-backend-winit = ">=1.18.1"
-libghostty-vt = ">=0.1.1"
+libghostty-vt = { version = ">=0.1.1", default-features = false }
 portable-pty = { git = "https://github.com/wezterm/wezterm", rev = "f78f72f2f18bf459561e3681f016365273d3e281" }
 slint = ">=1.18.1"
 slint-build = ">=1.18.1"

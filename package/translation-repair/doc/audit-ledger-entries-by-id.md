@@ -465,6 +465,7 @@ which lists every file of this record.
 - [B961 to B964, the pass's lifecycle line stamps: an attempt count that ended the pass, tests that could not fail, lines without a time or an attempt, docs that disagreed with the code](audit-ledger-lifecycle-line-stamps-round-two.md)
 - [B965, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [B970 to B979, the footnote readings, the containers regressions and the placing of the block comparison][b970-ledger]
+- [B980, the toolchain cutover: the lock reader of B700 and the gate's lookup of the lint program](audit-ledger-copies-in-production-code.md)
 - [B990, the Xiaomi checker card that still rode the pooled 99th after the cap rule could read its calls](audit-ledger-runner-reports-and-probes.md)
 - [B991, the cap census naming every dangling link under the agent root and burying its summary](audit-ledger-runner-reports-and-probes.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
@@ -671,6 +672,12 @@ which lists every file of this record.
 - [M288, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
 - [M289 to M292, process mistakes, lint, edits and tests](audit-ledger-process-lint-edits-and-tests.md)
 - [M293 to M294, process mistakes, checks run before a commit](audit-ledger-process-commit-gates.md)
+- [M295, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
+- [M296, process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md)
+- [M297 to M300, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
+- [M301, process mistakes, stopping and waiting](audit-ledger-process-stopping-and-waiting.md)
+- [M302 to M303, process mistakes, the lead's slips by batch of work](audit-ledger-process-the-leads-slips-by-batch.md)
+- [M304, process mistakes, agents and briefs in the rounds after the split][l34]
 - [T1 to T7, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)
 - [T8, code no unit test runs, with the areas of the audit][l35]
 - [T9, defects in the tests themselves](audit-ledger-test-suite-defects-in-the-tests-themselves.md)

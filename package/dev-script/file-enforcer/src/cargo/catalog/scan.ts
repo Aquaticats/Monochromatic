@@ -212,6 +212,7 @@ export function classifySite(
     manifestPath,
     table,
     name,
+    disablesDefaultFeatures: isTable(value,) && (value['default-features'] === false),
   };
   if ((typeof value) === 'string')
     return [{

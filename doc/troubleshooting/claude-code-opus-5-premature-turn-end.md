@@ -1452,14 +1452,46 @@ How the history effect splits by running tasks, from the verdict rows of the lab
   are covered by the parked-decision check and the admitted-gap phrases instead.
 - The rule is fitted to ten stops.
 
-Owner decisions pending, each a separate question:
+Owner decisions on 2026-10-29, three separate questions; each time the owner took the recommended option:
 
-- Whether the wording checks run inside a chain, once per trigger, as the parked-decision check already does.
-- Whether Luna keeps receiving the earlier stops on repeated stops.
-  The case for keeping it: it removed three verified repeated false blocks.
-  The case against: it lowered the block mass on five of seven repeated misses and, on this stop, moved the top label
-  under the cutoff.
-- Whether a stop is blocked when the always-blocking labels together reach 0.8 and no single label reaches 0.60.
+- The wording checks (hedges and admitted gaps, uncited dismissals, trailing question, choice left in prose) run inside
+  a chain, each trigger at most once per turn.
+  The case for it was the 03:10 stop and the 23:11 report; the cost measured on the logged chain stops was 14 extra
+  blocks in 215 released stops.
+- Luna receives the earlier stops of the turn only on a repeated stop with a background task running.
+  The case for it was that all three verified repeated false blocks had tasks running and four of the eight repeated
+  misses had none.
+- A verdict whose top label is under 0.60 blocks when `announces_own_next_step`, `leaves_open_work` and `waits_on_user`
+  together reach 0.9, with the reason of the largest of the three.
+  The 0.9 level fired never in the 832 logged released stops, so it adds no measured block.
+
+What was built:
+
+- `reminder-history.ts` (`alreadyRaised`) finds the hook's own feedback record that carries a reminder's opening
+  sentence since the last human turn, and `reminder-lead.ts` holds those opening sentences so the decision and the scan
+  read one text.
+  The parked-decision check's own scan moved into it.
+- `decision.ts` now holds the pure decision, moved out of `index.ts`, which had passed the code-line limit; `index.ts`
+  re-exports it.
+- `situation-action.ts` gained the split rule (`SPLIT_BLOCK_PROBABILITY`), compared in whole percent so a sum such as
+  0.8999999999999999 counts as 0.9.
+- The handler sends history on `stop_hook_active` and a running task, and its trailing-question skip of the Luna call
+  follows the same once-per-trigger rule.
+- Tests that asserted the old chain gate were rewritten to the new rule, and each rule has its own cases.
+
+Checked on the built bundle with the real gateway, on the real 03:10 message in a fixture of its turn:
+
+- A chain with nothing raised blocks on `i haven't run` and the trailing question.
+- With both raised and no task running, Luna alone scores `waits_on_user` 0.99 and blocks.
+- With both raised and a task running, history gives 0.54 and 0.37 and the split rule blocks at 0.95.
+- With only the hedge raised, the stop blocks on the question; a first stop blocks as before.
+- A clean first stop and a clean chain stop pass.
+
+Limits of the new rule: the first hit of each detector decides, so a message whose first hedge was already raised passes
+even if it holds a second, new hedge.
+The once-per-trigger scan keys on the reminder's opening sentence.
+For the trailing question that sentence holds the question text, so a question the agent rewords counts as new;
+hedges, dismissals and offers key on a fixed phrase.
 
 Limits: eight repeated misses and three repeated false blocks are too few for a rate.
 The 14 unblocked chain stops were read by me and are not a labelled sample.
