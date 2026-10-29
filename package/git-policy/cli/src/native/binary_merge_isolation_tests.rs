@@ -316,6 +316,28 @@ fn a_conflicting_merge_changes_nothing_and_names_the_paths() {
     remove_settled(&fixture);
 }
 
+/// An untracked file where the merge adds one is Git's own refusal at the last step: the merge commit stays
+/// unreachable, the record is gone, and the checkout is as it was.
+#[test]
+fn an_untracked_file_in_the_way_is_refused_by_git_and_changes_nothing() {
+    let fixture: Fixture = fixture("merge-refuses-untracked");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    std::fs::create_dir(repo.join("dir")).expect("directory");
+    std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
+    let before: Snapshot = snapshot(&fixture, repo.as_path());
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_ne!(observed.code, Some(0));
+    let stderr: String = text(&observed.stderr);
+    assert!(stderr.contains("would be overwritten") && stderr.contains("dir/new.txt"), "Git's own words: {stderr}");
+    assert!(stderr.contains("merge-isolation/not-applied"), "the finding follows: {stderr}");
+    assert_eq!(snapshot(&fixture, repo.as_path()), before);
+    assert_eq!(std::fs::read(repo.join("dir/new.txt")).expect("file"), b"an untracked file in the way\n");
+    assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+    remove_settled(&fixture);
+}
+
 /// With nothing staged the wrapper hands the merge to native Git untouched: the output is native Git's.
 #[test]
 fn a_clean_index_merge_is_forwarded_unchanged() {

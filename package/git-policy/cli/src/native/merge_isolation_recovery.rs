@@ -201,24 +201,38 @@ fn merge_changes(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) -> Re
 }
 
 /// What:
-///  The paths whose index entry differs from the old commit's tree.
+///  Whether any index entry of a changed path already holds the merge's entry.
 /// Why:
-///   A path of the merge whose entry already differs shows that Git had begun to install the merge's index.
+///   Only an entry equal to the merged one (or, for a deleted path, an absent one) shows that Git had begun to
+///  install the merge's index; another session's staged change to the same path is not that evidence, and must
+///  not make a merge that never began look like one that did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function stagedAgainst(oldOid: string): Promise<Uint8Array[]>;
+/// async function indexHoldsTheMerge({ place, root, oldOid, changes }): Promise<boolean>;
 /// ```
-fn staged_against(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Vec<u8>>, RecoveryError> {
-    let request: GitRequest =
-        GitRequest::new(root, &["diff-index", "--cached", "--name-only", "-z", "--no-renames", old_oid, "--"]);
+fn index_holds_the_merge(
+    place: &RecoveryPlace,
+    root: &Path,
+    old_oid: &str,
+    changes: &[Change],
+) -> Result<bool, RecoveryError> {
+    let request: GitRequest = GitRequest::new(
+        root,
+        &["diff-index", "--cached", "-z", "--raw", "--no-renames", "--no-abbrev", old_oid, "--"],
+    );
     let output = run_git_checked(&place.git, &request).map_err(|error| { return RecoveryError(error.to_string()); })?;
-    return Ok(output
-        .stdout
-        .split(|byte| { return *byte == 0; })
-        .filter(|path| { return !path.is_empty(); })
-        .map(<[u8]>::to_vec)
-        .collect());
+    let staged: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
+    for change in changes {
+        let Some(entry) = staged.iter().find(|candidate| { return candidate.path == change.path; }) else {
+            continue;
+        };
+        let merged_entry: bool = entry.new_mode == change.new_mode && entry.new_oid == change.new_oid;
+        if merged_entry {
+            return Ok(true);
+        }
+    }
+    return Ok(false);
 }
 
 /// What the worktree holds at a changed path, against the two sides of the merge.
@@ -322,8 +336,7 @@ pub fn settle_failed_merge(
         let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
         standings.push(standing(change, &state));
     }
-    let staged: Vec<Vec<u8>> = staged_against(place, root, intent.old_oid.as_str())?;
-    let index_started: bool = changes.iter().any(|change| { return staged.contains(&change.path); });
+    let index_started: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())?;
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = standings.contains(&Standing::New);
     if !index_started && !worktree_started {

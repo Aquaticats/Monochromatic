@@ -222,6 +222,22 @@ fn an_unrelated_edit_does_not_make_a_merge_that_never_began_complete() {
     remove(world.parent.as_path());
 }
 
+/// Another session's staged change to a path the merge changes is not evidence that the merge began.
+#[test]
+fn a_staged_change_of_a_merged_path_is_not_a_started_merge() {
+    let world: World = world("merge-recovery-staged-same-path");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt staged by another session\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    let before = snapshot(&world);
+    let record: PathBuf = record_of(&world, dead_owner("cccccccc-0000-4000-8000-00000000000c"), Some("refs/heads/main"));
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path()).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Discarded);
+    assert!(!record.exists());
+    assert_eq!(snapshot(&world), before);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid);
+    remove(world.parent.as_path());
+}
+
 /// A detached `HEAD` moves by `--no-deref`.
 #[test]
 fn a_detached_head_is_completed_too() {

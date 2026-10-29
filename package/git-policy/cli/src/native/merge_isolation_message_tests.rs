@@ -53,11 +53,12 @@ fn the_default_message_is_the_one_git_writes() {
     let mut context = git_context();
     context.global_prefix = vec!["-C".into(), repo.clone().into_os_string()];
     let message: Vec<u8> = default_merge_message(&context, line.as_str(), None).expect("message");
+    // The shortlog lists commits the branch does not yet contain, so it is read before the merge.
+    let shortlog: Vec<u8> = default_merge_message(&context, line.as_str(), Some(true)).expect("message with log");
+    assert!(String::from_utf8_lossy(&shortlog).contains("feature work"), "{shortlog:?}");
     git(repo.as_path(), &["merge", "--no-edit", "feature"]);
     let native: String = git_text(repo.as_path(), &["log", "-1", "--format=%B"]);
     assert_eq!(String::from_utf8(message).expect("text"), native);
-    let shortlog: Vec<u8> = default_merge_message(&context, line.as_str(), Some(true)).expect("message with log");
-    assert!(String::from_utf8_lossy(&shortlog).contains("feature work"), "{shortlog:?}");
     remove(parent.as_path());
 }
 
