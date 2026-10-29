@@ -179,6 +179,14 @@ const stateOf = ({ project, server, root = stateRoot }: { project: string; serve
   const name = basename(project).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 40);
   return join(root, name + '-' + hash.toString(16).padStart(16, '0'), server);
 };
+// The host path of the private /tmp of the most recent run for one server's state directory. Each process binds its own
+// `tmp-<process id>-<nonce>` directory as /tmp; a process that ended leaves it until a later launch removes it, and a
+// run of this script ends before the next starts, so the newest one is the run just made.
+const scratchOf = (state: string): string => {
+  const names = (existsSync(state) ? readdirSync(state) : []).filter(name => /^tmp-\d+-[0-9a-f]+$/.test(name));
+  const newest = names.map(name => ({ name, at: statSync(join(state, name)).mtimeMs })).sort((left, right) => right.at - left.at)[0];
+  return join(state, newest?.name ?? 'tmp');
+};
 // One probe report written by the escape probe script, and the attempts it records.
 interface ProbeResult { label: string; ok?: boolean; code?: string; stderr?: unknown }
 interface ProbeDocument { who: string; results: ProbeResult[]; writableMounts?: string[]; environment: string[] }
@@ -486,8 +494,9 @@ const scriptedPlan = scriptedPlanFor({ project: scriptedProject });
   const outcome = run({ name: 'scripted-confined', plan: scriptedPlan });
   sleep(1000);
   const state = scriptedState;
-  const lines: ScriptedLine[] = existsSync(join(state, 'tmp', 'scripted-report.jsonl'))
-    ? readFileSync(join(state, 'tmp', 'scripted-report.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  const scratch = scratchOf(state);
+  const lines: ScriptedLine[] = existsSync(join(scratch, 'scripted-report.jsonl'))
+    ? readFileSync(join(scratch, 'scripted-report.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
   const audit = lines.find(line => line.audit)?.audit;
   const auditMounts = audit?.writableMounts ?? [];
   const writes = Object.fromEntries((audit?.writes ?? []).map(entry => [entry.path, entry]));
@@ -497,7 +506,7 @@ const scriptedPlan = scriptedPlanFor({ project: scriptedProject });
     ['the project file write failed with error 30', writes[auditTargets[0]]?.errno === 30],
     ['private /tmp and private state were writable', writes[auditTargets[1]]?.ok === true && writes[auditTargets[2]]?.ok === true],
     ['an unrelated directory was not writable', writes[auditTargets[3]]?.errno === 30],
-    ['the private /tmp write landed in state, not the host /tmp', existsSync(join(state, 'tmp', 'audit-write')) && !existsSync('/tmp/audit-write')],
+    ['the private /tmp write landed in state, not the host /tmp', existsSync(join(scratch, 'audit-write')) && !existsSync('/tmp/audit-write')],
     ['the project tree is identical', empty(treeDiff({ before, after: snapshot(scriptedProject) }))],
     ['only private state, /tmp, and kernel file systems are writable', auditMounts.length > 0 && auditMounts.every(mount => allowedMount({ mount, state }))],
     ['no credential variable reached the server', audit !== undefined && !audit.environment.some(name => credentialNames.includes(name))],
@@ -535,8 +544,9 @@ const scriptedPlan = scriptedPlanFor({ project: scriptedProject });
   const before = snapshot(scriptedProject);
   const outcome = run({ name: 'scripted-pwd-alias', plan: scriptedPlanFor({ project: scriptedProject, targets: [aliasVictim, ...auditTargets] }), options: { env: { PWD: alias } } });
   sleep(1000);
-  const lines: ScriptedLine[] = existsSync(join(scriptedState, 'tmp', 'scripted-report.jsonl'))
-    ? readFileSync(join(scriptedState, 'tmp', 'scripted-report.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  const aliasScratch = scratchOf(scriptedState);
+  const lines: ScriptedLine[] = existsSync(join(aliasScratch, 'scripted-report.jsonl'))
+    ? readFileSync(join(aliasScratch, 'scripted-report.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
   const audit = lines.find(line => line.audit)?.audit;
   const writes = Object.fromEntries((audit?.writes ?? []).map(entry => [entry.path, entry]));
   const initialize = lines.find(line => line.received === 'initialize')?.params;
