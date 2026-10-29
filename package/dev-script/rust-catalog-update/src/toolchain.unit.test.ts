@@ -63,7 +63,7 @@ await describe({
   name: cargoToolchain.name,
   children: [
     it({
-      name: 'prefers RUSTUP_TOOLCHAIN, then the lock pin, then rustup\'s default',
+      name: 'prefers the lock pin over an inherited RUSTUP_TOOLCHAIN, which applies only without a pin',
       fn: async () => {
         await using repo = await tempRoot();
         /**
@@ -71,9 +71,10 @@ await describe({
          */
         const { root, } = repo;
         expect(await cargoToolchain({ root, explicit: '', },),).toBe('',);
+        expect(await cargoToolchain({ root, explicit: '1.98.1', },),).toBe('1.98.1',);
         await writeFile(join(root, 'toolchain.lock.json',), '{"tools":{"rust":{"version":"nightly-2026-10-29"}}}',);
         expect(await cargoToolchain({ root, explicit: '', },),).toBe('nightly-2026-10-29',);
-        expect(await cargoToolchain({ root, explicit: 'nightly-2026-11-01', },),).toBe('nightly-2026-11-01',);
+        expect(await cargoToolchain({ root, explicit: '1.98.1', },),).toBe('nightly-2026-10-29',);
       },
     },),
   ],

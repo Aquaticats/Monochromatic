@@ -4,9 +4,11 @@
  The update passes `-Zunstable-options`, which only nightly cargo accepts,
  and the repository builds everything with the pinned nightly. Outside a
  shell where mise exports `RUSTUP_TOOLCHAIN` (a systemd unit, a bare CI
- step), rustup falls back to its default toolchain, which may be stable, so
- the update pins the toolchain itself. An explicit `RUSTUP_TOOLCHAIN` in the
- environment still wins.
+ step), the toolchain is whatever the environment says: on the development
+ host the systemd user manager exported `RUSTUP_TOOLCHAIN=1.98.1` (stable),
+ which broke the first real run. So the repository's pin wins over an
+ inherited `RUSTUP_TOOLCHAIN`; the inherited value applies only when the
+ repository pins no Rust toolchain.
 
  @module
  */
@@ -73,13 +75,53 @@ export function rustToolchainFromLock(text: string,): string {
 }
 
 /**
- Toolchain cargo should run under: `RUSTUP_TOOLCHAIN` when set, else the repository's pin.
+ Rust toolchain the repository pins, or empty when there is no lock file or no Rust entry.
+
+ @param root - repository root
+
+ @returns pinned toolchain name
+
+ @throws SyntaxError when `toolchain.lock.json` is not JSON
+
+ @example
+ ```ts
+ await pinnedToolchain('/repo'); // 'nightly-2026-10-29'
+ ```
+ */
+async function pinnedToolchain(root: string,): Promise<string> {
+  /**
+   Logger for a missing lock.
+   */
+  const log = tagged({
+    tag: pinnedToolchain.name,
+    l,
+  },);
+  try {
+    return rustToolchainFromLock(await readFile(
+      join(
+        root,
+        TOOLCHAIN_LOCK,
+      ),
+      'utf8',
+    ),);
+  } catch (error) {
+    if (Error.isError(error,) && ('code' in error)
+      && (error.code === 'ENOENT')) {
+      log.debug(`no ${TOOLCHAIN_LOCK} at ${root}`,);
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
+ Toolchain cargo should run under: the repository's pin, else an inherited `RUSTUP_TOOLCHAIN`.
 
  @param root - repository root
 
  @param explicit - `RUSTUP_TOOLCHAIN` from the environment, empty when unset
 
- @returns toolchain name, or empty when neither source names one
+ @returns toolchain name, or empty when neither source names one (rustup's default then applies)
 
  @throws SyntaxError when `toolchain.lock.json` is not JSON
 
@@ -104,31 +146,19 @@ export async function cargoToolchain(
     tag: cargoToolchain.name,
     l,
   },);
-  if (explicit !== '') {
-    log.debug(`using RUSTUP_TOOLCHAIN=${explicit} from the environment`,);
-    return explicit;
-  }
-  try {
-    /**
-     Pinned toolchain.
-     */
-    const pinned = rustToolchainFromLock(await readFile(
-      join(
-        root,
-        TOOLCHAIN_LOCK,
-      ),
-      'utf8',
-    ),);
-    log.debug(`using ${pinned === '' ? 'rustup\'s default toolchain' : pinned} from ${TOOLCHAIN_LOCK}`,);
+  /**
+   Repository pin.
+   */
+  const pinned = await pinnedToolchain(root,);
+  if (pinned !== '') {
+    if ((explicit !== '') && (explicit !== pinned))
+      log.warn(`ignoring RUSTUP_TOOLCHAIN=${explicit} from the environment; ${TOOLCHAIN_LOCK} pins ${pinned}`,);
     return pinned;
-  } catch (error) {
-    if (Error.isError(error,) && ('code' in error)
-      && (error.code === 'ENOENT')) {
-      log.warn(`no ${TOOLCHAIN_LOCK} at ${root}; cargo runs under rustup's default toolchain, which must be nightly`,);
-      return '';
-    }
-    throw error;
   }
+  if (explicit !== '')
+    return explicit;
+  log.warn(`${root} pins no Rust toolchain and RUSTUP_TOOLCHAIN is unset; cargo runs under rustup's default, which must be nightly`,);
+  return '';
 }
 
 //endregion Toolchain
