@@ -134,7 +134,7 @@ async function put(
 
  @param typed - arguments after the runner's name
 
- @returns The refusal
+ @returns Refusal
 
  @example
  ```ts

@@ -36,7 +36,7 @@ import { writeDrawSheets, } from './draw-sample-sheets.ts';
  the repo. `--final` writes the gate sheet, otherwise a labelled preliminary
  sheet.
 
- @param line - the draw's command line, read whole by `reportingRefusals`
+ @param line - draw's command line, read whole by `reportingRefusals`
 
  @param runsDir - durable, gitignored output root
 

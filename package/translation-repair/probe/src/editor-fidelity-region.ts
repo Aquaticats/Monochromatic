@@ -99,11 +99,11 @@ function sayingOnLine(
 /**
  The region of an inserted sentence widened by the sentence that precedes it and the one that follows it, on its line.
 
- @param text - the damaged text
+ @param text - damaged text
 
- @param region - the inserted sentence, whole, with the separators left out
+ @param region - inserted sentence, whole, with the separators left out
 
- @returns The widened region, and how many neighbours it took (zero, one or two); a side with no neighbour on the
+ @returns Widened region, and how many neighbours it took (zero, one or two); a side with no neighbour on the
  line keeps the sentence's own edge
 
  @example

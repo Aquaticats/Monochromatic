@@ -43,11 +43,11 @@ export type PassAsk = {
  The asks of an arm that walks the pool pass by pass: every trial in the pool's order, then every trial again, and so on, so
  that the leading asks of an arm the spend guard capped are the first pass whole and then the start of the second.
 
- @param trials - the pool's trials in the one seeded order every arm walks
+ @param trials - pool's trials in the one seeded order every arm walks
 
  @param passes - how many times the pool is walked
 
- @returns The asks, the first pass's first
+ @returns Asks, first pass's first
 
  @example
  ```ts
@@ -85,9 +85,9 @@ export function passAsksOf(
 
  @param cardIds - cards seated, in the order named
 
- @param planned - the asks every card walks
+ @param planned - asks every card walks
 
- @returns The pairs, in the order they are asked; a pair of a later pass names the pass
+ @returns Pairs, in the order they are asked; a pair of a later pass names the pass
 
  @example
  ```ts
@@ -123,7 +123,7 @@ export function pairsOf(
 /**
  The leading asks of the passes over the pool an arm walks, warning in the judge probe's words when they leave asks out.
 
- @param trials - the pool's trials in the one seeded order every arm walks
+ @param trials - pool's trials in the one seeded order every arm walks
 
  @param passes - how many times the pool is walked
 
@@ -131,7 +131,7 @@ export function pairsOf(
 
  @param log - logger the warning goes to
 
- @returns The leading asks, all of them when the pool and its passes hold no more than `walked`
+ @returns Leading asks, all of them when the pool and its passes hold no more than `walked`
 
  @example
  ```ts
@@ -177,7 +177,7 @@ export function plannedAsksOf(
 /**
  Writes a JSON document to a file that must not exist yet, readable by its owner alone.
 
- @param path - the file
+ @param path - file
 
  @param value - what the file holds
 
@@ -212,15 +212,15 @@ export async function writeJsonOnce({
 /**
  Walks the pairs one at a time and keeps every row that finished, so an arm the spend guard caps returns the rows it has.
 
- @param pairs - the planned pairs, in the order walked
+ @param pairs - planned pairs, in the order walked
 
- @param controller - the arm's own, which the guard aborts with its refusal as the reason
+ @param controller - arm's own, which the guard aborts with its refusal as the reason
 
  @param log - logger the walk writes its progress to
 
  @param oneRow - asks one pair and returns its row
 
- @returns The rows that finished, in order; when the guard capped the arm, a CAPPED line has been logged
+ @returns Rows that finished, in order; when the guard capped the arm, a CAPPED line has been logged
 
  @throws {@link Error} whatever an ask threw that is not the guard's refusal
 

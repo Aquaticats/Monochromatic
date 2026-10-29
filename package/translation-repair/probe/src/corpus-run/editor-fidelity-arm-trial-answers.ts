@@ -15,7 +15,7 @@ import type { Answer, } from './editor-fidelity-arm-answers.ts';
 /**
  The answer of the planned-trials check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the planned line names no more units than the pool's trials hold through the passes it says the arm walks
 
@@ -98,7 +98,7 @@ export function plannedAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
 /**
  The answer of the ceiling check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether a ceiling line was logged for the number of trials the planned line says
 
@@ -150,7 +150,7 @@ export function ceilingAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer
 /**
  The answer of the EDITOR line check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the arm's card has a tally over the pool's trials
 
@@ -200,7 +200,7 @@ export function editorAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer 
 /**
  The answer of the row check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether a row was logged once for each trial the arm says it completed, and a CAPPED line says why an arm that
  completed fewer than it planned stopped

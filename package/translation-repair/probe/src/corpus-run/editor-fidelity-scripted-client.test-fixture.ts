@@ -62,7 +62,7 @@ function unusedQuotas(): never {
 
  @param asked - record the asks are appended to
 
- @returns The client the trial asks through
+ @returns Client the trial asks through
 
  @example
  ```ts
@@ -111,7 +111,7 @@ function scriptedClient(
 
  @param asked - record of the asks
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts

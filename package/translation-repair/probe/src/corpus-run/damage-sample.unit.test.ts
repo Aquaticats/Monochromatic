@@ -46,7 +46,7 @@ const REFUSED_AS_STATED = 6;
 
  @param shippedSlices - how many slices, from the first, the entry's repair lane replaced the archive's wording at
 
- @returns The run and what the runs directory held afterwards
+ @returns Run and what the runs directory held afterwards
 
  @example
  ```ts
@@ -85,7 +85,7 @@ async function drawOverOneEntry(
 /**
  Lines the pool's census prints before the command's own.
 
- @returns The two lines
+ @returns Two lines
 
  @example
  ```ts

@@ -125,7 +125,7 @@ async function writeDrawnFiles(
 
  @param entryId - entry read
 
- @returns The two pages, or that the entry cannot be read
+ @returns Two pages, or that the entry cannot be read
 
  @example
  ```ts
@@ -176,7 +176,7 @@ async function readEntryPages(
 /**
  Hands the run what only a real process has.
 
- @param line - the command line, read whole by `reportingRefusals`
+ @param line - command line, read whole by `reportingRefusals`
 
  @example
  ```ts

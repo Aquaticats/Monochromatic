@@ -21,7 +21,7 @@ import {
 
  @param id - spec id, which is also read as its entry id
 
- @returns The specification
+ @returns Specification
 
  @example
  ```ts

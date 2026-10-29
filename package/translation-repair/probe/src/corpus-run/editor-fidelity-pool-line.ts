@@ -10,9 +10,9 @@ import {
 /**
  Says how many trials a run drew, over how many entries and in which defect families.
 
- @param trials - the trials the run built, before the cap
+ @param trials - trials the run built, before the cap
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

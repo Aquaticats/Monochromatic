@@ -35,11 +35,11 @@ const CLEAN_SEAT = `SEAT ${LOW_CARD} asked=40 usable=40 unusable=0 threw=0 silen
  @param stops - for each row, its stop words, empty for a row that states none
  @param unusable - trials with no usable reply
  @param refused - trials where the card was heard and proposed no edit
- @param seat - the SEAT line
+ @param seat - SEAT line
  @param units - units the tally counts, split evenly between the kinds; 22 insertion and 18 alteration trials when
  omitted
 
- @returns The arm, named low
+ @returns Arm, named low
 
  @example
  ```ts
@@ -80,10 +80,10 @@ function armWith(
 /**
  The report line of one named check of the arm named low.
 
- @param log - the arm
+ @param log - arm
  @param check - name of the check, or the start of a warning's words
 
- @returns The line, empty when there is none
+ @returns Line, empty when there is none
 
  @example
  ```ts

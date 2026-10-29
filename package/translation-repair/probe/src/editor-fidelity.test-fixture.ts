@@ -37,7 +37,7 @@ export const HAIKU_CARD: RosterModelId = 'claude-haiku-5-5-effort-low';
 /**
  The invented reference with its three damaged twins, a deletion, an insertion and an alteration.
 
- @returns The reference as the reader would hand it
+ @returns Reference as the reader would hand it
 
  @example
  ```ts
@@ -94,7 +94,7 @@ export const HEADED_ARCHIVE_AFTER = '## Afterword\nThe cat came home at night.';
  The invented reference on pages of three headed sections, the reviewed passage in the middle one below its heading,
  so that the heading slice and the section after are the slices either side of it.
 
- @returns The reference with its pages and the archive range of the passage moved to match
+ @returns Reference with its pages and archive range of the passage moved to match
 
  @example
  ```ts
@@ -145,7 +145,7 @@ export function headedReference(): ReviewedFidelityReference {
 
  @param trial - trial whose region is read
 
- @returns The text the envelope holds
+ @returns Text the envelope holds
 
  @example
  ```ts

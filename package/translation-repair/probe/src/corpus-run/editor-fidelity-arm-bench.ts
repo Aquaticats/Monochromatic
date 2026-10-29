@@ -40,7 +40,7 @@ import { MIN_SHARED_TRIALS, } from './editor-fidelity-decide.ts';
 /**
  Runs the checks of every arm and the checks that make the logs a bench.
 
- @param arms - the arms, in the order they ran
+ @param arms - arms, in the order they ran
 
  @returns One line for each check and how many of them failed
 

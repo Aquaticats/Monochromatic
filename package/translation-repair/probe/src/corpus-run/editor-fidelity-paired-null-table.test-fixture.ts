@@ -13,11 +13,11 @@ const LEVEL = 0.025;
 /**
  Convolves the chances of the sums so far with one more entry, which adds or takes its magnitude with equal chance.
 
- @param held - the chance of each sum, the least sum first, the middle being zero
+ @param held - chance of each sum, least sum first, middle being zero
 
  @param magnitude - how many trials the entry's two arms differ by
 
- @returns The chances once the entry is in
+ @returns Chances once the entry is in
 
  @example
  ```ts
@@ -47,7 +47,7 @@ function withEntry(
 
  @param magnitudes - for each entry, how many trials its two arms differ by, whatever the sign
 
- @returns The least sum that is at most the level, positive infinity when none is
+ @returns Least sum that is at most the level, positive infinity when none is
 
  @example
  ```ts
@@ -122,7 +122,7 @@ export function criticalSumOf({ magnitudes, }: { readonly magnitudes: readonly n
 
  @param twos - entries that differ by two trials
 
- @returns The least sum that is at most the level, positive infinity when none is
+ @returns Least sum that is at most the level, positive infinity when none is
 
  @example
  ```ts
@@ -164,7 +164,7 @@ const CRITICAL = new Map<string, number>();
 
  @param magnitudes - for each entry that differs, how many trials its two arms differ by
 
- @returns The least sum at most the level
+ @returns Least sum at most the level
 
  @example
  ```ts

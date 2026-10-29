@@ -104,7 +104,7 @@ export type RepeatShortfall<Figure extends RepeatCounts> = {
 
  @param pick - how many are chosen
 
- @returns The count, zero when the pick is not between nothing and all of them
+ @returns Count, zero when the pick is not between nothing and all of them
 
  @example
  ```ts
@@ -151,13 +151,13 @@ function waysToChoose(
  Runs the one-sided Fisher exact test that the default effort's count of trials that read alike in every pass is low against
  another arm's.
 
- @param low - the default effort's counts
+ @param low - default effort's counts
 
- @param high - the counts of the arm it is set against
+ @param high - counts of the arm it is set against
 
  @param comparisons - how many arms the default effort is set against, the level being 0.05 divided by it; one when omitted
 
- @returns The exact p-value and whether it is at the level
+ @returns Exact p-value and whether it is at the level
 
  @example
  ```ts
@@ -244,9 +244,9 @@ export function repeatAgreementTest(
 /**
  Finds the other arm the default effort repeats itself less than, when there is one at the level.
 
- @param figure - the default effort's counts, with at least one trial asked again
+ @param figure - default effort's counts, with at least one trial asked again
 
- @param others - the other arms that have trials asked again, in the order they ran
+ @param others - other arms that have trials asked again, in the order they ran
 
  @returns One entry for the other arm with the highest share (the first among equals), with the p-value against it and the
  number of comparisons the level was divided by; none when the default effort is not under it at that level, or there is

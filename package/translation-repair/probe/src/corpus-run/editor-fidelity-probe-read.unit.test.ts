@@ -54,7 +54,7 @@ const TRIAL = nonNullishOrThrow(TRIALS[0],);
 
  @param typed - what the operator wrote after the script path
 
- @returns The cards, once each
+ @returns Cards, once each
 
  @throws StatedRefusalError when the reader refuses what was typed
 

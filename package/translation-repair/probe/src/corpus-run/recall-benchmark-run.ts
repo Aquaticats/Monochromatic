@@ -80,7 +80,7 @@ const RUN_BUDGET_MS = BUDGET_HOURS
  Runs the recall benchmark over a band-stratified corpus sample and writes its
  scorecard beside the other run artifacts.
 
- @param line - the benchmark's command line, read whole by `reportingRefusals`
+ @param line - benchmark's command line, read whole by `reportingRefusals`
 
  @param runsDir - durable, gitignored output root
 

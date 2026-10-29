@@ -114,7 +114,7 @@ const CHALLENGERS = [
 /**
  The decision rule as the line before any call prints it, after its `RULE ` marker.
 
- @returns The rule in one line
+ @returns Rule in one line
 
  @example
  ```ts
@@ -176,11 +176,11 @@ export function decisionRuleText(): string {
 /**
  Groups trials into the entries the test permutes within.
 
- @param trials - the shared trials
+ @param trials - shared trials
 
- @param effort - the effort under test, placed first among the arms
+ @param effort - effort under test, placed first among the arms
 
- @param kind - the kind of defect to keep, every kind when omitted
+ @param kind - kind of defect to keep, every kind when omitted
 
  @returns One cluster for each entry, in the order the entries first appear
 
@@ -254,13 +254,13 @@ function clustersOf(
 /**
  The paired estimate of an effort over the trials of one kind.
 
- @param trials - the shared trials
+ @param trials - shared trials
 
- @param effort - the effort under test
+ @param effort - effort under test
 
- @param kind - the kind of defect
+ @param kind - kind of defect
 
- @returns The estimate and the number of trials of the kind
+ @returns Estimate and number of trials of the kind
 
  @example
  ```ts
@@ -297,11 +297,11 @@ function kindEstimateOf(
 /**
  Reads one effort against the default.
 
- @param trials - the shared trials
+ @param trials - shared trials
 
- @param effort - the effort
+ @param effort - effort
 
- @returns The estimate, its interval, the exact p-value, whether it is shown better and the estimate for each kind
+ @returns Estimate, its interval, the exact p-value, whether it is shown better and the estimate for each kind
 
  @example
  ```ts
@@ -356,9 +356,9 @@ function readEffort(
 /**
  Applies the rule to the shared trials of the arms.
 
- @param trials - the trials every arm completed and none threw on, each with whether every arm fixed it cleanly
+ @param trials - trials every arm completed and none threw on, each with whether every arm fixed it cleanly
 
- @returns The effort picked, the clause that decided, how each effort stands and the lines the read step prints
+ @returns Effort picked, clause that decided, how each effort stands and lines the read step prints
 
  @example
  ```ts

@@ -38,7 +38,7 @@ import {
 
  @param rows - rows the run bought
 
- @param noun - the word for the count of rows
+ @param noun - word for the count of rows
 
  @param between - text between the band and the closing lines
 

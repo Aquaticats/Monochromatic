@@ -23,9 +23,9 @@ const EFFORT_MARKER = '-effort-';
 /**
  Names the effort a card runs at.
 
- @param card - the card an arm seated, empty when its log names none
+ @param card - card an arm seated, empty when its log names none
 
- @returns The text after the effort marker, or `(none)` when the card has no effort in its id
+ @returns Text after the effort marker, or `(none)` when the card has no effort in its id
 
  @example
  ```ts
@@ -44,7 +44,7 @@ export function effortOf({ card, }: { readonly card: string; }): string {
 /**
  Reads the figures of each arm's log, keeping the arms in the order given.
 
- @param arms - the arms' logs in the order they ran
+ @param arms - arms' logs in the order they ran
 
  @returns Each arm's name with the figures its log states, as `sharedBenchOf` takes them
 
@@ -159,7 +159,7 @@ type Classified =
 /**
  Whether a row counts as a clean fix for its arm: it reads as one and no ask of it ended at the output-token cap.
 
- @param row - the row
+ @param row - row
 
  @returns Whether the row is a clean fix
 
@@ -176,9 +176,9 @@ export function fixedBy({ row, }: { readonly row: RowStops; },): boolean {
 /**
  Names a row's unit, a trial in one pass over the pool.
 
- @param row - the row
+ @param row - row
 
- @returns The trial handle and the pass, which no two rows of an arm share
+ @returns Trial handle and pass, which no two rows of an arm share
 
  @example
  ```ts
@@ -193,9 +193,9 @@ export function unitOf({ row, }: { readonly row: RowStops; },): string {
 /**
  Keys an arm's rows by their unit, the trial handle and the pass.
 
- @param rows - the arm's rows, none for an effort the bench has no arm at
+ @param rows - arm's rows, none for an effort the bench has no arm at
 
- @returns The rows by unit
+ @returns Rows by unit
 
  @example
  ```ts
@@ -217,9 +217,9 @@ function rowsByUnit({ rows, }: { readonly rows: readonly RowStops[]; },): Readon
 /**
  The figures of the arms run at an effort.
 
- @param arms - the arms with their figures
+ @param arms - arms with their figures
 
- @param effort - the effort, `high`, `medium` or `low`
+ @param effort - effort, `high`, `medium` or `low`
 
  @returns Their figures, in the order the arms are given
 
@@ -251,9 +251,9 @@ function figuresAt(
 /**
  Finds the trials every arm completed.
 
- @param arms - the arms in the order they ran, the first being the reference, with their figures
+ @param arms - arms in the order they ran, first being the reference, with their figures
 
- @returns The shared trials, how many were left out as thrown and as not completed by every arm, and how many rows each
+ @returns Shared trials, how many were left out as thrown and as not completed by every arm, and how many rows each
  arm logged; no shared trial when the arms lack a high, a low or a medium effort
 
  @example

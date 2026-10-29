@@ -23,7 +23,7 @@ const PERCENT = 100;
 /**
  The answer of the check that every row line states how its asks ended.
 
- @param figures - the arm's figures
+ @param figures - arm's figures
 
  @returns Whether the arm logged rows and each states a stop reason
 
@@ -76,9 +76,9 @@ export function stopsStatedAnswer({ figures, }: { readonly figures: ArmFigures; 
 /**
  Writes the rows of a list for a message: `row 2` or `rows 2, 4`.
 
- @param rows - the row numbers
+ @param rows - row numbers
 
- @returns The label and the numbers
+ @returns Label and numbers
 
  @example
  ```ts
@@ -95,9 +95,9 @@ function rowsSaid({ rows, }: { readonly rows: readonly number[]; },): string {
  a trial that ended at the cap scores as unusable for this arm, and a trial in which an ask threw is left out of every
  arm. Neither fails the arm; the bench check of shared units fails only when too few remain.
 
- @param figures - the arm's figures
+ @param figures - arm's figures
 
- @returns An answer that holds, naming the rows where an ask ended at the cap or threw
+ @returns Answer that holds, naming the rows where an ask ended at the cap or threw
 
  @example
  ```ts
@@ -174,9 +174,9 @@ export function trialEndsAnswer({ figures, }: { readonly figures: ArmFigures; },
 /**
  The warning for an arm with many units unusable or refused.
 
- @param arm - the arm's name
+ @param arm - arm's name
 
- @param figures - the arm's figures
+ @param figures - arm's figures
 
  @returns Lines that keep fix rates from being trusted when many units gave no edit: one when unusable plus refused
  exceed their warned share of units, or when any exist and this log states no count of units, which leaves that share

@@ -40,9 +40,9 @@ import {
  roster seated beside the cards would be a probe that spends on more than was asked, and the flag a reader of the
  command already knows from the judge probe says it plainly.
 
- @param line - the probe's command line
+ @param line - probe's command line
 
- @returns The cards, once each, in the order named
+ @returns Cards, once each, in the order named
 
  @throws StatedRefusalError when a card is unknown, `--candidates-alone` is not written, no card is named, or a card
  has no price table
@@ -110,7 +110,7 @@ export function sheetCharsOf({ trial, }: { readonly trial: EditorFidelityTrial; 
 
  @param item - planned pair
 
- @returns The card and trial by their handles
+ @returns Card and trial by their handles
 
  @example
  ```ts
@@ -128,7 +128,7 @@ export function pairName({ item, }: { readonly item: EditorPair; },): string {
 
  @param reading - how the trial read
 
- @returns A short phrase with no corpus text in it
+ @returns Short phrase with no corpus text in it
 
  @example
  ```ts
@@ -164,7 +164,7 @@ export function readingWord({ reading, }: { readonly reading: EditorTrialReading
  Says the pass a row belongs to, counted from one, for a row of a later pass; the first pass says nothing, so a row of one
  pass reads as it always did.
 
- @param pair - the card and trial, whose pass is from zero and absent for the first
+ @param pair - card and trial, whose pass is from zero and absent for the first
 
  @returns `; pass 2` and so on for a later pass, the empty text otherwise
 
@@ -189,13 +189,13 @@ function passWord({ pair, }: { readonly pair: EditorPair; },): string {
 
  @param total - planned pairs
 
- @param pair - the card and trial
+ @param pair - card and trial
 
  @param reading - how the trial read
 
  @param stops - how each ask of the trial ended
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -233,7 +233,7 @@ export function rowLineOf(
 
  @param emit - says one line
 
- @returns The tally of each card, in the order the cards were named
+ @returns Tally of each card, in the order the cards were named
 
  @example
  ```ts

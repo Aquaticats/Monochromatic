@@ -22,7 +22,7 @@ export type AskEnd = 'ok' | 'refused' | 'output-cap' | 'unparseable' | 'rejected
 
  @param outcome - what the exchange gave
 
- @returns The end: a cut-off completion or thinking is the output cap, whatever else the mismatch says
+ @returns End: a cut-off completion or thinking is the output cap, whatever else the mismatch says
 
  @example
  ```ts
@@ -43,9 +43,9 @@ export function askEndOf({ outcome, }: { readonly outcome: ChatJsonOutcome<unkno
 /**
  Says the ends of a trial's asks in the word its row line prints.
 
- @param ends - the ends, in the order asked
+ @param ends - ends, in the order asked
 
- @returns The ends joined by a plus, or `none` for a trial that asked nothing
+ @returns Ends joined by a plus, or `none` for a trial that asked nothing
 
  @example
  ```ts
@@ -82,7 +82,7 @@ export type RecordedAsks = {
 
  @param client - client to wrap
 
- @returns The wrapped client and the reader of its notes
+ @returns Wrapped client and reader of its notes
 
  @throws Whatever the wrapped client throws, after noting it as threw
 

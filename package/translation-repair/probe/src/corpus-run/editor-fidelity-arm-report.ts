@@ -28,11 +28,11 @@ import {
 /**
  Says an arm's figures.
 
- @param arm - the arm's name
+ @param arm - arm's name
 
- @param figures - the arm's figures
+ @param figures - arm's figures
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -66,11 +66,11 @@ function armLine({
 /**
  Says how the asks of the rows of an arm ended: a count for each stop reason, and the rows that did not end ok.
 
- @param arm - the arm's name
+ @param arm - arm's name
 
- @param figures - the arm's figures
+ @param figures - arm's figures
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -146,9 +146,9 @@ function stopsLine({
 /**
  Says the trials every arm shared and what was left out.
 
- @param shared - the shared trials and the counts left out
+ @param shared - shared trials and counts left out
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -184,9 +184,9 @@ function sharedLine({ shared, }: { readonly shared: SharedBench; },): string {
 /**
  The lines the read step prints for a bench whose checks passed.
 
- @param arms - the three or four arms, in the order they ran: high, medium, a second medium if run, low
+ @param arms - three or four arms, in the order they ran: high, medium, a second medium if run, low
 
- @returns The ARM line of each arm, the SHARED line, the STOPS line of each arm, then the paired lines and the verdict
+ @returns ARM line of each arm, SHARED line, STOPS line of each arm, then the paired lines and the verdict
 
  @throws {@link Error} when the arms are not three or four, since the rule reads exactly those and the bench checks have
  already refused any other number

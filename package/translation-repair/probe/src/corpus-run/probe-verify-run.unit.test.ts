@@ -100,7 +100,7 @@ type Gathering = {
 
  @param controls - regions the control gatherer answers with
 
- @returns The gatherers and their recorded calls
+ @returns Gatherers and their recorded calls
 
  @example
  ```ts
@@ -145,9 +145,9 @@ function scriptedGathering(
  A verify manifest with each item's claimants sorted. The claimants are listed in the order the probers answered, from a bench the
  prompt rotates, which moved when the house tense rule changed the prompt, so both manifests are read in one order.
 
- @param text - the manifest JSON
+ @param text - manifest JSON
 
- @returns The manifest JSON with every item's claimants sorted
+ @returns Manifest JSON with every item's claimants sorted
 
  @example
  ```ts

@@ -26,7 +26,7 @@ const NAP_AFTER = 'The cat sleeps.';
 
  @param recorded - what the run recorded about the edit
 
- @returns The case
+ @returns Case
 
  @example
  ```ts

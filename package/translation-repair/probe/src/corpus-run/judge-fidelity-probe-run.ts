@@ -88,7 +88,7 @@ export type FidelityProbeSink = {
 
  @param request - what `reviewedFidelityRequest` checks
 
- @returns The selected reviewed specifications
+ @returns Selected reviewed specifications
 
  @throws StatedRefusalError when the request is refused, its sentence the
  reviewed reference's own
@@ -127,7 +127,7 @@ export function requestedSpecs(
 
  @param item - planned row, named by its trial
 
- @returns The trial by its handle
+ @returns Trial by its handle
 
  @example
  ```ts
@@ -146,7 +146,7 @@ function plannedTrialName(
  selector. Individual ballots are retained; a singleton judge's underweight
  merged verdict is not a quality score. This never changes role admission itself.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param pin - corpus commit and clone the reviewed references are read at
 
@@ -159,7 +159,7 @@ function plannedTrialName(
  @param newClient - builds the client the judges are asked through, called only
  after the plan is on disk so a refused request needs no key
 
- @param now - the clock, read for the start and for the finish
+ @param now - clock, read for the start and for the finish
 
  @param pipelineDigest - digest of the built output, read when the process started
 

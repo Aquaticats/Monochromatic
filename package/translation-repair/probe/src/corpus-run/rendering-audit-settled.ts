@@ -59,7 +59,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 /**
  Hands the audit what only a real process has.
 
- @param line - the audit's command line, read whole by `reportingRefusals`
+ @param line - audit's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

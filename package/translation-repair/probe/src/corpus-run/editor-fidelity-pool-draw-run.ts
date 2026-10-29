@@ -117,7 +117,7 @@ export type PoolDrawRunInput = {
 
  @param many - noun at any other count
 
- @returns The count, a space and the noun
+ @returns Count, space and noun
 
  @example
  ```ts
@@ -147,7 +147,7 @@ function counted(
 
  @param asked - what `--seed` carried
 
- @returns The seed
+ @returns Seed
 
  @example
  ```ts
@@ -163,7 +163,7 @@ function seedOf({ asked, }: { readonly asked: FlagValue; },): string {
 
  @param sheetChars - characters of each sheet taken
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -190,7 +190,7 @@ function sheetLine({ sheetChars, }: { readonly sheetChars: readonly number[]; },
 
  @param log - where the lines go
 
- @param draw - the draw
+ @param draw - draw
 
  @param seed - seed the draw was made under
 
@@ -262,7 +262,7 @@ function logDraw(
 
  @param onDisk - files found in the directory
 
- @returns The names, sorted
+ @returns Names, sorted
 
  @example
  ```ts

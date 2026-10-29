@@ -46,7 +46,7 @@ const MANIFEST_OUT_NAME = 'probe-verify-manifest.json';
 
  @param controls - regions from the same entries that nobody read
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -80,7 +80,7 @@ export function verifyOpening(
 
  @param dir - directory the sheet landed in
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -121,7 +121,7 @@ export const VERIFY_BLIND_NOTE: string = 'NOTE the sheet is blind and its manife
 
  @param newClient - builds the client each region is asked through
 
- @param gather - the two gatherers, which read the settled artifacts and the
+ @param gather - two gatherers, which read the settled artifacts and the
  corpus pages: `gatherRelabelCases` and `gatherControlCases` in a run
 
  @param stageSettings - straggler windows and contest ledger the entry file

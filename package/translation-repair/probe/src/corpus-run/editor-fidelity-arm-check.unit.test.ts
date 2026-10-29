@@ -172,7 +172,7 @@ type GoodArm = {
 
  @param benchSpentUsd - spend of the earlier arms the guard line prints
 
- @returns The lines, with the logger's prefix on each
+ @returns Lines, with the logger's prefix on each
 
  @example
  ```ts
@@ -217,7 +217,7 @@ function openingOf(
 
  @param cost - dollars the call cost
 
- @returns The line as the logger writes it
+ @returns Line as the logger writes it
 
  @example
  ```ts
@@ -295,11 +295,11 @@ function goodArm({ arm, }: { readonly arm: GoodArm; }): ArmLog {
 /**
  Runs the checks over one arm and returns the lines naming its check.
 
- @param log - the arm
+ @param log - arm
 
  @param check - name of the check
 
- @returns The line the report gives that check of that arm
+ @returns Line the report gives that check of that arm
 
  @example
  ```ts

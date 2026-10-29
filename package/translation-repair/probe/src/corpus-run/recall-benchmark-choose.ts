@@ -51,7 +51,7 @@ export type RecallChoice = {
 
  @param pin - corpus clone and commit the entries are read at
 
- @returns The chosen entries and each band's count
+ @returns Chosen entries and each band's count
 
  @example
  ```ts

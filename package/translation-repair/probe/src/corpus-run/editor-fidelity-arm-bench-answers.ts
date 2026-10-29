@@ -39,7 +39,7 @@ const BENCH_EFFORT_ORDERS = [
 /**
  The answer of the check that the logs are three or four distinct arms.
 
- @param arms - the logs, in the order given
+ @param arms - logs, in the order given
 
  @returns Whether three or four logs were given and no two hold the same lines
 
@@ -94,7 +94,7 @@ export function distinctAnswer({ arms, }: { readonly arms: readonly ArmLog[]; })
  The answer of the check that the arms ran at the cards high, medium, a second medium if one was run, and low in that
  order.
 
- @param facts - the facts of each arm, in the order given
+ @param facts - facts of each arm, in the order given
 
  @returns Whether the efforts of the cards are the bench's, in order
 
@@ -127,11 +127,11 @@ export function cardsAnswer({ facts, }: { readonly facts: readonly ArmFacts[]; }
 /**
  What the guards of the arms before one counted, in dollars.
 
- @param facts - the facts of every arm, in the order given
+ @param facts - facts of every arm, in the order given
 
  @param at - where the arm sits among them
 
- @returns The sum of the guard totals of the arms before it, zero for one whose total is not logged
+ @returns Sum of the guard totals of the arms before it, zero for one whose total is not logged
 
  @example
  ```ts
@@ -171,7 +171,7 @@ export function countedBefore(
 /**
  The answer of the check that an arm was told at least what the arms before it counted.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @param countedBeforeUsd - what the guards of the arms before it counted, in dollars
 
@@ -216,9 +216,9 @@ export function declaredAnswer(
 /**
  Says which trial a row walked and, for a later pass over the pool, the pass.
 
- @param row - the row
+ @param row - row
 
- @returns The trial's handle, then `(pass 2)` and so on after it for a later pass
+ @returns Trial's handle, then `(pass 2)` and so on after it for a later pass
 
  @example
  ```ts
@@ -233,9 +233,9 @@ function unitSaid({ row, }: { readonly row: RowStops; },): string {
 /**
  The answer of the check that a later arm walked the first arm's units in the first arm's order.
 
- @param first - the first arm's name and figures
+ @param first - first arm's name and figures
 
- @param later - the later arm's figures
+ @param later - later arm's figures
 
  @returns Whether the later arm's trials are the leading trials of the first arm's, in order
 

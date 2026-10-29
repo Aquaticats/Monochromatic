@@ -184,7 +184,7 @@ export class PairedShapeError extends Error {
   readonly messageNamesOnly: true = true;
 
   /**
-   @param entryId - the entry whose counts do not line up
+   @param entryId - entry whose counts do not line up
 
    @example
    ```ts
@@ -200,9 +200,9 @@ export class PairedShapeError extends Error {
 /**
  Reads how many arms the entries state, the same in every entry.
 
- @param clusters - the entries
+ @param clusters - entries
 
- @returns The number of arms, two when there are no entries
+ @returns Number of arms, two when there are no entries
 
  @throws {@link PairedShapeError} when the entries state different numbers of arms, or fewer than two
 
@@ -234,7 +234,7 @@ function armCountOf({ clusters, }: { readonly clusters: readonly PairedCluster[]
 /**
  Adds counts.
 
- @param counts - the counts
+ @param counts - counts
 
  @returns Their sum
 
@@ -261,7 +261,7 @@ function sumOf({ counts, }: { readonly counts: readonly number[]; },): number {
  chosen arm's fixes, minus all the arms' fixes. Divided by the arms less one it is the chosen arm's fixes minus the mean of
  the others'.
 
- @param cluster - the entry
+ @param cluster - entry
 
  @returns One number for each arm, the first being the observed one
 
@@ -288,9 +288,9 @@ function contributionsOf({ cluster, }: { readonly cluster: PairedCluster; },): r
  The distribution of the statistic over every assignment, as the number of assignments for each value, by convolving the
  entries one at a time.
 
- @param clusters - the entries
+ @param clusters - entries
 
- @returns The assignments counted for each sum of the entries' contributions
+ @returns Assignments counted for each sum of the entries' contributions
 
  @example
  ```ts
@@ -331,9 +331,9 @@ function distributionOf({ clusters, }: { readonly clusters: readonly PairedClust
 /**
  Runs the paired exact permutation test of the first arm against the others.
 
- @param clusters - the entries, each with the clean fixes of every arm in its shared trials
+ @param clusters - entries, each with the clean fixes of every arm in its shared trials
 
- @returns The estimate, the one-sided exact p-value and whether it is at most the level
+ @returns Estimate, one-sided exact p-value and whether it is at most the level
 
  @throws {@link PairedShapeError} when the entries state different numbers of arms, or fewer than two
 
@@ -389,11 +389,11 @@ export function pairedPermutationTest({ clusters, }: { readonly clusters: readon
  Numbers in the unit interval that one seed always gives: the bytes of sha256 over the seed and a block number, six bytes to
  a draw.
 
- @param seed - the seed
+ @param seed - seed
 
  @param count - how many draws
 
- @returns The draws, each at least zero and under one
+ @returns Draws, each at least zero and under one
 
  @example
  ```ts
@@ -443,13 +443,13 @@ export function unitDraws({
 /**
  The interval of the paired estimate by a seeded bootstrap over the entries.
 
- @param clusters - the entries, as for the test
+ @param clusters - entries, as for the test
 
- @param seed - the seed of the resampling
+ @param seed - seed of the resampling
 
  @param replicates - how many resamples to make
 
- @returns The centred interval of the resampled estimates, a point at zero for no entries
+ @returns Centred interval of the resampled estimates, a point at zero for no entries
 
  @throws {@link PairedShapeError} when the entries state different numbers of arms, or fewer than two
 

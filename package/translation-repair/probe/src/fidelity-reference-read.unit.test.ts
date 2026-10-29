@@ -71,7 +71,7 @@ type Page = {
 
  @param pages - pages to write and commit
 
- @returns The commit holding them
+ @returns Commit holding them
 
  @example
  ```ts

@@ -172,7 +172,7 @@ export type GuardedClient = ModelClient & {
 
  @param benchSpentUsd - amount from `--bench-spent-usd`, what the arms run before this one measured
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -206,7 +206,7 @@ const TOTAL_DECIMALS = 6;
 
  @param total - what the guard counted
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -276,9 +276,9 @@ type Attempt<ReplyT,> =
 /**
  Runs an exchange and says what it did as data, so the caller counts a throw before it rethrows.
 
- @param exchange - the inner client's exchange
+ @param exchange - inner client's exchange
 
- @returns The reply, or what the exchange threw
+ @returns Reply, or what the exchange threw
 
  @example
  ```ts
@@ -316,9 +316,9 @@ async function attemptOf<ReplyT,>(
 
  @param maxUsd - most the arm may spend, from `--max-usd`
 
- @param controller - the arm's own, aborted with the refusal as its reason when a call is refused
+ @param controller - arm's own, aborted with the refusal as its reason when a call is refused
 
- @returns A client with every member of the inner one, at run time, its exchanges refused once the spend so far plus the
+ @returns Client with every member of the inner one, at run time, its exchanges refused once the spend so far plus the
  call's ceiling would pass the amount (and, where the client tells the guard of its attempts, each attempt's bound),
  and the reader of what it counted
 
@@ -392,7 +392,7 @@ export function spendGuardedClient(
   /**
    Marks a call in flight until the returned handle is disposed.
 
-   @returns The handle whose disposal frees the guard for the next call
+   @returns Handle whose disposal frees the guard for the next call
 
    @throws ConcurrentGuardCallError when another call is still in flight
 
@@ -433,7 +433,7 @@ export function spendGuardedClient(
 
    @param modelId - model the exchange names
 
-   @param ceilingUsd - the most the call or the attempt can cost
+   @param ceilingUsd - most the call or the attempt can cost
 
    @param subject - what is about to be sent, for the refusal's words
 
@@ -482,7 +482,7 @@ export function spendGuardedClient(
 
    @param messages - what the call sends
 
-   @returns The most this call can cost and the prompt size it was reckoned from
+   @returns Most this call can cost and prompt size it was reckoned from
 
    @throws StatedRefusalError when the call could take the arm past its amount, or an earlier one did
 
@@ -530,9 +530,9 @@ export function spendGuardedClient(
    Lets an attempt of the call in flight through, or ends the arm: the client tells the guard before it sends each one,
    the first and every retry, and what this throws ends the call there with the attempt unsent.
 
-   @param label - the card the call is named by
+   @param label - card the call is named by
 
-   @param bound - the most the attempt can be billed
+   @param bound - most the attempt can be billed
 
    @throws StatedRefusalError when the attempt could take the arm past its amount, or an earlier call or attempt did
 
@@ -588,7 +588,7 @@ export function spendGuardedClient(
 
    @param modelId - model the call names
 
-   @param ceiling - the most the call could cost
+   @param ceiling - most the call could cost
 
    @param reckoning - why the line is reckoned, not reported
 
@@ -634,7 +634,7 @@ export function spendGuardedClient(
 
    @param messages - what the call sends
 
-   @param exchange - the inner client's exchange
+   @param exchange - inner client's exchange
 
    @returns What the inner client answered
 

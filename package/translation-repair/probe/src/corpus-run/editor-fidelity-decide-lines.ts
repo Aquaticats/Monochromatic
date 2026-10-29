@@ -38,9 +38,9 @@ const P_PRINTED_UNDER = 0.0001;
 /**
  A fraction as signed points to a tenth, `+12.5`, `-3.0`, `+0.0`.
 
- @param fraction - the fraction
+ @param fraction - fraction
 
- @returns The points, signed
+ @returns Points, signed
 
  @example
  ```ts
@@ -61,7 +61,7 @@ function pointsSaid({ fraction, }: { readonly fraction: number; },): string {
 /**
  A p-value as the lines print it.
 
- @param p - the p-value
+ @param p - p-value
 
  @returns Four decimals, or `under 0.0001` for a value four decimals would print as zero
 
@@ -84,7 +84,7 @@ export function pSaid({ p, }: { readonly p: number; },): string {
 
  @param entries - entries those trials come from
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -132,7 +132,7 @@ export function pairedLine(
 
  @param reading - how the effort stands
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -170,9 +170,9 @@ export function kindsLine({ reading, }: { readonly reading: EffortReading; },): 
 
  @param readings - how each effort stands
 
- @param shown - the efforts shown better
+ @param shown - efforts shown better
 
- @returns The effort picked, the clause that decided and the verdict line
+ @returns Effort picked, clause that decided and verdict line
 
  @example
  ```ts

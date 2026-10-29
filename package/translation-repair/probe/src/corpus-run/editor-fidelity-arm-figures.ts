@@ -148,9 +148,9 @@ export type ArmFigures = KindFigure & {
 /**
  Reads the counts of one EDITOR line.
 
- @param line - the line's body, empty when there is none
+ @param line - line's body, empty when there is none
 
- @returns The counts, minus one for what the line does not state
+ @returns Counts, minus one for what the line does not state
 
  @example
  ```ts
@@ -177,9 +177,9 @@ function kindFigureOf({ line, }: { readonly line: string; },): KindFigure {
 /**
  Reads the pass one row line names.
 
- @param body - the row line's body
+ @param body - row line's body
 
- @returns The pass counted from one, one when the line names none, which is how a row of the first pass reads
+ @returns Pass counted from one, one when the line names none, which is how a row of the first pass reads
 
  @example
  ```ts
@@ -201,9 +201,9 @@ function passOf({ body, }: { readonly body: string; },): number {
 /**
  Reads the stops one row line states.
 
- @param body - the row line's body
+ @param body - row line's body
 
- @returns The row, its trial, its entry, whether it is a clean fix and its stops
+ @returns Row, its trial, its entry, whether it is a clean fix and its stops
 
  @example
  ```ts
@@ -271,9 +271,9 @@ function rowStopsOf({ body, }: { readonly body: string; },): RowStops {
 /**
  Reads the figures of an arm's log.
 
- @param log - the arm
+ @param log - arm
 
- @returns The figures
+ @returns Figures
 
  @example
  ```ts

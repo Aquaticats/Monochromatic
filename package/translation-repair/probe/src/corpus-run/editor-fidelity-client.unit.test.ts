@@ -60,7 +60,7 @@ const FULL_ENV: Readonly<NodeJS.ProcessEnv> = {
 
  @param asked - array each exchange's model id is appended to
 
- @returns The inner client the guard wraps
+ @returns Inner client the guard wraps
 
  @example
  ```ts

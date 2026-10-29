@@ -533,7 +533,7 @@ await describe({
             /**
              The reviewer's block on a sheet of one item carrying one claim.
 
-             @param claim - the claim's two sides and what the screen made of it
+             @param claim - claim's two sides and what the screen made of it
 
              @returns Lines from the reviewer's opening to the grading rule
 

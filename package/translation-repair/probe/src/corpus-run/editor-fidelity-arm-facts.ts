@@ -68,7 +68,7 @@ export type ArmLog = {
 
  @param line - one line of a log
 
- @returns The line's own words
+ @returns Line's own words
 
  @example
  ```ts
@@ -188,11 +188,11 @@ export function reusedRowFlags({ bodies, }: { readonly bodies: readonly string[]
 /**
  The first body that starts with a marker.
 
- @param bodies - the log's bodies
+ @param bodies - log's bodies
 
  @param marker - what the body starts with
 
- @returns The body, empty when there is none
+ @returns Body, empty when there is none
 
  @example
  ```ts
@@ -218,7 +218,7 @@ export function firstStarting({
 
  @param marker - what stands just before the number
 
- @returns The number, or minus one when the marker is absent or no digit follows it
+ @returns Number, or minus one when the marker is absent or no digit follows it
 
  @example
  ```ts
@@ -267,7 +267,7 @@ export function numberAfter({
 
  @param marker - what stands just before the word
 
- @returns The word, empty when the marker is absent
+ @returns Word, empty when the marker is absent
 
  @example
  ```ts
@@ -298,11 +298,11 @@ export function wordAfter({
 
  @param count - how many
 
- @param one - the noun for one
+ @param one - noun for one
 
- @param many - the noun for any other count
+ @param many - noun for any other count
 
- @returns The count and the noun
+ @returns Count and noun
 
  @example
  ```ts
@@ -331,7 +331,7 @@ export function countWithNoun({
 
  @param usd - dollars
 
- @returns The amount as text
+ @returns Amount as text
 
  @example
  ```ts
@@ -421,9 +421,9 @@ export type ArmFacts = {
 /**
  Reads the facts of an arm's log.
 
- @param log - the arm
+ @param log - arm
 
- @returns The facts
+ @returns Facts
 
  @example
  ```ts

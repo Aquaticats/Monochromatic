@@ -342,7 +342,7 @@ function repeatSideOf(
 
  @param right - later audit of the same slice
 
- @returns The pair
+ @returns Pair
 
  @example
  ```ts

@@ -83,7 +83,7 @@ function commonSuffixLength(
 /**
  Offsets where two texts stop agreeing from either end.
 
- @param cleanText - the reference
+ @param cleanText - reference
 
  @param damagedText - its twin
 
@@ -173,13 +173,13 @@ function digitsFrom(
  Widens a differing middle to the whole digit run it cuts, so a number is read whole and not by the one digit that
  differs.
 
- @param text - the damaged text, whose digits bound the run
+ @param text - damaged text, whose digits bound the run
 
  @param start - where the middle begins
 
  @param end - where the middle ends in the damaged text
 
- @returns The widened start, and how far the end moved
+ @returns Widened start, and how far the end moved
 
  @example
  ```ts

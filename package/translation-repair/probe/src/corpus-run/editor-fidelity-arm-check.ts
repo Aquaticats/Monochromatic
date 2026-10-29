@@ -50,13 +50,13 @@ export type ArmCheckReport = {
 /**
  Writes one check's line.
 
- @param scope - the arm, or `bench`
+ @param scope - arm, or `bench`
 
- @param check - the check's name
+ @param check - check's name
 
  @param answer - what it found
 
- @returns The line, PASS or FAIL first
+ @returns Line, PASS or FAIL first
 
  @example
  ```ts
@@ -193,7 +193,7 @@ function benchAnswer(
 /**
  Runs every check over the logs of the arms of one bench.
 
- @param arms - the arms, in the order they ran
+ @param arms - arms, in the order they ran
 
  @returns One line for each check and how many of them failed
 

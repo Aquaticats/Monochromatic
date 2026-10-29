@@ -57,7 +57,7 @@ const PIN = {
 /**
  Reads the page of every entry as one short invented page.
 
- @returns The page
+ @returns Page
 
  @example
  ```ts
@@ -103,7 +103,7 @@ async function refusalOfFinalDraw(
 
  @param entries - how many entries the pool holds, spelled as the census does
 
- @returns The two lines
+ @returns Two lines
 
  @example
  ```ts

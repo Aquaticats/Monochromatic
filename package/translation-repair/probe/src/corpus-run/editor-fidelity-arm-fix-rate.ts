@@ -26,13 +26,13 @@ import {
 /**
  Says that the default effort fixes nine in ten of the units the arms share, or more.
 
- @param arm - the name of the arm of the default effort
+ @param arm - name of the arm of the default effort
 
- @param fixed - the shared units it cleanly fixed
+ @param fixed - shared units it cleanly fixed
 
- @param units - the shared units
+ @param units - shared units
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -68,9 +68,9 @@ function warningLine(
  The lines the read step prints for the fix rate of the arms of the default effort: one for each that cleanly fixed the
  stated share of the units every arm holds, or more.
 
- @param arms - the arms in the order they ran, one or more
+ @param arms - arms in the order they ran, one or more
 
- @returns The WARN lines, none when the logs share no unit, which is how one log read alone reads
+ @returns WARN lines, none when the logs share no unit, which is how one log read alone reads
 
  @example
  ```ts

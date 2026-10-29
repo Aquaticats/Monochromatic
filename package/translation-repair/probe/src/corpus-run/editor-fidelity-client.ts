@@ -48,11 +48,11 @@ function isClaudeCard({ cardId, }: { readonly cardId: RosterModelId; },): boolea
 /**
  The environment a client for the named cards is built over.
 
- @param env - the process's environment, which may hold every provider's key
+ @param env - process's environment, which may hold every provider's key
 
  @param cardIds - cards the probe seats
 
- @returns An environment holding the Claude key alone
+ @returns Environment holding the Claude key alone
 
  @throws StatedRefusalError when a card is not served by the Claude route, or the Claude key is unset or empty, in
  which case only the Claude route is named
@@ -101,9 +101,9 @@ export function editorProbeEnv(
 
  @param inner - client to wrap
 
- @param cardIds - the only models an exchange may name
+ @param cardIds - only models an exchange may name
 
- @returns A client with every member of the inner one, at run time, its exchanges refused for any other model
+ @returns Client with every member of the inner one, at run time, its exchanges refused for any other model
 
  @throws {@link Error} from an exchange naming a model that is not a named card, before the inner client is reached
 
@@ -162,7 +162,7 @@ export function cardsOnlyClient(
  Builds the client the cards are asked through: the run client over the Claude key alone, guarded to the cards named,
  and told the admit of the caller for each attempt the Claude client makes.
 
- @param env - the process's environment, which may hold every provider's key
+ @param env - process's environment, which may hold every provider's key
 
  @param transport - HTTP the client calls over: `fetchTransport` in a run, a script in a test
 
@@ -172,7 +172,7 @@ export function cardsOnlyClient(
 
  @param admitClaudeAttempt - told by the Claude client before each attempt it makes, which ends the call where it throws
 
- @returns A client that refuses any model that is not one of the cards and tells the caller of each attempt
+ @returns Client that refuses any model that is not one of the cards and tells the caller of each attempt
 
  @throws StatedRefusalError when a card is not served by the Claude route, or the Claude key is unset or empty
 

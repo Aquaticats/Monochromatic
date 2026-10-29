@@ -32,7 +32,7 @@ import {
 /**
  Reads a persisted run and prints what it amounts to.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @param resolveRuns - names the runs directory, called only when no run was
  named, since a named run needs no directory

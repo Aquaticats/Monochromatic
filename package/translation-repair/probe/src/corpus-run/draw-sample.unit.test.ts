@@ -63,7 +63,7 @@ const PRELIMINARY_SEED = `${FINAL_SEED}-preliminary`;
 
  @param settle - whether the runs directory holds the artifact; false leaves its artifacts directory empty
 
- @returns The run, the runs directory it was given, and what that directory held afterwards
+ @returns Run, runs directory it was given, and what that directory held afterwards
 
  @example
  ```ts

@@ -65,7 +65,7 @@ export type DrawPool = {
  recorded commit is placed against, which the entry names: the package's own
  in a run, a throwaway one in a case
 
- @returns The admitted entries and their pool
+ @returns Admitted entries and their pool
 
  @throws {@link StatedRefusalError} When the runs directory holds no artifacts
  directory, and whatever the pool and the entry reader refuse with

@@ -80,7 +80,7 @@ function isBlank({ character, }: { readonly character: string; },): boolean {
 
  @param text - text to normalize
 
- @returns The text with each whitespace run written as a single space
+ @returns Text with each whitespace run written as a single space
 
  @example
  ```ts
@@ -118,7 +118,7 @@ function collapseWhitespace({ text, }: { readonly text: string; },): string {
 
  @param replacement - what the region became
 
- @param sentence - the inserted sentence, separators included
+ @param sentence - inserted sentence, separators included
 
  @returns Whether some run of `SHARED_RUN_CHARS` characters of the sentence (the whole sentence when it is shorter)
  appears in the replacement
@@ -205,7 +205,7 @@ function fixesDefect(
 
  @param trial - trial the edit answered
 
- @param patchedText - the translation after the apply gate
+ @param patchedText - translation after the apply gate
 
  @returns Whether the defect is fixed and whether anything else changed
 

@@ -31,7 +31,7 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @param newClient - builds the client each probe asks through
 
- @param gather - the two gatherers, which read the settled artifacts and the
+ @param gather - two gatherers, which read the settled artifacts and the
  corpus pages: `gatherRelabelCases` and `gatherControlCases` in a run
 
  @param stageSettings - straggler windows and contest ledger the entry file

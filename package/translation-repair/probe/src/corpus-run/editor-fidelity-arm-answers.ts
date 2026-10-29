@@ -42,7 +42,7 @@ export type Answer = {
 /**
  The answer of the exit check.
 
- @param log - the arm
+ @param log - arm
 
  @returns Whether the process exited with status zero
 
@@ -71,7 +71,7 @@ export function exitAnswer({ log, }: { readonly log: ArmLog; }): Answer {
 /**
  The answer of the manifest check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the arm logged the digest of the manifest it asked
 
@@ -95,7 +95,7 @@ export function manifestAnswer({ facts, }: { readonly facts: ArmFacts; }): Answe
 /**
  The answer of the pool check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the pool line names a pool of enough trials of both defect families
 
@@ -159,7 +159,7 @@ export function poolAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
 /**
  The answer of the guard check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether a guard line naming the cap and the spend of the earlier arms was logged
 
@@ -191,7 +191,7 @@ export function guardAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
 /**
  The answer of the error check.
 
- @param log - the arm
+ @param log - arm
 
  @returns Whether no line was written at the error level
 
@@ -222,7 +222,7 @@ export function errorAnswer({ log, }: { readonly log: ArmLog; }): Answer {
 /**
  The answer of the seat check.
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the card's seat line states what the arm needs and nothing withheld or dark was logged
 
@@ -291,9 +291,9 @@ export function seatAnswer({ facts, }: { readonly facts: ArmFacts; }): Answer {
 /**
  The answer of the spend check.
 
- @param log - the arm
+ @param log - arm
 
- @param facts - the arm's facts
+ @param facts - arm's facts
 
  @returns Whether the SPEND lines add to the total the guard counted
 

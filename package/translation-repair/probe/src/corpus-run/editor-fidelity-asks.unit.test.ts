@@ -44,7 +44,7 @@ type Answers = {
 
  @param answers - what each exchange gives, in order
 
- @returns The client
+ @returns Client
 
  @example
  ```ts

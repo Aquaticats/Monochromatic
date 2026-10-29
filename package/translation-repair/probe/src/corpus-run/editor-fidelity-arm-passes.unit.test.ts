@@ -47,7 +47,7 @@ import { readAsBuilt as readAsBuiltIn, } from './editor-fidelity-arm-read-built.
  @param count - how many leading units
  @param fixed - whether the unit at an index reads as a clean fix
 
- @returns The rows
+ @returns Rows
 
  @example
  ```ts
@@ -109,16 +109,16 @@ function insertionsOnly(index: number,): boolean {
 /**
  One arm of a bench.
 
- @param arm - the arm's name
- @param cardId - the card it seated
- @param rows - the units it walked
- @param planned - the units its planned line says, the rows when omitted
- @param passes - the times it was asked to walk the pool, the latest pass a row names when omitted
+ @param arm - arm's name
+ @param cardId - card it seated
+ @param rows - units it walked
+ @param planned - units its planned line says, rows when omitted
+ @param passes - times it was asked to walk the pool, latest pass a row names when omitted
  @param capped - whether the guard capped it after its rows
  @param declaredUsd - what its guard line says the earlier arms spent
  @param countedUsd - what its guard total says it counted
 
- @returns The arm's log
+ @returns Arm's log
 
  @example
  ```ts
@@ -166,9 +166,9 @@ function armOf(
  @param count - units each arm walked
  @param planned - units each planned line says, the units walked when omitted
  @param firstPlanned - units the first arm's planned line says, `planned` when omitted
- @param passes - the times each arm was asked to walk the pool, as many as the larger planned count needs
+ @param passes - times each arm was asked to walk the pool, as many as the larger planned count needs
 
- @returns The three logs, high first
+ @returns Three logs, high first
 
  @example
  ```ts
@@ -224,7 +224,7 @@ function benchOf(
  The first arm of the billed run of `dd4b15b75c` as its log read: the pool once with a call for each unit, then 62 units of
  the second pass answered by the prompt reuse layer, each with a `PROMPT-REUSE` line in front of its row.
 
- @returns The arm's log, 150 rows of which 62 made no call
+ @returns Arm's log, 150 rows of which 62 made no call
 
  @example
  ```ts
@@ -253,10 +253,10 @@ function reusedHighArm(): ArmLog {
 /**
  The line a check of an arm printed.
 
- @param log - the arm
- @param check - the check's name
+ @param log - arm
+ @param check - check's name
 
- @returns The line
+ @returns Line
 
  @throws {@link Error} when the checks print none for it
 
@@ -274,7 +274,7 @@ function lineFor({ log, check, }: { readonly log: ArmLog; readonly check: string
 /**
  Runs the built read step over the arms' logs.
 
- @param arms - the logs, in the order the arms ran
+ @param arms - logs, in the order the arms ran
 
  @returns Exit status and standard output
 

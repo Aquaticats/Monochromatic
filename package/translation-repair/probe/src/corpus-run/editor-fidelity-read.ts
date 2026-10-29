@@ -35,7 +35,7 @@ import type {
 
  @param path - file to read
 
- @returns The file's text, and whether it was there
+ @returns File's text, and whether it was there
 
  @example
  ```ts
@@ -67,9 +67,9 @@ async function readIfPresent({ path, }: { readonly path: string; },): Promise<{
 /**
  Reads the exit status recorded beside a log.
 
- @param path - the log's path
+ @param path - log's path
 
- @returns The status, or that none was recorded or the file holds no whole number
+ @returns Status, or that none was recorded or the file holds no whole number
 
  @example
  ```ts
@@ -108,9 +108,9 @@ async function exitRecordBeside({ path, }: { readonly path: string; },): Promise
 /**
  Reads one arm's log and its exit status.
 
- @param path - the log's path
+ @param path - log's path
 
- @returns The arm
+ @returns Arm
 
  @throws StatedRefusalError when the log is not there
 
@@ -145,7 +145,7 @@ async function readArm({ path, }: { readonly path: string; },): Promise<ArmLog> 
 /**
  Reads the logs the command line names, checks them and prints the checks.
 
- @param line - the command line, read whole by `reportingRefusals`
+ @param line - command line, read whole by `reportingRefusals`
 
  @throws StatedRefusalError when a log is not there, or any check fails
 

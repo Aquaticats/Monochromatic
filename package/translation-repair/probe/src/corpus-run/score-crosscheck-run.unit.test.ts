@@ -99,7 +99,7 @@ const UNJUDGEABLE_WARNING = 'WARNING 1 claim was proposed by the WHOLE roster, l
 
  @param entries - entries the pool reports, as the pool words them
 
- @returns The three lines
+ @returns Three lines
 
  @example
  ```ts

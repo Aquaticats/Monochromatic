@@ -41,7 +41,7 @@ export type BoundedFidelityMatrix = {
 
  @param cap - most rows to attempt
 
- @returns The leading rows within the cap and whether they are the whole matrix
+ @returns Leading rows within the cap and whether they are the whole matrix
 
  @example
  ```ts
@@ -76,7 +76,7 @@ export function boundFidelityMatrix(
 
  @param selected - reviewed reference specifications the request selected
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -100,7 +100,7 @@ export function fidelityPreflightLine({ selected, }: { readonly selected: number
 
  @param total - rows the whole requested matrix holds
 
- @returns The warning, without a newline
+ @returns Warning, without a newline
 
  @example
  ```ts
@@ -246,9 +246,9 @@ export type FidelityPlan = {
 
  @param matrix - every reviewed row the request materialized
 
- @param bound - the rows this run attempts
+ @param bound - rows this run attempts
 
- @returns The plan, ready to serialize
+ @returns Plan, ready to serialize
 
  @example
  ```ts
@@ -357,11 +357,11 @@ export type FidelityRowResult = FidelityOutcome & {
 /**
  Joins a completed trial to the provenance of the reference it ran.
 
- @param row - the planned row that ran
+ @param row - planned row that ran
 
  @param outcome - what the judges said
 
- @returns The row as kept, which stays readable if a later row interrupts the run
+ @returns Row as kept, which stays readable if a later row interrupts the run
 
  @example
  ```ts
@@ -399,7 +399,7 @@ export function fidelityRowResult(
 
  @param count - rows judged
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -423,7 +423,7 @@ export function fidelityJudgedLine({ count, }: { readonly count: number; },): st
 
  @param keptAt - path of the kept run
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -452,7 +452,7 @@ export function fidelityKeptLine(
  Everything a finished run is kept as, apart from the clock and the build's
  identity, which the driver supplies.
 
- @param plan - the durable plan written before the run
+ @param plan - durable plan written before the run
 
  @param rows - every completed row
 
@@ -468,7 +468,7 @@ export function fidelityKeptLine(
 
  @param damageKinds - defect families requested
 
- @returns The record `persistProbeRun` writes
+ @returns Record `persistProbeRun` writes
 
  @example
  ```ts

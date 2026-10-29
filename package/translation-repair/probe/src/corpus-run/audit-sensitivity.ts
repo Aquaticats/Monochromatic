@@ -60,7 +60,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 /**
  Reads what only a real process has and hands it to the arms.
 
- @param line - the probe's command line, read whole by `reportingRefusals`, which
+ @param line - probe's command line, read whole by `reportingRefusals`, which
  refuses any argument, since this probe reads none; it names the script run
 
  @example

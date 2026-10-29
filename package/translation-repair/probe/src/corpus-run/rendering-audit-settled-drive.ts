@@ -38,7 +38,7 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @param reading - one artifact as the archive reader returned it
 
- @returns The artifact's place, identity, subject count and verification kind
+ @returns Artifact's place, identity, subject count and verification kind
 
  @example
  ```ts
@@ -78,7 +78,7 @@ export function settledArtifactRecord(
 
  @param eligible - subjects the entry filter left, which the buy is a fraction of
 
- @returns The line, with its surrounding newlines
+ @returns Line, with its surrounding newlines
 
  @example
  ```ts
@@ -106,7 +106,7 @@ export function settledBuyingLine(
 /**
  Reads the archive, audits what was asked for, and keeps the answers.
 
- @param line - the audit's command line, read whole by `reportingRefusals`
+ @param line - audit's command line, read whole by `reportingRefusals`
 
  @param newClient - builds the one client the whole run asks through, called
  only once something is bought, so a zero cap still needs no key
@@ -120,7 +120,7 @@ export function settledBuyingLine(
 
  @param resolveRuns - names the runs directory the kept run lands in
 
- @param now - the clock, read for the start and for the finish
+ @param now - clock, read for the start and for the finish
 
  @param pipelineDigest - digest of the built output, read when the process started
 

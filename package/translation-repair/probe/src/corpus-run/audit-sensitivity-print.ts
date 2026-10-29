@@ -20,7 +20,7 @@ import {
 
  @param arm - which arm this row came from
 
- @returns The voice line, then one line per claim, without newlines
+ @returns Voice line, then one line per claim, without newlines
 
  @example
  ```ts
@@ -81,7 +81,7 @@ export function voiceLines(
 
  @param roster - auditors asked
 
- @returns The lines, without newlines, in the order they print
+ @returns Lines, without newlines, in the order they print
 
  @example
  ```ts
@@ -189,7 +189,7 @@ export function armLines(
 
  @param keptAt - path the run was written to
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

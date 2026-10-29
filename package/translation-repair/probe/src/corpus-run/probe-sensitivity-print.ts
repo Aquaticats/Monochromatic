@@ -17,7 +17,7 @@ import type { SensitivityArm, } from './probe-sensitivity-arms.ts';
 
  @param armCount - arms the run will ask about
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -57,7 +57,7 @@ export function sensitivityOpening(
 
  @param tally - screened tally of that region
 
- @returns The lines, without newlines, in the order they print
+ @returns Lines, without newlines, in the order they print
 
  @example
  ```ts
@@ -106,7 +106,7 @@ export function sensitivityArmLines(
 
  @param production - list production sends, which the first note closes on
 
- @returns The notes, one per line printed
+ @returns Notes, one per line printed
 
  @example
  ```ts

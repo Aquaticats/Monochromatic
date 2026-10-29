@@ -35,7 +35,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 
  @param value - parsed manifest, of any shape
 
- @returns The refusal
+ @returns Refusal
 
  @example
  ```ts

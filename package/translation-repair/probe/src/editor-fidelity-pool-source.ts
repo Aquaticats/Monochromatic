@@ -46,7 +46,7 @@ const GROUP_DIGITS = 3;
 
  @param value - non-negative whole number
 
- @returns The number as source text
+ @returns Number as source text
 
  @example
  ```ts
@@ -89,7 +89,7 @@ function numberText({ value, }: { readonly value: number; },): string {
 
  @param span - span written
 
- @returns The field as source text, one indentation level in
+ @returns Field as source text, one indentation level in
 
  @example
  ```ts
@@ -118,7 +118,7 @@ function spanText(
 
  @param spec - specification written
 
- @returns The specification as source text
+ @returns Specification as source text
 
  @example
  ```ts
@@ -167,7 +167,7 @@ ${spec.damages
 
  @param perPart - specifications to a part
 
- @returns The part files in order, then the file that gathers them
+ @returns Part files in order, then the file that gathers them
 
  @example
  ```ts

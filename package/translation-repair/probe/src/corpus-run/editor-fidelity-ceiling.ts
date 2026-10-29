@@ -80,7 +80,7 @@ export type EditorCeiling = {
 
  @param cardId - card named
 
- @returns The card's prices
+ @returns Card's prices
 
  @throws StatedRefusalError when the card is not one the Claude route serves, so it has no table
 
@@ -110,11 +110,11 @@ export function pricesOf({ cardId, }: { readonly cardId: RosterModelId; },): Ant
 /**
  Rates that price a whole call: the long-prompt tier once the prompt passes its limit.
 
- @param prices - the card's prices
+ @param prices - card's prices
 
  @param promptTokens - tokens in the prompt
 
- @returns The tier's rates
+ @returns Tier's rates
 
  @example
  ```ts
@@ -140,7 +140,7 @@ export function tierFor(
 /**
  Most one call can cost at a card's prices.
 
- @param prices - the card's prices
+ @param prices - card's prices
 
  @param promptTokens - tokens in the prompt, at the sizing rule
 
@@ -173,7 +173,7 @@ export function callCeilingUsd(
 /**
  Characters of the messages a call sends, which the ceiling sizes the prompt by.
 
- @param messages - the request's messages
+ @param messages - request's messages
 
  @returns Characters of every message, a part list counted as its JSON
 
@@ -276,9 +276,9 @@ export function usdText({ usd, }: { readonly usd: number; },): string {
 /**
  The line that states one card's ceiling and what it is built from.
 
- @param ceiling - the card's ceiling
+ @param ceiling - card's ceiling
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

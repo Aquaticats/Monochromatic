@@ -42,7 +42,7 @@ type WalkPosition = {
 
  @param fixedAt - whether the unit at a position reads as a clean fix
 
- @returns The rows, pass by pass
+ @returns Rows, pass by pass
 
  @example
  ```ts
@@ -98,17 +98,17 @@ export function walkOf(
 /**
  One arm's log over the given rows.
 
- @param arm - the arm's name
+ @param arm - arm's name
 
- @param cardId - the card it seated
+ @param cardId - card it seated
 
- @param rows - the rows it walked
+ @param rows - rows it walked
 
  @param declaredUsd - what its guard line says the earlier arms spent
 
  @param countedUsd - what its guard total says it counted
 
- @returns The arm's log
+ @returns Arm's log
 
  @example
  ```ts

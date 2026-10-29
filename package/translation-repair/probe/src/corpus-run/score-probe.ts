@@ -13,7 +13,7 @@ import { printProbeScore, } from './score-probe-run.ts';
 /**
  Reads a run's artifacts and prints the probe summary.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

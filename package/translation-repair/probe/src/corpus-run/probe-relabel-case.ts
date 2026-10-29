@@ -154,7 +154,7 @@ type GatheringCase = Omit<RelabelCase, 'positions'> & {
 
  @param before - replaced text to locate
 
- @returns An empty list when no slice carries the text, otherwise the one that does
+ @returns Empty list when no slice carries the text, otherwise the one that does
 
  @throws {@link ArtifactParseError} when more than one slice carries the text,
  naming the text's length and never the text

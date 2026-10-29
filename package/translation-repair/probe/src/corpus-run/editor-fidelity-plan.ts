@@ -87,7 +87,7 @@ export type EditorFidelityRow = {
 
  @param stops - how each ask of the trial ended, in the order asked
 
- @returns The row as kept, which stays readable if a later row interrupts the run
+ @returns Row as kept, which stays readable if a later row interrupts the run
 
  @example
  ```ts
@@ -205,7 +205,7 @@ export type EditorCardTally = EditorKindTally & {
 /**
  How many of the rows had one fix kind, among the rows of one card.
 
- @param rows - the rows counted
+ @param rows - rows counted
 
  @param fixed - fix kind counted
 
@@ -239,9 +239,9 @@ function countFixed(
 /**
  Counts each way a set of trials read.
 
- @param rows - the rows counted, all of one card
+ @param rows - rows counted, all of one card
 
- @returns The counts; zero trials for no rows
+ @returns Counts; zero trials for no rows
 
  @example
  ```ts
@@ -298,7 +298,7 @@ function kindTallyOf({ rows, }: { readonly rows: readonly EditorFidelityRow[]; }
 
  @param rows - every row of the run, of every card
 
- @returns The tally; zero trials for a card with no rows
+ @returns Tally; zero trials for a card with no rows
 
  @example
  ```ts
@@ -346,9 +346,9 @@ export function editorTallyOf(
 /**
  Says one set of counts, the clean fix first and the defect-only count outside it.
 
- @param counts - the counts said
+ @param counts - counts said
 
- @returns The counts as the lines write them
+ @returns Counts as the lines write them
 
  @example
  ```ts
@@ -366,9 +366,9 @@ function countsSaid({ counts, }: { readonly counts: EditorKindTally; },): string
 /**
  The line that reports a card's tally, pooled over every kind of defect.
 
- @param tally - the card's tally
+ @param tally - card's tally
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -382,7 +382,7 @@ export function editorTallyLine({ tally, }: { readonly tally: EditorCardTally; }
 /**
  The lines that report a card's tally for each kind of defect, insertion first.
 
- @param tally - the card's tally
+ @param tally - card's tally
 
  @returns One line for each kind, without newlines
 
@@ -409,9 +409,9 @@ export function editorKindLines({ tally, }: { readonly tally: EditorCardTally; }
 /**
  The line that reports the replies that removed the defect and changed something else, which the headline leaves out.
 
- @param tally - the card's tally
+ @param tally - card's tally
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -435,7 +435,7 @@ export function editorDefectOnlyLine({ tally, }: { readonly tally: EditorCardTal
  The rule the arms are read by, stated before any arm asks: which counts are compared, what difference counts, what a
  tie keeps and what the insertion trials measure. The text is `decisionRuleText`, the one the read step applies.
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -594,13 +594,13 @@ export type EditorPair = {
 
  @param trials - every trial the request materialized
 
- @param pairs - the card and trial pairs this run attempts, in order
+ @param pairs - card and trial pairs this run attempts, in order
 
  @param passes - how many times the run is asked to walk the pool, one when it is not said
 
- @param ceilings - the ceilings printed before the run
+ @param ceilings - ceilings printed before the run
 
- @returns The plan, ready to serialize
+ @returns Plan, ready to serialize
 
  @example
  ```ts
@@ -665,11 +665,11 @@ export function editorFidelityPlan(
 /**
  Everything a finished run is kept as, apart from the clock and the build's identity, which the driver supplies.
 
- @param plan - the durable plan written before the run
+ @param plan - durable plan written before the run
 
  @param rows - every completed row
 
- @param tallies - the tally of each card
+ @param tallies - tally of each card
 
  @param finishedAt - when the run ended
 
@@ -685,7 +685,7 @@ export function editorFidelityPlan(
 
  @param maxUsd - amount the run was held to
 
- @returns The record `persistProbeRun` writes
+ @returns Record `persistProbeRun` writes
 
  @example
  ```ts

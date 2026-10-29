@@ -98,7 +98,7 @@ function isPlainId({ text, }: { readonly text: string; },): boolean {
 
  @param spec - specification read
 
- @returns The families it carries that the probe builds
+ @returns Families it carries that the probe builds
 
  @example
  ```ts

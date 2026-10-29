@@ -11,21 +11,21 @@ import type { Section, } from './editor-fidelity-pool-sections.ts';
 /**
  Builds the specification a drawn damage is committed as.
 
- @param entryId - the entry
+ @param entryId - entry
 
- @param section - the section the damage is in
+ @param section - section the damage is in
 
- @param kind - the damage
+ @param kind - damage
 
- @param damage - the twin built
+ @param damage - twin built
 
- @param donor - the section the donor sentence came from
+ @param donor - section the donor sentence came from
 
  @param corpusSha - commit the pages were read at
 
  @param reviewedOn - date of the freeze
 
- @returns The specification, holding the one damage
+ @returns Specification, holding the one damage
 
  @example
  ```ts
@@ -86,7 +86,7 @@ export function specForDamage(
  Joins the two specifications of one section into one that holds both damages; at most one insertion and one alteration
  are drawn, so only the two can share a section.
 
- @param specs - the specifications drawn, the insertion's first
+ @param specs - specifications drawn, insertion's first
 
  @returns One specification when both were drawn in the same section, else the specifications as they were
 

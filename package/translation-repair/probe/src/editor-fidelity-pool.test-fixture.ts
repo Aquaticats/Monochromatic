@@ -89,7 +89,7 @@ type InventedEntry =
 
  @param entryId - id read
 
- @returns The two pages, or that the entry cannot be read
+ @returns Two pages, or that the entry cannot be read
 
  @example
  ```ts

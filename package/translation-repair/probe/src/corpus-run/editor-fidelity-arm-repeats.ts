@@ -85,15 +85,15 @@ function passesAgree({ passes, }: { readonly passes: readonly boolean[]; },): bo
 /**
  Reads an arm's repeat agreement off its rows.
 
- @param arm - the arm's name
+ @param arm - arm's name
 
- @param effort - the effort its card runs at
+ @param effort - effort its card runs at
 
- @param rows - the arm's rows
+ @param rows - arm's rows
 
- @param held - the units to read, each as `unitOf` names it; every row when omitted
+ @param held - units to read, each as `unitOf` names it; every row when omitted
 
- @returns The trials asked again and how many of them agreed with themselves
+ @returns Trials asked again and how many of them agreed with themselves
 
  @example
  ```ts
@@ -163,9 +163,9 @@ function repeatFigureOf(
 /**
  An arm's repeat agreement as a share.
 
- @param figure - the arm's figure, with at least one repeated trial
+ @param figure - arm's figure, with at least one repeated trial
 
- @returns The share of the trials asked again that agreed with themselves, from 0 to 1
+ @returns Share of the trials asked again that agreed with themselves, from 0 to 1
 
  @example
  ```ts
@@ -180,9 +180,9 @@ function shareOf({ figure, }: { readonly figure: RepeatFigure; }): number {
 /**
  An arm's repeat agreement as a whole percent.
 
- @param figure - the arm's figure, with at least one repeated trial
+ @param figure - arm's figure, with at least one repeated trial
 
- @returns The percent, rounded
+ @returns Percent, rounded
 
  @example
  ```ts
@@ -197,9 +197,9 @@ function percentOf({ figure, }: { readonly figure: RepeatFigure; }): number {
 /**
  Says an arm's repeat agreement.
 
- @param figure - the arm's figure
+ @param figure - arm's figure
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -223,9 +223,9 @@ function repeatLine({ figure, }: { readonly figure: RepeatFigure; }): string {
 /**
  The level the exact test of one warning was run at, as the line says it.
 
- @param comparisons - the other arms the level was divided among
+ @param comparisons - other arms the level was divided among
 
- @returns The level, with its division when there is more than one other arm
+ @returns Level, with its division when there is more than one other arm
 
  @example
  ```ts
@@ -242,11 +242,11 @@ function levelSaid({ comparisons, }: { readonly comparisons: number; },): string
 /**
  Says that the default effort repeats itself less than another arm does, at the level of the exact test.
 
- @param low - the default effort's figure
+ @param low - default effort's figure
 
- @param shortfall - the arm it is under, the p-value against it and the comparisons the level was divided among
+ @param shortfall - arm it is under, p-value against it and comparisons the level was divided among
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -285,11 +285,11 @@ function warningLine(
 /**
  The warning for one arm of the default effort, when it is under another arm at the level of the exact test.
 
- @param figure - the default effort's figure, with at least one repeated trial
+ @param figure - default effort's figure, with at least one repeated trial
 
- @param others - the figures of the other arms that have trials asked again, in the order they ran
+ @param others - figures of the other arms that have trials asked again, in the order they ran
 
- @returns The warning, none when the default effort is under no other arm at the level
+ @returns Warning, none when the default effort is under no other arm at the level
 
  @example
  ```ts
@@ -324,9 +324,9 @@ function warningsFor(
  The lines the read step prints for the repeat agreement of the arms: one for each arm, and a warning for each arm of the
  default effort that an exact test finds repeating itself less than another arm, at the level the warning prints.
 
- @param arms - the arms in the order they ran, one or more
+ @param arms - arms in the order they ran, one or more
 
- @returns The REPEAT line of each arm, then the WARN line of each arm of the default effort that is under another
+ @returns REPEAT line of each arm, then the WARN line of each arm of the default effort that is under another
 
  @example
  ```ts

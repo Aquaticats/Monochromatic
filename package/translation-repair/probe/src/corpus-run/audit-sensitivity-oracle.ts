@@ -125,7 +125,7 @@ export function pointsAtOracle({ finding, }: { readonly finding: ScreenedFinding
 
  @param rows - every auditor's screened answer
 
- @returns The voices that did
+ @returns Voices that did
 
  @example
  ```ts

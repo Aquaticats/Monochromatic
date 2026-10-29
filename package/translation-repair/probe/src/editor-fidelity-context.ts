@@ -53,7 +53,7 @@ export type EditorSheetContext = {
 
  @param reference - reviewed reference, with the pages its passage was cut from
 
- @returns The neighbouring sections, the whole original and the identity context
+ @returns Neighbouring sections, whole original and identity context
 
  @throws {@link FidelityReferenceError} when no slice of the prepared page lies over the passage's range in the archive,
  since the window of a slice that is not there would read as a lone slice with no neighbours
@@ -148,7 +148,7 @@ export function editorSheetContextOf({ reference, }: { readonly reference: Revie
 
  @param context - context prepared for a trial
 
- @returns The neighbouring texts, the whole original and the identity context when there is one, to spread into the
+ @returns Neighbouring texts, whole original and identity context when there is one, to spread into the
  call that builds the sheet
 
  @example

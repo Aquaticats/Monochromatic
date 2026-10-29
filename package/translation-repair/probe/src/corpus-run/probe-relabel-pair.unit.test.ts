@@ -91,7 +91,7 @@ function rendersTheList({ sheet, }: { readonly sheet: string; },): boolean {
 /**
  Whether every sheet of each group carries the issue-list heading.
 
- @param sheetsOfEach - the user sheets each probe was sent, one group per probe
+ @param sheetsOfEach - user sheets each probe was sent, one group per probe
 
  @returns One flag per group
 
@@ -115,7 +115,7 @@ function listRenderedIn({ sheetsOfEach, }: { readonly sheetsOfEach: readonly (re
 
  @param category - category each prober named
 
- @returns The lines, without newlines
+ @returns Lines, without newlines
 
  @example
  ```ts
@@ -144,7 +144,7 @@ function claimLinesOf(
 
  @param lines - what the probe printed
 
- @returns The lines with every run of claim lines sorted
+ @returns Lines with every run of claim lines sorted
 
  @example
  ```ts

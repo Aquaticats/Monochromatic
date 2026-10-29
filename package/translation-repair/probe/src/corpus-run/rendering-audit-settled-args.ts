@@ -96,7 +96,7 @@ export type ReportArguments = {
  written last reported the newest run, and `--against` written last printed
  no across-run band, and neither said a word.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @returns Named files, each in a one-element list when written
 
@@ -127,7 +127,7 @@ export function readReportArguments(
 /**
  Reads what the command line asked for.
 
- @param line - the audit's command line, read whole by `reportingRefusals`
+ @param line - audit's command line, read whole by `reportingRefusals`
  and passed in so this is testable without a subprocess
 
  @param runCloneDir - clone of the run's corpus pin, which the entry read

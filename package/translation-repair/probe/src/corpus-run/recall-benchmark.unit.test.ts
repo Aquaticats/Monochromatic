@@ -42,7 +42,7 @@ const MITTENS: BenchPages = {
  The whole opening line the command prints before it needs a client, for a
  corpus holding the one invented entry.
 
- @returns The line with its newline
+ @returns Line with its newline
 
  @example
  ```ts

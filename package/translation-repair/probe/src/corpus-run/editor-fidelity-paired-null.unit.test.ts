@@ -33,13 +33,13 @@ import {
 /**
  Entries whose differences are drawn from a seed: each from minus a reach to plus a reach.
 
- @param seed - the seed
+ @param seed - seed
 
  @param count - how many entries
 
- @param reach - the most an entry may differ by, in trials
+ @param reach - most an entry may differ by, in trials
 
- @returns The difference of each entry
+ @returns Difference of each entry
 
  @example
  ```ts
@@ -70,7 +70,7 @@ function differencesFrom(
 
  @param differences - for each entry, the effort's fixes minus the default's
 
- @param trials - the trials each entry holds
+ @param trials - trials each entry holds
 
  @returns Whether the rule's test is at most the level
 
@@ -97,7 +97,7 @@ function ruleShows({ differences, trials, }: { readonly differences: readonly nu
 /**
  Whether every ask of an entry gave every arm the answer the entry's first ask gave it, for every entry.
 
- @param units - the asks
+ @param units - asks
 
  @param fixes - for each ask, whether the high, the low and the default effort fixed it
 
@@ -139,7 +139,7 @@ const FAR_APART: BenchScenario = { high: 0.9, low: 0.5, medium: 0.1, correlation
 /**
  The committed pool walked twice.
 
- @returns The asks of two passes, pass zero first
+ @returns Asks of two passes, pass zero first
 
  @example
  ```ts

@@ -157,7 +157,7 @@ type DriveSeen = {
 /**
  Runs the drive once over an archive of one settled artifact, with every part scripted.
 
- @param sinon - the case's own sandbox, so the stub on `console.log` is restored when the case ends
+ @param sinon - case's own sandbox, so the stub on `console.log` is restored when the case ends
 
  @param typed - flags after the archive and the clone
 
@@ -308,7 +308,7 @@ function byModelId(left: string, right: string,): number {
 
  @param row - row as written to the kept run
 
- @returns The row in a form that does not depend on the order the voices answered
+ @returns Row in a form that does not depend on the order the voices answered
 
  @example
  ```ts
@@ -344,7 +344,7 @@ function settledRow({ row, }: { readonly row: Record<string, unknown>; },): Reco
 
  @param commitSha - commit the artifact claims its pair was read at
 
- @returns The row, voices in model order and the text identity reduced to its kind
+ @returns Row, voices in model order and the text identity reduced to its kind
 
  @example
  ```ts
@@ -398,7 +398,7 @@ function quietRow(
 
  @param seen - what the drive did
 
- @returns The kept run as written, its rows settled
+ @returns Kept run as written, its rows settled
 
  @example
  ```ts
@@ -443,7 +443,7 @@ async function keptRun({ seen, }: { readonly seen: DriveSeen; },): Promise<Recor
 
  @param rows - rows the run bought
 
- @returns The whole run, as the drive writes it
+ @returns Whole run, as the drive writes it
 
  @example
  ```ts
@@ -494,7 +494,7 @@ function keptWith(
 
  @param seen - what the drive did
 
- @returns The line, with its leading newline
+ @returns Line, with its leading newline
 
  @example
  ```ts

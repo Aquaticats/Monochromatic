@@ -18,7 +18,7 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
  @param passes - how many times the pool is walked, one when it is not said
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -79,7 +79,7 @@ export function editorPreflightLine(
 
  @param keptAt - path of the kept run
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

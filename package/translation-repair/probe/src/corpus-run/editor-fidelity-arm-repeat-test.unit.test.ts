@@ -26,11 +26,11 @@ import {
 /**
  One arm's counts, with a name so that the arm picked can be told.
 
- @param arm - the name
+ @param arm - name
  @param agreed - trials whose passes all read alike
  @param repeated - trials asked in more than one pass
 
- @returns The figure
+ @returns Figure
 
  @example
  ```ts

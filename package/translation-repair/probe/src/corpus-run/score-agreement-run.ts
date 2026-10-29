@@ -46,7 +46,7 @@ import {
 
  @param runsDir - durable, gitignored output root the default files sit in
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @throws {@link StatedRefusalError} when the sheet cannot be read, or a manifest or pre-grades file the
  operator named is not there

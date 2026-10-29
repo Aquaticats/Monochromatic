@@ -50,7 +50,7 @@ type BuiltRun = {
 
  @param text - stream contents
 
- @returns The lines
+ @returns Lines
 
  @example
  ```ts

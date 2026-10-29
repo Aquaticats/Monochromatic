@@ -37,7 +37,7 @@ import {
 
  @param reading - how the trial read
 
- @returns The row
+ @returns Row
 
  @example
  ```ts

@@ -70,7 +70,7 @@ const DAMAGE_BY_NAME: ReadonlyMap<string, readonly FidelityDamageKind[]> = new M
  Spells the defects `--damage` takes the way its refusal names them, from the
  same list the map is built from.
 
- @returns The defects in list order, the last one joined by "or"
+ @returns Defects in list order, last one joined by "or"
 
  @example
  ```ts
@@ -119,7 +119,7 @@ function damageKindsOf({ damage, }: { readonly damage: FlagValue; },): readonly 
 
  @internal
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
  and passed in so this is testable without a subprocess
 
  @returns Entry ids to trial, empty for every entry, the trial cap, and which

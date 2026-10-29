@@ -101,7 +101,7 @@ const READ_ONLY_BUY = 0;
 
  @param typed - what the operator wrote after the script path
 
- @returns The line the audit's body receives
+ @returns Line the audit's body receives
 
  @throws StatedRefusalError when the line itself is refused (ledger B75)
 
@@ -149,7 +149,7 @@ function auditArgumentsOf(
 
  @param typed - what the operator wrote after the script path
 
- @returns The line the report's body receives
+ @returns Line the report's body receives
 
  @throws StatedRefusalError when the line itself is refused (ledger B75)
 

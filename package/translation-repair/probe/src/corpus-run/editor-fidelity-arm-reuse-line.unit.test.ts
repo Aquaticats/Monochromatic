@@ -40,7 +40,7 @@ const FILE_PREFIX = '[info] [2026-10-23T12:00:00.000Z] ';
 
  @param reuseLine - line written in front of second row
 
- @returns The arm's log, the fixture's hand-written reuse line replaced by the given one
+ @returns Arm's log, fixture's hand-written reuse line replaced by the given one
 
  @example
  ```ts

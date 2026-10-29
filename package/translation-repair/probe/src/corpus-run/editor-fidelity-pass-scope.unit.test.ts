@@ -31,7 +31,7 @@ import { LOW_CARD, } from '../editor-fidelity.test-fixture.ts';
 
  @param seen - array each request is appended to
 
- @returns The inner client the wrapper wraps
+ @returns Inner client the wrapper wraps
 
  @example
  ```ts

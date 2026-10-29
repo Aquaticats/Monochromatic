@@ -89,7 +89,7 @@ export type EntryContribution = {
  REQUIRED: a default read the clone for any caller that left it out
  (ledger M43, X24)
 
- @returns The banded entry
+ @returns Banded entry
 
  @throws DrawReconcileError when the artifact records no numeric
  `acceptedCount`, or one the parsed accepted issues disagree with

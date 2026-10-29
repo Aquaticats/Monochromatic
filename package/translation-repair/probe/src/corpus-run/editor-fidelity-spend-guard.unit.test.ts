@@ -147,7 +147,7 @@ function writeMeter({ script, }: { readonly script: ClientScript; },): void {
 
  @param script - what the client does on each call
 
- @returns The inner client the guard wraps
+ @returns Inner client the guard wraps
 
  @example
  ```ts
@@ -181,13 +181,13 @@ function scriptedClient({ script, }: { readonly script: ClientScript; },): Model
 /**
  Asks the guarded client one JSON exchange of a thousand characters.
 
- @param client - the guarded client
+ @param client - guarded client
 
  @param modelId - model named
 
- @param signal - the arm's signal
+ @param signal - arm's signal
 
- @returns The outcome the client gives
+ @returns Outcome the client gives
 
  @example
  ```ts
@@ -216,11 +216,11 @@ function askJson(
 /**
  Builds the exchange that asks the guarded client one text exchange of a thousand characters.
 
- @param client - the guarded client
+ @param client - guarded client
 
- @param controller - the arm's own
+ @param controller - arm's own
 
- @returns The exchange, which settles with the reply the client gives
+ @returns Exchange, which settles with the reply the client gives
 
  @example
  ```ts
@@ -248,9 +248,9 @@ function chatTextAsker(
 /**
  What asking raised, caught so a case can read it.
 
- @param ask - the exchange
+ @param ask - exchange
 
- @returns The raised value, or undefined when the exchange completed
+ @returns Raised value, or undefined when the exchange completed
 
  @example
  ```ts
@@ -274,7 +274,7 @@ async function raisedBy({ ask, }: { readonly ask: () => Promise<unknown>; },): P
 
  @param failure - what each exchange throws
 
- @returns A client that answers nothing
+ @returns Client that answers nothing
 
  @example
  ```ts
@@ -323,7 +323,7 @@ const CUT = claudeStreamOf({ text: '{"spot":"sun', stopReason: 'end_turn', usage
 
  @param errorType - type the error event names
 
- @returns The stream's body
+ @returns Stream's body
 
  @example
  ```ts
@@ -364,8 +364,8 @@ const FOUR_RETRIES = {
 /**
  Asks the guarded client one JSON exchange and keeps both what it raised and the info lines the call logged.
 
- @param client - the guarded client
- @param controller - the arm's own
+ @param client - guarded client
+ @param controller - arm's own
 
  @returns What the call raised, or undefined when it completed, with the lines it logged
 
@@ -396,10 +396,10 @@ async function askLogged(
 /**
  The Claude client built over a transport with no admit given, which tells nobody of its attempts.
 
- @param transport - the scripted transport
+ @param transport - scripted transport
  @param retries - retry pacing
 
- @returns The Claude client's surface as a guard takes it
+ @returns Claude client's surface as a guard takes it
 
  @example
  ```ts
@@ -426,10 +426,10 @@ function claudeUntoldOf(
 /**
  The Claude client built over a transport once the guard hands it the admit of each attempt.
 
- @param transport - the scripted transport
+ @param transport - scripted transport
  @param retries - retry pacing
 
- @returns The builder a guard takes in place of a client
+ @returns Builder a guard takes in place of a client
 
  @example
  ```ts
@@ -486,9 +486,9 @@ function attemptBoundOf({ exchanges, }: { readonly exchanges: readonly Transport
  Builds the client over the guard's admit, which on its one call tells the guard of an attempt of the bound given after
  0.5 USD of an earlier attempt is on the meter.
 
- @param boundUsd - the most the attempt can be billed
+ @param boundUsd - most the attempt can be billed
 
- @returns The builder a guard takes in place of a client
+ @returns Builder a guard takes in place of a client
 
  @example
  ```ts

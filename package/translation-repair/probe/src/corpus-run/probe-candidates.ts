@@ -52,7 +52,7 @@ const ALONE_FLAG = '--candidates-alone';
 /**
  Reads seatable ids named after `--candidates`.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
  and passed in so this is testable without a subprocess
 
  @returns Candidate ids in the order written, none when the flag is absent
@@ -97,7 +97,7 @@ export function readCandidateIds(
 /**
  Reads whether `--candidates-alone` was written.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
  and passed in so this is testable without a subprocess
 
  @returns Whether the candidates run without the seated roster

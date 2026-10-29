@@ -24,7 +24,7 @@ import { runSettledReport, } from './rendering-audit-settled-report-run.ts';
 /**
  Hands the report the command line and the way to name the runs directory.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

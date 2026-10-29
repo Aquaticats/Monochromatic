@@ -12,7 +12,7 @@ import { printGradeReport, } from './score-agreement-run.ts';
 /**
  Prints precision and, when pre-grades exist, agreement against them.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

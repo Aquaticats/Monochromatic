@@ -44,7 +44,7 @@ const ENTRY_IDS: readonly string[] = [
 
  @param want - trials wanted in all
 
- @returns The draw
+ @returns Draw
 
  @example
  ```ts

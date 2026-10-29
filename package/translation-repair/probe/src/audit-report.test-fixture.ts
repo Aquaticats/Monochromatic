@@ -35,7 +35,7 @@ import { SCRIPTED_STAGE_SETTINGS, } from '@monochromatic-dev/translation-repair-
 
  @param clean - whether the clean rendering is audited rather than the flipped one
 
- @returns The report the audit builds
+ @returns Report the audit builds
 
  @example
  ```ts

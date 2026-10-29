@@ -91,7 +91,7 @@ export type EditorProbeSink = {
 /**
  Runs each named card alone over the frozen pool's trials and reads what it did.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param pin - corpus commit and clone the reviewed references are read at
 
@@ -103,7 +103,7 @@ export type EditorProbeSink = {
  the cards, so a refused request needs no key and the client is built for those cards alone; the run wraps it in the
  spend guard
 
- @param now - the clock, read for the start and for the finish
+ @param now - clock, read for the start and for the finish
 
  @param pipelineDigest - digest of the built output, read when the process started
 

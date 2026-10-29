@@ -67,7 +67,7 @@ const CONTROL_CASE = napCase({
 
  @param controlCalls - log of the control gatherer's arguments
 
- @returns The two gatherers, as the run takes them
+ @returns Two gatherers, as the run takes them
 
  @example
  ```ts

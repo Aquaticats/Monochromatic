@@ -10,7 +10,7 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
  @param filledWithoutIncumbent - shipped rows with no incumbent wording
 
- @returns The clause, with its verb in agreement
+ @returns Clause, with its verb in agreement
 
  @example
  ```ts
@@ -44,7 +44,7 @@ function filledClause(
 
  @param seed - draw seed
 
- @returns The pool line and the line about the rows left out of it
+ @returns Pool line and line about the rows left out of it
 
  @example
  ```ts
@@ -82,7 +82,7 @@ export function poolLines(
 
  @param filledWithoutIncumbent - shipped rows with no incumbent wording
 
- @returns The refusal's words
+ @returns Refusal's words
 
  @example
  ```ts
@@ -104,7 +104,7 @@ export function emptyPoolSays(
 
  @param runsDir - directory the sheet landed in
 
- @returns The closing line
+ @returns Closing line
 
  @example
  ```ts

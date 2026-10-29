@@ -198,11 +198,11 @@ function isEditorDamageKind(kind: FidelityDamageKind,): kind is EditorDamageKind
 
  @param kind - defect family
 
- @param damagedText - the translation the issue is filed on
+ @param damagedText - translation the issue is filed on
 
  @param region - sentences the issue quotes
 
- @returns The issue and the envelope the pipeline cuts from it
+ @returns Issue and envelope the pipeline cuts from it
 
  @example
  ```ts

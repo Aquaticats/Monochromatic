@@ -18,7 +18,7 @@ import { drawGradingSample, } from './draw-sample-run.ts';
  Draws over the runs directory and the pool's generation policy of the
  environment, and the pinned corpus.
 
- @param line - the draw's command line, read whole by `reportingRefusals`
+ @param line - draw's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

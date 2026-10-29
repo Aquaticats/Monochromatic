@@ -57,7 +57,7 @@ const ALTERATION: EditorFidelityTrial = nonNullishOrThrow(TRIALS.find(function i
  ends where the quoted region ends in the damaged text, so a perfect edit leaves the separator that preceded the
  inserted sentence at the end of the patched text.
 
- @returns The trial, built from the invented reference's clean text and donor sentence
+ @returns Trial, built from the invented reference's clean text and donor sentence
 
  @example
  ```ts

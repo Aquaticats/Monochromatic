@@ -42,7 +42,7 @@ import { readSheetText, } from './score-sheet-text.ts';
 
  @param runsDir - runs directory the report describes, which the first line names
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param policy - generation policy the entry read from its environment
  (`readPoolPolicy`), handed to the pool

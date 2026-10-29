@@ -15,7 +15,7 @@ import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/
 
  @param passes - how many times the arm walks the pool, one when it is not said
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -70,9 +70,9 @@ export function plannedLine({
 
  @param planned - units the arm was asked to walk
 
- @param said - the guard's own sentence
+ @param said - guard's own sentence
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -106,7 +106,7 @@ export function cappedLine(
 
  @param planned - units the arm was asked to walk
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

@@ -64,7 +64,7 @@ const JUDGES = [
 
  @param position - which of the four arrangements the row is
 
- @returns The row as the matrix holds it
+ @returns Row as the matrix holds it
 
  @example
  ```ts

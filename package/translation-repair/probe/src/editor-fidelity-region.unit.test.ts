@@ -20,7 +20,7 @@ import { insertionRegionWithNeighbours, } from '../dist/final/node/index.mjs';
 
  @param region - offsets read
 
- @returns The region's text
+ @returns Region's text
 
  @example
  ```ts
@@ -47,9 +47,9 @@ function textOf(
 
  @param text - passage holding the sentence
 
- @param sentence - the inserted sentence, whole
+ @param sentence - inserted sentence, whole
 
- @returns The widened region and how many neighbours it took
+ @returns Widened region and how many neighbours it took
 
  @example
  ```ts

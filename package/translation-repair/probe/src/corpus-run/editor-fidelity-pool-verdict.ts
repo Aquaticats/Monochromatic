@@ -48,7 +48,7 @@ const SCRIPTED_DEADLINE_MS = 30_000;
 
  @param trial - trial whose region is mended
 
- @returns The region's text with the inserted sentence removed or the altered number restored
+ @returns Region's text with the inserted sentence removed or the altered number restored
 
  @example
  ```ts
@@ -88,7 +88,7 @@ function unusedQuotas(): Promise<never> {
 
  @param trial - trial the client answers
 
- @returns The client
+ @returns Client
 
  @example
  ```ts
@@ -134,7 +134,7 @@ function idealEditorClient({ trial, }: { readonly trial: EditorFidelityTrial; },
 
  @param replacement - what the region becomes
 
- @returns The damaged text with its region replaced
+ @returns Damaged text with its region replaced
 
  @example
  ```ts
@@ -200,7 +200,7 @@ function readsClean(
 
  @param trial - trial built from a drawn twin
 
- @returns The empty text when the trial passes, else the reason in scorecard-stable wording
+ @returns Empty text when the trial passes, else the reason in scorecard-stable wording
 
  @example
  ```ts

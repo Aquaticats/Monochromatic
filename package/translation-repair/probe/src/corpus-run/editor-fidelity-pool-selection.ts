@@ -171,9 +171,9 @@ function countKind(
 /**
  Names an entry on the line written for a failed one.
 
- @param item - the row of the entry
+ @param item - row of the entry
 
- @returns The entry's name
+ @returns Entry's name
 
  @example
  ```ts
@@ -187,7 +187,7 @@ function entryName({ item, }: { readonly item: string; },): string {
 /**
  Reads and draws one entry.
 
- @param entryId - the entry
+ @param entryId - entry
 
  @param readEntry - reads the two pages of an entry
 
@@ -195,7 +195,7 @@ function entryName({ item, }: { readonly item: string; },): string {
 
  @param reviewedOn - date of the freeze
 
- @returns The entry's draw, with the reason when its pages cannot be read
+ @returns Entry's draw, with the reason when its pages cannot be read
 
  @example
  ```ts
@@ -248,7 +248,7 @@ async function evaluatedEntry(
 
  @param want - trials the pool should hold
 
- @returns The entries up to and including the one that reaches the trials wanted, or all of them when none does
+ @returns Entries up to and including the one that reaches the trials wanted, or all of them when none does
 
  @example
  ```ts
@@ -341,7 +341,7 @@ function trialsIn({ specs, }: { readonly specs: readonly FidelityReferenceSpec[]
 
  @param reviewedOn - date of the freeze
 
- @returns The specifications taken, the entries they came from and the population they were taken from
+ @returns Specifications taken, entries they came from and population they were taken from
 
  @example
  ```ts

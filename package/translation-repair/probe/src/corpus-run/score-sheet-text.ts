@@ -19,7 +19,7 @@ import {
 
  @param remedy - what the operator can do about a sheet that will not read
 
- @returns The sheet's text
+ @returns Sheet's text
 
  @throws {@link StatedRefusalError} when the file cannot be read, naming the
  path and the filesystem reason

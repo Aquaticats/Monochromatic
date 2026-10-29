@@ -30,7 +30,7 @@ const l = contextRoot({ tag: 'translation-repair', },);
 
  @param item - manifest entry, named by its reference
 
- @returns The reference by its identity
+ @returns Reference by its identity
 
  @example
  ```ts

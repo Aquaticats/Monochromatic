@@ -113,7 +113,7 @@ type Control = {
 
  @param newText - what the region becomes
 
- @returns The report body
+ @returns Report body
 
  @example
  ```ts
@@ -268,7 +268,7 @@ const CONTROLS: readonly Control[] = [
 
  @param control - control read
 
- @returns The word for a reply with no landed edit, or the fix kind with whether something else changed
+ @returns Word for a reply with no landed edit, or the fix kind with whether something else changed
 
  @example
  ```ts
@@ -288,7 +288,7 @@ function readsWord({ control, }: { readonly control: Control; },): string {
 
  @param control - control read
 
- @returns The row as the probe keeps it
+ @returns Row as the probe keeps it
 
  @example
  ```ts

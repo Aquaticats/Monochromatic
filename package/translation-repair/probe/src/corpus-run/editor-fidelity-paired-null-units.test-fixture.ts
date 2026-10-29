@@ -51,7 +51,7 @@ export type BenchUnit = PoolTrial & {
 /**
  The committed pool's trials in the order every arm walks them.
 
- @returns The trials, a reference's damages in the order the specification lists them
+ @returns Trials, reference's damages in the order the specification lists them
 
  @example
  ```ts
@@ -80,13 +80,13 @@ export function poolTrialOrder(): readonly PoolTrial[] {
  The asks of a bench that walks trials pass by pass: every trial once, then every trial again, and so on, up to a number of
  asks.
 
- @param trials - the trials of one pass, in order
+ @param trials - trials of one pass, in order
 
  @param passes - how many passes the bench walks at most
 
  @param units - how many asks the bench makes, counted from the first
 
- @returns The leading asks, pass zero first
+ @returns Leading asks, pass zero first
 
  @example
  ```ts

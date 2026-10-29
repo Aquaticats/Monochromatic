@@ -121,7 +121,7 @@ async function landFile(
  @param drawSeed - seed the draw used, which is not the gate seed on a
  preliminary run
 
- @param sample - the drawn sample
+ @param sample - drawn sample
 
  @param eligible - pool the draw read, whose recorded pipeline the manifest names
 

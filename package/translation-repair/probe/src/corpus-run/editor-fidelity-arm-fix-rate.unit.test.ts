@@ -47,7 +47,7 @@ const WARNING_END = 'at fix rates this high the repeat warning can miss unequal 
  @param mediumFixed - how many leading units the default effort fixes
  @param othersFixed - how many leading units the high and the low effort fix
 
- @returns The three logs, high first
+ @returns Three logs, high first
 
  @example
  ```ts

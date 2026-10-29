@@ -28,9 +28,9 @@ type BuiltRun = {
 /**
  Runs the built read step over logs written into an owned directory, each beside its exit file.
 
- @param arms - the logs, in the order the arms ran
+ @param arms - logs, in the order the arms ran
 
- @param prefix - the name the owned directory starts with
+ @param prefix - name the owned directory starts with
 
  @returns Exit status and standard output
 

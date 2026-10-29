@@ -62,7 +62,7 @@ const ALTERATION: EditorFidelityTrial = nonNullishOrThrow(TRIALS.find(function i
 
  @param text - text to escape
 
- @returns The text without the quotes JSON puts around it
+ @returns Text without the quotes JSON puts around it
 
  @example
  ```ts

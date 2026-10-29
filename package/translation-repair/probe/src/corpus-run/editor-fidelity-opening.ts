@@ -18,9 +18,9 @@ import { guardLine, } from './editor-fidelity-spend-guard.ts';
 /**
  Digest of the pinned reference specifications a run was asked for, the one figure every arm of a bench must share.
 
- @param specs - the pinned reference specifications the request selected
+ @param specs - pinned reference specifications the request selected
 
- @returns The digest of their JSON
+ @returns Digest of their JSON
 
  @example
  ```ts
@@ -34,9 +34,9 @@ export function manifestDigest({ specs, }: { readonly specs: readonly FidelityRe
 /**
  Says how many specifications the run was asked for and their digest.
 
- @param specs - the pinned reference specifications the request selected
+ @param specs - pinned reference specifications the request selected
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -56,17 +56,17 @@ export function manifestLine({ specs, }: { readonly specs: readonly FidelityRefe
 /**
  The lines an arm writes before it asks anything.
 
- @param specs - the pinned reference specifications the request selected
+ @param specs - pinned reference specifications the request selected
 
- @param trials - the trials the run built, before the cap
+ @param trials - trials the run built, before the cap
 
- @param ceilings - the most each card can cost over the trials priced
+ @param ceilings - most each card can cost over the trials priced
 
  @param maxUsd - amount from `--max-usd`
 
  @param benchSpentUsd - amount from `--bench-spent-usd`
 
- @returns The manifest, pool, ceiling, guard and rule lines, in that order, without newlines
+ @returns Manifest, pool, ceiling, guard and rule lines, in that order, without newlines
 
  @example
  ```ts

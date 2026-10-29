@@ -34,7 +34,7 @@ import {
  @param low - whether the low effort fixed it
  @param mediums - whether each medium arm fixed it, one function for each medium arm
 
- @returns The trials
+ @returns Trials
 
  @example
  ```ts
@@ -92,7 +92,7 @@ function none(): boolean {
 
  @param count - how many leading trials it fixes
 
- @returns The arm
+ @returns Arm
 
  @example
  ```ts

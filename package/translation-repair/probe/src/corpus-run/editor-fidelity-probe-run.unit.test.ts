@@ -182,7 +182,7 @@ type ProbeRunSeen = {
 
  @param readFor - array each call's specifications are appended to
 
- @returns The reader the run takes
+ @returns Reader the run takes
 
  @example
  ```ts
@@ -218,12 +218,12 @@ function inventedReader(
 
  @param silent - whether every reply is one nobody can read
 
- @param admit - the admit the run handed the client builder, which the scripted client tells before its one attempt as
+ @param admit - admit the run handed the client builder, which the scripted client tells before its one attempt as
  the Claude client does; absent for a client that tells nobody
 
- @param attemptUsd - the most the scripted attempt tells the admit it can cost
+ @param attemptUsd - most the scripted attempt tells the admit it can cost
 
- @returns The client the run asks through
+ @returns Client the run asks through
 
  @example
  ```ts
@@ -247,9 +247,9 @@ function fixingClient(
    Tells the admit, notes the ask and puts the reply's cost on the meter, as the Claude client does for each call it
    makes, and builds the report the scripted editor gives.
 
-   @param request - the exchange asked
+   @param request - exchange asked
 
-   @returns The report the editor gives for the trial the sheet shows
+   @returns Report the editor gives for the trial the sheet shows
    */
   function answerTo(request: ChatTextRequest,): unknown {
     // THE CLAUDE CLIENT TELLS ITS CALLER BEFORE THE ATTEMPT, so a refusal ends the call before it is asked.
@@ -337,7 +337,7 @@ function fixingClient(
 
  @param silent - whether the scripted client says nothing readable
 
- @param attemptUsd - the most each scripted attempt tells the admit the run handed the client builder it can cost
+ @param attemptUsd - most each scripted attempt tells the admit the run handed the client builder it can cost
 
  @param exactly - whether the line is passed as typed, without the spend of the earlier arms stated as zero for it
 
@@ -506,7 +506,7 @@ async function probeIn(
 
  @param seen - what the run did
 
- @returns The stated message
+ @returns Stated message
 
  @throws {@link Error} when the run did not refuse with a stated refusal
 

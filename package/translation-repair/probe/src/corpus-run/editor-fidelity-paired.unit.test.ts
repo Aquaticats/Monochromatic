@@ -26,11 +26,11 @@ import {
 /**
  An entry of the given shared trials with the given clean fixes for each arm.
 
- @param entryId - the entry
+ @param entryId - entry
  @param trials - shared trials in it
  @param fixed - clean fixes in them for each arm, the effort under test first
 
- @returns The entry
+ @returns Entry
 
  @example
  ```ts
@@ -59,9 +59,9 @@ function entryOf(
  The one-sided p-value counted the slow way: every assignment of the arms' labels within every entry, each equally likely,
  the statistic being the first arm's fixes minus the mean of the others', summed over the entries.
 
- @param clusters - the entries
+ @param clusters - entries
 
- @returns The share of assignments whose statistic reaches the observed one
+ @returns Share of assignments whose statistic reaches the observed one
 
  @example
  ```ts

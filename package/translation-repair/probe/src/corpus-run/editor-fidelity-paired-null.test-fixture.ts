@@ -96,15 +96,15 @@ const ALL_ARMS = [
 /**
  Reads one draw of an ask.
 
- @param draws - the draws of the bench
+ @param draws - draws of the bench
 
  @param base - where the ask's draws begin
 
  @param offset - which kind of draw, among the ask's
 
- @param arm - the place of the arm among the arms
+ @param arm - place of the arm among the arms
 
- @returns The draw, a number in the unit interval
+ @returns Draw, number in the unit interval
 
  @example
  ```ts
@@ -180,17 +180,17 @@ export type BenchScenario = {
 /**
  The number that decides one arm's answer to one ask, before any later pass is considered.
 
- @param draws - the draws of the bench
+ @param draws - draws of the bench
 
  @param base - where the ask's draws begin
 
  @param entryAt - where the entry's draws begin
 
- @param arm - the place of the arm among the arms
+ @param arm - place of the arm among the arms
 
- @param scenario - the chances
+ @param scenario - chances
 
- @returns A number in the unit interval
+ @returns Number in the unit interval
 
  @example
  ```ts
@@ -241,11 +241,11 @@ function firstNumber(
 /**
  Which arms fixed each ask of a simulated bench.
 
- @param units - the asks, in order
+ @param units - asks, in order
 
- @param scenario - the chances
+ @param scenario - chances
 
- @param seed - the seed of this bench
+ @param seed - seed of this bench
 
  @returns For each ask, whether the high, the low and the default effort fixed it
 
@@ -350,13 +350,13 @@ export function simulatedFixes(
 /**
  What the rule picks for one simulated bench over the first asks of the pool.
 
- @param units - the asks the arms walk, in order
+ @param units - asks the arms walk, in order
 
- @param scenario - the chances
+ @param scenario - chances
 
- @param seed - the seed of this replicate
+ @param seed - seed of this replicate
 
- @returns The effort picked
+ @returns Effort picked
 
  @example
  ```ts
@@ -423,15 +423,15 @@ export function simulatedPick(
  The share of simulated benches in which the rule picks something other than the default effort, and the share in which it
  picks each.
 
- @param units - the asks the arms walk
+ @param units - asks the arms walk
 
- @param scenario - the chances
+ @param scenario - chances
 
  @param replicates - how many benches
 
- @param seed - the seed of the whole run
+ @param seed - seed of the whole run
 
- @returns The shares
+ @returns Shares
 
  @example
  ```ts

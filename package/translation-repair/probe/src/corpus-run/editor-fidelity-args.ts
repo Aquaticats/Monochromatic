@@ -47,7 +47,7 @@ const CENTS_PER_USD = 100;
 /**
  Spells the defects `--damage` takes, the last one joined by "or".
 
- @returns The defects in list order
+ @returns Defects in list order
 
  @example
  ```ts
@@ -102,7 +102,7 @@ function damageKindsOf({ damage, }: { readonly damage: FlagValue; },): readonly 
 
  @param usd - amount to write
 
- @returns The amount to the cent, without trailing zeros
+ @returns Amount to the cent, without trailing zeros
 
  @example
  ```ts
@@ -163,11 +163,11 @@ function refuseOverBench(
 
  @param asked - what the flag carried, or that nobody wrote it
 
- @param cap - the cap as read
+ @param cap - cap as read
 
  @param capWritten - whether the line wrote `--cap`
 
- @returns The number of trials as a `trials` member, an empty object when the flag was not written
+ @returns Number of trials as a `trials` member, empty object when the flag was not written
 
  @throws StatedRefusalError when the flag is not a whole number written in digits, is zero, or is written beside a cap
  above zero
@@ -217,7 +217,7 @@ function trialsOf(
 
  @param asked - what the flag carried, or that nobody wrote it
 
- @returns The number of passes as a `passes` member, an empty object when the flag was not written
+ @returns Number of passes as a `passes` member, empty object when the flag was not written
 
  @throws StatedRefusalError when the flag is not a whole number written in digits, or is zero
 
@@ -247,7 +247,7 @@ function passesOf({ asked, }: { readonly asked: FlagValue; },): { readonly passe
 
  @internal
 
- @param line - the probe's command line, read whole by `reportingRefusals` and passed in so this is testable without a
+ @param line - probe's command line, read whole by `reportingRefusals` and passed in so this is testable without a
  subprocess
 
  @returns Entry ids to trial, empty for every entry, the trial cap, the number of leading trials to walk when `--trials`

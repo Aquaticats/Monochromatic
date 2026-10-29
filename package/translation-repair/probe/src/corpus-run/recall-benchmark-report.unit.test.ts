@@ -36,7 +36,7 @@ const TIP = 'c'.repeat(40,);
 
  @param seeds - how many seeds the entry plants
 
- @returns The entry
+ @returns Entry
 
  @example
  ```ts
@@ -78,9 +78,9 @@ function entryWith(
  Scorecard with every count at the given values and every rate at a fixed
  reading, so a line shows which field it printed.
 
- @param counts - the counts a case varies
+ @param counts - counts a case varies
 
- @returns The scorecard
+ @returns Scorecard
 
  @example
  ```ts

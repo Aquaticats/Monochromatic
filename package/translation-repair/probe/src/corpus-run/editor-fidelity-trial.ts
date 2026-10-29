@@ -100,7 +100,7 @@ export type EditorTrialReading =
 
  @param client - client the card is asked through
 
- @param cardId - the card, seated alone
+ @param cardId - card, seated alone
 
  @param trial - trial the card is asked
 

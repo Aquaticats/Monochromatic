@@ -60,7 +60,7 @@ export type Section = {
 
  @param en - archive page
 
- @returns The sections, or none when the aligner reports a finding
+ @returns Sections, or none when the aligner reports a finding
 
  @example
  ```ts

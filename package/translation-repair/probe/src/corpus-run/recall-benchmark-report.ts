@@ -23,7 +23,7 @@ const RATE_DECIMALS = 3;
 
  @param budgetMs - wall budget of the whole run
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -75,7 +75,7 @@ export function recallStartLine(
 
  @param chosen - entries the run would seed
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

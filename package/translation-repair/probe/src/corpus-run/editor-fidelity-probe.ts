@@ -35,7 +35,7 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
  @param admitClaudeAttempt - hook the client calls before each attempt it makes, which may throw to refuse it
 
- @returns A client that refuses any model that is not one of the cards
+ @returns Client that refuses any model that is not one of the cards
 
  @example
  ```ts
@@ -65,7 +65,7 @@ function newCardsClient(
 /**
  Hands the run what only a real process has.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

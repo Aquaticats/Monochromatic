@@ -53,10 +53,10 @@ const WARNING_END = 'the bound of 0.05 on choosing another effort when none is b
 
  @param trials - how many leading trials of the invented pool, two to an entry
  @param differ - how many leading trials the second pass does not fix
- @param secondStops - the stop words of the trial at an index in the second pass, `ok` when omitted
+ @param secondStops - stop words of the trial at an index in the second pass, `ok` when omitted
  @param fixedAlike - whether the first pass fixes the trials, a trial not fixed in either pass agreeing with itself
 
- @returns The rows, the first pass then the second
+ @returns Rows, first pass then the second
 
  @example
  ```ts
@@ -101,10 +101,10 @@ function twoPassRows(
 
  @param trials - how many trials
  @param high - trials whose passes disagree in the high arm
- @param medium - the same in the medium arm
- @param low - the same in the low arm
+ @param medium - same in the medium arm
+ @param low - same in the low arm
 
- @returns The three logs, high first
+ @returns Three logs, high first
 
  @example
  ```ts
@@ -151,10 +151,10 @@ function benchOf(
 /**
  The lines of the repeat agreement that start with a word.
 
- @param arms - the arms
+ @param arms - arms
  @param word - what the lines start with
 
- @returns The lines
+ @returns Lines
 
  @example
  ```ts
@@ -170,7 +170,7 @@ function linesStarting({ arms, word, }: { readonly arms: readonly ArmLog[]; read
 /**
  Runs the built read step over the arms' logs.
 
- @param arms - the logs, in the order the arms ran
+ @param arms - logs, in the order the arms ran
 
  @returns Exit status and standard output
 

@@ -96,13 +96,13 @@ const BASE_TRIAL: EditorFidelityTrial = nonNullishOrThrow(editorFidelityTrials({
  A stand-in trial: the invented reference's first trial under another handle, entry and defect family, which is all the
  pool line and the row line read.
 
- @param trialId - the handle, `<entry>-s0/<kind>`
+ @param trialId - handle, `<entry>-s0/<kind>`
 
- @param entryId - the entry the trial comes from
+ @param entryId - entry the trial comes from
 
- @param damageKind - the defect family
+ @param damageKind - defect family
 
- @returns The trial
+ @returns Trial
 
  @example
  ```ts
@@ -136,7 +136,7 @@ export function stubTrial(
 
  @param count - how many trials, the invented pool's when omitted
 
- @returns The trials
+ @returns Trials
 
  @example
  ```ts
@@ -170,9 +170,9 @@ export function poolStubs({ count = POOL_TRIALS, }: { readonly count?: number; }
 /**
  Reads the ends of a row's asks from the stop word its spec states.
 
- @param stops - the stop word, ends joined by a plus
+ @param stops - stop word, ends joined by a plus
 
- @returns The ends
+ @returns Ends
 
  @throws {@link Error} when a word is not an end an ask can have
 
@@ -201,15 +201,15 @@ function askEndsOf({ stops, }: { readonly stops: string; },): readonly AskEnd[] 
  The row line of an invented row, written by the probe's writer; a row that states no stop reason has the clause cut off,
  which is how a log from before the clause was written reads.
 
- @param cardId - the card
+ @param cardId - card
 
- @param row - the row
+ @param row - row
 
  @param position - zero-based place among the planned asks
 
  @param total - asks planned
 
- @returns The line, without the logger's prefix
+ @returns Line, without the logger's prefix
 
  @example
  ```ts
@@ -273,7 +273,7 @@ export function rowLineFor(
  The lines an arm writes before it asks anything, by the opening writer: the manifest, the pool, the ceiling of the card,
  the spend guard and the rule.
 
- @param cardId - the card
+ @param cardId - card
 
  @param plannedAsks - asks the ceiling is priced over
 
@@ -281,9 +281,9 @@ export function rowLineFor(
 
  @param benchSpentUsd - amount from `--bench-spent-usd`
 
- @param pool - the trials the pool line counts, the invented pool when omitted
+ @param pool - trials the pool line counts, invented pool when omitted
 
- @returns The lines, without the logger's prefix
+ @returns Lines, without the logger's prefix
 
  @example
  ```ts

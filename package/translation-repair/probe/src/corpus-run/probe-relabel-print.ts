@@ -15,7 +15,7 @@ import type { RelabelCase, } from './probe-relabel-case.ts';
 
  @param count - damaged regions rebuilt
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -37,7 +37,7 @@ export function relabelRebuilt({ count, }: { readonly count: number; },): string
 
  @param count - control regions gathered
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -59,7 +59,7 @@ export function relabelGathered({ count, }: { readonly count: number; },): strin
 
  @param relabelCase - rebuilt region case
 
- @returns The two lines, without newlines
+ @returns Two lines, without newlines
 
  @example
  ```ts
@@ -156,7 +156,7 @@ export function relabelCounts(
 
  @param other - disclosure the second arm sends instead
 
- @returns The notes, one per line printed
+ @returns Notes, one per line printed
 
  @example
  ```ts

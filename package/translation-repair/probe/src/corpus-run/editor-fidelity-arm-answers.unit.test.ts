@@ -31,7 +31,7 @@ const PREFIX = '[info] [2026-10-23T12:00:00.000Z] [probe] ';
 
  @param lines - lines of the log
 
- @returns The arm
+ @returns Arm
 
  @example
  ```ts

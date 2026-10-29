@@ -29,7 +29,7 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @param production - disclosure production sends
 
- @returns The disclosure production does not send
+ @returns Disclosure production does not send
 
  @example
  ```ts

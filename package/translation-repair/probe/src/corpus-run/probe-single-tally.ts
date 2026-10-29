@@ -13,7 +13,7 @@ import type {
 
  @param report - report of a probe given exactly one region
 
- @returns The region's tally
+ @returns Region's tally
 
  @throws {@link Error} when the report holds no tally, which a probe given a
  region cannot produce: it screens every region it is given and answers the

@@ -51,14 +51,14 @@ const GOOD_ROWS: readonly RowSpec[] = poolRows({
 /**
  One arm's log, holding the lines the bench checks read.
 
- @param arm - the arm's name
+ @param arm - arm's name
  @param cardId - card it seated
- @param rows - the rows it walked
+ @param rows - rows it walked
  @param declaredUsd - what its guard line says the earlier arms spent
  @param countedUsd - what its guard total says it counted
  @param capped - whether the guard capped it after its rows
 
- @returns The arm
+ @returns Arm
 
  @example
  ```ts
@@ -100,7 +100,7 @@ function armOf(
 
  @param count - how many leading rows threw
 
- @returns The arm
+ @returns Arm
 
  @example
  ```ts
@@ -144,11 +144,11 @@ const FOUR_ARM_BENCH: readonly ArmLog[] = [
 /**
  The line a bench check printed.
 
- @param lines - the report's lines
- @param scope - the arm or `bench`
- @param check - the check's name
+ @param lines - report's lines
+ @param scope - arm or `bench`
+ @param check - check's name
 
- @returns The line, empty when there is none
+ @returns Line, empty when there is none
 
  @example
  ```ts

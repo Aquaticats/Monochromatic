@@ -506,7 +506,7 @@ await describe({
 
          @param introducedDefects - probe block as written
 
-         @returns The record's rendered tallies
+         @returns Record's rendered tallies
          */
         async function recordedOf(
           introducedDefects: unknown,

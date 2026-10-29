@@ -91,7 +91,7 @@ export function isPlainEntryId({ entryId, }: { readonly entryId: string; },): bo
 
  @param seed - seed of the draw
 
- @returns The ids in the order the seed visits them
+ @returns Ids in the order the seed visits them
 
  @example
  ```ts
@@ -147,7 +147,7 @@ export function seededEntryOrder(
 
  @param from - position of the damaged section, which donates nothing
 
- @returns The other positions, furthest first
+ @returns Other positions, furthest first
 
  @example
  ```ts

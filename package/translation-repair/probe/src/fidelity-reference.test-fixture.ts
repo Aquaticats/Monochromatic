@@ -220,7 +220,7 @@ export function reviewedFixture(): {
 
  @param operation - verification boundary the refusal names
 
- @returns The whole message
+ @returns Whole message
 
  @example
  ```ts
@@ -245,7 +245,7 @@ export function refusalMessage(
 
  @param pending - call expected to refuse
 
- @returns The rejection, unchanged
+ @returns Rejection, unchanged
 
  @throws {@link Error} when the call answers instead of refusing
 
@@ -339,7 +339,7 @@ export function expectRefusal(
 
  @param line - output line read
 
- @returns The line without its timestamp, any other line unchanged
+ @returns Line without its timestamp, any other line unchanged
 
  @example
  ```ts

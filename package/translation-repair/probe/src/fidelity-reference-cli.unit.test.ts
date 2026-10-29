@@ -137,7 +137,7 @@ async function preflight(extra: readonly string[],): Promise<PreflightRun> {
 
  @param referenceId - identifier the refusal names
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -191,7 +191,7 @@ async function runAsBuilt({ args, }: { readonly args: readonly string[]; },): Pr
 
  @param selected - reviewed references the request selects
 
- @returns The judges line and the preflight line
+ @returns Judges line and preflight line
 
  @example
  ```ts

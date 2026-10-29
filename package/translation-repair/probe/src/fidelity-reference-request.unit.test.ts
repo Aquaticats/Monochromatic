@@ -44,7 +44,7 @@ type Request = Parameters<typeof reviewedFidelityRequest>[0];
 /**
  The invented spec and a valid zero-call request over it.
 
- @returns The spec and the request that selects it
+ @returns Spec and request that selects it
 
  @example
  ```ts

@@ -165,7 +165,7 @@ type ProbeRunSeen = {
 
  @param readFor - array each call's specifications are appended to
 
- @returns The reader the run takes
+ @returns Reader the run takes
 
  @example
  ```ts
@@ -197,7 +197,7 @@ function inventedReader(
 
  @param asked - array each call's model id is appended to
 
- @returns The client the run asks through
+ @returns Client the run asks through
 
  @example
  ```ts
@@ -381,7 +381,7 @@ const ASKING_TWO_JUDGES = [
 
  @param clean - whether the first position held the reference
 
- @returns The row the run keeps and prints
+ @returns Row the run keeps and prints
 
  @example
  ```ts
@@ -465,9 +465,9 @@ type SortableDocument = {
 /**
  A row with its ballots sorted by model id.
 
- @param row - the row, or any object that may hold ballots
+ @param row - row, or any object that may hold ballots
 
- @returns The row with its ballots sorted, the row itself where it holds none
+ @returns Row with its ballots sorted, row itself where it holds none
 
  @example
  ```ts
@@ -491,7 +491,7 @@ function rowWithSortedBallots({ row, }: { readonly row: SortableDocument; },): S
  @param text - JSON text as the run wrote it
  @param newline - whether the writer ends the file with a newline
 
- @returns The text in the writer's format
+ @returns Text in the writer's format
 
  @example
  ```ts
@@ -509,7 +509,7 @@ function formatterOutputOf({ text, newline, }: { readonly text: string; readonly
 
  @param text - JSON of one row or of an object that holds rows
 
- @returns The same text with each row's ballots sorted by model id, indented by two spaces
+ @returns Same text with each row's ballots sorted by model id, indented by two spaces
 
  @example
  ```ts
@@ -540,7 +540,7 @@ function ballotsSorted({ text, }: { readonly text: string; },): string {
 
  @param position - where the row sits
 
- @returns The entry the plan lists
+ @returns Entry the plan lists
 
  @example
  ```ts
@@ -566,7 +566,7 @@ function plannedOf({ position, }: { readonly position: number; },): Record<strin
 
  @param rows - how many leading rows the run attempts, of four
 
- @returns The plan document
+ @returns Plan document
 
  @example
  ```ts

@@ -24,7 +24,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 /**
  Hands the real process's places and client to the benchmark.
 
- @param line - the benchmark's command line, read whole by `reportingRefusals`
+ @param line - benchmark's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

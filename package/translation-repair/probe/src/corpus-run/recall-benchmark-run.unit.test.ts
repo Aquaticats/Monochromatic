@@ -80,7 +80,7 @@ type Seams = {
 
  @param seen - record the seams keep what they were asked in
 
- @returns The tip reader, the client builder and the clock
+ @returns Tip reader, client builder and clock
 
  @example
  ```ts

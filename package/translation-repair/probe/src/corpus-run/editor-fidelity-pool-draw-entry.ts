@@ -89,7 +89,7 @@ const NOTHING_YET: Attempt = {
 
  @param reason - why
 
- @returns The attempt
+ @returns Attempt
 
  @example
  ```ts
@@ -106,25 +106,25 @@ function skippedFor({ reason, }: { readonly reason: string; },): Attempt {
 /**
  Builds the specification of one section and one damage and checks the trial it makes.
 
- @param entryId - the entry
+ @param entryId - entry
 
  @param zh - original page
 
  @param en - archive page
 
- @param section - the section
+ @param section - section
 
- @param kind - the damage
+ @param kind - damage
 
- @param damage - the twin built
+ @param damage - twin built
 
- @param donor - the section the donor sentence came from
+ @param donor - section the donor sentence came from
 
  @param corpusSha - commit the pages were read at
 
  @param reviewedOn - date of the freeze
 
- @returns The attempt, drawn when the trial builds and passes
+ @returns Attempt, drawn when the trial builds and passes
 
  @example
  ```ts
@@ -206,7 +206,7 @@ async function checkedAttempt(
 /**
  Tries one damage in one section.
 
- @param entryId - the entry
+ @param entryId - entry
 
  @param zh - original page
 
@@ -214,15 +214,15 @@ async function checkedAttempt(
 
  @param sections - every section of the entry
 
- @param section - the section tried
+ @param section - section tried
 
- @param kind - the damage tried
+ @param kind - damage tried
 
  @param corpusSha - commit the pages were read at
 
  @param reviewedOn - date of the freeze
 
- @returns The attempt
+ @returns Attempt
 
  @example
  ```ts
@@ -336,7 +336,7 @@ function attemptIn(
 
  @param attemptAt - tries the damage in one section
 
- @returns The first drawn attempt with every reason the earlier sections were left out, or every reason when none was
+ @returns First drawn attempt with every reason the earlier sections were left out, or every reason when none was
 
  @example
  ```ts
@@ -384,7 +384,7 @@ function firstDrawn(
 /**
  Draws the insertion and the alteration of one entry.
 
- @param entryId - the entry, a plain id
+ @param entryId - entry, plain id
 
  @param zh - original page
 

@@ -60,11 +60,11 @@ const ALL_ROWS: readonly RowSpec[] = poolRows({
 /**
  One arm of a bench.
 
- @param arm - the arm's name
- @param cardId - the card it seated
- @param rows - the rows it walked
+ @param arm - arm's name
+ @param cardId - card it seated
+ @param rows - rows it walked
 
- @returns The arm's log
+ @returns Arm's log
 
  @example
  ```ts
@@ -96,10 +96,10 @@ function benchArm(
 /**
  Rows with the stop words of some rows replaced.
 
- @param rows - the rows
- @param stops - the stop words of the rows at an index, for the indexes named
+ @param rows - rows
+ @param stops - stop words of the rows at an index, for the indexes named
 
- @returns The rows with those stop words
+ @returns Rows with those stop words
 
  @example
  ```ts
