@@ -709,7 +709,9 @@ and a mean from a run on one effort is not pooled with a run on another.
 Status:
 fixed on 2026-10-29 (UTC) in `tr-w379`,
 red `4d49e137b1`,
-fix `3de1638c7b`.
+fix `3de1638c7b`,
+follow-on `ebde2760fa` (the draw is rounded with `Math.round`,
+so the number-read scan keeps its listing).
 Found by the read of `XingZ6022` (build `c6185d4086`) and its check.
 No cache version moved:
 the report is a log line and keys nothing.
