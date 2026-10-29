@@ -238,6 +238,33 @@ export async function mapConcurrently<Element, NewElement, Result>(
    */
   const settlement = Promise.withResolvers<Result[]>();
 
+  /* oxlint-disable promise/prefer-await-to-then -- the link must be a promise reaction whose handler is the run promise's own resolve function: V8 follows such a reaction when it walks the async stack, and an `await` in a helper async function ends the walk at that helper */
+  /**
+   Links one detached runner to the run's promise, so the async stack trace
+   of a mapper error reaches the caller.
+
+   Nothing awaits the runner, so the trace would stop there, but V8 follows a
+   reaction that resolves another promise. The link never settles, so it
+   never resolves the returned promise. It is a new promise for each runner,
+   as a shared one would keep a reaction for every element.
+
+   @param runner - The detached continuation of one element.
+   */
+  function linkRunnerToRun(runner: Promise<void>,): void {
+    /**
+     The link's reaction, handing back a promise that never settles.
+     */
+    const link = runner.then(function neverSettles(): Promise<never> {
+      /**
+       Deferred pair of which only the promise is used, and never settled.
+       */
+      const pending = Promise.withResolvers<never>();
+      return pending.promise;
+    },);
+    void link.then(settlement.resolve,);
+  }
+  /* oxlint-enable promise/prefer-await-to-then */
+
   /**
    Runs the whole map synchronously up to its detached continuations, so any
    synchronous failure funnels into the caller's `catch` exactly like
@@ -662,10 +689,10 @@ export async function mapConcurrently<Element, NewElement, Result>(
         }
       }
 
-      void runElement({
+      linkRunnerToRun(runElement({
         item: elementItem,
         position: index,
-      },);
+      },),);
     }
 
     /**
