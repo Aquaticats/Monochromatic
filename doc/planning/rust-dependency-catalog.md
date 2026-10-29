@@ -779,6 +779,20 @@ pnpm has no grouping construct:
 Following pnpm,
  the Rust catalog adds none.
 
+### Out-of-scope formatting left in the worktree (2026-10-29)
+
+While linting the catalog code,
+ a package-wide `mise run //package/dev-script/file-enforcer:format:oxlint` reformatted files outside this work.
+Owner decisions:
+
+- The 25 files under `package/dev-script/file-enforcer/src/toolchain/` and `src/package/` that were unmodified
+   before this session stay modified (formatting only);
+   their diff is saved at `${HOME}/temp/agent/rust-catalog/autofix-outside-scope.patch`.
+- `src/toolchain/plan.artifacts.ts` and `src/toolchain/plan.tools.ts` already held another session's uncommitted
+   work;
+   they now also carry this autofix's formatting and are left as they are.
+Later autofix runs snapshot `src/` first and copy every file outside the catalog work back byte for byte.
+
 ## Rejected
 
 - Repository-root Cargo workspace:
