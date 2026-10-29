@@ -360,17 +360,21 @@ Options,
    `GAP` wants a tightening
   after a spotted failure mode.
 
-## How to respond
+## Answer 2026-10-29
 
-Write the two answers,
- for example:
+The user wrote
 
 ```text
 1. Pants
 2. Tighten OPT
 ```
 
-Neither answer adopts anything.
-Adoption still waits for explicit acceptance
- (`doc/decision/` record
- plus a reopened vet for the chosen candidate).
+So Pants 2.33.1 is the chosen task-slice owner,
+and `OPT` in `AGENTS.md` gained
+"Score capability for the target workload,
+never fidelity to incumbents."
+(commit `3b928a1db5`).
+Neither answer started migration.
+Next queue items:
+ the reopened vet for Pants
+ and the `doc/decision/` record.

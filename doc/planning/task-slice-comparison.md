@@ -1440,7 +1440,24 @@ The drift weight is decided
 (unacknowledged documentation drift deducts points,
 it does not cull),
 and the ranking is refrozen with per-pair justifications and flip conditions.
-The contract question remains open over the full candidate set
-and is asked once the user has read the ranking;
-adoption still waits for explicit acceptance
-(`doc/decision/` record plus a reopened vet for the chosen candidate).
+
+Contract question answered 2026-10-29:
+ the user chose Pants 2.33.1 as the task-slice owner,
+and chose the `OPT` tightening
+("Score capability for the target workload,
+never fidelity to incumbents.")
+for the scoring failure mode.
+Neither answer started migration.
+
+The reopened vet for the chosen candidate
+ runs against Pants
+ (maintenance and release provenance,
+ license and dependency surface,
+ production source for the consumed boundary,
+ human-auditability overlay),
+and closes in
+[`doc/audit/tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
+Then the `doc/decision/` record
+ and the migration of 1,811 task names,
+603 edges,
+and the `//package/<path>:<task>` call sites.
