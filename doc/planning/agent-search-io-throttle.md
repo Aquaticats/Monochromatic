@@ -348,11 +348,20 @@ Open:
 
 - Read caps on `/dev/nvme0n1`: the bandwidth cap throttles cold buffered reads, the IOPS cap was never verified at a value
   below the delivered rate, and nothing applies either to the agents yet. A cap on `/dev/dm-1` is silently dropped.
-- The many-tool shadows: code and tests are on `main`; still to do are the container check against the real tools (running,
-  slowed by a Fedora mirror at about 78 KiB/s; the `Containerfile` now disables the unused openh264 repository and keeps the
-  dnf cache between builds), the 0.2.0 version bump and release, the `postinstall.run` schema change and the plan entry
-  (waiting for the other session's toolchain edits to land). In Claude Code shells `grep` and `find` are shell functions
-  running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
+- The many-tool shadows: released as 0.2.0 on 2026-10-29 (crates.io lists it; release `monochromatic-search-shadow-v0.2.0`
+  holds the x86_64 and aarch64 archives and the checksums; CI run 40871385671). `mise run //package/search-shadow/cli:test:container`
+  passes every check against the real ripgrep, grep, find, ugrep, ag, ack, fd, bfs, tree, du, ncdu, tokei and cloc in podman
+  (121 s on a warm dnf cache; the first build took 814 s because the Fedora mirror delivered about 60 KiB/s, so the
+  `Containerfile` disables the unused openh264 repository and keeps the dnf cache between builds). The test found one real
+  defect, fixed before the release: `find --version` with a wide working directory was refused. Still to do: the
+  `postinstall.run` schema change and the plan entry bump from 0.1.1 to 0.2.0, which edit `types.ts`, `sync.ts`,
+  `exposure.ts` and `plan.tools.data.ts` while another session holds uncommitted edits in the first, second and fourth
+  (the owner was asked through the session messenger on 2026-10-29). In Claude Code shells `grep` and `find` are shell
+  functions running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
+- `/tmp` is a 16 GiB tmpfs with a per-user quota of about 13 GiB that was 98 percent used on 2026-10-29 (hundreds of
+  `native-binary-*` directories of about 95 MB and `monochromatic-lint-stub-cargo-*` of 5 MB left by test runs of other
+  sessions), which made `git commit` fail with `Disk quota exceeded` while writing its signing buffer. Setting
+  `TMPDIR=${HOME}/temp/agent/gittmp` for the commit avoids it; the leaking tests are not fixed.
 - A Claude Code PreToolUse hook for the commands a `PATH` shadow cannot see (not built).
 - `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...`; whether that matches after
   the move to `Aquaticats` is untested.
