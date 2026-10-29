@@ -208,3 +208,27 @@ Walking the six constraints for the ported rule:
 The durable local fix is per-rule path scoping or an allowance mechanism in the scanner,
  which the README lists as missing;
  adding it changes a security scanner's skip logic and was not chosen for this incident.
+
+## Update 2026-10-29: a merge of content a parent already holds is no longer refused
+
+The refusal in this document came from the scan reading a merge commit's delta against every parent.
+A file that one parent lacks and the other holds is an addition against the first parent,
+so a merge that only joined two lines of history rescanned a file that was already on `origin/main`.
+
+Fixed in the source of `monochromatic-git-policy-cli` (`src/native/candidate_known_content.rs`):
+the policy no longer reads the bytes of a candidate whose exact blob any parent commit's tree already holds.
+That covers the pre-forward scan of a commit (against its recorded base),
+the post-commit scan of a landed merge (against every parent),
+and the manual-push scan (against the parents the remote already had).
+The merge described here would have passed, because the receipt's blob was already in the other parent.
+`package/git-policy/cli/SPEC.md` ("Content already in history") has the rule and its security reasoning.
+The merge controls are in `src/native/policy_forbidden_strings_known_content_tests.rs`;
+the one for a merge whose result holds a file that only one parent has failed on unchanged code before the rule existed.
+
+What this does not change:
+
+- The fix takes effect only in an installed wrapper built from a release that carries it.
+- Content that is new in any way is still scanned.
+   A receipt whose bytes change, or a first commit that adds such a receipt, still trips the over-matching rule,
+   so the producer should still write the placeholder form at capture time.
+- Redacting the receipt remains the way to make changed content pass.
