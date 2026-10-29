@@ -53,13 +53,26 @@ which finds the real tool on `PATH`, runs it as a child with arguments untouched
 A `pnpm` shadow could run the specifier check before pnpm starts,
 which would cover the no-op install that the `readPackage` hook cannot reach.
 That is an inference from the shadow design, not a measurement.
-The mechanism, package-home and validator-language decisions above are under revision until the user states
-the shadow's timeline and which callers (CI, mise tasks, agents) would go through it.
+The user delegated the timing and reach decisions, so these are agent recommendations, open to veto.
+
+## Shadow recommendations
+
+- Timing: ship the TypeScript check, the hook and the lint task now; the shadow is a separate later project.
+  Reason: the gap is real today, the shadow has no document or code, and the policy is language-independent.
+- Port by corpus, not by code: keep the policy's test vectors (specifier, section, expected verdict)
+  in one JSON file that the TypeScript tests and a later Rust nextest suite both read,
+  so the shadow adopts the same rules without a second interpretation.
+- Reach: the lint task stays as the CI backstop even after the shadow exists.
+  Measured: `mise.toml` names `pnpm` 30 times and installs funnel through the `prepare:pnpm` task chain,
+  so callers do not all share one `PATH` resolution.
+- The hook is retired only after the shadow is shown to be first on `PATH` for CI, mise tasks and agent shells.
+- The shadow, when built, follows the `package/mpm-shadow/cli` pattern: run the real `pnpm` as a child,
+  arguments untouched, and run the check first.
 
 ## Open items
 
 - The user has not yet confirmed that the shared understanding is complete.
-- Timeline and reach of the `pnpm` shadow, and whether the validator moves to Rust.
+- The user may veto the shadow recommendations above.
 
 ## Next action
 
