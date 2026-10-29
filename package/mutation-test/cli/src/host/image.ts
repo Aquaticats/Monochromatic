@@ -63,7 +63,7 @@ const TAG_HEX_LENGTH = 12;
  
  @example
  ```ts
- await listFilesSorted('/repo/packages/cli/mutation-test/src');
+ await listFilesSorted('/repo/package/mutation-test/cli/src');
  ```
  */
 async function listFilesSorted(dir: string,): Promise<readonly string[]> {
