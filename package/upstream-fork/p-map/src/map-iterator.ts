@@ -97,7 +97,7 @@ export function validateInput<Element>(iterable: MapInput<Element>,): void {
    nullish values, but a mis-typed caller can still pass one.
    */
   const candidate: unknown = iterable;
-  if (candidate === null || candidate === undefined)
+  if ((candidate === null) || (candidate === undefined))
     throw new InvalidInputError(candidate,);
 
   /**
@@ -144,6 +144,155 @@ export function selectIterator<Element>(input: MapInput<Element>,): SourceIterat
 }
 
 //endregion Selection
+
+//region Pulling
+
+/**
+ Pull function over one source iterator: the item the source produced, or an
+ already-settled `done` marker once the source reported `done`.
+
+ @typeParam Element - element type after awaiting an iterated item
+ */
+export type SourcePuller<Element> = () =>
+  | IteratorResult<Element | Promise<Element>, unknown>
+    | Promise<IteratorResult<Element | Promise<Element>, unknown>>;
+
+/**
+ Whether one pulled item reports `done` the way upstream `p-map` reads it:
+ through optional chaining and truthiness, so a non-conforming source's
+ truthy `done` ends the pull exactly like a conforming one.
+
+ @param item - Pulled item as the source produced it.
+
+ @returns Whether the item's `done` is truthy.
+
+ @example
+ ```ts
+ readsAsDone({ done: true, },); // => true
+ ```
+ */
+function readsAsDone(item: unknown,): boolean {
+  if ((item === null) || (item === undefined))
+    return false;
+  return Boolean((item as { readonly done?: unknown; }).done,);
+}
+
+/**
+ Whether one pulled answer carries a callable `then`, read the way upstream
+ `p-map` reads it: through optional chaining, so a nullish answer is not a
+ thenable.
+
+ @param answer - Pulled answer as the source produced it.
+
+ @returns Whether the answer is a thenable.
+
+ @example
+ ```ts
+ isThenable(Promise.resolve(1,),); // => true
+ ```
+ */
+function isThenable(answer: unknown,): boolean {
+  if ((answer === null) || (answer === undefined))
+    return false;
+  return (typeof (answer as { readonly then?: unknown; }).then) === 'function';
+}
+
+/**
+ Wraps one source iterator in a puller that stops pulling once the source has
+ reported `done`, as `p-map` 7.1.0 does.
+
+ The `done` is final, like `for await`: a source like a queue may block in
+ `next()` after it is exhausted, and anything it produces after `done` is
+ dropped. A synchronous source answers right away, so its `done` latches
+ before the next pull can start; an asynchronous source latches as soon as
+ its pull settles.
+
+ @typeParam Element - element type after awaiting an iterated item
+
+ @param iterator - Source iterator to pull from.
+
+ @returns Puller returning the source's own result, or an already-settled
+ `done` marker after the source reported `done`.
+
+ @example
+ ```ts
+ const pull = createPuller(selectIterator([1,],),);
+ ```
+ */
+export function createPuller<Element>(iterator: SourceIterator<Element>,): SourcePuller<Element> {
+  /**
+   Latch recording that the source reported `done`.
+   */
+  const latch = { isSourceDone: false, };
+
+  /**
+   Latches `done` when the pulled item reports it.
+
+   @param item - Pulled item as the source produced it.
+   */
+  function markDone(item: unknown,): void {
+    if (readsAsDone(item,))
+      latch.isSourceDone = true;
+  }
+
+  /**
+   Latches `done` once one pull settles; a rejection is the caller's to
+   handle, so it is only logged here.
+
+   @param pull - Native promise of the pulled item.
+   */
+  async function latchWhenSettled(pull: Promise<unknown>,): Promise<void> {
+    try {
+      markDone(await pull,);
+    }
+// mutation-test-disable-next-line block, string -- logging only: the caller of the puller handles the same rejection, and the log output is not observable through the public API
+    catch (error) {
+      // mutation-test-disable-next-line string -- logging only: the caller of the puller handles the same rejection, and the log output is not observable through the public API
+      /**
+       Logger carrying the puller's name as its tag.
+       */
+      const log = tagged({ tag: createPuller.name, },);
+      log.debug(`pull rejected, left to the caller: ${caughtValueText(error,)}`,);
+    }
+  }
+
+  return function pullNext(): ReturnType<SourcePuller<Element>> {
+    if (latch.isSourceDone)
+      return {
+        done: true,
+        value: undefined,
+      };
+
+    /**
+     The source's own answer: an item for a synchronous source, a promise of
+     one for an asynchronous source.
+     */
+    const result = iterator.next();
+    markDone(result,);
+
+    // A synchronous source answers right away, so its `done` was read above
+    // and the answer goes back untouched.
+    if (!isThenable(result,))
+      return result;
+
+    // An asynchronous source settles later, so its `done` is read off the
+    // pull once it settles. The caller keeps awaiting the pull itself rather
+    // than a derived promise, so an asynchronous source pays no extra
+    // microtask per element. The rejection is handled here too, so a pull
+    // never escapes as an unhandled rejection. A thenable that is not a
+    // promise is turned into one first, so it is subscribed to once, like
+    // `for await` does, while a native promise is returned as is.
+    /**
+     The pull as a native promise, so the `done` latch and the caller share a
+     single subscription to the source's thenable.
+     */
+    const promise = Promise.resolve(result,);
+    void latchWhenSettled(promise,);
+    return promise;
+  };
+}
+
+//endregion Pulling
 
 //region Shutdown
 

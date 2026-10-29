@@ -13,6 +13,7 @@
 
 import {
   closeIterator,
+  createPuller,
   selectIterator,
   validateInput,
   type YieldedItem,
@@ -81,6 +82,23 @@ export type MapRun<Element, NewElement> = {
 //endregion Types
 
 //region Run
+
+/**
+ Whether one staged result is a real mapper result rather than the skip
+ sentinel.
+
+ @param value - Staged result.
+
+ @returns `false` for the skip sentinel.
+
+ @example
+ ```ts
+ isNotSkip(1,); // => true
+ ```
+ */
+function isNotSkip(value: unknown,): boolean {
+  return value !== pMapSkip;
+}
 
 /* oxlint-disable eslint/require-await -- `pMap` stays `async` so a destructuring failure rejects the caller's promise like upstream `p-map`'s `async` signature, and returning the deferred promise without awaiting it preserves upstream's promise-adoption tick (measured: an `await` here settles the caller one microtask early) */
 /**
@@ -171,28 +189,30 @@ export async function pMap<Element, NewElement>(
     validateConcurrency(concurrency,);
 
     /**
-     Mapper results in input order, including `pMapSkip` entries staged for
-     removal.
+     Mapper results by input position, including `pMapSkip` entries staged
+     for removal.
      */
     const result: (NewElement | typeof pMapSkip)[] = [];
     /**
-     Failures collected for the `stopOnError: false` `AggregateError`.
+     Failures staged by input position like `result`, so the
+     `stopOnError: false` `AggregateError` reports them in input order.
      */
     const errors: unknown[] = [];
     /**
-     Indices whose mapper returned `pMapSkip`, staged like upstream's
-     `skippedIndexesMap`.
+     Positions pulled from the source whose element or mapper call has not
+     finished yet, so settling waits for every earlier one.
      */
-    const skippedIndexesMap = new Map<number, typeof pMapSkip>();
+    const pendingIndexes = new Set<number>();
     /**
      Mutable run state, kept in one record because function-root `let`
      bindings are banned by repository lint.
      */
     const state = {
       /**
-       Whether {@link reject} already ran, stopping the runner spawn loop.
+       Mapper results equal to `pMapSkip` so far, so a run without skips can
+       hand over its dense result array untouched.
        */
-      isRejected: false,
+      skippedCount: 0,
       /**
        Whether the run settled, checked by every detached continuation.
        */
@@ -202,11 +222,12 @@ export async function pMap<Element, NewElement>(
        */
       isIterableDone: false,
       /**
-       Mapper calls started and not yet settled.
+       Lowest position whose pull reported `done`, or infinity while none has.
+       Pulls and mapper results at or past it do not affect the result.
        */
-      resolvingCount: 0,
+      doneIndex: Number.POSITIVE_INFINITY,
       /**
-       Position handed to the next element's mapper call.
+       Position handed to the next pull, taken when the pull starts.
        */
       currentIndex: 0,
     };
@@ -230,11 +251,11 @@ export async function pMap<Element, NewElement>(
     /**
      Settles the run with its collected results and detaches the abort
      listener.
-     
+
      @param value - Results handed to the caller's promise.
      */
     function resolve(value: (NewElement | typeof pMapSkip)[],): void {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value reaching this resolver is proven a non-skip mapper result: either the skip-index map is empty, or the caller built the value list excluding every staged index
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value reaching this resolver is proven a non-skip mapper result: either no result equals the skip sentinel, or the caller built the value list excluding every one
       settlement.resolve(value as (Exclude<NewElement, typeof pMapSkip>)[],);
       cleanup();
     }
@@ -242,14 +263,13 @@ export async function pMap<Element, NewElement>(
     /**
      Rejects the run once, closes the source when it never reported `done`,
      and detaches the abort listener.
-     
+
      @param reason - Failure handed to the caller's promise.
      */
     function reject(reason: unknown,): void {
       if (state.isResolved)
         return;
 
-      state.isRejected = true;
 // mutation-test-disable-next-line boolean -- spawn-loop control only: the loop pulls race the rejection and the run settlement is guarded elsewhere
       state.isResolved = true;
       settlement.reject(reason,);
@@ -261,7 +281,7 @@ export async function pMap<Element, NewElement>(
 
     /**
      Aborts the run with the signal's reason when the signal fires.
-     
+
      Registered only while a signal exists, so the optional read below always
      finds one at call time.
      */
@@ -300,100 +320,157 @@ export async function pMap<Element, NewElement>(
     }
 
     /**
+     Source puller that latches `done`, so a source like a queue is never
+     pulled again after it reported `done`.
+     */
+    const pull = createPuller(iterator,);
+
+    /**
+     Settles the run once the source is done and every earlier pull and mapper
+     call has finished.
+
+     A pull before the `done` can still produce an element, while pulls after
+     it do not affect the result.
+     */
+    function settleIfFinished(): void {
+      if ((state.isResolved) || (state.doneIndex === Number.POSITIVE_INFINITY))
+        return;
+
+      for (const pendingIndex of pendingIndexes)
+        if (pendingIndex < state.doneIndex)
+          return;
+
+      if (!stopOnError) {
+        /**
+         Failures of the positions before the `done`, in input order.
+         */
+        const collectedErrors: unknown[] = [];
+
+        for (let position = 0; position < Math.min(
+          state.doneIndex,
+          errors.length,
+        ); position += 1)
+          if (position in errors)
+            collectedErrors.push(errors[position],);
+
+        if (collectedErrors.length > 0) {
+          // oxlint-disable-next-line unicorn/error-message -- upstream `p-map` builds its AggregateError message-less; the differential oracle compares `.message` between both implementations
+          reject(new AggregateError(collectedErrors,),);
+          return;
+        }
+      }
+
+      state.isResolved = true;
+
+      /**
+       Results before the `done`: it is final, like `for await`, so a `done`
+       that lands between two elements ends the result there and everything
+       the source produced past it is dropped.
+       */
+      const lastIndex = Math.min(
+        state.doneIndex,
+        result.length,
+      );
+
+      // Every position below `lastIndex` has a value: a position only goes
+      // unassigned when its pull reported `done`, and the lowest such position
+      // is `doneIndex`. So the array is dense below `lastIndex`, and without
+      // skips it can be handed over untouched.
+// mutation-test-disable-next-line conditional, block, equality -- result-shaping equivalence: with no skips and nothing cut off the filtered pass resolves the identical values
+      if ((lastIndex === result.length) && (state.skippedCount === 0)) {
+        resolve(result,);
+        return;
+      }
+
+      // Otherwise this drops the skipped results and whatever the `done` cut
+      // off.
+      resolve(result.slice(
+        0,
+        lastIndex,
+      )
+        .filter(isNotSkip,),);
+    }
+
+    /**
      Pulls the next source item, runs its detached mapper continuation, and
-     finalizes the run when the source reports `done` with nothing resolving.
-     
+     settles the run when the source reports `done` with nothing earlier
+     still pending.
+
      Named `pullNext` rather than upstream's `next` so repository lint does
      not read the calls as node-style callbacks. Self-calling through the
      detached continuation keeps one `pullNext` frame alive at a time: each
      call returns before its successor starts, so the pull chain is
      event-driven rather than a growing recursion.
-     
-     @throws Whatever the source or mapper throws, observed by the caller's
-     `await` of this function.
+
+     @throws Whatever the source throws before its `done`, observed by the
+     caller's `await` of this function.
      */
     async function pullNext(): Promise<void> {
-// mutation-test-disable-next-line conditional -- post-settle continuation only: the run promise is already settled and the result array it would write is discarded
-      if (state.isResolved)
+      // After a `done`, a pull would take an item nobody is going to map,
+      // which a one-shot source, like a queue, would lose.
+// mutation-test-disable-next-line conditional, logical, equality -- spawn-loop control only: pulls after `done` or settlement are answered with `done` without touching the source, so pull counts and settlement are identical
+      if ((state.isResolved) || (state.currentIndex >= state.doneIndex))
         return;
 
-      /**
-       Synthetic `done` marker, `satisfies`-typed so its literal `done`
-       discriminant survives for the narrowing below.
-       */
-      const doneItem = {
-        done: true,
-        value: undefined,
-      } satisfies IteratorReturnResult<unknown>;
-      /**
-       Next source item, or the synthetic `done` marker once the source
-       already reported `done`: a source like a queue may block in `next()`
-       after it is exhausted, so pulling again could hang the completion
-       below.
-       */
-// mutation-test-disable-next-line conditional -- spawn-loop control only: pulls after `done` synthesize `done` without touching the source, so pull counts and settlement are identical
-      const nextItem: IteratorResult<Element | Promise<Element>, unknown> = state.isIterableDone
-        ? doneItem
-        : await iterator.next();
-
+      // Taken when the pull starts, not when it resolves, so a source that
+      // settles its `next()` calls out of call order still gets the right
+      // position.
       /**
        Position of this element in the input, assigned before every mapper
        call.
        */
       const index = state.currentIndex;
       state.currentIndex += 1;
+      pendingIndexes.add(index,);
 
       /**
-       Repeated `done` reports are possible because `iterator.next()` runs in
-       parallel; the shutdown below runs once because the skip staging is not
-       idempotent.
+       Slot for the item pulled for this position, filled by the `try`
+       below; its initial `done` marker is replaced before anything reads it.
        */
-      // oxlint-disable-next-line typescript/strict-boolean-expressions -- upstream `p-map` checks `if (nextItem.done)` with truthiness, so a non-conforming source's truthy `done` must terminate the pull exactly like upstream
-      if (nextItem.done) {
-        state.isIterableDone = true;
+      const pulled: { item: IteratorResult<Element | Promise<Element>, unknown>; } = {
+        item: {
+          done: true,
+          value: undefined,
+        },
+      };
+      try {
+        pulled.item = await pull();
+      }
+      catch (error) {
+        pendingIndexes.delete(index,);
 
-        if ((state.resolvingCount === 0) && (!state.isResolved)) {
-          if ((!stopOnError) && (errors.length > 0)) {
-            // oxlint-disable-next-line unicorn/error-message -- upstream `p-map` builds its AggregateError message-less; the differential oracle compares `.message` between both implementations
-            reject(new AggregateError(errors,),);
-            return;
-          }
+        // A failure from a pull after the end of the source is dropped, as
+        // `done` is final, so it must have no effect.
+        if (index < state.doneIndex)
+          throw error;
 
-// mutation-test-disable-next-line boolean -- finalize bookkeeping only: resolution happens when no mapper call is still running, so nothing observes the flag afterwards
-          state.isResolved = true;
-
-// mutation-test-disable-next-line conditional, block -- result-shaping equivalence: with an empty skip map the filtered pass resolves the identical values
-          if (skippedIndexesMap.size === 0) {
-            resolve(result,);
-            return;
-          }
-
-          /**
-           Results with every `pMapSkip` entry dropped.
-           */
-          const pureResult: (NewElement | typeof pMapSkip)[] = [];
-
-          for (const [
-            skippedIndex,
-            value,
-          ] of result.entries())
-            if (skippedIndexesMap.get(skippedIndex,) !== pMapSkip)
-              pureResult.push(value,);
-
-          resolve(pureResult,);
-        }
-
+        settleIfFinished();
         return;
       }
 
-      state.resolvingCount += 1;
+      /**
+       Source item pulled for this position.
+       */
+      const nextItem = pulled.item;
+
+      // oxlint-disable-next-line typescript/strict-boolean-expressions -- upstream `p-map` checks `if (nextItem.done)` with truthiness, so a non-conforming source's truthy `done` must terminate the pull exactly like upstream
+      if (nextItem.done) {
+        pendingIndexes.delete(index,);
+        state.doneIndex = Math.min(
+          state.doneIndex,
+          index,
+        );
+        state.isIterableDone = true;
+        settleIfFinished();
+        return;
+      }
 
       /**
-       Element source item for this call, narrowed past the synthetic `done`
-       marker above and passed as a parameter: narrowing never reaches the
-       detached continuation's function declaration, and the value getter
-       must run inside that continuation's `try` exactly as upstream
-       `p-map`'s detached runner reads it.
+       Element source item for this call, narrowed past the `done` marker above
+       and passed as a parameter: narrowing never reaches the detached
+       continuation's function declaration, and the value getter must run
+       inside that continuation's `try` exactly as upstream `p-map`'s detached
+       runner reads it.
        */
       const elementItem: YieldedItem<Element> = nextItem;
 
@@ -401,7 +478,7 @@ export async function pMap<Element, NewElement>(
        Awaits this element, runs its mapper call, then pulls the next item
        from the tail of this detached continuation, exactly as upstream
        `p-map`'s detached runner does.
-       
+
        @throws Nothing; every failure is routed to the run's settlement.
        */
       async function runElement(
@@ -419,6 +496,13 @@ export async function pMap<Element, NewElement>(
           readonly position: number;
         },
       ): Promise<void> {
+        /**
+         Whether this runner goes on to pull the next source item: false when
+         the run settled, a `done` cut this position off, or a mapper failure
+         rejected the run.
+         */
+        const flow = { pullsOnward: true, };
+
         try {
           /**
            Element after awaiting the source's yielded value, matching
@@ -426,36 +510,49 @@ export async function pMap<Element, NewElement>(
            */
           const element = await item.value;
 
-// mutation-test-disable-next-line conditional -- post-settle continuation only: the run promise is already settled and the result array it would write is discarded
-          if (state.isResolved)
-            return;
-
-          /**
-           Mapper result for this element, awaited when thenable.
-           */
-          const value = await mapper(
-            element,
-            position,
-          );
-
-          if (value === pMapSkip)
-            skippedIndexesMap.set(
+// mutation-test-disable-next-line conditional, logical, equality -- post-settle continuation only: the run promise is already settled and the result array it would write is discarded
+          if ((state.isResolved) || (position >= state.doneIndex))
+            flow.pullsOnward = false;
+          else {
+            /**
+             Mapper result for this element, awaited when thenable.
+             */
+            const value = await mapper(
+              element,
               position,
-              pMapSkip,
             );
 
-          result[position] = value;
+            // Ignore an element produced after an earlier pull reported
+            // `done`.
+// mutation-test-disable-next-line conditional, equality -- post-done continuation only: the result is cut at `doneIndex` when it settles, so a stored value past it is never observed
+            if (position >= state.doneIndex)
+              flow.pullsOnward = false;
+            else {
+              if (value === pMapSkip)
+                state.skippedCount += 1;
+
+              result[position] = value;
+            }
+          }
         }
         catch (error) {
-          if (stopOnError) {
+          // A failure past the end of the source is dropped, as `done` is
+          // final.
+          if (position >= state.doneIndex)
+            flow.pullsOnward = false;
+          else if (stopOnError) {
             reject(error,);
-            return;
+            flow.pullsOnward = false;
           }
-
-          errors.push(error,);
+          else
+            errors[position] = error;
         }
 
-        state.resolvingCount -= 1;
+        pendingIndexes.delete(position,);
+        settleIfFinished();
+
+        if (!flow.pullsOnward)
+          return;
 
         try {
           await pullNext();
@@ -479,7 +576,7 @@ export async function pMap<Element, NewElement>(
      moment the source is exhausted or the run settles (upstream `p-map`
      spins up runners this way so an async input never spawns unbounded
      `next()` calls).
-     
+
      @throws Nothing; every failure is routed to the run's settlement.
      */
     async function spawnRunners(): Promise<void> {
@@ -499,7 +596,7 @@ export async function pMap<Element, NewElement>(
           break;
         }
 
-        if (state.isIterableDone || state.isRejected)
+        if ((state.isResolved) || (state.currentIndex >= state.doneIndex))
           break;
       }
     }
