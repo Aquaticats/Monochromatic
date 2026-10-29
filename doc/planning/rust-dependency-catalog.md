@@ -313,12 +313,16 @@ Renovate's cargo manager matches only files named `Cargo.toml`,
 
 Kept:
  named catalogs;
- internal crates referenced by name (pnpm `workspace:` entries);
  adopt on sync (`pnpm add --save-catalog`);
  prune unused entries (`catalogPrune`);
- an update task writing new versions into catalog entries (`pnpm update`);
+ the recursive no-save update plus tightening (see "Recursive no-save update");
  the CI drift check;
- named diagnostics.
+ named diagnostics;
+ the affected-crate list.
+Retracted after selection:
+ internal crates referenced by name (see "Internal dependencies").
+Follow-on:
+ changesets on update.
 Omitted:
  path entries (`file:`, `link:`),
  because internal crates by name cover every path dependency today;
@@ -329,9 +333,6 @@ Omitted:
  delegated catalog files;
  cross-repository catalogs;
  query and run commands.
-Pending confirmation:
- the affected-crate list and changesets on update
- (the question's labels were ambiguous).
 
 ### Tightening, after `catalog:tighten`
 
@@ -370,6 +371,49 @@ Probe (throwaway crate, repo cargo, offline):
 So a raised floor moves lower-locked crates to whatever is newest,
  not to the floor,
  unless tighten also updates their lockfiles.
+
+Tighten writes no lockfiles:
+ the owner rules lock writes impure for a tightener.
+Lockfiles move only through the recursive update.
+
+### Requirement operator
+
+`>=` floors,
+ like the JS catalog,
+ so `catalog-tighten`'s existing `>=`-only rule applies unchanged.
+Owner rationale:
+ the breakage risk of crossing a major is intentional;
+ falling behind upstream is the failure to surface.
+
+### Recursive no-save update
+
+Support the counterpart of `pnpm -r --no-save update`
+ ("Don't update the ranges in `package.json`", `docs/cli/update.md`):
+ a task that runs `cargo update` in every crate root.
+`cargo update` never edits manifests,
+ so it is no-save by construction.
+With `>=` floors it moves every lockfile to the newest releases,
+ and a following `catalog-tighten` run raises the catalog floors to the highest locked versions.
+This replaces the earlier "update task writes catalog entries" item:
+ a saving update is the recursive update followed by tighten.
+
+### Internal dependencies
+
+Internal crates stay out of the catalog.
+Owner direction:
+ depend on them the way JS packages use `workspace:*`.
+This retracts the kept "internal crates by name" item,
+ which mapped pnpm's `workspace:` catalog entries (v12.2.0) rather than the repo's `workspace:*` use.
+
+### Affected crates and changesets
+
+The check lists the crates whose generated tables a catalog edit changes,
+ for a CI that builds only affected crates.
+Changesets on update wait for Rust releases to adopt change intents
+ ([issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802));
+ today Rust crates have no `package.json`,
+ `.changeset/config.json` names only npm packages,
+ and `.github/workflows/cargo-publish.yml` publishes when a crate's `Cargo.toml` `version` is bumped by hand.
 
 ### Named catalog selection
 
