@@ -6109,7 +6109,9 @@ The image split landed (`265c55d90c` terminal, `fd1bd8caf8` ide), 2026-10-29:
   and `nws-build-binary` for `aarch64-unknown-linux-gnu` on `ubuntu-24.04-arm` and `x86_64-unknown-linux-gnu` on `ubuntu-24.04`;
   `nws-create-release` stayed skipped because it is gated on `!inputs.dry-run`.
   This covers the new package path `package/nested-wayland-session/cli`; the compositor's version was not bumped, so no real release was made.
-  Not shown: the glibc symbol version of the built compositor archive (the dry run keeps the artifact for one day and I did not inspect it).
+  The dry run's archives (version 0.6.2, one-day artifacts), read with `objdump` after extracting each into its own directory:
+  the newest glibc symbol is 2.39 in both the x86_64 binary (19 symbol versions) and the aarch64 binary (10),
+  and both need only `libc.so.6`, `libgcc_s.so.1` and `libxkbcommon.so.0`.
 
 Next, in order:
 - If `monochromatic-db` sends a hash for a commit under `package/terminal` or `package/ide`, dry-run `ide-release.yml` on it and compare with run 40887621364 before any real release.
