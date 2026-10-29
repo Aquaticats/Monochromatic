@@ -805,3 +805,123 @@ over every dryness view and not the one the run showed,
 before the change is called small.
 Recurrence:
 B815.
+
+## B1062: the 79 straggler cuts of XingZ6022 measured one by one, and how many of them the base can still make
+
+Status:
+recorded on 2026-10-29 (UTC),
+measured from the log of `XingZ6022` (build `c6185d4086`),
+no code changed.
+The constant `STRAGGLER_GRACE_MS` (120 s,
+`stage/src/stage-round.ts`) is unchanged by the owner's ruling below.
+
+The owner's rulings of 2026-10-29,
+as the lead relayed them:
+"Remove Qwen from wide seats" (B1030)
+and "the 120 s grace for other late voices unchanged".
+The second half is recorded nowhere else in this repository,
+so this entry is where it lands.
+
+The count:
+the log holds 81 warnings `abandoned 120000ms after quorum`,
+not 79.
+The read and its check counted the 79 whose text is `cut-mid-reply`,
+which are the 79 streams `stream hf:Qwen/Qwen3.8-27B: cut`.
+The other 2 are Kimi-K3 cuts in chunk 14's checker round (line 5970) and chunk 19's panel round (line 5983),
+and their text is `the round closed its grace window on this call after quorum stood`,
+with no stream line:
+`describeAbandon` (`provider-stream/src/abandon-kind.ts`) gives that text for an error that is not a cut stream,
+so the log does not say what that call was doing,
+and this entry does not guess.
+Each of the 81 cut closed its own round,
+so the 81 rounds waited 162.0 minutes of grace in all:
+158.0 for Qwen3.8-27B and 4.0 for Kimi-K3.
+That is a sum over rounds.
+The lanes run at once,
+so it is not minutes of the pass.
+
+The measurement,
+by `cuts.ts` and `cutstreams.ts` in `/var/home/user/temp/agent/tr-fan/w379-accounts/`:
+each Qwen warning was joined to its `stream ...: cut` line by log order,
+and every one of the 79 pairs agrees on the answer and reasoning character counts
+and on the time of day to within 1.5 seconds.
+- How long the call had been open:
+  120,003 ms at least,
+  146,486 ms at the median,
+  247,984 ms at most,
+  11,872 s in all (the 11,872 s of the read).
+- Whether first content had arrived:
+  yes for all 79.
+  The first byte and the first content both came at 807 to 4,684 ms,
+  28,675 to 61,093 characters of reasoning had arrived by the cut,
+  and the longest silence between two chunks was 246 to 2,818 ms.
+  None of the 79 was stalled or silent.
+- Answer characters:
+  0 for 75.
+  The four with some were 29 (line 3926, a select round),
+  167 (5775, select),
+  55 (13543, critic) and 156 (13632, panel).
+- Where:
+  critic 23,
+  panel 30,
+  select 16,
+  introduced-defect probe 3,
+  checker 1,
+  coverage 3,
+  block pairing 2,
+  page-title lexicon 1.
+  77 were cut before the dry reading at 10:36:27.677 UTC and 2 after it (10:36:42 and 10:36:55 UTC),
+  and those 2 calls began under a wet reading.
+
+What the base can still make:
+at `e3daecaa1f` Qwen3.8-27B has no critic,
+panel,
+select,
+checker or probe seat (`6d39223583`,
+B1030),
+so 73 of the 79 cuts (146.0 minutes of grace,
+10,975 s open) are on seats that no longer exist.
+The other 6 (12.0 minutes,
+898 s open,
+none with an answer character) are on roster seats that Qwen3.8-27B still holds:
+coverage 3,
+block pairing 2 and the page-title lexicon 1.
+With the 2 Kimi-K3 cuts,
+8 of the 81 cuts and 16.0 of the 162.0 minutes would recur on the same view,
+if the same voices were late.
+That condition is not known:
+in a round that Qwen was late in,
+another voice is now the last,
+and B1030 shows the log gives the set of voices before and after the quorum instant,
+not their order.
+
+What a shorter grace would have saved and lost,
+from the lead's measurement of the same log (`w365-xingz22/qwen-late/curve22.out`),
+which this entry reuses and does not redo:
+Qwen's late ballot changed the round's result in 42 of the 272 late rounds,
+arriving 15.8 to 114.5 seconds after the quorum instant.
+A window of 60 s would have saved 125.0 minutes (46.0 of late arrivals and 79.0 of cuts)
+and lost 14 of those 42 ballots.
+A window of 30 s would have saved 236.6 minutes and lost 24 of the 42.
+A grace that ends when no first content has arrived would have ended none of the 79,
+because every one had content within 4.7 seconds,
+and one that ends when no answer character has arrived would end 75 of the 79 cuts
+and also every late ballot that was still reasoning when the rule fired.
+The owner chose to take Qwen3.8-27B off the seats instead.
+
+Recommendation:
+leave the constant as it is,
+which is the owner's ruling.
+Pros:
+the voice that held 73 of the 79 cuts has left the seats where it held them,
+what is left is 8 cuts and 16.0 minutes of grace summed over rounds,
+and a shorter window would lose answers that changed results,
+as the 42 show.
+Cons:
+the 6 roster-seat cuts and any other slow voice still pay 120 s for zero answer characters.
+Revisit it when a run on this base shows more cuts of other voices than these 8,
+and measure them as this entry did before any change.
+
+What still stands:
+the cause of the 2 Kimi-K3 cuts,
+and which voice is late now in the rounds Qwen3.8-27B used to hold open.

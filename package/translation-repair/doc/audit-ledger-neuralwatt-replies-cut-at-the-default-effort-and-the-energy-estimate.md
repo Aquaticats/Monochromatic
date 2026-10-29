@@ -703,3 +703,94 @@ B808,
 "Provider fields read by their documentation":
 a hold is taken from the build that sends the calls,
 and a mean from a run on one effort is not pooled with a run on another.
+
+## B1061: the plan-energy line of a run's end printed the account's charge and not the run's own meter beside it
+
+Status:
+fixed on 2026-10-29 (UTC) in `tr-w379`,
+red `4d49e137b1`,
+fix `3de1638c7b`.
+Found by the read of `XingZ6022` (build `c6185d4086`) and its check.
+No cache version moved:
+the report is a log line and keys nothing.
+
+What the run showed:
+the end of the run printed (log line 29727) `NeuralWatt PLAN ENERGY SPENT: 1730.5 Wh`,
+said the owner's plan was charged that much between the start and the end of the run,
+and ended with the clause `anything else done on the account in that time is in this figure too`.
+The run's own meter,
+the 1,700 `NeuralWatt energy` lines (1,294 on `deepseek-v4.1-flash` and 406 on `glm-5.3-flash`),
+adds up to 238.272 Wh,
+and the account-wide covered energy since the day's start that `METERS` carried (`neuralwattAccountWh`) agreed with
+that running sum to 0.001 Wh.
+So the plan figure was 7.26 times the run's draw,
+and nothing on the line said what the run had drawn.
+`XingZ6021` printed no plan energy for 283 Wh drawn.
+
+What the line and its docs said before:
+the line already ended with "anything else done on the account in that time is in this figure too",
+and the module note of `provider/src/neuralwatt-quota.ts` named the owner's other use of the covered models.
+Neither printed the run's own meter beside the difference,
+and the TSDoc of `describePlanSpend` did not say that the figure is not the run's draw.
+A reader had to go to the log for the second number,
+which is how the first one was read as the run's.
+
+Cause of the 7.26 times:
+not determined.
+`planSpendBetween` is the end of the account's `kwh_used` less its start,
+which the quota documentation calls the energy charged against the plan,
+consumed energy times the lane's multiplier.
+The pricing multiplier of the standard lane is 1.0 in this package's source (`provider/src/neuralwatt-comments.ts`),
+the start figure alone (10.9763 kWh charged in a period that began 2026-10-20T19:15:08Z) is above what nine free days
+hold (4.95 kWh),
+so the account had been charged beyond its free energy before the run began,
+and the by-model usage showed only the run's draw.
+Other use of the account and a charge that is not the run's metered energy are both open,
+and the log cannot decide between them.
+
+What changed:
+- `createNeuralWattLedger` counts the watt-hours of the lines its own object appended (`drawnWh`):
+  settled calls at their measured figure or,
+  where the stream reported none,
+  their estimate,
+  and abandoned attempts at their estimate.
+  It reads the run's draw and not the day's,
+  which also holds the lines an earlier run left in the file,
+  and it counts a line only after the append succeeded.
+- `NeuralWattClient.drawnWh` returns it,
+  and the run-end report (`run/src/corpus-run/run-providers.ts`) passes it to `describePlanSpend`.
+- `describePlanSpend` takes `drawnWh` and says on every branch what the run's own meter drew in that time.
+  Beside a nonzero difference it says the plan figure is not this run's draw:
+  it is what the account was charged,
+  which can include energy this run did not draw.
+  Without `drawnWh` the sentences are as they were.
+- The line for `XingZ6022` would have gained the clause
+  `this run's own meter drew 238.596 Wh in that time, so the plan figure is not this run's draw`,
+  then the sentence that the figure is what the account was charged,
+  which can include energy this run did not draw,
+  before the clause it already ended with.
+  The 238.596 is the 238.272 of the energy lines and the 0.324 Wh abandoned estimate of the call cut at its
+  content bound (line 14463),
+  which the ledger carries and the energy lines do not.
+
+Guards shown to fail first:
+`neuralwatt-ledger.unit.test.ts` (the draw counts only the lines its own object appended,
+with an earlier object's line,
+a measured call,
+an unreported one,
+an abandoned attempt and a refused reservation),
+`neuralwatt-client.unit.test.ts` (the client reports the sum of two calls and none before a call),
+`neuralwatt-quota.unit.test.ts` (two cases:
+the nonzero branch with 1730.5 Wh against 238.272 Wh,
+and the zero,
+later-start and not-comparable branches).
+The four failed with `drawnWh is not a function` and a missing sentence at `4d49e137b1`.
+The case of `run-client-neuralwatt.unit.test.ts` that gained two expectations was not run before the fix.
+Gates after the fix:
+provider and run `test:unit`,
+`lint:types` and `lint:oxlint` all passed.
+
+What still stands:
+the cause of the 7.26 times.
+The next run that reads the quota before and after prints both numbers,
+and an account with no other use on the day would show whether the charge follows the run's meter.

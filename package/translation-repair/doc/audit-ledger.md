@@ -660,7 +660,8 @@ named for that subject and listed here.
   the energy estimate that counted a picture as base64 text (B720),
   a text call sent at the provider's default effort (B807),
   the energy hold that read the pipeline's own use at a third of what a rotation of entries measured (B808),
-  and the hold that read the GLM seat at fourteen times its use after the lift to low effort (B836).
+  the hold that read the GLM seat at fourteen times its use after the lift to low effort (B836),
+  and the end-of-run plan-energy line that printed the account's charge without the run's own meter (B1061).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,
@@ -701,8 +702,10 @@ named for that subject and listed here.
   which the seat reader's line never stated (B833),
   a slice bought again by the next attempt for want of a second ballot (B834),
   the contest and consolidation rounds opened for slices their bench could not settle (B835),
-  and the model that was the late voice on the wide benches and the checker order
-  until the owner took those seats away (B1030).
+  the model that was the late voice on the wide benches and the checker order
+  until the owner took those seats away (B1030),
+  and the 81 straggler cuts of `XingZ6022` measured one by one,
+  with how many the base can still make (B1062).
 - [Audit ledger:
   short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
   The ceiling that counted a provider its meter keeps dry as coming back (B837),
@@ -807,6 +810,11 @@ named for that subject and listed here.
   which was cut into no slice (B1045),
   the page of 0 bytes that nothing reported (B1046),
   and the roster path measured for an archive that does not align with two original sections (B1047).
+- [Audit ledger: two counts a log read could not reconcile](audit-ledger-two-counts-a-log-read-could-not-reconcile.md):
+  The 54 panel decision lines that the tally does not count,
+  which are accepted duplicates merged at emission (B1063),
+  and the one spend line without a stored payload,
+  which is an unfinished attempt booked at its bound (B1064).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
@@ -824,7 +832,9 @@ named for that subject and listed here.
   A panel that heard nobody on five packets cached as examined
   because its finding no longer began with the text the gate matched,
   the cache version that moved with the rule,
-  and the refine cache's two gates that asked different questions (B820).
+  and the refine cache's two gates that asked different questions (B820),
+  and the 32 repair chunks that closed with the archive after a checker round that heard one voice,
+  with the cost of buying them again (B1060).
 - [Audit ledger: providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md):
   A provider an owner ruling keeps off that every run still asked (B760),
   a seat never withheld although its streams carried nothing (B761),
