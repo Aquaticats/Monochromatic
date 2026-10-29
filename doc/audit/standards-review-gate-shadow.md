@@ -24,3 +24,5 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   (the runner writes `unjudged`;
   a scorer reads the findings and settles it)
 - Findings kept:
+- Skipped: 12c25207857b docs(handover): record the finished tool-image migration and the pre-existing failures it surfaced (no code files)
+- Skipped: 17241cbad51b feat(mise): run the standards-review gate shadow from a post-commit hook (no code files)
