@@ -134,7 +134,12 @@ Owner follow-ups the same day:
   p-memoize after that round: killed 149, survived 0, ignored 7 (`b6f224be40` removed the decorator check and its
    suppression; `e179a0d72b` dropped an equality guard that hid killable mutants).
   Four older suppressions (`mimic-function.ts` 310/312/314, `p-memoize.ts:620`, the `CACHE_DISABLED` description)
-   were inherited unverified; the agent is checking each with narrowed runs.
+   were inherited unverified; narrowed runs checked each.
+  p-memoize final: killed 150, survived 0, compileError 207, ignored 3, each with a proof checked against the code
+   (`mimic-function.ts:287` unreachable guard, its forced-true twin a compile error;
+   `p-memoize.ts:620` `ignoreNonConfigurable` unobservable at that call site).
+  `25603427ff` exports `CACHE_DISABLED` from `src/index.ts` so a built-artifact test can pin its description
+   (allowed by AGENTS.md XPT; the package is private and unpublished); `c9365744bb` rewrote the unreachable fallbacks.
 
 ## music-player `run`: zigbuild adopted for now
 
