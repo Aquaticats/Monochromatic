@@ -13,7 +13,9 @@ Derived from [`p-memoize`](https://github.com/sindresorhus/p-memoize) by
  released upstream under the [MIT License](LICENSES/MIT.txt).
  Memoization semantics,
  validation rules,
- and error message texts come from `p-memoize` 8.0.0.
+ and error message texts come from `p-memoize` 8.0.0,
+ with the 9.0.0 reworded `UnclearableCacheError` message and the
+ disabled-cache yield before the wrapped call ported (see "Ported from 9.0.0").
  The function-identity copying in `src/mimic-function.ts` is inlined from
  [`mimic-function`](https://github.com/sindresorhus/mimic-function) 5.0.1,
  same author and license.
@@ -172,22 +174,49 @@ any conforming runtime.
 
 Upstream's `try`/`finally` cleanup becomes `try`/`catch` with the in-flight
 cleanup duplicated before each `return` (repository lint bans `try`/`finally`).
- The duplicate placements preserve upstream's exact ordering: cleanup runs
-before each settlement and inside the same synchronous stretch when the
-wrapped function throws synchronously.
+ The duplicate placements preserve upstream's ordering: cleanup runs
+before each settlement.
 
-### Retained upstream behavior
+### Ported from 9.0.0
 
-Upstream `p-memoize` registers a call's in-flight promise after the call
-body starts.
- When the wrapped function throws synchronously with caching
-disabled (`cache: false`),
- the cleanup runs before the registration lands, so
-the rejected promise stays in the in-flight map and later calls with the
-same key replay that rejection instead of recomputing.
- The fork reproduces
-this ordering exactly;
- the differential oracle pins it.
+#### Synchronous throw with caching disabled
+
+Upstream 8.0.0 registered a call's in-flight promise after the call body
+started.
+ When the wrapped function threw synchronously with caching disabled
+(`cache: false`),
+ the cleanup ran before the registration landed,
+ so the rejected promise stayed in the in-flight map and later calls with the
+same key replayed that rejection.
+ Upstream 9.0.0 (commit `a8cec6126`, issues 55 and 62) yields one microtask
+before running the wrapped function when caching is disabled,
+ so registration comes first and a later call recomputes.
+ The fork does the same,
+ and the differential oracle pins it.
+
+#### Unclearable cache message
+
+`pMemoizeClear` on a storage without `clear` throws
+`UnclearableCacheError` with upstream 9.0.0's text `The cache can't be cleared!`
+ (8.0.0 said `The cache Map can't be cleared!`).
+
+### 9.0.0 changes not yet ported
+
+Upstream 9.0.0 also changed behavior the fuzz workloads do not reach,
+ and this fork still follows 8.0.0 there:
+ `pMemoizeClear` bumps a per-cache generation so calls running at clear time
+do not write their result back,
+ drops the function's in-flight promises,
+ and swallows a rejection from an asynchronous `clear()`;
+ a `cacheKey` that throws rejects instead of throwing synchronously and
+receives a copy of the arguments;
+ `shouldCache` is read once when the function is memoized;
+ a call re-entered from `cache.has()` or `cache.get()` joins the running call;
+ a synchronous throw from `cache.has()` no longer leaves a poisoned in-flight
+entry;
+ a failing function-identity copy no longer prevents memoizing;
+ `CacheStorage.delete` is optional;
+ and `pMemoizeDecorator` stands down when a subclass overrides the method.
 
 ### Layout
 

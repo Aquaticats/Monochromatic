@@ -183,7 +183,7 @@ await describe({
         }
         expect(caught,).toBeInstanceOf(TypeError,);
         expect((caught as Error).name,).toBe('UnclearableCacheError',);
-        expect((caught as Error).message,).toBe('The cache Map can\'t be cleared!',);
+        expect((caught as Error).message,).toBe('The cache can\'t be cleared!',);
       },
     },),
   ],

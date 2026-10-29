@@ -63,7 +63,7 @@ const ERROR_SPECS: readonly ErrorSpec[] = [
       return new UnclearableCacheError();
     },
     name: 'UnclearableCacheError',
-    message: 'The cache Map can\'t be cleared!',
+    message: 'The cache can\'t be cleared!',
   },
   {
     construct: function constructNonMethodDecoration(): TypeError {

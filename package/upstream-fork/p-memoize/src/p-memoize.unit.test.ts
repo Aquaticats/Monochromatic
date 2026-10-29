@@ -179,7 +179,7 @@ await describe({
     },),
 
     it({
-      name: 'starts the wrapped function inside the call when caching is disabled, keeping upstream ordering',
+      name: 'starts the wrapped function one microtask after the call when caching is disabled, like upstream 9.0.0',
       fn: async () => {
         /**
          Whether the wrapped function has started.
@@ -204,8 +204,9 @@ await describe({
         const promise = memoized({
           args: [],
         },);
-        expect(state.started,).toBe(true,);
+        expect(state.started,).toBe(false,);
         expect(await promise,).toBe('done',);
+        expect(state.started,).toBe(true,);
       },
     },),
 
@@ -251,10 +252,10 @@ await describe({
     },),
 
     it({
-      name: 'replays a synchronous throw through the in-flight map when caching is disabled, keeping upstream ordering',
+      name: 'shares one in-flight rejection for a synchronous throw when caching is disabled, then recomputes, like upstream 9.0.0',
       fn: async () => {
         /**
-         Attempt counter proving the wrapped function runs only once.
+         Attempt counter proving when the wrapped function runs.
          */
         const state = {
           attempts: 0,
@@ -280,7 +281,9 @@ await describe({
           args: [],
         },);
         expect(second,).toBe(first,);
-        expect(state.attempts,).toBe(1,);
+        // The disabled-cache call yields one microtask before running the
+        // wrapped function, so nothing ran during the synchronous launch.
+        expect(state.attempts,).toBe(0,);
 
         let caught: unknown;
         try {
@@ -290,6 +293,25 @@ await describe({
           caught = error;
         }
         expect((caught as Error).message,).toBe('sync boom',);
+        expect(state.attempts,).toBe(1,);
+
+        /**
+         Call after the first settled: the in-flight entry is gone, so it
+         recomputes instead of replaying the earlier rejection.
+         */
+        const third = memoized({
+          args: [],
+        },);
+        expect(third,).not.toBe(first,);
+        let thirdCaught: unknown;
+        try {
+          await third;
+        }
+        catch (error) {
+          thirdCaught = error;
+        }
+        expect((thirdCaught as Error).message,).toBe('sync boom',);
+        expect(state.attempts,).toBe(2,);
       },
     },),
 

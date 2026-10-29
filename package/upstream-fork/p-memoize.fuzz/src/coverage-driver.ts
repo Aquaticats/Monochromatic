@@ -456,7 +456,7 @@ async function runDriver(): Promise<void> {
 
   /**
    Memoized function with caching disabled whose wrapped call throws
-   synchronously, exercising the retained in-flight replay.
+   synchronously, exercising the disabled-cache yield before the call.
    */
   const uncachedThrower = pMemoize({
     fn: syncThrower,

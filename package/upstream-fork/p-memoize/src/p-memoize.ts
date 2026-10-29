@@ -2,8 +2,9 @@
  TypeScript fork of [`p-memoize`](https://github.com/sindresorhus/p-memoize) by
  Sindre Sorhus (MIT): memoize promise-returning and async functions.
  
- Derived from `p-memoize` 8.0.0; see `LICENSES/MIT.txt` and this package's
- README for the full attribution. Memoization semantics match upstream:
+ Derived from `p-memoize` 8.0.0 with the 9.0.0 in-flight ordering fix
+ ported; see `LICENSES/MIT.txt` and this package's
+ README for the full attribution. Memoization semantics follow upstream:
  cache keys derive from the argument tuple, the cache holds only fulfilled
  values, in-flight calls for one key share one promise, and `shouldCache`
  gates writes after fulfillment. The only call-shape deviation is
@@ -223,9 +224,14 @@ export function pMemoize<
    write, and in-flight cleanup.
    
    Every upstream `try`/`finally` becomes `try`/`catch` with the cleanup
-   duplicated before each `return`, so a synchronous failure inside `fn` or
-   a cache method still runs the in-flight cleanup inside the same
-   synchronous stretch (upstream `p-memoize` relies on that ordering).
+   duplicated before each `return`, so a failure inside `fn` or a cache
+   method still runs the in-flight cleanup before the call settles.
+
+   With caching disabled the call yields one microtask before running `fn`,
+   as upstream `p-memoize` 9.0.0 does: the caller registers the in-flight
+   promise first, so the cleanup of a synchronously throwing `fn` always
+   removes an entry that exists, and a later call with the same key
+   recomputes instead of replaying the rejection.
    
    @param thisValue - Receiver forwarded into the wrapped function.
    
@@ -258,6 +264,12 @@ export function pMemoize<
     },
   ): Promise<TResult> {
     try {
+      // Nothing above suspends when caching is disabled, so `fn` would run
+      // before the caller registers this call as the in-flight one. Yielding
+      // once lets the registration win, like upstream `p-memoize` 9.0.0.
+      if (!isCacheEnabled(cache,))
+        await Promise.resolve();
+
       if (isCacheEnabled(cache) && await cache.has(key)) {
         /**
          Value already stored under this key; awaited so async storages
@@ -272,9 +284,8 @@ export function pMemoize<
 
       /**
        Wrapped function result, awaited inline (not through a helper) so a
-       synchronous throw from `fn` surfaces inside this `try` in the same
-       synchronous stretch that started the call, keeping upstream
-       `p-memoize`'s in-flight cleanup ordering.
+       synchronous throw from `fn` surfaces inside this `try` and runs the
+       in-flight cleanup below.
        */
       const result = await fn.apply(
         thisValue,

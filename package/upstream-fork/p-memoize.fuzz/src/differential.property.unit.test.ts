@@ -1,11 +1,12 @@
 /**
  Differential property tests: the fork must produce the same observable
- traces as upstream `p-memoize` 8.0.0 on the same generated workload.
+ traces as the installed upstream `p-memoize` (the floating catalog
+ entry, currently 9.0.0) on the same generated workload.
  
  The oracle is upstream itself: cache keying, in-flight promise sharing,
- cache-contract traffic, write-predicate gating, clearing, and the retained
- synchronous-throw replay are all checked against the implementation this
- fork was derived from.
+ cache-contract traffic, write-predicate gating, clearing, and the
+ in-flight handling of synchronous throws are all checked against the
+ upstream package this fork was derived from.
  
  @module
  */
@@ -233,12 +234,12 @@ await describe({
           upstreamMessage = (error as Error).message;
         }
         expect(forkMessage,).toBe(upstreamMessage,);
-        expect(forkMessage,).toBe('The cache Map can\'t be cleared!',);
+        expect(forkMessage,).toBe('The cache can\'t be cleared!',);
       },
     },),
 
     it({
-      name: 'synchronous-throw replay and rejection messages match upstream p-memoize',
+      name: 'synchronous-throw in-flight sharing and rejection messages match upstream p-memoize',
       fn: async () => {
         /**
          Wrapped function throwing synchronously on every call.
