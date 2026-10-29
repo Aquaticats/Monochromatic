@@ -95,7 +95,7 @@ export function repetitionLogLines(
 
  @param shippedText - assembled document the lane produced
 
- @param archiveSlices - the archive's own wording of each slice
+ @param archiveSlices - archive's own wording of each slice
 
  @returns Lines naming the slice and its lost words, none when nothing was lost
 

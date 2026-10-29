@@ -363,7 +363,7 @@ export function describeJudgedRound<ValueT,>(
 
  @param envelopeId - envelope it was the one proposal for
 
- @param candidate - the proposal
+ @param candidate - proposal
 
  @returns Round record naming the adopted candidate and its authors
 

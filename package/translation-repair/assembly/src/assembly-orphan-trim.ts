@@ -83,7 +83,7 @@ const LINE_BREAK = '\n';
 
  @param line - one line of a replacement
 
- @returns The label alone, or the empty string
+ @returns Label alone, or the empty string
 
  @example
  ```ts
@@ -201,7 +201,7 @@ type BlockWalk = {
 
  @param blocks - list the block joins
 
- @returns The walk with no block open
+ @returns Walk with no block open
 
  @example
  ```ts

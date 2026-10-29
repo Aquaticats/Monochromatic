@@ -128,7 +128,7 @@ export type AdvancingWithdrawal = {
 
  @param left - one text
 
- @param right - the other
+ @param right - other
 
  @returns Length of the longest common prefix, in UTF-16 units like every
  offset the strict reading names
@@ -168,7 +168,7 @@ export function sharedPrefixLength(
 
  @param left - one text
 
- @param right - the other
+ @param right - other
 
  @param prefix - characters already counted as shared from the start
 
@@ -224,7 +224,7 @@ export function sharedSuffixLength(
 
  @param offset - where the strict grammar stops on the withdrawn page
 
- @returns The same place on the assembled page
+ @returns Same place on the assembled page
 
  @example
  ```ts
