@@ -224,8 +224,11 @@ in scratch tooling:
 a subagent leaves the file as it is and reports it in its hand-back.
 The lockfile belongs to another session,
 and no gate tree and no round commits it or changes it.
-A gate is launched from the plain shell as a user unit of its own,
-in the form the notes recorded on 2026-10-29 (UTC) while gate g239 ran.
+A gate is launched from the plain shell as a user unit of its own.
+The notes recorded the line on 2026-10-29 (UTC) while gate g239 ran,
+in a shorthand that opens `env -i PATH HOME XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS systemd-run --user`.
+The block expands the short flag and the bare variable names,
+and the expanded line was not run in the round that wrote it.
 The four variables that `env` passes hold no key,
 and the user bus needs the last two of them (ledger M317).
 `<tr-fan>` is the lead's scratch folder,

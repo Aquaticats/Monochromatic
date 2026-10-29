@@ -232,7 +232,7 @@ Prevention:
 before naming an owner action,
 the lead checks the owner's rulings on that provider and whether any launch waits on it.
 
-## M320: a ruling that began "going forward" was read as covering work already done, and running work was stopped
+## M320: a ruling the owner meant for what follows was read as covering work already done, and running work was stopped
 
 Status:
 happened on 2026-10-29 (UTC),
