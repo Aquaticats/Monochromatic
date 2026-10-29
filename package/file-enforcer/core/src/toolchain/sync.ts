@@ -400,7 +400,10 @@ export async function syncToolchain(
     entries,
   },);
 
-  // Postinstall commands run last: they find the other tools through the rebuilt exposure directory.
+  /**
+   Outcome of the postinstall commands. They run last because they find the
+   other tools through the rebuilt exposure directory.
+   */
   const commands = await runPostinstallCommands({
     paths,
     entries,

@@ -369,7 +369,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
         when: 'always',
         run: {
           sourceBin: 'search-shadow',
-          args: ['link', '.cache/search-shadow-bin',],
+          args: [
+            'link',
+            '.cache/search-shadow-bin',
+          ],
         },
       },
     },
