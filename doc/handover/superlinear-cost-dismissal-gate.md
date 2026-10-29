@@ -480,7 +480,13 @@ Design finding from the `partial` cluster:
 the corpus reviews that reached 6 of 8 saw whole files,
 these see diffs.
 Sending the touched files' text beside the diff
-is the queued runner improvement.
+landed as the runner improvement in `35e9853f82`,
+and a replay of `d4988f4c9b57` with it
+returned the union of both diff-only runs' findings
+(six major ones in 235.6 s),
+then named one more defect,
+a base timing below the resolution floor suppressing the ratio,
+fixed in `b3c6836984`.
 
 ## Next action
 
