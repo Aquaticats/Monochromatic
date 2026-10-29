@@ -502,6 +502,18 @@ every gap recorded here is documentation,
 configuration,
 or probe evidence.
 
+Update 2026-10-29:
+ the disposable pilot is now recorded in
+[`pnpm-task-execution-pilot.md`](pnpm-task-execution-pilot.md),
+covering graph reshaping,
+declaration compilation,
+paths with spaces,
+missing scripts,
+and pipeline failure tolerance.
+It closes the "no pilot" gap with a conditional ranking,
+and the remaining open item is whether the user accepts three semantic shifts
+for a pnpm-owned task slice.
+
 Parity gate:
  preserve package namespaces,
 partial invocation,
