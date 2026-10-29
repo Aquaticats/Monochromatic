@@ -165,6 +165,8 @@ so after any change to `toolchain.lock.json` the unit tests of typography and pa
 A gate tree finds the real program in its own `.cache/toolchain-bin`,
 which `mise run toolchain:sync` makes after the tree's install;
 without it the name falls through to whatever else the PATH holds.
+The order of that setup is in "Gate trees and their tools" of
+`mistake-prevention-tasks-builds-and-bulk-output.md` (ledger B980).
 
 What enforces it:
 `package/translation-repair/source-scan/src/duplicate-bodies.unit.test.ts` (ledger B19) fails on any function body of 80
