@@ -440,6 +440,17 @@ export function createProviderBudgets(
   const cappedWait = createWaitCap({ maxHoldMs, },);
 
   /**
+   How much longer a refusal holds one provider out, zero when it does not.
+
+   @param provider - provider asked about
+
+   @returns Milliseconds of hold left
+   */
+  function holdLeft(provider: ProviderName,): number {
+    return refusals.waitedLeft({ provider, },);
+  }
+
+  /**
    Reads every meter once, for everyone waiting on this reading.
 
    THE FIRST CALLER'S SIGNAL GOVERNS, which is a real consequence worth
@@ -853,11 +864,7 @@ export function createProviderBudgets(
 
     // The refusal hold alone: NeuralWatt's spent day is no hold, since nothing waits for its return.
     holds: function holds(): ProviderRecord<number> {
-      return providerRecord({
-        of: function holdOf(provider: ProviderName,): number {
-          return refusals.waitedLeft({ provider, },);
-        },
-      },);
+      return providerRecord({ of: holdLeft, },);
     },
 
     markServed: refusals.noteServed,
