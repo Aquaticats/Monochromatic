@@ -2,9 +2,9 @@
 
 ## Status
 
-Grilling in progress; started 2026-10-29.
+Grilling finished on 2026-10-29, awaiting the repository owner's confirmation.
 Nothing is implemented.
-This records the decisions the repository owner has answered and the questions still open.
+This records the decisions the repository owner has answered and the defaults adopted from them.
 
 ## Request
 
@@ -104,7 +104,38 @@ Counting only non-blank, non-comment lines, measured 2026-10-29 with a scratch s
   `defaults.run.shell` (a mapping named `run`, not a step) occurs once, at
   `.github/workflows/music-player-release.yml:1539`, so the extractor must tell a step's `run` from it.
 
+- **`run:` forms read:** block literal (`run: |`) and plain single-line only.
+  Every other form is a `core/processing-failure` at the value.
+- **Single `&`:** its own rule, `shell/no-ampersand`
+  (cmd command separator, POSIX background operator).
+  The owner chose this over folding it into a separator rule.
+
+## Adopted without a question
+
+These follow from the answers above and stay open to veto.
+
+- **Rule set:** `shell/max-lines` plus one rule per construct:
+  `shell/no-pipe`, `shell/no-and-chain`, `shell/no-or-chain`, `shell/no-pipe-stderr`,
+  `shell/no-semicolon`, `shell/no-dollar-paren`, `shell/no-backtick` and `shell/no-ampersand`.
+  All are `error`.
+  The per-dialect table decides which constructs each dialect is scanned for.
+- **Dialect from `shell:`:** the first word of the value, without directory or `.exe`, names the dialect.
+  Dialects in scope: bash, sh, dash, ash, ksh, zsh, fish, pwsh, powershell and cmd.
+  Any other first word (`node`, `python`, `perl`) is out of scope, so its step is not checked.
+- **Effective shell:** the step's `shell:`, else the job's `defaults.run.shell`,
+  else the workflow's `defaults.run.shell`, else an in-scope default shell.
+  The runner is never resolved, because every runner's default shell is in scope.
+- **Composite actions:** `shell:` is required there;
+  a step without it is a `core/processing-failure`.
+- **Ratchet location:** blocks in the root `monochromatic-lint.config.jsonc`,
+  generated once from a measurement of each file, then removed as a file is fixed.
+  Existing offending workflows are not rewritten by this work.
+- **Done means:** a `README.md` section, tests for every branch of the extractor and each rule
+  (including the processing-failure forms and adversarial quoting),
+  a guard test shown to fail with its guard removed,
+  and a run over the real workflows whose per-file counts match the numbers in Measurements.
+
 ## Open
 
-- Which `run:` value forms the extractor reads.
-- Which rule owns a single `&` (cmd command separator, POSIX background).
+None.
+The owner has not yet confirmed that the design is complete.
