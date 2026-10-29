@@ -3895,3 +3895,27 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `management_arguments.rs` (the 1810 and 1811 changes; tree `6cd2a6d510`... see `integrate-12`, images `w50` to
   `w54`). After the survivor fixes land: rerun `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the
   new tree to confirm the kills.
+
+## Update at 2026-10-29 (night, two user directives)
+
+- Directive: promote `mutation-parallel.ts` (with `gate-slot.ts`) from `~/temp/agent` to a proper package. Agent
+  `aba63f1400b66332c` builds it in a worktree: named constants and options instead of magic numbers, no hardcoded
+  home or `/tmp`, pure functions for the unit name, shell body and `systemd-run` arguments with adversarial-input
+  tests, README, mise tasks. I land it. Until then the scratch copy (retry loop fixed) keeps running wave 5.
+- Directive: the user believed the repo does not set the container limits to exactly 2 CPUs; it does. `AGENTS.md`
+  (rules RXI and NLG) says `--memory=2g --cpus=2`, and the same literals repeat in five scripts under
+  `package/git-policy/cli/bin` (`test-native-container.ts`, `interop-native-container.ts`, `e2e-native-container.ts`,
+  `build-git-test-image.ts`, `mutate-native-container.ts`, which also writes `cpus: 2` and `--cpu-quota=200000`).
+  Per the user's "if I'm wrong, remove the magic number", agent `a7a7ce613876ad8e8` introduces one named-constants
+  module for the limits, keeping every podman argument list byte-identical (pinned by a test). I land it.
+- Why a launcher exists at all: the repo's `native:mutation:scoped` task runs one cargo-mutants campaign for one file
+  in one container capped at 2 CPUs and 2 GB with no `--jobs`; running several files at once needs one invocation
+  per file, which the launcher does under `gate-slot.ts`.
+
+- Follow-up directive (same night): the container memory and CPU limits must be settable per task, and agents choose
+  the exact numbers (the 2 GB and 2 CPUs become defaults, not rules). Agent `a7a7ce613876ad8e8` adds `--memory` and
+  `--cpus` options to every campaign task in `package/git-policy/cli`; agent `aba63f1400b66332c` makes the launcher
+  package forward them (and keeps its own `--unit-memory-max` and `--unit-cpu-quota` for the systemd caps). After both
+  land: reword the `AGENTS.md` rules that say `--memory=2g --cpus=2` (RXI and NLG) to name 2 GB and 2 CPUs as the
+  default that the agent may raise or lower per task with a stated reason, regenerate `CLAUDE.md` with file-enforcer,
+  and run one campaign with explicit non-default values to prove the options reach `podman`.
