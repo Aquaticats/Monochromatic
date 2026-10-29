@@ -112,10 +112,17 @@ Owner follow-ups the same day:
   Survivors by file: p-map `p-map-iterable.ts` 40, `map-iterator.ts` 25, `p-map.ts` 16, `errors.ts` 5,
    `map-options.ts`, `p-map-keyed.ts`, `p-map-stop.ts` 1 each;
    p-memoize `p-memoize-decorator.ts` 6, `memoized-cache-store.ts` 5, `p-memoize-clear.ts` 4.
-  All ran against their files' own unit tests (none are "no tests select this file").
+  Correction (2026-10-29): the report's survivor entries carry no field saying whether tests ran,
+   so an earlier claim here that every survivor ran against its own tests had no basis;
+   p-memoize's `memoized-cache-store.ts` had no stem-matching test file, so its 5 survivors were never tested.
+  Every p-map file with survivors does have a stem-matching `*.unit.test.ts`.
   Owner chose "Kill or justify all": one subagent per package adds killing tests or justified
    `mutation-test-disable` suppressions, then reruns `test:mutation`
    (units `pmap-survivors-final`, `pmemoize-survivors-final`; report copies in `~/temp/agent/mutation-survivors/`).
+  p-memoize done: final run killed 151, survived 0, compileError 210, ignored 11 (`6fb171e256`, `d511882404`);
+   new `memoized-cache-store.unit.test.ts`, clear-thenable and decorator-receiver tests,
+   one suppression at `p-memoize-decorator.ts:69` with an equivalence proof. No fork bug against upstream 9.0.0.
+  p-map: in flight.
 
 ## music-player `run`: zigbuild adopted for now
 
