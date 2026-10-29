@@ -24,7 +24,9 @@ That route list is whatever `~/.dsh/profiles/web/cordis.patch.yml` last declared
  `llm-pi-ai.providers.opencode-go.models`
  (two models at 06:11 UTC on 2026-10-29, edited to the four above during this investigation).
 No `kimi-k3.1-pro` id exists in the `@earendil-works/pi-ai` built-in `opencode-go` catalog
- (which holds `kimi-k3` and `kimi-k2.7-code`) or in any scoped route.
+ (which holds `kimi-k3` and `kimi-k2.7-code`).
+At incident time it was in no scoped route either;
+ the `opencode-go` route now declares it (see [Resolution](#resolution)).
 The scoped kimi seats are `synthetic/hf:moonshotai/Kimi-K3`,
  `neuralwatt/kimi-k3`, `neuralwatt/kimi-k3-fast`, and `neuralwatt/kimi-k3-flex`.
 Resolution needs an exact scoped match under the accepted explicit-model forms,
@@ -234,8 +236,16 @@ Remaining work:
 - The response pool is still shared with reasoning at the pinned greatest
   effort below `max`, and the tool schema offers no knob to lower it,
   so broad reviews can still end at `stopReason: "length"`.
-- Config: `defaultReviewerModel: opencode-go/kimi-k3.1-pro` still resolves to
-  nothing (re-probed 2026-10-29 04:22 after the rc.4 restart).
-  The value is kept at user direction pending the id appearing;
-  scoped kimi seats today are `neuralwatt/kimi-k3` and
+- Config: `defaultReviewerModel: opencode-go/kimi-k3.1-pro` resolved to
+  nothing while the id was undeclared (re-probed 2026-10-29 04:22 after the
+  rc.4 restart).
+  Fixed 2026-10-29 by declaring `kimi-k3.1-pro` on the `opencode-go` route
+  alongside route-level `api: openai-completions` and
+  `baseURL: https://opencode.ai/inference/go/v1`,
+  the wire protocol that endpoint speaks.
+  Scoped kimi seats remain `neuralwatt/kimi-k3` and
   `synthetic/hf:moonshotai/Kimi-K3`.
+  Note the route-level `api`/`baseURL` override every model on the route
+  (`dsh-llm-pi-ai` resolution, `request.api ?? base?.api`), so `qwen3.8-max`
+  now dispatches `openai-completions` at `/v1` instead of its catalog
+  `anthropic-messages` at the provider root.
