@@ -967,30 +967,37 @@ Each server writes only its private state,
 which also holds its private `/tmp`,
  caches,
  and cargo output.
-The private `/tmp` is emptied before every launch,
+Each process of the IDE has a private `/tmp` of its own for each server:
+`<server state>/tmp-<process id>-<nonce>` (`scratch_name` in `src/language/launch/scratch.rs`).
+It is emptied before every launch of that server by the same process,
 in place (`empty_in_place` in `src/language/launch/state.rs`):
 its files go and the directory stays.
-The sandbox binds that directory by path,
-and another process on the same project (a second window of the IDE)
-prepares the same path while this one starts bubblewrap.
-A directory removed and made again is missing in between,
-and bubblewrap then stops with `bwrap: Can't find source path .../tmp: No such file or directory`
+Two windows of the IDE on one project therefore never empty each other's `/tmp`.
+A process holds an exclusive lock on `tmp-<...>.lock` beside its directory for as long as it lives.
+Every preparation removes the directories (and lock files) of other processes whose lock nobody holds,
+so a process that exited or was killed leaves its `/tmp` only until the next launch of that server on that project.
+The lock,
+not the process id,
+tells a live owner from a dead one,
+because the system releases a lock when its process ends however it ends and a process id is reused.
+A shared directory had two failures.
+The sandbox binds the directory by path,
+and when a launch removed and made it again,
+another process that was about to start bubblewrap found it missing:
+bubblewrap stops with `bwrap: Can't find source path .../tmp: No such file or directory`
 (or `Can't open source ...`,
 `Can't bind mount ... on /tmp`).
-Measured on 2026-10-25 with three sessions at a time on one cache folder and one project:
-the old version failed in 4 of 709 launches
-(mise's run in 3,
-the server's in 1),
-the new one in 0 of 300
-(those counts alone do not separate them);
-with a cache folder for each session the old version failed in 0 of 120.
+Emptying it in place ended that,
+and the directory per process ended the second failure,
+the launch of one process emptying the temporary files of a server another process still ran.
+The `tmp` directory of earlier versions is left as it is,
+because an older process may still run in it.
 `preparation_empties_a_scratch_directory_without_replacing_it` (`src/language/launch_tests.rs`)
 holds the directory open across a preparation and needs it still linked;
-the removing version fails it.
-Two processes still share one private `/tmp` for each server,
-so the launch of the second removes the temporary files of the first one's running server
-(its directory stays valid).
-`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md` has the account.
+`a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one`
+and `the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation`
+(`src/language/launch/scratch_tests.rs`) start a real second process.
+`doc/troubleshooting/ide-language-sandbox-scratch-directory-race.md` has the account and the counts.
 After the sandbox replaces `/tmp`,
  `/run`,
  and `/dev`,

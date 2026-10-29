@@ -5,7 +5,7 @@
 
 use super::recipe::{confined_settings, recipe};
 use super::{confine_with, private_state, state_directory};
-use crate::language::launch::LaunchRequest;
+use crate::language::launch::{LaunchRequest, scratch_name};
 use serde_json::json;
 use std::{collections::HashMap, ffi::OsStr, path::Path, path::PathBuf};
 
@@ -50,6 +50,8 @@ fn rust_analyzer_gets_the_adopted_recipe_with_cargo_redirects() {
     )
     .expect("recipe");
     assert_eq!(launch.command, "/usr/bin/bwrap");
+    // The private temporary directory is named for the process, so the line is built from the same name.
+    let scratch = format!("/state/project-0/rust-analyzer/{}", scratch_name());
     let expected = strings(&[
         "--die-with-parent",
         "--new-session",
@@ -69,7 +71,7 @@ fn rust_analyzer_gets_the_adopted_recipe_with_cargo_redirects() {
         "--tmpfs",
         "/run",
         "--bind",
-        "/state/project-0/rust-analyzer/tmp",
+        &scratch,
         "/tmp",
         "--ro-bind",
         "/work/project",
@@ -119,7 +121,7 @@ fn rust_analyzer_gets_the_adopted_recipe_with_cargo_redirects() {
             state.join("build"),
         ]
     );
-    assert_eq!(launch.scratch, vec![state.join("tmp")]);
+    assert_eq!(launch.scratch, vec![state.join(scratch_name())]);
 }
 
 #[test]

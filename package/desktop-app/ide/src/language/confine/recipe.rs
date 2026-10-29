@@ -21,7 +21,7 @@ use super::project::{project_binds, read_only_binds};
 /// The settings overrides a confined server gets live beside the recipe.
 pub use super::settings::confined_settings;
 /// The seam's input and output types.
-use crate::language::launch::{LaunchRequest, ServerLaunch};
+use crate::language::launch::{LaunchRequest, ServerLaunch, scratch_name};
 /// What:
 ///  `BTreeMap` is a key-value table kept sorted by key (sibling:
 ///  `HashMap`,
@@ -211,8 +211,9 @@ pub fn recipe(
     // - the state bind comes last, after the read-only project bind, so a state directory inside the
     //   project (the home folder opened as the project holds `~/.cache`) stays writable while the
     //   rest of the project stays read-only.
+    let scratch = scratch_name();
     args.push("--bind".to_string());
-    args.push(format!("{state_text}/tmp"));
+    args.push(format!("{state_text}/{scratch}"));
     args.push("/tmp".to_string());
     args.extend(project_binds(
         &request.project_root,
@@ -240,6 +241,6 @@ pub fn recipe(
         environment: std::collections::HashMap::new(),
         settings: confined_settings(server, request.settings.as_ref()),
         directories,
-        scratch: vec![state.join("tmp")],
+        scratch: vec![state.join(scratch)],
     });
 }
