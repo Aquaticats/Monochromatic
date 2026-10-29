@@ -224,7 +224,14 @@ noting:
 "The existence of option 1 means you don't understand how pnpm, mise, node_modules, path works."
 
 - The rule globs the `node_modules/.bin` directories that exist and sorts them,
-  as the TypeScript generator does (`file-enforcer.config.ts:722-745`).
+  as the TypeScript generator does (`file-enforcer.config.ts:722-745`),
+  but skips empty ones:
+  asked 2026-10-29,
+  the user chose "Skip empty .bin" after the measurement found 18 of the 55 empty.
+- The mechanism and counts are recorded in
+  `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`,
+  "When a package gets node_modules/.bin",
+  where the user chose to keep them instead of an `AGENTS.md` rule.
 - Retracted:
   my option 1 derived the list from every package with a `package.json`.
   The user's correction:
