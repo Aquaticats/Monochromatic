@@ -200,6 +200,22 @@ fn no_verify_skips_the_upload() {
     remove_settled(&fixture);
 }
 
+/// A global option the caller writes comes after the wrapper's hook definition, so it can turn the hook off.
+#[test]
+fn the_caller_can_turn_the_hook_off_for_one_push() {
+    let fixture: Fixture = fixture("lfs-push-disabled");
+    let world: World = world(&fixture, true, Some(9));
+    let pushed: Observed = wrapped(
+        &fixture,
+        world.repo.as_path(),
+        &["-c", "hook.cli-git-lfs-pre-push.enabled=false", "push", "origin", "main"],
+    );
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert!(runs(&world).is_empty(), "{:?}", runs(&world));
+    assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent");
+    remove_settled(&fixture);
+}
+
 /// A repository without LFS keys pushes as before: no upload step, and no need for `git-lfs` at all.
 #[test]
 fn a_repository_without_lfs_keys_runs_no_upload() {

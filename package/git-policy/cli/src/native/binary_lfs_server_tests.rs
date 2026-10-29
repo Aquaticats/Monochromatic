@@ -107,24 +107,24 @@ fn serve(stream: &TcpStream, port: u16, origin: &Path, state: &Mutex<ServerState
         }
         let asked: serde_json::Value = serde_json::from_slice(body.as_slice()).unwrap_or_default();
         let known: Vec<String> = state.lock().expect("state").uploads.iter().map(|upload| { return upload.oid.clone(); }).collect();
-        let objects: Vec<serde_json::Value> = asked["objects"]
+        // Built as text: the objects only carry hexadecimal names and whole numbers.
+        let objects: Vec<String> = asked["objects"]
             .as_array()
             .cloned()
             .unwrap_or_default()
             .iter()
             .map(|object| {
                 let oid: String = object["oid"].as_str().unwrap_or_default().to_owned();
+                let size: u64 = object["size"].as_u64().unwrap_or_default();
                 if known.contains(&oid) {
-                    return serde_json::json!({ "oid": oid, "size": object["size"] });
+                    return format!("{{\"oid\":\"{oid}\",\"size\":{size}}}");
                 }
-                return serde_json::json!({
-                    "oid": oid,
-                    "size": object["size"],
-                    "actions": { "upload": { "href": format!("http://127.0.0.1:{port}/lfs/objects/{oid}") } }
-                });
+                return format!(
+                    "{{\"oid\":\"{oid}\",\"size\":{size},\"actions\":{{\"upload\":{{\"href\":\"http://127.0.0.1:{port}/lfs/objects/{oid}\"}}}}}}"
+                );
             })
             .collect();
-        respond(stream, "200 OK", serde_json::json!({ "transfer": "basic", "objects": objects }).to_string().as_str());
+        respond(stream, "200 OK", format!("{{\"transfer\":\"basic\",\"objects\":[{}]}}", objects.join(",")).as_str());
     } else if request_line.starts_with("POST /lfs/locks/verify ") {
         respond(stream, "200 OK", "{\"ours\":[],\"theirs\":[]}");
     } else if let Some(rest) = request_line.strip_prefix("PUT /lfs/objects/") {

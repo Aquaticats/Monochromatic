@@ -724,6 +724,79 @@ Not yet met by the native executable: it handles updates one after another,
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
 
+### Git LFS upload before a push
+
+A push publishes pointer files; the objects they name must reach the LFS server first, or collaborators fetch pointers
+whose content does not exist.
+Git LFS does this in its `pre-push` hook (`git lfs pre-push`),
+which `git lfs install` writes as a traditional hook file.
+Traditional hooks are unsupported, so the wrapper provides the same step itself, as a supported configuration hook.
+
+Verdict per hook of the four `git lfs install` writes
+(source: `commands/command_pre_push.go`, `command_post_checkout.go`, `command_post_commit.go` and
+`command_post_merge.go` of git-lfs, and the man page `git-lfs-pre-push`):
+
+- `pre-push`: handled natively, as described below.
+- `post-checkout`, `post-commit` and `post-merge`: not needed.
+  Each returns before doing anything unless a lockable pattern exists
+  (`lfs.setlockablereadonly` is on by default, and `GetLockablePatterns()` is empty without the `lockable` attribute);
+  what they do otherwise is set the read-only flag of lockable files that are not locked.
+  The repository has no `lockable` attribute: no tracked `.gitattributes` file contains the word,
+  and `git check-attr --all` on an LFS path lists none.
+  A repository that adopts `lockable` reopens this verdict; until a hook or a wrapper step runs, its lockable files
+  keep whatever write permission checkout gave them, and no content is lost.
+  The wrapper runs none of the three, and a shim file for any of them stays an unsupported traditional hook.
+
+The step:
+
+- Trigger.
+  The wrapper puts the hook in effect for a push only when the Git configuration holds a key under `filter.lfs.` or
+  `lfs.` in any scope, and the push is not a dry run.
+  The decision costs no extra process on the commit path:
+  the configuration snapshot the commit already reads is searched in memory.
+  A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs;
+  every other forwarded command is unchanged.
+  When the configuration cannot be read, the hook is put in effect, and the hook decides with Git's own answers.
+- Mechanism.
+  The wrapper adds `-c hook.cli-git-lfs-pre-push.event=pre-push` and
+  `-c hook.cli-git-lfs-pre-push.command='<own executable>' cli-git lfs-pre-push` before the global options of the real
+  `git push` it starts.
+  Nothing is written to any configuration file, so an upgraded or moved executable never leaves a stale path.
+  Git then runs the hook exactly as it runs a `pre-push` hook:
+  with `<remote> <url>` as arguments, the update lines `<local ref> <local oid> <remote ref> <remote oid>` on standard
+  input, before it sends anything, and a non-zero status stops the push before any ref changes.
+  Measured: Git 2.56.0 runs a configuration hook for `pre-push` with these arguments and input, appends the hook's
+  arguments to a shell command as `"$@"`, runs it on `--dry-run` too, and skips it for `--no-verify`.
+- The hook command.
+  `git cli-git lfs-pre-push <remote> <url>` runs `git-lfs pre-push <remote> <url>` with its own standard streams and
+  returns that status.
+  A `git-lfs` that cannot be started, a non-zero status and a signal each stop the push with an explanation that names
+  the cause and every way forward: fix the cause and push again, `git lfs push --all <remote>` by hand,
+  `git push --no-verify` (publishes pointers without objects), install Git LFS, or remove the LFS configuration.
+  The entry is recognized only as the exact words `cli-git lfs-pre-push` at the start of the arguments.
+- Paths.
+  A typed `git push` carries the hook, on the exec path and on the path that integrates a lost race;
+  the merge push the wrapper runs for a lost race re-enters the wrapper and carries it again.
+  The auto-push after a landed commit carries it, and so does each reconcile push of that auto-push
+  (`<merge oid>:<ref>`; Git passes the object name as the local ref of the update line).
+  The scope probe of a manual push and the integration step's probe are dry-run pushes that must not upload:
+  they run without the hook, because the hook is added to the push itself and never to the arguments the probes reuse.
+  No `git cli-git` subcommand pushes.
+- Bypass.
+  `git push --no-verify` and `GIT_LFS_SKIP_PUSH` skip the upload, as they skipped the shim;
+  `-c hook.cli-git-lfs-pre-push.enabled=false` after the wrapper's options turns the hook off for one command.
+- Limit.
+  `git lfs filter-process` and `git lfs clean` write the four shim files into the hooks directory whenever they run
+  (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is added.
+  A present `pre-push` shim runs in addition to this hook on a push real Git runs; the second upload finds every object
+  already stored and sends nothing.
+  `git cli-git doctor` lists the shims as unsupported traditional hooks.
+
+Verified by `src/native/binary_lfs_pre_push_tests.rs`
+(a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
+and `src/native/binary_lfs_server_tests.rs`
+(the real `git-lfs` against an LFS server written inline in the test).
+
 ### Direct check
 
 Use worktree bytes selected by explicit pathspecs or `--all`.

@@ -40,6 +40,21 @@ Read-only commands,
    any use of them with the wrapper is undefined behavior.
   A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event
    (code `traditional-hooks-unsupported`) that says so; `git cli-git doctor` lists the scripts.
+  That includes the shims `git lfs install` writes: see "Git LFS" for what replaces them.
+- Git LFS.
+  Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
+   in a repository whose Git configuration has a `filter.lfs.*` or `lfs.*` key.
+  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
+   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
+   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+  It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
+   reconcile pushes.
+  `--dry-run` pushes and the wrapper's own probes never upload.
+  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
+   or use `git push --no-verify`.
+  The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
+   files read-only, do nothing without the `lockable` attribute, and are not run.
+  See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
 - Content policies.
   `final-newline`,
    `markdown/autofix`,
@@ -116,6 +131,7 @@ Read-only commands,
    skipping itself and any shim that leads back to it.
 - `monochromatic-lint` on an absolute `PATH` entry,
    only when `markdown/autofix` is configured.
+- `git-lfs` on `PATH`, only in a repository whose Git configuration has `filter.lfs.*` or `lfs.*` keys.
 - The scanner is linked into the executable and needs no separate installation.
 
 ## Install
@@ -168,6 +184,10 @@ git cli-git check --all --policy final-newline
 git cli-git doctor
 git cli-git --help
 ```
+
+`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
+it is not meant to be typed.
+It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
 
 Exactly one scope is required:
  `--all`,
