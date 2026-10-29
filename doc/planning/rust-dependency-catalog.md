@@ -1113,8 +1113,19 @@ Remaining:
       links (166 dead into the removed `package/module/`, 15 live but undeclared;
       `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); afterwards the dead-link count read 0
       and `package/file-enforcer/core/node_modules/@monochromatic-dev/` holds only declared links;
-      a helper agent is fixing the staleness manifest's orphan `.tmp` files (a writer that dies before its rename
-      leaves a 1.5 MB temp file; three orphans exist in `package/file-enforcer/core/node_modules/.cache/file-enforcer/`);
+      done: the staleness manifest's orphan `.tmp` files (a writer that dies before its rename leaves a 1.5 MB temp
+      file) are swept under the lock before each write (`fcdf928c72`, `73fd3b40c6`, `26e248e58d`, guard test proven);
+      the three existing orphans go on the next real locked write. Owner decision: no such sweep in
+      `writeFileAtomically` ("Leave it": 0 orphans of its `<file>.<pid>.<uuid>.tmp` format in the worktree).
+      Owner-approved cleanup: 99 ignored `.<doc>.markdown-lint-<pid>-<uuid>.tmp` files from a retired markdown linter
+      (2026-06-29 and 2026-07-11, pids 1284792 and 307348; no code writes that format now) were deleted.
+     Open, not this session's files:
+      `src/staleness-concurrency-regression.unit.test.ts` compares unresolved paths, so it fails when the fixture root
+      sits behind a symlink (macOS `/var`, or `TMPDIR` under `/var/home`); `realpath` on the fixture directory fixes
+      it, but another session has the file mid-edit (moving it to `scratchRoot()`, which also leaves the path
+      unresolved), so this session left it;
+      29 lint findings remain in `prune.ts`, `prune.unit.test.ts` and the CachyOS cells of
+      `src/package/mise.container-test.ts`, all other sessions' active work.
       done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
