@@ -3,7 +3,8 @@
 Defects met while fixing another finding,
 in how a page's names,
 HTML headings and math are read.
-It also holds B1052, the heading `Part Nine: __` that the corpus pass `XingZ6022` shipped.
+It also holds B1052,
+the heading `Part Nine: __` that the corpus pass `XingZ6022` shipped.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -222,32 +223,48 @@ open as an owner question.
 
 The defect:
 the page shipped by `XingZ6022` has `### Part Nine: __` at page line 410.
-The original's line 334 is `### 其九：空白` ("Part nine: blank").
+The original's line 334 is `### 其九：空白` ("Part nine:
+blank").
 The archive's line 330 is `### __`:
-`od -c` over the pinned bytes (`a41fc607ea`) reads `#`, `#`, `#`, a space, `_`, `_` and a newline,
+`od -c` over the pinned bytes (`a41fc607ea`) reads `#`,
+`#`,
+`#`,
+a space,
+`_`,
+`_` and a newline,
 two ASCII underscores (0x5f).
 
 Which stage wrote the underscores:
 none of the pipeline's.
 The archive (a hand translation) holds them,
-and the slice's three texts, the archive's, the repair lane's and the translate lane's, are all `### __`
+and the slice's three texts,
+the archive's,
+the repair lane's and the translate lane's,
+are all `### __`
 (comparison row 84 of the artifact).
 No model wrote it and no page pass produced it.
 
 How it survived the lanes (slice 84):
-- The repair panel accepted three claims against the heading, among them the omission of 其九 and 空白
+- The repair panel accepted three claims against the heading,
+  among them the omission of 其九 and 空白
   (log lines 17857 and 17723).
   The editor round applied two candidates (line 18053),
   the select round tied at weight 1 (line 18051),
   and the checker round heard 1 of 3 (line 18101),
   so the slice closed `unchanged, the archive won, 0/3 served accepted issues resolved` (line 18201).
-  The rulings of 2026-10-25 make that outcome (the read check of this pass, item 8: not a fault in
+  The rulings of 2026-10-25 make that outcome (the read check of this pass,
+  item 8:
+  not a fault in
   `repair/src/repair-chunk-verdict.ts`).
 - The translate lane excluded the archive as disputed (line 23746).
-  Its two candidates both rendered the heading "Part Nine: Blank",
+  Its two candidates both rendered the heading "Part Nine:
+  Blank",
   and differed only in the greeting line that follows it.
   The two judges each backed a different candidate,
-  four rounds ended 1 to 1 (lines 23801, 23864, 24032, 24063),
+  four rounds ended 1 to 1 (lines 23801,
+  23864,
+  24032,
+  24063),
   and the challenge round declined with
   "nothing ships past the decline and the wording the archive has stays" (line 24065;
   `translate-stage/src/translate-runoff-tie.ts:383` to `:392`).
@@ -259,54 +276,79 @@ How it survived the lanes (slice 84):
   lane texts differ,
   so the contest and the consolidation never saw it.
   The refused archive therefore left no consolidation record,
-  and the publish defect `no-valid-wording` (`archiveKeptDefects`, `page-check/src/corpus-run/publish-defects.ts:164`
+  and the publish defect `no-valid-wording` (`archiveKeptDefects`,
+  `page-check/src/corpus-run/publish-defects.ts:164`
   to `:217`),
-  which is read off consolidation records, does not name slice 84.
+  which is read off consolidation records,
+  does not name slice 84.
   The DEFECTS line (log line 29724) lists `page-footnotes,no-valid-wording` only.
 - The assembly pass `heading-series-unified` then wrote the original's number onto the heading (log line 29652).
   `unifyHeadingSeries` gives every numbered heading of the original's series the house style `Part Nine:` and keeps
   the heading's own words.
-  Reproduced offline: the function run over ten fixture slices holding the original's ten headings and the archive's,
-  with the ninth as `### __`, returns the finding `"### __" to "### Part Nine: __"` for that slice.
+  Reproduced offline:
+  the function run over ten fixture slices holding the original's ten headings and the archive's,
+  with the ninth as `### __`,
+  returns the finding `"### __" to "### Part Nine: __"` for that slice.
   So the pass is not at fault,
   and `markup/src/heading-affinity.unit.test.ts:77` (which scores 其九：空白 against another heading) does not
   reach this path.
 
 Measured:
-9 of 118 slices were `archive-stands` (8, 22, 41, 47, 57, 61, 64, 76, 84),
+9 of 118 slices were `archive-stands` (8,
+22,
+41,
+47,
+57,
+61,
+64,
+76,
+84),
 and slice 84 is the only one of the nine where the translate lane excluded the archive
 (a search of the log for `translate incumbent excluded` at each of the nine).
 
 Should a floor refuse an underscore-only heading the original fills?
 It would refuse the archive at slice 84,
-but the archive was already refused there (disputed, line 23746) and still shipped,
+but the archive was already refused there (disputed,
+line 23746) and still shipped,
 because the declined round keeps "the wording in place" and the slice never reached the consolidation.
 A floor changes the shipped heading only together with a rule for what ships when the refused archive is the last
 wording left.
 That rule is for the owner.
 
 Owner question (open):
-- Option 1, a report-only publish defect `placeholder-heading`,
+- Option 1,
+  a report-only publish defect `placeholder-heading`,
   read off the page and the original like `pageWithoutBodyDefects` (B1046):
-  it names a page heading whose words are only underscores, after an optional series prefix,
+  it names a page heading whose words are only underscores,
+  after an optional series prefix,
   when the page holds more such headings than the original does.
-  The page still ships, the defect is reported, and no wording changes.
+  The page still ships,
+  the defect is reported,
+  and no wording changes.
   It follows the ruling of 2026-09-27 ("Ship with the defect") and can be written red first.
   It reports and repairs nothing.
-- Option 2, send a slice whose lanes both kept an archive the translate lane refused through the consolidation as an
+- Option 2,
+  send a slice whose lanes both kept an archive the translate lane refused through the consolidation as an
   ineligible standing,
-  so it records the archive-kept reason, reaches `no-valid-wording`, and a slate or writer may propose a heading.
+  so it records the archive-kept reason,
+  reaches `no-valid-wording`,
+  and a slate or writer may propose a heading.
   It needs a refused-archive flag on the comparison row (a new artifact generation),
   and with a one-judge slate it would most likely keep the archive again.
-- Option 3, keep today's behaviour.
+- Option 3,
+  keep today's behaviour.
   It breaks no ruling and changes nothing,
   and the placeholder ships unreported.
-- Option 4, ship the original's heading under the note where a refused archive is the last wording left.
+- Option 4,
+  ship the original's heading under the note where a refused archive is the last wording left.
   It never ships `__`.
-  It contradicts "Keep archive, ship" (2026-09-27) and "the wording in place stays" (2026-10-25),
+  It contradicts "Keep archive,
+  ship" (2026-09-27) and "the wording in place stays" (2026-10-25),
   and puts Han characters on a page whose English archive exists.
-- Ranking: Option 1 > Option 2 > Option 3 > Option 4.
-  Option 1 beats Option 2 because it costs one check and no schema change, while Option 2 moves the artifact for one
+- Ranking:
+  Option 1 > Option 2 > Option 3 > Option 4.
+  Option 1 beats Option 2 because it costs one check and no schema change,
+  while Option 2 moves the artifact for one
   slice in 118.
   Option 2 beats Option 3 because it makes the kept archive visible and gives a writer a chance.
   Option 3 beats Option 4 because Option 4 overturns two rulings to avoid one placeholder.
@@ -318,7 +360,8 @@ That is the same one-to-one split that the read of this pass records as D3 for s
 and it is not changed here.
 
 Cache versions:
-none moved, because no stage output changed.
+none moved,
+because no stage output changed.
 
 Ids used:
 B1052.
