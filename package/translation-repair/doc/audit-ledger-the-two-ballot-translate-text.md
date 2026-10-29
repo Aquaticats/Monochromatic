@@ -285,6 +285,7 @@ so the next run says why.
 A question stays open for the lead:
 whether the chunk-scoped footnote count should treat a reference that the slice's original also carries as
 restoration rather than damage.
+The owner answered it on 2026-10-29 and B1040 records the measurement of the cause and the change.
 
 Guards shown to fail first:
 `repair/src/repair-chunk-verdict.unit.test.ts` and `repair/src/repair-chunk-settlement-line.unit.test.ts`
@@ -326,3 +327,133 @@ none moved.
 Ids used:
 B1020 to B1025.
 B1026 to B1029 are unused.
+
+## B1040: a footnote reference restored from the source counted as a new break in the chunk-scoped integrity count
+
+Status:
+recorded on 2026-10-29 (UTC),
+measured offline on the real case,
+fixed.
+Settles the open question of B1024.
+
+The defect:
+`measurePatchedCandidate` (`repair/src/chunk-measure.ts`) compares `footnoteBreakCount` of the patched chunk with
+the translation's chunk,
+and the count is chunk-scoped.
+A patch that puts back a footnote reference the translation dropped,
+when the definition lives in another chunk,
+adds an unresolved reference inside this chunk,
+so the count rose,
+`integrityOk` went false,
+and the patch lost the first rank of `selectRepairCandidate` though it fixed real damage.
+In `XingZ6022` slice 44 the archive dropped `[^3]`,
+the patch restored it,
+and the definition of 3 is in slice 115.
+
+The owner's ruling,
+2026-10-29,
+"Count as restoration (Recommended)":
+in the repair lane's chunk-scoped footnote integrity count,
+a reference that the slice's own source (the original-language text of that slice) also carries
+counts as a restoration and not as a new break.
+
+The evidence,
+rebuilt offline from the run's artifact (`artifacts/XingZ60.json`).
+The run's slice cache is empty,
+the artifact keeps no `patchLostOn`,
+and the close line 11711 does not name why the patch lost.
+- The archive chunk (`comparison[44].incumbentText`) has a footnote count of 0.
+- The patched chunk is the three repair regions of `lanes.repair.result.chunks[44]` applied to the archive,
+  and it is byte-equal to the chunk patch the editor stage selected
+  (round 3,
+  slate slot 2,
+  "chunk patch from deepseek-v4.1-flash won weight 3.5 of 4 ballots",
+  log line 11680).
+  Its count is 1:
+  one `unresolved-reference` finding,
+  convention `gfm`,
+  identifier `3`.
+- The slice's source (`lanes.repair.delivery[44].sourceText`) carries the same reference,
+  convention `gfm`,
+  identifier `3`.
+- The grammar downgrade counts are 0 for both chunks,
+  so the footnote leg alone made `integrityOk` false.
+  `measurePatchedCandidate` on these two documents with no source references returns `integrityOk: false`.
+- The checkers heard 3 of 3 with every ballot `fixed` and the probe was clean (log lines 11692 to 11710),
+  so integrity was the only rank the patch could lose.
+- The round that logged this case recorded the cause as probably the `[^3]` "orphan count".
+  The finding is an unresolved reference,
+  not an orphan definition.
+
+After the fix the same call,
+given the source's references,
+leaves the one finding out (effective count 0 against 0) and returns `integrityOk: true`.
+
+The fix:
+`restoredFootnoteReferences` (`shared-contract/src/footnote-break-count.ts`) names the `unresolved-reference` findings
+of the patched chunk whose key the source's references carry and the translation's references lack.
+The key is the syntax family plus the label folded as Markdown folds it (`normalizeFootnoteIdentifier`),
+so `[^Note]` and `[^note]` are one footnote.
+`measurePatchedCandidate` takes the source's references and subtracts those findings from the patched count;
+`settleShippedPatch` requires the slice's parsed source and logs each restoration through its tagged logger
+with the slice and the identifiers.
+Orphan definitions,
+duplicated definitions,
+a reference the source lacks and a key the translation already carried stay counted as before.
+
+Readings the count takes,
+each tested:
+- The allowance is per key and not per mention.
+  A source citing `[^3]` twice excuses a patch citing it three times:
+  the signal counts classes of structural damage,
+  and how often a cited footnote is mentioned is content fidelity that the checkers judge.
+- A key the translation already carried is not excused,
+  resolved or not,
+  because it is not something the patch put back.
+- A full-width marker in the source (`〔3〕`) does not restore a `[^3]` in the patch:
+  the footnote graph keys the two syntax families apart,
+  and this change leaves that as it was.
+
+What the page-level guard still covers:
+a reference with no definition anywhere on the page is still caught by `page-check`'s footnote resolution
+and by the `assembly` integrity guard (B1022),
+which this change does not touch.
+A restored reference whose definition exists in another slice is the case this count now lets through,
+and the assembly guard still reads the whole page.
+
+Cache versions:
+- `SLICE_CACHE_VERSION` moves from 49 to 50.
+  The change is a gate change of the kind its note names under version 6:
+  a patch that lost on integrity now wins for the same texts,
+  and the key hashes the version,
+  the shape of the run and the texts,
+  not the gate.
+- `REFINE_CACHE_VERSION` (19) and `CONSOLIDATE_CACHE_VERSION` (43) stay:
+  their keys hash the repaired text and the repair text they are offered,
+  so a slice whose repair verdict changes reaches them under a different key,
+  and neither reads the footnote count.
+- The translate,
+  lane-contest,
+  consistency,
+  pairing and page-title versions stay:
+  none of them runs this measurement.
+
+Commits:
+`097e60cdb5` (eight cases for `measurePatchedCandidate`,
+three of them red on the old code and no fix),
+`54eddafbe5` (the fix,
+two cases for the settlement line,
+and the version move),
+`145dc0411a` (the seven cases for `restoredFootnoteReferences`,
+which the fix commit put in `footnote-break-count.unit.test.ts` against ledger B99,
+moved to `footnote-restored-references.unit.test.ts`).
+
+Guards shown to fail first:
+`repair/src/chunk-measure.unit.test.ts`
+(three cases failed on the old code:
+the restored reference,
+the case-differing spelling and the twice-against-thrice case).
+
+Ids used:
+B1040.
+B1041 to B1044 are unused.

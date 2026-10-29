@@ -463,6 +463,7 @@ export async function repairChunk(
     tallies: checker.tallies,
     envelopes,
     targetDocument: documents.target,
+    sourceDocument: documents.source,
     acceptedCount: acceptedIssues.length,
     unenvelopedCount: unenveloped.length,
     l,

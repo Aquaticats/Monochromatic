@@ -1,5 +1,6 @@
 import type { PatchOperation, } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import { measurePatchedCandidate, } from './chunk-measure.ts';
+import type { FootnoteReferenceHit, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { findDroppedDeclaredNames, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import {
@@ -317,6 +318,9 @@ export type SettledChunk = ChunkVerdict & {
 
  @param targetDocument - archive parsed, the grammar baseline
 
+ @param sourceReferences - footnote references of the slice's own source, which let the integrity measurement count
+ a reference the patch restores as a restoration (`restoredFootnoteReferences`); absent means none
+
  @param declaredNames - name forms the patch may not drop
 
  @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
@@ -341,6 +345,7 @@ export function settleChunkFromChecks(
     tallies,
     envelopes,
     targetDocument,
+    sourceReferences,
     declaredNames,
     declaredSubjectForms,
   }: {
@@ -352,6 +357,7 @@ export function settleChunkFromChecks(
     readonly tallies: Readonly<Record<string, IssueResolutionTally>>;
     readonly envelopes: readonly EditableEnvelope[];
     readonly targetDocument: RepairDocument;
+    readonly sourceReferences?: readonly FootnoteReferenceHit[];
     readonly declaredNames: readonly string[];
     readonly declaredSubjectForms?: readonly string[];
   },
@@ -384,6 +390,7 @@ export function settleChunkFromChecks(
         applied: appliedOperations,
         patchedDocument: parseDocument({ text: patchedText, },),
         targetDocument,
+        ...((sourceReferences === undefined) ? {} : { sourceReferences, }),
       },),
     },),
     resolvedIssueIds,

@@ -754,8 +754,24 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  judge and checker lists, so a slice settled with Qwen seated is keyed apart from one settled without it, and no stored
  record is served to a bench it was not settled by. The translate, refine and consolidate versions stay for the same
  reason: each of their keys hashes the seat lists its stage was settled by.
+
+ Version 50 covers the owner's ruling of 2026-10-29, "Count as restoration (Recommended)", on the repair lane's
+ chunk-scoped footnote integrity count: a footnote reference the slice's own source also carries, which a patch put
+ back and which stays unresolved inside the chunk because its definition lives in another, is a restoration and no
+ longer a new break (`repair/src/chunk-measure.ts`, `restoredFootnoteReferences` in
+ `shared-contract/src/footnote-break-count.ts`). This is a GATE change of the kind version 6 names: XingZ6022 slice 44
+ settled `unchanged, the archive won` with the patch's `[^3]` restoration read as one new break, all three checkers
+ having found its three issues fixed, and the same texts now let that patch win. The key hashes the version, the shape
+ of the run and the texts, not the gate, so a record settled before would be served after. No slice-cache directory
+ was searched for a record written by code that holds the previous number, so records may stand at 49 and the change
+ cannot ride inside it; the number moves. A build whose pipeline digest differs discards the namespace before it reads
+ it (`openNamespacedCache`), and the number is the belt beside that brace. The refine version stays (19): its key hashes the repaired text, the issues
+ and the resolved ids it is offered, and nothing in the refine lane reads the footnote count, so a slice whose repair
+ verdict changes reaches it under a different key. The consolidate version stays (43) for the same reason: its key
+ hashes the repair text it is offered. The translate, lane-contest, consistency, pairing and page-title versions stay:
+ none of them runs this measurement. This change sets 50 first.
  */
-export const SLICE_CACHE_VERSION = 49;
+export const SLICE_CACHE_VERSION = 50;
 /**
  Everything about a repair run that changes what the models are ASKED, folded
  into every cache key.

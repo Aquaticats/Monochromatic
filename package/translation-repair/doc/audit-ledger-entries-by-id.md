@@ -486,6 +486,7 @@ which lists every file of this record.
 - [B1025, artifact generation 22 and the cache versions that did not move](audit-ledger-the-two-ballot-translate-text.md)
 - [B1030, Qwen3.8-27B as the late voice on the wide benches and the checker order](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [B1035, scratch-parent.ts that came from main with no unit test and six lint warnings](audit-ledger-source-scans-and-coverage-census.md)
+- [B1040, a footnote reference restored from the source that counted as a new break in the chunk-scoped integrity count](audit-ledger-the-two-ballot-translate-text.md)
 - [B1045, an archive with no body was cut into no slice and shipped an empty page](audit-ledger-an-archive-with-no-body.md)
 - [B1046, a page that ships no body while its original has one was not reported](audit-ledger-an-archive-with-no-body.md)
 - [B1047, an archive that does not align with two original sections, measured through the roster](audit-ledger-an-archive-with-no-body.md)

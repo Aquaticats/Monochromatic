@@ -144,6 +144,61 @@ function catOperation({ newText, }: { readonly newText: string; },): PatchOperat
   };
 }
 
+/**
+ Slice source citing a footnote whose definition lives in another chunk, as XingZ6022 slice 44's did.
+ */
+const RESTORED_SOURCE = 'Whiskers naps on the sill[^3].\n';
+
+/**
+ Translation that dropped the reference.
+ */
+const RESTORED_TARGET = 'Whiskers naps on the sill.\n';
+
+/**
+ Patch that put the reference back, leaving it unresolved inside this chunk.
+ */
+const RESTORED_PATCHED = 'Whiskers naps on the sill[^3].\n';
+
+/**
+ Measures only the integrity of a patched chunk against its translation, given the slice's source.
+
+ @param sourceText - original-language text of the slice
+
+ @param targetText - unchanged translation of the slice
+
+ @param patchedText - translation after the patch
+
+ @returns Whether the measurement judged the patch no worse than the translation
+
+ @example
+ ```ts
+ const intact = footnoteIntegrity({ sourceText, targetText, patchedText, },);
+ ```
+ */
+function footnoteIntegrity(
+  {
+    sourceText,
+    targetText,
+    patchedText,
+  }: {
+    readonly sourceText: string;
+    readonly targetText: string;
+    readonly patchedText: string;
+  },
+): boolean {
+  return measurePatchedCandidate({
+    acceptedIssues: [],
+    tallies: {},
+    resolvedTotal: 0,
+    envelopes: [],
+    applied: [],
+    patchedDocument: parseDocument({ text: patchedText, },),
+    targetDocument: parseDocument({ text: targetText, },),
+    sourceReferences: parseDocument({ text: sourceText, },).footnoteGraph
+      .references,
+  },).integrityOk;
+}
+
 await describe({
   name: '',
   concurrency: 1,
@@ -380,6 +435,137 @@ await describe({
                 targetDocument: parseDocument({ text: before, },),
               },).integrityOk,
             ).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'KEEPS INTEGRITY when the patch restores a footnote reference the slice\'s own source carries and '
+            + 'the archive had dropped, though the definition lives in another chunk: run XingZ6022 slice 44 lost a '
+            + 'repair that fixed real damage because the restored `[^3]` read as a new unresolved reference',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: RESTORED_SOURCE,
+                targetText: RESTORED_TARGET,
+                patchedText: RESTORED_PATCHED,
+              },),
+            ).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES integrity when the patch adds an unresolved reference the slice\'s source does not carry, '
+            + 'whether the source carries other references or none, since the restoration allowance reaches only '
+            + 'what the original says and the definition outside the chunk cannot excuse an invention',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: RESTORED_SOURCE,
+                targetText: RESTORED_TARGET,
+                patchedText: 'Whiskers naps on the sill[^4].\n',
+              },),
+            ).toBe(false,);
+            expect(
+              footnoteIntegrity({
+                sourceText: 'Whiskers naps on the sill.\n',
+                targetText: RESTORED_TARGET,
+                patchedText: RESTORED_PATCHED,
+              },),
+            ).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'COMPARES REFERENCES BY THEIR FOLDED KEY, so a source spelling `[^Note]` restored as `[^note]` (and '
+            + 'the reverse) is one footnote: Markdown folds the case of a label, and a raw string compare would '
+            + 'call the restoration an invention',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: 'Whiskers naps on the sill[^Note].\n',
+                targetText: RESTORED_TARGET,
+                patchedText: 'Whiskers naps on the sill[^note].\n',
+              },),
+            ).toBe(true,);
+            expect(
+              footnoteIntegrity({
+                sourceText: 'Whiskers naps on the sill[^note].\n',
+                targetText: RESTORED_TARGET,
+                patchedText: 'Whiskers naps on the sill[^NOTE].\n',
+              },),
+            ).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'READS THE ALLOWANCE PER KEY, NOT PER MENTION: a source citing `[^3]` twice excuses a patch that '
+            + 'cites it three times. The signal counts classes of structural damage (a reference with no '
+            + 'definition, an orphan, a duplicate); how many times a cited footnote is mentioned is content '
+            + 'fidelity the checkers judge, and the page-level guard still catches a key with no definition anywhere',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: 'Whiskers naps[^3] on the sill[^3].\n',
+                targetText: RESTORED_TARGET,
+                patchedText: 'Whiskers naps[^3] on the sill[^3] and the rug[^3].\n',
+              },),
+            ).toBe(true,);
+          },
+        },),
+
+        it({
+          name: 'STILL COUNTS AN ORPHAN DEFINITION the patch adds beside a restored reference, since only an '
+            + 'unresolved reference the source carries is a restoration',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: RESTORED_SOURCE,
+                targetText: RESTORED_TARGET,
+                patchedText: `${RESTORED_PATCHED}\n[^9]: Added by the patch, cited nowhere.\n`,
+              },),
+            ).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'STILL COUNTS A DUPLICATED DEFINITION the patch adds in a chunk whose source carries the reference',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: RESTORED_SOURCE,
+                targetText: RESTORED_TARGET,
+                patchedText: `${RESTORED_PATCHED}\n[^3]: First.\n\n[^3]: Second.\n`,
+              },),
+            ).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'DOES NOT EXCUSE A KEY THE ARCHIVE ALREADY CARRIED: the archive\'s dangling `[^3]` is inherited, and a '
+            + 'patch that adds a second mention of it raises the count, since only a reference the archive lacked '
+            + 'is a restoration',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: RESTORED_SOURCE,
+                targetText: RESTORED_SOURCE,
+                patchedText: 'Whiskers naps on the sill[^3] and the rug[^3].\n',
+              },),
+            ).toBe(false,);
+          },
+        },),
+
+        it({
+          name: 'DOES NOT LET A FULL-WIDTH MARKER IN THE SOURCE RESTORE A `[^3]` REFERENCE: the two conventions are '
+            + 'keyed apart in the footnote graph, so a restoration must come back in the convention the source used',
+          fn: async () => {
+            expect(
+              footnoteIntegrity({
+                sourceText: 'Whiskers naps on the sill〔3〕.\n',
+                targetText: RESTORED_TARGET,
+                patchedText: RESTORED_PATCHED,
+              },),
+            ).toBe(false,);
           },
         },),
 

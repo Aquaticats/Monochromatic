@@ -81,15 +81,15 @@ await describe({
   name: repairSliceKey.name,
   children: [
     it({
-      name: 'IS AT VERSION 49: the owner\'s rulings of 2026-10-25 removed every weight floor, so a settled slice '
-        + 'may hold a decision the panel tally, the editor selection or the non-translation vote now reaches '
-        + 'differently on the same texts, an issue regresses only on two worse ballots (re-check 3, M1), which '
-        + 'candidate selection ranks third, and an unconfirmed edit is stripped only on that same regression '
-        + '("Two ballots for undo too"); the key hashes the version, the shape of the run and the texts, not the '
-        + 'rule that reads the ballots, so only this number retires a record written under the floors before (46 was '
-        + 'the reader taking a capital-only difference as the listed value, merged with the `silentStages` settlement)',
+      name: 'IS AT VERSION 50: the owner\'s ruling of 2026-10-29 ("Count as restoration") makes a footnote reference '
+        + 'the slice\'s own source also carries a restoration in the chunk-scoped integrity count, so a patch that '
+        + 'lost on a restored `[^3]` whose definition lives in another chunk now wins on the same texts; the key '
+        + 'hashes the version, the shape of the run and the texts, not the gate, so only this number retires a '
+        + 'record settled before it (49 was the owner\'s rulings of 2026-10-25 that removed every weight floor and '
+        + 'made an issue regress only on two worse ballots; 46 was the reader taking a capital-only difference as '
+        + 'the listed value, merged with the `silentStages` settlement)',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(49,);
+        expect(SLICE_CACHE_VERSION,).toBe(50,);
       },
     },),
     it({
@@ -100,7 +100,7 @@ await describe({
           + 'change to the FIXTURE INPUTS of this case moves it too, and must not, because those inputs are '
           + 'already part of the key and invalidate their own entries',
       fn: async () => {
-        expect(SLICE_CACHE_VERSION,).toBe(49,);
+        expect(SLICE_CACHE_VERSION,).toBe(50,);
 
         // MOVED THREE TIMES ON 2026-08-20, FOR THREE DIFFERENT REASONS, which
         // is the whole point of keeping the note.
@@ -207,8 +207,11 @@ await describe({
         //
         // VERSION 49 ON 2026-10-25 (an unconfirmed edit is stripped only where its issue regresses, owner "Two
         // ballots for undo too"): moved the same way.
+        //
+        // VERSION 50 ON 2026-10-29 (a footnote reference the slice's own source also carries is a restoration in the
+        // chunk-scoped integrity count, owner "Count as restoration"): moved the same way.
         expect(keyed({ runShape: repairRunShape({ models: MODELS, },), },),)
-          .toBe('08057e389458724f939aa2184694c5c22dce9a7be62ea147cd8958de746487e0',);
+          .toBe('4385df42039416daa88986d9dfd32eb10e55cceb01d6b7a4e1c37597ac0e1bf1',);
       },
     },),
     it({
