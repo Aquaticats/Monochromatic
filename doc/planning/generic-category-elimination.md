@@ -521,6 +521,40 @@ Its notes for crate moves:
 
 ## Next action
 
-Collect the per-package research,
-propose each category's mapping,
-and move the first unblocked category once the user settles it.
+Every category's mapping is settled.
+Execution queue,
+ in order:
+
+1.   `cli` batch:
+     staged in the main worktree index
+     (pathspec lists in `~/temp/agent/package-category-elimination/pathspec.txt` and `add-pathspec.txt`,
+      message in `cli-commit-msg.txt`);
+     commit once the guard skips blobs already in a parent tree,
+     then `mise run //:sync:files`,
+      `mise run //:prepare:pnpm:install`,
+      file-enforcer `--check`,
+      `cargo metadata --locked --offline` for moved crates,
+      `lint:types` for moved packages and direct dependents,
+      and a follow-up commit;
+     remove `package/cli/markdown-lint` after `git clean --dry-run -d -X`;
+     message `monochromatic-fb`.
+2.   Batch 2 (`~/temp/agent/package-category-elimination/batch2-moves.json`):
+      `shim`,
+      `stub`,
+      `webapp-productivity`,
+      `desktop-daemon`,
+      `build-tool`,
+      `git`,
+      unheld `desktop-app` and `dev-script`;
+     then the systemd re-point for `claude-cpu-cap`,
+      and tell translation-repair the katex shim moved.
+3.   `module` and `rust-module/jsonc-edit` batch,
+     in a window agreed with `monochromatic-fb` (it rewrites imports inside `file-enforcer`).
+4.   Held moves as peers release them:
+      `file-enforcer` and the `dependency-catalog` members (`monochromatic-fb`),
+      `ide`,
+      `terminal`,
+      `nested-wayland-session` (`monochromatic-ec`).
+5.   After each publishable rename:
+      the user's first publish of new npm names,
+      then `npm deprecate` of the old names.
