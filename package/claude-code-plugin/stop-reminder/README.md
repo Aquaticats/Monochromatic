@@ -25,14 +25,20 @@ to reduce false positives from code,
  quoted material,
  or verbatim mentions.
 
-**Per-detector gating**:
- the response-quality detectors (hedging,
+**Once per trigger inside a chain**:
+ the wording detectors (hedging,
  dismissal,
- trailing question) run only when `stop_hook_active` is false,
- so a forced continuation is never re-blocked
-for wording Claude was already told about.
-The one exception is the "choice left in prose" detector (see "Detected patterns"),
-which also runs inside a chain but not twice for the same phrase in one turn.
+ trailing question,
+ choice left in prose) run on every stop.
+On a first stop every trigger raises its reminder.
+When `stop_hook_active` is true the hook has already blocked this turn,
+and a trigger raises its reminder only if the transcript holds no reminder with the same opening sentence since the
+last human turn,
+so a block can be answered and the stop then goes through.
+The first hit of each detector decides: a second, different hedge in the same message is not looked at once the first
+one has been raised.
+Before 2026-10-29 these detectors were switched off in a chain,
+and a stop that asked "Do you want me to?" after one block went through.
 
 ## Forced continuation
 
@@ -112,13 +118,17 @@ yet Claude Code delivers the queued notification as a new turn right after the s
 The hook finds the notification in the transcript's queue records, and only when no tool result follows it.
 
 A label is acted on at probability 0.60 or higher (interim; revisit from the verdict log).
+A verdict whose top label is under 0.60 still blocks when `announces_own_next_step`, `leaves_open_work` and
+`waits_on_user` together reach 0.90: Luna is then sure the stop is premature and only unsure which kind.
+The reason is that of the largest of the three, and the verdict log's `detail` says "blocking labels together".
 The message is sent in full, the end kept when it exceeds 16000 characters, with no thinking blocks.
-On a repeated stop (the hook already blocked this turn, so `stop_hook_active` is true) the request also carries the
-assistant text of the turn's earlier stops, each cut to its last 1500 characters and all of them to the last 8000,
-as context for the same question.
-A first stop sends the final message alone.
-Measured on repeated stops, history removed all three verified repeated false blocks and also lowered the block score
-of five of seven repeated misses (two were unchanged); see the troubleshooting document below.
+On a repeated stop (the hook already blocked this turn, so `stop_hook_active` is true) with a background task
+running, the request also carries the assistant text of the turn's earlier stops, each cut to its last 1500
+characters and all of them to the last 8000, as context for the same question.
+Any other stop sends the final message alone.
+Measured on repeated stops, history removed all three verified repeated false blocks, each of which had a task
+running, and lowered the block score of repeated misses, four of eight of which had none; see the troubleshooting
+document below.
 Each verdict record in the log carries `stopHookActive`, so repeated stops can be told apart from first stops
 (records before 2026-10-25 lack it).
 One request, 5 second deadline, no retry.
@@ -249,9 +259,7 @@ and resuming a session cannot lose the count.
    tell me if you,
    if you'd rather,
    if you would rather
-   (the reason tells the agent to use `AskUserQuestion`;
-   unlike the other wording detectors, this one also runs inside a blocked chain,
-   once per phrase per turn, so a block can be answered and the stop then goes through)
+   (the reason tells the agent to use `AskUserQuestion`)
 
 ## Installation
 
