@@ -726,7 +726,9 @@ fn a_timeout_is_described_with_the_lock_and_the_holder() {
         }
         .to_string(),
         "gave up after waiting 661 seconds for the owner lock /repo/.git/cli-git/push.lock, \
-         which process 80782 still holds; the lock was left in place"
+         which process 80782 still holds; the lock was left in place. To go on, let that process finish and run the \
+         command again, check with `ps` whether it is stuck and stop it if so, or raise the limit with \
+         CLI_GIT_LOCK_WAIT_SECONDS (CLI_GIT_PUSH_LOCK_WAIT_SECONDS for the push lock)"
     );
     assert_eq!(
         OwnerLockError::WaitTimedOut {
@@ -736,7 +738,9 @@ fn a_timeout_is_described_with_the_lock_and_the_holder() {
         }
         .to_string(),
         "gave up after waiting 3 seconds for the owner lock /repo/.git/cli-git/push.lock, \
-         which a process whose record could not be read still holds; the lock was left in place"
+         which a process whose record could not be read still holds; the lock was left in place. To go on, let that \
+         process finish and run the command again, check with `ps` whether it is stuck and stop it if so, or raise \
+         the limit with CLI_GIT_LOCK_WAIT_SECONDS (CLI_GIT_PUSH_LOCK_WAIT_SECONDS for the push lock)"
     );
 }
 

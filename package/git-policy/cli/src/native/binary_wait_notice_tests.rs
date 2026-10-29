@@ -103,7 +103,7 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
     let lock: File = File::create(repo.join(".git/index.lock")).expect("index lock");
     let observed: Observed = observe_raw(&mut waiting_commit(&fixture, repo.as_path()), b"");
     let stderr: String = stderr_of(&observed);
-    let notices: Vec<&str> = lines_with(stderr.as_str(), format!("PID {}", std::process::id()).as_str());
+    let notices: Vec<&str> = lines_with(stderr.as_str(), format!("waiting for PID {}", std::process::id()).as_str());
     assert!(notices.len() >= 3, "a first notice and two repeats: {stderr}");
     assert!(notices.iter().all(|line| { return line.contains("giving up after 4 seconds"); }), "{stderr}");
     assert_ne!(observed.code, Some(0), "{stderr}");

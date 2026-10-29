@@ -462,8 +462,9 @@ The concurrent transaction itself cannot be turned off.
 
 ### Waiting and time limits
 
-The wrapper never waits for another process without a limit.
-Three environment variables set the limits,
+The wrapper never waits for another process without a limit,
+and never waits without saying so.
+Four environment variables set the limits and the pace of the notices,
 each a positive whole number of seconds;
 a zero,
 negative,
@@ -477,10 +478,22 @@ fractional or non-numeric value is ignored.
    hook and registry locks,
    the landing reservation,
    the worktree-copy settlement and a live `index.lock` holder.
-  After five seconds of waiting the command prints one line naming the process and the limit.
-  At the limit it stops with a message that names the holder,
-   leaves the lock in place and changes nothing else,
-   so the command can simply be run again.
+  At the limit it stops with a message that names the holder and every way forward:
+   let the holder finish and run the command again,
+   check with `ps` whether it is stuck,
+   or raise the limit.
+  The command leaves the lock in place and changes nothing else,
+   so it can simply be run again.
+- `CLI_GIT_CHILD_WAIT_SECONDS`,
+   default `1800`.
+  How long one Git process that the wrapper starts for itself may run before it is stopped:
+   the object reader (`git cat-file --batch`) that the policy checks read candidate files through,
+   and the Git steps of a commit in the shadow repository.
+  A process that crosses the limit is stopped,
+   and the command reports which one and how to go on.
+- `CLI_GIT_WAIT_NOTICE_SECONDS`,
+   default `10`.
+  How often a waiting command repeats its notice (see "What a waiting command prints").
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `600`.
   How long the push after a landed commit may run before it is stopped.
@@ -496,6 +509,45 @@ fractional or non-numeric value is ignored.
 A command that passes through to Git unchanged,
  and the user's own hooks,
  run as long as they run and receive Ctrl-C like any Git command.
+
+#### What a waiting command prints
+
+Every wait before the push stage of a commit writes to standard error,
+so a queued commit can be told from a hung one.
+A wait that ends within one second prints nothing,
+because healthy commits queue behind each other briefly all the time.
+After that the first line comes,
+and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
+A wait whose holder is already known when it begins (a live `index.lock`,
+ the worktree-copy settlement,
+ another process's push) prints its first line at once.
+Each line names what the command waits for,
+ the process that holds it when the wrapper can tell,
+ how long the wait has lasted and where it gives up.
+
+- A lock held by a live process (the landing, hook, capture and registry locks),
+   as in the sample below.
+  The first line of a wait adds a hint,
+   and the repeats stay short.
+- The landing reservation that a commit asks for after it lost landing races:
+  the same line for the holder,
+   and, when several commits queue for the grant,
+   `This is number 2 of 3 commits in line, so 1 will be served first.`
+- An `index.lock` held by a live process proven by an open descriptor or Git's PID file,
+   with the proof named,
+   and an `index.lock` that nothing proves held,
+   which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
+- The worktree-copy settlement lock and another process's push of the same branch.
+- A long run of `monochromatic-lint` for a Markdown file,
+   which names the file and stops the linter after 60 seconds.
+- The object reader and the Git steps of a commit that run long,
+   which name the Git command and the process,
+   and stop it after `CLI_GIT_CHILD_WAIT_SECONDS`.
+
+```text
+// standard error of a commit that waits for the landing lock
+cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
+```
 
 ## State on disk
 

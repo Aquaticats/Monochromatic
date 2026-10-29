@@ -382,7 +382,7 @@ fn a_live_holder_past_the_limit_ends_the_wait_and_keeps_its_lock() {
         "{text}"
     );
     assert!(text.contains("CLI_GIT_LOCK_WAIT_SECONDS sets how long cli-git waits"), "{text}");
-    assert!(text.ends_with("cli-git left the lock in place."), "{text}");
+    assert!(text.contains("cli-git left the lock in place. To go on,"), "{text}");
     assert!(lock_of(common.as_path()).exists(), "the holder's lock stays");
     held.release().expect("released");
     remove(root.as_path());

@@ -23,9 +23,10 @@ use super::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE, lock_wait_limit};
 use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
 use super::diagnostic_log::debug;
 use super::js_text::trim_javascript;
-use super::owner_lock::{
-    DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_owner_lock_for,
-};
+use super::owner_lock::{DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_within};
+/// The invocation's environment values and the cadence of a wait's notices.
+use super::child_environment::environment_value;
+use super::wait_progress::{Cadence, NOTICE_INTERVAL_VARIABLE};
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -486,11 +487,14 @@ pub fn run_single_flight_push_repeating(
     }
     let mut observer = WaitObserver { on_wait };
     // A live holder that outlives its own push deadline is stuck; waiting forever behind it would stall every commit.
-    let lock: OwnerLock = acquire_owner_lock_for(
+    // The invocation's own environment sets how often the wait repeats its notice, as it sets the wait's limit.
+    let cadence: Cadence = Cadence::from_value(environment_value(&git.environment, NOTICE_INTERVAL_VARIABLE).as_deref());
+    let lock: OwnerLock = acquire_within(
         &paths.lock_directory,
         DEFAULT_POLL_DELAY,
         &mut observer,
         lock_wait_limit(&git.environment),
+        cadence,
     )
     .map_err(SingleFlightError::Lock)?;
     let after = read_record(&paths.record_path)?;

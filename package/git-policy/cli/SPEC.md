@@ -432,7 +432,8 @@ with the same temporary file, synchronization and rename as a journal write.
 The claim is removed once a journal names the stage, or once a failed copy has removed the stage.
 A process-birth-identity lock serializes installation and recovery.
 An applicable source waits for an owner proven alive for at most `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
-after writing one stderr line naming the owner's PID and the lock,
+after writing a stderr line naming the owner's PID, the lock and the limit, and repeating it with the time waited
+(see "Wait notices"),
 and then fails naming the owner, leaving the lock in place;
 while that owner lives the waiter only reads the owner record,
 and it attempts publication again once the owner releases,
@@ -664,7 +665,9 @@ and distinct on case-insensitive filesystems.
   It never takes a live holder's lock.
   The commit is reported with the push-failed note and a message naming the lock and the holder's PID.
   A waiter prints one line naming the pushing process,
-  the branch and the limit as soon as it starts waiting.
+  the branch and the limit as soon as it starts waiting,
+  and repeats the line with the time waited every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds
+  (see "Wait notices").
 - A joined commit's own `pre-push` hook does not run separately;
   the joined push ran it once for its tip.
 - The existing exit contract holds:
@@ -2591,6 +2594,42 @@ Cli-git never deletes a foreign lock.
 Recovery removes a real `index.lock` only when a journal proves a dead transaction owner created it,
 by the recorded device and inode.
 
+#### Wait notices
+
+Every wait a commit can sit in before its push stage says so on standard error and ends at a bound
+(issue 1811).
+The pace is one clock, `CLI_GIT_WAIT_NOTICE_SECONDS` (default 10):
+a wait that ends within one second, or within the interval when that is shorter, prints nothing;
+after that its first notice comes, and a notice repeats at every interval until the wait ends.
+A wait whose holder is known when it begins prints its first notice at once and repeats one interval later.
+A notice names what is waited for, the holder's process when it can be read,
+the time waited and the bound with the variable that changes it.
+
+- Owner locks (landing, hook, capture, registry): `still waiting for process N to release <subject> (<path>)
+  after S seconds; giving up after L seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place`;
+  the first notice adds a hint.
+  The line names "another cli-git process" when the record cannot be read.
+- Reservation: the same line for `the landing reservation`;
+  a transaction that waits for the grant behind older live requests says so and is told its number among the live
+  requests (`This is number P of N commits in line, so P-1 will be served first`).
+  The landing lock has no queue, so its notice carries no number.
+- Foreign `index.lock`: with a proven-alive owner the first line (at once) and the repeats name the PID, its command
+  and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
+  the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
+- Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
+- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
+  stopping it after 60 seconds`.
+- The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
+  `still waiting for <command> (process N) after S seconds; stopping it after L seconds
+  (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.
+  A watcher thread sees the wait from outside, and at the bound ends the child with `SIGKILL`;
+  the command fails with the bound named (default 1800 seconds).
+  Git commands that inherit the terminal (the editor, hooks, the user's own Git commands) are not bounded.
+
+At each bound the refusal names the holder and says how to go on:
+let the holder finish and run the command again, check with `ps` whether it is stuck, or raise the limit.
+Nothing is taken from the holder and its lock stays in place.
+
 #### Lock PID injection
 
 Cli-git injects `core.lockfilePid=true` into every forwarded and spawned Git
@@ -2640,7 +2679,8 @@ dead,
 or evidence-free:
 
 - A proven-alive owner gets a wait bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800)
- with one human-readable stderr line naming the holder.
+ with a human-readable stderr line naming the holder at once, repeated every notice interval
+  (see "Wait notices").
 - A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to
   `indexLock.unprovenOwnerTimeoutMs`,
   then `index-lock-unproven-owner` with exit `2`,
