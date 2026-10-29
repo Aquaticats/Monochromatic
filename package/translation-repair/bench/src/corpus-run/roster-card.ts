@@ -18,7 +18,7 @@ import { printRosterCard, } from './roster-card-print.ts';
  today's date. Not `async`: it hands the promise on, so a run that refuses
  before its first call leaves no continuation behind it that nothing runs.
 
- @param line - the card's command line, read whole by `reportingRefusals`
+ @param line - card's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

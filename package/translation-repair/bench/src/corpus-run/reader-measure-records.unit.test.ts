@@ -40,7 +40,7 @@ const MENU = 'Tuna on Monday, salmon on Tuesday, chicken on Wednesday, a saucer 
 /**
  A record as the cache file holds it: the key it was stored under, then the record.
 
- @param record - the stored reading
+ @param record - stored reading
 
  @returns File content
 

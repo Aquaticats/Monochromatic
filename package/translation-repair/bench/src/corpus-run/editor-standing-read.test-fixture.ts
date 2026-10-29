@@ -285,7 +285,7 @@ export const NO_ROUNDS: string = '  NO ROUNDS. Nothing read here recorded a judg
 
  @param artifacts - artifact files found under them
 
- @returns The whole line with its newline
+ @returns Whole line with its newline
 
  @example
  ```ts
@@ -309,9 +309,9 @@ export function summaryOf(
  The stderr line naming an artifact written as an empty object, which the
  parse refuses for want of a schema version.
 
- @param path - the artifact file the line names
+ @param path - artifact file the line names
 
- @returns The whole line with its newline
+ @returns Whole line with its newline
 
  @example
  ```ts
@@ -335,7 +335,7 @@ export const JUDGED_STANDING: string =
 
  @param artifacts - artifact values by the file name each is written as
 
- @returns The run directory, removed on dispose
+ @returns Run directory, removed on dispose
 
  @example
  ```ts

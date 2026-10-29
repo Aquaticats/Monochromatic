@@ -26,7 +26,7 @@ export type ListedCardProvider = Exclude<CardProvider, 'anthropic'>;
 /**
  Reads the provider and served id off the command line.
 
- @param line - the card's command line, read whole by `reportingRefusals`,
+ @param line - card's command line, read whole by `reportingRefusals`,
  which refuses it when either position is left out (ledger B75)
 
  @returns Provider and served id

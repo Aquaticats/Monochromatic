@@ -61,7 +61,7 @@ const SERVED_ALL = CATALOG_MODEL_IDS.map(function entryOf(id,): { readonly id: s
 
  @param bodyText - body the scripted provider answers
 
- @param sinon - the case's own sandbox
+ @param sinon - case's own sandbox
 
  @returns Lines printed and exchanges the transport saw
 

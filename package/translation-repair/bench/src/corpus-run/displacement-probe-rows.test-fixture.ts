@@ -18,7 +18,7 @@ import type { EntryDisplacement, } from '../../dist/final/node/index.mjs';
 
  @param changes - fields to set apart from the quiet reading
 
- @returns The row
+ @returns Row
 
  @example
  ```ts

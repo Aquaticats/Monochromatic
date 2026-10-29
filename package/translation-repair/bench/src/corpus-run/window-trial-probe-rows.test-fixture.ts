@@ -33,7 +33,7 @@ type ArmName = 'narrow-a' | 'narrow-b' | 'wide';
 
  @param sliceClass - class the slice was drawn as, `untranslated` where absent
 
- @returns The ledger row
+ @returns Ledger row
 
  @example
  ```ts

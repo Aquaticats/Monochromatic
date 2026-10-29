@@ -62,7 +62,7 @@ const JUDGED_REFINE_ROUND = {
 
  @param chunks - per entry, the rounds its one chunk records
 
- @returns The readings, in the order given
+ @returns Readings, in the order given
 
  @throws Error where an artifact does not read, naming its outcome
 

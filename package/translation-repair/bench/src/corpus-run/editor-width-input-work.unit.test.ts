@@ -75,9 +75,9 @@ const SUPPORTED = {
  What the probe makes of a slice whose critics file one issue with the given
  quotes and whose panel supports it.
 
- @param quote - the quote field the issue carries, `targetQuote` or `sourceQuote`
+ @param quote - quote field the issue carries, `targetQuote` or `sourceQuote`
 
- @returns The probe's outcome
+ @returns Probe's outcome
 
  @example
  ```ts

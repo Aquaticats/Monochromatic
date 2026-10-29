@@ -68,7 +68,7 @@ type SparsestChoice = {
 
  @param pairs - aligned section pairs in document order
 
- @returns The sparsest pair, or `none` when no pair carries source blocks
+ @returns Sparsest pair, or `none` when no pair carries source blocks
 
  @example
  ```ts

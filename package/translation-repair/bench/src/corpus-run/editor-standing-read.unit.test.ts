@@ -450,7 +450,7 @@ await describe({
 
          @param drewNoBallot - how the seat's line counts its unballoted rounds
 
-         @returns The command's whole standard output
+         @returns Command's whole standard output
 
          @example
          ```ts

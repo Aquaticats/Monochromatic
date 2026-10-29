@@ -115,7 +115,7 @@ function refuseUnjudgeableRoster({ roster, }: { readonly roster: readonly Roster
 
  Returns nothing: the report on stdout IS the output.
 
- @param line - the calibration's command line, read whole by `reportingRefusals`
+ @param line - calibration's command line, read whole by `reportingRefusals`
 
  @param newClient - builds the client one slice's calls go through; called once
  per slice, since the client answers a repeated prompt from the stored reply of

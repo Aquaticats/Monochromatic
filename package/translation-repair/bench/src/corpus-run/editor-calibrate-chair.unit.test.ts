@@ -43,7 +43,7 @@ const HIGH = 'claude-sonnet-5-5-effort-high';
 
  @param typed - arguments after the script path
 
- @returns The line its body would receive
+ @returns Line its body would receive
 
  @example
  ```ts

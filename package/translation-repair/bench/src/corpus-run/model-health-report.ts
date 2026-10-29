@@ -34,7 +34,7 @@ const ROSTER_INCOMPLETE = 1;
 
  @param l - logger the lines are written to, tagged here for this probe
 
- @returns The exit code the command leaves behind: zero when every model could
+ @returns Exit code the command leaves behind: zero when every model could
  be asked, and one when any could not
 
  @example

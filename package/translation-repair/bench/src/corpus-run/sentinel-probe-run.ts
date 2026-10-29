@@ -36,7 +36,7 @@ const DEFAULT_SENTINELS: readonly string[] = [
  line per entry, in the order the corpus lists them. With no ids named on the
  command line, probes {@link DEFAULT_SENTINELS}.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param pin - corpus clone and commit every read resolves against
 
@@ -44,7 +44,7 @@ const DEFAULT_SENTINELS: readonly string[] = [
  after the ids are checked, so a run naming an id the corpus lacks is refused
  before any key is asked for
 
- @param repair - the repair pipeline over one entry's two texts
+ @param repair - repair pipeline over one entry's two texts
 
  @param models - roster the repair asks
 

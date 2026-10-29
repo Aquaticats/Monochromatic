@@ -138,7 +138,7 @@ const CLIENT: ModelClient = {
 
  @param wanted - passage the judge backs
 
- @returns The client
+ @returns Client
  */
 function judgeBacking({ wanted, }: { readonly wanted: string; },): ModelClient {
   return {

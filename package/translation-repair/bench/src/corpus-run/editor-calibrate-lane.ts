@@ -45,9 +45,9 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 
  @param bench - name of the chair, for the failure when a wire model is seated twice
 
- @param named - the run's own list for the chair
+ @param named - run's own list for the chair
 
- @returns The chair's models, the writers first and in roster order, then the named ones not among them
+ @returns Chair's models, writers first and in roster order, then the named ones not among them
 
  @throws {@link WireModelRepeatedError} when the chair seats one wire model more than once: the lane is built outside
  the run's own bench list (`RUN_BENCHES`), so the one-wire-model rule does not reach it unless it is asked here (R11 of the

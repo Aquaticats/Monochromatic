@@ -63,7 +63,7 @@ const CLAIMED_COMMIT = 'b'.repeat(40,);
 
  @param text - what the command wrote
 
- @returns The same text with each stamp replaced
+ @returns Same text with each stamp replaced
 
  @example
  ```ts

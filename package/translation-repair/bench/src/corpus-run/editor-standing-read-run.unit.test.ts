@@ -143,10 +143,10 @@ function unaskedRuns(): Promise<string> {
  The report's first two lines over the readings and counts given, as
  `console.log` prints them.
 
- @param counts - the summary line's fields after its name, written as it
+ @param counts - summary line's fields after its name, written as it
  writes them
 
- @returns The summary and the observational note, each a line of its own
+ @returns Summary and observational note, each a line of its own
 
  @example
  ```ts

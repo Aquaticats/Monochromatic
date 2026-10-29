@@ -301,7 +301,7 @@ const OTHER_FAILURE_ADVICE = 'the read failed another way: run the same git read
 
  @param cause - what the failing read raised, whose stderr decides the failure kind
 
- @returns A reader to pass in place of `readCorpusFile`
+ @returns Reader to pass in place of `readCorpusFile`
 
  @example
  ```ts
@@ -352,7 +352,7 @@ const UNPARSABLE_REFUSAL = 'Front matter fence pair found but YAML inside refuse
  @param unparsablePath - path whose page cannot be parsed, which the skip line
  must name although its read succeeded
 
- @returns A reader to pass in place of `readCorpusFile`
+ @returns Reader to pass in place of `readCorpusFile`
 
  @example
  ```ts
@@ -380,7 +380,7 @@ function readerServingUnparsable(
 
  @param unparsablePath - path whose page is served and cannot be parsed
 
- @returns A reader to pass in place of `readCorpusFile`
+ @returns Reader to pass in place of `readCorpusFile`
 
  @example
  ```ts
@@ -438,7 +438,7 @@ type ScriptedRefusal = {
 
  @param refusedLast - page whose refusal ends only after that one has
 
- @returns A reader to pass in place of `readCorpusFile`
+ @returns Reader to pass in place of `readCorpusFile`
 
  @example
  ```ts

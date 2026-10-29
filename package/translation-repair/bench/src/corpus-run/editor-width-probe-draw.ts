@@ -33,9 +33,9 @@ const DRAW_POSITIONS: Readonly<Record<WidthDraw, number>> = {
 /**
  Reads which half of the sample the run spends.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
- @returns The named draw, or draw A when none was named
+ @returns Named draw, or draw A when none was named
 
  @throws {@link StatedRefusalError} when the named draw is neither half,
  rather than quietly spending draw A and reporting it under whatever was

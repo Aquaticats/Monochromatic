@@ -62,7 +62,7 @@ export type MeasuredRow = {
 
  @param reading - what the reader stage returned
 
- @returns The text when the stage kept a reading, else the reason it did not
+ @returns Text when the stage kept a reading, else the reason it did not
 
  @example
  ```ts

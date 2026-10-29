@@ -52,9 +52,9 @@ const BENCH = 'editor calibration editors';
 /**
  Reads the editors this launch seats.
 
- @param line - the calibration's command line, read whole by `reportingRefusals`
+ @param line - calibration's command line, read whole by `reportingRefusals`
 
- @returns The lane's own editors when neither flag is written; else the roster's writers then the named cards, or the
+ @returns Lane's own editors when neither flag is written; else the roster's writers then the named cards, or the
  named cards alone under `--candidates-alone`
 
  @throws StatedRefusalError when `--candidates` names no id or one the roster does not know, or

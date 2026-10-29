@@ -123,7 +123,7 @@ const DEFAULT_SLICES = 6;
 
  Returns nothing: the report on stdout IS the output.
 
- @param line - the calibration's command line, read whole by `reportingRefusals`
+ @param line - calibration's command line, read whole by `reportingRefusals`
 
  @param readOverlap - reads how many slices may be in flight at once from the
  environment; called after the count is read and before the sample is drawn,

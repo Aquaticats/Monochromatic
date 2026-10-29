@@ -50,13 +50,13 @@ const DATE_CHARS = 10;
 /**
  Prints the card fragment for the asked model.
 
- @param line - the card's command line, read whole by `reportingRefusals`
+ @param line - card's command line, read whole by `reportingRefusals`
 
  @param env - environment the provider's key is read from: `process.env` in a run
 
  @param transport - transport the listing is fetched over: `fetchTransport` in a run
 
- @param now - the instant the fragment's provenance line names the date of
+ @param now - instant the fragment's provenance line names the date of
 
  @throws {@link StatedRefusalError} When the listing does not name the
  served id, which is the answer a typo or a retired model gets, or names it

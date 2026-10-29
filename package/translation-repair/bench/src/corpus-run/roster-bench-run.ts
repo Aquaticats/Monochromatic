@@ -37,7 +37,7 @@ const DEFAULT_SLICES = 10;
 /**
  Runs the whole bench and writes its report.
 
- @param line - the bench's command line, read whole by `reportingRefusals`
+ @param line - bench's command line, read whole by `reportingRefusals`
 
  @param roster - models the widths are cut from, which also judge
 

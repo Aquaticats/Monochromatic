@@ -55,11 +55,11 @@ export type MeasureAsk = {
 /**
  Reads the measurement's inputs off the command line and environment.
 
- @param line - the command line, read whole by `reportingRefusals`
+ @param line - command line, read whole by `reportingRefusals`
 
  @param env - environment the key is read from
 
- @returns The model, directories, sample and key
+ @returns Model, directories, sample and key
 
  @throws {@link StatedRefusalError} When a trusted directory, the pictures
  directory or the key is missing, or the model is not a roster model that

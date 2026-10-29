@@ -99,7 +99,7 @@ export type EntryDisplacement = {
 
  @param role - which end of the candidate the index is, for the message
 
- @returns The slice pair at that position
+ @returns Slice pair at that position
 
  @throws {@link Error} when the position is no slice of the slicing, which the
  classification, drawn over these very slices, never names

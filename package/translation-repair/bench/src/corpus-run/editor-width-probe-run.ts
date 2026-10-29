@@ -72,7 +72,7 @@ const SLICES_A_DRAW_NEEDS: Readonly<Record<WidthDraw, number>> = {
 /**
  Runs the whole probe and writes its report.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param newClient - builds the client every call goes through; called once,
  after the draw is known to hold a slice and before the control is asked, so

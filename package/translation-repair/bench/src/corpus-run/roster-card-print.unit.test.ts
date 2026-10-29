@@ -61,7 +61,7 @@ const HYPER_LISTING = JSON.stringify({
 
  @param bodyText - body the scripted provider answers
 
- @param sinon - the case's own sandbox
+ @param sinon - case's own sandbox
 
  @returns Lines printed
 

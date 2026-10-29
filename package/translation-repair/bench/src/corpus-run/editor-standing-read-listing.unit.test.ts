@@ -40,7 +40,7 @@ import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixt
 
  @param names - artifact file names written as empty objects
 
- @returns The archive, removed on dispose
+ @returns Archive, removed on dispose
 
  @example
  ```ts

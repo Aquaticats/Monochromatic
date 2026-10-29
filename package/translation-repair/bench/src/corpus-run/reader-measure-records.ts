@@ -54,7 +54,7 @@ type ScoredRecord = {
 /**
  Whether a value is one model's reading.
 
- @param value - an element of a stored list of readings
+ @param value - element of a stored list of readings
 
  @returns Whether it names a model and carries text
 
@@ -73,7 +73,7 @@ function isTrustedReading(value: unknown,): value is TrustedReading {
 
  @param content - parsed content of one cache file
 
- @returns The readings, or none when the file holds another kind of record or
+ @returns Readings, or none when the file holds another kind of record or
  fewer than two readings
 
  @example
@@ -233,9 +233,9 @@ export type RecordMatch = {
 
  @param ocrText - what the deterministic reader found in the picture
 
- @param records - the trusted records
+ @param records - trusted records
 
- @returns The record with the highest mean trigram overlap, when that is at
+ @returns Record with the highest mean trigram overlap, when that is at
  the corroboration share or more; otherwise unmatched
 
  @example

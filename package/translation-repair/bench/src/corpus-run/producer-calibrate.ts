@@ -21,7 +21,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 /**
  Hands the real process's client, corpus and head to the calibration.
 
- @param line - the calibration's command line, read whole by `reportingRefusals`
+ @param line - calibration's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

@@ -40,7 +40,7 @@ const MEASURE_TIMEOUT_MS = 8_100_000;
  Prints one line of the report. Raw output, deliberately: a report a person
  reads, not pipeline logging.
 
- @param text - the line
+ @param text - line
 
  @example
  ```ts
@@ -54,7 +54,7 @@ function printLine(text: string,): void {
 /**
  Measures the candidate over the process's own environment.
 
- @param line - the command line, read whole by `reportingRefusals`
+ @param line - command line, read whole by `reportingRefusals`
 
  @example
  ```ts

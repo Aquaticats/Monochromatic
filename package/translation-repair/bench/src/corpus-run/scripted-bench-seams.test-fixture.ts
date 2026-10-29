@@ -33,7 +33,7 @@ type SeamsAsked = {
 
  @param index - position within the entry
 
- @returns The slice
+ @returns Slice
 
  @example
  ```ts
@@ -56,7 +56,7 @@ function benchSliceAt({ index, }: { readonly index: number; },): BenchSlice {
 
  @param slices - how many slices every draw answers with
 
- @returns The seams and their record
+ @returns Seams and their record
 
  @example
  ```ts

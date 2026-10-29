@@ -55,7 +55,7 @@ const STANDINGS_READ = 0;
 /**
  Reads every named archive and reports both seats, per digest.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @param resolveRuns - names the runs directory, called only when the command
  line names no directory, since named directories need none

@@ -458,7 +458,7 @@ const EXCESS_DIGITS = 2;
 
  @param report - one class's report
 
- @returns The line, naming the paired excess, the arm rates, the transitions
+ @returns Line, naming the paired excess, the arm rates, the transitions
  against the band, and how many slices were left out and why
 
  @example

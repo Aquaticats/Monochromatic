@@ -40,7 +40,7 @@ export const PROBE_SLICES = 3;
 
  @param many - noun for any other count
 
- @returns The count, a space and the noun
+ @returns Count, space and noun
 
  @example
  ```ts
@@ -168,7 +168,7 @@ export function slicesLine({ sliceCount, }: { readonly sliceCount: number; },): 
 
  @param targetChars - characters of the slice's translation
 
- @returns The heading, led by a blank line
+ @returns Heading, led by a blank line
 
  @example
  ```ts
@@ -210,7 +210,7 @@ export function sliceHeading(
 
  @param findings - roster degradation findings
 
- @returns The count line, one line per voice, one line per finding
+ @returns Count line, one line per voice, one line per finding
 
  @example
  ```ts

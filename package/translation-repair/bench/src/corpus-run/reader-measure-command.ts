@@ -32,9 +32,9 @@ import {
 /**
  The line that says what the candidate gave for one picture.
 
- @param row - the matched picture and the candidate's outcome
+ @param row - matched picture and candidate's outcome
 
- @returns The picture's name, then the length of the reading or why there is none
+ @returns Picture's name, then the length of the reading or why there is none
 
  @example
  ```ts

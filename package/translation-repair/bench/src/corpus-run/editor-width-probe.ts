@@ -28,7 +28,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
  and the runs directory the environment names, resolved before any client is
  built.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

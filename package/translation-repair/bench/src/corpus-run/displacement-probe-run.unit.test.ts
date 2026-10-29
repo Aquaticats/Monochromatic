@@ -37,7 +37,7 @@ const TARGET_PAGE = '## Section one\n\nThe cat sleeps on the sill.\n';
 
  @param reproduction - whether the re-carve is the run's own
 
- @returns The carve
+ @returns Carve
 
  @example
  ```ts

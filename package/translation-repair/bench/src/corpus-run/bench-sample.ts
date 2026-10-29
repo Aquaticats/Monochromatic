@@ -148,13 +148,13 @@ const PAIR_STEP_FAILED = 'the pair could not be aligned or cut into slices, and 
 
  @param entryId - entry the line names first, since a reader scans a draw's skip lines by entry
 
- @param where - the page and the step that failed on it, which a reader fixing the corpus looks for; or
+ @param where - page and step that failed on it, which a reader fixing the corpus looks for; or
  the step and that no one page is known, where the failure names none
 
  @param error - what the step raised, printed through `refusalText` so the
  line repeats a marked class's message whole and names any other class alone
 
- @returns The skipped step, carrying the line whole so the draw can print it in listing order once
+ @returns Skipped step, carrying the line whole so the draw can print it in listing order once
  every entry has settled
 
  @example
@@ -188,10 +188,10 @@ function skippedAt(
  @param where - what a failure's line says failed, known before the step runs
  so the line never has to guess it from the failure
 
- @param step - the step's work, run inside the catch so a failure of it skips
+ @param step - step's work, run inside the catch so a failure of it skips
  this entry rather than ending the whole draw
 
- @returns The step's value, or the skip line held as data so the draw goes on to the next entry
+ @returns Step's value, or the skip line held as data so the draw goes on to the next entry
 
  @example
  ```ts
@@ -238,14 +238,14 @@ function stepOf<Value,>(
 
  @param entryId - entry a failure's line names
 
- @param pin - the draw's clone and commit, resolved once by `sampleBenchSlices`
+ @param pin - draw's clone and commit, resolved once by `sampleBenchSlices`
  so every page of one draw is read at one revision through one git binary
 
  @param relPath - page read, which a failure's line names
 
  @param readFile - reads one page at the pin, passed in so a case scripts which refusal ends first
 
- @returns The page's text, or the skip line naming it, held as data so the pair is reported in input
+ @returns Page's text, or the skip line naming it, held as data so the pair is reported in input
  order whichever page failed first
 
  @throws Whatever the read failed with, unchanged, unless it is a page absent
@@ -295,14 +295,14 @@ async function textOf(
 
  @param entryId - entry a failure's line names
 
- @param pin - the draw's clone and commit, resolved once by `sampleBenchSlices`
+ @param pin - draw's clone and commit, resolved once by `sampleBenchSlices`
  so every page of one draw is read at one revision through one git binary
 
  @param relPath - page read, which a failure's line names
 
  @param readFile - reads one page at the pin, passed in so a case scripts which refusal ends first
 
- @returns The page read and parsed, or the skip line of the step that failed, held as data so the
+ @returns Page read and parsed, or the skip line of the step that failed, held as data so the
  pair is reported in input order whichever page failed first
 
  @example
@@ -427,7 +427,7 @@ function pairSlices(
 
  @param entryId - corpus entry, whose two pages are read under `people/<entryId>/`
 
- @param pin - the draw's clone and commit, resolved once by `sampleBenchSlices`
+ @param pin - draw's clone and commit, resolved once by `sampleBenchSlices`
  so every page of one draw is read at one revision through one git binary
 
  @param readFile - reads one page at the pin, passed in so a case scripts which refusal ends first
@@ -518,7 +518,7 @@ function printSkipLine(line: string,): void {
 
  @param entryIds - entries at the pin, in the order the corpus lists them
 
- @param pin - the draw's clone and commit, resolved once by `sampleBenchSlices`
+ @param pin - draw's clone and commit, resolved once by `sampleBenchSlices`
  so every page of one draw is read at one revision through one git binary
 
  @param readFile - reads one page at the pin, passed in so a case scripts which refusal ends first

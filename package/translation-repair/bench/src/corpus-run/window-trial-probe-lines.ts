@@ -23,7 +23,7 @@ const PROTOCOL_LOG_CHARS = 12;
 
  @param armsBought - arms the ledger already holds under it
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -62,7 +62,7 @@ export function openingLine(
 
  @param rows - arms it bought
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -96,7 +96,7 @@ export function boughtLine(
 
  @param refused - slices that refused
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -132,7 +132,7 @@ export function walkEndLine(
 
  @param tornTail - whether the last line was cut short by a kill
 
- @returns The line
+ @returns Line
 
  @example
  ```ts

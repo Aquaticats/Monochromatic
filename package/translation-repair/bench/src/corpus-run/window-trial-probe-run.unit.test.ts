@@ -169,7 +169,7 @@ const KEPT_REPORT: readonly string[] = [
 
  @param lines - every line the logger recorded
 
- @returns The lines that do not start with a stage's bracketed name
+ @returns Lines that do not start with a stage's bracketed name
 
  @example
  ```ts
@@ -188,7 +188,7 @@ function walkLines({ lines, }: { readonly lines: readonly string[]; },): readonl
 
  @param sliceIndex - slice the line is about
 
- @returns The arms, each kept, as the line names them
+ @returns Arms, each kept, as the line names them
 
  @example
  ```ts
@@ -212,7 +212,7 @@ function armsOf({ sliceIndex, }: { readonly sliceIndex: number; },): string {
 
  @param relPath - path asked for
 
- @returns The page
+ @returns Page
 
  @example
  ```ts

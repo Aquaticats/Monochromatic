@@ -66,7 +66,7 @@ const RENDERINGS = {
 /**
  Clock reading a quarter second further on at every look.
 
- @returns The clock
+ @returns Clock
 
  @example
  ```ts
@@ -89,8 +89,8 @@ function quarterSecondClock(): { readonly now: () => number; } {
 /**
  Orders two call summaries by the stage that asked and the model that answered, in code-point order.
 
- @param left - the first summary: stage, model, outcome and token counts
- @param right - the second summary
+ @param left - first summary: stage, model, outcome and token counts
+ @param right - second summary
 
  @returns Negative when the first sorts first, positive when the second does, zero for the same stage and model
 

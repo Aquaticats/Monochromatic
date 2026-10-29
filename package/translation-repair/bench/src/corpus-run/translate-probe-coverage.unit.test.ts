@@ -51,7 +51,7 @@ const EVEN_TARGET_PAGE = '## One\n\nCat one.\n\n## Two\n\nCat two.\n';
 
  @param targetText - translation
 
- @returns The pairs the aligner commits to
+ @returns Pairs the aligner commits to
 
  @example
  ```ts
@@ -79,7 +79,7 @@ function pairsOf(
 
  @param pair - pair to empty on the original side
 
- @returns The same pair with no source block
+ @returns Same pair with no source block
 
  @example
  ```ts
@@ -101,7 +101,7 @@ function withoutSource({ pair, }: { readonly pair: ChunkPair; },): ChunkPair {
 
  @param choice - what the pick made
 
- @returns The pair's original, or `none` where nothing was found
+ @returns Pair's original, or `none` where nothing was found
 
  @example
  ```ts

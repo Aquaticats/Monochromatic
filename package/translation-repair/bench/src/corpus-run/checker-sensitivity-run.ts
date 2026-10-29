@@ -48,7 +48,7 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
- @returns The stage's result
+ @returns Stage's result
 
  @example
  ```ts
@@ -87,11 +87,11 @@ async function askCheckers(
 /**
  Tally the stage kept for one issue it was asked about.
 
- @param checker - the stage's result
+ @param checker - stage's result
 
  @param issueId - issue the stage was asked about
 
- @returns The issue's tally
+ @returns Issue's tally
 
  @throws {@link Error} when the result holds no tally for an issue the stage
  was given, which the stage cannot produce: it throws itself when a tally is

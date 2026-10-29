@@ -110,7 +110,7 @@ export function fieldAt(
 
  @param servedId - spelling the provider serves the model under
 
- @returns The row, or {@link NOT_LISTED} where the listing has none
+ @returns Row, or {@link NOT_LISTED} where the listing has none
 
  @throws {@link StatedRefusalError} When the listing carries the id on rows
  that differ, so no one row is the model's
@@ -192,7 +192,7 @@ function readsImagesFrom(modalities: unknown,): Listed<boolean> {
 
  @param value - field value
 
- @returns The number, or {@link NOT_LISTED} where the field is no unsigned
+ @returns Number, or {@link NOT_LISTED} where the field is no unsigned
  number as JSON writes one, or is not finite, or is below zero
  */
 function numberFrom(value: unknown,): Listed<number> {
@@ -265,7 +265,7 @@ export type CardFields = {
 
  @param path - field names from the row down
 
- @returns The number, where listed
+ @returns Number, where listed
  */
 function numberAt(
   {
@@ -288,7 +288,7 @@ function numberAt(
 
  @param provider - whose listing the row came from
 
- @param row - the row
+ @param row - row
 
  @returns Fields the listing carries
 

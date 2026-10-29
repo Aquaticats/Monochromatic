@@ -150,7 +150,7 @@ function asArm(
 
  @param slices - drawn sample, of which the first usable few are damaged
 
- @param judgeModelIds - the panel the draw will use
+ @param judgeModelIds - panel the draw will use
 
  @param signal - cancellation
 

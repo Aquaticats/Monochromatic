@@ -58,7 +58,7 @@ const ROUNDS: readonly SliceRounds[] = [
 
  @param position - where the slice sits in the sample, counted from zero
 
- @returns The whole line
+ @returns Whole line
 
  @example
  ```ts

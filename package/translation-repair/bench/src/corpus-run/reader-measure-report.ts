@@ -39,7 +39,7 @@ const NO_ENTRY_DIRECTORY = '(no entry directory)';
 
  @param value - share between zero and one
 
- @returns The share with two decimals
+ @returns Share with two decimals
 
  @example
  ```ts
@@ -62,9 +62,9 @@ type EntryCount = {
  Entry a picture belongs to: the first directory of its path under the pictures
  directory, which is how the corpus lays out a person's pictures.
 
- @param assetName - the picture's path under the pictures directory
+ @param assetName - picture's path under the pictures directory
 
- @returns The first directory of the path, or a stand-in name for a picture
+ @returns First directory of the path, or a stand-in name for a picture
  that sits directly in the pictures directory
 
  @example
@@ -85,7 +85,7 @@ function entryOf({ assetName, }: { readonly assetName: string; },): string {
 
  @param matchedAssets - paths of the pictures matched to a trusted record
 
- @returns The line, most pictures first and ties in code point order
+ @returns Line, most pictures first and ties in code point order
 
  @example
  ```ts
@@ -164,7 +164,7 @@ function entriesLine({ matchedAssets, }: { readonly matchedAssets: readonly stri
 
  @param band - how the seated readers corroborate one another
 
- @returns The line, or one saying there is nothing to compare when no reading was produced
+ @returns Line, or one saying there is nothing to compare when no reading was produced
 
  @example
  ```ts
@@ -293,7 +293,7 @@ function adviceForFewReadings(
 
  @param pictures - pictures found under the pictures directory
 
- @returns The verdict lines
+ @returns Verdict lines
 
  @example
  ```ts
@@ -370,7 +370,7 @@ function verdictLines(
 
  @param verdict - what the measurement decides
 
- @returns The report, one line per element
+ @returns Report, one line per element
 
  @example
  ```ts

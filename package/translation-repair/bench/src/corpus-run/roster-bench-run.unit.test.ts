@@ -87,7 +87,7 @@ type Written = Omit<ReportInput, 'rows'> & {
 
  @param needle - text the judges back
 
- @returns The seams, the clients' builder and the writer's record
+ @returns Seams, clients' builder and writer's record
 
  @example
  ```ts

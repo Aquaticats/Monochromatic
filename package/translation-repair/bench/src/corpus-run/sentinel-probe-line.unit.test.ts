@@ -31,7 +31,7 @@ import {
 
  @param refined - whether the naturalness lane refined it
 
- @returns The issue record's read parts
+ @returns Issue record's read parts
 
  @example
  ```ts

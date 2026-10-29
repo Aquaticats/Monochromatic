@@ -14,9 +14,9 @@ import type { IssueResolutionTally, } from '@monochromatic-dev/translation-repai
 
  @param heard - checkers whose reply arrived and validated
 
- @param tally - the one issue's tally
+ @param tally - one issue's tally
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts
@@ -54,9 +54,9 @@ export function singleCheckLine(
 
  @param expectation - what a discriminating checker should answer
 
- @param tally - the issue's tally
+ @param tally - issue's tally
 
- @returns The line, without a newline
+ @returns Line, without a newline
 
  @example
  ```ts

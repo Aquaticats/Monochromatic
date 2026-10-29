@@ -85,7 +85,7 @@ const IMAGE_LINES = Array.from(
 
  @param paragraphs - paragraphs in order, under one heading
 
- @returns The row the probe reads off them
+ @returns Row the probe reads off them
 
  @example
  ```ts

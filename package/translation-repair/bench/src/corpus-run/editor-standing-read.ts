@@ -20,7 +20,7 @@ import { reportStandings, } from './editor-standing-read-run.ts';
  Reports the named archives, or the runs directory, and leaves the exit code
  the report returns.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

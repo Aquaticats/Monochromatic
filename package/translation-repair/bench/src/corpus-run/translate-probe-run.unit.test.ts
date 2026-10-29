@@ -139,7 +139,7 @@ type Probed = {
 
  @param roster - translators asked
 
- @param sinon - the case's own sandbox
+ @param sinon - case's own sandbox
 
  @param perCallTimeoutMs - per-call figure the probe is handed
 
@@ -184,7 +184,7 @@ async function probeOver(
   /**
    Builds the client for one slice and counts it.
 
-   @returns The client the case scripted
+   @returns Client the case scripted
 
    @example
    ```ts

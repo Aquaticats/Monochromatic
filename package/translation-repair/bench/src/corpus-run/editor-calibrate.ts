@@ -90,7 +90,7 @@ function windowsFromEnvironment(): WriterGrace {
  each a reader over this process's environment the run calls where the
  command reads it, and the contest ledger, read here.
 
- @param line - the calibration's command line, read whole by `reportingRefusals`
+ @param line - calibration's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

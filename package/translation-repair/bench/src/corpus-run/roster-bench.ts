@@ -28,7 +28,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
  Hands the real process's client, corpus, roster, clock and runs directory to
  the bench.
 
- @param line - the bench's command line, read whole by `reportingRefusals`
+ @param line - bench's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

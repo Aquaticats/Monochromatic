@@ -129,11 +129,11 @@ export type MeasureVerdict = {
 /**
  Share of some count, zero for none.
 
- @param part - the count in the share
+ @param part - count in the share
 
- @param whole - the count it is a share of
+ @param whole - count it is a share of
 
- @returns The share, zero when there is no whole
+ @returns Share, zero when there is no whole
 
  @example
  ```ts
@@ -165,9 +165,9 @@ type ReaderTally = {
 /**
  What the other readings of a picture say about one reading.
 
- @param text - the reading asked about
+ @param text - reading asked about
 
- @param others - the other readings of the same picture
+ @param others - other readings of the same picture
 
  @returns Whether every other reading corroborates it, whether none does, and
  their mean overlap
@@ -234,7 +234,7 @@ function standingOf(
 
  @param records - every trusted record of the matched pictures
 
- @returns The lowest share corroborated by all and the highest corroborated by
+ @returns Lowest share corroborated by all and highest corroborated by
  none, over the readers, and how many readings that rests on
 
  @example
@@ -330,7 +330,7 @@ export function seatedBandOf({ records, }: { readonly records: readonly TrustedR
 
  @param rows - each produced reading with the trusted record of its picture
 
- @returns The shares corroborated by all and by none, and the mean overlap;
+ @returns Shares corroborated by all and by none, and the mean overlap;
  all zero for no rows
 
  @example
