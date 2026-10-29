@@ -159,7 +159,7 @@ export function footnoteRead(
    Where a footnote definition starts inside the paragraph, or the heading made of its lines and a line of equals signs
    or hyphens, when one does on a line after its first, less the starts that join a span.
    */
-  const split = ((node.type === 'paragraph') || (node.type === 'heading'))
+  const split = ((node.type === 'paragraph') || (node.type === 'heading') || (node.type === 'table'))
     ? footnoteStartInside({
       footnotes: ranges.filter(function cuts({ start, },): boolean {
         return !joined.includes(start,);

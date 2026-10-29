@@ -289,7 +289,7 @@ export function opensFootnoteBody(
     return false;
   if (isRootChild || (node.type === 'definition'))
     return true;
-  return node.type === 'paragraph';
+  return (node.type === 'paragraph') || (node.type === 'table');
 }
 
 /**

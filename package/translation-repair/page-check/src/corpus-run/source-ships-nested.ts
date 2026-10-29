@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { footnoteBodyStart, } from './source-ships-footnote.ts';
 import { withoutContainerAndIndentation, } from './source-ships-footnote-container.ts';
+import { withoutLabelLineTable, } from './source-ships-label-line-table.ts';
 import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
   isIndentedFourOrMore,
@@ -154,12 +155,14 @@ export function nestedSpans(
     indices,
     readSpans,
     asParagraph = false,
+    onLabelLine = false,
   }: {
     readonly source: string;
     readonly readable: string;
     readonly indices: readonly number[];
     readonly readSpans: SpansReader;
     readonly asParagraph?: boolean;
+    readonly onLabelLine?: boolean;
   },
 ): SourceSpans {
   /**
@@ -178,12 +181,16 @@ export function nestedSpans(
    character in the middle of the page, where a parser drops it from the start of its input and stands every offset one
    character off.
    */
-  const bodyReadable = lead + asTheParseReadsIt({
+  const readableBody = lead + asTheParseReadsIt({
     text: charactersAt({
       text: readable,
       indices,
     },),
   },);
+  /**
+   The same for the parse, with no table started on the label's line, where the page reads none.
+   */
+  const bodyReadable = onLabelLine ? withoutLabelLineTable({ body: readableBody, },) : readableBody;
   /**
    What the parse of the block says of it, at the offsets of the block without the lead.
    */
@@ -382,6 +389,17 @@ export function footnoteBodySpans(
     footnote.end,
   );
   /**
+   What stands on the body's first line before it: the container's marks, the label and the colon, when the body starts on
+   the label's line.
+   */
+  const lineHead = source.slice(
+    source.lastIndexOf(
+      '\n',
+      range.start - 1,
+    ) + 1,
+    range.start,
+  );
+  /**
    Spans of the footnote's own lines.
    */
   const body = nestedSpans({
@@ -403,6 +421,7 @@ export function footnoteBodySpans(
       prefix,
     },),
     asParagraph,
+    onLabelLine: lineHead.includes(']:',),
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
     return body;

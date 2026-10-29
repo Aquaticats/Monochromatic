@@ -221,7 +221,7 @@ export function opensFootnote(
       source,
       node,
     },);
-  if ((node.type !== 'paragraph') && (node.type !== 'heading'))
+  if ((node.type !== 'paragraph') && (node.type !== 'heading') && (node.type !== 'table'))
     return false;
   if (!source.startsWith(
     '[^',
