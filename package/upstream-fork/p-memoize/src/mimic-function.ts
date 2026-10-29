@@ -186,10 +186,8 @@ export function changePrototype({
    */
   const fromPrototype = Reflect.getPrototypeOf(from,);
 
-  // mutation-test-disable-next-line conditional -- re-setting an identical prototype is a no-op on every runtime; the guard is a pure fast path
-  if (fromPrototype === Reflect.getPrototypeOf(to,))
-    return;
-
+  // Setting a prototype identical to the current one is a no-op on every
+  // runtime, so no comparison guards the call.
   Reflect.setPrototypeOf(
     to,
     fromPrototype,
@@ -285,7 +283,7 @@ export function changeToString({
     'name',
   );
 
-  // mutation-test-disable-next-line conditional -- every function carries a name descriptor, so the guard is unreachable; it exists to fail loud if that invariant breaks
+  // mutation-test-disable-next-line conditional -- the forced-false mutant is equivalent: every function carries a name descriptor, so the guard is unreachable and skipping it changes nothing; the forced-true mutant does not compile, so nothing killable is hidden
   if (wrapperNameDescriptor === undefined)
     throw new PropertyDescriptorMissingError();
 
