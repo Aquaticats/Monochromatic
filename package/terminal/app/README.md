@@ -211,9 +211,12 @@ before installing the binary in `~/.local/bin`.
    cell renderer,
    and resize or scroll callbacks.
 - `Containerfile`:
-   Fedora build environment with Rust,
+   CachyOS build environment with Rust,
    Slint runtime libraries,
    and Zig 0.15.2.
+- `Containerfile.release`:
+   the Ubuntu 24.04 release build environment,
+   kept so binaries that ship (the IDE release builds on it) run on the oldest glibc they promise.
 - `mise.toml`:
    package-local build,
    lint,
@@ -232,7 +235,7 @@ before installing the binary in `~/.local/bin`.
 ## Commands
 
 Cargo work runs on the host when Zig and the native dev libraries are present,
- and falls back to the Fedora
+ and falls back to the CachyOS
 container otherwise.
  Each task evaluates a `host_ok` predicate (cargo and zig on PATH plus
 `pkg-config --exists fontconfig freetype2`);

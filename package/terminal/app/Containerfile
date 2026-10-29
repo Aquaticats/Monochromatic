@@ -1,31 +1,37 @@
 # Build and run environment for the Slint terminal prototype.
 # The host may not have Zig 0.15.x, libxkbcommon headers, or Slint runtime
-# libraries, so cargo work runs inside this Fedora image. The run task builds
+# libraries, so cargo work runs inside this CachyOS image. The run task builds
 # here, then launches the resulting GUI binary on the host Wayland session.
-FROM registry.fedoraproject.org/fedora:41
+# This is the development image. Shipped binaries are built from Containerfile.release (Ubuntu 24.04), because the glibc
+# of the build image sets the oldest glibc a released binary runs on (doc/decision/container-base-distro.md).
+# The base is CachyOS, unpinned: an upstream update that breaks this build is a bug to fix at once, never a reason to
+# pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
 # Build tools:
-#   rustup-installed nightly Rust with clippy, not Fedora rust (the repository builds everything with
+#   rustup-installed nightly Rust with clippy, not the distro's rust (the repository builds everything with
 #   the nightly pinned in toolchain.lock.json).
 #   Zig 0.15.2 from ziglang.org, because libghostty-vt-sys requires Zig 0.15.x
-#   and Fedora 41 packages Zig 0.14.0.
+#   and the distro's zig package follows a different release line.
 #   git, curl, tar, xz for libghostty-vt-sys vendored Ghostty fetch and Zig.
-# Runtime libraries:
-#   mesa, wayland, libxkbcommon for Slint winit/femtovg.
-#   fontconfig and freetype for Slint text rendering.
-RUN dnf install --assumeyes \
+# Runtime libraries (Arch packages carry their headers, so no separate -devel packages exist):
+#   mesa, libglvnd, wayland, libxkbcommon for Slint winit/femtovg.
+#   fontconfig and freetype2 for Slint text rendering.
+#   noto-fonts (holds Noto Sans Mono) and noto-fonts-cjk for terminal glyphs.
+RUN pacman -Syu --noconfirm --needed \
       ca-certificates \
       gcc \
       git \
       curl \
       tar \
       xz \
-      pkgconf-pkg-config \
-      mesa-dri-drivers mesa-libgbm libglvnd-glx libglvnd-egl \
-      libwayland-client libwayland-cursor libwayland-egl libxkbcommon \
-      fontconfig fontconfig-devel freetype freetype-devel \
-      google-noto-sans-mono-fonts google-noto-sans-cjk-fonts \
-    && dnf clean all
+      pkgconf \
+      mesa libglvnd \
+      wayland libxkbcommon \
+      fontconfig freetype2 \
+      noto-fonts noto-fonts-cjk \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
 ENV ZIG_VERSION=0.15.2
 RUN arch="$(uname -m)" \

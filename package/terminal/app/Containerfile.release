@@ -1,0 +1,76 @@
+# Release build environment for the Slint terminal app and, through package/ide/app/Containerfile.release, the IDE.
+# Ubuntu 24.04 on purpose, with the version tag: the glibc of the image that compiles a shipped binary sets the oldest
+# glibc the binary runs on, and Ubuntu 24.04 ships glibc 2.39, the floor of the IDE release and the glibc of the GitHub
+# release runners (doc/decision/container-base-distro.md, exceptions). Development uses Containerfile, which is CachyOS.
+FROM docker.io/library/ubuntu:24.04
+
+# Build tools:
+#   rustup-installed nightly Rust with clippy, not a distro rust (the repository builds everything with
+#   the nightly pinned in toolchain.lock.json).
+#   Zig 0.15.2 from ziglang.org, because libghostty-vt-sys requires Zig 0.15.x
+#   and Ubuntu 24.04 packages no Zig 0.15.x.
+#   git, curl, tar, xz for libghostty-vt-sys vendored Ghostty fetch and Zig.
+# Runtime libraries:
+#   mesa, wayland, libxkbcommon for Slint winit/femtovg.
+#   fontconfig and freetype for Slint text rendering.
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+      ca-certificates \
+      gcc \
+      git \
+      curl \
+      tar \
+      xz-utils \
+      pkgconf \
+      libgl1-mesa-dri libgbm1 libgl1 libegl1 \
+      libwayland-client0 libwayland-cursor0 libwayland-egl1 libxkbcommon0 \
+      libfontconfig1 libfontconfig-dev libfreetype6 libfreetype-dev \
+      fonts-noto-core fonts-noto-cjk \
+    && rm --recursive --force /var/lib/apt/lists/*
+
+ENV ZIG_VERSION=0.15.2
+RUN arch="$(uname -m)" \
+    && case "$arch" in \
+      x86_64) zig_arch="x86_64"; zig_sha="02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239" ;; \
+      aarch64) zig_arch="aarch64"; zig_sha="958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac \
+    && curl --fail --location --show-error \
+      "https://ziglang.org/download/${ZIG_VERSION}/zig-${zig_arch}-linux-${ZIG_VERSION}.tar.xz" \
+      --output /tmp/zig.tar.xz \
+    && echo "${zig_sha}  /tmp/zig.tar.xz" | sha256sum --check --strict \
+    && tar --extract --file /tmp/zig.tar.xz --directory /opt \
+    && ln --symbolic "/opt/zig-${zig_arch}-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig \
+    && rm /tmp/zig.tar.xz
+
+# The toolchain is the one toolchain.lock.json pins (`.tools.rust.version`), so the image builds with what
+# developers and CI build with. The build context is this package directory, not the repository root, so the
+# lock cannot be read at build time: this default is kept in sync with that key, and
+# `--build-arg RUST_TOOLCHAIN=` overrides it. A floating `stable` here gave the IDE image cargo 1.98, which
+# rejected manifests the repository's nightly accepts (doc/troubleshooting/cargo-1-98-inherited-default-features.md).
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
+ENV RUSTUP_HOME=/rustup
+RUN curl --proto '=https' --tlsv1.2 --silent --show-error --fail https://sh.rustup.rs \
+      | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
+          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
+
+# cargo-nextest is the test runner the `test` mise task invokes
+# (`cargo nextest run`). Install the prebuilt binary from get.nexte.st into
+# /usr/local/bin (already on PATH, persistent in the image) rather than
+# `cargo install cargo-nextest`, which would add a multi-minute source compile
+# to every image rebuild. Arch-aware, mirroring the Zig block above; `tar`/`xz`
+# are already installed for the Ghostty/Zig fetch.
+RUN arch="$(uname -m)" \
+    && case "$arch" in \
+      x86_64) nextest_url="https://get.nexte.st/latest/linux" ;; \
+      aarch64) nextest_url="https://get.nexte.st/latest/linux-arm" ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac \
+    && curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail "$nextest_url" \
+      | tar zxf - -C /usr/local/bin
+
+ENV CARGO_HOME=/cargo
+# Slint's experimental language surface used by the UI is compiled consistently
+# for build, lint, test, and run tasks.
+ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
+WORKDIR /work
