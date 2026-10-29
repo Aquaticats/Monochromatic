@@ -715,7 +715,80 @@ The user chose `check --diff` and `explain <path>`,
 adding:
 "We don't have to implement diff ourselves.
 We can make our output outputs in a way that can be piped into standard unix tools to render nice diffs."
-The output form that feeds `diff` or `git diff --no-index` is a follow-up question.
+Follow-up answered:
+the user chose "Write expected tree to a dir".
+`file-enforcer check --expected-dir <dir>` writes each drifted file's rendered content under `<dir>` at its repo-relative path,
+and each drift event names that path,
+so `diff -ru`,
+`git diff --no-index`,
+or any diff viewer renders it;
+stdout stays JSON lines.
+
+#### Server follow-ups
+
+- Lifetime:
+  the user chose "Auto-start,
+  idle exit".
+  A client that finds no socket starts the server in the background and waits for its socket;
+  the server exits after an idle period with no clients and no watch subscriber.
+- Scope:
+  the user chose "One per worktree".
+  The socket name derives from a hash of the worktree root,
+  within the socket path length limit.
+- Watch:
+  the user chose "Server watches;
+  watch subscribes".
+  The server watches inputs,
+  outputs,
+  and glob roots while a watch client is attached;
+  `file-enforcer watch` prints the server's events,
+  including a warning when a generated file is edited by hand.
+
+#### Adopted from the outside reviews (each has one clear answer)
+
+- Ordering:
+  each run plans every rule first against a virtual view of planned outputs,
+  so downstream rules read upstream rules' new content,
+  and transformations of one file compose in a fixed order;
+  cycles and conflicting writers fail.
+- Whole-run validation:
+  every catalog and manifest problem is collected before any file is replaced,
+  so a failing run writes nothing.
+- Discovery:
+  rules declare selectors (globs,
+  fan-out roots),
+  and the server rediscovers matches when files appear or disappear.
+- File modes are part of a rule's contract,
+  checked and repaired independently of content.
+- clap's help,
+  version,
+  and parse errors are emitted as JSON-lines events,
+  keeping the JSON-only contract.
+- mpm-shadow also owns Rust toolchain version lookup (rustup channel manifests)
+  and postinstall `run` commands such as `search-shadow link`.
+- `mpm-shadow update --check` keeps the report-only mode.
+- The lock's frozen surface (tool ids,
+  `version`,
+  `artifacts.<platform>.{url,sha256}`,
+  `options.androidPackages`) gets consumer tests running the existing `jq` selectors.
+- Cutover gates:
+  the new `mpm-shadow` and `file-enforcer` are published and fetched by a clean container before the switch;
+  CI checks managed files before any step regenerates them;
+  the IDE launcher (`package/ide/app/src/language/toolchain.rs:65`),
+  its tests and notices,
+  and `package/ide/app/bin/inspect-language-toolchain.ts` move to `mpm-shadow bin-paths`;
+  the perf fixture retires and the `prefer-readonly-parameter-type` read moves,
+  as `doc/decision/monorepo-manager-all-rust.md` already decides;
+  a route parity matrix covers both the repository and global locks,
+  including `cargo-git` and `go-install`.
+- Global plan conversion keeps a 0600 backup beside the original until the converted global sync is verified.
+- Bootstrap documentation names the GitHub token as an input for containers and CI.
+- Gates before implementation:
+  a live forbidden-strings run on a throwaway rules file,
+  a `browserslist-rs` run on the real `.browserslistrc` feeding the rolldown consumer,
+  and `mpm outdated` probes for rollback,
+  unchanged,
+  and pinned cases.
 
 ### Adopted defaults put to the user for confirmation
 
