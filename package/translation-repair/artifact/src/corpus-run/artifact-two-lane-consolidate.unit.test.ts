@@ -183,6 +183,36 @@ await describe({
     },),
 
     it({
+      name: 'RECORDS WHY THE ARCHIVE KEEPS A SLICE where the settlement says, and the translate lane winner with its '
+        + 'text where the final round could not seat two judges (owner, 2026-10-29, "Ship the two-ballot text")',
+      fn: async () => {
+        const kept = describeConsolidateSlice({
+          sliceIndex: 6,
+          settlement: {
+            ...settledAs({ terminal: 'slate-declined-standing', text: STANDING_TEXT, },),
+            archiveKept: true,
+            archiveReason: 'final-round-unseated',
+          },
+        },);
+        expect(kept.shipped,).toStrictEqual({
+          kind: 'archive',
+          reason: 'final-round-unseated',
+        },);
+        const winner = describeConsolidateSlice({
+          sliceIndex: 7,
+          settlement: {
+            ...settledAs({ terminal: 'slate-declined-standing', text: 'The cat naps on the sill.', },),
+            translateWinnerShipped: true,
+          },
+        },);
+        expect(winner.shipped,).toStrictEqual({
+          kind: 'translate-winner',
+          text: 'The cat naps on the sill.',
+        },);
+      },
+    },),
+
+    it({
       name: 'READS THE TERMINAL RATHER THAN COMPARING TEXT, so a consolidation that agreed with the '
         + 'standing text everywhere but was still settled as a change is recorded as one. Deriving '
         + 'this from a string comparison would re-decide at the record what the wrap already decided, '
