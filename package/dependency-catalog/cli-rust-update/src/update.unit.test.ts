@@ -143,6 +143,12 @@ function resolvingTo({ version, ok, }: { readonly version: string; readonly ok: 
       return { ok: false, output: 'error: failed to select a version for `dep`', };
     if (args.includes('generate-lockfile',))
       await writeFile(join(cwd, 'Cargo.lock',), lock(version,),);
+    /**
+     Version a `cargo update --precise` asks for, empty for any other command.
+     */
+    const precise = args.includes('--precise',) ? (args[args.indexOf('--precise',) + 1] ?? '') : '';
+    if (precise !== '')
+      await writeFile(join(cwd, 'Cargo.lock',), lock(precise,),);
     return { ok: true, output: '', };
   };
 }
@@ -173,8 +179,21 @@ function fakeRegistry(history: readonly VersionRecord[],): Registry {
     owners: async function owners(): Promise<ReadonlySet<string>> {
       return new Set();
     },
+    yanked: async function yanked(): Promise<ReadonlySet<string>> {
+      return new Set();
+    },
   };
 }
+
+/**
+ Releases where 1.0.2 comes from a new account, 1.0.1 was published an hour before the test clock,
+ and 1.0.0 is the trusted release locked before the update.
+ */
+const SET_ASIDE_HISTORY: readonly VersionRecord[] = [
+  { num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', publisherId: '7', trustpubRepository: '', repository: 'https://github.com/o/dep', },
+  { num: '1.0.1', createdAt: '2026-10-29T11:00:00Z', publisherId: '7', trustpubRepository: '', repository: 'https://github.com/o/dep', },
+  { num: '1.0.2', createdAt: '2026-10-29T11:30:00Z', publisherId: '9', trustpubRepository: '', repository: 'https://github.com/o/dep', },
+];
 
 /**
  Releases by the same account.
@@ -239,7 +258,7 @@ await describe({
       },
     },),
     it({
-      name: 'restores every lockfile when a newly locked version fails the trust policy',
+      name: 'restores every lockfile when a refused version has no older release to fall back to',
       fn: async () => {
         /**
          Repository.
@@ -250,11 +269,61 @@ await describe({
          */
         const { root, } = repo;
         /**
+         Registry whose only compatible older release is yanked.
+         */
+        const registry: Registry = {
+          ...fakeRegistry(DOWNGRADED_HISTORY,),
+          yanked: async function yanked(): Promise<ReadonlySet<string>> {
+            return new Set(['1.0.0',],);
+          },
+        };
+        /**
          Update outcome.
          */
-        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(DOWNGRADED_HISTORY,), },);
+        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry, },);
         expect(report.written,).toBe(false,);
         expect(report.problems.length,).toBe(1,);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
+      },
+    },),
+    it({
+      name: 'sets aside a refused version and locks the newest older release that passes',
+      fn: async () => {
+        /**
+         Repository without a release-age cutoff, so 1.0.1 qualifies.
+         */
+        await using repo = await makeRepo(catalog([],).replace('minimumReleaseAge = 1440', 'minimumReleaseAge = 0',),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Update outcome.
+         */
+        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.2', ok: true, },), registry: fakeRegistry(SET_ASIDE_HISTORY,), },);
+        expect(report.problems,).toEqual([],);
+        expect(report.written,).toBe(true,);
+        expect(report.added,).toEqual([{ name: 'dep', version: '1.0.1', },],);
+        expect(report.warnings,).toEqual(['Set aside dep@1.0.2 (trust policy) and locked 1.0.1 in package/cli/a.',],);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.1',),);
+      },
+    },),
+    it({
+      name: 'skips a set-aside candidate published after the release-age cutoff',
+      fn: async () => {
+        /**
+         Repository with the one-day cutoff, which 1.0.1 (an hour old) misses.
+         */
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Update outcome.
+         */
+        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.2', ok: true, },), registry: fakeRegistry(SET_ASIDE_HISTORY,), },);
+        expect(report.warnings,).toEqual(['Set aside dep@1.0.2 (trust policy) and locked 1.0.0 in package/cli/a.',],);
         expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
       },
     },),

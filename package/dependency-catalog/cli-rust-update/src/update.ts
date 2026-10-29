@@ -4,7 +4,8 @@
 
  The update is one transaction across all lockfiles: every lockfile is
  snapshotted first, each crate is re-resolved under the release-age cutoff,
- and the union of newly locked versions is checked once. Any refusal, error,
+ a version the trust policy refuses is set aside for an older release where one fits
+ (as pnpm's picker does), and the union of newly locked versions is checked once. Any refusal, error,
  or a dry run restores every lockfile, so a bad version never stays in some
  crates and not others. Catalog floors are left to `catalog:tighten`, and
  manifests are never written.
@@ -45,6 +46,7 @@ import {
 import { l, } from './logger.ts';
 import { pruneExcludes, } from './prune.ts';
 import type { Registry, } from './registry.ts';
+import { setAsideUntilClean, } from './set-aside.ts';
 
 //region Types
 
@@ -248,17 +250,36 @@ export async function updateRustLockfiles(
   log.info(`snapshotted ${String(before.length,)} lockfiles`,);
   try {
     /**
+     Release-age cutoff as `--publish-time` takes it, empty for none.
+     */
+    const cutoff = settings.minimumReleaseAge === 0 ? '' : publishTimeCutoff({
+      now,
+      minutes: settings.minimumReleaseAge,
+    },);
+    /**
      Crates resolved without the cutoff.
      */
     const fellBack = await resolveAll({
       root,
       crateDirs,
-      cutoff: settings.minimumReleaseAge === 0 ? '' : publishTimeCutoff({
-        now,
-        minutes: settings.minimumReleaseAge,
-      },),
+      cutoff,
       strict: settings.minimumReleaseAgeStrict,
       exclude: settings.minimumReleaseAgeExclude,
+      runCargo,
+    },);
+    /**
+     Trust refusals moved to older releases, as pnpm's picker does.
+     */
+    const setAsideWarnings = await setAsideUntilClean({
+      root,
+      crateDirs,
+      before: before.map(function toSource(snapshot,): string {
+        return snapshot.source;
+      },),
+      registry,
+      settings,
+      now,
+      cutoffMs: cutoff === '' ? 0 : Date.parse(cutoff,),
       runCargo,
     },);
     /**
@@ -314,7 +335,10 @@ export async function updateRustLockfiles(
         crateDirs,
         added,
         problems,
-        warnings: age.warnings,
+        warnings: [
+          ...setAsideWarnings,
+          ...age.warnings,
+        ],
         fellBack,
         written: false,
         pruned: [],
@@ -342,7 +366,10 @@ export async function updateRustLockfiles(
       crateDirs,
       added,
       problems,
-      warnings: age.warnings,
+      warnings: [
+        ...setAsideWarnings,
+        ...age.warnings,
+      ],
       fellBack,
       written: true,
       pruned: pruned.removed,

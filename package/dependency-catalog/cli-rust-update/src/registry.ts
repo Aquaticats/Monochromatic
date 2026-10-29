@@ -265,6 +265,39 @@ export function parseIndexPubtimes(text: string,): ReadonlyMap<string, string> {
 }
 
 /**
+ Yanked versions from a sparse-index file.
+
+ @param text - index file, one JSON object per line
+
+ @returns versions whose record has `"yanked": true`
+
+ @throws SyntaxError when a line is not JSON
+
+ @example
+ ```ts
+ parseIndexYanked('{"vers":"1.0.1","yanked":true}\n').has('1.0.1'); // true
+ ```
+ */
+export function parseIndexYanked(text: string,): ReadonlySet<string> {
+  /**
+   Yanked versions found.
+   */
+  const yanked = new Set<string>();
+  for (const line of text.split('\n',)) {
+    if (line.trim() === '')
+      continue;
+    /**
+     One version record.
+     */
+    const record: unknown = JSON.parse(line,);
+    if (isObject(record,) && ((typeof record.vers) === 'string')
+      && (record.yanked === true))
+      yanked.add(record.vers,);
+  }
+  return yanked;
+}
+
+/**
  Trust-relevant fields of a crates.io versions response.
 
  @param text - `/api/v1/crates/<name>/versions` body
@@ -380,6 +413,10 @@ export type Registry = {
    Publish times of every version of a crate.
    */
   readonly pubtimes: (name: string,) => Promise<ReadonlyMap<string, string>>;
+  /**
+   Yanked versions of a crate, read fresh from the sparse index because yanking changes.
+   */
+  readonly yanked: (name: string,) => Promise<ReadonlySet<string>>;
   /**
    Version history of a crate, refetched when a needed version is missing from the cache.
    */
@@ -621,6 +658,14 @@ export function createRegistry(
       const url = `${SPARSE_INDEX_URL}/${sparseIndexPath(name,)}`;
       log.debug(`fetching ${url}`,);
       return parseIndexPubtimes(await fetchText(url,),);
+    },
+    yanked: async function yanked(name: string,): Promise<ReadonlySet<string>> {
+      /**
+       Index file URL.
+       */
+      const url = `${SPARSE_INDEX_URL}/${sparseIndexPath(name,)}`;
+      log.debug(`fetching ${url} for yanked versions`,);
+      return parseIndexYanked(await fetchText(url,),);
     },
     history: async function history({
       name,
