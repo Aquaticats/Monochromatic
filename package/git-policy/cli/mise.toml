@@ -1,17 +1,17 @@
 [tasks."native:test:container"]
-description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 containers"
+description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 containers; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 128 PIDs defaults (sizes like 512m or 2g, CPUs from 0.01 with fractions)"
 run = "node bin/test-native-container.ts"
 
 [tasks."native:interop"]
-description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- <driver> [arguments]` from native-interop/ in it (the driver is old-format-driver)"
+description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- [--memory <size>] [--cpus <count>] <driver> [arguments]` from native-interop/ in it (the driver is old-format-driver; limits default to 2g and 2 CPUs and go before the driver name, because everything after it belongs to the driver)"
 run = "node bin/interop-native-container.ts"
 
 [tasks."native:mutation"]
-description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers"
+description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at the default limits (run native:test:container with its own options first to change them)"
 run = ["node bin/test-native-container.ts", "node bin/mutate-native-container.ts"]
 
 [tasks."native:mutation:scoped"]
-description = "Plant guard removals and run cargo-mutants for `-- --file <glob>` scopes (and `--examine <regex>` mutant-name patterns, `--timeout <s>`) against the last gate image"
+description = "Plant guard removals and run cargo-mutants for `-- --file <glob>` scopes (and `--examine <regex>` mutant-name patterns, `--timeout <s>`) against the last gate image; `--memory <size>`, `--cpus <count>` and `--pids-limit <count>` after the `--` override the 2g, 2 CPUs and 128 PIDs defaults"
 run = "node bin/mutate-native-container.ts"
 
 [tasks."native:mutation:list"]
@@ -55,7 +55,7 @@ env = { CLI_GIT_LOCK_WAIT_SECONDS = "20", CLI_GIT_PUSH_LOCK_WAIT_SECONDS = "20" 
 run = "cargo nextest run --locked --offline --test native_binary"
 
 [tasks."test:git-image"]
-description = "Build the audited Git 2.56.0 release in the bounded Rust test image"
+description = "Build the audited Git 2.56.0 release in the bounded Rust test image; `-- <git checkout> [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 128 PIDs; the make job count follows the whole CPUs)"
 run = "node bin/build-git-test-image.ts"
 
 [tasks."lint:clippy"]
@@ -136,22 +136,24 @@ if (code !== 0) throw new Error(`commit-shape trace generator exited with ${Stri
 '''
 
 [tasks."test:e2e:concurrent:image"]
-description = "Build the base image of the concurrent-commit e2e suite: Git 2.55.0 from source, Node 24.11.0 and ssh-keygen (needs a network; GIT_POLICY_E2E_BASE_TAG names another tag than latest)"
+description = "Build the base image of the concurrent-commit e2e suite: Git 2.55.0 from source, Node 24.11.0 and ssh-keygen (needs a network; GIT_POLICY_E2E_BASE_TAG names another tag than latest); `-- --memory <size>` overrides the 2g default"
 # Layer-cached: the Git builds keep their layers. The build fetches Git sources (checksum-pinned); the suite itself runs with --network=none.
 run = "node bin/e2e-native-container.ts base"
 
 [tasks."test:e2e:concurrent:native:image"]
-description = "Build the native end-to-end image: the release native executable linked as /opt/native/bin/git into the concurrent-commit e2e base image (built first when it does not exist)"
+description = "Build the native end-to-end image: the release native executable linked as /opt/native/bin/git into the concurrent-commit e2e base image (built first when it does not exist); `-- --memory <size> --cpus <count>` override the 2g and 2 CPU defaults of the build"
 # Mount-free build in rust:1.97-bookworm (the e2e image's Debian release); GIT_POLICY_NATIVE_IMAGE_TAG names the image tag.
 run = "node bin/e2e-native-container.ts image"
 
 [tasks."test:e2e:concurrent:native"]
-description = "Replay concurrent-commit workloads through the native executable on Git 2.55.0 in a bounded, network-isolated container; the scenarios and invariants are the retired incumbent suite's, unchanged"
+description = "Replay concurrent-commit workloads through the native executable on Git 2.55.0 in a bounded, network-isolated container; the scenarios and invariants are the retired incumbent suite's, unchanged; `--memory <size>` and `--cpus <count>` override the 2g and 2 CPU defaults of the run only (the image build it depends on always uses the defaults)"
 depends = ["test:e2e:concurrent:native:image"]
 usage = '''
 flag "--seed <seed>" help="Replay this decimal seed (printed by every run)"
 flag "--scenario <names>" help="Comma-separated scenario names to run"
 flag "--git <versions>" help="Comma-separated Git versions to run (2.55.0)"
+flag "--memory <size>" help="Container memory, such as 512m or 2g (default 2g)"
+flag "--cpus <count>" help="Container CPUs, from 0.01, fractions allowed (default 2)"
 '''
 run = "node bin/e2e-native-container.ts run"
 

@@ -702,6 +702,50 @@ The release profile keeps `panic = "unwind"` and `overflow-checks = true`.
 The linked scanner turns a matcher panic into a failing finding by catching the unwind,
 and the crate refuses to compile under `panic = "abort"`.
 
+### Container limits
+
+Every container the verification tasks start is bounded.
+The defaults are 2 GiB of memory, 2 CPUs and 128 processes, defined once in `bin/container-limits.ts`.
+Each task accepts overrides after the `--` of `mise run`, with these exact option names:
+
+- `--memory <size>` is a whole number with an optional unit `b`, `k`, `m` or `g`, such as `512m` or `2g`.
+- `--cpus <count>` is a number from `0.01` with at most two decimals, so `1`, `1.5` and `0.25` are valid.
+  The build CPU quota is derived as `cpus * 100000` microseconds per 100000 microsecond period.
+- `--pids-limit <count>` is a whole number of processes from `1`.
+  It is accepted only where the container has a process cap, and rejected with a message otherwise.
+
+An invalid value stops the task before any container starts.
+The message names the option and the accepted forms.
+Options repeat with the last one winning, and the number of build jobs (`CARGO_BUILD_JOBS`, `make --jobs`) follows the
+whole CPUs of the limit, never below one.
+
+```sh
+# Run from the repository top level.
+mise run //package/git-policy/cli:native:test:container -- --memory 4g --cpus 4
+mise run //package/git-policy/cli:native:mutation:scoped -- --memory 1g --cpus 1 --file src/native/lock.rs
+mise run //package/git-policy/cli:native:interop -- --cpus 1 old-format-driver
+mise run //package/git-policy/cli:test:e2e:concurrent:native --memory 1g --cpus 1
+mise run //package/git-policy/cli:test:git-image -- <git checkout> --memory 4g
+```
+
+- `native:test:container` accepts all three options, and so do `native:mutation:scoped` and `test:git-image`
+  (the Git checkout path comes first there).
+- `native:mutation` runs the gate and then the mutation step, and mise passes the options to the mutation step only,
+  so the gate runs at the defaults.
+  Run `native:test:container` with its own options first when both need changing.
+- `native:interop` accepts `--memory` and `--cpus` before the driver name, because everything after the driver name
+  belongs to the driver.
+  It has no process cap, so `--pids-limit` is rejected.
+- `test:e2e:concurrent:native` takes `--memory` and `--cpus` as task flags and applies them to the run.
+  The image build it depends on uses the defaults, and `test:e2e:concurrent:native:image` and
+  `test:e2e:concurrent:image` take the same options after the `--`.
+  The e2e containers have no process cap either.
+- The mutation manifest records the limits it ran with, and the gate and image-build manifests record the container
+  argument arrays.
+- `native:mutation:scoped` reuses the image of the last gate, whose `CARGO_BUILD_JOBS` was fixed when it was built.
+  Run the gate with the same `--cpus` for the job count to match.
+- The `package/git-policy/cli.fuzz` campaign uses the defaults from the same module and has no override options yet.
+
 ## License
 
 `LGPL-3.0-or-later`.
