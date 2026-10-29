@@ -52,13 +52,38 @@ Make `monochromatic-lint` ban long shell in `.github/workflows/*.{yml,yaml}`.
   and a rule lints it.
   The Markdown-fence processor is the model.
 
+- **Rule name:** `shell/max-lines`.
+  Virtual files take a per-dialect suffix:
+  `.sh` (bash, sh, zsh), `.fish`, `.ps1` (pwsh) and `.cmd` (cmd).
+- **Default `max`:** 2 lines.
+  The repository owner's reason: any longer and TypeScript should be used.
+- **Pipes and `&&`:** the repository owner also wants these banned, by a plain string scan,
+  because they are tell-tale signs of too much shell.
+  Rule shape and scan precision are open.
+- **Unresolvable `shell:`:** a `shell:` value that is an expression, such as `${{ matrix.shell }}`,
+  is a `core/processing-failure` finding at the value.
+- **Host files:** `.github/workflows/*.{yml,yaml}` and composite actions
+  (`.github/actions/**/action.{yml,yaml}`, steps under `runs.steps`).
+  The request named workflows only;
+  the owner widened it to composite actions.
+
+## Measurements
+
+Counting only non-blank, non-comment lines, measured 2026-10-29 with a scratch script:
+
+- 230 `run:` steps in total;
+  133 have more than 2 code lines,
+  across 13 of the 19 workflow files.
+- 68 steps contain a single `|` or `&&` outside `${{ }}`:
+  59 with a pipe and 24 with `&&`,
+  across 11 files.
+- `shell:` values: 56 `bash`, 5 `node {0}`, 1 `pwsh`, none an expression.
+- `.github/actions` holds one file, `task-cli-setup/action.yml`.
+
 ## Open
 
-- Rule name and virtual file suffixes now that scope covers more than Bash.
-- Default `max`.
-- Handling of shell templates such as `bash -e {0}` and of expression-valued shells or runners.
-- Which files the YAML host recognises,
-  and whether composite actions under `.github/actions` are in scope.
+- Rule names, scan precision and ratchet form for the pipe and `&&` ban.
+- How `\` continuations and heredoc bodies count toward `max`.
 - Choice of YAML parser,
   which must expose byte offsets of block scalar content.
-- Whether inline directives (`#` comments) can suppress the rule in YAML.
+- Whether inline directives (`#` comments) can suppress the rules in YAML.
