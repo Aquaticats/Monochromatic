@@ -1,5 +1,12 @@
 # mise 2026.5.15: rust `components` like `rust-src` apply only at install, not onto an already-installed toolchain
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 Declaring `rust = { version = "...", components = "rust-src" }` in a mise config
 does nothing for a toolchain mise has already installed.
 The component is added only when mise installs the toolchain for the first time.
@@ -235,6 +242,14 @@ rust-src (installed)
 ```
 
 ## Verified workarounds
+
+Current toolchain:
+ `mise run toolchain:sync` runs the tool plan's `rustup component add` list
+ after the Rust toolchain install
+ (`doc/planning/mpm-toolchain-migration.md`,
+ section `Provider rules`),
+ and the `rustup component add` recipe stays the manual fix for a toolchain
+ that is already present.
 
 1. Add the component to the already-installed toolchain directly with rustup:
 

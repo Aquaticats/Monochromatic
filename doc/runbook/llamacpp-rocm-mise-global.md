@@ -25,6 +25,11 @@ Two non-obvious obstacles are baked into the config rather than left for the ope
   `backend github is disabled by disable_backends`.
   The install must run from a directory outside the checkout,
    where that setting does not apply.
+  Toolchain migration note:
+   the monorepo's `disable_backends` retires with the `[tools]` removal
+   recorded in `doc/decision/mpm-toolchain-adoption.md`
+   on 2026-10-26,
+   so this obstacle holds only while the repository config still sets it.
 - The release `.zip` stores every entry as mode `0644` (no executable bit),
   and mise preserves the archive's stored modes when it extracts,
   so the launchers land non-executable.
@@ -49,7 +54,9 @@ Prerequisites for a fresh machine:
    The install and the verification below do not need the GPU;
    they exercise only startup and dynamic linking.
 - A working directory that is **not** inside the Monochromatic checkout,
-   because the checkout's `mise.toml` disables the `github` backend.
+   because the checkout's `mise.toml` disables the `github` backend
+   (the `disable_backends` setting retires with the toolchain migration
+   recorded in `doc/decision/mpm-toolchain-adoption.md` on 2026-10-26).
 
 ## Steps
 

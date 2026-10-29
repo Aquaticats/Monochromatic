@@ -78,9 +78,9 @@ pub mod launch;
 ///  refusing rather than running unconfined.
 pub mod confine;
 
-/// Servers that mise provides for a project that has a mise configuration,
-///  looked up and run in the servers' sandbox.
-pub mod mise;
+/// Servers that the project's toolchain provides,
+///  looked up in the sandbox the servers get.
+pub mod toolchain;
 
 /// The language registry,
 ///  built in code from Helix's built-in definitions and the application's overrides.

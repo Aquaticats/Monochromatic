@@ -54,9 +54,6 @@ jobs:
 
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-        with:
-          node-version: '26.12.0'
-          pnpm-version: '12.14.0'
 
       - name: Select mode
         id: select-mode
@@ -77,9 +74,6 @@ jobs:
 
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-        with:
-          node-version: '26.12.0'
-          pnpm-version: '12.14.0'
 
       # The push to main that runs this job seeds the cache. Key shape and size budget: doc/decision/ci-caching.md
       - name: Identify the Rust toolchain for the cache key
@@ -133,9 +127,6 @@ jobs:
 
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-        with:
-          node-version: '26.12.0'
-          pnpm-version: '12.14.0'
 
       - name: Build the packages in the publish plan
         run: task-run changeset:build
@@ -163,9 +154,6 @@ jobs:
 
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-        with:
-          node-version: '26.12.0'
-          pnpm-version: '12.14.0'
 
       - name: Publish with trusted publishing
         uses: changesets/action/publish@8488615a623b1b9c987934bb89eae8af6a946ac1

@@ -216,35 +216,35 @@ await describe({
       name: runtimeDependencyCommand.name,
       children: [
         it({
-          name: 'node on apt installs libatomic1',
+          name: 'node on apt installs libatomic1 and jq',
           fn: async () => {
             const cmd = runtimeDependencyCommand({
               manager: 'apt',
               runtime: 'node',
             },);
-            expect(cmd,).toBe('apt-get install -y libatomic1',);
+            expect(cmd,).toBe('apt-get install -y libatomic1 jq',);
           },
         },),
 
         it({
-          name: 'node on dnf installs libatomic',
+          name: 'node on dnf installs libatomic and jq',
           fn: async () => {
             const cmd = runtimeDependencyCommand({
               manager: 'dnf',
               runtime: 'node',
             },);
-            expect(cmd,).toBe('dnf install -y libatomic',);
+            expect(cmd,).toBe('dnf install -y libatomic jq',);
           },
         },),
 
         it({
-          name: 'node on pacman installs gcc-libs',
+          name: 'node on pacman installs gcc-libs and jq',
           fn: async () => {
             const cmd = runtimeDependencyCommand({
               manager: 'pacman',
               runtime: 'node',
             },);
-            expect(cmd,).toBe('pacman -Sy --noconfirm gcc-libs',);
+            expect(cmd,).toBe('pacman -Sy --noconfirm gcc-libs jq',);
           },
         },),
 

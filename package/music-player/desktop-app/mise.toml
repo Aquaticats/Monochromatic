@@ -199,7 +199,7 @@ runCargo(['nextest', 'run'])
 
 [tasks.notices]
 description = "Write target/THIRD-PARTY-LICENSES.txt: the license notices of every desktop release binary, checked with cargo-about against about.toml"
-# Runs on the HOST with the repository's cargo-about (mise.lock) and network for `cargo fetch`; no audio or font
+# Runs on the HOST with the repository's cargo-about (toolchain.lock.json) and network for `cargo fetch`; no audio or font
 # libraries are needed, because cargo-about and `cargo tree` read metadata and sources without compiling.
 # The alsa-fallback feature is on so the Alpine builds' extra crates (cpal, alsa) are covered too.
 # A build embeds the file only when MUSIC_PLAYER_THIRD_PARTY_LICENSES names it (build.rs, src/licenses.rs):

@@ -40,8 +40,15 @@ extends = "lint:oxlint"
 extends = "format:oxlint"
 
 [tasks."test:container"]
-description = "Run ensurePackage container tests across OS/user matrix"
-run = "node src/package/mise.container-test.ts"
+description = "Run the container matrix tests: ensurePackage across OS/user, toolchain providers in bounded containers"
+run = [
+  "node src/package/mise.container-test.ts",
+  "node src/toolchain/mise.container-test.ts",
+]
+
+[tasks."test:container:toolchain"]
+description = "Run the toolchain provider matrix in bounded containers (2 GiB / 2 CPUs per cell)"
+run = "node src/toolchain/mise.container-test.ts"
 
 [tasks.fuzz]
 description = "Run the property tests as a time-budgeted fuzz campaign under node"

@@ -4,12 +4,12 @@
 
 /// The TypeScript server is the project's own copy.
 use super::typescript;
-/// The lookup in the directories mise provides,
-///  and the state that says whether mise serves the project.
+/// The lookup in the directories the toolchain provides,
+///  and the state that says whether the toolchain serves the project.
 use crate::language::{
     launch::resolve_executable,
-    mise::{
-        MiseState,
+    toolchain::{
+        ToolchainState,
         search::{Missed, find_program},
     },
 };
@@ -55,18 +55,23 @@ pub(in crate::language) enum Unavailable {
 ///  naming where it was looked for.
 ///  `Missed` says whether a shim was passed over.
 /// Why:
-///  A project mise serves is searched in mise's directories first,
+///  A project the toolchain serves is searched in its directories first,
 ///  and a reader must be able to tell a program that is absent from one that only exists as a shim,
-///  and from a tool that is listed but not installed (mise's own warning says so).
+///  and from a tool the lookup lists but that is not installed (its own warning says so).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function missingReason(server: string, command: string, mise: MiseState, missed: Missed): string
+/// function missingReason(server: string, command: string, toolchain: ToolchainState, missed: Missed): string
 /// ```
-fn missing_reason(server: &str, command: &str, mise: &MiseState, missed: &Missed) -> String {
-    let places = match mise {
-        MiseState::Provided(_) => {
-            "in the tool directories mise provides for this project or on PATH"
+fn missing_reason(
+    server: &str,
+    command: &str,
+    toolchain: &ToolchainState,
+    missed: &Missed,
+) -> String {
+    let places = match toolchain {
+        ToolchainState::Provided(_) => {
+            "in the tool directories the toolchain provides for this project or on PATH"
         }
         _ => "on PATH",
     };
@@ -77,9 +82,9 @@ fn missing_reason(server: &str, command: &str, mise: &MiseState, missed: &Missed
             shim.display()
         ));
     }
-    let warnings = mise.warnings();
+    let warnings = toolchain.warnings();
     if !warnings.is_empty() {
-        reason.push_str(&format!(". mise reported:\n{warnings}"));
+        reason.push_str(&format!(". the toolchain lookup reported:\n{warnings}"));
     }
     return reason;
 }
@@ -94,29 +99,29 @@ fn missing_reason(server: &str, command: &str, mise: &MiseState, missed: &Missed
 ///  never a wrapper placed in front of it.
 ///  The TypeScript server is the project's own copy,
 ///  looked up from the document's folder upward.
-///  When a mise configuration applies,
-/// the lookup also uses mise's directories and refuses shims.
+///  When a toolchain applies,
+/// the lookup also uses its directories and refuses shims.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function locate(server: string, command: string, root: string, document?: string, mise: MiseState): string // throws when missing
+/// function locate(server: string, command: string, root: string, document?: string, toolchain: ToolchainState): string // throws when missing
 /// ```
 pub(in crate::language) fn locate(
     server: &str,
     command: &str,
     root: &Path,
     document: Option<&Path>,
-    mise: &MiseState,
+    toolchain: &ToolchainState,
 ) -> Result<PathBuf, Unavailable> {
     if server == typescript::SERVER {
         // `map_err` wraps the text reason in the `Missing` variant.
         return typescript::locate(root, document).map_err(Unavailable::Missing);
     }
-    if mise.serves_project() {
-        return match find_program(command, root, mise.directories()) {
+    if toolchain.serves_project() {
+        return match find_program(command, root, toolchain.directories()) {
             Ok(found) => Ok(found),
             Err(missed) => Err(Unavailable::Missing(missing_reason(
-                server, command, mise, &missed,
+                server, command, toolchain, &missed,
             ))),
         };
     }
@@ -126,7 +131,7 @@ pub(in crate::language) fn locate(
         None => Err(Unavailable::Missing(missing_reason(
             server,
             command,
-            mise,
+            toolchain,
             &Missed::default(),
         ))),
     };

@@ -272,7 +272,7 @@ impl Worker {
                 troubles.push((record.identity.clone(), record.trouble.clone()));
             }
         }
-        let advisory = self.languages.mise_advisory();
+        let advisory = self.languages.toolchain_advisory();
         let diagnostics = match self.session.document.as_ref() {
             Some(document) => {
                 let stored = self.session.diagnostics.snapshot(&document.text);

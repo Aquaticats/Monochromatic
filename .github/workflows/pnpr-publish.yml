@@ -60,9 +60,6 @@ jobs:
 
       - name: Set up node, pnpm, uv and the task CLI
         uses: ./.github/actions/task-cli-setup
-        with:
-          node-version: '26.12.0'
-          pnpm-version: '12.14.0'
 
       # uv runs fonttools for typeface-aquaticat's WOFF2 build (#535).
       - name: Install uv

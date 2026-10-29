@@ -47,10 +47,13 @@ RUN mirror_args=""; \
 # link the cross build stops with "compile Windows version resource: No such file or directory".
 RUN ln --symbolic "$(command -v x86_64-w64-mingw32-windres)" /usr/local/bin/windres
 
-# Rust through rustup, as in the Linux Containerfile. The toolchain is the dated nightly pinned in the
-# repository root mise.lock, so the proof builds with what developers and the workflow build with. The
-# Windows GNU standard library is added as a target; the host stays x86_64-unknown-linux-gnu.
-ARG RUST_TOOLCHAIN=nightly-2026-10-13
+# Rust through rustup, as in the Linux Containerfile. The toolchain is the dated nightly the repository
+# root toolchain.lock.json pins (`.tools.rust.version`, read with `jq --raw-output '.tools.rust.version'
+# toolchain.lock.json`), so the proof builds with what developers and the workflow build with. The image
+# build context is this package directory, not the repository root, so the lock cannot be read at build
+# time: this default is kept in sync with that key, and `--build-arg RUST_TOOLCHAIN=` overrides it.
+# The Windows GNU standard library is added as a target; the host stays x86_64-unknown-linux-gnu.
+ARG RUST_TOOLCHAIN=nightly-2026-10-21
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \

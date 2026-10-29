@@ -1,5 +1,12 @@
 # mise 2026.10.0 treats ordinary Rust installs as user links and ignores the lock
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 ## Symptom
 
 On 2026-10-16,

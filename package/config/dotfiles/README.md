@@ -7,9 +7,11 @@ The Containerfile COPYs these into the user's `~/.config/` directory.
 
 - `ghostty/config`:
    Ghostty terminal configuration
-- `mise/config.toml`:
-   global mise config (no global tools;
-   the monorepo declares its own)
+
+Tool versions are not seeded here.
+`mise run toolchain:sync` provisions them per worktree
+(`toolchain.lock.json` pins the versions),
+and the image's mise serves only `mise run` task running.
 
 ## Adding a new dotfile
 

@@ -42,27 +42,36 @@ await describe({
         },),
 
         it({
-          name: 'node install bootstraps mise from /workspace and installs from repo config',
+          name: 'node install reads the locked artifact from toolchain.lock.json and checks its SHA-256',
           fn: async () => {
             const cmd = runtimeInstallCommand('node',);
 
-            expect(cmd,).toBe(
-              'curl -fsSL https://mise.run | sh'
-                + ' && export PATH="$HOME/.local/bin:$PATH"'
-                + ' && cd /workspace'
-                + ' && MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace'
-                + ' mise install node',
-            );
+            expect(cmd,).toContain('cd /workspace',);
+            expect(cmd,).toContain('toolchain.lock.json',);
+            expect(cmd,).toContain('.tools.node.artifacts[$p].url',);
+            expect(cmd,).toContain('.tools.node.artifacts[$p].sha256',);
+            expect(cmd,).toContain('sha256sum --check',);
+            expect(cmd,).toContain('--strip-components=1',);
+            // Order: read the lock, fetch, verify, then extract.
+            expect(cmd.indexOf('toolchain.lock.json',),)
+              .toBeLessThan(cmd.indexOf('curl --fail',),);
+            expect(cmd.indexOf('curl --fail',),)
+              .toBeLessThan(cmd.indexOf('sha256sum --check',),);
+            expect(cmd.indexOf('sha256sum --check',),)
+              .toBeLessThan(cmd.indexOf('tar --extract',),);
+            // Nothing resolves a version ad hoc.
+            expect(cmd.includes('mise install',),)
+              .toBe(false,);
           },
         },),
 
         it({
-          name: 'node install changes to /workspace before mise install',
+          name: 'node install extracts into $HOME/node before any exec path uses it',
           fn: async () => {
             const cmd = runtimeInstallCommand('node',);
 
-            expect(cmd.indexOf('cd /workspace',),)
-              .toBeLessThan(cmd.indexOf('mise install node',),);
+            expect(cmd.indexOf('mkdir -p "$HOME/node"',),)
+              .toBeLessThan(cmd.indexOf('tar --extract',),);
           },
         },),
       ],
@@ -109,17 +118,14 @@ await describe({
         },),
 
         it({
-          name: 'node exec runs the file through mise exec',
+          name: 'node exec runs the file through the locked node binary',
           fn: async () => {
             const cmd = runtimeExecCommand({
               runtime: 'node',
               filePath: '/workspace/test.ts',
             },);
 
-            expect(cmd,).toBe(
-              'MISE_QUIET=1 MISE_TERMINAL_PROGRESS=false MISE_SOPS_STRICT=false MISE_TRUSTED_CONFIG_PATHS=/workspace'
-                + ' $HOME/.local/bin/mise exec node -- node /workspace/test.ts',
-            );
+            expect(cmd,).toBe('$HOME/node/bin/node /workspace/test.ts',);
           },
         },),
       ],

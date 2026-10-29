@@ -152,13 +152,22 @@ with statistical threshold detection (mean - 2*stddev) flagging model degradatio
 
 ### Prerequisites
 
-Install [Mise](https://mise.jdx.dev/) (task runner and tool version manager).
-All other tools (Node,
+Install [Mise][mise-home] as the task runner and a system Node,
+which executes the toolchain sync entry.
+Mise runs tasks only;
+every tool this repository runs (Node,
 pnpm,
 dprint,
 Rust nightly,
 Java,
-and Bun for explicit Bun islands) are installed automatically by Mise.
+Bun for explicit Bun islands,
+and the rest) is provisioned from `toolchain.lock.json` by the repository
+toolchain,
+recorded in [`doc/decision/mpm-toolchain-adoption.md`](doc/decision/mpm-toolchain-adoption.md).
+The `bin`-sourced tools resolve their releases through the GitHub API,
+so the sync reads `GITHUB_TOKEN` from the environment or the machine's
+`gh` login;
+an unauthenticated machine can exhaust the API quota mid-sync.
 
 ### Clone and bootstrap
 
@@ -167,11 +176,9 @@ git clone https://github.com/Aquaticat/Monochromatic.git
 cd Monochromatic
 ```
 
-On first entry,
-Mise warns about missing tools.
 Trust the configuration so Mise evaluates environment variables,
 templates,
-and the `enter` hook:
+and tasks:
 
 ```sh
 mise trust
@@ -182,16 +189,73 @@ under `package/`.
 See [mise trust docs](https://mise.jdx.dev/cli/trust.html)
 for details on what this enables and why it is required.
 
-The `enter` hook is a `bootstrap` task that runs `mise install` then `mise upgrade`,
-so entering the trusted directory installs and updates the pinned tools
-automatically;
-it is plain cross-platform Mise with no separate task-runner shell to install
-first.
+Provision the toolchain,
+converging every tool to the versions `toolchain.lock.json` records:
+
+```sh
+mise run toolchain:sync
+```
+
+The `bootstrap` and `prepare:android` tasks are aliases of `toolchain:sync`,
+and `node package/dev-script/file-enforcer/src/toolchain/sync.ts`
+runs the same work without the task wrapper.
+The sync entry stages its own bootstrap tools first:
+`bin` as a standalone release binary
+(SHA-256 checked against the release `checksums.txt` values),
+then `uv`,
+then [mpm][mpm-home] as the PyPI wheel `meta-package-manager` 8.2.0
+(SHA-256 checked against PyPI's published digest,
+installed with `uv tool install`).
+Then it installs the remaining tools
+and rebuilds the gitignored `.cache/toolchain-bin` directory that the
+generated `mise.toml` `[env]` puts first on `PATH`.
 Then install dependencies and build all packages:
 
 ```sh
 mise run prepareAndBuild
 ```
+
+### Tool inventory and drift
+
+- `mise run toolchain:update` re-resolves the floating requests and the
+  channel stamps to their current upstream versions and rewrites
+  `toolchain.lock.json` as a reviewable diff
+  (`node package/dev-script/file-enforcer/src/toolchain/update.ts`,
+  `--check` reports without writing);
+  explicit pins never move without a plan edit.
+- `mise run toolchain:status` prints observed versus locked versions and exits
+  non-zero on drift
+  (`node package/dev-script/file-enforcer/src/toolchain/status.ts` runs the
+  same check).
+- `mpm installed` lists what every package manager on the machine holds,
+  `mpm outdated` lists available upgrades,
+  and `mpm sbom` exports the inventory as SPDX or CycloneDX.
+- `node package/dev-script/file-enforcer/src/toolchain/bin-paths.ts` prints the
+  exposure directory,
+  PATH directories,
+  and one absolute path per linked binary as JSON
+  (`exposureDir`,
+  `pathDirs`,
+  `bins`),
+  which is what IDE integrations read.
+
+Declarations carry no `@version` pin syntax and keep floating requests;
+`toolchain.lock.json` fixes what the sync installs
+(the semantics `mise install` had against `mise.lock`),
+so the explicit pins still install exactly.
+The sync installs the locked versions the way `pnpm install` honors
+`pnpm-lock.yaml`;
+re-resolving versions is a separate update action,
+the `pnpm update` analogue.
+
+Version bumps change the typed tool plan in
+`package/dev-script/file-enforcer/src/toolchain/` and the generated
+`toolchain.lock.json`,
+never a hand-edited lock.
+Upgrades of a single machine package name their tool
+(`mpm upgrade <package>`);
+a bare `mpm upgrade --all` moves every manager's packages and rewrites the
+toolchain state all sessions' builds share.
 
 ## Essential commands
 
@@ -292,9 +356,22 @@ package-deprecated/         Deprecated packages retained for reference
 ## Technical stack
 
 - **Task runner**:
-  [Mise](https://mise.jdx.dev/) with Node
+  [Mise][mise-home] with Node
   (`shell = "node --input-type=module-typescript -e"`)
   for cross-platform task logic
+- **Toolchain manager**:
+  [mpm][mpm-home] (Meta Package Manager) for the tool manifest,
+  machine inventory,
+  outdated detection,
+  upgrade coordination,
+  release-age cooldown,
+  and SBOM export,
+  plus file-enforcer's typed tool plan and the confirmed per-family install
+  routes (`bin`,
+  `cargo-binstall`,
+  `rustup`,
+  `android-sdk`),
+  with versions fixed in `toolchain.lock.json`
 - **Runtime**:
   [Node.js](https://nodejs.org/) for TypeScript task and CLI execution.
   Bun stays installed only for explicit Bun islands,
@@ -344,3 +421,6 @@ some tools (e.g. Zellij) have no native Windows support.
 [LGPL-3.0-or-later](LICENSE) for code,
 with root package metadata also declaring
 [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) for shareable documentation and content.
+
+[mpm-home]: https://mpm.run/
+[mise-home]: https://mise.jdx.dev/

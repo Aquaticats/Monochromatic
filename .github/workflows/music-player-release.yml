@@ -245,16 +245,22 @@ jobs:
     - name: Set up node, Rust and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
-    - name: Install Rust toolchain and cargo-about
+    - name: Install the Rust toolchain and cargo-about pinned in toolchain.lock.json
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
-        cargo install cargo-binstall --locked
-        cargo binstall --no-confirm cargo-about
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
+        case "$toolchain" in
+          nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
+        esac
+        binstall=$(jq --raw-output '.tools."cargo-binstall".version' toolchain.lock.json)
+        about=$(jq --raw-output '.tools."cargo:cargo-about".version' toolchain.lock.json)
+        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+        echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+        cargo install cargo-binstall --locked --version "$binstall"
+        cargo binstall --no-confirm --version "$about" cargo-about
         cargo about --version
 
     - name: Write the desktop license notices
@@ -339,20 +345,20 @@ jobs:
         name: asset-desktop-notices
         path: notices
 
-    # The repository pins its Rust toolchain in mise.lock (a dated nightly, shared by every
-    # package). Read it from there so the release never drifts from what developers build with.
+    # The repository pins its Rust toolchain in toolchain.lock.json (a dated nightly, shared by every
+    # package). jq reads `.tools.rust.version` there so the release never drifts from what developers build with.
     # rustup comes with every runner image, which keeps one mechanism on every desktop platform.
     # The Windows GNU job installs the GNU HOST toolchain (<version>-x86_64-pc-windows-gnu): with the default MSVC
     # host, build scripts and proc macros would still be linked by Visual Studio's link.exe, and the job would not
     # build without Microsoft's toolchain. The host check at the end of this step enforces the match.
-    - name: Install the Rust toolchain pinned in mise.lock
+    - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
         set -euo pipefail
-        toolchain=$(awk -F'"' '/^\[\[tools\.rust\]\]$/ { in_rust = 1; next } in_rust && /^version = / { print $2; exit }' mise.lock)
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
         case "$toolchain" in
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
-          *) echo "::error::Unexpected Rust version in mise.lock: '$toolchain'"; exit 1 ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
         esac
         if [ "$TARGET" = 'x86_64-pc-windows-gnu' ]; then
           toolchain="${toolchain}-x86_64-pc-windows-gnu"
@@ -653,7 +659,6 @@ jobs:
       if: ${{ matrix.os == 'macos' }}
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
 
     - name: Package (macOS disk image)
@@ -968,16 +973,20 @@ jobs:
         persist-credentials: false
 
     # Cache key parts that are read from the repository, never copied into this file: the pinned Rust version
-    # from mise.lock (kept as the pinned version source), and the Android SDK component versions from the lines of the prepare:android task in
-    # task.ts, so the native cache key changes exactly when the NDK does.
+    # from toolchain.lock.json (kept as the pinned version source), and the Android SDK component versions from the
+    # `android-sdk` tool's `options.androidPackages` row of the same lock, so the native cache key changes exactly
+    # when a component does.
     - name: Read the cache key parts
       id: parts
       run: |
         set -euo pipefail
-        toolchain=$(awk -F'"' '/^\[\[tools\.rust\]\]$/ { in_rust = 1; next } in_rust && /^version = / { print $2; exit }' mise.lock)
-        components=$(grep -E '^const want(Platform|BuildTools|Ndk) = ' package/music-player/android-app/mise.toml | sha256sum | cut -c1-16)
-        if [ -z "$toolchain" ] || [ -z "$components" ]; then
-          echo '::error::Could not read the Rust version or the Android components.'
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
+        components=$(jq --compact-output '.tools."android-sdk".options.androidPackages' toolchain.lock.json | sha256sum | cut -c1-16)
+        case "$toolchain" in
+          '' | null) echo '::error::Could not read the Rust version from toolchain.lock.json.'; exit 1 ;;
+        esac
+        if [ -z "$components" ]; then
+          echo '::error::Could not read the Android components from toolchain.lock.json.'
           exit 1
         fi
         echo "toolchain=$toolchain" >> "$GITHUB_OUTPUT"
@@ -1020,46 +1029,56 @@ jobs:
     - name: Set up node and the task CLI
       uses: ./.github/actions/task-cli-setup
       with:
-        node-version: '26.12.0'
         install-dependencies: 'false'
     - name: Install the JDK
-      # mise.lock tools.java pins temurin-21.0.12+8.0.LTS. The vendor archive
-      # replaces the setup-java action, which would need an allow-list entry.
+      # toolchain.lock.json (repository root) is the source of truth for every tool version
+      # (doc/decision/mpm-toolchain-adoption.md): `tools.java` pins temurin-21.0.12+8.0.LTS and records
+      # the vendor archives, which this step fetches and SHA-256 checks. The vendor archive replaces
+      # the setup-java action, which would need an allow-list entry.
       shell: bash
       run: |
         set -euo pipefail
-        version='21.0.12+8'
+        version=$(jq --raw-output '.tools.java.version' toolchain.lock.json)
+        case "$version" in
+          '' | null) echo '::error::No Java version in toolchain.lock.json.' >&2; exit 1 ;;
+        esac
         case "${{ runner.os }}-${{ runner.arch }}" in
-          Linux-X64) jdk_arch=x64 ;;
-          Linux-ARM64) jdk_arch=aarch64 ;;
+          Linux-X64) platform=linux-x64 ;;
+          Linux-ARM64) platform=linux-arm64 ;;
           *) echo "unsupported runner ${{ runner.os }}-${{ runner.arch }}" >&2; exit 1 ;;
         esac
-        tag="jdk-${version//+/%2B}"
-        archive="OpenJDK21U-jdk_${jdk_arch}_linux_hotspot_${version//+/_}.tar.gz"
-        install_dir="$RUNNER_TEMP/temurin-$version"
+        url=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].url' toolchain.lock.json)
+        sum=$(jq --raw-output --arg platform "$platform" '.tools.java.artifacts[$platform].sha256' toolchain.lock.json)
+        install_dir="$RUNNER_TEMP/$version"
         mkdir -p "$install_dir"
-        curl --fail --silent --show-error --location \
-          "https://github.com/adoptium/temurin21-binaries/releases/download/$tag/$archive" \
-          | tar -xz -C "$install_dir" --strip-components=1
+        curl --fail --silent --show-error --location --output "$RUNNER_TEMP/jdk.tar.gz" "$url"
+        echo "$sum  $RUNNER_TEMP/jdk.tar.gz" | sha256sum --check
+        tar --extract --gzip --file "$RUNNER_TEMP/jdk.tar.gz" --directory "$install_dir" --strip-components=1
         echo "JAVA_HOME=$install_dir" >> "$GITHUB_ENV"
         echo "$install_dir/bin" >> "$GITHUB_PATH"
         "$install_dir/bin/java" -version
-    - name: Install Rust, cargo tools and the Android SDK
+    # Everything this step used to install by hand (the floating `nightly` channel, the Android targets,
+    # cargo-binstall, cargo-ndk and cargo-about) is converged at pinned versions by the next step, which is
+    # `toolchain:sync`; this step only installs and selects the Rust toolchain the builds compile with.
+    - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --profile minimal --no-self-update
-        rustup default nightly
-        rustup target add aarch64-linux-android x86_64-linux-android
-        cargo install cargo-binstall --locked
-        cargo binstall --no-confirm cargo-ndk cargo-about
+        toolchain=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
+        case "$toolchain" in
+          nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
+        esac
+        rustup toolchain install "$toolchain" --profile minimal --no-self-update
+        echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
         rustc -Vv
 
-    # The repository task installs exactly the SDK components the app builds against (platform 37.0,
-    # build-tools 37.0.0, NDK 29.0.13846066, platform-tools) into the provisioned SDK.
+    # `prepare:android` is a thin alias of `toolchain:sync`, which converges the toolchain to
+    # toolchain.lock.json and installs the SDK components the app builds against (the `android-sdk` tool's
+    # `options.androidPackages` row: platform 37.0, build-tools 37.0.0, NDK 29.0.13846066, platform-tools).
     # Not cached: the components download in about 25 seconds, and restoring a cache of them (1.0 GB compressed)
     # took 17 seconds (dry runs 2026-10-15), so it saved 8 seconds for a fifth of the repository's cache budget.
-    - name: Install the Android SDK components
+    - name: Provision the toolchain and the Android SDK components
       run: task-run prepare:android
 
     - name: Restore the project release key
@@ -1122,10 +1141,11 @@ jobs:
       run: |
         set -euo pipefail
         sdk="${ANDROID_HOME:-$HOME/Android/Sdk}"
-        # One owner of the version: the same constant that drives the SDK install and the cache key.
-        build_tools=$(sed --quiet 's/^const wantBuildTools = "\([^"]*\)";$/\1/p' package/music-player/android-app/mise.toml)
+        # One owner of the version: the same `options.androidPackages` row of toolchain.lock.json that
+        # drives the SDK install and the cache key.
+        build_tools=$(jq --raw-output '.tools."android-sdk".options.androidPackages[] | select(startswith("build-tools/")) | sub("^build-tools/"; "")' toolchain.lock.json)
         if [ -z "$build_tools" ]; then
-          echo '::error::Could not read wantBuildTools from the android-app task source.'
+          echo '::error::Could not read the build-tools package from toolchain.lock.json.'
           exit 1
         fi
         tools="${sdk}/build-tools/${build_tools}"
@@ -1570,18 +1590,19 @@ jobs:
         fetch-depth: 1
         persist-credentials: false
 
-    # The repository pins its Rust toolchain in mise.lock (a dated nightly shared by every package); read it
-    # from there so this workflow never drifts from what developers build with. The GNU job installs the
-    # GNU HOST toolchain: with the default MSVC host, build scripts and proc macros would still be linked
-    # by Visual Studio's link.exe, and the job would not prove a build free of Microsoft's toolchain.
-    - name: Install the Rust toolchain pinned in mise.lock
+    # The repository pins its Rust toolchain in toolchain.lock.json (a dated nightly shared by every
+    # package): jq reads `.tools.rust.version` there so this workflow never drifts from what developers
+    # build with. The GNU job installs the GNU HOST toolchain: with the default MSVC host, build scripts
+    # and proc macros would still be linked by Visual Studio's link.exe, and the job would not prove a
+    # build free of Microsoft's toolchain.
+    - name: Install the Rust toolchain pinned in toolchain.lock.json
       id: toolchain
       run: |
         set -euo pipefail
-        version=$(awk -F'"' '/^\[\[tools\.rust\]\]$/ { in_rust = 1; next } in_rust && /^version = / { print $2; exit }' mise.lock)
+        version=$(jq --raw-output '.tools.rust.version' toolchain.lock.json)
         case "$version" in
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
-          *) echo "::error::Unexpected Rust version in mise.lock: '$version'"; exit 1 ;;
+          *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$version'"; exit 1 ;;
         esac
         if [ "$FLAVOR" = 'gnu' ]; then
           toolchain="${version}-x86_64-pc-windows-gnu"

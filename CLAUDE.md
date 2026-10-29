@@ -562,7 +562,8 @@ PWT:
  Never wait on a process by name:
  `pgrep --full` in a loop matches the agent's own shell wrapper and never exits.
  Wait on a PID,
- bounded: `timeout 600 tail --pid=<pid> --follow /dev/null`.
+ bounded:
+ `timeout 600 tail --pid=<pid> --follow /dev/null`.
 
 BGL:
  Every background wait or poll loop has a deadline,
@@ -579,9 +580,10 @@ INH:
  and installs it touched before acting.
 
 UPN:
- Upgrades name their tool (`mise upgrade <tool>`,
- never bare):
- a bare upgrade installs unrelated toolchains and rewrites lockfiles that every session's builds share.
+ Upgrades name their tool (`mpm upgrade <package>`);
+ repository tools move through `toolchain:update`,
+ whose lock diff is the review surface.
+ Never run bare `mpm upgrade --all`.
 
 TRB:
  External tool fails with a diagnostic:
@@ -752,6 +754,13 @@ CM6:
  run `mise run //package/<path>:lint:types`;
  nothing type-checks automatically.
 
+CM7:
+ Provision tools with `mise run toolchain:sync`;
+ `toolchain.lock.json` pins every version,
+ and ad-hoc installs or lock edits bypass the checked-in toolchain.
+ Mise runs tasks;
+ it manages no tools.
+
 ## Before editing code
 
 ### Match action scope to the request verb
@@ -823,7 +832,8 @@ SCR:
  put task logic inline via `shell = "node --input-type=module-typescript -e"` or in a package bin.
 
 NMJ:
- Write scripts as `.ts`, never `.mjs`:
+ Write scripts as `.ts`,
+ never `.mjs`:
  node runs TypeScript directly by stripping types,
  so `.mjs` has no advantage,
  and autofix runs have corrupted it.
@@ -831,7 +841,7 @@ NMJ:
 PIN:
  Pin tool versions only with a comment explaining why;
  never pin tools this repository publishes,
- since `mise.lock` records them.
+ since `toolchain.lock.json` records them.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
