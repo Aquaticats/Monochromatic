@@ -16,9 +16,10 @@
 /// The runner and its pure helpers.
 use super::{
     ChildExit, ChildFailure, ChildLimits, ChildRequest, FinishedChild, deadline_reached, exceeds,
-    next_pause, run_bounded_child, sleep_for,
+    next_pause, run_bounded_child, run_bounded_child_noticing, sleep_for,
 };
 use crate::test_support::{executable, fixture, remove};
+use crate::wait_progress::Cadence;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -60,6 +61,8 @@ fn run(
         input,
         scratch: root,
         limits,
+        waiting_for: "the stand-in program",
+        cadence: Cadence::standard(),
     });
 }
 
@@ -301,6 +304,8 @@ fn a_child_that_cannot_start_reports_why() {
         input: b"",
         scratch: nowhere.as_path(),
         limits: ROOMY,
+        waiting_for: "the stand-in program",
+        cadence: Cadence::standard(),
     }) {
         Err(ChildFailure::Files(reason)) => assert!(reason.contains("No such file"), "{reason}"),
         other => panic!("{other:?}"),
@@ -341,4 +346,76 @@ fn pauses_double_and_never_pass_the_bound() {
         sleep_for(Duration::from_millis(2), Duration::from_millis(3)),
         Duration::from_millis(2)
     );
+}
+
+/// Run `program` with a short cadence and return the result with the notices the wait printed.
+fn run_noticing(
+    root: &Path,
+    program: &Path,
+    limits: ChildLimits,
+) -> (Result<FinishedChild, ChildFailure>, String) {
+    let arguments: Vec<OsString> = Vec::new();
+    let mut notices: Vec<u8> = Vec::new();
+    let result: Result<FinishedChild, ChildFailure> = run_bounded_child_noticing(
+        &ChildRequest {
+            executable: program,
+            arguments: arguments.as_slice(),
+            directory: root,
+            environment: path_only().as_slice(),
+            input: b"",
+            scratch: root,
+            limits,
+            waiting_for: "the stand-in program to check a.md",
+            cadence: Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) },
+        },
+        &mut notices,
+    );
+    return (result, String::from_utf8(notices).expect("text"));
+}
+
+/// A child that runs long is waited for with a notice that names what the wait is for, the child's process and the
+///  bound, repeated at every interval; the child's output stays untouched.
+#[test]
+fn a_child_that_runs_long_is_waited_for_with_notices() {
+    let root: PathBuf = fixture("bounded-notices");
+    let program: PathBuf = stand_in(root.as_path(), "slow", "sleep 0.5\nprintf done");
+    let (result, notices) = run_noticing(root.as_path(), program.as_path(), ROOMY);
+    assert_eq!(result.expect("finished").stdout, b"done".to_vec());
+    let lines: Vec<&str> = notices.lines().collect();
+    assert!(lines.len() >= 3, "{notices}");
+    for line in &lines {
+        assert!(
+            line.starts_with("cli-git: still waiting for the stand-in program to check a.md (process "),
+            "{notices}"
+        );
+        assert!(line.contains("stopping it after 60 seconds"), "{notices}");
+    }
+    assert_eq!(notices.matches("Hint:").count(), 1, "{notices}");
+    remove(root.as_path());
+}
+
+/// A child that finishes inside the grace prints nothing.
+#[test]
+fn a_child_that_finishes_inside_the_grace_prints_nothing() {
+    let root: PathBuf = fixture("bounded-quiet");
+    let program: PathBuf = stand_in(root.as_path(), "quick", "printf done");
+    let (result, notices) = run_noticing(root.as_path(), program.as_path(), ROOMY);
+    assert_eq!(result.expect("finished").stdout, b"done".to_vec());
+    assert_eq!(notices, "");
+    remove(root.as_path());
+}
+
+/// A child that outlasts its bound is announced while it runs and then stopped.
+#[test]
+fn a_child_that_outlasts_its_bound_is_announced_then_stopped() {
+    let root: PathBuf = fixture("bounded-notices-timeout");
+    let program: PathBuf = stand_in(root.as_path(), "stuck", "sleep 30");
+    let (result, notices) = run_noticing(
+        root.as_path(),
+        program.as_path(),
+        ChildLimits { timeout: Duration::from_millis(450), ..ROOMY },
+    );
+    assert_eq!(result.expect_err("stopped"), ChildFailure::TimedOut(Duration::from_millis(450)));
+    assert!(notices.lines().count() >= 2, "{notices}");
+    remove(root.as_path());
 }

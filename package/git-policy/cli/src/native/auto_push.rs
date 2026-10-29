@@ -20,7 +20,7 @@ use super::auto_push_reconcile::{
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
     PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome, git_command,
-    resolve_push_coordination_paths, run_query, run_single_flight_push,
+    resolve_push_coordination_paths, run_query, run_single_flight_push_repeating,
 };
 /// The deadline-bound push runner and the limits it applies.
 use super::bounded_push::{
@@ -183,13 +183,18 @@ fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, Si
 /// ```ts
 /// `cli-git: waiting for process ${pid} to finish pushing ${branchRef}; giving up after ${seconds} seconds`
 /// ```
-fn waiting_line(git: &PushGit, branch_ref: &str) -> String {
+fn waiting_line(git: &PushGit, branch_ref: &str, waited: Option<std::time::Duration>) -> String {
     let holder: String = match holder_pid(git, branch_ref) {
         Some(pid) => format!("process {pid}"),
         None => String::from("another cli-git process"),
     };
+    // A repeat names how long the wait has lasted; the first line has just begun.
+    let progress: String = match waited {
+        Some(elapsed) => format!(" ({} seconds so far)", elapsed.as_secs()),
+        None => String::new(),
+    };
     return format!(
-        "cli-git: waiting for {holder} to finish pushing {branch_ref}; giving up after {} seconds \
+        "cli-git: waiting for {holder} to finish pushing {branch_ref}{progress}; giving up after {} seconds \
          ({LOCK_WAIT_VARIABLE} changes this). The commit is already saved.",
         lock_wait_limit(&git.environment).as_secs()
     );
@@ -338,13 +343,13 @@ pub fn auto_push(
             }
             return Ok(attempt);
         };
-        let mut on_wait = || {
-            let line = waiting_line(git, &branch_ref);
+        let mut on_wait = |waited: Option<std::time::Duration>| {
+            let line = waiting_line(git, &branch_ref, waited);
             debug(TAG, &line);
             // Terminal output error: the notice is advisory; a failed write to stderr must not stop the wait.
             let _written = writeln!(err, "{line}");
         };
-        run_single_flight_push(git, &branch_ref, landed_oid, &mut push, &mut on_wait)
+        run_single_flight_push_repeating(git, &branch_ref, landed_oid, &mut push, &mut on_wait)
     };
     return match coordinated {
         Ok(outcome) => {

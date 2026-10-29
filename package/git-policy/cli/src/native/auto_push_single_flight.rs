@@ -397,14 +397,25 @@ fn joined_outcome(record: LastPushedRecord) -> SingleFlightOutcome {
 /// onWait: () => void
 /// ```
 struct WaitObserver<'observer> {
-    /// Called once when the first acquisition attempt finds the lock held.
-    on_wait: &'observer mut dyn FnMut(),
+    /// Called with nothing when the first acquisition attempt finds the lock held,
+    ///  and with how long the wait has lasted at every notice interval after it.
+    on_wait: &'observer mut dyn FnMut(Option<std::time::Duration>),
 }
 
 impl WaitNotice for WaitObserver<'_> {
-    /// Forwards the wait to the observer.
+    /// Forwards the start of the wait to the observer.
     fn waiting(&mut self) {
-        (self.on_wait)();
+        (self.on_wait)(None);
+    }
+
+    /// Forwards a repeat of the wait to the observer.
+    fn slow(&mut self, waited: std::time::Duration) {
+        (self.on_wait)(Some(waited));
+    }
+
+    /// The first line is printed by `waiting`, so the repeats start one interval later.
+    fn announces_at_start(&self) -> bool {
+        return true;
     }
 }
 
@@ -426,6 +437,31 @@ pub fn run_single_flight_push(
     landed_oid: &str,
     push: &mut dyn FnMut() -> Result<PushAttempt, SingleFlightError>,
     on_wait: &mut dyn FnMut(),
+) -> Result<SingleFlightOutcome, SingleFlightError> {
+    return run_single_flight_push_repeating(git, branch_ref, landed_oid, push, &mut |waited| {
+        if waited.is_none() {
+            on_wait();
+        }
+    });
+}
+
+/// What:
+///  `run_single_flight_push` whose wait also reports each repeat of the notice:
+///  the observer gets nothing at the start of the wait and how long it has lasted at each repeat.
+/// Why:
+///   A commit that queues behind a long push keeps saying so at the notice interval,
+///  or the caller cannot tell it from a hung one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runSingleFlightPush({ gitPath, cwd, branchRef, landedOid, push, onWait, onStillWaiting });
+/// ```
+pub fn run_single_flight_push_repeating(
+    git: &PushGit,
+    branch_ref: &str,
+    landed_oid: &str,
+    push: &mut dyn FnMut() -> Result<PushAttempt, SingleFlightError>,
+    on_wait: &mut dyn FnMut(Option<std::time::Duration>),
 ) -> Result<SingleFlightOutcome, SingleFlightError> {
     let paths = resolve_push_coordination_paths(git, branch_ref)?;
     let before = read_record(&paths.record_path)?;

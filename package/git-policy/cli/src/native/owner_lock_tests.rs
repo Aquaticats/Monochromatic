@@ -767,7 +767,7 @@ impl WaitNotice for SlowCounter {
     }
 }
 
-/// A wait that outlasts the slow threshold sends exactly one slow notice,
+/// A wait that outlasts the grace sends exactly one slow notice while the interval has not passed,
 ///  after the first-moment notice,
 ///  and a wait that ends sooner sends none.
 #[cfg(target_os = "linux")]
@@ -797,7 +797,7 @@ fn a_slow_wait_sends_one_slow_notice() {
         Duration::from_millis(5),
         &mut counter,
         Duration::from_secs(20),
-        Duration::from_millis(100),
+        Cadence { grace: Duration::from_millis(100), interval: Duration::from_secs(60) },
     );
     killer.join().expect("the killer thread finishes");
     outcome
@@ -813,10 +813,106 @@ fn a_slow_wait_sends_one_slow_notice() {
         Duration::from_millis(5),
         &mut quick,
         Duration::from_secs(5),
-        Duration::from_millis(100),
+        Cadence { grace: Duration::from_millis(100), interval: Duration::from_secs(60) },
     )
     .expect("free");
     free.release().expect("release");
     assert_eq!((quick.waiting, quick.slow.len()), (0, 0));
     remove(&root);
+}
+
+/// Records every notice a wait sends and whether it announces itself at the start.
+struct RepeatCounter {
+    /// First-moment notices.
+    waiting: u32,
+    /// Slow-wait notices with the time each reported.
+    slow: Vec<Duration>,
+    /// Whether the first notice was printed at the start of the wait.
+    announces: bool,
+    /// Told when this many slow notices arrived, so the test ends the wait on that event.
+    stop_after: usize,
+    /// The channel the stop is told on.
+    signal: std::sync::mpsc::Sender<()>,
+}
+
+/// The counter records each call.
+impl WaitNotice for RepeatCounter {
+    /// Record the first moment.
+    fn waiting(&mut self) {
+        self.waiting += 1;
+    }
+
+    /// Record a repeat and tell the test when enough arrived.
+    fn slow(&mut self, waited: Duration) {
+        self.slow.push(waited);
+        if self.slow.len() == self.stop_after {
+            self.signal.send(()).ok();
+        }
+    }
+
+    /// Whether the first notice came at the start.
+    fn announces_at_start(&self) -> bool {
+        return self.announces;
+    }
+}
+
+/// Holds a foreign lock with a live sleeper, waits on it with a repeat counter and ends the wait by killing the holder
+///  once `stop_after` slow notices arrived; the counter of the finished wait.
+#[cfg(target_os = "linux")]
+fn repeated_wait(name: &str, cadence: Cadence, announces: bool, stop_after: usize) -> RepeatCounter {
+    let root: PathBuf = fixture(name);
+    let lock_directory: PathBuf = root.join("push.lock");
+    let mut sleeper: Child = Command::new("sleep").arg("60").spawn().expect("sleeper");
+    let pid: i64 = i64::from(sleeper.id());
+    let identity: String = process_birth_identity(pid).expect("probe").expect("alive");
+    plant(lock_directory.as_path(), pid, identity.as_str(), "foreign");
+    let (sender, receiver) = std::sync::mpsc::channel::<()>();
+    let mut counter: RepeatCounter = RepeatCounter { waiting: 0, slow: Vec::new(), announces, stop_after, signal: sender };
+    let killer = std::thread::spawn(move || {
+        receiver.recv_timeout(Duration::from_secs(20)).ok();
+        sleeper.kill().expect("kill");
+        sleeper.wait().expect("reap");
+    });
+    let outcome: Result<OwnerLock, OwnerLockError> = acquire_within(
+        lock_directory.as_path(),
+        Duration::from_millis(5),
+        &mut counter,
+        Duration::from_secs(30),
+        cadence,
+    );
+    killer.join().expect("the killer thread finishes");
+    outcome.expect("the dead holder's lock is taken").release().expect("release");
+    remove(&root);
+    return counter;
+}
+
+/// A wait that goes on sends a slow notice at the grace and again at every interval after it.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_long_wait_repeats_its_slow_notice_at_every_interval() {
+    let counter: RepeatCounter = repeated_wait(
+        "owner-lock-repeat",
+        Cadence { grace: Duration::from_millis(60), interval: Duration::from_millis(60) },
+        false,
+        3,
+    );
+    assert_eq!(counter.waiting, 1);
+    assert_eq!(counter.slow.len(), 3, "{:?}", counter.slow);
+    assert!(counter.slow[0] >= Duration::from_millis(60), "{:?}", counter.slow);
+    assert!(counter.slow[1] >= Duration::from_millis(120), "{:?}", counter.slow);
+    assert!(counter.slow[2] >= Duration::from_millis(180), "{:?}", counter.slow);
+}
+
+/// A notice that announced the wait at its start hears its first repeat one interval later, not after the grace.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_notice_that_announces_at_start_hears_the_first_repeat_one_interval_later() {
+    let counter: RepeatCounter = repeated_wait(
+        "owner-lock-announced",
+        Cadence { grace: Duration::from_millis(20), interval: Duration::from_millis(150) },
+        true,
+        1,
+    );
+    assert_eq!(counter.slow.len(), 1, "{:?}", counter.slow);
+    assert!(counter.slow[0] >= Duration::from_millis(150), "{:?}", counter.slow);
 }

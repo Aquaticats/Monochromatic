@@ -16,11 +16,14 @@
 #![cfg(unix)]
 
 /// Import the reader under test and shared fixtures.
-use super::{ObjectReader, start_object_reader};
+use super::{ObjectReader, start_object_reader, start_object_reader_with};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::candidate_object::{ObjectId, parse_object_id};
-use crate::test_support::{executable, fixture, remove};
+use crate::child_watch::WatchTerms;
+use crate::test_support::{SharedSink, executable, fixture, remove};
+use crate::wait_progress::Cadence;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// A stand-in `git` that waits for one request line,
 ///  answers with fixed bytes,
@@ -49,6 +52,43 @@ fn wait_until_exited(process: u32) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     panic!("the stand-in did not exit within the bound");
+}
+
+/// A process that reads a request and never answers is announced while the reader waits, stopped at the bound, and the
+///  reader reports the bound and closes, so no later request waits on a dead stream.
+#[test]
+fn a_process_that_never_answers_is_announced_then_stopped_at_the_bound() {
+    let root: PathBuf = fixture("reader-stalls");
+    let program: PathBuf = root.join("git");
+    executable(program.as_path(), b"#!/bin/sh\nread -r request\nexec sleep 30\n");
+    let sink: SharedSink = SharedSink::default();
+    let mut subject: ObjectReader = start_object_reader_with(
+        program.as_path(),
+        &[],
+        &[],
+        WatchTerms {
+            limit: Duration::from_secs(1),
+            cadence: Cadence { grace: Duration::from_millis(200), interval: Duration::from_millis(200) },
+            notices: Box::new(sink.clone()),
+        },
+    )
+    .expect("stand-in starts");
+    let started: Instant = Instant::now();
+    let error: CandidateError = subject.head_commit().expect_err("never answers");
+    assert!(started.elapsed() < Duration::from_secs(20), "{:?}", started.elapsed());
+    assert_eq!(error.failure, CandidateFailure::ReaderEnded);
+    assert!(
+        error.message.contains("git cat-file --batch did not finish within 1 seconds and was stopped"),
+        "{error}"
+    );
+    assert!(error.message.contains("CLI_GIT_CHILD_WAIT_SECONDS"), "{error}");
+    let text: String = sink.text();
+    assert!(text.lines().count() >= 3, "{text}");
+    assert!(text.starts_with("cli-git: still waiting for git cat-file --batch (process "), "{text}");
+    let later: CandidateError = subject.head_commit().expect_err("closed");
+    assert_eq!(later.failure, CandidateFailure::ReaderEnded);
+    drop(subject);
+    remove(root.as_path());
 }
 
 /// A `HEAD` that resolves to something other than a commit is refused instead of used as a baseline.

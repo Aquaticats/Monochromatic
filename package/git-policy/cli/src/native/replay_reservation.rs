@@ -13,8 +13,12 @@
 //! await reservation.reserve(lostRaces);
 //! ```
 
-/// The backstop every wait on a live process is bounded by.
-use super::live_lock::{LIVE_WAIT_VARIABLE, live_wait_limit};
+/// The backstop every wait on a live process is bounded by, and the line a wait for a lock prints.
+use super::live_lock::{LIVE_WAIT_VARIABLE, LockWaitFacts, live_wait_limit, slow_wait_line};
+/// When a wait prints its notices, the place in line it reports, and the printing itself.
+use super::wait_progress::{Cadence, QueuePlace, WaitReporter, queue_place_text};
+/// The sink a notice goes to.
+use std::io::Write;
 /// Owner-lock records and their liveness.
 use super::owner_lock::{OwnerLock, OwnerLockError, try_acquire_owner_lock};
 use super::owner_lock_record::{
@@ -83,10 +87,14 @@ impl std::fmt::Display for ReservationError {
                 write!(
                     formatter,
                     "gave up after waiting {} seconds for the next landing slot because {who}; \
-                     {LIVE_WAIT_VARIABLE} sets how long to wait, and nothing was taken from that process",
+                     nothing was taken from that process. To go on, let it finish and run the command again, \
+                     check with `ps` whether it is stuck and stop it if so, or raise the limit with \
+                     {LIVE_WAIT_VARIABLE} (seconds)",
                     waited.as_secs()
                 )
             }
+            Self::Registry(error) => write!(formatter, "{error}"),
+            Self::Lock(error) => write!(formatter, "{error}"),
             other => write!(formatter, "{other:?}"),
         };
     }
@@ -193,6 +201,8 @@ pub struct LandingReservation {
     nested: bool,
     /// The reservation, once granted to this transaction.
     held: Option<OwnerLock>,
+    /// When a wait for the next slot prints its notices.
+    cadence: Cadence,
 }
 
 impl LandingReservation {
@@ -212,12 +222,63 @@ impl LandingReservation {
             transaction_id: String::from(transaction_id),
             nested,
             held: None,
+            cadence: Cadence::from_environment(),
         };
+    }
+
+    /// The same view with another notice cadence;
+    ///  tests choose a short one instead of waiting out the standard one.
+    pub fn with_cadence(mut self, cadence: Cadence) -> Self {
+        self.cadence = cadence;
+        return self;
     }
 
     /// The reservation lock's directory.
     fn lock_directory(&self) -> PathBuf {
         return self.registry_root.join(RESERVATION_LOCK_NAME);
+    }
+
+    /// The process that holds the reservation, when it is alive and its record can be read.
+    fn holder_pid(&self) -> Option<i64> {
+        return live_holder(self.lock_directory().as_path()).ok().flatten().map(|record| {
+            return record.owner_pid;
+        });
+    }
+
+    /// What:
+    ///  The notice of a wait for the next landing slot.
+    /// Why:
+    ///   With a live holder it names the holder as every lock wait does;
+    ///  with the lock free and older requests ahead it says whose turn comes first.
+    ///  A commit in line is told its number.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// reservationWaitLine({ holderPid, place, waitedMs, limitMs, repeat })
+    /// ```
+    fn wait_line(&self, waited: Duration, limit: Duration, place: Option<QueuePlace>, repeat: bool) -> String {
+        let lock_directory: PathBuf = self.lock_directory();
+        let holder_pid: Option<i64> = self.holder_pid();
+        if holder_pid.is_some() || place.is_none() {
+            return slow_wait_line(&LockWaitFacts {
+                subject: "the landing reservation",
+                lock_directory: lock_directory.as_path(),
+                holder_pid,
+                waited,
+                limit,
+                place,
+                repeat,
+            });
+        }
+        let position: String = place.map_or_else(String::new, |found| { return format!(" {}", queue_place_text(found)); });
+        return format!(
+            "cli-git: still waiting for older commits to take the landing reservation before this one \
+             ({}) after {} seconds; giving up after {} seconds ({LIVE_WAIT_VARIABLE} changes this), leaving every \
+             other commit's request and lock in place.{position}",
+            lock_directory.display(),
+            waited.as_secs(),
+            limit.as_secs()
+        );
     }
 
     /// What:
@@ -255,7 +316,8 @@ impl LandingReservation {
     }
 
     /// What:
-    ///  Waits while a live reservation owned by another transaction exists, for at most `limit`.
+    ///  Waits while a live reservation owned by another transaction exists, for at most `limit`,
+    ///  with notices on standard error.
     /// Why:
     ///   Tests and the default wait share one loop; only the limit differs.
     ///
@@ -264,9 +326,26 @@ impl LandingReservation {
     /// await reservation.awaitSlot({ limitMs });
     /// ```
     pub fn await_slot_for(&self, limit: Duration) -> Result<(), ReservationError> {
+        return self.await_slot_noticing(limit, &mut std::io::stderr());
+    }
+
+    /// What:
+    ///  Waits while a live reservation owned by another transaction exists, for at most `limit`,
+    ///  printing a notice to `notices` after the grace and at every interval.
+    /// Why:
+    ///   A commit that queues behind a reservation holder must say what it waits for and who holds it,
+    ///  or the caller cannot tell it from a hung one; the holder is read only when a notice is due.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await reservation.awaitSlot({ limitMs, notices });
+    /// ```
+    pub fn await_slot_noticing(&self, limit: Duration, notices: &mut dyn Write) -> Result<(), ReservationError> {
         let started: Instant = Instant::now();
+        let mut reporter: WaitReporter<'_> = WaitReporter::start(self.cadence, notices);
         while self.held_by_another()? {
             self.refuse_after(started, limit)?;
+            reporter.poll(|waited, repeat| { return self.wait_line(waited, limit, None, repeat); });
             std::thread::sleep(RESERVATION_POLL);
         }
         return Ok(());
@@ -318,6 +397,26 @@ impl LandingReservation {
     /// await reservation.reserve(lostRaces, { limitMs });
     /// ```
     pub fn reserve_for(&mut self, lost_races: u64, limit: Duration) -> Result<bool, ReservationError> {
+        return self.reserve_noticing(lost_races, limit, &mut std::io::stderr());
+    }
+
+    /// What:
+    ///  Writes the request and waits for the grant, for at most `limit`,
+    ///  printing a notice to `notices` after the grace and at every interval.
+    /// Why:
+    ///   The live requesters are listed on every check, so the notice names this commit's place among them
+    ///  without reading anything more.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await reservation.reserve(lostRaces, { limitMs, notices });
+    /// ```
+    pub fn reserve_noticing(
+        &mut self,
+        lost_races: u64,
+        limit: Duration,
+        notices: &mut dyn Write,
+    ) -> Result<bool, ReservationError> {
         if self.nested || self.held.is_some() {
             return Ok(false);
         }
@@ -328,10 +427,16 @@ impl LandingReservation {
         .map_err(ReservationError::Write)?;
         sync_directory(self.transaction_directory.as_path()).map_err(ReservationError::Write)?;
         let started: Instant = Instant::now();
+        let mut reporter: WaitReporter<'_> = WaitReporter::start(self.cadence, notices);
         loop {
             let lock_directory: PathBuf = self.lock_directory();
             let free: bool = live_holder(lock_directory.as_path())?.is_none();
-            let first: bool = live_requesters(self.registry_root.as_path())?.first() == Some(&self.transaction_id);
+            let requesters: Vec<String> = live_requesters(self.registry_root.as_path())?;
+            let first: bool = requesters.first() == Some(&self.transaction_id);
+            let place: Option<QueuePlace> = requesters
+                .iter()
+                .position(|requester| { return *requester == self.transaction_id; })
+                .map(|index| { return QueuePlace { position: index + 1, waiting: requesters.len() }; });
             let granted: Option<OwnerLock> = if free && first {
                 try_acquire_owner_lock(lock_directory.as_path(), Some(self.transaction_id.as_str()))
                     .map_err(ReservationError::Lock)?
@@ -343,6 +448,7 @@ impl LandingReservation {
                 return Ok(true);
             }
             self.refuse_after(started, limit)?;
+            reporter.poll(|waited, repeat| { return self.wait_line(waited, limit, place, repeat); });
             std::thread::sleep(RESERVATION_POLL);
         }
     }

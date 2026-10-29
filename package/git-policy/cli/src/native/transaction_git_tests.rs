@@ -1,7 +1,8 @@
 //! Controls for the transaction Git runner against real Git.
 
 use super::*;
-use crate::test_support::{executable, fixture, git_context, git_text, remove, repository};
+use crate::test_support::{SharedSink, executable, fixture, git_context, git_text, remove, repository};
+use crate::wait_progress::Cadence;
 
 /// Requests carry their arguments and nothing else by default.
 #[test]
@@ -234,6 +235,75 @@ fn runs_of(count: &Path) -> u32 {
 
 /// A pause that records nothing and waits for nothing, so the controls do not sleep.
 fn no_pause(_wait: Duration) {}
+
+/// A fake Git that runs for `FAKE_SECONDS` seconds before it answers.
+const SLOW_GIT: &[u8] = b"#!/bin/sh\nsleep \"$FAKE_SECONDS\"\necho slow\n";
+
+/// A context running the slow fake Git and a request that gives it `seconds` to run.
+fn slow_run(root: &Path, seconds: &str) -> (GitContext, GitRequest) {
+    let program: PathBuf = root.join("slow-git");
+    executable(program.as_path(), SLOW_GIT);
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new() };
+    let mut request: GitRequest = GitRequest::new(root, &["add", "--", "a.md"]);
+    request.environment = vec![(OsString::from("FAKE_SECONDS"), OsString::from(seconds))];
+    return (context, request);
+}
+
+/// Terms of a limit, a quick cadence and a shared sink.
+fn quick_terms(limit: Duration, sink: &SharedSink) -> WatchTerms {
+    return WatchTerms {
+        limit,
+        cadence: Cadence { grace: Duration::from_millis(100), interval: Duration::from_millis(100) },
+        notices: Box::new(sink.clone()),
+    };
+}
+
+/// A Git step that runs long is announced by name while it lasts, and its output still comes back.
+#[test]
+fn a_git_step_that_runs_long_is_announced_by_name() {
+    let root: PathBuf = fixture("transaction-git-slow");
+    let (context, request) = slow_run(root.as_path(), "0.5");
+    let sink: SharedSink = SharedSink::default();
+    let output: GitOutput =
+        run_git_once_with(&context, &request, &|| { return quick_terms(Duration::from_secs(60), &sink); })
+            .expect("finished");
+    assert_eq!(String::from_utf8_lossy(output.stdout.as_slice()), "slow\n");
+    let text: String = sink.text();
+    assert!(text.lines().count() >= 3, "{text}");
+    assert!(text.starts_with("cli-git: still waiting for git add -- a.md (process "), "{text}");
+    remove(root.as_path());
+}
+
+/// A Git step that outlasts its bound is stopped, and the checked run reports the bound and the command,
+///  not a failure to start.
+#[test]
+fn a_git_step_past_its_bound_is_stopped_and_reported_as_such() {
+    let root: PathBuf = fixture("transaction-git-stuck");
+    let (context, request) = slow_run(root.as_path(), "30");
+    let sink: SharedSink = SharedSink::default();
+    let failure: std::io::Error =
+        run_git_once_with(&context, &request, &|| { return quick_terms(Duration::from_millis(400), &sink); })
+            .expect_err("stopped at the bound");
+    assert_eq!(failure.kind(), std::io::ErrorKind::TimedOut);
+    assert!(failure.to_string().starts_with("git add -- a.md did not finish within 0 seconds and was stopped"), "{failure}");
+    assert!(sink.text().lines().count() >= 2, "{}", sink.text());
+    remove(root.as_path());
+}
+
+/// A timed-out step reaches the caller of the checked run as its own failure text.
+#[test]
+fn the_checked_run_reports_a_bound_without_saying_the_step_failed_to_start() {
+    let arguments: Vec<OsString> = vec![OsString::from("add")];
+    let timed_out = checked_from(
+        Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "git add did not finish")),
+        arguments.as_slice(),
+    )
+    .expect_err("a bound is a failure");
+    assert_eq!(timed_out.0, "git add did not finish");
+    let other = checked_from(Err(std::io::Error::other("no such file")), arguments.as_slice())
+        .expect_err("a start failure is a failure");
+    assert_eq!(other.0, "git add could not start: no such file");
+}
 
 /// A rerunnable command that Git reports as refused is run again with a fresh input file until it works.
 #[test]

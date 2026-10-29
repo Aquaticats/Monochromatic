@@ -21,10 +21,12 @@
 
 /// Building a Git child from an argument array and an overlay.
 use super::forwarding::git_command;
+/// The watched run that announces a step that takes long and stops it at the bound.
+use super::child_watch::{WatchTerms, output_watched};
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
 /// Starts that ride out a short shortage of processes.
-use super::start_retry::{RetryStart, START_RETRY_BUDGET, retry_refused_start_with};
+use super::start_retry::{START_RETRY_BUDGET, retry_refused_start_with};
 /// Unique temporary names.
 use super::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
@@ -455,6 +457,24 @@ fn run_git_pausing(
 /// await runTransactionGitOnce({ gitPath, cwd, args })
 /// ```
 fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<GitOutput> {
+    return run_git_once_with(context, request, &WatchTerms::from_environment);
+}
+
+/// What:
+///  `run_git_once` with the notice cadence, the bound and the notice sink of its wait made by `terms`.
+/// Why:
+///   The production entry reads them from the environment;
+///  tests choose short ones and read the notices from a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runTransactionGitOnce({ gitPath, cwd, args, terms })
+/// ```
+fn run_git_once_with(
+    context: &GitContext,
+    request: &GitRequest,
+    terms: &dyn Fn() -> WatchTerms,
+) -> std::io::Result<GitOutput> {
     let mut command: Command = build_command(context, request);
     match &request.input {
         Some(bytes) => {
@@ -464,7 +484,8 @@ fn run_git_once(context: &GitContext, request: &GitRequest) -> std::io::Result<G
             command.stdin(Stdio::null());
         }
     }
-    let output: std::process::Output = command.output_retrying()?;
+    let output: std::process::Output =
+        output_watched(&mut command, command_text(&request.arguments).as_str(), terms())?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,
@@ -487,21 +508,32 @@ pub fn run_git_checked(
     context: &GitContext,
     request: &GitRequest,
 ) -> Result<GitOutput, GitFailure> {
-    let output: GitOutput = match run_git(context, request) {
+    return checked_from(run_git(context, request), request.arguments.as_slice());
+}
+
+/// What:
+///  Turn the outcome of a run into the checked result:
+///  success needs a start and a zero exit, and each failure names the command.
+/// Why:
+///   A step stopped at its bound did start, and its own text already says which command and why;
+///  every other start failure and every non-zero exit is named here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkedFrom(outcome: GitOutput | Error, args: string[]): GitOutput; // throws CommitTransactionGitError
+/// ```
+fn checked_from(outcome: std::io::Result<GitOutput>, arguments: &[OsString]) -> Result<GitOutput, GitFailure> {
+    let output: GitOutput = match outcome {
         Ok(finished) => finished,
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
+            return Err(GitFailure(error.to_string()));
+        }
         Err(error) => {
-            return Err(GitFailure(format!(
-                "{} could not start: {error}",
-                command_text(request.arguments.as_slice())
-            )));
+            return Err(GitFailure(format!("{} could not start: {error}", command_text(arguments))));
         }
     };
     if !output.succeeded() {
-        return Err(GitFailure(format!(
-            "{} failed: {}",
-            command_text(request.arguments.as_slice()),
-            output.error_text()
-        )));
+        return Err(GitFailure(format!("{} failed: {}", command_text(arguments), output.error_text())));
     }
     return Ok(output);
 }

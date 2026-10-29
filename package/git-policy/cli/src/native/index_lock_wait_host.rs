@@ -16,6 +16,8 @@
 use super::index_lock_evidence::{Evidence, gather_index_lock_evidence, read_lock_metadata};
 /// The wait's side-effect seam.
 use super::index_lock_wait::WaitEffects;
+/// When the wait repeats its notice.
+use super::wait_progress::Cadence;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Instant` is a monotonic clock reading.
@@ -106,6 +108,10 @@ impl WaitEffects for HostWaitEffects {
         use std::io::Write;
         // A standard-error write failure cannot be reported anywhere else, so it is dropped.
         let _ = std::io::stderr().write_all(line.as_bytes());
+    }
+
+    fn cadence(&mut self) -> Cadence {
+        return Cadence::from_environment();
     }
 }
 

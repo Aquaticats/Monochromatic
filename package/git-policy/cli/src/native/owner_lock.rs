@@ -37,15 +37,13 @@ use super::process_identity::{ProcessIdentityError, current_birth_identity};
 use super::random_id::{RandomSourceError, random_uuid};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// When a wait's notices are due.
+use super::wait_progress::{Cadence, Ticker};
 /// `Duration` is a span of time; `Instant` is a point on a clock that never goes backwards.
 use std::time::{Duration, Instant};
 
 /// Delay between acquisition attempts while a live owner holds the lock.
 pub const DEFAULT_POLL_DELAY: Duration = Duration::from_millis(20);
-
-/// How long a wait lasts before `WaitNotice::slow` runs:
-///  long enough that ordinary contention stays silent.
-pub const SLOW_WAIT: Duration = Duration::from_secs(5);
 
 /// What:
 ///  Why an owner-lock operation failed.
@@ -146,7 +144,9 @@ impl std::fmt::Display for OwnerLockError {
                 return write!(
                     formatter,
                     "gave up after waiting {} seconds for the owner lock {}, which {holder} still holds; \
-                     the lock was left in place",
+                     the lock was left in place. To go on, let that process finish and run the command again, \
+                     check with `ps` whether it is stuck and stop it if so, or raise the limit with \
+                     CLI_GIT_LOCK_WAIT_SECONDS (CLI_GIT_PUSH_LOCK_WAIT_SECONDS for the push lock)",
                     waited.as_secs(),
                     path.display()
                 );
@@ -682,12 +682,18 @@ pub trait WaitNotice {
     ///  when the first attempt finds the lock held.
     fn waiting(&mut self);
 
-    /// Called once,
-    ///  when the wait has lasted `SLOW_WAIT`,
-    ///  with how long it has lasted.
+    /// Called when the wait has lasted the cadence's grace,
+    ///  and again at every interval after it,
+    ///  with how long the wait has lasted.
     ///  Brief contention never reaches it;
     ///  a notice that only needs the first moment ignores it.
     fn slow(&mut self, _waited: Duration) {}
+
+    /// Whether `waiting` already said so out loud,
+    ///  so the first `slow` call comes one interval after the start instead of after the grace.
+    fn announces_at_start(&self) -> bool {
+        return false;
+    }
 }
 
 /// What:
@@ -712,29 +718,33 @@ impl WaitNotice for SilentWait {
 /// What:
 ///  Acquire a lock,
 ///  waiting at most `limit` while a live owner holds it,
-///  and telling `notice.slow` once the wait has lasted `slow_after`.
+///  and telling `notice.slow` once the wait has lasted the cadence's grace and again at every interval.
 /// Why:
 ///   No acquisition can wait forever,
 ///  so a holder that is alive but stuck fails its waiters instead of stalling them.
 ///  The elapsed time is measured on a clock that never goes backwards,
-///  and tests choose a short `slow_after` instead of waiting out `SLOW_WAIT`.
+///  and tests choose a short cadence instead of waiting out the standard one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function acquireWithin({ lockDirectory, pollDelayMs, onWait, limitMs }): Promise<OwnerLock>;
+/// async function acquireWithin({ lockDirectory, pollDelayMs, onWait, limitMs, cadence }): Promise<OwnerLock>;
 /// ```
 pub fn acquire_within(
     lock_directory: &Path,
     poll_delay: Duration,
     notice: &mut dyn WaitNotice,
     limit: Duration,
-    slow_after: Duration,
+    cadence: Cadence,
 ) -> Result<OwnerLock, OwnerLockError> {
     let record: OwnerLockRecord = current_owner_record(None)?;
     let started: Instant = Instant::now();
-    // `mut` lets the loop remember that the wait was announced.
+    // `mut` lets the loop remember that the wait was announced and when its next notice is due.
     let mut notified: bool = false;
-    let mut slow_noticed: bool = false;
+    let mut ticker: Ticker = if notice.announces_at_start() {
+        Ticker::announced_at_start(cadence)
+    } else {
+        Ticker::new(cadence)
+    };
     loop {
         if let Some(lock) = attempt_acquire(lock_directory, &record)? {
             return Ok(lock);
@@ -743,8 +753,7 @@ pub fn acquire_within(
             notified = true;
             notice.waiting();
         }
-        if !slow_noticed && started.elapsed() >= slow_after {
-            slow_noticed = true;
+        if ticker.due(started.elapsed()) {
             notice.slow(started.elapsed());
         }
         if started.elapsed() >= limit {
@@ -784,7 +793,7 @@ pub fn acquire_owner_lock(
     poll_delay: Duration,
     notice: &mut dyn WaitNotice,
 ) -> Result<OwnerLock, OwnerLockError> {
-    return acquire_within(lock_directory, poll_delay, notice, TEST_ACQUIRE_LIMIT, SLOW_WAIT);
+    return acquire_within(lock_directory, poll_delay, notice, TEST_ACQUIRE_LIMIT, Cadence::standard());
 }
 
 /// How long a test waits for a lock before failing.
@@ -810,7 +819,7 @@ pub fn acquire_owner_lock_for(
     notice: &mut dyn WaitNotice,
     limit: Duration,
 ) -> Result<OwnerLock, OwnerLockError> {
-    return acquire_within(lock_directory, poll_delay, notice, limit, SLOW_WAIT);
+    return acquire_within(lock_directory, poll_delay, notice, limit, Cadence::from_environment());
 }
 
 /// Lock contention,

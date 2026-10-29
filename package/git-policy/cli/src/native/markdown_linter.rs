@@ -28,8 +28,12 @@
 
 /// Import the bounded child runner.
 use super::bounded_child::{
-    ChildFailure, ChildLimits, ChildRequest, FinishedChild, run_bounded_child,
+    ChildFailure, ChildLimits, ChildRequest, FinishedChild, run_bounded_child_noticing,
 };
+/// When a long run prints its notices.
+use super::wait_progress::Cadence;
+/// The sink of those notices.
+use std::io::Write;
 /// Import the reading of the environment as name and value pairs.
 use super::child_environment::environment_value;
 /// Import the conversion of Git's pathname bytes to a path.
@@ -112,6 +116,10 @@ pub struct ProcessLinter {
     ///  once written,
     ///  or the reason it could not be.
     configuration: Option<Result<NamedTempFile, String>>,
+    /// When a run that takes long prints its notices.
+    cadence: Cadence,
+    /// Where those notices go.
+    notices: Box<dyn Write>,
 }
 
 /// What:
@@ -138,6 +146,8 @@ pub fn process_linter(
         scratch,
         executable: None,
         configuration: None,
+        cadence: Cadence::from_environment(),
+        notices: Box::new(std::io::stderr()),
     };
 }
 
@@ -190,7 +200,9 @@ fn child_failure_reason(failure: &ChildFailure, program: &std::path::Path) -> St
         }
         ChildFailure::TimedOut(bound) => {
             return format!(
-                "monochromatic-lint did not finish within {} milliseconds and was stopped",
+                "monochromatic-lint did not finish within {} milliseconds and was stopped; run the command again, \
+                 run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+                 to off to skip the check",
                 bound.as_millis()
             );
         }
@@ -212,6 +224,14 @@ fn child_failure_reason(failure: &ChildFailure, program: &std::path::Path) -> St
 /// class ProcessLinter { program(): string; configurationPath(options): string }
 /// ```
 impl ProcessLinter {
+    /// The same linter with another notice cadence and sink;
+    ///  tests choose a short cadence and read the notices from a buffer.
+    pub fn with_notices(mut self, cadence: Cadence, notices: Box<dyn Write>) -> Self {
+        self.cadence = cadence;
+        self.notices = notices;
+        return self;
+    }
+
     /// What:
     ///  The program,
     ///  looked up on the environment's PATH on first use.
@@ -328,15 +348,21 @@ impl MarkdownLinter for ProcessLinter {
             option("--stdin-filename", name.as_os_str()),
             OsString::from("--fix"),
         ];
-        let finished: FinishedChild = match run_bounded_child(&ChildRequest {
-            executable: program.as_path(),
-            arguments: arguments.as_slice(),
-            directory: request.top_level,
-            environment: self.environment.as_slice(),
-            input: request.source,
-            scratch: self.scratch.as_path(),
-            limits: self.limits,
-        }) {
+        let waiting_for: String = format!("monochromatic-lint to check {}", name.display());
+        let finished: FinishedChild = match run_bounded_child_noticing(
+            &ChildRequest {
+                executable: program.as_path(),
+                arguments: arguments.as_slice(),
+                directory: request.top_level,
+                environment: self.environment.as_slice(),
+                input: request.source,
+                scratch: self.scratch.as_path(),
+                limits: self.limits,
+                waiting_for: waiting_for.as_str(),
+                cadence: self.cadence,
+            },
+            &mut self.notices,
+        ) {
             Ok(done) => done,
             Err(failure) => return Err(child_failure_reason(&failure, program.as_path())),
         };
