@@ -3172,3 +3172,10 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Review items: `ref_files::tests` is `pub(crate)` and borrowed by two other test files (move to a test-support file);
   the sixth marker spelling is subsumed by the fifth and cannot be shown failing.
 - The planning doc and the optimizations log are untouched by S4; the integrator records S2, S4 and J results there.
+
+## Update at 2026-10-29 (issue 1807 verified)
+
+- Issue 1807 verified at `f0b74627f3`: clippy clean; host 2021 of 2022 and binary 166 of 167 (only the two known host-only
+  linter failures); container gate 2190 passed, 5 skipped, 0 failed in 66 s. Unreleased: ships with the next version,
+  together with the merged slices R, S1 to S4 and J (read the current crate version first).
+- Cost: one extra `git diff-index` start per explicit-path commit (no per-commit spawn budget test exists to ratchet).
