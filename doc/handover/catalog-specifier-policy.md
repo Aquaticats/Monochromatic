@@ -37,13 +37,34 @@ No code has been changed yet; the user has not confirmed the shared understandin
 - Catalog entries themselves are not validated by this check.
 - Named catalogs are allowed; pnpm itself rejects a reference to a missing entry.
 - Mechanism: one shared check, run by a mise lint task and by the `.pnpmfile.mjs` hook.
-- Package home: new `package/dependency-catalog/core-specifier-policy` (pure validator and manifest enumeration)
+- Package home (the hook-facing validator must stay dependency-free, see the probes below):
+  new `package/dependency-catalog/core-specifier-policy` (pure validator and manifest enumeration)
   and a thin `package/dependency-catalog/cli-specifier-policy` for the mise task.
   `core-pnpm` stays parsing-only.
 - Lint scope: every tracked `package.json`, including the root and `package-paused/`.
   The hook covers only workspace manifests, identified by a workspace-name set.
 - The check reports every violation in one run, naming the file, the section and the dependency.
-- `zod` moves into the catalog as `>=4.6.7`, and `cost-dismissal` switches to `catalog:`.
+- `zod` is already in the catalog as `'>=4.6.6'` (`pnpm-workspace.yaml`), so the fix is manifest-only:
+  `cost-dismissal` switches from `^4.6.7` to `catalog:`.
+  This corrects an earlier statement in this handover that the catalog entry had to be added.
+
+## Pre-implementation probes
+
+Run after the decisions, on pnpm 12.16.1 in a throwaway fixture, each with a positive control.
+
+- Fresh install with a hook-imported file that imports a bare package fails for every install:
+  `ERR_MODULE_NOT_FOUND: Cannot find package 'is-odd'`, exit 1, because the hook loads before `node_modules` exists.
+  The hook-facing validator must therefore be one dependency-free file imported by relative path,
+  with only `node:` builtins.
+  The repo rules that normally require `@monochromatic-dev/logger-core` and `or-throw-core` need a documented exception in that file.
+- A throwing hook does not break `pnpm add`: with `catalogMode: strict`, `pnpm add is-buffer@1.1.6` and `pnpm add is-buffer`
+  both exit 0 and the hook receives the promoted `catalog:` form.
+  The positive control (a manifest with `"is-number": "^7.0.0"`) exits 1 with `ERR_PNPM_PNPMFILE_FAIL` and the policy message.
+- pnpm itself rejects a `catalog:` reference with no catalog entry: `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`.
+- Read from `.pnpmfile.mjs`, not probed: `applyBlocklist` rewrites `dependencies` and `optionalDependencies` in place to
+  `workspace:@monochromatic-dev/pnpm-override-stub-*@*`.
+  The specifier policy must therefore validate the manifest as received, before `applyBlocklist`,
+  and a test must cover a workspace manifest that depends on a blocked name.
 
 ## New input after the decisions
 
