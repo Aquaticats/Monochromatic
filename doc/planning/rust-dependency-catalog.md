@@ -767,14 +767,14 @@ Following pnpm,
 
 ## Open questions
 
-- To verify at implementation start,
-   not yet probed:
-   that a `>=` requirement in a per-crate `[workspace.dependencies]` entry inherits cleanly,
-   and that `cargo update` in crates with system-library builds
-   (`package/music-player/desktop-app`,
-   `package/desktop-app/file-manager-qt`)
-   needs only the registry index,
-   not their Podman build environment.
+- Verified 2026-10-29 (repo cargo, throwaway crate and throwaway worktree):
+   `memchr = ">=2.6.4"` in a crate's own `[workspace.dependencies]`,
+   used as `{ workspace = true, default-features = false, features = ["alloc"] }`,
+   resolved with only `alloc`,
+   and `cargo package` kept `version = ">=2.6.4"`;
+   `cargo update --dry-run` ran on the host in `package/music-player/desktop-app` and
+   `package/desktop-app/file-manager-qt` with only the registry index
+   (no Podman environment).
 - Name of the mise task and of its package
    (decided:
    a package bin under `package/dev-script/` run by a thin mise task).
