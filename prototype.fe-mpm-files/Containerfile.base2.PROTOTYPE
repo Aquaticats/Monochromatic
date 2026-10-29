@@ -1,0 +1,8 @@
+# PROTOTYPE: layer the lock-pinned uv, node, pnpm, cargo-binstall over the base image.
+# Versions are the ones toolchain.lock.json pins (uv 0.13.6, node 26.13.0, pnpm 12.16.1, cargo-binstall 1.26.1),
+# because mpm 8.2.0 refuses uv < 0.10.10 and pnpm < 11.0.0 (found by probe 1b).
+FROM localhost/fe-proto-base:1
+RUN curl -LsSf https://astral.sh/uv/0.13.6/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh && uv --version
+RUN curl -fsSL https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.xz | tar -xJ --strip-components=1 --directory /usr/local && node --version
+RUN npm install --global pnpm@12.16.1 && pnpm --version
+RUN curl -fsSL https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-musl.tgz | tar -xz --directory /usr/local/cargo/bin && cargo-binstall -V
