@@ -46,14 +46,14 @@
     "@monochromatic-dev/module-logger": "workspace:*"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5-alpha.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-settings": "0.2.1-rc.2"
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5-alpha.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-settings": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/module-test": "workspace:*",
