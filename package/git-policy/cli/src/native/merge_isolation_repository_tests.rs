@@ -155,6 +155,9 @@ fn diverged_with_files(name: &str, extra: &[&str]) -> (PathBuf, PathBuf) {
     git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
     git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
     std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
+    std::fs::create_dir(repo.join("dir")).expect("directory");
+    std::fs::write(repo.join("dir/new.txt"), b"new\n").expect("file");
+    git(repo.as_path(), &["add", "--", "dir/new.txt"]);
     git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature work"]);
     git(repo.as_path(), &["switch", "--quiet", "main"]);
     std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
@@ -297,6 +300,37 @@ fn unrelated_histories_are_merged_only_when_allowed() {
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD^2"]), git_text(repo.as_path(), &["rev-parse", "other"]));
     assert_eq!(std::fs::read(repo.join("o.txt")).expect("the other branch's file"), b"o.txt other\n");
     assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt", "the staged work stayed staged");
+    remove(parent.as_path());
+}
+
+/// An attempt recovers a dead merge's record first, before it reads the index: the checkout the dead merge left half
+/// applied would otherwise read as another session's staged paths and refuse the merge.
+#[test]
+fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
+    let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-attempt-recovers");
+    let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let new_oid: String = git_text(
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    );
+    let mut owner = current_transaction_owner("44444444-0000-4000-8000-000000000004", "2026-10-29T00:00:00.000Z")
+        .expect("owner");
+    owner.owner_identity = String::from("linux:1");
+    let intent: MergeIntent = MergeIntent {
+        owner,
+        repository_root: repo.to_string_lossy().into_owned(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: old_oid.clone(),
+        new_oid: new_oid.clone(),
+    };
+    let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
+    git(repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()]);
+    let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "feature"], &[]);
+    assert_eq!(outcome, IsolatedMerge::Forward { notice: None }, "the branch is merged once the dead merge is finished");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), new_oid, "the dead merge was finished");
+    assert!(!record.exists(), "its record is gone");
     remove(parent.as_path());
 }
 

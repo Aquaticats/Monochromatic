@@ -761,6 +761,83 @@ fn a_live_merges_record_is_left_alone() {
     remove_settled(&fixture);
 }
 
+/// `merge.ff=only` refuses a merge that cannot fast-forward, which is native Git's answer; `--no-ff` and `--ff` on
+/// the command line choose otherwise, and the wrapper completes those over staged work as native Git does on a
+/// clean copy.
+#[test]
+fn merge_ff_only_is_native_gits_unless_the_command_line_chooses() {
+    let cases: [(&str, &[&str]); 3] =
+        [("default", &["feature"]), ("no-ff", &["--no-ff", "feature"]), ("ff", &["--ff", "feature"])];
+    for (name, arguments) in cases {
+        let fixture: Fixture = fixture(format!("merge-ff-only-{name}").as_str());
+        let dirty: PathBuf = diverged(&fixture, "dirty");
+        git(&fixture, dirty.as_path(), &["config", "merge.ff", "only"]);
+        let clean: PathBuf = copy_of(&fixture, dirty.as_path(), "clean");
+        stage_unrelated_work(&fixture, dirty.as_path());
+        let mut merge: Vec<&str> = vec!["merge", "--no-edit"];
+        merge.extend_from_slice(arguments);
+        let ours: Observed = run(&fixture, dirty.as_path(), merge.as_slice());
+        let theirs: Observed = native(&fixture, clean.as_path(), merge.as_slice());
+        assert_eq!(theirs.code == Some(0), name != "default", "{name}: native Git on the clean copy");
+        assert_eq!((ours.code, text(&ours.stdout)), (theirs.code, text(&theirs.stdout)), "{name}: {}", text(&ours.stderr));
+        if theirs.code == Some(0) {
+            assert_eq!(commit_shape(&fixture, dirty.as_path()), commit_shape(&fixture, clean.as_path()), "{name}");
+        } else {
+            assert_eq!(text(&ours.stderr), text(&theirs.stderr), "{name}: native Git's words");
+        }
+        remove_settled(&fixture);
+    }
+}
+
+/// The directory a global `-C` names, relative to where the command runs, reaches the queries of the merge but not
+/// the recovery of a merge Git refused: that one runs from the repository root, where the same relative name would
+/// name nothing.
+#[test]
+fn a_relative_directory_option_does_not_break_the_settling_of_a_refused_merge() {
+    let fixture: Fixture = fixture("merge-refuses-untracked-relative");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    std::fs::create_dir(repo.join("dir")).expect("directory");
+    std::fs::write(repo.join("dir/new.txt"), b"an untracked file in the way\n").expect("file");
+    let before: Snapshot = snapshot(&fixture, repo.as_path());
+    let observed: Observed = run(&fixture, fixture.root.as_path(), &["-C", "repo", "merge", "--no-edit", "feature"]);
+    assert_ne!(observed.code, Some(0));
+    let stderr: String = text(&observed.stderr);
+    assert!(stderr.contains("merge-isolation/not-applied"), "the refusal is settled and reported: {stderr}");
+    assert_eq!(snapshot(&fixture, repo.as_path()), before);
+    assert_eq!(records_in(repo.join(".git/cli-git-merges").as_path()), Vec::<PathBuf>::new(), "the record is removed");
+    remove_settled(&fixture);
+}
+
+/// A merge that starts while a dead merge's record is waiting recovers it first, before it looks at the staged work:
+/// the half-applied checkout of the dead merge would otherwise read as another session's staged paths.
+#[test]
+fn a_merge_recovers_a_dead_merge_before_it_checks_the_staged_work() {
+    let fixture: Fixture = fixture("merge-recovers-before-merging");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    let staged: String = git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]);
+    let records: PathBuf = killed_merge_at(&fixture, repo.as_path(), "merge-intent");
+    let record: String = std::fs::read_to_string(records_in(records.as_path())[0].as_path()).expect("record");
+    let new_oid: String = serde_json::from_str::<serde_json::Value>(record.as_str()).expect("record JSON")["newOid"]
+        .as_str()
+        .expect("newOid")
+        .to_owned();
+    let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    git(&fixture, repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), new_oid.as_str()]);
+    let again: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    assert_eq!((again.code, text(&again.stdout)), (Some(0), String::from("Already up to date.\n")), "{}", text(&again.stderr));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), new_oid, "the dead merge was finished");
+    assert_eq!(records_in(records.as_path()), Vec::<PathBuf>::new());
+    assert_eq!(
+        git_text(&fixture, repo.as_path(), &["--no-optional-locks", "ls-files", "--stage", "--debug", "--", "u.txt"]),
+        staged,
+        "the staged entry is byte-identical"
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    remove_settled(&fixture);
+}
+
 /// A pseudo-terminal: the master end the test keeps open, and the slave end a child can use as a terminal.
 struct Terminal {
     /// Kept so the slave stays open for the child's whole run.
