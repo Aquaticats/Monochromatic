@@ -976,13 +976,10 @@ the set-aside file,
 refuse and tick one step after another over stub meters,
 so no real read lies between a refusal and its hold;
 each ran singly with a 30 ms delay on every file read and passed.
-Two real-clock waits stay in tests,
-open as a later item (read at `c6185d4086`):
-`provider-budget-neuralwatt-return.unit.test.ts` polls every 10 ms (`pollMs: 10`,
-lines 398 and 453)
-against a wall clock that moves with real time,
-and `pass-entry.unit.test.ts` waits 10 ms (`wait(10,)`,
-line 972).
+Three real-clock waits stayed in tests at `c6185d4086`:
+`provider-budget-neuralwatt-return.unit.test.ts` (`pollMs: 10`, lines 398 and 453)
+and `pass-entry.unit.test.ts` (`wait(10,)`, line 972).
+[B985](audit-ledger-real-clock-waits-left-after-the-cooldown.md) replaced all three on 2026-10-29.
 
 Prevention rule:
 a wait that repeats an ask is judged by what the first wait bought,
