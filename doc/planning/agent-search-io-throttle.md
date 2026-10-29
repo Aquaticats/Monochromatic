@@ -41,6 +41,23 @@ Kernel documentation says `io.max` limits are enforced by blk-throttle on all de
 `io.weight` needs iocost or BFQ, and `ionice` priorities are honored only by BFQ and mq-deadline
 (docs.kernel.org/block/ioprio.html), so neither helps under `kyber` without a scheduler change that needs root.
 
+## BFQ on nvme0n1
+
+The user authorized switching `nvme0n1` from `kyber` to `bfq`; the switch was made for the running boot only
+(`echo bfq | sudo tee /sys/block/nvme0n1/queue/scheduler`), with no udev rule. Revert with `echo kyber` to the same file.
+
+A heavy reader (600 cold 4 KiB files) ran against a light reader (60 cold files) on `/var/home`, two runs per arm:
+
+- light alone: 0.61 and 0.12 seconds (the run-to-run spread is as large as most of the effects below).
+- heavy at `IOWeight=100`: light took 0.25 and 0.55 seconds.
+- heavy at `IOWeight=1`: light took 0.06 and 0.07 seconds.
+- heavy in the idle scheduling class: light took 0.85 seconds (one run), heavy took 7.99 seconds.
+
+The weight arms moved in the expected direction (weight 1 below weight 100 in both pairs), so the probe has a working
+positive control, but the disk was not saturated: the heavy reader finished 600 files in under 2 seconds,
+unlike the 20 to 100 files per second measured earlier under load. The test therefore shows `io.weight` is honored under
+BFQ and says nothing yet about relief during a real stall. The idle class did not protect the light reader in the one run.
+
 ## Commits are a second I/O consumer
 
 While this note was committed, `ps` showed three concurrent shadow-repository `git commit` processes
