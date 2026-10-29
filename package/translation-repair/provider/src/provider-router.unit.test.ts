@@ -34,6 +34,7 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
+import { waitedOutOnFakeClock, } from './fake-clock-hold-wait.test-fixture.ts';
 
 /**
  Plain text conversation reused across routed calls.
@@ -372,6 +373,8 @@ function isNapSpot(value: unknown,): value is { readonly spot: string; } {
 
  @param modelId - model to ask
 
+ @param signal - abort the call carries, one that never fires unless a case that fakes the clock hands its own
+
  @returns Reply text, or the error thrown
 
  @example
@@ -383,21 +386,25 @@ function ask(
   {
     client,
     modelId = SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+    signal = SIGNAL,
   }: {
     readonly client: ReturnType<typeof createRoutingClient>;
     readonly modelId?: Parameters<ReturnType<typeof createRoutingClient>['chatText']>[0]['modelId'];
+    readonly signal?: AbortSignal;
   },
 ): Promise<{ readonly text: string; } | { readonly thrown: unknown; }> {
   return textCallOutcome({
     client,
     modelId,
     messages: MESSAGES,
-    signal: SIGNAL,
+    signal,
   },);
 }
 
 await describe({
   name: createRoutingClient.name,
+  // The two cases that wait out a hold fake the process-wide timers, so the cases run one at a time.
+  concurrency: 1,
   children: [
     it({
       name: 'prefers the first provider while it has budget and a free slot',
@@ -608,7 +615,7 @@ await describe({
       name: 'WAITS OUT THE SHORTEST HOLD when every provider is held out by refusals, then routes '
         + 'to the one that came back, instead of ending the run: the pin pass of 2026-09-02 '
         + 'failed every remaining entry inside one second on two holds while both meters read wet',
-      fn: async () => {
+      fn: async ctx => {
         const { callers, called, } = stubProviders({},);
         const stub = stubBudgets({
           dry: {
@@ -641,9 +648,18 @@ await describe({
           holdPollMs: 1,
         },);
 
-        expect(await ask({ client, },),).toEqual({ text: '{"spot":"windowsill"}', },);
+        // The router sleeps the 5 ms of Synthetic's hold on a fake clock the case ticks past it.
+        const { value, elapsedMs, } = await waitedOutOnFakeClock({
+          sinon: ctx.sinon,
+          holdMs: 5,
+          pollMs: 1,
+          reading: async ({ signal, },) => await ask({ client, signal, },),
+        },);
+        expect(value,).toEqual({ text: '{"spot":"windowsill"}', },);
         expect(called,).toEqual(['synthetic',],);
         expect(stub.holdReads.count,).toBe(1,);
+        // The shortest hold is slept, not the 20 ms beside it, and the hold read counts cannot tell a wait from none.
+        expect(elapsedMs,).toBe(5,);
       },
     },),
 
@@ -651,7 +667,7 @@ await describe({
       name: 'GOES BACK TO THE REFUSER once its hold has been waited out when the other providers are '
         + 'dry by meter: the refusal that routed the call is what the hold became, and a hold that '
         + 'expired is the provider coming back, not a second reason to call it dry',
-      fn: async () => {
+      fn: async ctx => {
         const { callers, called, } = stubProviders({
           status: { synthetic: 429, },
           refusals: { synthetic: 1, },
@@ -682,10 +698,19 @@ await describe({
           holdPollMs: 1,
         },);
 
-        expect(await ask({ client, },),).toEqual({ text: '{"spot":"windowsill"}', },);
+        // The router sleeps the 5 ms of Synthetic's hold on a fake clock the case ticks past it.
+        const { value, elapsedMs, } = await waitedOutOnFakeClock({
+          sinon: ctx.sinon,
+          holdMs: 5,
+          pollMs: 1,
+          reading: async ({ signal, },) => await ask({ client, signal, },),
+        },);
+        expect(value,).toEqual({ text: '{"spot":"windowsill"}', },);
         expect(called,).toEqual(['synthetic', 'synthetic',],);
         expect(stub.refused,).toEqual(['synthetic',],);
         expect(stub.holdReads.count,).toBe(1,);
+        // The refuser's hold is slept before it is asked again, which the call log alone cannot tell from no wait.
+        expect(elapsedMs,).toBe(5,);
       },
     },),
 

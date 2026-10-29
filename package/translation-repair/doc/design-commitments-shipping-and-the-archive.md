@@ -26,6 +26,18 @@ which lists every file of these commitments.
   `entry-notes.ts` reads them as editor comments and a reader never sees them.
   Decision:
   `doc/decision/translation-repair-good-result-over-bad-original.md`.
+- **The translate lane's two-ballot text ships where the final round cannot seat two judges.**
+  Owner,
+  2026-10-29 ("Ship the two-ballot text (Recommended)"):
+  "When the final round can't seat two judges,
+  the translate lane's winner ships if two judges chose it and it passes the publication rule."
+  One judge alone never decides,
+  a slice with no wording that passes keeps the archive (2026-09-27),
+  and a disputed archive is never a candidate or a fallback.
+  Every kept archive records why it stayed,
+  and the page's `no-valid-wording` defect says so slice by slice.
+  Ledger:
+  B1020 to B1025 in `audit-ledger-the-two-ballot-translate-text.md`.
 - **Whitespace Markdown renders the same is not a defect.**
   Owner,
   2026-09-27:

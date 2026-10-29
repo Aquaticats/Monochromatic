@@ -26,6 +26,7 @@ import { runPassContest, } from './pass-contest.ts';
 import { foldPassCarried, } from './pass-carried-fold.ts';
 import { admitPassInsertions, } from './pass-insertion-reseat.ts';
 import { runPassSettlement, } from './pass-settlement.ts';
+import { translateWinnerBallotsOf, } from './pass-translate-winner-ballots.ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   persistSettledEntry,
@@ -464,6 +465,13 @@ export async function runEntryPipeline(
       // archive or not, for the polish gate that decides a rewording of the
       // consolidated text (CuspariaKLSY21 slice 0, 2026-10-21).
       ...repairClaimEvidenceOf({ repair: lanes.repair, },),
+      // AND HOW MANY JUDGES CHOSE THE TRANSLATE LANE'S TEXT in the lane's round, which the delivery rows do not carry
+      // and the owner's answer of 2026-10-29 ("Ship the two-ballot text") reads at a final round that cannot seat two.
+      translateWinnerBallots: translateWinnerBallotsOf({
+        records: lanes.translate
+          .slices,
+        comparison: projected.comparison,
+      },),
       frontMatterSlices,
       pictureReadings,
       entryCacheDir,

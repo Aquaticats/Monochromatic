@@ -152,6 +152,9 @@ function assertConsolidationCoversContest(
 
  @param benchFloorRecorded - whether the generation records a slice kept for want of a slate bench
 
+ @param translateWinnerRecorded - whether the generation records why the archive keeps a slice and the shipped kind of
+ a translate lane winner
+
  @returns What the stage settled, that it did not run, or that this artifact
  predates the field
 
@@ -178,6 +181,7 @@ export function parseConsolidation(
     lastSeatGrace = false,
     tenseRecorded = false,
     benchFloorRecorded = false,
+    translateWinnerRecorded = false,
   }: {
     readonly value: unknown;
     readonly laneSelection: ArtifactLaneSelection;
@@ -191,6 +195,7 @@ export function parseConsolidation(
     readonly lastSeatGrace?: boolean;
     readonly tenseRecorded?: boolean;
     readonly benchFloorRecorded?: boolean;
+    readonly translateWinnerRecorded?: boolean;
   },
 ): ParsedConsolidation {
   if (value === undefined) {
@@ -256,6 +261,7 @@ export function parseConsolidation(
         lastSeatGrace,
         tenseRecorded,
         benchFloorRecorded,
+        translateWinnerRecorded,
       },);
     },);
 

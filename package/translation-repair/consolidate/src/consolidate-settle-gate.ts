@@ -9,6 +9,7 @@ import {
   nothingValidShips,
   shipPastForfeitStanding,
   slatePickBallotsOf,
+  unseatedFinalRound,
 } from './consolidate-ineligible-standing.ts';
 import type {
   ConsolidationSettlement,
@@ -272,6 +273,8 @@ export async function gateAndShip(
       settlement,
       subject,
       sliceIndex,
+      // The gate is the final round here: one that heard fewer than two judges could not seat them.
+      reason: unseatedFinalRound({ heard: gated.usable, },) ? 'final-round-unseated' : 'slate-declined',
       l,
     },);
   }

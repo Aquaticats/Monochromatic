@@ -6,6 +6,7 @@ import {
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import type { DeclaredNamePair, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import type { PreparedSheetFacts, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Consolidation driver index
 // The two lookups the consolidation driver reads per slice, built once over
@@ -138,6 +139,30 @@ export function contestedRows(
           contest,
         },];
     },);
+}
+
+/**
+ The line that opens a consolidation, saying how many contested slices it settles.
+
+ @param count - contested slices the consolidation settles
+
+ @returns The line, counting by the singular where there is one
+
+ @example
+ ```ts
+ dl.info(contestedCountLine({ count: 1, },),); // 'consolidation: 1 contested slice to settle'
+ ```
+ */
+export function contestedCountLine(
+  { count, }: { readonly count: number; },
+): string {
+  return `consolidation: ${String(count,)} contested ${
+    wordForCount({
+      count,
+      one: 'slice',
+      many: 'slices',
+    },)
+  } to settle`;
 }
 
 /**

@@ -1,6 +1,9 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
-
 import { assertReplacementsChange, } from './assembly-invariant.ts';
+import {
+  attributeFinding,
+  everyFindingSuspected,
+  footnoteRoundFindings,
+} from './assembly-withdrawal-proof.ts';
 import {
   advancingStructuralWithdrawal,
   singleStructuralWithdrawal,
@@ -9,11 +12,6 @@ import {
   definitionBlockCount,
   trimOrphanDefinitions,
 } from './assembly-orphan-trim.ts';
-import {
-  type FootnoteGraphFinding,
-  footnoteIdentifiers,
-  footnoteMentions,
-} from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   introducedFootnoteFindings,
   introducedStructuralRegressions,
@@ -82,157 +80,6 @@ export type GuardedAssembly = {
    */
   readonly trimmed: readonly SliceReplacement[];
 };
-
-/**
- Replacements whose slice changed how often it mentions an identifier.
-
- @param identifierKey - `convention identifier` at fault
-
- @param replacements - replacements still standing
-
- @param incumbentBySlice - incumbent text of every slice, by chunk index
-
- @returns Chunk indices to withdraw
-
- @example
- ```ts
- const culprits = suspectsFor({ identifierKey, replacements, incumbentBySlice, },);
- ```
- */
-function suspectsFor(
-  {
-    identifierKey,
-    replacements,
-    incumbentBySlice,
-  }: {
-    readonly identifierKey: string;
-    readonly replacements: readonly SliceReplacement[];
-    readonly incumbentBySlice: ReadonlyMap<string, string>;
-  },
-): readonly number[] {
-  return replacements
-    .filter(function changedIt(replacement,): boolean {
-      // EVERY STANDING REPLACEMENT NAMES A PREPARED SLICE: the guard refuses one
-      // that does not (`assertReplacementsChange`) before building this map
-      // from the same slices, so a miss is a broken invariant, never a slice
-      // with no text.
-      /**
-       Archive's own text for this slice.
-       */
-      const incumbentText = nonNullishOrThrow(
-        incumbentBySlice.get(String(replacement.sliceIndex,),),
-      );
-
-      /**
-       Mentions counted in it.
-       */
-      const beforeCounts = footnoteIdentifiers({ text: incumbentText, },);
-
-      /**
-       Mentions counted in the accepted text.
-       */
-      const afterCounts = footnoteIdentifiers({
-        text: replacement.replacementText,
-      },);
-      // EITHER role: a defect names an identifier, and both the reference that
-      // points at it and the definition that answers it can be what moved.
-      return [
-        `reference ${identifierKey}`,
-        `definition ${identifierKey}`,
-      ].some(function moved(key,): boolean {
-        return (beforeCounts.get(key,) ?? 0) !== (afterCounts.get(key,) ?? 0);
-      },);
-    },)
-    .map(function toIndex(replacement,): number {
-      return replacement.sliceIndex;
-    },);
-}
-
-/**
- Whether a text defines a footnote identifier under either convention.
-
- @param text - original text of one slice
-
- @param identifier - identifier as the footnote graph keys it
-
- @returns Whether the text carries a definition of it
-
- @example
- ```ts
- const owns = definesIdentifier({ text: '[^1]: 那是它最喜欢的位置。', identifier: '1', },);
- ```
- */
-function definesIdentifier(
-  {
-    text,
-    identifier,
-  }: {
-    readonly text: string;
-    readonly identifier: string;
-  },
-): boolean {
-  return footnoteMentions({ text, },)
-    .some(function defines(mention,): boolean {
-      return (mention.role === 'definition') && (mention.identifier === identifier);
-    },);
-}
-
-/**
- Narrows the suspects of a doubled definition to the carriers whose original
- does not define the note.
-
- THE SLICE WHOSE ORIGINAL DEFINES THE NOTE OWNS IT (class forty-nine,
- shi_Yumiaoya3, 2026-09-17): on a skeleton archive both the opening section,
- which wrote the note in beside its reference, and the definitions slice
- changed their count from nothing to one, so both were withdrawn and the
- page lost the section and the note alike. Where every suspect's original
- defines it, or none does, the suspects stand as found.
-
- @param finding - defect under attribution
-
- @param suspects - chunk indices whose mention count moved
-
- @param sourceBySlice - original text of every slice, by chunk index
-
- @returns Chunk indices to withdraw
-
- @example
- ```ts
- const culprits = withoutOwners({ finding, suspects, sourceBySlice, },);
- ```
- */
-function withoutOwners(
-  {
-    finding,
-    suspects,
-    sourceBySlice,
-  }: {
-    readonly finding: FootnoteGraphFinding;
-    readonly suspects: readonly number[];
-    readonly sourceBySlice: ReadonlyMap<string, string>;
-  },
-): readonly number[] {
-  if (finding.kind !== 'duplicate-definition')
-    return suspects;
-  /**
-   Suspects whose original never defines the note.
-   */
-  const strangers = suspects.filter(function ownsNothing(sliceIndex,): boolean {
-    // A suspect is a standing replacement's slice, which the guard checked
-    // against the prepared slices this map was built from.
-    /**
-     Original text of the suspect's slice.
-     */
-    const sourceText = nonNullishOrThrow(
-      sourceBySlice.get(String(sliceIndex,),),
-    );
-    return !definesIdentifier({
-      text: sourceText,
-      identifier: finding.identifier,
-    },);
-  },);
-  return (strangers.length === 0) ? suspects : strangers;
-}
 
 /**
  Splices replacements into a document and settles what it can carry, repeating
@@ -455,18 +302,24 @@ export function guardFootnoteAssembly(
       }
 
       /**
-       Slices to withdraw this round, each blamed by its own identifier.
+       What each finding may withdraw: the suspects whose withdrawal provably clears it on the page as it will be
+       written, the slice that lost a missing reference first (`assembly-withdrawal-proof.ts`).
        */
-      const culprits = new Set(introduced.flatMap(function toCulprits(finding,) {
-        return withoutOwners({
+      const attributions = introduced.map(function attribute(finding,) {
+        return attributeFinding({
           finding,
-          suspects: suspectsFor({
-            identifierKey: `${finding.convention} ${finding.identifier}`,
-            replacements: standing,
-            incumbentBySlice,
-          },),
+          standing,
+          targetText,
+          slices,
+          incumbentBySlice,
           sourceBySlice,
         },);
+      },);
+      /**
+       Slices to withdraw this round.
+       */
+      const culprits = new Set(attributions.flatMap(function toProven(attribution,) {
+        return attribution.proven;
       },),);
       if ((culprits.size === 0) && (regressions.length > 0)) {
         /**
@@ -509,6 +362,23 @@ export function guardFootnoteAssembly(
           );
         }
       }
+      // NOTHING PROVABLY CLEARS A FINDING THAT HAS SUSPECTS: nothing is withdrawn and the orphan is reported (the lead's
+      // adoption of 2026-10-29, `assembly-withdrawal-proof.ts`). A withdrawal that cannot clear it only loses a good
+      // translation, as slice 115 of XingZ6022 did, and the publish check names what stays.
+      /**
+       Whether no withdrawal is proven and the page has no parse regression to answer for either.
+       */
+      const nothingProven = (culprits.size === 0) && (regressions.length === 0);
+      if (nothingProven && everyFindingSuspected({ attributions, },)) {
+        findings.push(...footnoteRoundFindings({
+          attributions,
+          round,
+        },),);
+        return {
+          assembledText,
+          surviving: standing,
+        };
+      }
       if (culprits.size === 0) {
         // Nothing changed its mention of the identifier at fault, or the defect
         // names no identifier at all: it came from how the replacements MEET
@@ -550,12 +420,10 @@ export function guardFootnoteAssembly(
           surviving: [],
         };
       }
-      for (const finding of introduced) {
-        findings.push(
-          `assembly-footnote-reverted ${finding.kind} ${finding.convention} `
-            + `${finding.identifier} (round ${String(round + 1,)})`,
-        );
-      }
+      findings.push(...footnoteRoundFindings({
+        attributions,
+        round,
+      },),);
       // Recorded in the SAME round it is SEEN, not left to the next one. A
       // regression this round's withdrawal happens to answer as well never
       // reaches another round, so without this the document reports only the

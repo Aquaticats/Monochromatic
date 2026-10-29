@@ -321,7 +321,7 @@ await describe({
                 ['Mittens',],
               ],
             ],),
-            writes: 21,
+            writes: 22,
           },).message}`,
         );
       },
@@ -362,7 +362,7 @@ await describe({
                 ['Mittens',],
               ],
             ],),
-            writes: 21,
+            writes: 22,
           },).message}`,
         );
       },
@@ -404,7 +404,7 @@ await describe({
                 ['Mittens',],
               ],
             ],),
-            writes: 21,
+            writes: 22,
           },).message}`,
         );
       },
@@ -447,7 +447,7 @@ await describe({
                 ['Mittens',],
               ],
             ],),
-            writes: 21,
+            writes: 22,
           },).message}`,
         );
       },
@@ -462,7 +462,7 @@ await describe({
             'Mittens.json',
           ),
           JSON.stringify({
-            artifactSchemaVersion: 21,
+            artifactSchemaVersion: 22,
             id: 'Mittens',
             tip: FIXED_TIP,
             pipelineDigest: RECORDED_DIGEST,
@@ -483,7 +483,7 @@ await describe({
         expect(String(refusal,),).toBe(
           `MislabelledArtifactError: ${new MislabelledArtifactError({
             entryId: 'Mittens',
-            writes: 21,
+            writes: 22,
           },).message}`,
         );
       },

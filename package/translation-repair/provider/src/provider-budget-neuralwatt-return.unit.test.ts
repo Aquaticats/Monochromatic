@@ -13,7 +13,6 @@
 
 import {
   describe,
-  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
@@ -25,6 +24,7 @@ import {
 } from '../dist/final/node/index.mjs';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/rejecting-call.test-fixture.ts';
 import { TEST_MAX_HOLD_MS, } from './budget-hold.test-fixture.ts';
+import { fakeClockStarted, } from './fake-clock-hold-wait.test-fixture.ts';
 
 /**
  Abort signal every read here carries.
@@ -203,45 +203,6 @@ async function heldWithin({ msBeforeReturn, }: { readonly msBeforeReturn: number
   },);
   await budgets.read({ signal: SIGNAL, },);
   return budgets.holds({ returnBoundMs: 300_000, },).neuralwatt;
-}
-
-/**
- Fake clock that the production wait sleeps on, and that the case's budgets and wall clock read.
-
- The clock is installed on the calling case's own sandbox with the timers `waitOutHold` arms, and removed when the
- returned handle is disposed, so the case sleeps no real time and a stalled machine changes nothing. A native timer made
- before the install and cleared under it, such as the module logger's start check, is cleared by the real
- `clearTimeout`.
-
- @param sinon - case's own sandbox, which restores the clock when the case ends
-
- @returns The clock, starting at one second so no reading sits at instant zero, and the disposal that removes it
-
- @example
- ```ts
- using fake = fakeClockStarted({ sinon: ctx.sinon, },);
- ```
- */
-function fakeClockStarted(
-  { sinon, }: { readonly sinon: DisposableSandbox; },
-): { readonly clock: ReturnType<DisposableSandbox['useFakeTimers']>; } & Disposable {
-  /**
-   The fake clock the wait sleeps on.
-   */
-  const clock = sinon.useFakeTimers({
-    now: 1_000,
-    toFake: [
-      'setTimeout',
-      'clearTimeout',
-    ],
-    shouldClearNativeTimers: true,
-  },);
-  return {
-    clock,
-    [Symbol.dispose]: function removeClock(): void {
-      clock.restore();
-    },
-  };
 }
 
 /**

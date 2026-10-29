@@ -35,23 +35,33 @@
  Bedrock client a production function builds for a test
  (`configureProviders` handed a Bedrock key, which takes no override; none
  does so, by the census of B416), a duration handed through an environment
- variable as text, a sleep inside a child process's script text, and a wait
- reached through a router or a reader built over the budgets, which the
- budget finder of the B995 forms does not follow. Waits a case's work takes, such
+ variable as text, a sleep inside a child process's script text, a wait
+ reached through a reader of seats (the run package's `readJudgeSeats` and its
+ siblings, whose holds come from a client the test scripts), which the budget
+ finder of the B996 forms does not follow, and a stub of budgets handed to a
+ router, whose holds a case scripts at under a second: the scan sees the
+ router's `holdPollMs` and the budgets a test builds with no `now`, not the
+ figure a stub reports. A fake clock installed at
+ module level, outside every function, covers no function either, so a poll
+ slice in such a file is found and listed: the miss is a false finding and never
+ a missed wait, and a restore later in the file cannot be read from the tree.
+ Waits a case's work takes, such
  as `baseMs`, are left out on purpose: load only lengthens them,
  and a race against one shows up at the bound or the sleep on its other side.
 
- THE WAITS ON THE REAL CLOCK THAT NO TIMER CALL NAMES (ledger B995): three
- forms the cooldown round of B985 found a test could sleep on with none of the
- timer and bound reads of WHAT THE SCAN READS in sight. A `pollMs`, the slice a wait on a provider's hold sleeps
- in, is a bound key, except inside a function that puts a fake clock under the
- case: one that calls `useFakeTimers`, one that calls a function of its own
- file that does (`fakeClockStarted`), or one that calls a name imported from a
- module whose path holds `fake-clock` (`readOnFakeClock`). Every call of
+ THE WAITS ON THE REAL CLOCK THAT NO TIMER CALL NAMES (ledger B995 and B996):
+ three forms the cooldown round of B985 found a test could sleep on with none of
+ the timer and bound reads of WHAT THE SCAN READS in sight. A `pollMs`, the slice a wait on a provider's hold sleeps
+ in, and a `holdPollMs`, the router's name for it, are bound keys, except inside a function that puts a fake clock
+ under the case: one that calls `useFakeTimers`, one that calls a function of its own
+ file that does (`fakeClockStarted`), declared as a function or held in a
+ constant as an arrow or a function expression, or one that calls a name imported from a
+ module whose path holds `fake-clock` (`waitedOutOnFakeClock`, `readOnFakeClock`). Every call of
  `performance.now`, which an elapsed time is read off the real clock with, is a
  finding, keyed with the value `(none)`. A `createProviderBudgets` call
  imported from the built entry of its package or from the package's name, in a
- file that also imports `readBudgetsPastHolds` or `waitOutHold`, is a finding
+ file that also imports `readBudgetsPastHolds`, `waitOutHold` or the router's
+ builder `createRoutingClient`, is a finding
  keyed with the value `(none)` when its options literal names no `now` key of
  its own (a spread does not count), since the budgets then judge a hold against
  the real monotonic clock and the wait sleeps it out for real.
@@ -172,12 +182,25 @@ const BUDGET_WAIT_NAMES: ReadonlySet<string> = new Set([
 const BUDGET_WAIT_MODULE = 'provider/budget-hold-wait.ts';
 
 /**
+ Name the router's builder is exported under, which waits out a hold through the budgets it is handed
+ (`readBudgetsPastHolds`, in slices of its `holdPollMs`; `provider-router.ts`).
+ */
+const ROUTER_BUILDER_NAME = 'createRoutingClient';
+
+/**
+ Location of the module that declares the router's builder.
+ */
+const ROUTER_BUILDER_MODULE = 'provider/provider-router.ts';
+
+/**
  Forms of the poll key, as a value and as a destructured default, which a fake clock under the case makes harmless:
- the slices of the wait are then ticked past and no real time passes.
+ the slices of the wait are then ticked past and no real time passes. `holdPollMs` is the router's name for the slice.
  */
 const POLL_FORMS: ReadonlySet<string> = new Set([
   'pollMs:',
   'pollMs =',
+  'holdPollMs:',
+  'holdPollMs =',
 ],);
 
 /**
@@ -241,6 +264,7 @@ const BOUND_KEYS: ReadonlySet<string> = new Set([
   'freshForMs',
   'graceMs',
   'hardCapMs',
+  'holdPollMs',
   'idleMs',
   'modelHoldMs',
   'perCallTimeoutMs',
@@ -296,17 +320,10 @@ type ListedBound = {
 
 /**
  Files another change edits first, each with why its bounds wait. Empty from the seven files deferred on 2026-10-06
- (UTC), which took the census's rule once the changes in flight on them merged, until the widening of ledger B995,
- which found `provider/budget-hold-wait.unit.test.ts` and the round did not reach it.
+ (UTC), which took the census's rule once the changes in flight on them merged; the widening of ledger B995 deferred
+ `provider/budget-hold-wait.unit.test.ts`, and ledger B996 closed that deferral.
  */
-const DEFERRED: Readonly<Record<string, string>> = {
-  'provider/budget-hold-wait.unit.test.ts': 'tests of the budget wait over scripted budgets: the cases that wait out a '
-    + 'hold (a few to a few tens of milliseconds in its scripts) sleep it on the real clock in slices of 1 or 2 ms, '
-    + 'and one measures its sleep with performance.now; each needs a fake clock the case ticks, which the next change '
-    + 'writes (ledger B995, "Left open"). The keys the file held before the deferral were: two holds of 4,000 ms handed '
-    + 'to the pure `shortestHold` (read back, sleeping nothing); a hold of 1,000,000 ms that outlasts the case and ends '
-    + 'on the case\'s own abort; and the caller abort of 30 ms armed before that wait, which fires first on any machine',
-};
+const DEFERRED: Readonly<Record<string, string>> = {};
 
 /**
  Milliseconds from which a hold a test registers for a provider is read as a real wait: the seat reading
@@ -527,6 +544,53 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
   'provider/hold-reason.unit.test.ts#<module>: hold neuralwatt: 48_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold openrouter: 9_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold synthetic: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
+  'provider/provider-router.unit.test.ts#<module>: holdPollMs: 1': {
+    count: 6,
+    bound: 'other',
+    reason: 'the slice of a router whose calls wait out no hold: every provider reads dry with no hold, or Xiaomi alone '
+      + 'reads wet and serves no model asked, or Synthetic reads wet and its refusal holds it for no time, so the router '
+      + 'refuses or asks again at its first reading and sleeps nothing',
+  },
+  'provider/provider-router.unit.test.ts#<module>: createProviderBudgets with no now (none)': {
+    count: 1,
+    bound: 'other',
+    reason: 'real budgets over a wet Synthetic meter whose refusal holds it for no time (ledger B124), so the router asks '
+      + 'it again at once and the case asserts that every hold reads zero; nothing sleeps',
+  },
+  'provider/neuralwatt-routing.unit.test.ts#<module>: holdPollMs: 1': {
+    count: 1,
+    bound: 'other',
+    reason: 'the slice of a router over a wet Hyper meter, which takes the call NeuralWatt refuses, so the router never '
+      + 'finds every provider dry and sleeps nothing',
+  },
+  'provider/neuralwatt-routing.unit.test.ts#<module>: createProviderBudgets with no now (none)': {
+    count: 1,
+    bound: 'other',
+    reason: 'budgets over a wet Hyper meter (and a NeuralWatt meter with a sliver of energy left), so the router never '
+      + 'finds every provider dry and sleeps nothing',
+  },
+  'provider/neuralwatt-routing.unit.test.ts#routedWithOneLargeRefusal: createProviderBudgets with no now (none)': {
+    count: 1,
+    bound: 'other',
+    reason: 'budgets over a wet NeuralWatt and a wet Hyper meter, so the router never finds every provider dry and sleeps '
+      + 'nothing',
+  },
+  'provider/neuralwatt-routing.unit.test.ts#readOnce: createProviderBudgets with no now (none)': {
+    count: 1,
+    bound: 'other',
+    reason: 'budgets read once with `read`, outside any router or hold wait, so nothing sleeps',
+  },
+  'provider/budget-hold-wait.unit.test.ts#<module>: hold hyper: 4_000': {
+    count: 2,
+    bound: 'read back',
+    reason: 'a hold handed to the pure `shortestHold`, which names the shortest and sleeps nothing',
+  },
+  'provider/budget-hold-wait.unit.test.ts#<module>: hold hyper: 1_000_000': {
+    count: 1,
+    bound: 'other',
+    reason: 'a hold that outlasts the case: the wait sleeps it on the fake clock the case ticks for 30 ms, and the case\'s '
+      + 'own abort ends it, so no real time passes',
+  },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: freshForMs: FRESH_MS': { count: 1, bound: 'other', reason: RETURN_CACHE_WINDOW, },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: freshForMs: FRESH_MS': {
     count: 1,
@@ -1591,8 +1655,9 @@ type TimerNames = {
   readonly budgetBuilders: ReadonlySet<string>;
 
   /**
-   Whether the file imports a budget wait (`readBudgetsPastHolds` or `waitOutHold`), which sleeps a hold out on the
-   clock the budgets read.
+   Whether the file imports a budget wait (`readBudgetsPastHolds` or `waitOutHold`) or the router's builder
+   (`createRoutingClient`, whose calls wait out a hold through the budgets), which sleep a hold out on the clock the
+   budgets read.
    */
   readonly drivesBudgetWaits: boolean;
 
@@ -1691,6 +1756,9 @@ function timerNamesOf(
       if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === BUDGETS_BUILDER_MODULE)) && (exported === BUDGETS_BUILDER_NAME))
         budgetBuilders.add(local,);
       if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === BUDGET_WAIT_MODULE)) && BUDGET_WAIT_NAMES.has(exported,))
+        budgetWaits.add(local,);
+      // The router waits out a hold through the budgets it is handed, so a file that builds one drives the wait too.
+      if ((from.endsWith(BUILT_INDEX_SUFFIX,) || (landsAt === ROUTER_BUILDER_MODULE)) && (exported === ROUTER_BUILDER_NAME))
         budgetWaits.add(local,);
       if (landsAt.includes(FAKE_CLOCK_MODULE_PART,))
         fakeClocks.add(local,);
@@ -2254,9 +2322,10 @@ function valueText(
 }
 
 /**
- The functions a fake clock covers: each one that calls `useFakeTimers`, a function of its own file that does, or a
- name imported from a fake-clock fixture, directly or through a function nested in it. A read inside such a function
- sleeps on the fake clock when the case ticks it, so no real time passes (ledger B995).
+ The functions a fake clock covers: each one that calls `useFakeTimers`, a function of its own file that does (declared,
+ or held in a constant as an arrow or a function expression), or a name imported from a fake-clock fixture, directly or
+ through a function nested in it. A read inside such a function sleeps on the fake clock when the case ticks it, so no
+ real time passes (ledger B995 and B996).
 
  @param program - file's program
 
@@ -2323,8 +2392,22 @@ function fakedFunctionsOf(
       if (!FUNCTION_KINDS.has(holder.type,))
         continue;
       covered.add(holder,);
-      if ((holder.type === 'FunctionDeclaration') && isTreeNode(holder.id,))
+      if ((holder.type === 'FunctionDeclaration') && isTreeNode(holder.id,)) {
         installs.add(identifierName({ node: holder.id, },),);
+        continue;
+      }
+      /**
+       The constant that holds this function, if it is an arrow or a function expression assigned to one (ledger B996).
+       */
+      const owner = parents.get(holder,);
+      if ((owner !== undefined) && (owner.type === 'VariableDeclarator') && isTreeNode(owner.id,)) {
+        /**
+         Name the constant goes by, empty for a destructuring pattern, which names no function.
+         */
+        const held = identifierName({ node: owner.id, },);
+        if (held !== '')
+          installs.add(held,);
+      }
     }
   }
   return covered;
@@ -2852,6 +2935,64 @@ await describe({
           'tabby-waits.unit.test.ts#napOnTheRealClock: performance.now (none)',
           'tabby-waits.unit.test.ts#napOnTheRealClock: pollMs: SLICE',
           'tabby-waits.unit.test.ts#readsFromADefault: pollMs = 3',
+        ],);
+      },
+    },),
+    it({
+      name: 'FINDS A ROUTER\'S HOLD POLL SLICE AND BUDGETS BUILT WITH NO now BESIDE A ROUTER, under any local name, and '
+        + 'leaves the slice inside a function that installs a fake clock through a variable (an arrow or a function '
+        + 'expression held in a constant), budgets that name now, and a router the test declares itself (the router '
+        + 'waits out a hold through the budgets, and its slice is `holdPollMs`; ledger B996)',
+      fn: async () => {
+        /**
+         A router on the real clock in two shapes, the same slice on a fake clock held in a variable, and a look-alike.
+         */
+        const files: readonly SourceText[] = [
+          {
+            path: 'tabby-routers.unit.test.ts',
+            text: [
+              'import { createProviderBudgets, createRoutingClient as routerFor, } from \'../dist/final/node/index.mjs\';',
+              'const startClock = ({ sinon, }: { sinon: unknown; },): unknown => sinon.useFakeTimers({ toFake: [\'setTimeout\', '
+                + '\'clearTimeout\',], shouldClearNativeTimers: true, },);',
+              'const startedLate = function ({ sinon, }: { sinon: unknown; },): unknown {',
+              '  return sinon.useFakeTimers({ toFake: [\'setTimeout\', \'clearTimeout\',], shouldClearNativeTimers: true, },);',
+              '};',
+              'export function routerOnTheRealClock(callers: unknown,): unknown {',
+              '  const budgets = createProviderBudgets({ maxHoldMs: 1, },);',
+              '  return routerFor({ callers, budgets, holdPollMs: 5, },);',
+              '}',
+              'export function routerWithAClock(callers: unknown, clock: { now: number; },): unknown {',
+              '  const budgets = createProviderBudgets({ maxHoldMs: 1, now: () => clock.now, },);',
+              '  return routerFor({ callers, budgets, holdPollMs: 5, },);',
+              '}',
+              'export function routerOnAnArrowClock({ sinon, callers, budgets, }: { sinon: unknown; callers: unknown; '
+                + 'budgets: unknown; },): unknown {',
+              '  using fake = startClock({ sinon, },);',
+              '  return routerFor({ callers, budgets, holdPollMs: 5, },);',
+              '}',
+              'export function routerOnAnExpressionClock({ sinon, callers, budgets, }: { sinon: unknown; callers: unknown; '
+                + 'budgets: unknown; },): unknown {',
+              '  using fake = startedLate({ sinon, },);',
+              '  return routerFor({ callers, budgets, holdPollMs: 5, },);',
+              '}',
+            ].join('\n',),
+            isTest: true,
+          },
+          {
+            path: 'calico-routers.unit.test.ts',
+            text: [
+              'import { createProviderBudgets, } from \'../dist/final/node/index.mjs\';',
+              'function createRoutingClient(options: unknown,): unknown { return options; }',
+              'export const budgets = createProviderBudgets({ maxHoldMs: 1, },);',
+              'export const client = createRoutingClient({ budgets, },);',
+            ].join('\n',),
+            isTest: true,
+          },
+        ];
+        expect(unsharedBounds({ files, },),).toEqual([
+          'tabby-routers.unit.test.ts#routerOnTheRealClock: createProviderBudgets with no now (none)',
+          'tabby-routers.unit.test.ts#routerOnTheRealClock: holdPollMs: 5',
+          'tabby-routers.unit.test.ts#routerWithAClock: holdPollMs: 5',
         ],);
       },
     },),

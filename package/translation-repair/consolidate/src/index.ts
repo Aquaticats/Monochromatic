@@ -23,7 +23,9 @@ export {
   readConsolidateGateBallot,
 } from './consolidate-gate-wire.ts';
 export {
+  archiveKeptFinding,
   describeStandingVerdict,
+  FINAL_ROUND_UNSEATED_FINDING,
   FLAWED_STANDING_GATE_SHIPS_PROPOSAL_FINDING,
   GATE_PREFERRED_INELIGIBLE_STANDING_FINDING,
   INELIGIBLE_STANDING_REPLACED_FINDING,
@@ -32,11 +34,17 @@ export {
   NO_VALID_WORDING_FINDING,
   nothingValidShips,
   shipPastForfeitStanding,
+  shipTranslateWinner,
   slateIncumbentFor,
+  SLATE_DECLINED_FINDING,
   slatePickBallotsOf,
+  TRANSLATE_WINNER_SHIPS_FINDING,
+  translateWinnerOf,
+  type TranslateWinner,
   UNDECIDED_GATE_SHIPS_PROPOSAL_FINDING,
   UNHEARD_GATE_KEEPS_STANDING_FINDING,
   UNHEARD_GATE_SHIPS_SLATE_PICK_FINDING,
+  unseatedFinalRound,
 } from './consolidate-ineligible-standing.ts';
 export {
   consolidationWorthResuming,
@@ -52,6 +60,7 @@ export {
   WithheldSlateAbsenceError,
 } from './consolidate-settle-judge.ts';
 export {
+  type ArchiveKeptReason,
   type ConsolidationSettlement,
   type ConsolidationSubject,
   type ConsolidationTerminal,
@@ -61,6 +70,11 @@ export {
   buyConsolidationSlice,
   standingKeptUnendorsed,
 } from './consolidate-slice-buy.ts';
+export {
+  settleRefusedStanding,
+  settleWithoutSlate,
+  shipWinnerBeforeSlate,
+} from './consolidate-settle-unseated.ts';
 export {
   readStandingVerdict,
   type StandingVerdict,
