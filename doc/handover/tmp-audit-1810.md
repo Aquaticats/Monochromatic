@@ -4,6 +4,15 @@ Issue: [#1810](https://github.com/Aquaticats/Monochromatic/issues/1810).
 Rule: `XTD` in `AGENTS.md` (never use `/tmp`; the device behind it is unknowable).
 The user chose one pass (not one layer per run) on 2026-10-29.
 
+## Constraint from the user (2026-10-29)
+
+The repository is migrating away from mise.
+Do not rely on it: run `cargo clippy --all-targets -- --deny warnings` and `cargo nextest run` in the crate directory,
+and TypeScript tests with `node <file>`.
+So the fix cannot depend on a `TMPDIR` entry in the root `mise.toml` `[env]`, and the `mise.toml` files that mention
+`/tmp` are being replaced rather than fixed in place.
+The first clippy sweep (unit `issue-1810-sweep`) predates this and ran each crate through `mise run`.
+
 ## Ownership
 
 - Session `monochromatic-ff` owns every Rust use in `package/git-policy/cli`: the production trio
