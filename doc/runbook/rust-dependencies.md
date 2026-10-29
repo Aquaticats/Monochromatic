@@ -68,9 +68,9 @@ With `catalogPrune = true` (the repository's setting),
 
 ## Update every crate
 
-1.  `node package/dev-script/rust-catalog-update/src/cli.ts --dry-run` lists what would change
+1.  `mise run rust:update -- --dry-run` lists what would change
      and restores every lockfile.
-2.  `node package/dev-script/rust-catalog-update/src/cli.ts` re-resolves every `Cargo.lock`
+2.  `mise run rust:update` re-resolves every `Cargo.lock`
      to the newest releases older than `minimumReleaseAge`,
      checks every newly locked version against the release age and the trust policy,
      and keeps the result only when all of them pass.

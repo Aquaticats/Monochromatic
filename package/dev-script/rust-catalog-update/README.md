@@ -15,14 +15,14 @@ Run from the repository root:
 
 ```sh
 # package/dev-script/rust-catalog-update/README.md
-node package/dev-script/rust-catalog-update/src/cli.ts            # update and keep the result if every check passes
-node package/dev-script/rust-catalog-update/src/cli.ts --dry-run  # report what would change, then restore every Cargo.lock
-node package/dev-script/rust-catalog-update/src/cli.ts --verify   # CI: check every locked version against the trust policy
+mise run rust:update              # update and keep the result if every check passes
+mise run rust:update -- --dry-run # report what would change, then restore every Cargo.lock
+mise run rust:verify              # CI: check every locked version against the trust policy
 ```
 
 The full update workflow is:
 
-1.  `rust-catalog-update` refreshes the lockfiles.
+1.  `mise run rust:update` refreshes the lockfiles.
 2.  `mise run catalog:tighten` raises each `rust-catalog.toml` floor to the highest locked version.
 3.  `mise run sync:files` renders the new floors into each crate's generated `[workspace.dependencies]` table.
 

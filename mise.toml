@@ -1014,6 +1014,20 @@ run = "node package/dev-script/catalog-tighten/src/index.ts"
 
 #endregion Catalog Tighten
 
+#region Rust catalog update -- recursive no-save update of every Cargo.lock under rust-catalog.toml's policy
+
+[tasks."rust:update"]
+description = "Update every first-party Cargo.lock under rust-catalog.toml's release-age and trust policy (pnpm -r --no-save update)"
+# No usage spec: mise appends post-`--` args as a real argv vector, so
+# `mise run rust:update -- --dry-run` reaches the bin's own argument parser.
+run = "node package/dev-script/rust-catalog-update/src/cli.ts"
+
+[tasks."rust:verify"]
+description = "Check every locked Rust registry version against rust-catalog.toml's trust policy (CI)"
+run = "node package/dev-script/rust-catalog-update/src/cli.ts --verify"
+
+#endregion Rust catalog update
+
 #region Deps Update -- in-range update that explains strict minimumReleaseAge refusals
 
 [tasks."deps:update"]
@@ -1161,7 +1175,6 @@ _.path = [
   "package/claude-code-plugin/session-start-housekeeping/node_modules/.bin",
   "package/claude-code-plugin/stop-reminder/node_modules/.bin",
   "package/claude-code-plugin/terminal-title/node_modules/.bin",
-  "package/mutation-test/cli-unused-export/node_modules/.bin",
   "package/config/pnpr/node_modules/.bin",
   "package/desktop-app/electron-counter/node_modules/.bin",
   "package/desktop-app/electron-infra/node_modules/.bin",
@@ -1177,6 +1190,7 @@ _.path = [
   "package/module/css-edit.bench/node_modules/.bin",
   "package/module/pnpm-workspace-catalog/node_modules/.bin",
   "package/module/token-count/node_modules/.bin",
+  "package/mutation-test/cli-unused-export/node_modules/.bin",
   "package/pi-plugin/advisor/node_modules/.bin",
   "package/pi-plugin/agent-settled-notification/node_modules/.bin",
   "package/pi-plugin/ask-user-question/node_modules/.bin",
