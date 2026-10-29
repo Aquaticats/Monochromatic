@@ -6,8 +6,9 @@ Grilling finished and the repository owner confirmed the design on 2026-10-29;
 the owner then asked for the implementation,
 and it landed the same day in `package/linter/monochromatic-lint`.
 The linter side is complete and verified.
-The ban takes effect in the repository's own lint run only once the pinned `cargo:monochromatic-lint` is a
-release that contains these rules (see "Enforcement starts at the next pin").
+It was released as 0.4.0 and the repository's pin was moved to it on the same day
+(see "Release and pin"),
+so the ban is enforced by the repository's own lint run.
 This records the decisions the repository owner has answered,
 the defaults adopted from them,
 and what the implementation found.
@@ -380,26 +381,47 @@ Measured on 2026-10-29 with the debug build of the implementation.
   and a discovery test fail;
   with it restored they pass.
 
-## Enforcement starts at the next pin
+## Release and pin
 
-`toolchain.lock.json` pins `cargo:monochromatic-lint` at the published 0.3.0,
-which does not read YAML,
-and `package/linter/monochromatic-lint/Cargo.toml` is bumped to 0.4.0 (a new feature in a 0.x crate),
-together with its fuzz crate's `=0.4.0` dependency and both lockfiles,
-but unpublished.
+`package/linter/monochromatic-lint/Cargo.toml` was bumped to 0.4.0 (a new feature in a 0.x crate),
+together with its fuzz crate's `=0.4.0` dependency and both lockfiles.
+The push of that bump published the release by itself:
+`cargo-publish.yml` runs on every push to `main` that changes the crate's `Cargo.toml`
+and publishes when the version changed.
+The crates.io index lists 0.4.0,
+and the `monochromatic-lint-v0.4.0` GitHub release (2026-10-29T12:32Z) holds all eight platform archives.
+The earlier plan treated publishing as a separate owner step;
+it was not,
+because the version bump itself is the trigger.
 The lockfiles were refreshed by the new `lock:version` task,
 which updates only the crate's own entry;
 the existing `lock` task re-resolves the whole dependency graph offline and changed several hundred lockfile lines,
 so its output was discarded (saved as a patch in the session scratch directory,
 not kept in the repository).
-Until a release that contains them is published and pinned (`toolchain:update`,
-whose lock diff is the review),
-the repository's lint run does not check workflows.
-Publishing and pinning are the repository owner's steps and were not done.
-After the pin moves,
-`mise run lint:monochromatic-lint .github` enforces the ban.
+The pin was then moved with `toolchain:update`,
+which re-resolves every floating tool and takes no per-tool option.
+Its dry run showed two moves and the repository owner chose to commit both:
+`cargo:monochromatic-lint` 0.3.0 to 0.4.0,
+and `cargo:monochromatic-git-policy-cli` 0.2.12 to 0.2.13,
+which was already released and is pinned to track latest.
+The diff was eight lines over `toolchain.lock.json`,
+`mpm.packages.toml`,
+`mpm.managers.toml`
+and the mirrored versions in `plan.tools.data.ts`.
+The update also rewrote `plan.artifacts.data.ts` and `index.ts` in the working tree,
+with an unrelated `search-shadow` entry that another session's work owns;
+those two files were not committed.
+
+Verified with the published artifact,
+not a local build:
+the `x86_64-unknown-linux-gnu` archive's SHA-256 matches the release digest,
+it reports `monochromatic-lint 0.4.0`,
+it exits 0 on the repository's `.github`,
+and on the scratch copy with planted violations it reports the same three findings as the debug build.
+The repository's `mise run lint:monochromatic-lint .github` therefore enforces the ban from the pinned version.
+A machine converges to the pinned binary on `toolchain:sync`,
+or on directory entry.
 
 ## Open
 
-None for the design.
-The release and pin above are the remaining steps.
+None.
