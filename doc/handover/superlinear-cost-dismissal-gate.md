@@ -380,6 +380,32 @@ Each event sees a part of the turn the others miss:
 Observations are kept once per event type,
 joinable on the block hash.
 It records and never denies.
+On the owner's correction the detector measures overall dismissals,
+not thinking-only ones,
+so every leg scans assistant prose (thinking and visible text alike)
+and a harness without thinking summaries is still worth covering.
+The runtime set is the owner's:
+Codex,
+pi,
+dsh,
+Claude Code "for now"
+(2026-10-29).
+The Codex leg is the same `cctd` hook,
+registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `~/.codex/hooks.json`
+and reading Codex response-item rollouts
+(reasoning summaries and assistant messages);
+its handlers await one `/hooks` trust step in Codex,
+whose trust hash I could not derive
+(16 candidate shapes tried,
+no match).
+The pi leg is `package/pi-plugin/thinking-dismissal`,
+registered in `~/.pi/agent/settings.json`,
+folding `message_end` and recording at `tool_call`,
+`tool_result`,
+and `turn_end`.
+All four legs share one log.
 The DSH side is built
 (`package/dsh-plugin/thinking-dismissal`,
 installed in the `web` profile):
