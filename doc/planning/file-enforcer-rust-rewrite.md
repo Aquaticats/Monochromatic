@@ -168,6 +168,26 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
+## Next action (2026-10-29, second review round)
+
+Asked how to close the grilling,
+the user chose "Re-review,
+then confirm".
+A second round of sol,
+astra,
+and kimi reviews is running against this file,
+the inventory,
+toolchain-split,
+replacements,
+and mise conf.d research,
+and the two amended decisions;
+output goes to `${HOME}/temp/agent/fe-rust/review2-{sol,astra,kimi}.md`.
+When they return:
+verify each finding against the repository,
+ask the user about those that hold,
+then confirm and write `doc/decision/file-enforcer-rust-rewrite.md` for acceptance.
+No code before acceptance.
+
 ## Current design (consolidated 2026-10-29)
 
 The live decisions,
