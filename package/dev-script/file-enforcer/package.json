@@ -28,12 +28,14 @@
     "@monochromatic-dev/module-caught-value": "workspace:*",
     "@monochromatic-dev/module-fs-path": "workspace:*",
     "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/module-rust-catalog": "workspace:*",
     "@monochromatic-dev/module-toml-edit": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "chokidar": "catalog:",
     "dot-prop": "catalog:",
     "nano-spawn": "catalog:",
-    "tiny-readdir-glob": "catalog:"
+    "tiny-readdir-glob": "catalog:",
+    "toml-eslint-parser": "catalog:"
   },
   "version": "0.0.3",
   "repository": {

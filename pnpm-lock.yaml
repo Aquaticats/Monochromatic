@@ -1904,6 +1904,9 @@ importers:
       '@monochromatic-dev/module-logger':
         specifier: workspace:*
         version: link:../../module/logger
+      '@monochromatic-dev/module-rust-catalog':
+        specifier: workspace:*
+        version: link:../../module/rust-catalog
       '@monochromatic-dev/module-toml-edit':
         specifier: workspace:*
         version: link:../../module/toml-edit
@@ -1922,6 +1925,9 @@ importers:
       tiny-readdir-glob:
         specifier: 'catalog:'
         version: 2.0.0
+      toml-eslint-parser:
+        specifier: 'catalog:'
+        version: 1.0.3
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
