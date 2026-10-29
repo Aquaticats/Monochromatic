@@ -12,16 +12,16 @@ import {
 import { join, } from 'node:path';
 
 import {
-  createThinkingDismissalHandler,
+  createCostDismissalHandler,
   findSizeDismissal,
-  thinkingDismissalParser,
-  thinkingDismissalWriter,
+  costDismissalParser,
+  costDismissalWriter,
 } from './index.ts';
 
 /**
  Scratch directory for this suite's fixture transcripts and shadow logs.
  */
-const SCRATCH = await mkdtemp(join(scratchRoot(), 'thinking-dismissal-',),);
+const SCRATCH = await mkdtemp(join(scratchRoot(), 'cost-dismissal-',),);
 
 /**
  Transcript line with one thinking block.
@@ -78,8 +78,8 @@ async function runHandler(
     `${lines.join('\n',)}\n`,
   );
   const logPath = join(SCRATCH, `shadow-${id}.jsonl`,);
-  const handler = createThinkingDismissalHandler({
-    env: { MONOCHROMATIC_THINKING_DISMISSAL_LOG: logPath, },
+  const handler = createCostDismissalHandler({
+    env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
   },);
   await handler({
     hook_event_name: 'PreToolUse',
@@ -96,7 +96,7 @@ async function runHandler(
 }
 
 await describe({
-  name: 'thinking-dismissal shadow',
+  name: 'cost-dismissal shadow',
   children: [
     it({
       name: 'flags a sentence that carries cost and a dismissal together',
@@ -160,8 +160,8 @@ await describe({
           `${thinkingLine('Quadratic, but the lines are short.')}\n`,
         );
         const logPath = join(SCRATCH, 'shadow-dedupe.jsonl',);
-        const handler = createThinkingDismissalHandler({
-          env: { MONOCHROMATIC_THINKING_DISMISSAL_LOG: logPath, },
+        const handler = createCostDismissalHandler({
+          env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
         },);
         await handler({
           hook_event_name: 'PreToolUse',
@@ -203,8 +203,8 @@ await describe({
           `${thinkingLine('Quadratic, but the lines are short.')}\n`,
         );
         const logPath = join(SCRATCH, 'shadow-events.jsonl',);
-        const handler = createThinkingDismissalHandler({
-          env: { MONOCHROMATIC_THINKING_DISMISSAL_LOG: logPath, },
+        const handler = createCostDismissalHandler({
+          env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
         },);
         await handler({
           hook_event_name: 'PreToolUse',
@@ -316,9 +316,9 @@ await describe({
     it({
       name: 'parses a hook payload and serializes an allowing output',
       fn: async () => {
-        const event = thinkingDismissalParser('{"hook_event_name":"Stop"}',);
+        const event = costDismissalParser('{"hook_event_name":"Stop"}',);
         verify(event.hook_event_name,).toBe('Stop',);
-        verify(thinkingDismissalWriter({},),).toBe('{}',);
+        verify(costDismissalWriter({},),).toBe('{}',);
       },
     },),
   ],

@@ -1,5 +1,5 @@
 /**
- Vocabularies and sentinels for thinking-dismissal detection.
+ Vocabularies and sentinels for cost-dismissal detection.
 
  Kept apart from the matcher so the phrase lists can grow
  without touching scanning or recording code.

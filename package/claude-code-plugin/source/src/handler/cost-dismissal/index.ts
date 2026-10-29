@@ -24,25 +24,25 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   findSizeDismissal,
-  type ThinkingDismissalHit,
+  type CostDismissalHit,
 } from './detect.ts';
 import {
   appendShadowRecord,
   shadowLogPath,
-  type ThinkingDismissalRecord,
+  type CostDismissalRecord,
 } from './shadow-record.ts';
 import { readTextUnits, } from './transcript-read.ts';
 
 /**
- Module logger for thinking-dismissal shadow records.
+ Module logger for cost-dismissal shadow records.
  */
-const logger = tagged({ tag: 'thinking-dismissal', },);
+const logger = tagged({ tag: 'cost-dismissal', },);
 
 /**
  Environment reads the handler depends on,
  injectable so tests never touch the real state directory.
  */
-type ThinkingDismissalDependencies = {
+type CostDismissalDependencies = {
   /**
    Environment to read configuration from.
    */
@@ -58,15 +58,15 @@ type ThinkingDismissalDependencies = {
  and `Stop` is the only event that sees turn-ending thinking
  with no tool call after it.
  */
-type ThinkingDismissalInput = PreToolUseInput | PostToolUseInput | StopInput;
+type CostDismissalInput = PreToolUseInput | PostToolUseInput | StopInput;
 
 /**
- Output of the thinking-dismissal handler.
+ Output of the cost-dismissal handler.
 
  The hook only records,
  so it sets no `permissionDecision` and lets every tool call through.
  */
-type ThinkingDismissalOutput = PreToolUseOutput | PostToolUseOutput | StopOutput;
+type CostDismissalOutput = PreToolUseOutput | PostToolUseOutput | StopOutput;
 
 /**
  Builds the hook handler that shadow-records size dismissals in thinking.
@@ -86,13 +86,13 @@ type ThinkingDismissalOutput = PreToolUseOutput | PostToolUseOutput | StopOutput
 
  @example
  ```ts
- const handler = createThinkingDismissalHandler();
+ const handler = createCostDismissalHandler();
  await handler({ hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: {}, tool_use_id: 't', session_id: 's', transcript_path: '/t', cwd: '/c', permission_mode: 'default' });
  ```
  */
-function createThinkingDismissalHandler(
-  dependencies: Readonly<ThinkingDismissalDependencies> = {},
-): (event: ReadonlyDeep<ThinkingDismissalInput>,) => Promise<ThinkingDismissalOutput> {
+function createCostDismissalHandler(
+  dependencies: Readonly<CostDismissalDependencies> = {},
+): (event: ReadonlyDeep<CostDismissalInput>,) => Promise<CostDismissalOutput> {
   /**
    Resolved ambient inputs.
    */
@@ -103,16 +103,16 @@ function createThinkingDismissalHandler(
    Factory logger so every handler line names this hook.
    */
   const rl = tagged({
-    tag: createThinkingDismissalHandler.name,
+    tag: createCostDismissalHandler.name,
     l: logger,
   },);
 
-  return async function thinkingDismissalHandler(event: ReadonlyDeep<ThinkingDismissalInput>,): Promise<ThinkingDismissalOutput> {
+  return async function costDismissalHandler(event: ReadonlyDeep<CostDismissalInput>,): Promise<CostDismissalOutput> {
     /**
      Handler-scoped logger.
      */
     const l = tagged({
-      tag: thinkingDismissalHandler.name,
+      tag: costDismissalHandler.name,
       l: rl,
     },);
     try {
@@ -132,7 +132,7 @@ function createThinkingDismissalHandler(
       /**
        Hits of the whole tail, in block order.
        */
-      const hits: ThinkingDismissalHit[] = [];
+      const hits: CostDismissalHit[] = [];
       for (const unit of scan.units) {
         hits.push(...findSizeDismissal(unit,),);
       }
@@ -157,7 +157,7 @@ function createThinkingDismissalHandler(
        Record of this event's observation,
        with tool attribution on the tool events only.
        */
-      const record: ThinkingDismissalRecord = (event.hook_event_name === 'Stop')
+      const record: CostDismissalRecord = (event.hook_event_name === 'Stop')
         ? {
           sessionId: event.session_id,
           time: now,
@@ -180,16 +180,16 @@ function createThinkingDismissalHandler(
         record,
         logPath: shadowLogPath(env,),
       },);
-      l.info(`thinking-dismissal shadow recorded ${String(foundHits,)} hits of ${String(scannedUnits,)} text units`,);
+      l.info(`cost-dismissal shadow recorded ${String(foundHits,)} hits of ${String(scannedUnits,)} text units`,);
     } catch (error) {
-      l.warn(`thinking-dismissal shadow skipped: ${String(error,)}`,);
+      l.warn(`cost-dismissal shadow skipped: ${String(error,)}`,);
     }
     return {};
   };
 }
 
 /**
- Parses raw stdin as a {@link ThinkingDismissalInput}.
+ Parses raw stdin as a {@link CostDismissalInput}.
 
  Input is trusted; it comes from Claude Code's hook dispatch system.
 
@@ -199,20 +199,20 @@ function createThinkingDismissalHandler(
 
  @example
  ```ts
- thinkingDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}');
+ costDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}');
  ```
  */
-function thinkingDismissalParser(raw: string,): ThinkingDismissalInput {
+function costDismissalParser(raw: string,): CostDismissalInput {
   /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted input from Claude Code hook system */
-  return JSON.parse(raw,) as ThinkingDismissalInput;
+  return JSON.parse(raw,) as CostDismissalInput;
 }
 
 /**
- Serializes the thinking-dismissal output for stdout.
+ Serializes the cost-dismissal output for stdout.
 
  No trailing newline; matches Claude Code's wire convention.
 
- @param output - {@link ThinkingDismissalOutput} handler result to serialize
+ @param output - {@link CostDismissalOutput} handler result to serialize
 
  @returns JSON-encoded payload for Claude Code's hook reader
 
@@ -220,31 +220,31 @@ function thinkingDismissalParser(raw: string,): ThinkingDismissalInput {
 
  @example
  ```ts
- thinkingDismissalWriter({});
+ costDismissalWriter({});
  // => '{}'
  ```
  */
-function thinkingDismissalWriter(output: ThinkingDismissalOutput,): string {
+function costDismissalWriter(output: CostDismissalOutput,): string {
   return JSON.stringify(output,);
 }
 
 /**
  Default handler instance, wired to `process.env`.
  */
-const thinkingDismissalHandler: (event: ReadonlyDeep<ThinkingDismissalInput>,) => Promise<ThinkingDismissalOutput> =
-  createThinkingDismissalHandler();
+const costDismissalHandler: (event: ReadonlyDeep<CostDismissalInput>,) => Promise<CostDismissalOutput> =
+  createCostDismissalHandler();
 
 export type {
-  ThinkingDismissalDependencies,
-  ThinkingDismissalInput,
-  ThinkingDismissalOutput,
+  CostDismissalDependencies,
+  CostDismissalInput,
+  CostDismissalOutput,
 };
 
 export {
-  createThinkingDismissalHandler,
-  thinkingDismissalHandler,
-  thinkingDismissalParser,
-  thinkingDismissalWriter,
+  createCostDismissalHandler,
+  costDismissalHandler,
+  costDismissalParser,
+  costDismissalWriter,
 };
 
 export {
@@ -252,9 +252,9 @@ export {
 } from './detect.ts';
 
 export type {
-  ThinkingDismissalHit,
+  CostDismissalHit,
 } from './detect.ts';
 
 export type {
-  ThinkingDismissalRecord,
+  CostDismissalRecord,
 } from './shadow-record.ts';
