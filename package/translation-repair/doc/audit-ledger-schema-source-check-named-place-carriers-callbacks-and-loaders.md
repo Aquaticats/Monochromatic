@@ -810,6 +810,22 @@ The 1691 real sources give one report,
 the named place of B867,
 and the same 15 forwarders with the same callers as before the round.
 
+What it does not read,
+stated on 2026-10-29 (UTC):
+the scan of the Claude route does not read these JavaScript forms.
+- Variants of a function called where it is written,
+  beyond the function expression
+  and the forms under type marks and parentheses that the item on such a function pins.
+- A method bound and then called (`Object.assign.bind(...)`),
+  and arguments spread from a name.
+  Both are told in the item on the storing methods.
+- `Reflect.defineProperty` and `Object.setPrototypeOf`,
+  which stay outside the list of storing functions.
+
+Reading these forms is a later item.
+The cases of this record that name the last four pin them as unread,
+and the first has no case in this record that names its variants.
+
 Cache versions in fix round 22:
 none of the commits of this branch moved one.
 The search over `93f03e1ce29f93e60329c0e7471292526df17475..HEAD` prints nothing
