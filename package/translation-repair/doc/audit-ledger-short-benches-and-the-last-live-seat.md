@@ -544,7 +544,8 @@ Status:
 fixed on 2026-10-29 (UTC) in `tr-w370`,
 on the owner's answer "Remove Qwen from wide seats",
 red `bcbdd7d931` (run) and `b1001ba149` (provider),
-fix `6d39223583`.
+fix `6d39223583`,
+wording follow-on `ac692efa7f`.
 Cache versions:
 none moved,
 because every key that reads a changed bench hashes its seat list.
@@ -775,7 +776,10 @@ consistency,
 pairing and page-title keys read the late bench and the roster,
 which did not change.
 The accounts are in the TSDocs of `SLICE_CACHE_VERSION` and `TRANSLATE_SLICE_CACHE_VERSION`,
-as B815 did for the consolidate and lane-contest versions.
+as B815 did for the consolidate and lane-contest versions,
+and they cite `6d39223583` and `ac692efa7f`,
+which is how the cache-account audit counts a source commit as named.
+The commit that wrote the citations is a TSDoc-only change and cannot cite itself.
 
 Not verified:
 no pass has run since the change,

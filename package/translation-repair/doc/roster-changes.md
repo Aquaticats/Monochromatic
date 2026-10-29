@@ -209,7 +209,7 @@ Kimi-K3,
 `google.gemma-4-31b` and Mercury 2.5,
 and a reading seats the first three a wet provider serves
 (Qwen3.8-27B left the order on 2026-10-29;
-the last section has the change).
+the section "Qwen3.8-27B leaves the wide seats and the checker order on 2026-10-29" has the change).
 `gemma-4-26b-a4b-it` left the checker role,
 and only that role,
 for calling 40 of the 85 unchanged texts fixed;
