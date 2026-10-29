@@ -182,9 +182,10 @@ jobs:
         # (cargo-publish.yml, job nws-build-binary, does the same).
         # arch is the spelling of the asset names (music-player-release.yml uses it too); machine is `uname -m`; needed
         # is the exact sorted list of shared libraries in the dynamic section of the executable (INSTALL.txt names them).
-        # The lists differ by architecture: the x86_64 executable also names its dynamic loader (first dry run), while
-        # the aarch64 helper binary ide-runtime, linked in the arm64 build image on 2026-10-22, names only
-        # libgcc_s.so.1 and libc.so.6 and not ld-linux-aarch64.so.1.
+        # Both executables name their dynamic loader, which is part of glibc and so is covered by the glibc floor
+        # below. The x86_64 executable did from the first dry run. The aarch64 executable did not while it was linked in
+        # the Fedora 41 build image (dry run 40877021793, ide-v0.1.3), and names ld-linux-aarch64.so.1 since it is
+        # linked in the Ubuntu 24.04 release image (dry run 40883876777, which failed this check until it was added).
         - arch: x64
           runner: ubuntu-24.04
           machine: x86_64
@@ -192,7 +193,7 @@ jobs:
         - arch: arm64
           runner: ubuntu-24.04-arm
           machine: aarch64
-          needed: libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6
+          needed: ld-linux-aarch64.so.1 libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6
     runs-on: ${{ matrix.runner }}
     # The first dry run took 15 min 37 s up to the renderer gate (doc/decision/ide-releases.md, "First dry run").
     timeout-minutes: 150
