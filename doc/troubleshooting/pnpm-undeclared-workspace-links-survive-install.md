@@ -465,7 +465,7 @@ each linked dependency's own `bin` field,
 and leftovers from earlier installs.
 
 Measured 2026-10-29 in the main checkout after `pnpm prune && pnpm i`,
-with the scratch probe described below:
+with the scratch probe this section's last paragraph describes:
 
 - 223 `package/*/*/package.json`,
   205 `package/*/*/node_modules`,
