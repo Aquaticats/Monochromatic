@@ -147,6 +147,39 @@ some needs to be folded into our mpm wrapper."
 - Which responsibility goes where is being researched;
   the proposed split comes back to the user as a question.
 
+### browserslist through browserslist-rs
+
+Asked 2026-10-29 what happens to `.browserslistrc.resolved.local.json`;
+the user chose "Rust rule kind (browserslist-rs)" over moving resolution into rolldown's config
+(my recommendation) and over spawning Node.
+
+- A `browserslist` rule kind resolves `.browserslistrc`'s production section with `browserslist-rs`
+  (0.21.2,
+  2026-09-16) and writes the same JSON array for `package/config/rolldown/src/browserslist-targets.ts`.
+- Accepted tradeoff:
+  the crate bundles its own browser data,
+  versioned with the crate rather than the pnpm lock,
+  so its targets can differ from what JavaScript tooling computes.
+- `browserslist-rs` needs a choosing-technology vet before it enters `rust-catalog.toml`.
+
+### Out-of-repo rules: per-user config, opt-in
+
+Asked 2026-10-29 what happens to the Harper policy written into JetBrains state under `~/.config/JetBrains/`;
+the user chose "Per-user config, opt-in".
+
+- A per-user JSONC config under `~/.config` holds rules that write outside the repo,
+  matching `doc/decision/monorepo-manager-per-user-config.md`.
+- A separate subcommand applies it;
+  the default `write` and `check` touch only repo files.
+
+### No scanner step
+
+Asked 2026-10-29 about the post-write `forbidden-strings compile-rules` run;
+the user chose "Drop it".
+file-enforcer writes `.cache/forbidden-strings.rules.txt` only,
+and forbidden-strings compiles from that text when its cache is missing or stale
+(`package/forbidden-strings/cli/src/runtime_cache/warning_tests.rs:23`).
+
 ### Adopted from the request and repository rules
 
 - Rust is approved for this tool by the request itself;
