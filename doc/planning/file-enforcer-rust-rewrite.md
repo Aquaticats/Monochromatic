@@ -226,10 +226,13 @@ noting:
 - The rule globs the `node_modules/.bin` directories that exist and sorts them,
   as the TypeScript generator does (`file-enforcer.config.ts:722-745`).
 - Retracted:
-  my option 1 listed `node_modules/.bin` for every package with a `package.json`.
-  pnpm creates a package's `.bin` only when that package depends on something exposing a bin,
-  as the lockfile determines,
-  so that list named directories no install ever creates.
+  my option 1 derived the list from every package with a `package.json`.
+  The user's correction:
+  "You cannot meaningfully determine if a .bin will exist from just reading package.json."
+  Whether a `.bin` exists depends on the resolved dependencies' bins and on how pnpm links them,
+  which `package.json` does not determine,
+  so the existing directories are the only reliable signal
+  and option 1 would have named directories no install creates.
   Measured 2026-10-29 in the main checkout:
   223 `package/*/*/package.json`,
   205 `package/*/*/node_modules`,
