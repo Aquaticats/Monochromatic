@@ -397,8 +397,13 @@ and safe to delete:
   the standards-review gate,
   measured at 6 of 8 recall on the reconstructed historical corpus
   (see `Recall measurement results`).
-- Not decided:
-  where the gate runs and what it demands of callers.
+- Decided by the owner 2026-10-29:
+  the gate runs in shadow,
+  observe and record and never block,
+  and no `AGENTS.md` rule backs it in that phase.
+  Built as `doc/runbook/standards-review-gate.md`
+  with `doc/audit/standards-review-gate-shadow.md`
+  (commit `d6c6777974`).
 
 ## Next action
 
@@ -412,10 +417,21 @@ or git-policy package docs),
 `doc/agent/self-review.md` only obliges delegating to a separate reviewer when asked,
 git-policy owns landing without a review requirement,
 and `project-code-review` is a harness skill invoked on request.
-Where the gate lives is a flagged choice with the owner
-(procedure versus landing check).
-Then measure per-diff cost and run-to-run determinism,
-and wire the two miss shapes into the gate:
+Where the gate lives is decided:
+it runs in shadow,
+built as `doc/runbook/standards-review-gate.md`
+with its log at `doc/audit/standards-review-gate-shadow.md`,
+per the owner's 2026-10-29 ruling
+that everything runs as shadow
+and that no `AGENTS.md` rule backs it in that phase,
+since a mandate would not count as shadow.
+Next:
+run it on real candidate diffs as they appear
+and append each run to the log,
+which measures per-diff cost and determinism.
+Graduation then goes back to the owner
+(`AGENTS.md` rule versus git-policy landing check).
+Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
 (`RG2` already demands proof for unbounded input).
