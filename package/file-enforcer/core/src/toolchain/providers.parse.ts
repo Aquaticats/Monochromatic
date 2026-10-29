@@ -120,7 +120,8 @@ type BinRow = {
 };
 
 /**
- Finds the whitespace runs of two or more characters in a row.
+ Finds the whitespace runs of two or more characters in a row,
+ in one left-to-right pass (each character is visited once).
 
  @param isSpace - Per-character whitespace flags of the row
 
@@ -132,34 +133,32 @@ type BinRow = {
  ```
  */
 function findColumnGaps(isSpace: readonly boolean[],): readonly Gap[] {
-  return isSpace
-    .flatMap(
-    function runStartAt(
-      space,
-      index,
-    ): readonly Gap[] {
-      if ((!space) || (isSpace[index - 1] === true))
-        return [];
-      /**
-       Offset just past the run, or the row length when it ends the row.
-       */
-      const found = isSpace.indexOf(
-        false,
-        index,
-      );
-      return [{
-        start: index,
-        end: (found === NOT_FOUND)
-          ? isSpace.length
-          : found,
-      }];
-    },
-    )
-    .filter(
-    function isColumnGap(gap,): boolean {
-      return (gap.end - gap.start) >= MIN_COLUMN_GAP;
-    },
-    );
+  /**
+   Runs found so far.
+   */
+  const gaps: Gap[] = [];
+  /**
+   Start of the run being read, or NOT_FOUND between runs.
+   */
+  const run = { start: NOT_FOUND, };
+  for (let index = 0; index <= isSpace.length; index += 1) {
+    /**
+     Whether this position is whitespace; the position past the end closes any open run.
+     */
+    const space = (index < isSpace.length) && (isSpace[index] === true);
+    if (space && (run.start === NOT_FOUND))
+      run.start = index;
+    if ((!space) && (run.start !== NOT_FOUND)) {
+      if ((index - run.start) >= MIN_COLUMN_GAP) {
+        gaps.push({
+          start: run.start,
+          end: index,
+        },);
+      }
+      run.start = NOT_FOUND;
+    }
+  }
+  return gaps;
 }
 
 /**
@@ -200,7 +199,15 @@ function readBinRow(line: string,): readonly BinRow[] {
     },
   );
   /**
+   Offsets where a column gap starts, for constant-time lookup.
+   */
+  const gapStarts = new Set(gaps.map(function toStart(gap,): number {
+    return gap.start;
+  },),);
+  /**
    First gap whose following word is itself followed by a column gap.
+   The word scans after successive gaps cover disjoint stretches of the row,
+   so the whole search stays linear in the row length.
    */
   const versionGap = gaps.find(
     function followedByVersionColumn(gap,): boolean {
@@ -215,11 +222,7 @@ function readBinRow(line: string,): readonly BinRow[] {
       );
       if ((gap.end >= chars.length) || (wordEnd === NOT_FOUND))
         return false;
-      return gaps.some(
-        function startsAtWordEnd(next,): boolean {
-          return next.start === wordEnd;
-        },
-      );
+      return gapStarts.has(wordEnd,);
     },
   );
   if (versionGap === undefined)
