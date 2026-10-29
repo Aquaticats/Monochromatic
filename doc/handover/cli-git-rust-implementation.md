@@ -3842,3 +3842,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Open after this: the next release (carries the help text and test fixes, no behavior change); Windows checks (task
   30); cleanup list in the earlier block (add the worktrees `integrate-3`, `integrate-4`, `integrate-5` and the
   `rel040` and `verify-040*` scratch).
+
+## Update at 2026-10-29 (night, wave 3 results)
+
+- Mutation wave 3 (tree `e0fc63d151` in `~/temp/agent/integrate-7`, logs `~/temp/agent/mutpar-w3-<file>.log.N`, images
+  `w30` to `w35`): `merge_options.rs` 25 mutants, 24 caught, 1 unviable. `child_watch.rs` 28 mutants, 21 caught, 7
+  unviable. `lfs_pre_push.rs` 27 of 27 caught. `wait_progress.rs` (wave 2) 30 mutants, 23 caught, 7 unviable.
+  `doctor.rs` 46 mutants, 42 caught, 3 unviable, 1 missed (`is_executable` replaced with `true`).
+  `scratch_location.rs` 28 mutants, 18 caught, 1 unviable, 9 missed (line 46 arithmetic, 170 guard, 202 and 221
+  `assert_private_directory`, 273 `sweep_stale` boundary). `merge_isolation.rs` was still running with 10 missed so far
+  (194, 195, 278, 280, 325, 326, 365, 405, 420).
+- Survivors went to two worktree agents: `a147fe04b77d88e17` (scratch_location and doctor) and `a06fecbc07efeef53`
+  (merge_isolation; it re-reads the log at the end). Each commits in its own worktree; I land them (merge `main` into
+  a fresh detached worktree, then `git merge --ff-only` in the main checkout).
+- Mutation wave 4 started over `push_stacking.rs`, `command_push.rs`, `auto_push_reconcile.rs` and `entry.rs` (task 65;
+  tree `6cd2a6d510` in `~/temp/agent/integrate-8`, units `cli-git-mutpar-w4-*`, images `w40` to `w43`).
+- Still queued after that: mutation over the remaining new modules (`merge_isolation_*` siblings, `hooks_off` is done);
+  the next release (carries the `doctor` help text and the test fixes; fix `wait-publish.ts` to the tag
+  `monochromatic-git-policy-cli-v<version>` first); cleanup list in the earlier block, plus worktrees `integrate-7`
+  and `integrate-8` and images `w3*`, `w4*`.
