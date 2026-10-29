@@ -108,7 +108,7 @@ fn unsupported_globals_do_not_gain_a_wrapper_interpretation() {
     for flag in [
         "--",
         "--super-prefix",
-        "-C/tmp",
+        "-C/fixture",
         "-cx.y=z",
         "--shallow-file=shallow",
         "--future-flag",
@@ -135,7 +135,7 @@ fn native_git_256_controls_confirm_the_option_boundary() {
         .output()
         .expect("native prefix query");
     assert!(query.status.success());
-    for flag in ["-C/tmp", "--super-prefix", "--shallow-file=unused"] {
+    for flag in ["-C/fixture", "--super-prefix", "--shallow-file=unused"] {
         let rejected = Command::new("/usr/bin/git")
             .args([flag, "status"])
             .output()

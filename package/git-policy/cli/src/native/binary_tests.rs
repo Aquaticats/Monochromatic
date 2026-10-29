@@ -90,6 +90,11 @@ mod landing;
 #[path = "binary_landing_crash_tests.rs"]
 mod landing_crash;
 
+/// A true merge in a checkout whose index holds another session's staged work: equal to native Git's merge on a
+/// clean copy, nothing of the other work disturbed, refusals that change nothing, and recovery after a kill.
+#[path = "binary_merge_isolation_tests.rs"]
+mod merge_isolation;
+
 /// Real commits through the transaction: landing, policies, replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
@@ -133,3 +138,19 @@ mod push_environment;
 /// An explicit push that lost a race to another session: the merge is published through the executable's own push.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
+
+/// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
+#[path = "binary_lfs_pre_push_tests.rs"]
+mod lfs_pre_push;
+
+/// The same upload with the real `git-lfs` against an LFS server written inline.
+#[path = "binary_lfs_server_tests.rs"]
+mod lfs_server;
+
+/// Traditional hooks never run through the wrapper, and `git cli-git doctor` explains the Git LFS shims.
+#[path = "binary_hooks_off_tests.rs"]
+mod hooks_off;
+
+/// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
+#[path = "binary_wait_notice_tests.rs"]
+mod wait_notice;

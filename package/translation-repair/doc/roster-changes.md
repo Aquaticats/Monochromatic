@@ -207,7 +207,9 @@ The order is Qwen3.8-27B,
 Mimo v2.6 Flash,
 Kimi-K3,
 `google.gemma-4-31b` and Mercury 2.5,
-and a reading seats the first three a wet provider serves.
+and a reading seats the first three a wet provider serves
+(Qwen3.8-27B left the order on 2026-10-29;
+the section "Qwen3.8-27B leaves the wide seats and the checker order on 2026-10-29" has the change).
 `gemma-4-26b-a4b-it` left the checker role,
 and only that role,
 for calling 40 of the 85 unchanged texts fixed;
@@ -293,3 +295,30 @@ the served-id types are single literals,
 and every other seat is refused by the client before any request.
 Pictures stay off both routes wherever a seat's picture reading is unmeasured.
 The record is `doc/decision/translation-repair-direct-providers.md`.
+
+## Qwen3.8-27B leaves the wide seats and the checker order on 2026-10-29
+
+No model is added or removed.
+The owner chose "Remove Qwen from wide seats" (question tool,
+2026-10-29):
+"No late wait for Qwen at all...
+loses every Qwen vote and claim,
+including the 18 critic rounds where only Qwen found an accepted issue."
+The `hf:Qwen/Qwen3.8-27B` card gained `wide-seat-dropped` beside `openrouter-dropped` and `late-judge-dropped`,
+and its line left `RUN_CHECKER_ORDER`.
+With every provider wet the wide bench is 7 seats (it was 8)
+and the select judges 8 (they were 9),
+and both settle at a quorum of 4,
+where the select quorum was 5.
+The late judges stay 7 and the roster 10.
+The checker bench is Mimo v2.6 Flash,
+Kimi-K3 and Haiku 5.5,
+so Haiku 5.5 now holds a static place,
+which is open to the owner's veto.
+The translator,
+picture-reader,
+consolidation-writer and roster seats of Qwen3.8-27B are unchanged.
+The record is ledger B1030 and the 2026-10-29 addendum of
+`doc/decision/translation-repair-provider-aware-judge-seat.md`.
+No cache version moved:
+every key that reads a changed bench hashes its seat list.

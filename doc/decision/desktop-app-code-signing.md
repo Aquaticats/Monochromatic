@@ -110,7 +110,8 @@ deferred.
    the Linux build needs no Mac.
 - `osslsigncode`,
    `opensc`,
-   and `openssl` live in `Containerfile.sign`;
+   and `openssl` live in `Containerfile.sign` (CachyOS; `osslsigncode` is in no Arch or CachyOS repository,
+   so the image compiles the latest upstream release from source);
    the proprietary cloud-key PKCS#11 module is
   added per the Windows runbook.
 - Icons are generated once from `assets/icon.svg` by `gen:icons` in `Containerfile.icons` (`rsvg-convert`,

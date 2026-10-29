@@ -645,6 +645,15 @@ const ALLOWED_BLIND_SETS: ReadonlyMap<string, string> = new Map<string, string>(
     'a later reading of a picture supersedes the retained one on purpose, since it was read with the earlier as evidence',
   ],
   [
+    'provider/provider-budget-futile-returns.ts#note: marks.set(provider,...)',
+    'a provider\'s mark is replaced by its latest return that served nothing on purpose, so the budgets keep one slot for '
+      + 'each provider and the reader is told how the most recent return went',
+  ],
+  [
+    'provider/provider-budget-refusal-holds.ts#futileReturns: standing.set(provider,...)',
+    'the providers come from iterating the marks, a map, so each key is visited once',
+  ],
+  [
     'run/corpus-run/run-end-report.ts#registerRunEndReport: registered.set(key,...)',
     'a report registered again under its key replaces the earlier one on purpose, so a run that builds its client twice '
       + 'reports once, from the client that is current',

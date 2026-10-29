@@ -243,6 +243,22 @@ a call for a model only the given-up provider serves must end as that seat unrea
 with no request sent,
 and never as an error of the entry or the end of the run.
 
+The rule for a return that served nothing
+(the owner's answer of 2026-10-29,
+"Remember futile returns"):
+the give-up reads a refusal cooldown alone,
+and a wait for any other hold repeated the same loop.
+A provider whose hold ended and which refused again with nothing it answered in between
+has refused its last return,
+whatever kind of hold it was,
+and a stage short of a bench does not wait for the next hold of that provider until it answers a call.
+The mark is the budget layer's own evidence,
+as the give-up's is,
+and it yields to the same two exceptions through the same decision.
+It takes nothing out of routing,
+and a served call clears it.
+The record is [ledger B1010][b1010-entry].
+
 What enforces it:
 `run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts` runs the real budgets and the real seat reader on one fake
 clock with a provider that refuses at once after each cooldown,
@@ -267,6 +283,11 @@ or ends the run for a Synthetic that is the only writing provider not dry beside
 and `run/src/corpus-run/run-client-writing-roster.unit.test.ts` the roster the router is handed.
 `stage/src/stage-call-given-up-provider.unit.test.ts` runs the real router over the real budgets and fails when the
 seat only the given-up provider serves is anything but unreachable.
+`provider/src/provider-budget-futile-return.unit.test.ts` and `provider-budget-futile-returns.unit.test.ts` hold the
+cases of the mark of a return that served nothing,
+and `run/src/corpus-run/run-seats-futile-return.unit.test.ts` runs the real budgets and the real reader on a fake clock
+and fails when the reader waits for a provider after a return that served nothing,
+or stops waiting for one that has served since.
 No scan finds a loop that waits and asks again.
 
 How to find the next one:
@@ -278,3 +299,5 @@ script the party to refuse at once after every wait and count the waits on a fak
 
 [b965-entry]:
   audit-ledger-providers-and-seats-a-run-holds-out.md#b965-the-seat-reader-waited-out-the-refusal-cooldown-of-a-provider-that-refused-at-once-after-it-for-every-slice
+[b1010-entry]:
+  audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md#b1010-a-stage-waited-for-a-provider-whose-return-had-served-nothing

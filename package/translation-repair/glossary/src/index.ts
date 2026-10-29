@@ -38,6 +38,15 @@ export {
   groupByDigest,
 } from './corpus-run/digest-group.ts';
 export {
+  INTERIM_DIR,
+  type InterimEntryRecord,
+  interimPageDigest,
+  type InterimReason,
+  readInterimEntries,
+  removeInterimEntry,
+  writeInterimEntry,
+} from './corpus-run/interim-entries.ts';
+export {
   directoryIdNameStands,
   namesDirectoryId,
 } from './corpus-run/directory-id-name.ts';

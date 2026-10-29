@@ -1,5 +1,9 @@
 # Native push environment fix (evidence and resume notes)
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 Worktree: `.claude/worktrees/cli-git-lane-push-env`.
 Branch: `feat/cli-git-native-push-env`, based on `main` at `7f63ef5ed6`.
 Image tag: `push-env`.

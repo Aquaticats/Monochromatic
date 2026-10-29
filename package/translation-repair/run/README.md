@@ -32,13 +32,20 @@ The groups that follow name the main ones.
   `judgeSeatsFor`,
   `readJudgeSeats`,
   `unmetBenchFloors`,
+  `leaveOutFutileReturns`,
   `WritingBenchUnreachableError`.
   Declared in `corpus-run/run-config.ts`,
   `corpus-run/run-client-create.ts`,
   `corpus-run/run-seats.ts`,
   `corpus-run/run-seats-read.ts`,
   `corpus-run/run-seats-give-up-floors.ts`,
+  `corpus-run/run-seats-futile.ts`,
   and `corpus-run/run-seats-floor.ts`.
+  The short-bench reading waits for the holds of providers that would lift a bench,
+  except those whose last return served nothing (`leaveOutFutileReturns`;
+  the owner's answer of 2026-10-29,
+  ledger B1010),
+  which it names on a line of its own and does not wait for until they serve a call.
 - Runs directory and lock:
   lay out the runs directory and allow only one pass at a time per directory.
   Names:

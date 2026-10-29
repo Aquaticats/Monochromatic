@@ -972,6 +972,13 @@ await describe({
                     [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: 'A cat naps on the sill, its tail hanging near the heater.',
                     [SEAT_HYPER_VISION]: 'The cat sleeps on the ledge, tail beside the radiator.',
                   },
+                  // A follow-up slate that differs, since one that repeats the first is not judged again
+                  // (`translate-followup-repeated-slate.unit.test.ts`).
+                  followupTranslations: [{
+                    [SEAT_SYNTHETIC_VISION_WITHHELD]: 'The cat dozes by the window, its tail on the radiator.',
+                    [SEAT_HYPER_OPENROUTER_VISION_EDITOR]: 'A cat naps on the ledge, tail beside the heater.',
+                    [SEAT_HYPER_VISION]: 'The cat sleeps near the glass, tail beside the radiator.',
+                  },],
                   needle: '',
                   incumbentText: '',
                   incumbentKind: 'absent',

@@ -147,6 +147,7 @@ export {
   pairingQuestionKey,
 } from './pairing-question-key.ts';
 export { queriedBlockPairingDetails, } from './queried-block-pairing-details.ts';
+export { scratchParent, } from './scratch-parent.ts';
 export {
   type SectionBlockPairing,
   sectionPairingsOf,

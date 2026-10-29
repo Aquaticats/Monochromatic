@@ -2,7 +2,10 @@ import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import { artifactsDirOf, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
-import { DECLINED_DIR, } from '@monochromatic-dev/translation-repair-glossary/ts';
+import {
+  DECLINED_DIR,
+  INTERIM_DIR,
+} from '@monochromatic-dev/translation-repair-glossary/ts';
 import { FIXED_TREE_DIR, } from '@monochromatic-dev/translation-repair-page-check/ts';
 
 //region Runs directory layout
@@ -83,6 +86,13 @@ export type RunsLayout = {
   readonly declinedDir: string;
 
   /**
+   Directory of interim records, one per entry the pass shipped a page for and kept open because every provider went dry
+   in the middle of its page (the owner's answer of 2026-10-29, "Ship interim, resumable"); not part of the skip set,
+   since such an entry is still pending.
+   */
+  readonly interimDir: string;
+
+  /**
    Root of per-entry slice caches making large documents resumable.
    */
   readonly sliceCacheDir: string;
@@ -145,6 +155,10 @@ export async function prepareRunsLayout(
     declinedDir: join(
       runsDir,
       DECLINED_DIR,
+    ),
+    interimDir: join(
+      runsDir,
+      INTERIM_DIR,
     ),
     sliceCacheDir: join(
       runsDir,

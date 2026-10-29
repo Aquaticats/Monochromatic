@@ -21,6 +21,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   CorpusReadError,
   listCorpusPeople,
@@ -471,12 +472,11 @@ await describe({
          */
         const program = [
           "import { mkdtempSync, rmdirSync, } from 'node:fs';",
-          "import { tmpdir, } from 'node:os';",
           "import { join, } from 'node:path';",
           `const { CorpusReadError, readCorpusFile, } = await import(${
             JSON.stringify(import.meta.resolve('@monochromatic-dev/translation-repair-corpus-source',),)
           });`,
-          "const gone = mkdtempSync(join(tmpdir(), 'translation-repair-gone-cwd-'));",
+          `const gone = mkdtempSync(join(${JSON.stringify(scratchRoot(),)}, 'translation-repair-gone-cwd-'));`,
           'process.chdir(gone);',
           'rmdirSync(gone);',
           'try {',

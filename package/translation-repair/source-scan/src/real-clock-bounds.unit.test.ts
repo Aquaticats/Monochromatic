@@ -535,13 +535,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
       + 'dryness read that comes first, and the wait that follows throws the abort before it sleeps',
   },
   'provider/hold-reason.unit.test.ts#<module>: hold hyper: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
-  'provider/hold-reason.unit.test.ts#<module>: hold hyper: 900_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold neuralwatt: 60_000': {
     count: 1,
     bound: 'read back',
     reason: HOLD_REASON_INPUT,
   },
-  'provider/hold-reason.unit.test.ts#<module>: hold neuralwatt: 48_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold openrouter: 9_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/hold-reason.unit.test.ts#<module>: hold synthetic: 5_000': { count: 1, bound: 'read back', reason: HOLD_REASON_INPUT, },
   'provider/provider-router.unit.test.ts#<module>: holdPollMs: 1': {
@@ -592,70 +590,26 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
       + 'own abort ends it, so no real time passes',
   },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: freshForMs: FRESH_MS': { count: 1, bound: 'other', reason: RETURN_CACHE_WINDOW, },
-  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: freshForMs: FRESH_MS': {
-    count: 1,
-    bound: 'other',
-    reason: RETURN_CACHE_WINDOW,
-  },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#budgetsBefore: cooldownMs: hyperCooldownMs': {
     count: 1,
     bound: 'other',
     reason: FAKE_CLOCK_COOLDOWN,
-  },
-  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: pollMs: 1': {
-    count: 1,
-    bound: 'other',
-    reason: 'the call whose NeuralWatt return lies 301 s away, past the router\'s bound, so its first reading refuses and '
-      + 'no wait sleeps',
   },
   'provider/provider-budget-neuralwatt-return.unit.test.ts#refusalAfterHolds: pollMs: pollMs': {
     count: 1,
     bound: 'other',
     reason: HANDED_ON,
   },
-  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: 600_000': {
-    count: 2,
-    bound: 'other',
-    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
-  },
-  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: 0': {
+  'provider/neuralwatt-never-waits.unit.test.ts#budgetsOverSpentNeuralWatt: freshForMs: 600_000': {
     count: 1,
     bound: 'other',
-    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
+    reason: RETURN_CACHE_WINDOW,
   },
-  'provider/neuralwatt-return-fit.unit.test.ts#<module>: boundMs: -5': {
+  'corpus-pass/corpus-run/pass-never-parks.unit.test.ts#askRouter: pollMs: 1_000': {
     count: 1,
     bound: 'other',
-    reason: 'a bound handed to a pure comparison of two numbers; no timer is armed and nothing sleeps',
-  },
-  'corpus-pass/corpus-run/pass-entry-bound.unit.test.ts#<module>: hardCapMs: 7 * HOUR_MS': {
-    count: 2,
-    bound: 'other',
-    reason: 'an entry\'s hard cap read against a monotonic clock the case moves by hand; nothing sleeps and '
-      + 'no timer is armed',
-  },
-  'corpus-pass/corpus-run/pass-entry-bound.unit.test.ts#<module>: hardCapMs: 1_000': {
-    count: 1,
-    bound: 'other',
-    reason: 'an entry\'s hard cap read against a monotonic clock the case moves by hand; nothing sleeps and '
-      + 'no timer is armed',
-  },
-  'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: cooldownMs: 40': {
-    count: 1,
-    bound: 'other',
-    reason: FAKE_CLOCK_COOLDOWN,
-  },
-  'corpus-pass/corpus-run/pass-dry-stop.unit.test.ts#<module>: freshForMs: 600_000': {
-    count: 1,
-    bound: 'other',
-    reason: 'the cache window of a budget reading, longer than the case runs so the one reading stands; the '
-      + 'case moves no clock',
-  },
-  'provider/provider-budget-neuralwatt-return.unit.test.ts#<module>: statedWaitMs: 120_000': {
-    count: 1,
-    bound: 'read back',
-    reason: 'a refusal\'s stated wait handed to the budget layer on the case\'s own scripted clock, '
-      + 'which sleeps nothing',
+    reason: 'the call whose NeuralWatt return lies 301 s away refuses on its first reading and no wait sleeps, so the '
+      + 'poll slice is never used',
   },
   'run/corpus-run/run-seats-read.unit.test.ts#<module>: hold openrouter: 60_000': {
     count: 1,
@@ -741,6 +695,51 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: HANDED_ON,
   },
   'run/corpus-run/run-seats-cooldown-repeat.unit.test.ts#refuseWithAReturnEachTime: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-futile-return.unit.test.ts#refuse: statedWaitMs: STATED_MS': {
+    count: 3,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-futile-return.unit.test.ts#refuseAgainAfterTheHold: statedWaitMs: statedWaitMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseAndRead: statedWaitMs: statedWaitMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseAndServe: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseServeAndRefuse: statedWaitMs: STATED_MS': {
+    count: 3,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseTwice: statedWaitMs: STATED_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseTwiceThenState: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseWithNobodyElse: statedWaitMs: STATED_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseWithoutServing: statedWaitMs: STATED_MS': {
     count: 1,
     bound: 'other',
     reason: SCRIPTED_CLOCK,
@@ -1553,23 +1552,11 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     reason: 'the poll slice of a reading over a client whose every hold is 0 (its holds reader answers 0 for each '
       + 'provider), so no wait sleeps',
   },
-  'run/corpus-run/run-seats-pass-bound.unit.test.ts#<module>: pollMs: 5': {
-    count: 5,
-    bound: 'other',
-    reason: 'the poll slice of a reading whose return lies past what the pass has left, on a monotonic clock frozen at '
-      + '0, so it refuses at its first reading and sleeps nothing',
-  },
-  'run/corpus-run/run-seats-pass-bound.unit.test.ts#refusalUnder: pollMs: 5': {
-    count: 1,
-    bound: 'other',
-    reason: 'the poll slice of a reading whose return lies past the entry\'s cap, on a monotonic clock frozen at 0, so it '
-      + 'refuses at its first reading and sleeps nothing',
-  },
   'run/corpus-run/run-seats-neuralwatt-return.unit.test.ts#<module>: pollMs: 5': {
     count: 2,
     bound: 'other',
     reason: 'the poll slice of a reading that refuses at its first reading and sleeps nothing: the blocked key, whose '
-      + 'allowance names no return, and the return past what the pass has left on a monotonic clock frozen at 0',
+      + 'allowance names no return, and a spent day on a monotonic clock frozen at 0, which no reading waits for',
   },
   'run/corpus-run/run-seats-read.unit.test.ts#<module>: pollMs: 5': { count: 12, bound: 'other', reason: NO_HOLD_WAITED_FOR, },
   'run/corpus-run/run-seats-read.unit.test.ts#readSeatsFirst: pollMs: 5': { count: 1, bound: 'other', reason: NO_HOLD_WAITED_FOR, },

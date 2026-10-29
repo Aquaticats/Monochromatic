@@ -1,0 +1,29 @@
+{
+  "name": "@monochromatic-dev/dsh-plugin-cost-dismissal",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "DeepSeek Harness plugin that shadow-records cost dismissals found in session assistant prose, locally and as metadata only, beside the Claude Code cccd hook.",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/test-harness-core": "workspace:*"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

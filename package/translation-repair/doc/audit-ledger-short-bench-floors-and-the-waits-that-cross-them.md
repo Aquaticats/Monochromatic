@@ -4,7 +4,11 @@ The ceiling a hold could lift a short bench to,
 read from the meters and not from the holds,
 the wait judged against the floor and the quorum of each bench,
 the translate lane's first-time buys on a select bench under its floor,
-and the artifact's record of why a slice was kept.
+the artifact's record of why a slice was kept,
+and the wait for a provider whose return had served nothing (B1010),
+whose replay,
+the memory of skipped slices it removed and the cache account are in
+[futile returns replayed and the memory of skipped slices removed][futile-ledger].
 These continue [short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md),
 whose B833 to B835 they correct.
 
@@ -690,5 +694,227 @@ the cache keys of the passes do not read the generation,
 and nothing the mark records goes into one.
 No cache version moved.
 
+## B1010: a stage waited for a provider whose return had served nothing
+
+Status:
+fixed on 2026-10-29 (UTC),
+red `84e774c4a1` (provider) and `e72070b251` (run),
+fix `bb86480943` (provider) and `8bf91de279` (run),
+edges pinned in `6b48872d4a`.
+The owner chose the rule.
+Three readings are this round's choices and are open to the owner's veto:
+the rule reaches every kind of hold and every lift,
+its scope is one entry,
+and it yields to the two exceptions of the cooldown give-up.
+
+The owner's answer,
+through the question tool on 2026-10-29,
+quoted as it was asked.
+The question:
+when a provider is on hold and a stage's judge bench is short,
+should the stage wait for the provider to return?
+Measured on XingZ6020,
+where Synthetic refused again each time it came back:
+- in force,
+  "wait if it lifts bench":
+  wait only when the return would bring a bench up to its floor (two voices) or its quorum;
+  31,509.8 s of holds summed (146.8 min wall clock) bought 3 consolidation gates (slices 27,
+  28,
+  33);
+- "remember futile returns":
+  as in force,
+  plus skip a provider whose returns served nothing;
+  497.5 s (8.3 min),
+  0 gates bought;
+  needs a served count in the router,
+  which did not exist;
+- "quorum only":
+  0 s,
+  0 gates.
+
+The owner chose "Remember futile returns".
+The measurements and the first statement of the rule are in option (c) of the re-check of the XingZ6020 fixes
+(`d123-recheck2.md`,
+outside the repository).
+
+What a return that served nothing is,
+as the code reads it
+(`provider-budget-futile-returns.ts`,
+called from `hold` in `provider-budget-refusal-holds.ts`):
+- A return is the end of a hold a refusal set:
+  the instant `endsAt` of the hold that a later refusal replaces.
+  A hold of no time has no return:
+  a refusal on a wet meter with no other wet provider sets one,
+  and a refusal after it is not a provider coming back.
+  A refusal that arrives inside a running hold is no return either,
+  because it came from a call in flight when the hold was set.
+- Serving is the router's report that a provider's client resolved with a reply for a call (`markServed`,
+  called by `callOn` in `provider-router.ts` and by the decisions endpoint for OpenRouter).
+  It is the event the cooldown give-up has read since `b95d7cf83d`,
+  and it is not a content check:
+  a reply that fails the stage's own checks afterwards still counts as served.
+  The measurement counted the `SPEND` lines of the provider in the log instead.
+  The question said the rule needed a served count in the router,
+  which did not exist;
+  the router has reported each served call to the budgets since the give-up,
+  as a time stamp for each provider,
+  so the rule needed a read on the budgets and no new surface on the router.
+- A return served nothing when the provider's next refusal arrives after the end of the hold,
+  the hold ended after the entry began,
+  and the provider has answered no call since the end.
+  The refusal is the first answer the provider gave after the wait,
+  so a further wait for its next hold buys the same answer.
+  Every kind of hold counts:
+  a refusal cooldown,
+  the rate-limit backoff,
+  and a wait the refusal states.
+- The mark stands until the provider answers a call,
+  and the next entry (`beginEntry`) begins with none.
+  The provider stays routable,
+  so the stage that goes on short seats it again once its hold has ended,
+  and a call it answers clears the mark.
+- The scope is one entry.
+  The measurement forgot the mark at the end of each phase,
+  which is neither of the two scopes the round was asked to choose between.
+  The budgets know no phases,
+  the give-up they already keep is the entry's,
+  and a mark that outlived a served call would be wrong,
+  which the served call prevents.
+  The figure of the phase scope is in B1012.
+
+What the code does with the mark:
+- `futileReturns` on the budgets lists each marked provider with its return (the hold that ended and how soon the
+  provider refused again),
+  and leaves out a provider whose wait is what lets the entry finish.
+  That is the cooldown give-up's own weighing (`waitingHelps` in `provider-budget-give-up-aside.ts`,
+  the decision `isAside` makes without the give-up it is about):
+  the provider is the only writing provider not dry,
+  or with it back no bench floor the entry needs would be left unmet while without it one is.
+  The owner reaffirmed those two exceptions on 2026-10-29,
+  so the rule does not defeat them.
+- The run client carries it as `futileReturns` (`run-config.ts`),
+  and the short-bench reading leaves the holds of those providers out of the holds it waits for
+  (`leaveOutFutileReturns` in `run-seats-futile.ts`,
+  at the first reading and after each wait).
+  The questions asked of the holds that remain are unchanged:
+  which holds cure a short bench,
+  the ceiling,
+  and the words for a reading that takes no wait.
+  NeuralWatt is not left out while its hold is its day start.
+- Each time a hold is left out while a bench is short,
+  the reading says so:
+  `JUDGE SEATS phase=lane contest not waiting for synthetic: its last return served nothing (its 300000ms hold ended
+  1204ms before it refused again, and no call it answered came after), so its hold of 240000ms is not waited for while
+  a bench is short; it is waited for again once it answers a call`.
+  The budgets write one warn line when they mark a return,
+  with the provider,
+  the hold,
+  how soon it refused again and the entry.
+
+How the rule and the cooldown give-up of `b95d7cf83d` overlap:
+- The evidence is the same.
+  The give-up reads a hold that was a cooldown,
+  ended after the entry began,
+  with nothing served since,
+  followed by a refusal.
+  The mark reads the same without the condition that the hold was a cooldown.
+- The consequences differ.
+  The give-up makes the provider's cooldowns count for no wait and reads it dry until the entry ends,
+  also after it has served.
+  The mark skips a wait in the seat reader only,
+  leaves the provider routable,
+  and ends when the provider serves.
+- For a refusal cooldown the seat reader's wait is skipped by both,
+  with the same two exceptions.
+  The give-up alone already reproduces the rule on the shape of XingZ6020 (B1012,
+  reading C),
+  because every one of Synthetic's holds there was a cooldown on an unreadable meter.
+- Neither makes the other redundant.
+  The give-up's `waitedLeft` is also what `holds` hands the router's wait when every provider reads dry
+  (`budget-hold-wait.ts`),
+  which the mark does not touch,
+  and its routing half and its lasting past a served call are its own.
+  The mark reaches the holds the give-up never cut:
+  a wait the refusal states and the rate-limit backoff.
+  The give-up stays.
+- Where both stand on one provider,
+  the give-up's rule that a stated return counts as a hold still shows in `holds`
+  (`provider-budget-cooldown-give-up.unit.test.ts`),
+  and the seat reader skips that hold because the return before it served nothing.
+  The case that kept a stated return waited for every time
+  (`run-seats-cooldown-repeat.unit.test.ts`)
+  is unchanged,
+  because its client carries no `futileReturns`,
+  so it pins the give-up alone.
+  Through the run client the stated return is skipped after a return that served nothing.
+
+Cases:
+- `provider-budget-futile-return.unit.test.ts` has 11 cases,
+  all red at `84e774c4a1`
+  (ten with `budgets.futileReturns is not a function`,
+  the log case with `expected +0 to equal 1`),
+  and green at `bb86480943`:
+  no mark before a hold has ended or inside a running hold;
+  a cooldown return and a stated return that served nothing;
+  a call served after the hold ended;
+  a served call clearing the mark;
+  the next entry forgetting it;
+  a hold that ran out before the entry began;
+  the give-up and the mark on one provider;
+  both exceptions of the give-up;
+  and the log line.
+  They read the marks as a record for each provider when they were written red,
+  and as a map after the lint rule against nullish unions,
+  so the green commit changes the reads to `.get`.
+- `provider-budget-futile-returns.unit.test.ts` pins the edges of the rule:
+  a refusal at the instant a hold ends,
+  one instant inside it,
+  a call served at that instant and one before it,
+  a hold of no time,
+  and an entry that began at the instant the hold ended.
+- `run-seats-futile-return.unit.test.ts` has six cases over the real budgets and the real reader on a fake clock.
+  Four were red at `e72070b251`
+  (waits taken 3 where 1 was expected,
+  2 where 1 was expected twice,
+  and no skip line),
+  and two passed as guards:
+  a returner that served is waited for every time,
+  and the only provider not dry is waited for every time.
+  The others:
+  a futile returner counted again after it serves,
+  the give-up and the rule on one provider,
+  and a stage that goes on short with the reason in the log.
+- `run-seats-futile.unit.test.ts` asks the helpers directly:
+  a client that carries no marks,
+  a reading where no hold runs,
+  a mark on a provider that is not held,
+  and NeuralWatt's day start against a refusal's hold.
+
+Limits,
+open to the owner's veto:
+- The rule is not limited to a lift that crosses the floor and not the quorum.
+  The re-check that measured option (c) warned that applied to every lift it would also cut the translate lane's waits.
+  Replayed over XingZ6020 it does (B1012):
+  the translate lane keeps 8 of its 112 waits,
+  and the 4 waits that were followed by Synthetic's 25 served calls at 01:42:52 UTC are not taken.
+  Limiting the rule to the floor-only lift is one condition in `leaveOutFutileReturns`.
+- A writing bench whose only lift is a futile returner,
+  where neither exception holds,
+  stops the entry with `WritingBenchUnreachableError` as a bench with nothing to wait for does.
+  A judge bench goes on short.
+- When the only hold running was left out,
+  the line of a reading that takes no wait says `no hold runs that could lift it`,
+  and the skip line before it says why.
+- A reply counts as served when the client resolved with it,
+  whatever the stage makes of it afterwards.
+
+The rule for next time:
+a wait is worth taking when the last wait for the same provider bought something,
+and the provider's own record says whether it did:
+the evidence for skipping a wait belongs where the refusals and the served calls are counted,
+and the reader that decides the wait only asks.
+
+[futile-ledger]:
+  audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md
 [clocks-family]:
   mistake-prevention-fake-clocks-and-native-timers.md#fake-clocks-that-leave-native-timers

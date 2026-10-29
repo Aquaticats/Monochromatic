@@ -30,10 +30,6 @@ use std::time::Duration;
 /// How long a holder keeps the lock in the controls before the test releases it.
 const HOLD: Duration = Duration::from_millis(400);
 
-/// How long a live owner keeps the lock:
-///  long enough for a loaded host to start the wrapper and reach the wait.
-const LIVE_HOLD: Duration = Duration::from_millis(3000);
-
 /// Hold the landing lock as this live process until the returned lock is released.
 fn hold_landing(repo: &Path) -> git_policy_cli::owner_lock::OwnerLock {
     let registry: PathBuf = repo.join(".git/cli-git-transactions");
@@ -158,17 +154,29 @@ fn a_live_foreign_owner_is_waited_for_and_named() {
         .expect("PID file naming the live owner");
     let mut command: Command = wrapped(&fixture);
     command.current_dir(&repo).args(["add", "--", "a.txt"]);
-    let child: Child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the wrapped add");
-    // A loaded host can start the wrapper slower than the usual hold, so the owner keeps the lock longer
-    // here; the test then proves the wrapper waited for the owner rather than racing its release.
-    std::thread::sleep(LIVE_HOLD);
+    let mut child: Child = command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).spawn().expect("start the wrapped add");
+    // The owner keeps the lock until the wrapper has named it on standard error, so the wrapper provably waited for the
+    // owner, however slowly a loaded host starts it.
+    let mut reader: std::io::BufReader<std::process::ChildStderr> = std::io::BufReader::new(child.stderr.take().expect("piped"));
+    let mut stderr: String = String::new();
+    loop {
+        let mut line: String = String::new();
+        let read: usize = std::io::BufRead::read_line(&mut reader, &mut line).expect("a line of standard error");
+        assert!(read > 0, "the wrapper ended before it waited for the owner: {stderr}");
+        stderr.push_str(line.as_str());
+        if line.contains("cli-git: waiting for PID") {
+            break;
+        }
+    }
     let _ = holder.kill();
     let _ = holder.wait();
     std::fs::remove_file(&lock).expect("the owner released the lock");
     std::fs::remove_file(repo.join(".git/index~pid.lock")).expect("the owner removed its PID file");
-    let output: Output = finish(child);
-    assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
-    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    std::io::Read::read_to_string(&mut reader, &mut stderr).expect("the rest of standard error");
+    let status = child.wait().expect("the wrapped add ends");
+    assert_eq!(status.code(), Some(0), "{stderr}");
+    // The first line is the only one named "waiting for PID": a repeat reads "still waiting" and is an interval of ten
+    // seconds away.
     assert_eq!(
         stderr.matches("cli-git: waiting for PID").count(),
         1,

@@ -172,7 +172,9 @@ export type SourcePuller<Element> = () =>
  ```
  */
 function readsAsDone(item: unknown,): boolean {
+// mutation-test-disable-next-line conditional:false, logical -- a nullish answer that is not guarded here fails on the same read of `done` with the same TypeError message (`reading 'done'`) in the puller instead of in the consumer, and the run rejects with that error either way
   if ((item === null) || (item === undefined))
+// mutation-test-disable-next-line boolean -- a nullish answer that reads as done only latches the puller, and the run has already rejected with the TypeError of the consumer's own read of `done` by then
     return false;
   return Boolean((item as { readonly done?: unknown; }).done,);
 }
@@ -192,8 +194,11 @@ function readsAsDone(item: unknown,): boolean {
  ```
  */
 function isThenable(answer: unknown,): boolean {
+// mutation-test-disable-next-line conditional:true -- whether an answer is wrapped in a native promise only decides whether an asynchronous source also latches `done` when its pull settles: both consumers set their own `done` guard in the reaction that directly follows the latch's on the same promise, with no job between them, so no pull can see a latch their guard lacks; a nullish answer is awaited in one turn wrapped or not
   if ((answer === null) || (answer === undefined))
+// mutation-test-disable-next-line boolean -- whether an answer is wrapped in a native promise only decides whether an asynchronous source also latches `done` when its pull settles: both consumers set their own `done` guard in the reaction that directly follows the latch's on the same promise, with no job between them, so no pull can see a latch their guard lacks; a nullish answer is awaited in one turn wrapped or not
     return false;
+// mutation-test-disable-next-line conditional, equality -- whether an answer is wrapped in a native promise only decides whether an asynchronous source also latches `done` when its pull settles: both consumers set their own `done` guard in the reaction that directly follows the latch's on the same promise, with no job between them, so no pull can see a latch their guard lacks; a synchronous answer is awaited in one turn wrapped or not
   return (typeof (answer as { readonly then?: unknown; }).then) === 'function';
 }
 
@@ -252,6 +257,7 @@ export function createPuller<Element>(iterator: SourceIterator<Element>,): Sourc
        Logger carrying the puller's name as its tag.
        */
       const log = tagged({ tag: createPuller.name, },);
+// mutation-test-disable-next-line string -- logging only: the caller of the puller handles the same rejection, and the log output is not observable through the public API
       log.debug(`pull rejected, left to the caller: ${caughtValueText(error,)}`,);
     }
   }
@@ -272,6 +278,7 @@ export function createPuller<Element>(iterator: SourceIterator<Element>,): Sourc
 
     // A synchronous source answers right away, so its `done` was read above
     // and the answer goes back untouched.
+// mutation-test-disable-next-line conditional, boolean -- whether an answer is wrapped in a native promise only decides whether an asynchronous source also latches `done` when its pull settles: both consumers set their own `done` guard in the reaction that directly follows the latch's on the same promise, with no job between them, so no pull can see a latch their guard lacks; a synchronous answer is awaited in one turn wrapped or not
     if (!isThenable(result,))
       return result;
 

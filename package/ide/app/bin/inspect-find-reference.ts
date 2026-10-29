@@ -3,11 +3,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const directory = mkdtempSync(join(tmpdir(), 'ide-find-reference-'));
+// Scratch lives in the package's gitignored node_modules/.monochromatic, never the system temporary directory.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'ide');
+mkdirSync(scratchBase, { recursive: true });
+const directory = mkdtempSync(join(scratchBase, 'ide-find-reference-'));
 const config = join(directory, 'agent-browser.json');
 const profile = join(directory, 'profile');
 const fixture = join(directory, 'fixture.html');

@@ -65,6 +65,7 @@ import {
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { artifactWithAnUnfilledAnchor, } from './would-ship-unfilled-anchor.test-fixture.ts';
+import { sourceShippedArtifact, } from './source-shipped.test-fixture.ts';
 
 //region The archive this entry starts from
 
@@ -1182,6 +1183,98 @@ await describe({
               ['archive-original',],
               [],
             ],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: `${publishFixedPage.name} a page with no body`,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'REPORTS A PAGE THAT SHIPS NO BODY WHILE THE ORIGINAL HAS ONE, whether the page is empty or only front '
+            + 'matter, since a 0-byte page shipped with no defect and no warning for an archive that held no body '
+            + '(commitment of the shipping design: a passage with no wording ships its original under a note). It '
+            + 'ships, reported like the other content checks, and the same publisher reports nothing for a page '
+            + 'with a body or for an original with none',
+          fn: async () => {
+            await using tree = await scratchDir({ prefix: 'publish-fixed-', },);
+
+            /**
+             Original with front matter and a body.
+             */
+            const original = '---\nname: 猫\n---\n\n## 简介\n\n一只虎斑猫。\n';
+            /**
+             Original that holds front matter and nothing else.
+             */
+            const originalWithoutBody = '---\nname: 猫\n---\n';
+            /**
+             Names of the defects reported for one page cut into no slices.
+
+             @param archiveText - page the slices index, which nothing replaces
+
+             @param sourceText - original the page is weighed against
+
+             @returns Names of the defects reported
+
+             @example
+             ```ts
+             const checks = await checksOfBodilessPage({ archiveText: '', sourceText: original, },);
+             ```
+             */
+            async function checksOfBodilessPage(
+              {
+                archiveText,
+                sourceText,
+              }: {
+                readonly archiveText: string;
+                readonly sourceText: string;
+              },
+            ): Promise<readonly string[]> {
+              /**
+               What the publisher returned.
+               */
+              const published = await publishFixedPage({
+                artifact: sourceShippedArtifact({ rows: [], },),
+                slices: [],
+                archiveText,
+                sourceText,
+                entryId: 'BookshopCat',
+                publishDir: tree.path,
+                l: tagged({ tag: 'publish-test', },),
+              },);
+              return published.defects.map(function checkOf({ check, },): string {
+                return check;
+              },);
+            }
+
+            expect(await checksOfBodilessPage({ archiveText: '', sourceText: original, },),).toContain(
+              'page-without-body',
+            );
+            expect(await checksOfBodilessPage({
+              archiveText: '---\nname: Cat\n---\n',
+              sourceText: original,
+            },),).toContain('page-without-body',);
+            // CONTROLS: an original with no body reports nothing of the kind, and nor does a page with a body.
+            expect(await checksOfBodilessPage({ archiveText: '', sourceText: originalWithoutBody, },),).not
+              .toContain('page-without-body',);
+            /**
+             Page with a body, published through the full entry.
+             */
+            const withBody = await publishFixedPage({
+              artifact: artifactShipping({ translateText: DECIDED_MIDDLE, },),
+              slices: documentSlices(),
+              archiveText: ARCHIVE,
+              sourceText: SOURCE_PAGE,
+              entryId: 'BookshopCat',
+              publishDir: tree.path,
+              l: tagged({ tag: 'publish-test', },),
+            },);
+            expect(withBody.defects.map(function checkOf({ check, },): string {
+              return check;
+            },),).not
+              .toContain('page-without-body',);
           },
         },),
       ],

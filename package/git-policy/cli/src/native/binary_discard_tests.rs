@@ -10,8 +10,10 @@
 //! // spawnSync(wrapper, ['restore', '--', 'tracked.txt'], { cwd: repo }).status === 1
 //! ```
 
+use super::commit::run_commit;
 use super::support::{
-    Fixture, Observed, fixture, git, observe_raw, porcelain, remove, repository, run_wrapped, stderr_of, wrapped,
+    Fixture, Observed, fixture, git, observe_raw, porcelain, remove, repository, run_wrapped, stderr_of,
+    stub_manual_viewer, wrapped,
 };
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -159,7 +161,11 @@ fn a_linked_worktree_runs_the_forms_only_while_clean() {
         b"three\n"
     );
     // The documented way forward: commit the work with explicit paths, after which the worktree is clean again.
-    let committed: Observed = run_wrapped(
+    // A commit is the one command here that is not a single Git command: the wrapper lands it through its
+    // transaction (40 Git process starts and 36 sync calls, 0.15 to 0.45 s with no extra load, against 4 ms for
+    // direct Git), so it runs under the commit bound; the other 11 wrapped commands of this test took at most
+    // 0.05 s each.
+    let committed: Observed = run_commit(
         &fixture,
         linked.as_path(),
         &["commit", "--quiet", "--message=work", "--", "tracked.txt"],
@@ -175,10 +181,16 @@ fn a_linked_worktree_runs_the_forms_only_while_clean() {
 #[test]
 fn reading_forms_are_never_rejected() {
     let fixture: Fixture = fixture("discard-reading");
+    stub_manual_viewer(&fixture);
     let repo: PathBuf = dirty_repository(&fixture);
+    // The manual page is Git's work, not the wrapper's, so a stub stands in for `man`; the marker proves Git
+    // received the `--help` the wrapper forwarded and took its manual-page path.
+    let help: Observed = run_wrapped(&fixture, repo.as_path(), &["restore", "--help"]);
+    assert!(!rejected_by_policy(&help), "{}", stderr_of(&help));
+    assert_eq!(help.code, Some(0), "{}", stderr_of(&help));
+    assert_eq!(String::from_utf8_lossy(&help.stdout), "manual page requested: git-restore\n");
     for arguments in [
         vec!["stash", "list"],
-        vec!["restore", "--help"],
         vec!["status"],
         vec!["diff"],
         vec!["reset", "--soft", "HEAD"],
@@ -198,6 +210,13 @@ fn reading_forms_are_never_rejected() {
 /// Run one wrapped command in the main worktree and require that it succeeded.
 fn runs(fixture: &Fixture, repo: &std::path::Path, arguments: &[&str]) -> Observed {
     let observed: Observed = run_wrapped(fixture, repo, arguments);
+    assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+    return observed;
+}
+
+/// Run one wrapped commit in the main worktree under the commit bound and require that it succeeded.
+fn runs_commit(fixture: &Fixture, repo: &std::path::Path, arguments: &[&str]) -> Observed {
+    let observed: Observed = run_commit(fixture, repo, arguments);
     assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
     return observed;
 }
@@ -242,10 +261,12 @@ fn every_named_alternative_runs_in_the_main_worktree() {
         assert!(!rejected_by_policy(&observed), "{arguments:?}: {}", stderr_of(&observed));
     }
     std::fs::remove_dir_all(repo.join("copy")).expect("remove the copied files");
-    // Unstage-by-commit: only the named path lands, the other staged entry stays staged.
+    // Unstage-by-commit: only the named path lands, the other staged entry stays staged. This is the one
+    // transaction commit of this test (40 Git process starts and 36 sync calls, 0.17 to 0.35 s with no extra
+    // load); the other 14 wrapped commands took at most 0.12 s each, so only the commit runs under the commit bound.
     std::fs::write(repo.join("other.txt"), b"other\n").expect("other file");
     git(&fixture, repo.as_path(), &["add", "--", "other.txt"]);
-    runs(
+    runs_commit(
         &fixture,
         repo.as_path(),
         &["commit", "--quiet", "--message=only tracked", "--", "tracked.txt"],

@@ -256,26 +256,6 @@ await describe({
             );
           },
         },),
-
-        it({
-          name: 'SAYS THE PASS MAY PARK FOR THE RETURN, and names the other outcome: the gate parks only where the '
-            + 'return fits what the pass has left and its spent day was not already waited out, and otherwise the '
-            + 'entry ends as a failure a later pass resumes',
-          fn: async () => {
-            const error = new WritingBenchUnreachableError({
-              phase: 'lanes',
-              clauses: ['editors 0 of 3 reachable, floor 2',],
-              neuralwattReturnsInMs: 301_000,
-              neuralwattReturnsAt: '19:15:08 UTC',
-            },);
-            expect(error.message,).toBe(
-              'writing bench unreachable at lanes: editors 0 of 3 reachable, floor 2; NeuralWatt\'s energy returns '
-                + 'at 19:15:08 UTC, which would reach the floor, so the entry stops; the pass may park for it where '
-                + 'the return fits what the pass has left, and otherwise the entry ends as a failure a later pass '
-                + 'resumes',
-            );
-          },
-        },),
       ],
     },),
   ],

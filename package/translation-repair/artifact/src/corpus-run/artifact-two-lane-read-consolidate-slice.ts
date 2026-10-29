@@ -273,7 +273,9 @@ function parseShippedTense(
 ): { readonly tenseCandidates?: readonly TenseCandidateGroup[]; } {
   if (value === undefined)
     return {};
-  if ((shipped.kind === 'archive') || (shipped.kind === 'unchanged')) {
+  // The translate lane's winner is the contest record's translate candidate already, and its tense candidates are
+  // recorded there.
+  if ((shipped.kind !== 'consolidated') && (shipped.kind !== 'incumbent')) {
     throw new ArtifactParseError({
       path,
       reason: 'no tense candidates, since a slice that ships no wording of its own has no shipped text to read them from',
@@ -315,6 +317,9 @@ function parseShippedTense(
 
  @param benchFloorRecorded - whether the generation records a slice kept for want of a slate bench
 
+ @param translateWinnerRecorded - whether the generation records why the archive keeps a slice and the shipped kind of
+ a translate lane winner
+
  @returns Parsed consolidation slice
 
  @example
@@ -335,6 +340,7 @@ export function parseConsolidateSlice(
     lastSeatGrace = false,
     tenseRecorded = false,
     benchFloorRecorded = false,
+    translateWinnerRecorded = false,
   }: {
     readonly value: unknown;
     readonly path: string;
@@ -347,6 +353,7 @@ export function parseConsolidateSlice(
     readonly lastSeatGrace?: boolean;
     readonly tenseRecorded?: boolean;
     readonly benchFloorRecorded?: boolean;
+    readonly translateWinnerRecorded?: boolean;
   },
 ): ArtifactConsolidateSlice {
   /**
@@ -418,6 +425,7 @@ export function parseConsolidateSlice(
   const shipped = parseShipped({
     value: record.shipped,
     terminal,
+    translateWinnerRecorded,
     path: `${path}.shipped`,
   },);
   /**

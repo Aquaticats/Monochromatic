@@ -1,12 +1,11 @@
 /**
- Tests the seat reader against the XingZ6019 shape: NeuralWatt dry because the day's energy was spent, its day starting
- again 48 s after the entry stopped, and a writing bench short of its floor without it.
+ Tests the seat reader's refusal against the XingZ6019 shape: NeuralWatt dry because the day's energy was spent, its day
+ starting again 48 s after the entry stopped, and a writing bench short of its floor without it.
 
- The reader waits for a return the budgets name when it lies inside the bound its client carries (what the pass has
- left), at any distance for a client that carries none, and then seats the NeuralWatt writers; where no return is named,
- or it lies past the bound, it refuses and the refusal states only the true cause. The budgets are the real ones over
- stub meters and a stub wall clock, so the return reaches the reader the way a run's does (a hold), and the
- times are scaled to milliseconds.
+ The reader waits for no NeuralWatt return (the owner's answer of 2026-10-29, "Never wait, relaunch";
+ `run-seats-neuralwatt-never-waits.unit.test.ts` holds the cases that show it refuses at once). Where NeuralWatt is dry
+ for a reason that is not the day's energy, the refusal states only the true cause. The budgets are the real ones over
+ stub meters and a stub wall clock.
 
  Fixtures are cat-themed invention; every meter is a stub and no HTTP is made.
 
@@ -15,12 +14,10 @@
 
 import {
   describe,
-  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { EveryProviderDryError, } from '@monochromatic-dev/translation-repair-provider';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import {
@@ -32,172 +29,11 @@ import {
   SIGNAL,
   SPENT_DAY,
 } from './neuralwatt-seat-client.test-fixture.ts';
-import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
-
-/**
- Options of the client a case builds, without the monotonic clock, which the fake clock supplies.
- */
-type ClientOptions = Omit<Parameters<typeof clientBefore>[0], 'now'>;
-
-/**
- Reads the lanes' seats over the NeuralWatt client while a fake clock passes the return the reading waits for. The fake
- clock is also the monotonic clock the budgets count the return on, so the wait sleeps no real time and a stalled
- machine changes nothing.
-
- @param sinon - case's own sandbox, which fakes the timers
-
- @param holdMs - return the reading waits for, in milliseconds
-
- @param options - client the case builds, without a clock
-
- @param lines - receives what the reading logs
-
- @returns Writers left unreachable, and the energy reads counted
-
- @example
- ```ts
- const { unreachableWriters, reads, } = await seatsAfterWaiting({ sinon: ctx.sinon, holdMs: 60, options: { msBeforeReturn: 60, }, lines, },);
- ```
- */
-async function seatsAfterWaiting(
-  {
-    sinon,
-    holdMs,
-    options,
-    lines,
-  }: {
-    readonly sinon: DisposableSandbox;
-    readonly holdMs: number;
-    readonly options: ClientOptions;
-    readonly lines: string[];
-  },
-): Promise<{
-  readonly unreachableWriters: Awaited<ReturnType<typeof readPhaseSeats>>['unreachableWriters'];
-  readonly reads: number;
-}> {
-  return await readOnFakeClock({
-    sinon,
-    holdMs,
-    pollMs: 5,
-    reading: async function reading({ signal, now, },) {
-      const { client, reads, } = clientBefore({ ...options, now, },);
-      const { unreachableWriters, } = await readPhaseSeats({
-        client,
-        phase: 'lanes',
-        signal,
-        l: levelCapturingLogger({ lines, },),
-        pollMs: 5,
-      },);
-      return { unreachableWriters, reads: reads.count, };
-    },
-  },);
-}
-
-/**
- Reads the lanes' seats over the NeuralWatt client, as `seatsAfterWaiting` does, for a reading that ends in a refusal
- after the wait.
-
- @param sinon - case's own sandbox, which fakes the timers
-
- @param holdMs - return the reading waits for, in milliseconds
-
- @param options - client the case builds, without a clock
-
- @returns Refusal the reading threw, and the energy reads counted
-
- @example
- ```ts
- const { refusal, reads, } = await refusalAfterWaiting({ sinon: ctx.sinon, holdMs: 60, options: { msBeforeReturn: 60, lagging: true, }, },);
- ```
- */
-async function refusalAfterWaiting(
-  {
-    sinon,
-    holdMs,
-    options,
-  }: {
-    readonly sinon: DisposableSandbox;
-    readonly holdMs: number;
-    readonly options: ClientOptions;
-  },
-): Promise<{
-  readonly refusal: unknown;
-  readonly reads: number;
-}> {
-  return await readOnFakeClock({
-    sinon,
-    holdMs,
-    pollMs: 5,
-    reading: async function reading({ signal, now, },) {
-      const { client, reads, } = clientBefore({ ...options, now, },);
-      const refusal = await rejectionOf({
-        promise: readPhaseSeats({
-          client,
-          phase: 'lanes',
-          signal,
-          l: levelCapturingLogger({ lines: [], },),
-          pollMs: 5,
-        },),
-      },);
-      return { refusal, reads: reads.count, };
-    },
-  },);
-}
 
 await describe({
-  name: 'the seat reader and NeuralWatt\'s return',
+  name: 'the seat reader and NeuralWatt\'s dryness',
   concurrency: 1,
   children: [
-    it({
-      name: 'WAITS FOR NEURALWATT\'S DAY TO START AGAIN when the lanes\' writing benches stand short without it and the '
-        + 'return is near, then seats the NeuralWatt writers, logging the wait with its reason and its end',
-      fn: async ctx => {
-        const lines: string[] = [];
-        const { unreachableWriters, reads, } = await seatsAfterWaiting({
-          sinon: ctx.sinon,
-          holdMs: 60,
-          options: { msBeforeReturn: 60, },
-          lines,
-        },);
-        expect(unreachableWriters,).toEqual([],);
-        expect(reads,).toBe(2,);
-        expect(lines.some(function waitLine(line,): boolean {
-          return line.startsWith('warn JUDGE SEATS phase=lanes short of quorum',)
-            && line.includes('waiting ',) && (!line.includes('waiting 0ms',))
-            && line.includes('neuralwatt, whose day starts again at 19:15:08 UTC',);
-        },),).toBe(true,);
-        expect(lines.some(function endLine(line,): boolean {
-          return line.startsWith('info JUDGE SEATS phase=lanes waited ',) && (!line.startsWith('info JUDGE SEATS phase=lanes waited 0ms',))
-            && line.includes('for neuralwatt, whose day starts again at 19:15:08 UTC',);
-        },),).toBe(true,);
-        expect(lines.some(function seatsLine(line,): boolean {
-          return line.startsWith('info JUDGE SEATS phase=lanes neuralwatt=wet',) && line.includes('waited=',)
-            && (!line.includes('waited=0ms',));
-        },),).toBe(true,);
-      },
-    },),
-
-    it({
-      name: 'WAITS FOR A RETURN PAST THE 300 s A ROUTER CALL WAITS for a client that names no pass bound, the way '
-        + 'Hyper\'s stated holds are waited for: the budgets name the return as a hold at any distance for a caller '
-        + 'that names no bound, and the NeuralWatt writers are seated once it has passed',
-      fn: async ctx => {
-        const lines: string[] = [];
-        const { unreachableWriters, reads, } = await seatsAfterWaiting({
-          sinon: ctx.sinon,
-          holdMs: 80,
-          options: { msBeforeReturn: 80, },
-          lines,
-        },);
-        expect(unreachableWriters,).toEqual([],);
-        expect(reads,).toBe(2,);
-        expect(lines.some(function waitLine(line,): boolean {
-          return line.startsWith('warn JUDGE SEATS phase=lanes short of quorum',)
-            && line.includes('neuralwatt, whose day starts again at 19:15:08 UTC',);
-        },),).toBe(true,);
-      },
-    },),
-
     it({
       name: 'STATES THE KEY\'S OWN TIME FOR A BLOCKED KEY and not a day start: NeuralWatt dry because the key\'s '
         + 'allowance is blocked comes back when the block lifts, so the refusal names that and no return it '
@@ -227,60 +63,11 @@ await describe({
     },),
 
     it({
-      name: 'WAITS FOR NEURALWATT WITH EVERY PROVIDER DRY: Synthetic spent too, the return 60 ms away, and the reading '
-        + 'waits for the hold and seats the NeuralWatt writers instead of ending the run',
-      fn: async ctx => {
-        const lines: string[] = [];
-        const { unreachableWriters, reads, } = await seatsAfterWaiting({
-          sinon: ctx.sinon,
-          holdMs: 60,
-          options: { msBeforeReturn: 60, syntheticWet: false, },
-          lines,
-        },);
-        expect(unreachableWriters,).toEqual([],);
-        expect(reads,).toBe(2,);
-      },
-    },),
-
-    it({
-      name: 'STATES THAT THE ACCOUNT STILL SHOWS THE DAY SPENT when the reader waited for the return and the account '
-        + 'has not yet shown the new day, instead of waiting a whole day more for a return that has passed',
-      fn: async ctx => {
-        const { refusal, reads, } = await refusalAfterWaiting({
-          sinon: ctx.sinon,
-          holdMs: 60,
-          options: { msBeforeReturn: 60, syntheticWet: false, lagging: true, },
-        },);
-        expect(reads,).toBe(2,);
-        expect(refusal,).toBeInstanceOf(EveryProviderDryError,);
-        expect((refusal as EveryProviderDryError).message,).toContain('still reads the day spent',);
-        expect((refusal as EveryProviderDryError).neuralwattReturnsInMs,).toBeUndefined();
-      },
-    },),
-
-    it({
-      name: 'WAITS FOR A RETURN INSIDE WHAT THE PASS HAS LEFT, past 300 s too: a return 301 away with 600 left (scaled '
-        + 'from seconds to milliseconds, passed on a fake clock) is waited for and the NeuralWatt '
-        + 'writers are seated',
-      fn: async ctx => {
-        const { unreachableWriters, reads, } = await seatsAfterWaiting({
-          sinon: ctx.sinon,
-          holdMs: 301,
-          options: { msBeforeReturn: 301, passLeftMs: 600, },
-          lines: [],
-        },);
-        expect(unreachableWriters,).toEqual([],);
-        expect(reads,).toBe(2,);
-      },
-    },),
-
-    it({
-      name: 'REFUSES AT ONCE, STATING THE RETURN TIME, for a return past what the pass has left: 700 away with 600 '
-        + 'left (scaled from seconds to milliseconds) is not waited for, since the pass would end first, and the '
-        + 'refusal names the time of day in UTC and says the pass has less left',
+      name: 'STATES THE TIME OF DAY IN UTC AND THE DISTANCE for a spent day, whatever the distance: 700 ms away '
+        + '(scaled from seconds) is refused at once, as 60 ms is',
       fn: async () => {
-        // A frozen monotonic clock: the distance stays 700 whatever the host does between the reading and the hold.
-        const { client, reads, } = clientBefore({ msBeforeReturn: 700, passLeftMs: 600, now: () => 0, },);
+        // A frozen monotonic clock: the distance stays 700 whatever the host does between the reading and the refusal.
+        const { client, reads, } = clientBefore({ msBeforeReturn: 700, now: () => 0, },);
         const refusal = await rejectionOf({
           promise: readPhaseSeats({
             client,
@@ -292,7 +79,7 @@ await describe({
         },);
         expect(refusal,).toBeInstanceOf(WritingBenchUnreachableError,);
         expect((refusal as WritingBenchUnreachableError).message,).toContain('its day starts again at 19:15:08 UTC',);
-        expect((refusal as WritingBenchUnreachableError).message,).toContain('this pass has left',);
+        expect((refusal as WritingBenchUnreachableError).message,).toContain('(in 1 s)',);
         expect(reads.count,).toBe(1,);
       },
     },),

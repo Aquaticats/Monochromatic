@@ -1,13 +1,18 @@
-import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import {
+  type Logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
 
 import type { AppliedEnvelopeReading, } from './chunk-measure.ts';
 import {
   type DeclaredNameRefusalReport,
   declaredNameRefusalReport,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
-import type {
-  EditableEnvelope,
-  RepairDocument,
+import {
+  type EditableEnvelope,
+  parseDocument,
+  type RepairDocument,
+  restoredFootnoteReferences,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
   describeChunkSettlement,
@@ -55,6 +60,8 @@ export type ShippedSettlement = SettledChunk & {
 
  @param targetDocument - archive parsed, the grammar baseline
 
+ @param sourceDocument - the slice's own original parsed, whose footnote references tell a restoration from a new break
+
  @param acceptedCount - issues the panel accepted
 
  @param unenvelopedCount - accepted issues no envelope could serve
@@ -65,7 +72,7 @@ export type ShippedSettlement = SettledChunk & {
 
  @example
  ```ts
- const settled = settleShippedPatch({ sliceIndex, declaredNames, targetText, shipped, appliedEnvelopes, tallies, envelopes, targetDocument, acceptedCount, unenvelopedCount, l, },);
+ const settled = settleShippedPatch({ sliceIndex, declaredNames, targetText, shipped, appliedEnvelopes, tallies, envelopes, targetDocument, sourceDocument, acceptedCount, unenvelopedCount, l, },);
  ```
  */
 export function settleShippedPatch(
@@ -79,6 +86,7 @@ export function settleShippedPatch(
     tallies,
     envelopes,
     targetDocument,
+    sourceDocument,
     acceptedCount,
     unenvelopedCount,
     l,
@@ -92,11 +100,51 @@ export function settleShippedPatch(
     readonly tallies: Readonly<Record<string, IssueResolutionTally>>;
     readonly envelopes: readonly EditableEnvelope[];
     readonly targetDocument: RepairDocument;
+    readonly sourceDocument: RepairDocument;
     readonly acceptedCount: number;
     readonly unenvelopedCount: number;
     readonly l: Logger;
   },
 ): ShippedSettlement {
+  /**
+   Logger tagged with this settlement.
+   */
+  const sl = tagged({
+    tag: settleShippedPatch.name,
+    l,
+  },);
+
+  /**
+   Footnote references of the slice's own source, which the integrity
+   measurement reads to tell a restored reference from a new break.
+   */
+  const sourceReferences = sourceDocument.footnoteGraph
+    .references;
+
+  /**
+   Unresolved references the shipped patch puts back that the source carries
+   and the archive had dropped, which the integrity count leaves out.
+   */
+  const restored = restoredFootnoteReferences({
+    patchedDocument: parseDocument({
+      text: shipped.patch
+        .patchedText,
+    },),
+    targetDocument,
+    sourceReferences,
+  },);
+  if (restored.length > 0) {
+    sl.info(
+      `chunk ${String(sliceIndex,)}: the patch restores footnote ${
+        restored.map(function toIdentifier(finding,): string {
+          return `${finding.convention}:${finding.identifier}`;
+        },)
+          .join(', ',)
+      }, which the slice's source carries and the archive had dropped; not counted as a footnote break (the `
+        + 'definition is outside this chunk)',
+    );
+  }
+
   /**
    Which candidate won, whether the returned text moved at all, and which
    issues the checkers confirmed.
@@ -118,6 +166,7 @@ export function settleShippedPatch(
     tallies,
     envelopes,
     targetDocument,
+    sourceReferences,
   },);
   /**
    What the declared-name refusal owes this slice's record and findings.
@@ -135,6 +184,7 @@ export function settleShippedPatch(
     refused: settled.droppedDeclaredNames
       .length
       > 0,
+    ...((settled.patchLostOn === undefined) ? {} : { patchLostOn: settled.patchLostOn, }),
     resolvedCount: settled.resolvedIssueIds
       .length,
     creditableCount: appliedEnvelopes.creditableIssues

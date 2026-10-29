@@ -72,6 +72,8 @@ const ISSUE: AdjudicatedIssue = {
 
  @param resolved - whether the checkers confirmed the issue fixed
 
+ @param sourceText - original-language wording of the slice, defaulting to the archive's wording
+
  @returns Info lines the settlement wrote
 
  @example
@@ -83,9 +85,11 @@ function settlementLines(
   {
     patchedText,
     resolved,
+    sourceText = ARCHIVE,
   }: {
     readonly patchedText: string;
     readonly resolved: boolean;
+    readonly sourceText?: string;
   },
 ): readonly string[] {
   /**
@@ -129,6 +133,7 @@ function settlementLines(
     },
     envelopes: [],
     targetDocument: parseDocument({ text: ARCHIVE, },),
+    sourceDocument: parseDocument({ text: sourceText, },),
     acceptedCount: 1,
     unenvelopedCount: 0,
     l,
@@ -190,7 +195,7 @@ await describe({
       fn: async () => {
         expect(reports({
           lines: settlementLines({ patchedText: KEEPS_EVERY_NAME, resolved: false, },),
-          state: 'unchanged, the archive won',
+          state: 'unchanged, the archive won (the patch lost on regressions: it made an accepted issue worse)',
         },),).toBe(true,);
       },
     },),
@@ -201,6 +206,46 @@ await describe({
           lines: settlementLines({ patchedText: KEEPS_EVERY_NAME, resolved: true, },),
           state: 'repaired',
         },),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a patch that RESTORES A FOOTNOTE REFERENCE the slice\'s source carries is logged as such, with the '
+        + 'slice and the identifier, and is settled as repaired rather than lost on integrity',
+      fn: async () => {
+        /**
+         Lines of a patch that put back the `[^3]` the archive dropped.
+         */
+        const lines = settlementLines({
+          patchedText: KEEPS_EVERY_NAME.replace('winter.', 'winter[^3].',),
+          resolved: true,
+          sourceText: ARCHIVE.replace('winter.', 'winter[^3].',),
+        },);
+        expect(reports({ lines, state: 'repaired', },),).toBe(true,);
+        expect(
+          lines.filter(function isRestorationLine(line,): boolean {
+            return line.startsWith(
+              `[settleShippedPatch] chunk ${String(SLICE_INDEX,)}: the patch restores footnote gfm:3, `,
+            );
+          },).length,
+        ).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a patch that ADDS A REFERENCE THE SOURCE LACKS logs no restoration, and the archive wins on integrity',
+      fn: async () => {
+        /**
+         Lines of a patch that invented `[^3]` in a slice whose source cites nothing.
+         */
+        const lines = settlementLines({
+          patchedText: KEEPS_EVERY_NAME.replace('winter.', 'winter[^3].',),
+          resolved: true,
+        },);
+        expect(reports({ lines, state: 'repaired', },),).toBe(false,);
+        expect(
+          lines.some(function isRestorationLine(line,): boolean {
+            return line.includes('the patch restores footnote',);
+          },),
+        ).toBe(false,);
       },
     },),
   ],

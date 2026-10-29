@@ -10,6 +10,7 @@
  */
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Gates
 
@@ -295,3 +296,164 @@ export function countingAsyncSource(): CountingAsyncSource {
 }
 
 //endregion Sources
+
+//region Scripted sources
+
+/**
+ Answer a scripted pull settles with.
+
+ @typeParam Value - element type the source yields
+ */
+export type PullAnswer<Value> = IteratorResult<Value | Promise<Value>>;
+
+/**
+ One scripted pull: its answer is decided by the test.
+
+ @typeParam Value - element type the source yields
+ */
+export type ScriptedPull<Value> = PromiseWithResolvers<PullAnswer<Value>>;
+
+/**
+ Source whose `next()` calls each wait for the test to settle them.
+
+ @typeParam Value - element type the source yields
+ */
+export type ScriptedSource<Value> = {
+  /**
+   Async iterable handing out one controllable pull per `next()` call.
+   */
+  readonly iterable: AsyncIterable<Value | Promise<Value>>;
+  /**
+   Pulls made so far, in call order.
+   */
+  readonly pulls: ScriptedPull<Value>[];
+};
+
+/**
+ Builds a source whose pulls stay pending until the test settles them, so the
+ test decides the order in which the pulls answer.
+
+ @typeParam Value - element type the source yields
+
+ @returns Source and the list of its pulls so far.
+
+ @example
+ ```ts
+ const source = scriptedAsyncSource<string>();
+ ```
+ */
+export function scriptedAsyncSource<Value>(): ScriptedSource<Value> {
+  /**
+   Pulls handed out so far.
+   */
+  const pulls: ScriptedPull<Value>[] = [];
+  return {
+    pulls,
+    iterable: {
+      [Symbol.asyncIterator]: function openScripted(): AsyncIterator<Value | Promise<Value>> {
+        return {
+          next: function scriptedNext(): Promise<PullAnswer<Value>> {
+            /**
+             Deferred answer of this pull.
+             */
+            const pull = Promise.withResolvers<PullAnswer<Value>>();
+            pulls.push(pull,);
+            return pull.promise;
+          },
+        };
+      },
+    },
+  };
+}
+
+/**
+ Reads one scripted pull, failing the test when the run has not made it.
+
+ @typeParam Value - element type the source yields
+
+ @param source - Scripted source to read.
+
+ @param index - Position of the pull in call order.
+
+ @returns The pull's deferred answer.
+
+ @throws Error when the source has fewer pulls.
+
+ @example
+ ```ts
+ const pull = pullAt({ source, index: 0, },);
+ ```
+ */
+export function pullAt<Value>(
+  {
+    source,
+    index,
+  }: {
+    /**
+     Scripted source to read.
+     */
+    readonly source: ScriptedSource<Value>;
+    /**
+     Position of the pull in call order.
+     */
+    readonly index: number;
+  },
+): ScriptedPull<Value> {
+  return nonNullishOrThrow(source.pulls[index],);
+}
+
+/**
+ Answers one scripted pull with an element.
+
+ @typeParam Value - element type the source yields
+
+ @param pull - Pull to answer.
+
+ @param value - Element, or promise of one, the pull yields.
+
+ @example
+ ```ts
+ yieldElement({ pull: pullAt({ source, index: 0, },), value: 'a', },);
+ ```
+ */
+export function yieldElement<Value>(
+  {
+    pull,
+    value,
+  }: {
+    /**
+     Pull to answer.
+     */
+    readonly pull: ScriptedPull<Value>;
+    /**
+     Element, or promise of one, the pull yields.
+     */
+    readonly value: Value | Promise<Value>;
+  },
+): void {
+  pull.resolve({
+    done: false,
+    value,
+  },);
+}
+
+/**
+ Answers one scripted pull with the end of the source.
+
+ @typeParam Value - element type the source yields
+
+ @param pull - Pull to answer.
+
+ @example
+ ```ts
+ yieldDone(pullAt({ source, index: 1, },),);
+ ```
+ */
+export function yieldDone<Value>(pull: ScriptedPull<Value>,): void {
+  pull.resolve({
+    done: true,
+    value: undefined,
+  },);
+}
+
+//endregion Scripted sources

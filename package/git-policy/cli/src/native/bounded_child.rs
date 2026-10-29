@@ -24,6 +24,8 @@
 //! // const run = await runBoundedChild({ executable, args, cwd, env, input, timeoutMs, maxStdout, maxStderr });
 //! ```
 
+/// When the wait prints its notices, and the printing.
+use super::wait_progress::{Cadence, ChildWaitFacts, WaitReporter, child_wait_line};
 /// `OsString` is owned operating-system text:
 ///  arguments and environment values need not be UTF-8.
 use std::ffi::OsString;
@@ -143,6 +145,10 @@ pub struct ChildRequest<'a> {
     pub scratch: &'a Path,
     /// Its time bound and output caps.
     pub limits: ChildLimits,
+    /// What the wait is for, in words, as the notice names it ("monochromatic-lint to check docs/a.md").
+    pub waiting_for: &'a str,
+    /// When the wait prints its notices.
+    pub cadence: Cadence,
 }
 
 /// What:
@@ -430,8 +436,11 @@ fn wait_bounded(
     child: &mut Child,
     files: &StreamFiles,
     limits: ChildLimits,
+    reporter: &mut WaitReporter<'_>,
+    waiting_for: &str,
 ) -> Result<ExitStatus, ChildFailure> {
     let started: Instant = Instant::now();
+    let pid: u32 = child.id();
     let mut pause: Duration = FIRST_PAUSE;
     loop {
         let waited: Option<ExitStatus> = match child.try_wait() {
@@ -448,6 +457,17 @@ fn wait_bounded(
         if let Some(status) = waited {
             return Ok(status);
         }
+        // A notice that is due goes out before the bound is checked, so a child stopped at its bound was announced.
+        reporter.poll(|lasted, repeat| {
+            return child_wait_line(&ChildWaitFacts {
+                waiting_for,
+                pid,
+                waited: lasted,
+                limit: limits.timeout,
+                limit_note: "",
+                repeat,
+            });
+        });
         let elapsed: Duration = started.elapsed();
         if deadline_reached(elapsed, limits.timeout) {
             stop(child);
@@ -519,6 +539,24 @@ fn child_exit(status: ExitStatus) -> ChildExit {
 /// async function runBoundedChild(request: ChildRequest): Promise<FinishedChild>; // throws ChildFailure
 /// ```
 pub fn run_bounded_child(request: &ChildRequest<'_>) -> Result<FinishedChild, ChildFailure> {
+    return run_bounded_child_noticing(request, &mut std::io::stderr());
+}
+
+/// What:
+///  `run_bounded_child` with the notices of a long wait going to `notices`.
+/// Why:
+///   The child's output goes to files, so a child that runs long is silent;
+///  the wait says what it waits for, the child's process and the bound after the grace and at every interval.
+///  Tests read the notices from a buffer instead of standard error.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runBoundedChild(request: ChildRequest, notices: Writable): Promise<FinishedChild>; // throws ChildFailure
+/// ```
+pub fn run_bounded_child_noticing(
+    request: &ChildRequest<'_>,
+    notices: &mut dyn Write,
+) -> Result<FinishedChild, ChildFailure> {
     let mut files: StreamFiles = stream_files(request.input, request.scratch)?;
     // What: `.try_clone()` makes a second handle on the same open file.
     // Why:  The child gets one handle of each output; the parent keeps the other to watch
@@ -546,7 +584,8 @@ pub fn run_bounded_child(request: &ChildRequest<'_>) -> Result<FinishedChild, Ch
         Ok(started) => started,
         Err(error) => return Err(ChildFailure::Start(error.to_string())),
     };
-    let status: ExitStatus = wait_bounded(&mut child, &files, request.limits)?;
+    let mut reporter: WaitReporter<'_> = WaitReporter::start(request.cadence, notices);
+    let status: ExitStatus = wait_bounded(&mut child, &files, request.limits, &mut reporter, request.waiting_for)?;
     return Ok(FinishedChild {
         exit: child_exit(status),
         stdout: read_back(&mut files.stdout)?,

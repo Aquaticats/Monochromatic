@@ -60,7 +60,10 @@ export {
   dedupeAcceptedIssues,
   type DedupeOutcome,
 } from './dedupe-issues.ts';
-export { footnoteBreakCount, } from './footnote-break-count.ts';
+export {
+  footnoteBreakCount,
+  restoredFootnoteReferences,
+} from './footnote-break-count.ts';
 export { sliceFootnoteLabels, } from './footnote-slice-labels.ts';
 export {
   answerCeilingFor,

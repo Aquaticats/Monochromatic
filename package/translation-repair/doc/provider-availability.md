@@ -207,10 +207,41 @@ and the next wait of 299850 ms at 00:34:18 UTC (line 20355).
 The cycle ran every 5 min 17 s:
 58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s.
 
-The bound an entry carries (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`) never cut this loop.
-It narrows `passLeftMs`,
-and the budgets apply that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
-so a cooldown is waited for whatever the bound is and only the entry's own abort ends the waiting.
+The bound an entry carried (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`,
+removed on 2026-10-29 with the NeuralWatt return wait it served) never cut this loop.
+It narrowed `passLeftMs`,
+and the budgets applied that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
+so a cooldown was waited for whatever the bound was and only the entry's own abort ended the waiting.
+Since 2026-10-29 nothing waits for NeuralWatt's day start at all:
+the owner chose "Never wait,
+relaunch"
+("Stop at once and relaunch later."),
+so the budgets name no hold for it,
+a call whose only way forward is NeuralWatt's day refuses on its first reading,
+and the refusal states the time of day in UTC the day starts again.
+A refusal cooldown or a stated `Retry-After` of any provider,
+NeuralWatt included,
+is still waited for.
+
+What the entry in flight ships when every provider goes dry in the middle of its page
+is the owner's answer of 2026-10-29,
+"Ship interim,
+resumable".
+The dry gate ends the run as before,
+and the entry's own `catch` ships an interim page before it files the stop as `INCOMPLETE`:
+the slices with a consolidation record as they settled,
+the archive's text for the others,
+and the original under its note for a slice the archive lacks.
+The entry gets no artifact,
+so it stays pending,
+and `interim/<id>.json` in the runs directory says the page is interim.
+A stop in the lanes phase has no consolidation record yet,
+so it ships the archive text,
+and the original under the note where the archive has none.
+A slice the lanes agreed on or the contest decided,
+with no consolidation record yet,
+ships the same way,
+and its bought work stays in the caches for the next run.
 
 A provider that refuses right after a cooldown ran out,
 with nothing served in between,
@@ -252,7 +283,6 @@ What the rule leaves alone:
 a hold that names its own return (a `Retry-After` header,
 a daily limit in the body),
 a payment refusal,
-NeuralWatt's day start,
 the quorum sizes of the benches,
 and the waits the benches take for the judges they count.
 A provider that served after its cooldown is waited for each time,
@@ -347,7 +377,7 @@ and the quorum and bench rules decide from there
 A pass whose providers left are too small for a writing bench
 (DeepSeek alone beside Synthetic)
 ends its entry with `WritingBenchUnreachableError` after the one wait,
-which parks the entry and does not end the run;
+which ends the entry as a failure a later pass resumes and does not end the run;
 the entry could not have finished with Synthetic back either.
 
 The limit that remains:
@@ -358,6 +388,60 @@ so a provider that went dry inside that window is counted wet until a new readin
 The rules are the lead's of 2026-10-25 and are open to the owner's veto;
 the owner kept the gather quorums above two and the bench waits as they were the same day.
 The record is ledger B965.
+
+## A provider whose last return served nothing is not waited for (2026-10-29)
+
+The cooldown give-up reads one kind of hold.
+XingZ6020 also showed the same loop at the hold's own length:
+Synthetic refused again each time it came back,
+and the waits for it summed to 31,509.8 s (146.8 min of wall clock) in the lane contest and the consolidation
+and bought 3 consolidation gates.
+The owner was asked on 2026-10-29 whether a stage short of a bench should wait for a provider on hold,
+and chose "Remember futile returns":
+wait where the return would lift the bench to its floor or its quorum,
+and skip a provider whose returns served nothing.
+
+A return is the end of a hold a refusal set.
+It served nothing when the provider refused again after the end,
+in the same entry,
+and the router reported no call the provider answered after the end.
+Every kind of hold counts (a refusal cooldown,
+the rate-limit backoff,
+a wait the refusal states),
+and a hold of no time has none.
+The budgets keep the mark (`provider-budget-futile-returns.ts`)
+and list it as `futileReturns`;
+the seat reader leaves the holds of the listed providers out of what it waits for (`run-seats-futile.ts`),
+so a stage short of a bench goes on short,
+and it says so on a line that names the phase,
+the provider,
+the hold that ended and how soon the provider refused again.
+The provider stays routable.
+A call it answers clears the mark,
+so it is waited for again after it serves,
+and the next entry begins with none.
+
+The mark yields where the give-up yields.
+When the provider is the only writing provider not dry,
+or with it back no bench floor the entry needs would be left unmet while without it one is,
+waiting is what lets the entry finish,
+and `futileReturns` does not list it.
+The two share the decision (`waitingHelps` in `provider-budget-give-up-aside.ts`).
+The give-up stays:
+it also decides what the router's wait for a provider on hold takes,
+takes the provider out of routing for the entry,
+and lasts past a served call.
+For a refusal cooldown the seat reader's wait is skipped by both,
+and replayed over XingZ6020 the give-up alone spends 0 s in those two phases,
+where the rule alone spends 1,472.0 s with the mark forgotten at each phase and 974.5 s for the entry
+(ledger B1012).
+
+The rule is not limited to a lift across the floor that stays short of the quorum.
+Over XingZ6020 it also skips the translate lane's waits,
+among them the four that were followed by 25 served calls.
+The scope of one entry and the reach to every lift are the round's choices and are open to the owner's veto.
+The record is ledger B1010,
+and the pass's memory of skipped slices that the owner removed the same day is B1011.
 
 ## Gemma's pictures reach OpenRouter since 2026-10-21
 

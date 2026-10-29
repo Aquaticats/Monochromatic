@@ -102,10 +102,15 @@ export {
   liftOf,
 } from './corpus-run/run-seats-bench-floor.ts';
 export { ceilingWordsOf, } from './corpus-run/run-seats-ceiling.ts';
+export {
+  type FutileSkip,
+  type FutileSkips,
+  leaveOutFutileReturns,
+  sayFutileSkips,
+} from './corpus-run/run-seats-futile.ts';
 export { meterDryOf, } from './corpus-run/run-seats-hold-need.ts';
 export { seatWithoutWaiting, } from './corpus-run/run-seats-no-wait.ts';
 export { writtenRefusal, } from './corpus-run/run-seats-refusal.ts';
-export { holdsWithinPass, } from './corpus-run/run-seats-pass-bound.ts';
 export { writingProvidersOf, } from './corpus-run/run-writing-providers.ts';
 export { unmetBenchFloors, } from './corpus-run/run-seats-give-up-floors.ts';
 export {

@@ -44,6 +44,13 @@ import type {
 // raised and stopped the entry the same way.
 
 /**
+ Finding recorded on an absence settled without judging the follow-up, because its slate repeats the one the same
+ judges split on in the first round (the lead's adoption of 2026-10-29, open to the owner's veto).
+ */
+export const REPEATED_SLATE_FINDING: string = 'translate-followup-slate-repeated: the follow-up writers proposed the '
+  + 'slate the judges had already declined, so the same judges were not asked it again';
+
+/**
  Everything one produce-and-judge round needs, shared by both rounds.
  */
 type TranslateRoundInput = ForeignBorrowed<{
@@ -73,6 +80,32 @@ type TranslateRoundInput = ForeignBorrowed<{
   readonly l: Logger;
   readonly fanOut?: FanOutMode;
 }>;
+
+/**
+ Whether two slates are the same renderings in the same order, which is the same question for the same judges.
+
+ @param now - candidate texts this round proposed
+
+ @param before - candidate texts the judges rejected in the round before
+
+ @returns Whether every text matches, position by position
+
+ @example
+ ```ts
+ const repeated = sameSlate({ now: ['A cat naps.',], before: ['A cat naps.',], },);
+ ```
+ */
+function sameSlate(
+  {
+    now,
+    before,
+  }: {
+    readonly now: readonly string[];
+    readonly before: readonly string[];
+  },
+): boolean {
+  return JSON.stringify(now,) === JSON.stringify(before,);
+}
 
 /**
  Produces one slate and judges it, optionally under rejection evidence.
@@ -146,6 +179,28 @@ async function produceAndJudgeOnce(
         .value
         .text;
     },);
+  // A FOLLOW-UP SLATE THE FIRST ROUND ALREADY PUT TO THESE JUDGES IS NOT PUT TO THEM AGAIN (the lead's adoption of
+  // 2026-10-29, open to the owner's veto). XingZ6022 slices 107 and 114 asked two judges, who split one ballot each, the
+  // same two renderings four times: the first ask, its challenge, and the same two in the follow-up, then shipped the
+  // source text under a note. The writers are still asked, since a fresh slate is the follow-up's one new question, and
+  // a slate that differs is judged as before. Where the archive has wording that cannot ship the follow-up ships past a
+  // decline, which is a question of its own, so it asks.
+  if ((followupEvidence !== undefined)
+    && (!input.incumbentWithheld)
+    && sameSlate({
+      now: candidateTexts,
+      before: followupEvidence.candidateTexts,
+    },)) {
+    input.l
+      .info('translate stage: the follow-up slate repeats the first; the same judges are not asked it again',);
+    return {
+      rejection: new TranslateAbsenceError({
+        reason: followupEvidence.reason,
+        findings: [REPEATED_SLATE_FINDING,],
+      },),
+      candidateTexts,
+    };
+  }
   try {
     return {
       result: await judgeSlateWithRetry({

@@ -31,7 +31,6 @@ export { runPassQueue, } from './corpus-run/corpus-pass-queue.ts';
 export {
   createPassDryStop,
   type PassDryStop,
-  recordOnPark,
 } from './corpus-run/pass-dry-stop.ts';
 export { runCorpusPassOver, } from './corpus-run/corpus-pass-run.ts';
 export {
@@ -56,7 +55,11 @@ export {
   contestHooksFor,
 } from './corpus-run/pass-contest-reseat.ts';
 export { runPassContest, } from './corpus-run/pass-contest.ts';
-export { withEntryBound, } from './corpus-run/pass-entry-bound.ts';
+export {
+  retireInterimRecord,
+  shipInterimOnDryStop,
+  startEntryProgress,
+} from './corpus-run/pass-entry-interim.ts';
 export {
   persistSettledEntry,
   printSettledLines,
@@ -76,10 +79,6 @@ export {
   type LanesSeating,
   runPassLanes,
 } from './corpus-run/pass-lanes.ts';
-export {
-  floorLimitedByEntry,
-  type FloorLimitedByEntry,
-} from './corpus-run/pass-floor-limited.ts';
 export {
   outsideReadsFrom,
   type PassCorpusNameReader,
@@ -125,6 +124,10 @@ export {
   type PassSettlement,
   runPassSettlement,
 } from './corpus-run/pass-settlement.ts';
+export {
+  translateWinnerBallotsOf,
+  type TranslateWinnerRecord,
+} from './corpus-run/pass-translate-winner-ballots.ts';
 export { type PassPictureSources, } from './corpus-run/pass-visual-evidence.ts';
 export { contestDocumentLanes, } from './lane-contest-driver.ts';
 

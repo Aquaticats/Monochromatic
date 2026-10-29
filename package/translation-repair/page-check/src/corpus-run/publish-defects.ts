@@ -3,6 +3,8 @@ import {
   lifecycleStamp,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
+import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Publish defects
@@ -29,6 +31,10 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 // ("Add the comparison"), `source-reads-differently`, `source-reading-undecided` and `source-reading-not-compared`
 // (`source-ships-differences.ts`). A run always ships and every reading difference is reported, so a throw of that
 // comparison is a defect of the run, named by the last of them, and does not stop the entry.
+//
+// A PAGE WITH NO BODY IS REPORTED BY `pageWithoutBodyDefects`, read off the two texts like `archiveKeptDefects` reads
+// the artifact, and not through a check that throws. The page of an archive that held no body used to ship as 0 bytes
+// with no defect and no warning (B1046); an original with no body of its own is not a defect.
 
 /**
  A check at publish whose failure ships as a reported defect.
@@ -48,6 +54,7 @@ export type PublishCheck =
     | 'page-agreement'
     | 'page-footnotes'
     | 'page-source-unparseable'
+    | 'page-without-body'
     | 'source-reading-not-compared'
     | 'source-reading-undecided'
     | 'source-reads-differently';
@@ -166,21 +173,114 @@ export function archiveKeptDefects(
   if (consolidation.kind !== 'settled')
     return [];
   /**
-   Slices the archive kept, named as the message prints them.
+   What each reason the archive keeps a slice means, in the order the message names them. THREE THINGS HAPPENED and a
+   sentence true of one was false of the others (XingZ6022: sixteen slices said no wording passed where a translate
+   wording two judges chose had passed); a record written before the artifact said why records none.
    */
-  const kept = consolidation.slices
-    .filter(function keptTheArchive({ shipped, },): boolean {
-      return shipped.kind === 'archive';
-    },)
-    .map(function named({ sliceIndex, },): string {
-      return `slice ${String(sliceIndex,)}`;
-    },);
-  if (kept.length === 0)
+  const groups = [
+    {
+      reason: 'no-wording-passed',
+      meaning: 'no wording passed the deterministic publication rule',
+    },
+    {
+      reason: 'final-round-unseated',
+      meaning: 'the final round could not seat two judges and no wording two judges chose passed the rule',
+    },
+    {
+      reason: 'slate-declined',
+      meaning: 'the slate judges declined every wording that passed the rule and none drew two ballots',
+    },
+    {
+      reason: 'unrecorded',
+      meaning: 'the artifact records no reason',
+    },
+  ] as const;
+  /**
+   Sentences saying where the archive kept slices and why, one per reason that occurred.
+   */
+  const sentences = groups.flatMap(function sentenceOf(
+    {
+      reason,
+      meaning,
+    },
+  ): readonly string[] {
+    /**
+     Slices the archive kept for this reason, named as the message prints them.
+     */
+    const kept = consolidation.slices
+      .filter(function keptForReason({ shipped, },): boolean {
+        return (shipped.kind === 'archive') && ((shipped.reason ?? 'unrecorded') === reason);
+      },)
+      .map(function named({ sliceIndex, },): string {
+        return `slice ${String(sliceIndex,)}`;
+      },);
+    return (kept.length === 0) ? [] : [`${kept.join(', ',)}, where ${meaning}`,];
+  },);
+  if (sentences.length === 0)
     return [];
   return [{
     check: 'no-valid-wording',
-    message: `entry ${entryId} kept the archive at ${kept.join(', ',)}, where no wording passed the `
-      + 'deterministic publication rule',
+    message: `entry ${entryId} kept the archive at ${sentences.join('; at ',)}`,
+  },];
+}
+
+/**
+ Reports a page that ships no body while its original has one.
+
+ READ OFF THE TEXTS, not caught from a check: the question is whether the page holds a block at all, which the parser
+ answers the same way for the page and the original, front matter and byte order mark left out of both. The
+ commitment is that a passage with no wording ships its original under a note, so a page with no block is a defect
+ of the slicing or the assembly, whatever the archive held.
+
+ @param entryId - entry the page belongs to
+
+ @param sourceText - whole original page
+
+ @param pageText - page that would be written
+
+ @returns One defect naming the original's block count, or none
+
+ @example
+ ```ts
+ const defects = pageWithoutBodyDefects({ entryId: 'BookshopCat', sourceText, pageText: '', },);
+ ```
+ */
+export function pageWithoutBodyDefects(
+  {
+    entryId,
+    sourceText,
+    pageText,
+  }: {
+    readonly entryId: string;
+    readonly sourceText: string;
+    readonly pageText: string;
+  },
+): readonly PublishDefect[] {
+  /**
+   Blocks of the original.
+   */
+  const { nodes: sourceBlocks, } = parseDocument({ text: sourceText, },);
+  if (sourceBlocks.length === 0)
+    return [];
+
+  /**
+   Blocks of the page.
+   */
+  const { nodes: pageBlocks, } = parseDocument({ text: pageText, },);
+  if (pageBlocks.length > 0)
+    return [];
+
+  return [{
+    check: 'page-without-body',
+    message: `entry ${entryId} ships a page with no body, where the original holds ${
+      String(sourceBlocks.length,)
+    } ${
+      wordForCount({
+        count: sourceBlocks.length,
+        one: 'block',
+        many: 'blocks',
+      },)
+    }`,
   },];
 }
 

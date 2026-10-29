@@ -308,7 +308,10 @@ so the round time it saves is not measured.
 
 Open to the owner's veto:
 the reading of "both benches",
-and with it whether the wide seats keep Qwen.
+and with it whether the wide seats keep Qwen
+(settled on 2026-10-29:
+the owner took the wide seats too,
+B1030).
 
 ## B826: the writing-bench floor stopped an entry for want of a named return, though NeuralWatt's return was 48 s away
 

@@ -55,7 +55,8 @@ export function withShippedTenseCandidates(
    Wording the slice ships.
    */
   const { shipped, } = slice;
-  if ((shipped.kind === 'archive') || (shipped.kind === 'unchanged'))
+  // The translate lane's winner is the contest record's translate candidate already, so its candidates are recorded there.
+  if ((shipped.kind !== 'consolidated') && (shipped.kind !== 'incumbent'))
     return slice;
   /**
    What the sheets called the shipped wording.

@@ -1,5 +1,9 @@
 # cli-git native landing (slice 7, first half)
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 ## Purpose
 
 This lane ports the landing critical section of the incumbent TypeScript commit path

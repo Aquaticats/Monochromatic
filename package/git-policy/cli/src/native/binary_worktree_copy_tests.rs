@@ -258,6 +258,7 @@ fn an_interrupted_copy_is_recovered_by_the_next_command() {
         real_git: PathBuf::from(super::support::REAL_GIT),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,
@@ -350,11 +351,14 @@ fn a_nested_command_with_a_foreign_lease_still_runs() {
 fn a_hook_that_creates_a_worktree_runs_under_the_inherited_lease() {
     let fixture: Fixture = fixture("copy-hook-lease");
     let repo: PathBuf = repository_with_rules(&fixture, true);
-    let hook: PathBuf = repo.join(".git/hooks/post-checkout");
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    let hook: PathBuf = fixture.root.join("post-checkout-hook");
     super::support::executable(
         hook.as_path(),
         b"#!/bin/sh\nif [ -n \"$CLI_GIT_WORKTREE_COPY_LEASE\" ] && [ ! -e ../nested ]; then\n  printf 'leased' > ../hook-saw-lease\n  \"$CLI_GIT_TEST_WRAPPER\" worktree add --quiet -b nested ../nested || exit 1\nfi\n",
     );
+    super::support::git(&fixture, repo.as_path(), &["config", "hook.control.event", "post-checkout"]);
+    super::support::git(&fixture, repo.as_path(), &["config", "hook.control.command", hook.to_str().expect("UTF-8")]);
     // Git puts its own directory first on a hook's PATH, so the hook names the wrapper explicitly.
     let created: Observed = observe(
         wrapped(&fixture)
@@ -397,6 +401,7 @@ fn an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation() {
         real_git: PathBuf::from(super::support::REAL_GIT),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let snapshot: StagedSnapshot = stage_ignored_snapshot(
         &context,

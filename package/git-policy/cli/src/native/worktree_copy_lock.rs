@@ -17,6 +17,7 @@ use super::owner_lock_record::{OwnerLockRecord, owner_lock_holder_is_alive};
 use super::pid_namespace::current_pid_namespace;
 use super::process_identity::current_birth_identity;
 use super::random_id::random_uuid;
+use super::wait_progress::{Cadence, Ticker};
 use super::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure};
 use crate::worktree_copy_journal::ensure_journal_root;
 use std::io::Write;
@@ -536,13 +537,27 @@ fn attempt(lock: &Path, owner: &LockOwner) -> Result<Attempt, WorktreeCopyError>
 /// ```ts
 /// await waitWhileOwnerLives({ lockDirectory, owner });
 /// ```
-fn wait_while_owner_lives(lock: &Path, owner: &LockOwner, limit: Duration) -> Result<(), WorktreeCopyError> {
+fn wait_while_owner_lives(
+    lock: &Path,
+    owner: &LockOwner,
+    limit: Duration,
+    notices: &mut dyn Write,
+    cadence: Cadence,
+) -> Result<(), WorktreeCopyError> {
     let started: Instant = Instant::now();
+    // The caller printed the first line when the wait began, so the repeats start one interval later.
+    let mut ticker: Ticker = Ticker::announced_at_start(cadence);
     loop {
         std::thread::sleep(LIVE_OWNER_POLL);
+        // A notice that is due goes out before the limit is checked, so a refused wait was announced.
+        if ticker.due(started.elapsed()) {
+            let line: String = live_holder_progress_line(lock, owner, started.elapsed(), limit);
+            // The notice is advisory: a failed write to standard error must not stop the wait.
+            let _written = notices.write_all(line.as_bytes());
+        }
         if started.elapsed() >= limit {
             let message: String = format!(
-                "cli-git: gave up after waiting {} seconds for PID {}, which still holds worktree-copy settlement {}; {} sets how long cli-git waits. cli-git left the lock in place.",
+                "cli-git: gave up after waiting {} seconds for PID {}, which still holds worktree-copy settlement {}; {} sets how long cli-git waits. cli-git left the lock in place. To go on, let that process finish and run the command again, check with `ps` whether it is stuck and stop it if so, or raise the limit.",
                 started.elapsed().as_secs(),
                 owner.owner_pid,
                 quote(lock.to_string_lossy().as_ref()),
@@ -570,11 +585,34 @@ fn wait_while_owner_lives(lock: &Path, owner: &LockOwner, limit: Duration) -> Re
 /// ```ts
 /// liveHolderLine({ lockDirectory, owner });
 /// ```
-fn live_holder_line(lock: &Path, owner: &LockOwner) -> String {
+fn live_holder_line(lock: &Path, owner: &LockOwner, limit: Duration) -> String {
     return format!(
-        "cli-git: waiting for PID {}, which holds worktree-copy settlement {} (proven by its live process identity); cli-git waits until it releases the lock.\n",
+        "cli-git: waiting for PID {}, which holds worktree-copy settlement {} (proven by its live process identity); giving up after {} seconds ({} changes this), leaving the lock in place.\n",
         owner.owner_pid,
-        quote(lock.to_string_lossy().as_ref())
+        quote(lock.to_string_lossy().as_ref()),
+        limit.as_secs(),
+        LIVE_WAIT_VARIABLE
+    );
+}
+
+/// What:
+///  The stderr line that repeats while a live holder keeps the settlement lock.
+/// Why:
+///   A long installation by another process must not look like a hang:
+///  each repeat names the holder, the lock, how long the wait has lasted and where it gives up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// liveHolderProgressLine({ lockDirectory, owner, waitedMs, limitMs });
+/// ```
+fn live_holder_progress_line(lock: &Path, owner: &LockOwner, waited: Duration, limit: Duration) -> String {
+    return format!(
+        "cli-git: still waiting for PID {}, which holds worktree-copy settlement {} (proven by its live process identity) after {} seconds; giving up after {} seconds ({} changes this), leaving the lock in place.\n",
+        owner.owner_pid,
+        quote(lock.to_string_lossy().as_ref()),
+        waited.as_secs(),
+        limit.as_secs(),
+        LIVE_WAIT_VARIABLE
     );
 }
 
@@ -610,6 +648,25 @@ pub fn acquire_worktree_copy_lock_for(
     stderr: &mut dyn Write,
     live_limit: Duration,
 ) -> Result<WorktreeCopyLease, WorktreeCopyError> {
+    return acquire_worktree_copy_lock_with(common_dir, stderr, live_limit, Cadence::from_environment());
+}
+
+/// What:
+///  Acquires the settlement lock, waiting for each proven-live owner for at most `live_limit`
+///  and repeating the holder line at the cadence's interval.
+/// Why:
+///   Tests choose a short cadence; the production entry reads it from the environment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await using lease = await acquireWorktreeCopyLock(commonDir, { liveLimitMs, cadence });
+/// ```
+pub fn acquire_worktree_copy_lock_with(
+    common_dir: &Path,
+    stderr: &mut dyn Write,
+    live_limit: Duration,
+    cadence: Cadence,
+) -> Result<WorktreeCopyLease, WorktreeCopyError> {
     let lock: PathBuf = ensure_journal_root(common_dir)?.join(SETTLEMENT_LOCK_NAME);
     let owner: LockOwner = current_owner()?;
     let mut named: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -622,12 +679,12 @@ pub fn acquire_worktree_copy_lock_for(
             Attempt::Live(holder) => {
                 unproven_since = None;
                 if named.insert(holder.lease_token.clone()) {
-                    let line: String = live_holder_line(lock.as_path(), &holder);
+                    let line: String = live_holder_line(lock.as_path(), &holder, live_limit);
                     stderr
                         .write_all(line.as_bytes())
                         .map_err(|error| return raw_failure(&error))?;
                 }
-                wait_while_owner_lives(lock.as_path(), &holder, live_limit)?;
+                wait_while_owner_lives(lock.as_path(), &holder, live_limit, stderr, cadence)?;
                 continue;
             }
             Attempt::Retry => None,

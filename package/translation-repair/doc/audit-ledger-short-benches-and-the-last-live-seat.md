@@ -233,6 +233,9 @@ The translate hook's re-read under the floor,
 which this entry first listed as a limit,
 landed in red `9991ee7cd1` and fix `2e76c32d0f`.
 The first-time buy that this entry left open is B839.
+The memory this entry decided was removed on 2026-10-29 at the owner's word (B1011):
+what follows under "Decided" is the record of what the memory did,
+and the skip of B839 stands without it.
 
 What `XingZ6020` showed:
 slices 88 to 105 of the translate lane were tried in the first attempt
@@ -537,3 +540,268 @@ a stage states the floor on its voices and checks the bench against it before th
 and a settlement bought on a bench under the floor says so on its own record and is never kept as a verdict.
 Recurrence:
 B816 and B834.
+
+## B1030: Qwen3.8-27B was the late voice on the wide benches and the checker order, and the owner took the seats away
+
+Status:
+fixed on 2026-10-29 (UTC) in `tr-w370`,
+on the owner's answer "Remove Qwen from wide seats",
+red `bcbdd7d931` (run) and `b1001ba149` (provider),
+fix `6d39223583`,
+wording follow-on `ac692efa7f`.
+Cache versions:
+none moved,
+because every key that reads a changed bench hashes its seat list.
+The reading of "every wide judge seat" and the new third checker are open to the owner's veto.
+
+The owner's answers,
+both from the question tool.
+On 2026-10-22:
+"Remove from both benches",
+read then as the lane-contest and consolidation benches (B815),
+which left the wide seats to Qwen3.8-27B per provider.
+On 2026-10-29,
+asked about the wait for its late voice after a measurement of 272 late rounds,
+the owner chose "Remove Qwen from wide seats":
+"No late wait for Qwen at all...
+loses every Qwen vote and claim,
+including the 18 critic rounds where only Qwen found an accepted issue."
+The lead's ranking had put keeping the 120 s grace first;
+the owner chose against it.
+
+The evidence put to the owner:
+over `XingZ6020` to `XingZ6022`,
+and under the rules of `XingZ6022`,
+Qwen's late ballot changed the round's own result in 42 of 272 late rounds
+(panel 20,
+select 21,
+checker 1;
+the critic proxy 18 of 32),
+at about 191 minutes of summed late grace on those stages
+and 160 minutes more on 79 streams cut at the grace with no answer.
+It was the late voice in 127 of the 131 panel rounds,
+112 of the 118 select rounds,
+32 of the 33 critic rounds
+and 33 of the 46 checker rounds that had a late ballot.
+The measurement came from the lead's scripts over the three logs,
+which are not in the repository.
+
+The map of its seats before the change:
+- The critics and the adjudication panel (`RUN_WIDE_SEATS`,
+  seated per provider by `run-seats.ts`),
+  and the select judges of both lanes,
+  which are the wide seats followed by the decision-only seat.
+  The recall benchmark's judges are the wide seats too.
+- The checker order (`RUN_CHECKER_ORDER`),
+  where it led,
+  and so the static checker bench of three and the probers,
+  which the repair chunk proof and the refine settlement seat from the checker bench.
+- No late seat:
+  the lane contest,
+  the consolidation slate and its gate had it off since B815.
+- The translators,
+  the picture readers,
+  the consolidation writers and the roster (`RUN_ROSTER`),
+  which block pairing,
+  archive review and insertion admission ask.
+  The editor,
+  refiner and decision seats never held it.
+
+The reading taken:
+"every wide judge seat" is the critics,
+the panel,
+the judges of both lanes and the checker order,
+which is the lead's list of the answer.
+The translator,
+reader,
+writer and roster seats are not judge seats and keep it,
+so the card stays and `HYPER_SLOW_JUDGES` still withholds those seats where Hyper would serve it.
+The coverage and block pairing rounds ask the roster (preparation and insertion admission):
+Qwen is still their late voice,
+in 25 and 11 of the late rounds of `XingZ6022` (21.7 and 2.0 minutes of grace).
+The answer named wide seats and the owner's words in B815 named the contest bench,
+so those two rounds were not widened into.
+
+What changed:
+the `hf:Qwen/Qwen3.8-27B` card holds `wide-seat-dropped` beside `openrouter-dropped` and `late-judge-dropped`,
+and `WIDE_SEAT_DROPPED` in `run-config.ts` reads that hold,
+and its line left `RUN_CHECKER_ORDER`.
+The benches with every provider wet:
+- Wide:
+  8 seats became 7,
+  quorum 4 for both,
+  and a round asks 5 of 7 first (`firstRoundWindow`) where it asked 5 of 8.
+- Select:
+  9 seats became 8,
+  quorum 5 became 4,
+  first round 6 became 5.
+- Late and slate:
+  7 seats,
+  quorum 4,
+  not changed.
+- Roster:
+  10 seats,
+  quorum 5,
+  not changed.
+- Checkers:
+  the static bench was Qwen3.8-27B,
+  Mimo v2.6 Flash and Kimi-K3 and is Mimo v2.6 Flash,
+  Kimi-K3 and Haiku 5.5,
+  of quorum 2 as before.
+With Synthetic dry and Hyper wet the wide bench was 7 already
+(`run-seats.ts` withheld Qwen from it) and the select judges 7 with Kimi-K3 withheld too,
+so those two readings do not move.
+
+The 120 s grace:
+`STRAGGLER_GRACE_MS` (120 s,
+`stage/src/stage-round.ts`) is unchanged and still applies to whichever voice is late.
+The voices of `XingZ6022` show a wide bench with Kimi-K3,
+Qwen3.8-27B,
+DeepSeek and Haiku 5.5 reachable and the rest dark
+(the log does not name the providers' states,
+and 6 of the 256 dryness views read that set,
+all with Synthetic,
+the Claude key and at least one of DeepSeek and NeuralWatt wet,
+and Hyper,
+Bedrock and OpenRouter dry).
+There the wide bench read 4 of 8 reachable and closed on 3 voices
+(the rule of "Let the grace open",
+B816),
+with Qwen the fourth.
+It now reads 3 of 7 and closes on 2 voices (`reachableQuorum`:
+a short bench closes on the larger of 2 and a majority of the reachable),
+with Kimi-K3,
+DeepSeek and Haiku 5.5 the three.
+Two voices decide a panel (the owner's answer of 2026-10-25),
+so the same view settles on one voice fewer than before.
+The late voice there is the slowest of those three,
+and the log shows which in the rounds where Qwen was not the late one:
+Kimi-K3 was the late voice in 3 of the 4 such late panel rounds,
+4 of the 6 select rounds and both critic rounds,
+and DeepSeek in the rest.
+In the rounds where Qwen was late,
+all three of the others had answered before the old quorum instant,
+so those rounds now end when the third of them answers,
+about when the old quorum stood,
+and the grace Qwen held open is not spent.
+The checker bench of that view is now Mimo v2.6 Flash,
+Kimi-K3 and Haiku 5.5,
+and Mimo v2.6 Flash was the late voice in 12 of the 13 checker rounds that Qwen did not make late;
+Haiku 5.5 has no checker latency on record,
+so its place in that order is not measured.
+The select judges of the translate lane read the same there:
+3 of 7 reachable,
+closing on 2.
+
+The floor of two:
+over all 256 dryness views,
+no bench falls under its floor with Synthetic dry that did not before.
+Two views are newly under the floor,
+both with Synthetic the only provider that serves the wide seats:
+Synthetic alone,
+and Synthetic with Xiaomi.
+The wide and select benches read Kimi-K3 alone there
+(they read Kimi-K3 and Qwen3.8-27B).
+The checker bench is newly under two reachable seats in 8 views,
+all with Synthetic wet and the Claude key,
+Xiaomi,
+Bedrock and OpenRouter dry:
+Kimi-K3 is then the one checker a wet provider serves
+(Qwen3.8-27B was the other).
+`run-seats-phase-bench.unit.test.ts` names them:
+the checkers stand short alone in 8 views where they did in 4.
+A run without the Claude,
+Xiaomi,
+Bedrock and OpenRouter routes is the shape.
+The static assertions at load still pass,
+since they read the static three.
+
+A view that changed meaning:
+Synthetic and Bedrock wet and the rest dry used to leave the translate lane's select bench at exactly its quorum
+(4 of 8),
+and now leaves it short (3 of 7 against 4),
+so the seat reader waits out a Hyper hold for the translate lane there
+where it did not.
+`pass-reseat.unit.test.ts` had used that view for a lane-free case,
+and moved to a view with DeepSeek wet,
+which is one of six of 256 where only the lanes phase finds a writing bench short.
+
+Haiku 5.5 on the static bench:
+the order put Haiku 5.5 behind the three the benchmark ranked
+so that it filled the bench only when a provider serving one of them was dry
+(the owner's "Haiku wide" of 2026-10-22).
+Without Qwen3.8-27B the order's next seat is Haiku 5.5,
+so it checks every round in which the Claude key is wet,
+on a key that carries a monthly budget.
+It is unmeasured as a checker.
+The alternative that kept the principle is `google.gemma-4-31b`,
+which the benchmark ranked fourth (76 and 82),
+and would sit third with Haiku 5.5 fourth;
+it was not taken,
+because the answer removed Qwen3.8-27B and named no replacement,
+so the order keeps the owner's sequence and the choice stays the owner's.
+
+Red and green:
+`run-seats.unit.test.ts` expects no Qwen3.8-27B on any wide,
+select,
+late,
+slate or checker bench of three readings,
+with the roster,
+translators,
+readers and writers as the positive control,
+and the sizes,
+quorums and first-round windows the list of benches states.
+`run-seats-checkers.unit.test.ts` expects the new top three,
+and `run-config-seating.unit.test.ts` puts Haiku 5.5 third in the order.
+`roster-seats.unit.test.ts` in the provider package expects the new hold on the card.
+All fail against the base build.
+The ripple cases moved with the fix commit:
+the seat line (`wide=7 select=8`),
+the unserved order (`glm-5.3` is named before Qwen3.8-27B,
+since the late bench comes before the translators),
+the ceiling clauses (`wide ceiling 2 of 7`,
+`select ceiling 2 of 7`),
+the views where only the checkers stand short,
+and the reseat cases of the corpus-pass package.
+
+Cache account:
+none moved.
+`repairRunShape` hashes the critic,
+panel,
+judge and checker lists,
+`translateRunShape` the translators and judges,
+the refine key its refiners,
+judges and checkers,
+and the consolidate key its slate judges and polish roles,
+so a record written with Qwen3.8-27B seated is keyed apart from one written without it.
+The lane-contest,
+consistency,
+pairing and page-title keys read the late bench and the roster,
+which did not change.
+The accounts are in the TSDocs of `SLICE_CACHE_VERSION` and `TRANSLATE_SLICE_CACHE_VERSION`,
+as B815 did for the consolidate and lane-contest versions,
+and they cite `6d39223583` and `ac692efa7f`,
+which is how the cache-account audit counts a source commit as named.
+The commit that wrote the citations is a TSDoc-only change and cannot cite itself.
+
+Not verified:
+no pass has run since the change,
+so the time it saves is the sum of the grace Qwen held open in `XingZ6022`,
+not a new measurement.
+Which voice is late in the rounds where Qwen was the late one cannot be replayed from the log,
+since the log gives the set of voices before and after the quorum instant and not their order.
+What the owner's answer does to review quality is the owner's cost:
+every Qwen vote and claim is gone,
+including the 18 critic rounds where it alone found an accepted issue.
+
+Open to the owner's veto:
+the checker bench with Haiku 5.5 third and not `google.gemma-4-31b`,
+the keeping of the roster seats,
+and the 8 views in which the checkers read a single served seat.
+
+The rule for next time:
+a seat taken from a bench is counted on every bench derived from the list it left,
+over every dryness view and not the one the run showed,
+before the change is called small.
+Recurrence:
+B815.

@@ -8,6 +8,7 @@ use super::*;
 use crate::index_lock_evidence::{LockMetadata, PidFile, PidOwner};
 use crate::index_lock_holders::{Holder, HolderEvidence};
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// A fake wait:
 ///  scripted presence and evidence,
@@ -42,6 +43,8 @@ struct FakeEffects {
     presence_reads: usize,
     /// How many evidence reads happened.
     gathers: usize,
+    /// When the wait repeats its notice.
+    cadence: Cadence,
 }
 
 impl FakeEffects {
@@ -58,6 +61,7 @@ impl FakeEffects {
             reports: Vec::new(),
             presence_reads: 0,
             gathers: 0,
+            cadence: Cadence::standard(),
         };
     }
 }
@@ -99,6 +103,10 @@ impl WaitEffects for FakeEffects {
 
     fn report(&mut self, line: &str) {
         self.reports.push(String::from(line));
+    }
+
+    fn cadence(&mut self) -> Cadence {
+        return self.cadence;
     }
 }
 
@@ -419,4 +427,64 @@ fn the_live_owner_timeout_is_described() {
     let anonymous: String =
         live_holder_timeout_message(std::path::Path::new("/x"), 7, None, 5_000, "did nothing");
     assert!(anonymous.starts_with("Gave up after waiting 5 seconds for PID 7, which still holds /x;"), "{anonymous}");
+}
+
+/// A live holder is announced at the start and named again at every interval, with the time waited and the limit;
+///  the wait on the fake clock ends at the limit.
+#[test]
+fn a_live_holder_is_named_again_at_every_interval() {
+    let mut effects: FakeEffects = FakeEffects::new(
+        vec![true],
+        vec![Some(pid_evidence(PidOwner::StartedBeforeLock(500.0)))],
+    );
+    let failure: WaitFailure = wait_for_index_lock_within(&mut effects, 1, 25_000, "did nothing")
+        .expect_err("a live owner outlasts the limit");
+    assert!(matches!(failure, WaitFailure::LiveHolderTimedOut { pid: 42, .. }), "{failure:?}");
+    assert_eq!(effects.reports.len(), 3, "{:?}", effects.reports);
+    assert!(
+        effects.reports[0].ends_with("giving up after 25 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.\n"),
+        "{:?}",
+        effects.reports
+    );
+    assert!(effects.reports[1].starts_with("cli-git: still waiting for PID 42, which holds /repo/index.lock"), "{:?}", effects.reports);
+    assert!(effects.reports[1].contains("after 10 seconds; giving up after 25 seconds"), "{:?}", effects.reports);
+    assert!(effects.reports[2].contains("after 20 seconds; giving up after 25 seconds"), "{:?}", effects.reports);
+}
+
+/// The interval comes from the effects' cadence, so a shorter one repeats the line sooner.
+#[test]
+fn a_shorter_cadence_repeats_the_holder_line_sooner() {
+    let mut effects: FakeEffects = FakeEffects::new(
+        vec![true],
+        vec![Some(pid_evidence(PidOwner::StartedBeforeLock(500.0)))],
+    );
+    effects.cadence = Cadence::from_interval(Duration::from_secs(2));
+    let _failure: WaitFailure = wait_for_index_lock_within(&mut effects, 1, 7_000, "did nothing")
+        .expect_err("a live owner outlasts the limit");
+    // The start, then 2 s, 4 s and 6 s.
+    assert_eq!(effects.reports.len(), 4, "{:?}", effects.reports);
+}
+
+/// A wait behind a dead owner's lock says so after the grace and at every interval, and names the budget.
+#[test]
+fn a_wait_behind_a_dead_owners_lock_says_so_while_it_retries() {
+    let mut effects: FakeEffects = FakeEffects::new(vec![true], vec![Some(pid_evidence(PidOwner::Missing))]);
+    let _failure: WaitFailure = wait_for_index_lock(&mut effects, 25_000, "did nothing")
+        .expect_err("a dead owner outlasts the budget");
+    assert_eq!(effects.reports.len(), 3, "{:?}", effects.reports);
+    assert!(effects.reports[0].starts_with("cli-git: still waiting for /repo/index.lock, whose owner PID 42 no longer runs, after 1 seconds;"), "{:?}", effects.reports);
+    assert!(effects.reports.iter().all(|line| { return line.contains("retrying until 25000 ms (indexLock.unprovenOwnerTimeoutMs)"); }), "{:?}", effects.reports);
+}
+
+/// A wait behind a lock nothing proves either way names that, and prints nothing inside the grace.
+#[test]
+fn a_wait_behind_an_evidence_free_lock_says_nothing_proves_it_alive() {
+    let mut effects: FakeEffects = FakeEffects::new(vec![true], vec![Some(free_evidence())]);
+    let _failure: WaitFailure = wait_for_index_lock(&mut effects, 12_000, "did nothing")
+        .expect_err("an evidence-free owner outlasts the budget");
+    assert_eq!(effects.reports.len(), 2, "{:?}", effects.reports);
+    assert!(effects.reports[0].contains("whose owner cli-git cannot prove alive"), "{:?}", effects.reports);
+    let mut quick: FakeEffects = FakeEffects::new(vec![true], vec![Some(free_evidence())]);
+    let _short: WaitFailure = wait_for_index_lock(&mut quick, 400, "did nothing").expect_err("short budget");
+    assert!(quick.reports.is_empty(), "{:?}", quick.reports);
 }

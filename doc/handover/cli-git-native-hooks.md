@@ -1,5 +1,9 @@
 # cli-git native hook dispatch and hook lock (lane hooks)
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 ## Purpose
 
 This lane ports slice 4 of `doc/handover/cli-git-native-transactions.md` into the native wrapper:

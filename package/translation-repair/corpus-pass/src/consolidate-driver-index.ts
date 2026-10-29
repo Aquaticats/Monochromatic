@@ -1,3 +1,5 @@
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { ArtifactContestSlice, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
   type ConsolidateRoster,
@@ -141,6 +143,30 @@ export function contestedRows(
 }
 
 /**
+ The line that opens a consolidation, saying how many contested slices it settles.
+
+ @param count - contested slices the consolidation settles
+
+ @returns The line, counting by the singular where there is one
+
+ @example
+ ```ts
+ dl.info(contestedCountLine({ count: 1, },),); // 'consolidation: 1 contested slice to settle'
+ ```
+ */
+export function contestedCountLine(
+  { count, }: { readonly count: number; },
+): string {
+  return `consolidation: ${String(count,)} contested ${
+    wordForCount({
+      count,
+      one: 'slice',
+      many: 'slices',
+    },)
+  } to settle`;
+}
+
+/**
  Names a contested slice on the lines the overlapped map writes about a
  failure it leaves unthrown.
 
@@ -195,6 +221,32 @@ export function rosterRunShapeOf(
     ...((roster.polishConfig === undefined) ? {} : { polishConfig: roster.polishConfig, }),
     declaredNamePairs,
   },);
+}
+
+/**
+ Says how many contested slices the consolidation settles, on the driver's logger.
+
+ Split out of `consolidate-driver.ts` at the line cap, when the sink for finished slices joined it.
+
+ @param l - driver logger
+
+ @param count - contested slices to settle
+
+ @example
+ ```ts
+ announceContested({ l: dl, count: contests.length, },);
+ ```
+ */
+export function announceContested(
+  {
+    l,
+    count,
+  }: {
+    readonly l: Logger;
+    readonly count: number;
+  },
+): void {
+  l.info(contestedCountLine({ count, },),);
 }
 
 //endregion Consolidation driver index

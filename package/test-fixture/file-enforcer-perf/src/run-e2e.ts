@@ -10,7 +10,7 @@ import {
   mkdir,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -40,7 +40,7 @@ const CLI = resolve(
 const RUN_CONFIG = `node ${CLI} ${CONFIG}`;
 
 /** Fixture root and subdirectories, respects $TMPDIR for sandbox compatibility */
-const FIXTURE_DIR = join(tmpdir(), 'file-enforcer-perf',);
+const FIXTURE_DIR = join(scratchRoot(), 'file-enforcer-perf',);
 /** Absolute path to the destination subdirectory within the fixture */
 const DEST_DIR = `${FIXTURE_DIR}/dest`;
 

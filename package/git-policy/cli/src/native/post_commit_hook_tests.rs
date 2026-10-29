@@ -131,6 +131,7 @@ fn an_absent_post_commit_hook_starts_nothing() {
         real_git: stand_in,
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let absent_plan: HookDispatchPlan = HookDispatchPlan {
         named_hooks_possible: false,

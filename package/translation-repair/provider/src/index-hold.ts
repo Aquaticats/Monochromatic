@@ -31,13 +31,7 @@ export {
 } from './budget-routing.ts';
 export { durationWordsOf, } from './duration-words.ts';
 export {
-  type BoundOwner,
-  pastPassWordsOf,
-  returnFitsWithin,
-} from './neuralwatt-return-fit.ts';
-export {
   keyUnblockTextOf,
-  namedDrynessOf,
   openingClauseOf,
   returnClauseOf,
   returnTimeOf,
@@ -55,6 +49,11 @@ export {
   createPaymentMarks,
   type PaymentMarks,
 } from './provider-budget-payment-marks.ts';
+export {
+  createFutileReturns,
+  type EarlierHold,
+  type FutileReturns,
+} from './provider-budget-futile-returns.ts';
 export {
   createGiveUpAside,
   type GiveUpAside,

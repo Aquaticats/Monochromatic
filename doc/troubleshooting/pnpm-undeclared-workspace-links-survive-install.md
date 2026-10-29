@@ -453,6 +453,43 @@ console.log(`importers=${Object.keys(lock.importers).length} extraneous=${totalE
 The 166 dangling count equals `find package -mindepth 5 -maxdepth 5 -path
 'package/*/*/node_modules/@monochromatic-dev/*' -xtype l -print | wc --lines`, run as a dry run.
 
+## When a package gets node_modules/.bin
+
+A package's own `package.json` cannot predict whether its `node_modules/.bin` exists.
+pnpm creates that directory only when it links a dependency that exposes a `bin` into that package,
+and with `dedupeDirectDeps: true` (`pnpm-workspace.yaml:227`)
+a dependency the root also declares is linked only at the root,
+so its bin lands in the root `node_modules/.bin`.
+Whether a directory exists therefore depends on the root manifest,
+each linked dependency's own `bin` field,
+and leftovers from earlier installs.
+
+Measured 2026-10-29 in the main checkout after `pnpm prune && pnpm i`,
+with the scratch probe this section's last paragraph describes:
+
+- 223 `package/*/*/package.json`,
+  205 `package/*/*/node_modules`,
+  55 `package/*/*/node_modules/.bin`.
+- 208 packages have at least one direct dependency not linked in their own `node_modules`.
+- No package has a locally linked bin-exposing dependency without a `.bin`.
+- 18 of the 55 `.bin` directories are empty,
+  in packages with no direct dependency linked locally,
+  for example `package/config/pnpr`,
+  `package/mcp/mvm`,
+  and every `package/claude-code-plugin/*` package.
+
+The probe walks each `package/*/*/package.json`,
+checks `node_modules/<dep>/package.json` for every direct dependency,
+reads the linked manifest's `bin` field,
+and compares that with whether `node_modules/.bin` exists and what it holds.
+
+Consequence for generated PATH lists such as the root `mise.toml` `_.path`:
+derive them from the directories that exist,
+and skip empty ones;
+deriving them from `package.json` names directories no install creates
+(decided in `doc/planning/file-enforcer-rust-rewrite.md`,
+"Root mise.toml PATH").
+
 ## Verified workarounds
 
 ### Run `pnpm prune` once, with no other install running

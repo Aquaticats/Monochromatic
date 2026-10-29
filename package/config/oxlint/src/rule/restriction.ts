@@ -144,6 +144,7 @@ export const restrictionRules: DummyRuleMap = {
   // The project rule below enforces the narrower policy: Node sync APIs only.
   'node/no-sync': 'off',
   'no-restricted-syntax/no-sync': 'error',
+  'no-restricted-syntax/no-system-tmpdir': 'error',
 
   // Rest parameters (...args) are banned. Accept an explicit array parameter instead.
   // Spread syntax in call expressions and array literals is not affected.

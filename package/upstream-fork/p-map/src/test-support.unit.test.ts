@@ -15,7 +15,11 @@ import {
   countingAsyncSource,
   countingSyncSource,
   createGate,
+  pullAt,
   rejectionOf,
+  scriptedAsyncSource,
+  yieldDone,
+  yieldElement,
   yieldTurn,
 } from './test-support.ts';
 
@@ -211,6 +215,63 @@ await describe({
             ],);
             expect(source.counters.pulls,).toBe(1,);
             expect(source.counters.returnCalls,).toBe(1,);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: scriptedAsyncSource.name,
+      children: [
+        it({
+          name: 'hands out one pending pull per next call, in call order',
+          fn: async () => {
+            const source = scriptedAsyncSource<number>();
+            const iterator = source.iterable[Symbol.asyncIterator]();
+            /**
+             Steps of the first two pulls, still pending.
+             */
+            const steps = [
+              iterator.next(),
+              iterator.next(),
+            ];
+            expect(source.pulls,).toHaveLength(2,);
+
+            yieldElement({
+              pull: pullAt({
+                source,
+                index: 1,
+              },),
+              value: 11,
+            },);
+            yieldDone(pullAt({
+              source,
+              index: 0,
+            },),);
+
+            expect(await Promise.all(steps,),).toEqual([
+              {
+                done: true,
+                value: undefined,
+              },
+              {
+                done: false,
+                value: 11,
+              },
+            ],);
+          },
+        },),
+
+        it({
+          name: 'fails when the test reads a pull the run has not made',
+          fn: async () => {
+            const source = scriptedAsyncSource<number>();
+            expect(function readMissingPull(): unknown {
+              return pullAt({
+                source,
+                index: 0,
+              },);
+            },).toThrow();
           },
         },),
       ],

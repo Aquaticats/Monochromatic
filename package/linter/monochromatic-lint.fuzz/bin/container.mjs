@@ -12,7 +12,6 @@ import {
   stat,
   writeFile
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   delimiter,
   join,
@@ -23,7 +22,14 @@ import {
 import {
   copyNextest,
   nextestCopyLines
-} from '../../../git-policy/cli/bin/native-nextest-snapshot.mjs';
+} from '../../../git-policy/cli/bin/native-nextest-snapshot.ts';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'monochromatic-lint-fuzz');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Concurrent worktrees and agents set MONOCHROMATIC_LINT_IMAGE_TAG so one campaign never runs another's image. */
 const imageTag = process.env
@@ -160,7 +166,7 @@ async function main() {
   if (!compilerVersion.includes('nightly'))
     throw new FuzzVerificationError('Fuzz instrumentation requires the repository-managed nightly Rust toolchain.');
   const context = await mkdtemp(join(
-    tmpdir(),
+    scratchBase,
     'monochromatic-lint-fuzz-'
   ));
   const outputRoot = join(

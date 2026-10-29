@@ -713,6 +713,12 @@ const ALLOWLIST: readonly string[] = [
   'slice-cache/corpus-run/slice-cache-claims.ts',
   'slice-cache/corpus-run/slice-cache-dir-read.ts',
   'page-check/corpus-run/text-runs.ts',
+  // Split from `would-ship-text.ts` and from the verify-published run at their line caps, B1006: the consolidation
+  // readers are pinned by `would-ship-text.unit.test.ts`, the interim carrier by `interim-page.unit.test.ts`, and the
+  // interim report line by `verify-published-run.unit.test.ts`.
+  'page-check/corpus-run/would-ship-consolidation.ts',
+  'page-check/corpus-run/would-ship-interim.ts',
+  'run/corpus-run/verify-published-interim.ts',
   'page-pass/corpus-run/title-reference-locate.ts',
   'page-pass/corpus-run/title-reference-rewrite.ts',
   'archive/coverage-foreign-region.ts',

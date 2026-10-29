@@ -374,7 +374,7 @@ const PACKAGE_FLOOR = 8;
  commit message gives the reason.
  */
 const ANCHORED_SITES = [
-  'slice-cache/corpus-run/entry-error-outcome.ts#WritingBenchUnreachableError',
+  'slice-cache/corpus-run/entry-error-outcome.ts#ArchiveOriginalCompletenessError',
   'provider/provider-budget-refusal.ts#ProviderHttpError',
   'stage/stage-run-end.ts#EveryProviderDryError',
 ] as const;

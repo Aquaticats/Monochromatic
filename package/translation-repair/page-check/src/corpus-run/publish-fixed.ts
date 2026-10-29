@@ -52,6 +52,7 @@ import {
 import { assertPageParses, } from './page-grammar.ts';
 import {
   archiveKeptDefects,
+  pageWithoutBodyDefects,
   type PublishDefect,
   publishDefects,
 } from './publish-defects.ts';
@@ -194,6 +195,7 @@ export async function publishFixedPage(
   },
 ): Promise<{
   readonly path: string;
+  readonly pageText: string;
   readonly destinations: DestinationCheck;
   readonly defects: readonly PublishDefect[];
 }> {
@@ -372,6 +374,13 @@ export async function publishFixedPage(
       entryId,
       consolidation: artifact.consolidation,
     },),
+    // A PAGE WITH NO BODY, whatever the archive held: the one outcome the commitment to ship the original under
+    // a note rules out, and a 0-byte page said nothing before this (B1046).
+    ...pageWithoutBodyDefects({
+      entryId,
+      sourceText,
+      pageText,
+    },),
     ...composed.defects,
   ];
   for (const {
@@ -430,6 +439,7 @@ export async function publishFixedPage(
     l.warn(`publish: ${finding}`,);
   return {
     path,
+    pageText,
     destinations,
     defects,
   };

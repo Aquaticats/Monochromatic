@@ -34,11 +34,17 @@ use super::recovery_files::recovery_path_exists;
 /// Action names and the recovery place.
 use super::recovery_landing::{RecoveryAction, RecoveryPlace, action_name};
 /// Registry recovery.
-use super::recovery_scan::{RecoveryOutcome, recover_registered_transactions};
+use super::recovery_scan::{RecoveryOutcome, acquire_registry_lock, recover_registered_transactions};
+/// Isolated merges that died.
+use super::merge_isolation_recovery::{MergeRecoveryOutcome, merge_intents_to_recover, recover_interrupted_merges};
+/// The landing lock.
+use super::owner_lock::OwnerLock;
 /// Running real Git.
 use super::transaction_git::GitContext;
 /// Registry names.
-use super::transaction_registry::{LEGACY_TRANSACTION_DIRECTORY_NAME, TRANSACTION_ROOT_NAME};
+use super::transaction_registry::{
+    LANDING_LOCK_NAME, LEGACY_TRANSACTION_DIRECTORY_NAME, TRANSACTION_ROOT_NAME, ensure_transaction_root,
+};
 /// The repository shape the invocation selects.
 use super::worktree_identity::WorktreeIdentity;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -185,16 +191,27 @@ pub fn recover_commit_transactions(
         Err(error) => return Err(RecoveryStop::Failure(error)),
     }
     let root: PathBuf = git_dir.join(TRANSACTION_ROOT_NAME);
-    match registry_is_empty(root.as_path()) {
-        Ok(true) => return Ok(Vec::new()),
-        Ok(false) => {}
-        Err(error) => return Err(RecoveryStop::Failure(error)),
-    }
     let place: RecoveryPlace = RecoveryPlace {
         git: git.clone(),
         cwd: cwd.to_path_buf(),
         common_dir: common_dir.to_path_buf(),
     };
+    // An isolated merge whose process died is settled under the landing lock before anything else reads the
+    // checkout; a merge that still runs is left alone.
+    match merge_intents_to_recover(git_dir) {
+        Ok(true) => {
+            if let Err(error) = recover_merges_under_lock(&place, git_dir, root.as_path()) {
+                return Err(RecoveryStop::Failure(error));
+            }
+        }
+        Ok(false) => {}
+        Err(error) => return Err(RecoveryStop::Failure(error)),
+    }
+    match registry_is_empty(root.as_path()) {
+        Ok(true) => return Ok(Vec::new()),
+        Ok(false) => {}
+        Err(error) => return Err(RecoveryStop::Failure(error)),
+    }
     let outcomes: Vec<RecoveryOutcome> =
         match recover_registered_transactions(&place, root.as_path()) {
             Ok(found) => found,
@@ -215,6 +232,30 @@ pub fn recover_commit_transactions(
         prune_landed_captures(git_dir, root.as_path());
     }
     return Ok(outcomes);
+}
+
+/// What:
+///  Take the landing lock and settle the isolated merges whose owner died.
+/// Why:
+///   A merge holds the landing lock for its whole run, so under the lock every record left is a dead merge's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await using lock = await acquireOwnerLock(landingLock); await recoverInterruptedMerges({ place, gitDir });
+/// ```
+fn recover_merges_under_lock(place: &RecoveryPlace, git_dir: &Path, root: &Path) -> Result<(), RecoveryError> {
+    ensure_transaction_root(root)?;
+    let lock: OwnerLock = acquire_registry_lock(root, LANDING_LOCK_NAME)?;
+    let recovered: Result<Vec<MergeRecoveryOutcome>, RecoveryError> = recover_interrupted_merges(place, git_dir);
+    let released: Result<(), super::owner_lock::OwnerLockError> = lock.release();
+    let outcomes: Vec<MergeRecoveryOutcome> = recovered?;
+    if !outcomes.is_empty() {
+        debug("recoverCommitTransaction", format!("isolated merge recovery outcomes: {outcomes:?}").as_str());
+    }
+    if let Err(error) = released {
+        return Err(RecoveryError(error.to_string()));
+    }
+    return Ok(());
 }
 
 /// What:

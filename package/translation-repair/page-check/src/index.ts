@@ -89,6 +89,7 @@ export {
 } from './corpus-run/page-agreement.ts';
 export { appendedNotes, } from './corpus-run/archive-note-carry.ts';
 export { guardPageAssembly, } from './corpus-run/page-assembly-guard.ts';
+export { publishInterimPage, } from './corpus-run/interim-page.ts';
 export {
   freshlyTakenBack,
   type RoundTakeBacks,

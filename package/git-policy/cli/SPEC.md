@@ -283,11 +283,22 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included), except names ending in `.sample`.
   Plain files without an execute bit, directories and samples are not hooks.
-- It prints one hook path per line on stdout,
+- A hook file that is byte for byte the shim git-lfs writes for its own name
+  (`pre-push`, `post-checkout`, `post-commit` or `post-merge`; the text of git-lfs 3.8.0, `lfs/hook.go`, with its final
+  line feed) is a Git LFS shim.
+  Only a regular file counts; a link, a file that differs by one byte and a shim under another hook's name do not.
+  The comparison reads at most 1024 bytes of those four names and nothing else.
+- It prints one path per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
-- Exit status: `0` when no hook is found, `1` when any is found,
+- Git LFS shims are reported on stderr only, apart from the other hooks, with their paths and an explanation:
+  git-lfs writes these files again whenever it cleans a file in a Git that the wrapper did not start,
+  so they can come back after deletion, and this is normal;
+  the wrapper does the LFS upload itself and starts Git with traditional hooks off, so the files never run through it;
+  nothing needs doing, and the files may be deleted or left.
+- Exit status: `0` when no hook is found or only Git LFS shims are found (they are expected and harmless),
+  `1` when any other hook is found, also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
   A directory that does not exist holds no hooks.
 - It does not load configuration, recover transactions or take a lock, and it changes nothing.
@@ -432,7 +443,8 @@ with the same temporary file, synchronization and rename as a journal write.
 The claim is removed once a journal names the stage, or once a failed copy has removed the stage.
 A process-birth-identity lock serializes installation and recovery.
 An applicable source waits for an owner proven alive for at most `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800),
-after writing one stderr line naming the owner's PID and the lock,
+after writing a stderr line naming the owner's PID, the lock and the limit, and repeating it with the time waited
+(see "Wait notices"),
 and then fails naming the owner, leaving the lock in place;
 while that owner lives the waiter only reads the owner record,
 and it attempts publication again once the owner releases,
@@ -664,7 +676,9 @@ and distinct on case-insensitive filesystems.
   It never takes a live holder's lock.
   The commit is reported with the push-failed note and a message naming the lock and the holder's PID.
   A waiter prints one line naming the pushing process,
-  the branch and the limit as soon as it starts waiting.
+  the branch and the limit as soon as it starts waiting,
+  and repeats the line with the time waited every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds
+  (see "Wait notices").
 - A joined commit's own `pre-push` hook does not run separately;
   the joined push ran it once for its tip.
 - The existing exit contract holds:
@@ -723,6 +737,117 @@ Not yet met by the native executable: it handles updates one after another,
  runs `git rev-list <local> --not <published>`
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
+
+### Real Git starts with traditional hooks off
+
+Traditional hooks are not only unsupported: no start of the real Git by the wrapper runs them.
+Every such start, forwarded commands as well as the wrapper's own children (queries, the commit's native steps,
+the auto-push, the reconcile and integration pushes, maintenance), carries
+`-c core.hooksPath=/dev/null/cli-git-no-hooks` ahead of its arguments.
+The directory is below a device, so nothing can create it, and Git finds no hook file there.
+Hooks defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) still run, the LFS upload hook
+and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksPath=<tx>/no-hooks`.
+
+- The option is part of the argument vector, so it adds no system call and no process start.
+  The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
+- It comes first, so a `-c core.hooksPath=<directory>` written by the caller, later on the command line, wins for that
+  command, and so does any later `-c` of the commit path (`<tx>/hooks`).
+- `git config` starts go without it, because they report what the repository configures and the wrapper reads
+  `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
+  recognized and gets the option.
+- A child of Git inherits the setting through `GIT_CONFIG_PARAMETERS`, so a config hook that starts `/usr/bin/git`
+  runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
+  `a_local_remotes_server_side_hook_still_runs`), so server-side hooks of such a remote still run.
+  A script that starts Git outside any wrapper-started Git still runs traditional hooks.
+- git-lfs reads the same setting when it picks the directory for its shims: a clean filter started inside a
+  wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
+  `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
+- The wrapper's dry-run push probes (the scope probe of a manual push, the integration probe after a rejected push, and
+  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` after their hooks-directory override.
+  That switch turns configured `pre-push` hooks off for the one probe and leaves the probe's private recording hook
+  (a traditional hook in the probe's own directory) running (measured on Git 2.56.0).
+  A configured `pre-push` hook therefore runs once per push that publishes: once for a normal push or an auto-push,
+  twice for a push that lost a race (the rejected push and the stacked merge push), and never for a probe.
+  The real push, the stacked push, the lost-race merge push and the reconcile pushes run configured hooks as Git does.
+- Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
+  A missing `core.hooksPath` directory is the case the commit dispatcher already relies on (`<tx>/no-hooks`),
+  and the container end-to-end suite runs that on Git 2.39.5.
+
+### Git LFS upload before a push
+
+A push publishes pointer files; the objects they name must reach the LFS server first, or collaborators fetch pointers
+whose content does not exist.
+Git LFS does this in its `pre-push` hook (`git lfs pre-push`),
+which `git lfs install` writes as a traditional hook file.
+Traditional hooks are unsupported, so the wrapper provides the same step itself, as a supported configuration hook.
+
+Verdict per hook of the four `git lfs install` writes
+(source: `commands/command_pre_push.go`, `command_post_checkout.go`, `command_post_commit.go` and
+`command_post_merge.go` of git-lfs, and the man page `git-lfs-pre-push`):
+
+- `pre-push`: handled natively, as described below.
+- `post-checkout`, `post-commit` and `post-merge`: not needed.
+  Each returns before doing anything unless a lockable pattern exists
+  (`lfs.setlockablereadonly` is on by default, and `GetLockablePatterns()` is empty without the `lockable` attribute);
+  what they do otherwise is set the read-only flag of lockable files that are not locked.
+  The repository has no `lockable` attribute: no tracked `.gitattributes` file contains the word,
+  and `git check-attr --all` on an LFS path lists none.
+  A repository that adopts `lockable` reopens this verdict; until a hook or a wrapper step runs, its lockable files
+  keep whatever write permission checkout gave them, and no content is lost.
+  The wrapper runs none of the three, and a shim file for any of them never runs through the wrapper either.
+
+The step:
+
+- Trigger.
+  The wrapper puts the hook in effect for a push only when the repository's own Git configuration (local, worktree or
+  command-line scope) holds a key under `filter.lfs.` or `lfs.`, and the push is not a dry run.
+  A key in the global or system file does not count: `git lfs install` writes `filter.lfs.*` there for every
+  repository of the account, and the filter's first run in a repository writes `lfs.repositoryformatversion` to its
+  local file.
+  The decision costs no extra process on the commit path:
+  the configuration snapshot the commit already reads is searched in memory.
+  A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs;
+  every other forwarded command is unchanged.
+  When the configuration cannot be read, the hook is put in effect, and the hook decides with Git's own answers.
+- Mechanism.
+  The wrapper adds `-c hook.cli-git-lfs-pre-push.event=pre-push` and
+  `-c hook.cli-git-lfs-pre-push.command='<own executable>' cli-git lfs-pre-push` before the global options of the real
+  `git push` it starts.
+  Nothing is written to any configuration file, so an upgraded or moved executable never leaves a stale path.
+  Git then runs the hook exactly as it runs a `pre-push` hook:
+  with `<remote> <url>` as arguments, the update lines `<local ref> <local oid> <remote ref> <remote oid>` on standard
+  input, before it sends anything, and a non-zero status stops the push before any ref changes.
+  Measured: Git 2.56.0 runs a configuration hook for `pre-push` with these arguments and input, appends the hook's
+  arguments to a shell command as `"$@"`, runs it on `--dry-run` too, and skips it for `--no-verify`.
+- The hook command.
+  `git cli-git lfs-pre-push <remote> <url>` runs `git-lfs pre-push <remote> <url>` with its own standard streams and
+  returns that status.
+  A `git-lfs` that cannot be started, a non-zero status and a signal each stop the push with an explanation that names
+  the cause and every way forward: fix the cause and push again, `git lfs push --all <remote>` by hand,
+  `git push --no-verify` (publishes pointers without objects), install Git LFS, or remove the LFS configuration.
+  The entry is recognized only as the exact words `cli-git lfs-pre-push` at the start of the arguments.
+- Paths.
+  A typed `git push` carries the hook, on the exec path and on the path that integrates a lost race;
+  the merge push the wrapper runs for a lost race re-enters the wrapper and carries it again.
+  The auto-push after a landed commit carries it, and so does each reconcile push of that auto-push
+  (`<merge oid>:<ref>`; Git passes the object name as the local ref of the update line).
+  The scope probe of a manual push and the integration step's probe are dry-run pushes that must not upload:
+  they run without the hook, because the hook is added to the push itself and never to the arguments the probes reuse.
+  No `git cli-git` subcommand pushes.
+- Bypass.
+  `git push --no-verify` and `GIT_LFS_SKIP_PUSH` skip the upload, as they skipped the shim;
+  `-c hook.cli-git-lfs-pre-push.enabled=false` after the wrapper's options turns the hook off for one command.
+- Shims.
+  `git lfs filter-process` and `git lfs clean` write the four shim files into the hooks directory whenever they run
+  (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is cleaned by
+  a Git that the wrapper did not start.
+  A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
+  upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
+
+Verified by `src/native/binary_lfs_pre_push_tests.rs`
+(a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)
+and `src/native/binary_lfs_server_tests.rs`
+(the real `git-lfs` against an LFS server written inline in the test).
 
 ### Direct check
 
@@ -2591,6 +2716,42 @@ Cli-git never deletes a foreign lock.
 Recovery removes a real `index.lock` only when a journal proves a dead transaction owner created it,
 by the recorded device and inode.
 
+#### Wait notices
+
+Every wait a commit can sit in before its push stage says so on standard error and ends at a bound
+(issue 1811).
+The pace is one clock, `CLI_GIT_WAIT_NOTICE_SECONDS` (default 10):
+a wait that ends within one second, or within the interval when that is shorter, prints nothing;
+after that its first notice comes, and a notice repeats at every interval until the wait ends.
+A wait whose holder is known when it begins prints its first notice at once and repeats one interval later.
+A notice names what is waited for, the holder's process when it can be read,
+the time waited and the bound with the variable that changes it.
+
+- Owner locks (landing, hook, capture, registry): `still waiting for process N to release <subject> (<path>)
+  after S seconds; giving up after L seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place`;
+  the first notice adds a hint.
+  The line names "another cli-git process" when the record cannot be read.
+- Reservation: the same line for `the landing reservation`;
+  a transaction that waits for the grant behind older live requests says so and is told its number among the live
+  requests (`This is number P of N commits in line, so P-1 will be served first`).
+  The landing lock has no queue, so its notice carries no number.
+- Foreign `index.lock`: with a proven-alive owner the first line (at once) and the repeats name the PID, its command
+  and the proof, the time waited and the bound; with an owner nothing proves alive, or a dead one, a notice names
+  the lock, why no process is named and the `indexLock.unprovenOwnerTimeoutMs` budget.
+- Worktree-copy settlement lock and the push lock: the first line at once, the repeats with the time waited.
+- The Markdown linter child: `still waiting for monochromatic-lint to check <path> (process N) after S seconds;
+  stopping it after 60 seconds`.
+- The object reader (`git cat-file --batch`) and every Git step of a commit that captures its output:
+  `still waiting for <command> (process N) after S seconds; stopping it after L seconds
+  (CLI_GIT_CHILD_WAIT_SECONDS changes this)`.
+  A watcher thread sees the wait from outside, and at the bound ends the child with `SIGKILL`;
+  the command fails with the bound named (default 1800 seconds).
+  Git commands that inherit the terminal (the editor, hooks, the user's own Git commands) are not bounded.
+
+At each bound the refusal names the holder and says how to go on:
+let the holder finish and run the command again, check with `ps` whether it is stuck, or raise the limit.
+Nothing is taken from the holder and its lock stays in place.
+
 #### Lock PID injection
 
 Cli-git injects `core.lockfilePid=true` into every forwarded and spawned Git
@@ -2640,7 +2801,8 @@ dead,
 or evidence-free:
 
 - A proven-alive owner gets a wait bounded by `CLI_GIT_LOCK_WAIT_SECONDS` (default 1800)
- with one human-readable stderr line naming the holder.
+ with a human-readable stderr line naming the holder at once, repeated every notice interval
+  (see "Wait notices").
 - A dead or evidence-free owner gets Git-style quadratic backoff with jitter up to
   `indexLock.unprovenOwnerTimeoutMs`,
   then `index-lock-unproven-owner` with exit `2`,
@@ -2707,6 +2869,99 @@ A nested commit transaction lands under the ancestor's landing lock the same way
 
 `git cli-git fix` holds the landing lock as described in "Direct fix".
 
+#### Merge beside staged changes
+
+Native Git refuses every merge that creates a commit while the index differs from `HEAD`,
+whichever paths differ
+(measured with Git 2.56.0 in `doc/planning/cli-git-merge-with-staged-index.md`).
+A fast-forward is not refused for paths it does not write,
+and a worktree change that is only unstaged is refused only when the merge writes that path.
+A forwarded `merge` therefore runs the isolated merge below
+after the landing lock is held and a foreign `index.lock` has cleared,
+and forwards to native Git unchanged in every case marked "forward".
+
+1.  Recover isolated merges whose owner died (see "Recovery"), before anything reads the checkout.
+2.  Forward unless the command, after alias resolution, is a builtin `merge`
+    whose arguments read as one commit-ish and only these options, in full spelling:
+    `-m <message>` (also `-m<message>`, `--message <message>`, `--message=<message>`, repeated),
+    `--no-edit`, `--ff`, `--no-ff`, `-q`, `--quiet`, `-v`, `--verbose`, `--stat`, `--no-stat`, `-n`,
+    `--summary`, `--no-summary`, `--log`, `--no-log` (not together with `-m`),
+    `-S`, `-S<keyid>`, `--gpg-sign`, `--gpg-sign=<keyid>`, `--no-gpg-sign`,
+    `--no-verify`, `--verify`, `--no-signoff`, `--no-autostash`, `--no-verify-signatures`,
+    `--progress`, `--no-progress`, `--allow-unrelated-histories`.
+    Every other option (`--squash`, `--commit`, `--no-commit`, `-s`, `--strategy`, `-X`, `--ff-only`, `--edit`, `-e`,
+    `--signoff`, `--cleanup`, `-F`, `--autostash`, `--verify-signatures`, `--abort`, `--continue`, `--quit`,
+    any abbreviation Git would accept, and several commit-ishes) forwards.
+3.  Forward when `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply`
+    or `sequencer` exists in the worktree's Git directory.
+4.  Forward when `git diff-index --cached --quiet HEAD --` does not exit `1`:
+    a clean index, an unborn `HEAD`, or a failure.
+    This is the one process a merge into a clean index costs.
+5.  Forward, with a notice on standard error, when the merge would open an editor:
+    `--no-edit` is absent and `GIT_MERGE_AUTOEDIT` is unset or true,
+    and standard input and output are one terminal (or the variable is true).
+6.  Read `merge.ff`, `merge.stat`, `merge.autostash`, `merge.verifySignatures`, `commit.gpgSign` and every
+    `branch.<name>.mergeOptions` in one `git config --null --get-regexp`.
+    Forward when `merge.autostash` or `merge.verifySignatures` is true or any `mergeOptions` is set.
+7.  Resolve `HEAD` and the commit-ish (`<commit-ish>^{commit}`), and the merge bases (`git merge-base --all`).
+    Forward when either does not resolve,
+    when the commit-ish is already contained in `HEAD` (native Git prints "Already up to date."),
+    when there is no merge base and `--allow-unrelated-histories` is absent,
+    when `merge.ff` is `only` and `--ff` is absent,
+    and when `HEAD` is contained in the commit-ish and no merge commit is wanted
+    (`--no-ff`, or `merge.ff` false without `--ff`):
+    native Git fast-forwards over unrelated staged paths and refuses an overlap itself.
+8.  Describe the commit-ish as `git merge` does:
+    `git rev-parse --symbolic-full-name` names a branch (`branch 'x' of .`), a tag (`tag 'x' of .`)
+    or a remote-tracking branch (`remote-tracking branch 'x' of .`),
+    and a name that is only hexadecimal digits is `commit 'x'`.
+    Forward for any other name, because Git words `<name>^`, `<name>~<n>` and similar forms differently.
+    With `-m` this step is skipped.
+9.  `git merge-tree --write-tree --name-only --no-messages [--allow-unrelated-histories] <HEAD> <commit-ish>`.
+    Exit `1` is a textual conflict:
+    the `merge-isolation/merge-conflict` core finding names the conflicting paths and the ways forward
+    (merge in a clean linked worktree, resolve in a clean checkout, or rebase the branch), exit `2`,
+    and nothing is changed.
+    Any other failure forwards.
+10. The paths the merge changes are `git diff-tree -r --name-only -z --no-renames <HEAD> <merged tree>`.
+    The paths of other work are those of `git --no-optional-locks status --porcelain=v1 -z --untracked-files=no`,
+    both names of a rename or copy included.
+    Forward when any entry is unmerged (`U` in either column, `AA`, `DD`).
+    When the two sets overlap, the `merge-isolation/paths-in-use` core finding names the paths
+    (five by name, then a count) and the ways forward
+    (wait for the owner to commit or restore them, merge in a clean linked worktree and bring the result back with
+    `git merge --ff-only`, or commit or stash one's own files), exit `2`, and nothing is changed.
+11. The message is the `-m` values joined as Git joins them,
+    or `git fmt-merge-msg` (with `--log` or `--no-log` when given) of the description line,
+    then `git stripspace`.
+12. `git commit-tree <tree> -p <HEAD> -p <commit-ish>` with the message on standard input,
+    and `-S` (or `-S<keyid>`) when signing is asked for or `commit.gpgSign` is true and `--no-gpg-sign` is absent.
+    `commit-tree` neither runs hooks nor reads `commit.gpgSign`.
+    A failure (a signer that fails) leaves everything unchanged and exits `128` with Git's message.
+13. Write the intent record `cli-git-merges/<transaction id>.json` in the worktree's Git directory
+    (exclusive, synced, then the directory synced) and reach the `merge-intent` phase.
+14. Run `git merge --ff-only --quiet --no-edit <merge commit>` with `GIT_REFLOG_ACTION=merge <commit-ish>`
+    and the landing lease in its environment, so a nested wrapper does not wait for the lock.
+    Git refuses an overlap with staged or modified paths that appeared after step 10, and an untracked file in the way,
+    before it writes anything.
+    After a refusal the record is settled as in "Recovery": a merge that never began is discarded,
+    and the `merge-isolation/not-applied` core finding follows Git's own message, with Git's exit status.
+15. Reach the `merge-applied` phase, remove the record,
+    and print `Merge made by the 'ort' strategy.` and `git diff --stat --summary <HEAD> <merge commit>`
+    unless `-q` was given or the stat is turned off (`--no-stat`, `-n`, `merge.stat` false).
+    Standard output and error of the fast-forward (the `post-merge` hook) are passed through.
+    The exit status is `0`.
+16. Release the landing lock.
+
+The merge commit is made from objects and runs none of `pre-merge-commit`, `prepare-commit-msg` and `commit-msg`,
+and no content policy, as the commit the auto-push makes from objects does not (see "Auto-push").
+`post-merge` runs once, from the fast-forward.
+The linked-worktree copy does not run around an isolated merge; the next forwarded command settles it.
+The fast-forward is atomic as Git makes it:
+the worktree files and the index are written first, the branch moves last, by Git's own compare-and-swap
+against the commit read in step 7.
+A branch that moved meanwhile makes Git refuse, and nothing changes.
+
 ### Recovery
 
 At wrapper startup,
@@ -2771,6 +3026,42 @@ Recovery stabilizes exact artifacts through verified same-filesystem hard links,
 installs only through an owner-preserving hard link rather than the mutable lock pathname,
 refuses unsafe or replaced filesystem artifacts,
 and preserves conflicting evidence after unrelated ref or index movement.
+
+An isolated merge (see "Merge beside staged changes") that died leaves `cli-git-merges/<transaction id>.json`.
+Recovery runs under the landing lock,
+at every point where dead landings are recovered and at the start of every forwarded `merge`.
+A command that finds a record whose owner is dead (or whose bytes cannot be parsed) takes the landing lock first;
+a record whose owner is alive is skipped without taking the lock,
+because a nested wrapper run by that merge's own `post-merge` hook would otherwise wait for its ancestor.
+For a dead owner:
+
+- A record that cannot be parsed stops the command with exit `2` and a `content-unavailable` engine failure that
+  names the record, and the record stays.
+- The branch (or `HEAD`, for a detached `HEAD`) already names the merge commit:
+  the record is removed.
+- The branch names neither the recorded old commit nor the merge commit:
+  exit `2`, nothing is changed, the record stays, and the message names the branch value and the record.
+- Otherwise the paths the merge changes (`git diff-tree -r -z --raw --no-renames --no-abbrev <old> <new>`) are compared
+  with the worktree and the index.
+  A path's worktree state is its recorded object (hashed through Git with its path's filters, a symbolic link from
+  its target text), or missing.
+  A merge began when the index entry of any changed path equals the merge's entry,
+  or the worktree holds the merged content (or lacks the file the merge deletes) at any changed path.
+  Another session's staged or edited version of a changed path is not evidence.
+- A merge that never began is discarded: the record is removed and nothing else changes.
+- A merge that began, with every changed path holding its old or merged content (or lacking a path to add or delete),
+  is completed:
+  `git update-index -z --index-info` sets the index entries of the changed paths to the merge's,
+  deleted files are removed with their emptied directories,
+  `git checkout-index --force -z --stdin` writes the paths not already holding the merged content,
+  and the branch moves by `git update-ref <ref> <new> <old>`.
+  Every other index entry and file is untouched.
+- A merge that began with a changed path holding neither content stops with exit `2`, changes nothing,
+  keeps the record, and names the paths and the ways forward.
+
+The merge's own process applies the same rules to a failed fast-forward.
+The crash controls arm the phases `merge-intent` (record durable, Git not yet started)
+and `merge-applied` (branch moved, record not yet removed).
 
 ### Compatibility and degradation
 
@@ -3106,9 +3397,11 @@ so this suite is an inherent part of the transaction protocol.
   `objects-migrated`,
   `ref-updated`,
   `index-installed`,
-  and `race-lost`,
+  `race-lost`,
   reached after each lost landing race outside both locks,
-  after any reservation it earned and before the replay.
+  after any reservation it earned and before the replay,
+  and `merge-intent` and `merge-applied` of an isolated merge
+  (record durable and Git not yet started; branch moved and record not yet removed).
   `race-lost` can be reached more than once,
   so its files carry the occurrence:
   `race-lost-<n>.reached` and `race-lost-<n>.release`.

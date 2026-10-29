@@ -19,10 +19,14 @@ which lists every file of these commitments.
   which provider would take its calls:
   the first in `PROVIDER_ORDER` that serves the model and reads wet (`providerServing`).
   Where that is Hyper,
-  the judges Hyper serves too slowly for the round window are withheld (`HYPER_SLOW_JUDGES`,
+  the models Hyper serves too slowly for the round window are withheld from the seats they hold (`HYPER_SLOW_JUDGES`,
   Qwen3.8-27B:
   cut in 30 of 34 translate-lane select rounds with Hyper alone,
-  answering 25 of 28 when Synthetic served it),
+  answering 25 of 28 when Synthetic served it;
+  it holds no judge seat since the owner's answers of 2026-10-22 and 2026-10-29,
+  so the set withholds its translator,
+  picture-reader,
+  consolidation-writer and roster seats alone),
   and `HYPER_SLOW_SELECT_JUDGES` (Kimi-K3:
   cut in 0 of 69 select rounds on Synthetic,
   43 of 83 and 38 of 101 with Hyper serving most or all of them,
@@ -49,14 +53,17 @@ which lists every file of these commitments.
   `consolidation`),
   and the checker bench is the first three of `RUN_CHECKER_ORDER`
   (`package/translation-repair/run/src/corpus-run/run-config.ts`,
-  ranked by the checker benchmark of 2026-09-27)
+  ranked by the checker benchmark of 2026-09-27,
+  less Qwen3.8-27B since the owner's answer of 2026-10-29,
+  so the static three are Mimo v2.6 Flash,
+  Kimi-K3 and Haiku 5.5)
   that a wet provider serves,
   padded with ranked seats no provider serves only while fewer than three are served,
   so the bench keeps the floor the checker contract holds;
   both checker assertions run on the derived roster before each phase.
   An unreadable view seats the full bench.
   The static benches in `run-config.ts` are the Synthetic-wet ones,
-  seven wide seats and eight late judges;
+  seven wide seats and seven late judges;
   the `JUDGE SEATS` line names every provider's state,
   every bench size,
   the translator,

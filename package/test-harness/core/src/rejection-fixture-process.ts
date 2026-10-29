@@ -5,9 +5,10 @@
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
 import { mkdtempDisposable, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 import { text, } from 'node:stream/consumers';
+
+import { scratchRoot, } from './scratch-root.ts';
 import { fileURLToPath, } from 'node:url';
 
 /**
@@ -61,7 +62,7 @@ export async function runRejectionProcess({
    Disposable cwd prevents fixture logger writes in the repository.
    */
   await using directory = await mkdtempDisposable(join(
-    tmpdir(),
+    scratchRoot(),
     'module-test-rejection-',
   ),);
   /**

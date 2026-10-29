@@ -197,6 +197,8 @@ fn run_settled(
         overlay: overlay.to_vec(),
         // Every copy query names absolute paths and leaves the caller's global options out.
         global_prefix: Vec::new(),
+        // The copy queries send no input, so no scratch directory is needed.
+        common_dir: None,
     };
     let invocation: Invocation = Invocation {
         identity: facts.identity.clone(),

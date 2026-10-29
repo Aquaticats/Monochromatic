@@ -69,6 +69,7 @@ fn command_preserves_program_arguments_and_overlay() {
     for argument in command.get_args() {
         seen_arguments.push(argument.to_os_string());
     }
+    // The hooks-off option is added only once the process has switched it on (`hooks_off::activate`).
     assert_eq!(seen_arguments, arguments);
     let mut seen_environment: Vec<(OsString, OsString)> = Vec::<(OsString, OsString)>::new();
     for (name, value) in command.get_envs() {

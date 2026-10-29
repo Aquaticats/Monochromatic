@@ -88,6 +88,36 @@ await describe({
     },),
 
     it({
+      name: 'resolves an empty result when every input is skipped',
+      fn: async () => {
+        const results = await pMap({
+          iterable: [
+            1,
+            2,
+            3,
+          ],
+          mapper: function skipAll(): typeof pMapSkip {
+            return pMapSkip;
+          },
+        },);
+        expect(results,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'drops a single skipped input',
+      fn: async () => {
+        const results = await pMap({
+          iterable: [1],
+          mapper: function skipOne(): typeof pMapSkip {
+            return pMapSkip;
+          },
+        },);
+        expect(results,).toEqual([],);
+      },
+    },),
+
+    it({
       name: 'never stages a skip for a rejected mapper call',
       fn: async () => {
         /**

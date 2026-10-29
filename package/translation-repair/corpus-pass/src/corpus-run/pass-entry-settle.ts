@@ -1,22 +1,16 @@
 import { join, } from 'node:path';
 
-import {
-  monotonicMs,
-  wallClockNow,
-} from '@monochromatic-dev/translation-repair-markup/ts';
+import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
 import type {
   CorpusPair,
   EntryOutcome,
   OverlapSetting,
-  ParkAnswer,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
 import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { retireSettledEntryCache, } from './pass-entry-caches.ts';
-import { withEntryBound, } from './pass-entry-bound.ts';
 import { runEntryPipeline, } from './pass-entry.ts';
 import { entryOverlap, } from './pass-overlap.ts';
 import type { PassOutsideReads, } from './pass-outside-reads.ts';
@@ -26,8 +20,8 @@ import type {
 } from './pass-visual-evidence.ts';
 
 //region Pass entry settlement
-// THE ENTRY'S OUTER SHELL, split from `pass-entry.ts` at its line budget: it narrows the client's bound to the entry's
-// own cap (`pass-entry-bound.ts`), runs the pipeline, and retires the cache of an entry that settled.
+// THE ENTRY'S OUTER SHELL, split from `pass-entry.ts` at its line budget: it starts the entry's provider marks, runs the
+// pipeline, and retires the cache of an entry that settled.
 
 /**
  Runs one chosen entry to settlement, then retires its cache if it settled.
@@ -49,6 +43,9 @@ import type {
 
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
+
+ @param interimDir - directory the interim record of an entry stopped dry in the middle of its page is written into;
+ beside `artifactsDir`, where the pass's runs layout puts it, when absent
 
  @param sliceCacheDir - root under which this entry claims its own cache subdirectory
 
@@ -90,12 +87,6 @@ import type {
 
  @param endRun - told of the failure that ended this entry when it ends the run, so the pass stops starting entries
 
- @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
- failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
-
- @param floorLimited - this entry's memory of translate slices that ended unfilled on a select bench below its
- floor, held by the pass so a later attempt of the entry finds what an earlier one left
-
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it once the pass has counted
  it: every lifecycle line this settlement prints (OVERLAP, TALLY, DESTINATIONS, DEFECTS, CLEANUP) carries it beside its
  clock time, because the hard cap ends an attempt and the next one begins under a fresh cap (ledger B960)
@@ -119,6 +110,7 @@ export async function settleEntry(
     artifactsDir,
     publishDir,
     declinedDir,
+    interimDir,
     sliceCacheDir,
     tip,
     pipelineDigest,
@@ -131,8 +123,6 @@ export async function settleEntry(
     overlap,
     stageSettings,
     endRun,
-    parked,
-    floorLimited,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -143,6 +133,7 @@ export async function settleEntry(
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
+    readonly interimDir?: string;
     readonly sliceCacheDir: string;
     readonly tip: string;
     readonly pipelineDigest: PipelineDigest;
@@ -155,15 +146,8 @@ export async function settleEntry(
     readonly overlap: OverlapSetting;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
-    readonly floorLimited?: FloorLimitedMemory;
   },
 ): Promise<EntryOutcome> {
-  /**
-   When this entry began, on the monotonic clock, which its own hard cap counts from.
-   */
-  const startedAt = monotonicMs();
-
   /**
    Slice overlap the pass read, logged for this entry and shared by every
    per-slice driver.
@@ -193,17 +177,12 @@ export async function settleEntry(
    Whether this entry reached its artifact.
    */
   const outcome = await runEntryPipeline({
-    // THE SEAT READER'S BOUND INSIDE THIS ENTRY is the smaller of the pass's and what the entry's own cap has left.
-    client: withEntryBound({
-      client,
-      hardCapMs,
-      startedAt,
-      now: monotonicMs,
-    },),
+    client,
     entry,
     artifactsDir,
     publishDir,
     declinedDir,
+    ...((interimDir === undefined) ? {} : { interimDir, }),
     entryCacheDir,
     tip,
     pipelineDigest,
@@ -216,8 +195,6 @@ export async function settleEntry(
     stageSettings,
     ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     ...((endRun === undefined) ? {} : { endRun, }),
-    ...((parked === undefined) ? {} : { parked, }),
-    ...((floorLimited === undefined) ? {} : { floorLimited, }),
     attempt,
     wallClock,
   },);

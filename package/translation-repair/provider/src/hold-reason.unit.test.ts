@@ -1,6 +1,6 @@
 /**
- Tests for the words a hold wait gives for waiting: which providers the shortest hold belongs to, and for NeuralWatt the
- time of day its day starts again.
+ Tests for the words a hold wait and a refusal give: which providers the shortest hold belongs to, and why NeuralWatt
+ reads dry, with the time of day its day starts again for the operator to relaunch by.
 
  @module
  */
@@ -29,11 +29,6 @@ const NO_HOLDS = {
   openrouter: 0,
 } as const;
 
-/**
- The account whose day starts at 19:15:08 UTC.
- */
-const XINGZ_DAY = { kind: 'at', msOfDay: 69_308_000, } as const;
-
 await describe({
   name: '',
   concurrency: 1,
@@ -43,26 +38,12 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'NAMES NEURALWATT\'S DAY START when NeuralWatt holds the shortest hold, since that hold is its return and '
-            + 'not a refusal',
-          fn: async () => {
-            expect(holdReasonOf({
-              holds: { ...NO_HOLDS, neuralwatt: 48_000, hyper: 900_000, },
-              shortest: 48_000,
-              neuralwatt: XINGZ_DAY,
-            },),).toBe('neuralwatt, whose day starts again at 19:15:08 UTC',);
-          },
-        },),
-
-        it({
-          name: 'NAMES NO DAY START when the hold that won on NeuralWatt is a refusal\'s and not its return: a 60 s '
-            + 'rate-limit hold is a rate limit, whatever time the day starts',
+          name: 'NAMES NEURALWATT AS A PLAIN NAME when a refusal holds it for the shortest hold, with no word of its '
+            + 'day start: a 60 s rate-limit hold is a rate limit, whatever time the day starts',
           fn: async () => {
             expect(holdReasonOf({
               holds: { ...NO_HOLDS, neuralwatt: 60_000, },
               shortest: 60_000,
-              neuralwatt: XINGZ_DAY,
-              neuralwattHeldByReturn: false,
             },),).toBe('neuralwatt',);
           },
         },),
@@ -74,7 +55,6 @@ await describe({
             expect(holdReasonOf({
               holds: { ...NO_HOLDS, synthetic: 5_000, hyper: 5_000, openrouter: 9_000, },
               shortest: 5_000,
-              neuralwatt: XINGZ_DAY,
             },),).toBe('synthetic, hyper',);
           },
         },),
@@ -82,7 +62,7 @@ await describe({
         it({
           name: 'NAMES NOBODY where nothing is held',
           fn: async () => {
-            expect(holdReasonOf({ holds: NO_HOLDS, shortest: 0, neuralwatt: XINGZ_DAY, },),).toBe('no provider',);
+            expect(holdReasonOf({ holds: NO_HOLDS, shortest: 0, },),).toBe('no provider',);
           },
         },),
       ],
@@ -126,26 +106,8 @@ await describe({
         },),
 
         it({
-          name: 'SAYS THE RETURN IS PAST WHAT THE PASS HAS LEFT only when it is, and adds nothing for a '
-            + 'return inside it',
-          fn: async () => {
-            /**
-             A spent day 700 s from its return.
-             */
-            const dryness = { kind: 'spent-day', dayStart: '2026-10-22T19:15:08.000Z', returnsInMs: 700_000, } as const;
-            expect(dryCauseClausesOf({ dryness, passLeftMs: 600_000, },),).toEqual([
-              'NeuralWatt reads dry and its day starts again at 19:15:08 UTC (in 11 min 40 s), which is past '
-                + 'the 10 min '
-                + 'this pass has left',
-            ],);
-            expect(dryCauseClausesOf({ dryness, passLeftMs: 700_000, },),).toEqual([
-              'NeuralWatt reads dry and its day starts again at 19:15:08 UTC (in 11 min 40 s)',
-            ],);
-          },
-        },),
-
-        it({
-          name: 'NAMES THE BOUND THAT WON in the clause: the entry when its own cap is the smaller bound',
+          name: 'STATES THE SAME TIME OF DAY AND DISTANCE AT ANY DISTANCE and says nothing of a bound, since nothing '
+            + 'waits for the return: an hour away reads as 5 minutes away does',
           fn: async () => {
             /**
              A spent day an hour from its return.
@@ -155,9 +117,8 @@ await describe({
               dayStart: '2026-10-22T19:15:08.000Z',
               returnsInMs: 3_600_000,
             } as const;
-            expect(dryCauseClausesOf({ dryness, passLeftMs: 1_200_000, boundOwner: 'entry', },),).toEqual([
-              'NeuralWatt reads dry and its day starts again at 19:15:08 UTC (in 1 h), which is past the 20 min '
-                + 'the entry has left',
+            expect(dryCauseClausesOf({ dryness, },),).toEqual([
+              'NeuralWatt reads dry and its day starts again at 19:15:08 UTC (in 1 h)',
             ],);
           },
         },),

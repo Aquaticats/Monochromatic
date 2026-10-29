@@ -191,6 +191,17 @@ export type GiveUpAside = {
   readonly isAside: (args: { readonly provider: ProviderName; },) => boolean;
 
   /**
+   Whether waiting for a provider's return is what lets the entry finish, given up or not: the provider is the only
+   writing provider not dry, or its return would leave no bench floor unmet where without it one is. The same decision
+   as `isAside` without the give-up it is about, so a return that served nothing yields to the same two exceptions.
+
+   @param provider - provider to check
+
+   @returns Whether a wait for the provider's return is worth taking
+   */
+  readonly waitingHelps: (args: { readonly provider: ProviderName; },) => boolean;
+
+  /**
    Forgets the decisions last logged, for an entry that begins with no provider given up.
 
    @mutates aside - clears the decisions last logged
@@ -279,11 +290,14 @@ export function createGiveUpAside(
   /**
    The providers a call can still go to: not given up, not dry by the last reading, not held by a refusal.
 
+   @param except - provider the question is about, which is never among the providers left (default: none)
+
    @returns Providers left, in spending order
    */
-  function providersLeft(): readonly ProviderName[] {
+  function providersLeft({ except, }: { readonly except?: ProviderName; } = {},): readonly ProviderName[] {
     return PROVIDER_ORDER.filter(function isLeft(provider,): boolean {
-      return (!given.has(provider,))
+      return (provider !== except)
+        && (!given.has(provider,))
         && (!reading.dry[provider])
         && (left({ provider, },) === 0);
     },);
@@ -316,9 +330,9 @@ export function createGiveUpAside(
    */
   function verdictOf({ provider, }: { readonly provider: ProviderName; },): GiveUpVerdict {
     /**
-     The providers a call can still go to.
+     The providers a call can still go to, the provider itself not among them.
      */
-    const remaining = providersLeft();
+    const remaining = providersLeft({ except: provider, },);
     /**
      Whether the provider's own meter reads dry, which waiting does not cure; before any reading nothing is known against
      it.
@@ -523,6 +537,14 @@ export function createGiveUpAside(
       // Nothing is weighed for a provider the entry has not given up, which is nearly always.
       if (!given.has(provider,))
         return false;
+      /**
+       What the entry does about the provider now.
+       */
+      const { kind, } = verdictOf({ provider, },);
+      return kind !== 'held';
+    },
+
+    waitingHelps: function waitingHelps({ provider, },): boolean {
       /**
        What the entry does about the provider now.
        */

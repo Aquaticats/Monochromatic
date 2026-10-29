@@ -3,6 +3,7 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   alignHeadingsForced,
   type DocumentNode,
+  leadingMarkWidth,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   type ContentChunk,
@@ -361,9 +362,12 @@ function describeSourceOnly(
  TWO PATHS. Sides of equal shape, meaning equal chunk counts with matching
  leading node kinds, pair by index and report nothing. Everything else goes to
  the forced heading aligner, and only what it pairs becomes a pair: a section
- it refuses is named in a finding and has no pair at all. When one side has no
- content, there are no pairs and the finding says so; the pipeline decides
- what a content-free side means.
+ it refuses is named in a finding and has no pair at all. When the original has
+ content and the translation has none (empty, whitespace, a byte order mark or
+ front matter alone), every original section is paired with an insertion anchor
+ at the one offset after the mark and the front matter, and the finding says
+ so. When the original has none, there are no pairs and the finding says so;
+ the pipeline decides what a content-free original means.
 
  WHAT EQUAL SHAPE DOES NOT PROVE. For a document of ordinary heading sections
  every leading kind is `heading`, so that half of the test holds by
@@ -421,8 +425,46 @@ export function alignDocumentSections(
         findings: [],
       };
     }
+
+    // A TRANSLATION WITH NO BODY IS AN ANCHOR FOR EVERY ORIGINAL SECTION, not a document with nothing to
+    // place. An empty archive, one holding whitespace, a byte order mark or front matter alone, passes intake
+    // like any other, and pairing nothing here left `prepareDocumentPair` with no slice and the publisher with
+    // a 0-byte page, where `doc/design-commitments-shipping-and-the-archive.md` ships the original under a
+    // note. Every anchor takes the one offset the translation has to give, and several at one offset is
+    // a layout `assertPlacementLayout` allows. `placeInsertions` is not asked: it reads the translation's
+    // sections, and this one has none.
+    /**
+     Where the translation's front matter stands and what it spans, an empty span at the byte order mark (or at
+     zero) when it carries none.
+     */
+    const {
+      startOffset: openingStart,
+      raw: openingRaw,
+    } = target.frontMatter ?? {
+      startOffset: leadingMarkWidth({ text: target.text, },),
+      raw: '',
+    };
+    /**
+     Where the original's sections are written when the translation has no body: after the byte order mark
+     and the front matter it opens with, whichever it carries.
+     */
+    const insertionOffset = openingStart + openingRaw.length;
+    /**
+     Whether the translation is the side with no content, which is what earns its sections' anchors.
+     */
+    const anchorsEverySection = (targetChunks.length === 0);
     return {
-      pairs: [],
+      pairs: anchorsEverySection
+        ? sourceChunks.map(function toAnchor(sourceChunk,): ChunkPair {
+          return {
+            source: sourceChunk,
+            target: makeInsertionChunk({
+              sliceIndex: sourceChunk.sliceIndex,
+              offset: insertionOffset,
+            },),
+          };
+        },)
+        : [],
       findings: [{
         kind: 'structure-mismatch',
         attachedTo: { kind: 'whole-document', },
@@ -440,6 +482,10 @@ export function alignDocumentSections(
             one: 'chunk',
             many: 'chunks',
           },)
+        }${
+          anchorsEverySection
+            ? `; every original section is anchored for insertion at offset ${String(insertionOffset,)}`
+            : ''
         }`,
       },],
     };

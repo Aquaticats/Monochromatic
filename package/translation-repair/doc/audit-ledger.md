@@ -316,6 +316,10 @@ named for that subject and listed here.
 - [Audit ledger: the cap census and the Xiaomi cap](audit-ledger-the-cap-census-and-the-xiaomi-cap.md):
   A card that still named the pooled 99th percentile after the cap rule could read its calls (B990),
   and a census that named every dangling link under the agent root and buried its own summary (B991).
+- [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md):
+  The wait for NeuralWatt's day to start again and the park of the pass between entries,
+  removed on the owner's answer of 2026-10-29 (B1005),
+  and the interim page a mid-page dry stop ships on his second answer of the same day (B1006 to B1008).
 - [Audit ledger: footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md):
   Scans for footnote markers and link destinations that disagreed with the parse,
   about where a marker is a reference or where an address ends,
@@ -696,13 +700,23 @@ named for that subject and listed here.
   the ceiling a hold could lift a short bench to,
   which the seat reader's line never stated (B833),
   a slice bought again by the next attempt for want of a second ballot (B834),
-  and the contest and consolidation rounds opened for slices their bench could not settle (B835).
+  the contest and consolidation rounds opened for slices their bench could not settle (B835),
+  and the model that was the late voice on the wide benches and the checker order
+  until the owner took those seats away (B1030).
 - [Audit ledger:
   short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
   The ceiling that counted a provider its meter keeps dry as coming back (B837),
   the wait that judged a return against the quorum alone (B838),
   the translate lane's first-time buys on a select bench under its floor (B839),
-  and the artifact's record of why such a slice was kept (B840).
+  the artifact's record of why such a slice was kept (B840),
+  and the wait for a provider whose return had served nothing,
+  which the owner chose to remember (B1010).
+- [Audit ledger:
+  futile returns replayed and the memory of skipped slices removed](audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md):
+  The pass's memory of the translate slices it had skipped,
+  which the owner removed (B1011),
+  what the rule of B1010 spends when it is replayed over XingZ6020 (B1012),
+  and the cache account of the round with the ids it left (B1013).
 - [Audit ledger: the weight floors removed and two ballots deciding](audit-ledger-weight-floors-removed-and-two-ballots-decide.md):
   The owner's rulings of 2026-10-25 on `XingZ6021`:
   the panel tally that asked for a summed weight of three and decided nothing for a unanimous panel of two (B900),
@@ -779,6 +793,20 @@ named for that subject and listed here.
   with the items the review of round 10 left (B951),
   and the scan that reads "that" only before a noun it knows,
   with the pins and nits of the re-check of round 11 (B952).
+- [Audit ledger: the two-ballot translate text
+  and the lead's adoptions of 2026-10-29](audit-ledger-the-two-ballot-translate-text.md):
+  The owner's "Ship the two-ballot text" after the corpus pass `XingZ6022`:
+  the translate lane's winner that ships where the final round cannot seat two judges (B1020),
+  the defect note that said what happened at each kept archive (B1021),
+  the footnote guard that withdraws only what provably clears the orphan (B1022),
+  the follow-up that does not ask the same judges the same slate again (B1023),
+  the trace of a patch that resolved every accepted issue and lost (B1024),
+  and artifact generation 22 with the cache versions that did not move (B1025).
+- [Audit ledger: an archive with no body ships an empty page](audit-ledger-an-archive-with-no-body.md):
+  An entry whose archive holds no body,
+  which was cut into no slice (B1045),
+  the page of 0 bytes that nothing reported (B1046),
+  and the roster path measured for an archive that does not align with two original sections (B1047).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

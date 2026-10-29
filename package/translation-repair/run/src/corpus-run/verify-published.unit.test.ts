@@ -201,7 +201,7 @@ await describe({
           code: 0,
           stdout: 'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=0 declined=0\n'
             + 'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-            + 'missing=0 consistency-groups=0 read-at-generation=21\n'
+            + 'missing=0 consistency-groups=0 read-at-generation=22\n'
             + 'verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 '
             + 'UNWEIGHED because the artifact predates the stored archive text\n',
           stderr: '',
@@ -232,7 +232,7 @@ await describe({
           code: 0,
           stdout: 'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=0 declined=0\n'
             + 'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=74/expected 81 '
-            + 'missing=1 consistency-groups=0 read-at-generation=21\n'
+            + 'missing=1 consistency-groups=0 read-at-generation=22\n'
             + '  WRONG LENGTH: page is -7 characters off what the archive plus every slice change comes to. '
             + 'Text no slice decided on was lost or added\n'
             + '  MISSING slice 1, 35 characters the page does not carry in order\n'
@@ -320,7 +320,7 @@ await describe({
             + '  PUBLISHED AND NOT SETTLED: StrayCat2. It ships as it stands, with no artifact to check it against, until a '
             + 'pass settles the entry again and overwrites it\n'
             + 'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-            + 'missing=0 consistency-groups=0 read-at-generation=21\n'
+            + 'missing=0 consistency-groups=0 read-at-generation=22\n'
             + 'verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 '
             + 'UNWEIGHED because the artifact predates the stored archive text\n',
           stderr: '',
@@ -371,7 +371,7 @@ await describe({
           stdout: 'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=0 declined=0\n'
             + 'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=UNWEIGHED(artifact predates stored archive text) '
             + 'missing=0 '
-            + 'consistency-groups=0 read-at-generation=21\n'
+            + 'consistency-groups=0 read-at-generation=22\n'
             + 'verify-published: 1 of 1 page carries every wording its artifact promised; 0 of those at the length it implies, 1 '
             + 'UNWEIGHED because the artifact predates the stored archive text\n',
           stderr: '',

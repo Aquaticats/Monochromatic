@@ -89,6 +89,25 @@ function holdsOnAClock(
   };
 }
 
+/**
+ The lines the give-up and its decision wrote, without the line that marks a return that served nothing, which the same
+ refusal writes beside them (`provider-budget-futile-return.unit.test.ts` holds the cases of that line).
+
+ @param lines - every line the holds wrote
+
+ @returns The lines about the give-up
+
+ @example
+ ```ts
+ expect(giveUpLinesOf({ lines, },).length,).toBe(2,);
+ ```
+ */
+function giveUpLinesOf({ lines, }: { readonly lines: readonly string[]; },): readonly string[] {
+  return lines.filter(function isNotTheMark(line,): boolean {
+    return !line.includes('its return served nothing',);
+  },);
+}
+
 await describe({
   name: createRefusalHolds.name,
   concurrency: 1,
@@ -123,7 +142,7 @@ await describe({
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
         expect(refusals.givenUp({ provider: 'hyper', },),).toBe(false,);
-        expect(lines,).toEqual([
+        expect(giveUpLinesOf({ lines, },),).toEqual([
           `warn [hold] synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between; `
             + `entry CatEntry1 stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends, `
             + 'unless synthetic is the only writing provider not dry or its return would leave no bench floor unmet '
@@ -161,7 +180,7 @@ await describe({
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         clock.now += COOLDOWN_MS;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
-        expect(lines.length,).toBe(2,);
+        expect(giveUpLinesOf({ lines, },).length,).toBe(2,);
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
       },
     },),
@@ -174,7 +193,7 @@ await describe({
         clock.now += COOLDOWN_MS;
         refusals.hold({ provider: 'synthetic', holdMs: COOLDOWN_MS, cooldown: true, },);
         expect(refusals.givenUp({ provider: 'synthetic', },),).toBe(true,);
-        expect(lines[0],).toContain('nothing served in between; the run stops waiting',);
+        expect(giveUpLinesOf({ lines, },)[0],).toContain('nothing served in between; the run stops waiting',);
       },
     },),
 

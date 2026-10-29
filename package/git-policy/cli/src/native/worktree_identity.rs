@@ -279,6 +279,29 @@ pub fn worktree_root(identity: &WorktreeIdentity) -> Option<&Path> {
     }
 }
 
+/// What:
+///  The common Git directory of an identity,
+///  when the invocation is in a repository.
+/// Why:
+///   Private repository storage such as the scratch directory lives there for every repository shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function commonDirectory(identity: WorktreeIdentity): string | undefined;
+/// ```
+pub fn common_directory(identity: &WorktreeIdentity) -> Option<&Path> {
+    match identity {
+        WorktreeIdentity::BareRepository { common_dir, .. }
+        | WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. } => {
+            return Some(common_dir.as_path());
+        }
+        WorktreeIdentity::OutsideWorktree => {
+            return None;
+        }
+    }
+}
+
 /// Disposable-repository controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_identity_tests.rs"]

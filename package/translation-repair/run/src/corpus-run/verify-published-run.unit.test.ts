@@ -46,6 +46,7 @@ import {
   strayPage,
 } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/published-run.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
+import { interimEntry, } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/interim-entry.test-fixture.ts';
 
 /**
  Ending of the closing line, which says how many pages had no length to check.
@@ -148,7 +149,7 @@ await describe({
           lines: [
             'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
             'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
@@ -173,9 +174,9 @@ await describe({
           lines: [
             'verify-published: matched=2 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
             'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             'CatEntry002: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             `verify-published: 2 of 2 pages carry every wording their artifacts promised; 2 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
@@ -242,7 +243,7 @@ await describe({
           lines: [
             'verify-published: matched=2 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
             'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             'CatEntry002: REFUSED by SyntaxError',
             `verify-published: 1 of 2 pages carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
@@ -289,11 +290,11 @@ await describe({
           lines: [
             'verify-published: matched=3 settledWithNoPage=0 pageWithNoArtifact=0 declined=0',
             'CatEntry001: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             'CatEntry002: wordings=2 silent=0 source-shipped=0 chars=UNWEIGHED(artifact predates stored archive text) '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             'CatEntry003: wordings=2 silent=0 source-shipped=0 chars=18/expected 81 '
-              + 'missing=2 consistency-groups=0 read-at-generation=21',
+              + 'missing=2 consistency-groups=0 read-at-generation=22',
             '  WRONG LENGTH: page is -63 characters off what the archive plus every slice change comes to. '
               + 'Text no slice decided on was lost or added',
             '  MISSING slice 0, 43 characters the page does not carry in order',
@@ -397,10 +398,64 @@ await describe({
             '  PUBLISHED AND NOT SETTLED: StrayCat2. It ships as it stands, with no artifact to check it against, until a '
               + 'pass settles the entry again and overwrites it',
             'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
+      },
+    },),
+    it({
+      name: 'NAMES a page a dry stop shipped for an entry with no artifact as interim, with its slice counts, and not as '
+        + 'a stray page',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat5',
+          settledSlices: 1,
+          archiveSlices: 2,
+          sourceSlices: 0,
+        },);
+
+        expect(await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },),).toEqual({
+          code: 0,
+          lines: [
+            'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=1 declined=0',
+            '  INTERIM PAGE: InterimCat5. A dry stop shipped it with 1 settled slice, 2 archive slices and 0 original '
+              + 'slices; it stays open until a pass settles the entry again and overwrites it',
+            'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
+            `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
+          ],
+        },);
+      },
+    },),
+    it({
+      name: 'NAMES an interim page whose bytes are not the page its record was written for, so a page edited or '
+        + 'replaced after the stop does not pass as the interim page',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat6',
+          settledSlices: 0,
+          archiveSlices: 2,
+          sourceSlices: 1,
+          recordedPageText: 'The cat waited somewhere else.\n',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE DISAGREES WITH ITS RECORD: InterimCat6. The page on disk is not the page the record was '
+            + 'written for; the next pass that reaches the entry overwrites it',
+        );
       },
     },),
     it({

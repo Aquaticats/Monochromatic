@@ -188,7 +188,9 @@ export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
   'cargo:fd-find': {},
   'cargo:monochromatic-git-policy-cli': {},
   'cargo:monochromatic-lint': {},
+  'cargo:monochromatic-mpm-shadow': {},
   'cargo:monochromatic-nested-wayland-session': {},
+  'cargo:monochromatic-search-shadow': {},
   'cargo:slint-lsp': {},
   'cargo:slint-viewer': {},
   'cargo:timeout-cli': {},
@@ -567,20 +569,20 @@ export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
   },
   'tombi': {
     'linux-arm64': {
-      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-aarch64-unknown-linux-musl.tar.gz',
-      sha256: '45c14f2aadc1f8122735dd55961b383ea554979d0ba0f3ee3f3c44cd3a5aaeae',
+      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz',
+      sha256: '696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307',
     },
     'linux-arm64-musl': {
-      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-aarch64-unknown-linux-musl.tar.gz',
-      sha256: '45c14f2aadc1f8122735dd55961b383ea554979d0ba0f3ee3f3c44cd3a5aaeae',
+      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-aarch64-unknown-linux-musl.tar.gz',
+      sha256: '696d6b934fd0c4fa002ae905dc72a551d54677d9caa7b272adee3ea27e056307',
     },
     'linux-x64': {
-      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-x86_64-unknown-linux-musl.tar.gz',
-      sha256: '4bab30c956cc2defa5966f78e199c4c0a57e9795964142fdd6c007596519787e',
+      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz',
+      sha256: 'cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118',
     },
     'linux-x64-musl': {
-      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-x86_64-unknown-linux-musl.tar.gz',
-      sha256: '4bab30c956cc2defa5966f78e199c4c0a57e9795964142fdd6c007596519787e',
+      url: 'https://github.com/tombi-toml/tombi/releases/download/v1.9.8/tombi-cli-1.9.8-x86_64-unknown-linux-musl.tar.gz',
+      sha256: 'cf51b0f134e5b488212bb062538e0381a163a4f7db2330c58e3cf613637b3118',
     },
   },
   'uv': {

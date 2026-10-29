@@ -48,17 +48,26 @@ The groups that follow name the main ones.
   Declared in `consolidate-gate-stage.ts` and `consolidate-gate-wire.ts`.
 - Standing text:
   the baseline a consolidation must beat,
-  and what happens when the standing text is ineligible.
+  and what happens when the standing text is ineligible:
+  the archive keeps the slice with the reason recorded,
+  or the translate lane's text ships where two judges chose it and the final round could not seat two
+  (owner,
+  2026-10-29,
+  "Ship the two-ballot text").
   Names:
   `standingTextFor`,
   `contestStandingMayShip`,
   `readStandingVerdict`,
   `keepTheArchive`,
+  `shipTranslateWinner`,
+  `translateWinnerOf`,
+  `unseatedFinalRound`,
   `slateIncumbentFor`,
   `describeStandingVerdict`.
   Declared in `consolidate-standing.ts`,
   `consolidate-standing-verdict.ts`,
-  and `consolidate-ineligible-standing.ts`.
+  `consolidate-ineligible-standing.ts`,
+  and `consolidate-settle-unseated.ts`.
 - Naturalness polish:
   one fixed polish round:
   refiners propose,

@@ -419,6 +419,10 @@ function isConsolidationSettlement(value: unknown,): value is ConsolidationSettl
     // NEVER PERSISTED either: a settlement bought on a bench below the floor asked no judge, so a copy resumed
     // later would keep a standing nobody judged.
     && (value.benchBelowFloor === undefined)
+    // NEVER PERSISTED either: a settlement that shipped the translate lane's winner because the final round could not
+    // seat two judges is the hour (owner, 2026-10-29), and a copy resumed later would ship it without asking a bench
+    // that could seat two.
+    && (value.translateWinnerShipped === undefined)
     && Array.isArray(findings,)
     && findings.every(function isText(finding,): boolean {
       return (typeof finding) === 'string';

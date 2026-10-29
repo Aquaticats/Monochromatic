@@ -216,6 +216,7 @@ export {
   type ProviderBudgets,
   type ProviderBudgetsWithStates,
 } from './provider-budget.ts';
+export { type FutileReturn, } from './provider-budget-futile-returns.ts';
 export {
   type MeterLevel,
   type MeterRecord,

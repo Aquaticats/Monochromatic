@@ -164,6 +164,7 @@ pub fn complete_no_change_transaction(input: NoChangeInput<'_>) -> Result<Option
             events,
             exit_code: LANDING_FINDING_EXIT_CODE,
             landed_oid: None,
+            uses_lfs: false,
         }));
     }
     let completion: InstallResult = install_added_worktree_files(
@@ -185,6 +186,7 @@ pub fn complete_no_change_transaction(input: NoChangeInput<'_>) -> Result<Option
         events,
         exit_code: 1,
         landed_oid: None,
+        uses_lfs: false,
     }));
 }
 

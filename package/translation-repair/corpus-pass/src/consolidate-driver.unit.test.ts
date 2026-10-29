@@ -1624,14 +1624,20 @@ await describe({
             expect(settled,).toEqual([
               {
                 terminal: 'incumbent-only',
-                shipped: { kind: 'archive', },
+                shipped: {
+                  kind: 'archive',
+                  reason: 'no-wording-passed',
+                },
                 requests: 0,
                 refusedBoth: true,
                 askedNobody: true,
               },
               {
                 terminal: 'incumbent-only',
-                shipped: { kind: 'archive', },
+                shipped: {
+                  kind: 'archive',
+                  reason: 'no-wording-passed',
+                },
                 requests: 0,
                 refusedBoth: true,
                 askedNobody: true,

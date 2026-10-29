@@ -77,7 +77,8 @@ const BEDROCK_AND_OPENROUTER: BudgetView = {
  Synthetic, Hyper and OpenRouter dry, NeuralWatt and Bedrock wet: the view
  under which the lanes phase seats the measured checkers a wet provider
  serves first and pads the bench with two ranked seats nobody serves, as the
- zheermao20 chunks were padded with Qwen3.8-27B once Synthetic ran dry.
+ zheermao20 chunks were padded with Qwen3.8-27B once Synthetic ran dry, and are padded with Mimo v2.6 Flash and Kimi-K3
+ since the order lost Qwen3.8-27B on 2026-10-29.
  */
 const NEURALWATT_AND_BEDROCK: BudgetView = {
   neuralwatt: false,
@@ -141,7 +142,7 @@ const NO_HOLDS = {
  A READING UNDER A HOLD SLEEPS ITS SHORTEST HOLD ONCE WHEN A BENCH IT LEANS ON IS SHORT OF QUORUM, on the real clock
  (`run/src/corpus-run/run-seats-read.ts`, `readDrynessPastShortBench`), so a case that handed its client this figure
  and drove such a reading waited five real minutes in every gate (ledger B817). This file's views under this hold are
- short in one of them (the padded view, 3 of 8 wide seats against a quorum of 4 with the Claude key reading dry), and
+ short in one of them (the padded view, 3 of 7 wide seats against a quorum of 4 with the Claude key reading dry), and
  the describe took 300.3 s at `f2f77b0701` and at the tip of the second review. `viewClient` therefore reports every
  hold as ending within {@link SHORT_HOLD_MS}, whatever a case names.
  */
@@ -155,15 +156,17 @@ const DRY_HOLD_MS = 300_000;
 const SHORT_HOLD_MS = 40;
 
 /**
- Synthetic and Bedrock wet, Hyper and OpenRouter dry: the one view under which
- the lanes phase finds benches short (the editors and the refiners) and the
- translate lane finds none (measured 2026-09-28 over all sixteen views).
+ Synthetic, Bedrock and DeepSeek wet, Hyper and OpenRouter dry: a view under which the lanes phase finds benches short
+ (the editors and the refiners) and the translate lane finds none (measured over all 256 views on 2026-10-29: six
+ views are so, this one the nearest to the one measured over sixteen on 2026-09-28). Synthetic and Bedrock alone are
+ not, since Qwen3.8-27B left the select judges on 2026-10-29: the select bench then reads 3 of 7 against a quorum of
+ 4, where it read 4 of 8 before.
  */
 const HYPER_AND_OPENROUTER_DRY: BudgetView = {
   neuralwatt: true,
   synthetic: false,
   bedrock: false,
-  deepseek: true,
+  deepseek: false,
   xiaomi: true,
   anthropic: true,
   hyper: true,
@@ -497,8 +500,8 @@ await describe({
               return line.includes('chunk re-seated under a hold',);
             },),).toEqual([
               'JUDGE SEATS phase=lanes chunk re-seated under a hold: '
-                + 'checkers=google.gemma-4-31b,hf:Qwen/Qwen3.8-27B,xiaomi/mimo-v2.6-flash '
-                + 'unserved-checkers=hf:Qwen/Qwen3.8-27B,xiaomi/mimo-v2.6-flash',
+                + 'checkers=google.gemma-4-31b,xiaomi/mimo-v2.6-flash,hf:moonshotai/Kimi-K3 '
+                + 'unserved-checkers=xiaomi/mimo-v2.6-flash,hf:moonshotai/Kimi-K3',
             ],);
             expect(servedLines.filter(function isChunkLine(line,): boolean {
               return line.includes('chunk re-seated under a hold',);
@@ -512,7 +515,7 @@ await describe({
         it({
           name: 'SEATS THE WIDE BENCH AT ITS QUORUM WITH THE CLAUDE KEY WET AND SHORT OF IT WITH THE KEY DRY, as the '
             + 'live roster seats Haiku 5.5 (the fleet models the Claude provider in both of its states): the padded '
-            + 'view with the key wet reads 4 of 8 wide seats and waits for nothing, and with the key dry reads 3 of 8 '
+            + 'view with the key wet reads 4 of 7 wide seats and waits for nothing, and with the key dry reads 3 of 7 '
             + 'against a quorum of 4, waits the hold out once and seats what it reads',
           fn: async () => {
             /** Rig of the padded view with the Claude key wet, under a running Synthetic hold. */
@@ -550,7 +553,7 @@ await describe({
 
             expect(shortLines(wetLines,),).toEqual([],);
             expect(shortLines(dryLines,),).toHaveLength(1,);
-            expect(shortLines(dryLines,)[0],).toContain('wide 3 of 8 reachable, quorum 4',);
+            expect(shortLines(dryLines,)[0],).toContain('wide 3 of 7 reachable, quorum 4',);
             expect(shortLines(dryLines,)[0],).toContain(
               `waiting ${String(SHORT_HOLD_MS,)}ms for the shortest hold to end`,
             );
@@ -559,7 +562,7 @@ await describe({
             expect(wetSeating.repairModels?.checkerModelIds,).toEqual([
               'claude-haiku-5-5',
               'google.gemma-4-31b',
-              'hf:Qwen/Qwen3.8-27B',
+              'xiaomi/mimo-v2.6-flash',
             ],);
             expect(drySeating.repairModels?.checkerModelIds,).not.toContain('claude-haiku-5-5',);
             expect(dryLines.filter(function isChunkLine(line,): boolean {
@@ -569,9 +572,9 @@ await describe({
         },),
         it({
           name: 'SEATS HAIKU 5.5 ON THE CHECKER BENCH WHILE THE CLAUDE KEY IS WET AND SEATS THE NEXT MEASURED CHECKER '
-            + 'INSTEAD WHEN IT IS DRY: with the second measured checker unserved, the pass-level hook that '
-            + 're-reads the view takes the first three a wet provider serves, and the Claude provider is the fourth '
-            + 'of the order that fills the place',
+            + 'INSTEAD WHEN IT IS DRY: with the first measured checker unserved, the pass-level hook that '
+            + 're-reads the view takes the first three a wet provider serves, and the Claude provider is the third '
+            + 'of the order',
           fn: async () => {
             /** Rig whose Claude key is wet and whose second measured checker nobody serves, under a running hold. */
             const wet = viewClient({ view: MIMO_UNSERVED_CLAUDE_WET, holdEndsAtRead: 2, },);
@@ -593,20 +596,20 @@ await describe({
             },).beforeSlice({ lane: 'repair', },);
 
             expect(wetSeating.repairModels?.checkerModelIds,).toEqual([
-              'hf:Qwen/Qwen3.8-27B',
               'hf:moonshotai/Kimi-K3',
               'claude-haiku-5-5',
+              'google.gemma-4-31b',
             ],);
             expect(drySeating.repairModels?.checkerModelIds,).toEqual([
-              'hf:Qwen/Qwen3.8-27B',
               'hf:moonshotai/Kimi-K3',
               'google.gemma-4-31b',
+              'xiaomi/mimo-v2.6-flash',
             ],);
           },
         },),
         it({
           name: 'DROPS HAIKU 5.5 FROM THE NEXT SEATING WHEN THE CLAUDE KEY GOES FROM WET TO HELD (R3 of the second '
-            + 'review): the first seating, with the key wet, takes Haiku as the fourth of the order, and once the '
+            + 'review): the first seating, with the key wet, takes Haiku as the third of the order, and once the '
             + 'production budgets mark the key refused the router reads the key dry and the next seating has no Haiku '
             + 'in the repair checker bench; the same rig with no hold on the key seats Haiku again',
           fn: async () => {
@@ -632,7 +635,7 @@ await describe({
             expect(wetSeating.repairModels?.checkerModelIds,).toContain('claude-haiku-5-5',);
             expect(stillWetSeating.repairModels?.checkerModelIds,).toContain('claude-haiku-5-5',);
             expect(heldSeating.repairModels?.checkerModelIds,).not.toContain('claude-haiku-5-5',);
-            // THE FIFTH OF THE ORDER FILLS THE PLACE, and the bench rotates between chunks, so the case reads
+            // THE FOURTH OF THE ORDER FILLS THE PLACE, and the bench rotates between chunks, so the case reads
             // membership and not the order of the three.
             expect(heldSeating.repairModels?.checkerModelIds,).toContain('google.gemma-4-31b',);
             expect(heldSeating.repairModels?.checkerModelIds?.length,).toBe(3,);
@@ -758,7 +761,7 @@ await describe({
         it({
           name: 'READS THE TRANSLATE LANE\'S BENCH AGAIN while the select reach it hands is below the floor, though no '
             + 'hold runs, as the lane contest\'s and the consolidation\'s hooks do: the XingZ6020 view reads one '
-            + 'select judge reachable of eight seats and the slice is handed that reading, '
+            + 'select judge reachable of seven seats and the slice is handed that reading, '
             + 'not the reach it started on',
           fn: async () => {
             const rig = viewClient({ view: XINGZ6020_VIEW, },);
@@ -782,7 +785,7 @@ await describe({
               handed: { translateModels, selectReachable: 1, },
               repair: {},
               readsOnce: true,
-              benchSize: 8,
+              benchSize: 7,
               reachable: 1,
             },);
           },

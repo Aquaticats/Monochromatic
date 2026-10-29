@@ -198,6 +198,9 @@ const CONTEST_OF_TWO = contestOf({
 
  @param benchFloorRecorded - whether the generation under test records a slice kept for want of a bench
 
+ @param translateWinnerRecorded - whether the generation under test records why the archive keeps a slice and the
+ translate lane winner
+
  @returns What was parsed, or the refusal text
 
  @example
@@ -211,11 +214,13 @@ function readingOf(
     laneSelection = CONTEST_OF_TWO,
     tenseRecorded = false,
     benchFloorRecorded = false,
+    translateWinnerRecorded = false,
   }: {
     readonly value: unknown;
     readonly laneSelection?: ArtifactLaneSelection;
     readonly tenseRecorded?: boolean;
     readonly benchFloorRecorded?: boolean;
+    readonly translateWinnerRecorded?: boolean;
   },
 ): {
   readonly kind: string;
@@ -230,6 +235,7 @@ function readingOf(
         keys: SLICE_SPELLED_KEYS,
         ...(tenseRecorded ? { tenseRecorded, } : {}),
         ...(benchFloorRecorded ? { benchFloorRecorded, } : {}),
+        ...(translateWinnerRecorded ? { translateWinnerRecorded, } : {}),
       },).kind,
       reason: '',
     };
@@ -397,6 +403,142 @@ await describe({
           laneSelection: contestOf({ sliceIndexes: [1,], },),
         },);
         expect(carryingText.reason,).toBe(`${REFUSED_AT}.slices[0].shipped.text: expected no key here beyond kind.`,);
+      },
+    },),
+
+    it({
+      name: 'READS WHY THE ARCHIVE KEEPS A SLICE AND THE TRANSLATE LANE WINNER from generation twenty-two, requires the '
+        + 'reason there, and refuses the reason and the kind in a generation that never recorded them (owner, '
+        + '2026-10-29, "Ship the two-ballot text")',
+      fn: async () => {
+        /**
+         Slice that kept the archive, with the reason it names.
+         */
+        const kept = {
+          ...FLOORED_SLICE,
+          terminal: 'slate-declined-standing',
+          shipped: {
+            kind: 'archive',
+            reason: 'final-round-unseated',
+          },
+        };
+        /**
+         Slice that shipped the translate lane winner.
+         */
+        const winner = {
+          ...FLOORED_SLICE,
+          sliceIndex: 0,
+          shipped: {
+            kind: 'translate-winner',
+            text: 'The cat naps on the sill.',
+          },
+        };
+        const contest = contestOf({
+          sliceIndexes: [
+            0,
+            1,
+          ],
+        },);
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              winner,
+              kept,
+            ],
+          },
+          laneSelection: contest,
+          translateWinnerRecorded: true,
+        },),).toStrictEqual({
+          kind: 'settled',
+          reason: '',
+        },);
+        // A reason outside the three, and an archive that names none, are refused where the generation records it.
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              winner,
+              {
+                ...kept,
+                shipped: {
+                  kind: 'archive',
+                  reason: 'because',
+                },
+              },
+            ],
+          },
+          laneSelection: contest,
+          translateWinnerRecorded: true,
+        },).reason,).toBe(
+          `${REFUSED_AT}.slices[1].shipped.reason: expected one of no-wording-passed, final-round-unseated, `
+            + 'slate-declined.',
+        );
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              winner,
+              {
+                ...kept,
+                shipped: { kind: 'archive', },
+              },
+            ],
+          },
+          laneSelection: contest,
+          translateWinnerRecorded: true,
+        },).reason,).toBe(
+          `${REFUSED_AT}.slices[1].shipped.reason: expected one of no-wording-passed, final-round-unseated, `
+            + 'slate-declined.',
+        );
+        // The winner replaces no consolidation, so a consolidated terminal refuses it.
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              {
+                ...winner,
+                terminal: 'consolidated',
+              },
+              kept,
+            ],
+          },
+          laneSelection: contest,
+          translateWinnerRecorded: true,
+        },).reason,).toBe(
+          `${REFUSED_AT}.slices[0].shipped: expected the consolidation a slice whose terminal is consolidated ships, `
+            + 'rather than the translate lane winner.',
+        );
+        // An older generation records neither the kind nor the key.
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              winner,
+              {
+                ...kept,
+                shipped: { kind: 'archive', },
+              },
+            ],
+          },
+          laneSelection: contest,
+        },).reason,).toBe(
+          `${REFUSED_AT}.slices[0].shipped.kind: expected one of archive, consolidated, incumbent, unchanged.`,
+        );
+        expect(readingOf({
+          value: {
+            kind: 'settled',
+            slices: [
+              {
+                ...FLOORED_SLICE,
+                sliceIndex: 0,
+                shipped: { kind: 'unchanged', },
+              },
+              kept,
+            ],
+          },
+          laneSelection: contest,
+        },).reason,).toBe(`${REFUSED_AT}.slices[1].shipped.reason: expected no key here beyond kind.`,);
       },
     },),
 

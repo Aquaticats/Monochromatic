@@ -1011,14 +1011,14 @@ runBounded(['rg', '--version'])
     description: "Run isolated scroll-algorithm controls against a supplied Slint repeater source file",
     usage: "arg \"<source>\" help=\"Path to Slint internal/core/model/repeater.rs\"",
     run: { shell: "node --input-type=module-typescript -e", run: `const { mkdtempSync, readFileSync, writeFileSync, copyFileSync } = await import('node:fs')
-const { tmpdir } = await import('node:os')
+const { homedir } = await import('node:os')
 const { join, resolve } = await import('node:path')
 const { execFileSync } = await import('node:child_process')
 const source = readFileSync(process.env.usage_source, 'utf8')
 const start = source.indexOf('fn update_visible_instances(')
 const end = source.indexOf('/// Adapter implementing [\`RepeaterInstanceOps\`]', start)
 if (start < 0 || end < start) throw new Error('Slint virtualization function boundaries were not found')
-const directory = mkdtempSync(join(tmpdir(), 'ide-listview-algorithm-'))
+const directory = mkdtempSync(join(homedir(), 'temp', 'agent', 'ide-listview-algorithm-'))
 writeFileSync(join(directory, 'algorithm.rs'), source.slice(start, end))
 copyFileSync(resolve('../../../doc/troubleshooting/slint-listview-random-seek-probe.rs'), join(directory, 'harness.rs'))
 const { containerBounds } = await import(resolve('bin/container-bounds.ts'))
@@ -1032,10 +1032,10 @@ execFileSync('podman', [...args, '/work/harness', '--nocapture'], { stdio: 'inhe
   "inspect:layout-constraints": {
     description: "Check accepted and rejected Slint sizing declarations using disposable markup",
     run: { shell: "node --input-type=module-typescript -e", run: `const { mkdtempSync, writeFileSync } = await import('node:fs')
-const { tmpdir } = await import('node:os')
+const { homedir } = await import('node:os')
 const { join } = await import('node:path')
 const { spawnSync } = await import('node:child_process')
-const directory = mkdtempSync(join(tmpdir(), 'ide-layout-constraints-'))
+const directory = mkdtempSync(join(homedir(), 'temp', 'agent', 'ide-layout-constraints-'))
 const cases = [
   { name: 'fixed-plus-min', body: 'HorizontalLayout { Rectangle { width: 256px; min-width: 256px; } }', diagnostic: "Cannot specify both 'width' and 'min-width'" },
   { name: 'touch-fixed-plus-min', body: 'TouchArea { width: 48px; min-width: 48px; }', diagnostic: "Cannot specify both 'width' and 'min-width'" },
@@ -1351,10 +1351,10 @@ execFileSync('node', ['bin/inspect-server-watches.ts'], { stdio: 'inherit' })
   "inspect:search-accessibility": {
     description: "Verify accepted search landmarks and rejected dialog role declarations in disposable markup",
     run: { shell: "node --input-type=module-typescript -e", run: `const { mkdtempSync, writeFileSync } = await import('node:fs')
-const { tmpdir } = await import('node:os')
+const { homedir } = await import('node:os')
 const { join } = await import('node:path')
 const { spawnSync } = await import('node:child_process')
-const directory = mkdtempSync(join(tmpdir(), 'ide-search-accessibility-'))
+const directory = mkdtempSync(join(homedir(), 'temp', 'agent', 'ide-search-accessibility-'))
 const version = spawnSync('slint-viewer', ['--version'], { encoding: 'utf8' })
 if (version.error || version.status !== 0) throw version.error ?? new Error(version.stderr)
 const results = []
@@ -1769,14 +1769,14 @@ const runBounded = (args, { network = false, gpu = false, ...options } = {}) => 
 const runCargo = (args, options = {}) => runBounded(['cargo', ...args], options)
 
 const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
-const { tmpdir } = await import('node:os')
+const { homedir } = await import('node:os')
 const { join, resolve } = await import('node:path')
 const scheme = process.env.usage_scheme ?? 'dark'
 const fixture = process.env.usage_fixture ?? 'basic'
 if (scheme !== 'dark' && scheme !== 'light') { throw new Error('scheme must be dark or light') }
 if (!['basic', 'scroll', 'syntax', 'annotations'].includes(fixture)) { throw new Error('fixture must be basic, scroll, syntax, or annotations') }
 runCargo(['build', '--bin', 'monochromatic-ide'])
-const scratch = mkdtempSync(join(tmpdir(), 'monochromatic-ide-native-'))
+const scratch = mkdtempSync(join(homedir(), 'temp', 'agent', 'monochromatic-ide-native-'))
 for (const name of ['config', 'cache', 'data']) { mkdirSync(join(scratch, name)) }
 const fontConfig = join(scratch, 'fonts.conf')
 writeFileSync(fontConfig, '<fontconfig><dir>/usr/share/fonts</dir><cachedir prefix="xdg">fontconfig</cachedir></fontconfig>')
@@ -1804,7 +1804,7 @@ let project = join(scratch, 'project')
 let sourceFile = join(project, 'fixture.ts')
 if (process.env.IDE_NATIVE_PROJECT) {
   project = realpathSync(process.env.IDE_NATIVE_PROJECT)
-  if (!project.startsWith(realpathSync(tmpdir()) + sep)) { throw new Error('IDE_NATIVE_PROJECT must be a disposable directory below ' + tmpdir()) }
+  if (!project.startsWith(realpathSync(join(homedir(), 'temp', 'agent')) + sep)) { throw new Error('IDE_NATIVE_PROJECT must be a disposable directory below ' + join(homedir(), 'temp', 'agent')) }
   sourceFile = realpathSync(resolve(project, process.env.IDE_NATIVE_FILE ?? ''))
   if (!sourceFile.startsWith(project + sep)) { throw new Error('IDE_NATIVE_FILE must name a file inside IDE_NATIVE_PROJECT') }
 } else {

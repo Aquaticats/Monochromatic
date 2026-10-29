@@ -23,6 +23,8 @@ use super::start_retry::RetryStart;
 use super::candidate_object::ObjectId;
 /// Import the shared child-command builder.
 use super::forwarding::git_command;
+/// The watch that announces a request that takes long and stops the process at the bound.
+use super::child_watch::{ChildWatch, WatchTerms, watched_timeout_text};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table (siblings:
 ///  `BTreeMap`,
@@ -115,6 +117,8 @@ pub struct ObjectReader {
     /// Blob bytes already read,
     ///  by object name.
     blobs: HashMap<ObjectId, Rc<[u8]>>,
+    /// Announces a request that takes long and stops the process when one crosses the bound.
+    watch: ChildWatch,
 }
 
 /// What:
@@ -160,6 +164,25 @@ pub fn start_object_reader(
     real_git: &Path,
     global_prefix: &[OsString],
     overlay: &[(OsString, OsString)],
+) -> Result<ObjectReader, CandidateError> {
+    return start_object_reader_with(real_git, global_prefix, overlay, WatchTerms::from_environment());
+}
+
+/// What:
+///  `start_object_reader` with the notice cadence, the bound and the notice sink of its requests chosen by the caller.
+/// Why:
+///   The production entry reads them from the environment;
+///  tests choose short ones and read the notices from a buffer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function startObjectReader(realGit, globalPrefix, overlay, terms): ObjectReader;
+/// ```
+pub fn start_object_reader_with(
+    real_git: &Path,
+    global_prefix: &[OsString],
+    overlay: &[(OsString, OsString)],
+    terms: WatchTerms,
 ) -> Result<ObjectReader, CandidateError> {
     // `.to_vec()` copies the borrowed prefix into an owned, growable argument list.
     let mut arguments: Vec<OsString> = global_prefix.to_vec();
@@ -208,6 +231,7 @@ pub fn start_object_reader(
         return Err(reader_ended("started without its request and reply pipes"));
     };
     // `Ok(...)` is the success variant; `Some(...)` is the "present" variant.
+    let watch: ChildWatch = ChildWatch::start("git cat-file --batch", child.id(), terms);
     return Ok(ObjectReader {
         child,
         pipes: Some(ReaderPipes {
@@ -215,6 +239,7 @@ pub fn start_object_reader(
             output: BufReader::new(output),
         }),
         blobs: HashMap::new(),
+        watch,
     });
 }
 
@@ -249,6 +274,34 @@ impl ObjectReader {
     /// async #request(name: Buffer): Promise<BatchReply>
     /// ```
     fn request(&mut self, name: &[u8]) -> Result<BatchReply, CandidateError> {
+        // The watch announces a request that takes long and stops the process when one crosses the bound.
+        self.watch.begin();
+        let reply: Result<BatchReply, CandidateError> = self.exchange(name);
+        self.watch.end();
+        if reply.is_err() && self.watch.expired() {
+            self.pipes = None;
+            return Err(CandidateError::new(
+                CandidateFailure::ReaderEnded,
+                format!(
+                    "cli-git could not read a Git object: {}",
+                    watched_timeout_text("git cat-file --batch", self.watch.limit())
+                )
+                .as_str(),
+            ));
+        }
+        return reply;
+    }
+
+    /// What:
+    ///  One request line and its reply, without the watch.
+    /// Why:
+    ///   `request` marks the wait around it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async #exchange(name: Buffer): Promise<BatchReply>
+    /// ```
+    fn exchange(&mut self, name: &[u8]) -> Result<BatchReply, CandidateError> {
         // `.as_mut()` lends the open pipes for changing without taking them out.
         let Some(pipes) = self.pipes.as_mut() else {
             return Err(reader_ended("was closed after an earlier failure"));

@@ -23,7 +23,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const file = await writeOneRuleConfiguration({ rules, exclude }); // '/tmp/cli-git-markdown-Ab12Cd.jsonc'
+//! // const file = await writeOneRuleConfiguration({ rules, exclude }); // '<state>/cli-git/scratch/cli-git-markdown-Ab12Cd.jsonc'
 //! ```
 
 /// Import the selectable rules and their configuration spelling.

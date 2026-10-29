@@ -448,6 +448,8 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
     unsafe { libc::sigaction(libc::SIGUSR1, &action, std::ptr::null_mut()) };
     let mut command: Command = Command::new("sleep");
     command.arg("1");
+    // The clock starts before the child does, so a host that starts the waiting late cannot shorten what is measured.
+    let started: Instant = Instant::now();
     let mut child: Child = command.spawn().expect("sleep starts");
     let pid: libc::pid_t = libc::pid_t::try_from(child.id()).expect("pid fits");
     // SAFETY: `pthread_self` has no preconditions.
@@ -459,7 +461,6 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
             unsafe { libc::pthread_kill(waiting_thread, libc::SIGUSR1) };
         }
     });
-    let started: Instant = Instant::now();
     wait_without_reaping(pid).expect("interrupts do not end the wait");
     assert!(
         started.elapsed() >= Duration::from_millis(800),

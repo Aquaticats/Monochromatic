@@ -740,3 +740,92 @@ and the message of `0199690299` says that its whole suite had not run on that tr
 Recurrence:
 `mistake-prevention-guards-searches-and-claims.md`,
 "Guards that cannot fail".
+
+## B1035: scratch-parent.ts came from main with no unit test and six lint warnings
+
+Found on 2026-10-29 in the tr-w376 tree,
+where `origin/main` was merged into the branch.
+`src/scratch-parent.ts` of `slice-reading` came from main in `c1367ce73b`,
+added by another session without a `scratch-parent.unit.test.ts` beside it
+and without a pass of the package's linter.
+Two gates of this package refuse that:
+the own-unit-tests scan of B102
+(`src/own-unit-tests.unit.test.ts` in `source-scan`)
+lists a module with no own test as unlisted,
+and `slice-reading:lint:oxlint` treats warnings as failures.
+The linter reported six warnings,
+all in the one expression that picks the base directory and in the two calls after it:
+five of `stylistic(argument-per-line)`
+(lines 43 to 49 as main has them)
+and one of `typescript(dot-notation)` on `process.env['XDG_CACHE_HOME']`.
+
+The owner ruled on 2026-10-29:
+"If scratch-parent.ts still doesn't have test and lint fixes,
+you may now fix it and merge main into rebased."
+Main still had no test for it,
+so it was fixed on the branch side only.
+
+Outcome written on 2026-10-29.
+Red test in `c77504ec85`,
+fix in `ad8b347e65`.
+
+What changed:
+- `scratchParent` takes `cwd`,
+  `env` and `home` as one destructured object,
+  each defaulting to the process's own
+  (`process.cwd()`,
+  `process.env`,
+  `homedir()`),
+  so the function can be asked about a throwaway working directory,
+  environment and home,
+  and no case reads or writes the real ones.
+- The five calls that put several arguments on one line put one argument per line,
+  which is what the rule asks,
+  so that a changed argument is one changed line.
+- `XDG_CACHE_HOME` is read as `env.XDG_CACHE_HOME`.
+  `noPropertyAccessFromIndexSignature` is off in `package/config/typescript/tsconfig.options.json`,
+  so the type check accepts the dot form and nothing is suppressed.
+- The package index exports `scratchParent`,
+  because the package's tests load the built entry
+  and cannot reach a module the index leaves out.
+- The environment is typed `Readonly<NodeJS.ProcessEnv>`,
+  as the package types it elsewhere;
+  the first draft,
+  `Record<string, string | undefined>`,
+  tripped `no-restricted-syntax/no-nullish-union`.
+
+The four cases of `scratch-parent.unit.test.ts`
+(each in a throwaway directory under the test scratch root):
+inside a project the parent is `<node_modules>/.monochromatic/translation-repair-slice-reading`
+and exists,
+whatever the cache variable says
+and without making the cache;
+outside any project it is `<XDG_CACHE_HOME>/monochromatic-dev/translation-repair-slice-reading`,
+and the home is not touched;
+with the cache variable unset it is `<home>/.cache/monochromatic-dev/translation-repair-slice-reading`;
+asked twice,
+it returns the same path and does not fail.
+Red:
+before the change the file failed on import,
+since the index did not export the function,
+and the other 59 suites of the package passed.
+Green:
+60 suites,
+lint 0 warnings and 0 errors,
+type check clean,
+and the B102 ratchet case of `source-scan` passes with no `ALLOWLIST` change.
+
+Callers checked:
+`rg 'scratchParent' package/translation-repair` finds one caller,
+`src/image-ocr.ts`
+(`await scratchParent()` with no argument),
+which gets the process's own working directory,
+environment and home as before.
+The same expression stands in the `scratch-parent.ts` of other packages
+(`bash-poke`,
+among them);
+those were not touched.
+
+Recurrence:
+a module taken in from another tree is held to the package's own gates before it lands,
+the gates being its own test file and a clean `lint:oxlint`.

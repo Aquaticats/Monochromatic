@@ -34,8 +34,8 @@ import {
 // or to its quorum, so the reading says why and goes on, or stops the entry for a writing bench below its floor.
 
 /**
- What a reading says of the returns when it stops waiting, said of NeuralWatt's too when its return lies past what the
- pass has left: no provider has one the reader can wait for.
+ What a reading says of the returns when it stops waiting: no provider has one the reader waits for, NeuralWatt's day
+ return never being one.
  */
 const NO_WAITABLE_RETURN = 'no provider has named a return the pass can wait for';
 

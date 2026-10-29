@@ -15,7 +15,6 @@ import {
 import {
   belowFloorWritingBenches,
   benchesOf,
-  unreachableWritingBenches,
 } from './run-seats-floor.ts';
 import { judgeSeatsFor, } from './run-seats.ts';
 import { liftOf, } from './run-seats-bench-floor.ts';
@@ -210,49 +209,6 @@ function reachableCountOf(
 }
 
 /**
- Whether some providers' return lifts every writing bench the phase leans on to its floor, derived from the roster.
-
- @param dry - dryness per provider the reading stopped on
-
- @param back - providers whose return is asked about
-
- @param names - benches the phase leans on
-
- @returns Whether no writing bench is below its floor once they are back
-
- @example
- ```ts
- const lifts = returnLiftsWritingBenches({ dry, back: ['neuralwatt',], names: phaseBenches({ phase, },), },);
- ```
- */
-export function returnLiftsWritingBenches(
-  {
-    dry,
-    back,
-    names,
-  }: {
-    readonly dry: BudgetView;
-    readonly back: readonly ProviderName[];
-    readonly names: readonly BenchName[];
-  },
-): boolean {
-  /**
-   The view after their return.
-   */
-  const after = viewWithBack({
-    dry,
-    back,
-  },);
-  return unreachableWritingBenches({
-    benches: benchesOf({ seats: judgeSeatsFor({ dry: after, }), },),
-    names,
-    dry: after,
-  },)
-    .length
-    === 0;
-}
-
-/**
  How long each provider's hold counts for the seat reader's wait: the hold itself where the returning providers lift a
  bench across its floor or its quorum between them and this provider's return adds a reachable seat to it, none
  otherwise.
@@ -365,8 +321,8 @@ export function holdsThatCureShortBenches(
 }
 
 /**
- The words a reading that does not wait says in place of a wait: the running holds it skipped and why, with NeuralWatt's
- return when it is dry and none lies inside what the pass has left.
+ The words a reading that does not wait says in place of a wait: the running holds it skipped and why, with a note that
+ NeuralWatt's day return is not waited for when it is dry.
 
  @param running - how long each provider's refusal still holds it out, as the reader read it
 
@@ -412,10 +368,10 @@ export function noWaitWordsOf(
     ? 'it would lift no short bench over its floor or to its quorum'
     : `${(skipped.length === 2) ? 'neither' : 'none'} would lift a short bench over its floor or to its quorum`;
   /**
-   NeuralWatt's part, said only where it is dry with no hold of its own inside what the pass has left.
+   NeuralWatt's part, said only where it is dry with no hold of its own: its day return is never waited for.
    */
   const neuralwatt = (dry.neuralwatt && (running.neuralwatt === 0))
-    ? '; no NeuralWatt return inside what the pass has left'
+    ? '; NeuralWatt\'s day return is not waited for'
     : '';
   return `held: ${
     skipped.map(function holdWords(provider,): string {

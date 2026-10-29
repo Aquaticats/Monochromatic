@@ -253,6 +253,72 @@ await describe({
           },
         },),
         it({
+          name: 'SAYS WHY THE ARCHIVE WON a patch that resolved every accepted issue: it lost on integrity, the '
+            + 'first rank, and the log could not say so (XingZ6022 slice 44 closed "unchanged, the archive won, 3/3 '
+            + 'served accepted issues resolved" after a clean checker round and a clean probe)',
+          fn: async () => {
+            const verdict = settleWith({
+              patchedText: KEEPS_EVERY_NAME,
+              declaredNames: DECLARED_NAMES,
+              measurements: {
+                integrityOk: false,
+                resolvedHighSeverity: 1,
+                resolvedTotal: 3,
+                regressedKnownIssues: 0,
+                touchedRegionChars: INCUMBENT_TEXT.length,
+              },
+            },);
+            expect(verdict.patchSelected,).toBe(false,);
+            expect(verdict.patchLostOn,).toBe('integrity',);
+          },
+        },),
+        it({
+          name: 'SAYS A PATCH LOST ON REGRESSIONS where integrity held and it resolved nothing high, and names no '
+            + 'reason for a patch that merely tied the archive',
+          fn: async () => {
+            /**
+             Measurements of a patch whose integrity held and which made an accepted issue worse.
+             */
+            const regressed = {
+              integrityOk: true,
+              resolvedHighSeverity: 0,
+              resolvedTotal: 0,
+              regressedKnownIssues: 1,
+              touchedRegionChars: INCUMBENT_TEXT.length,
+            };
+            /**
+             Measurements of a patch that changed nothing the ranking can see.
+             */
+            const tied = {
+              integrityOk: true,
+              resolvedHighSeverity: 0,
+              resolvedTotal: 0,
+              regressedKnownIssues: 0,
+              touchedRegionChars: INCUMBENT_TEXT.length,
+            };
+            expect({
+              regressed: settleWith({
+                patchedText: KEEPS_EVERY_NAME,
+                declaredNames: DECLARED_NAMES,
+                measurements: regressed,
+              },).patchLostOn,
+              tied: settleWith({
+                patchedText: KEEPS_EVERY_NAME,
+                declaredNames: DECLARED_NAMES,
+                measurements: tied,
+              },).patchLostOn,
+              won: settleWith({
+                patchedText: KEEPS_EVERY_NAME,
+                declaredNames: DECLARED_NAMES,
+              },).patchLostOn,
+            },).toEqual({
+              regressed: 'regression',
+              tied: undefined,
+              won: undefined,
+            },);
+          },
+        },),
+        it({
           name: 'ASKS NOTHING of a patch the archive already beat, since a slice nobody is replacing '
             + 'needs no permission to stay as it is and a refusal there would name a protection that '
             + 'protected nothing',

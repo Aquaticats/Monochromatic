@@ -28,8 +28,12 @@
 
 /// Import the bounded child runner.
 use super::bounded_child::{
-    ChildFailure, ChildLimits, ChildRequest, FinishedChild, run_bounded_child,
+    ChildFailure, ChildLimits, ChildRequest, FinishedChild, run_bounded_child_noticing,
 };
+/// When a long run prints its notices.
+use super::wait_progress::Cadence;
+/// The sink of those notices.
+use std::io::Write;
 /// Import the reading of the environment as name and value pairs.
 use super::child_environment::environment_value;
 /// Import the conversion of Git's pathname bytes to a path.
@@ -42,10 +46,11 @@ use super::markdown_linter_lookup::find_linter;
 use super::markdown_linter_output::{LintRun, interpret_linter_run};
 /// Import the interface this linter provides.
 use super::policy_markdown::{LintRequest, MarkdownLinter};
+use super::scratch_location::prepare_user_scratch;
 /// `OsString` is owned operating-system text.
 use std::ffi::OsString;
 /// `PathBuf` is an owned filesystem path.
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// `Duration` is a span of time.
 use std::time::Duration;
 /// The owner-only temporary file that holds the configuration while the invocation runs.
@@ -102,8 +107,14 @@ pub struct ProcessLinter {
     environment: Vec<(OsString, OsString)>,
     /// The bounds of each run.
     limits: ChildLimits,
-    /// The directory for the configuration file and the stream files.
-    scratch: PathBuf,
+    /// The directory for the configuration file and the stream files when one is given;
+    ///  `None` means the per-user scratch directory of the environment,
+    ///  made on first use.
+    scratch: Option<PathBuf>,
+    /// The directory in use,
+    ///  once decided,
+    ///  or the reason it could not be.
+    prepared_scratch: Option<Result<PathBuf, String>>,
     /// The program,
     ///  once looked up;
     ///  `Some(None)` remembers that it was not found.
@@ -112,6 +123,10 @@ pub struct ProcessLinter {
     ///  once written,
     ///  or the reason it could not be.
     configuration: Option<Result<NamedTempFile, String>>,
+    /// When a run that takes long prints its notices.
+    cadence: Cadence,
+    /// Where those notices go.
+    notices: Box<dyn Write>,
 }
 
 /// What:
@@ -119,9 +134,8 @@ pub struct ProcessLinter {
 ///  bounds and scratch directory.
 ///       `&[(OsString, OsString)]` borrows the environment.
 /// Why:
-///   The executable passes `LINTER_LIMITS` and the system's temporary directory;
-///  tests
-///       pass small bounds and a fixture.
+///   Tests pass small bounds and a fixture directory;
+///  `executable_linter` leaves the directory to the environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,32 +149,40 @@ pub fn process_linter(
     return ProcessLinter {
         environment: environment.to_vec(),
         limits,
-        scratch,
+        scratch: Some(scratch),
+        prepared_scratch: None,
         executable: None,
         configuration: None,
+        cadence: Cadence::from_environment(),
+        notices: Box::new(std::io::stderr()),
     };
 }
 
 /// What:
 ///  The linter of the running executable:
-///  `LINTER_LIMITS` and the system's temporary
-///       directory,
-///  made absolute.
-///  `std::path::absolute` resolves a relative directory
-///       against the current one without touching the filesystem.
+///  `LINTER_LIMITS` and the per-user scratch directory of the environment,
+///  made on the first lint (`<state>/cli-git/scratch`, mode `0700`, never the system temporary directory).
 /// Why:
-///   The linter runs from the top level,
-///  so a relative configuration path would name
-///       another file there.
+///   The placeholder linters of checks built before an environment is known are made with an empty environment,
+///  and a command with no Markdown candidate must not touch the disk,
+///  so a missing state directory or `HOME` is reported when a candidate needs the linter,
+///  not when it is made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const executableLinter = (environment) => processLinter(environment, LINTER_LIMITS, resolve(tmpdir()));
+/// const executableLinter = (environment) => new ProcessLinter(environment, LINTER_LIMITS, undefined);
 /// ```
 pub fn executable_linter(environment: &[(OsString, OsString)]) -> ProcessLinter {
-    let temporary: PathBuf = std::env::temp_dir();
-    let scratch: PathBuf = std::path::absolute(&temporary).unwrap_or(temporary);
-    return process_linter(environment, LINTER_LIMITS, scratch);
+    return ProcessLinter {
+        environment: environment.to_vec(),
+        limits: LINTER_LIMITS,
+        scratch: None,
+        prepared_scratch: None,
+        executable: None,
+        configuration: None,
+        cadence: Cadence::from_environment(),
+        notices: Box::new(std::io::stderr()),
+    };
 }
 
 /// What:
@@ -190,7 +212,9 @@ fn child_failure_reason(failure: &ChildFailure, program: &std::path::Path) -> St
         }
         ChildFailure::TimedOut(bound) => {
             return format!(
-                "monochromatic-lint did not finish within {} milliseconds and was stopped",
+                "monochromatic-lint did not finish within {} milliseconds and was stopped; run the command again, \
+                 run monochromatic-lint by hand on the file to see why it stalls, or set the policy markdown/autofix \
+                 to off to skip the check",
                 bound.as_millis()
             );
         }
@@ -212,6 +236,14 @@ fn child_failure_reason(failure: &ChildFailure, program: &std::path::Path) -> St
 /// class ProcessLinter { program(): string; configurationPath(options): string }
 /// ```
 impl ProcessLinter {
+    /// The same linter with another notice cadence and sink;
+    ///  tests choose a short cadence and read the notices from a buffer.
+    pub fn with_notices(mut self, cadence: Cadence, notices: Box<dyn Write>) -> Self {
+        self.cadence = cadence;
+        self.notices = notices;
+        return self;
+    }
+
     /// What:
     ///  The program,
     ///  looked up on the environment's PATH on first use.
@@ -242,6 +274,36 @@ impl ProcessLinter {
     }
 
     /// What:
+    ///  The directory for the configuration file and the stream files,
+    ///  made private and swept of stale entries on first use.
+    /// Why:
+    ///   A command with no Markdown candidate never reaches here,
+    ///  so it never touches the disk;
+    ///  the per-user location is the environment's,
+    ///  never the system temporary directory.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// scratchDirectory(): string; // throws string
+    /// ```
+    fn scratch_directory(&mut self) -> Result<PathBuf, String> {
+        if self.prepared_scratch.is_none() {
+            self.prepared_scratch = Some(match &self.scratch {
+                Some(given) => Ok(given.clone()),
+                None => prepare_user_scratch(self.environment.as_slice()),
+            });
+        }
+        match &self.prepared_scratch {
+            Some(decided) => return decided.clone(),
+            None => {
+                return Err(String::from(
+                    "cli-git did not decide the linter's scratch directory; this is a defect in cli-git.",
+                ));
+            }
+        }
+    }
+
+    /// What:
     ///  The configuration file's path,
     ///  written for the request's options on first use.
     /// Why:
@@ -252,16 +314,13 @@ impl ProcessLinter {
     /// ```ts
     /// configurationPath(request: LintRequest): string; // throws string
     /// ```
-    fn configuration_path(&mut self, request: &LintRequest<'_>) -> Result<PathBuf, String> {
+    fn configuration_path(&mut self, request: &LintRequest<'_>, scratch: &Path) -> Result<PathBuf, String> {
         if self.configuration.is_none() {
             let document: String = one_rule_configuration(
                 request.options.rules.as_slice(),
                 request.options.exclude.as_slice(),
             );
-            self.configuration = Some(write_configuration(
-                document.as_str(),
-                self.scratch.as_path(),
-            ));
+            self.configuration = Some(write_configuration(document.as_str(), scratch));
         }
         match &self.configuration {
             Some(Ok(file)) => return Ok(file.path().to_path_buf()),
@@ -316,7 +375,8 @@ impl MarkdownLinter for ProcessLinter {
     /// ```
     fn lint(&mut self, request: &LintRequest<'_>) -> Result<LintRun, String> {
         let program: PathBuf = self.program()?;
-        let configuration: PathBuf = self.configuration_path(request)?;
+        let scratch: PathBuf = self.scratch_directory()?;
+        let configuration: PathBuf = self.configuration_path(request, scratch.as_path())?;
         let Some(name) = path_from_git_bytes(request.path) else {
             return Err(String::from(
                 "cli-git cannot spell this candidate's pathname for monochromatic-lint on this platform",
@@ -328,15 +388,21 @@ impl MarkdownLinter for ProcessLinter {
             option("--stdin-filename", name.as_os_str()),
             OsString::from("--fix"),
         ];
-        let finished: FinishedChild = match run_bounded_child(&ChildRequest {
-            executable: program.as_path(),
-            arguments: arguments.as_slice(),
-            directory: request.top_level,
-            environment: self.environment.as_slice(),
-            input: request.source,
-            scratch: self.scratch.as_path(),
-            limits: self.limits,
-        }) {
+        let waiting_for: String = format!("monochromatic-lint to check {}", name.display());
+        let finished: FinishedChild = match run_bounded_child_noticing(
+            &ChildRequest {
+                executable: program.as_path(),
+                arguments: arguments.as_slice(),
+                directory: request.top_level,
+                environment: self.environment.as_slice(),
+                input: request.source,
+                scratch: scratch.as_path(),
+                limits: self.limits,
+                waiting_for: waiting_for.as_str(),
+                cadence: self.cadence,
+            },
+            &mut self.notices,
+        ) {
             Ok(done) => done,
             Err(failure) => return Err(child_failure_reason(&failure, program.as_path())),
         };

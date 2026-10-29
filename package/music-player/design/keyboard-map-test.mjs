@@ -4,9 +4,15 @@ import {
   rmSync,
   writeFileSync
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, 'node_modules', '.monochromatic', 'music-player-design');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 //region Test the actual inline classifier in a disposable Node consumer, never mutate committed HTML
 const html = readFileSync(
@@ -81,7 +87,7 @@ if (!rejected) throw new Error('Unknown keyboard platform was accepted.');
 console.log('Keymap classifier and ownership tests passed.');
 `;
 const fixture = mkdtempSync(join(
-  tmpdir(),
+  scratchBase,
   'keymap-scope-'
 ));
 try {

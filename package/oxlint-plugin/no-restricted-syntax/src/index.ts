@@ -52,6 +52,7 @@ import { noRegex, } from './rule/no-regex.ts';
 import { noRestParams, } from './rule/no-rest-params.ts';
 import { noSwitch, } from './rule/no-switch.ts';
 import { noSync, } from './rule/no-sync.ts';
+import { noSystemTmpdir, } from './rule/no-system-tmpdir.ts';
 import { noTrimLeftRight, } from './rule/no-trim-left-right.ts';
 import { noTryFinally, } from './rule/no-try-finally.ts';
 import { noUselessSpread, } from './rule/no-useless-spread/index.ts';
@@ -119,6 +120,7 @@ const plugin: Plugin = eslintCompatPlugin({
     'no-rest-params': noRestParams,
     'no-switch': noSwitch,
     'no-sync': noSync,
+    'no-system-tmpdir': noSystemTmpdir,
     'no-trim-left-right': noTrimLeftRight,
     'no-try-finally': noTryFinally,
     'no-useless-spread': noUselessSpread,

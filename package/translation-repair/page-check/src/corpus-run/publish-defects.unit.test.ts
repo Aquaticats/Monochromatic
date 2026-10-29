@@ -22,6 +22,7 @@ import {
 import {
   archiveKeptDefects,
   defectsLine,
+  pageWithoutBodyDefects,
   type PublishCheckStep,
   publishDefects,
   type WouldShipSource,
@@ -53,26 +54,33 @@ function fixedWallClock(): Date {
 
  @param kind - what it ships
 
+ @param reason - why the archive keeps the slice, absent in a record written before the artifact said why
+
  @returns Slice record, carrying only what the defect reads beside its kind
 
  @example
  ```ts
- const slice = sliceShipping({ sliceIndex: 1, kind: 'archive', },);
+ const slice = sliceShipping({ sliceIndex: 1, kind: 'archive', reason: 'slate-declined', },);
  ```
  */
 function sliceShipping(
   {
     sliceIndex,
     kind,
+    reason,
   }: {
     readonly sliceIndex: number;
     readonly kind: 'archive' | 'unchanged';
+    readonly reason?: string;
   },
 ): Record<string, unknown> {
   return {
     sliceIndex,
     terminal: 'incumbent-only',
-    shipped: { kind, },
+    shipped: (reason === undefined) ? { kind, } : {
+      kind,
+      reason,
+    },
   };
 }
 
@@ -317,7 +325,7 @@ await describe({
           },
         },),
         it({
-          name: 'NAMES EVERY SLICE THE ARCHIVE KEPT in one defect, since no wording there passed the rule '
+          name: 'NAMES EVERY SLICE THE ARCHIVE KEPT in one defect, saying where no wording passed the rule '
             + '(owner, 2026-09-27, "Keep archive, ship")',
           fn: async () => {
             expect(archiveKeptDefects({
@@ -328,6 +336,7 @@ await describe({
                   sliceShipping({
                     sliceIndex: 1,
                     kind: 'archive',
+                    reason: 'no-wording-passed',
                   },),
                   sliceShipping({
                     sliceIndex: 2,
@@ -336,6 +345,7 @@ await describe({
                   sliceShipping({
                     sliceIndex: 4,
                     kind: 'archive',
+                    reason: 'no-wording-passed',
                   },),
                 ],
               } as unknown as WouldShipSource['consolidation'],
@@ -344,6 +354,112 @@ await describe({
               message: 'entry WhiskerCat kept the archive at slice 1, slice 4, where no wording passed the '
                 + 'deterministic publication rule',
             },],);
+          },
+        },),
+        it({
+          name: 'SAYS WHAT HAPPENED AT EACH SLICE, not that no wording passed where a final round that could not '
+            + 'seat two judges, or a slate that declined, kept the archive (XingZ6022: sixteen slices, a translate '
+            + 'wording had passed at each)',
+          fn: async () => {
+            expect(archiveKeptDefects({
+              entryId: 'WhiskerCat',
+              consolidation: {
+                kind: 'settled',
+                slices: [
+                  sliceShipping({
+                    sliceIndex: 14,
+                    kind: 'archive',
+                    reason: 'final-round-unseated',
+                  },),
+                  sliceShipping({
+                    sliceIndex: 15,
+                    kind: 'archive',
+                    reason: 'slate-declined',
+                  },),
+                  sliceShipping({
+                    sliceIndex: 16,
+                    kind: 'archive',
+                    reason: 'final-round-unseated',
+                  },),
+                  sliceShipping({
+                    sliceIndex: 17,
+                    kind: 'archive',
+                    reason: 'no-wording-passed',
+                  },),
+                ],
+              } as unknown as WouldShipSource['consolidation'],
+            },),).toStrictEqual([{
+              check: 'no-valid-wording',
+              message: 'entry WhiskerCat kept the archive at slice 17, where no wording passed the deterministic '
+                + 'publication rule; at slice 14, slice 16, where the final round could not seat two judges and no '
+                + 'wording two judges chose passed the rule; at slice 15, where the slate judges declined every '
+                + 'wording that passed the rule and none drew two ballots',
+            },],);
+          },
+        },),
+        it({
+          name: 'DOES NOT CLAIM A REASON AN OLDER ARTIFACT NEVER RECORDED, and says so',
+          fn: async () => {
+            expect(archiveKeptDefects({
+              entryId: 'WhiskerCat',
+              consolidation: {
+                kind: 'settled',
+                slices: [sliceShipping({
+                  sliceIndex: 3,
+                  kind: 'archive',
+                },),],
+              } as unknown as WouldShipSource['consolidation'],
+            },),).toStrictEqual([{
+              check: 'no-valid-wording',
+              message: 'entry WhiskerCat kept the archive at slice 3, where the artifact records no reason',
+            },],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: pageWithoutBodyDefects.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES A PAGE WITH NO BLOCK WHILE THE ORIGINAL HOLDS SOME, whether the page is empty, whitespace, a '
+            + 'byte order mark or front matter alone, saying how many blocks the original holds and nothing it quotes',
+          fn: async () => {
+            /**
+             Byte order mark a page may open with.
+             */
+            const mark = String.fromCodePoint(0xFE_FF,);
+            /**
+             Original of two blocks.
+             */
+            const sourceText = '---\nname: 猫\n---\n\n## 简介\n\n一只虎斑猫。\n';
+            for (const pageText of ['', '  \n\n', mark, '---\nname: Cat\n---\n', `${mark}---\nname: Cat\n---\n\n`,]) {
+              expect(pageWithoutBodyDefects({
+                entryId: 'WhiskerCat',
+                sourceText,
+                pageText,
+              },),).toStrictEqual([{
+                check: 'page-without-body',
+                message: 'entry WhiskerCat ships a page with no body, where the original holds 2 blocks',
+              },],);
+            }
+          },
+        },),
+        it({
+          name: 'SAYS NOTHING for a page that holds a block, and nothing for an original that holds none, since '
+            + 'no page can carry a body the original lacks',
+          fn: async () => {
+            expect(pageWithoutBodyDefects({
+              entryId: 'WhiskerCat',
+              sourceText: '## 简介\n\n一只虎斑猫。\n',
+              pageText: '## Description\n',
+            },),).toStrictEqual([],);
+            expect(pageWithoutBodyDefects({
+              entryId: 'WhiskerCat',
+              sourceText: '---\nname: 猫\n---\n',
+              pageText: '',
+            },),).toStrictEqual([],);
           },
         },),
       ],

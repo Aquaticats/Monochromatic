@@ -212,7 +212,7 @@ The planted controls add three defects:
 a nested `version` key rewritten,
 a subpath import missed,
 and an escaped quote that ends a string literal
-(`bin/planted-dependent-version.mjs`).
+(`bin/planted-dependent-version.ts`).
 
 ## Controls
 

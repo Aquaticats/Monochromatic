@@ -28,7 +28,10 @@ import {
 
 import { isMissingPathError, } from '@monochromatic-dev/translation-repair-typography';
 import { FIXED_TREE_DIR, } from '@monochromatic-dev/translation-repair-page-check';
-import { DECLINED_DIR, } from '@monochromatic-dev/translation-repair-glossary';
+import {
+  DECLINED_DIR,
+  INTERIM_DIR,
+} from '@monochromatic-dev/translation-repair-glossary';
 import { ARTIFACTS_DIR, } from '@monochromatic-dev/translation-repair-artifact-pool';
 import {
   prepareRunsLayout,
@@ -81,6 +84,10 @@ await describe({
             runs.path,
             DECLINED_DIR,
           ),
+          interimDir: join(
+            runs.path,
+            INTERIM_DIR,
+          ),
           sliceCacheDir: join(
             runs.path,
             SLICE_CACHE_DIR,
@@ -106,6 +113,7 @@ await describe({
         expect(await isDirectory({ path: layout.artifactsDir, },),).toBe(true,);
         expect(await isDirectory({ path: layout.publishDir, },),).toBe(true,);
         expect(await isDirectory({ path: layout.declinedDir, },),).toBe(false,);
+        expect(await isDirectory({ path: layout.interimDir, },),).toBe(false,);
         expect(await isDirectory({ path: layout.sliceCacheDir, },),).toBe(false,);
         expect(await isDirectory({ path: layout.promptPayloadDir, },),).toBe(false,);
       },

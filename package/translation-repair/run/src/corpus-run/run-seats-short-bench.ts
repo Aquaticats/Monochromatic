@@ -17,22 +17,21 @@ import type { RunClient, } from './run-client-contract.ts';
 import { judgeSeatsFor, } from './run-seats.ts';
 import { ceilingWordsOf, } from './run-seats-ceiling.ts';
 import {
+  leaveOutFutileReturns,
+  sayFutileSkips,
+} from './run-seats-futile.ts';
+import {
   holdsThatCureShortBenches,
   meterDryOf,
   shortBenchesWithCure,
 } from './run-seats-hold-need.ts';
 import { seatWithoutWaiting, } from './run-seats-no-wait.ts';
 import {
-  holdsWithinPass,
-  passBoundOf,
-} from './run-seats-pass-bound.ts';
-import {
   benchesOf,
   PHASES_WITHOUT_WRITER_STOP,
   unreachableWritingBenches,
 } from './run-seats-floor.ts';
 import {
-  neuralwattOf,
   withNeuralWattReturn,
   writtenRefusal,
 } from './run-seats-refusal.ts';
@@ -57,11 +56,9 @@ import {
  */
 export type SeatReadingClient = Pick<
   RunClient,
-  'neuralwattDryness'
-    | 'neuralwattHeldByReturn'
+  'futileReturns'
+    | 'neuralwattDryness'
     | 'neuralwattReturn'
-    | 'passBoundOwner'
-    | 'passLeftMs'
     | 'providerDryness'
     | 'providerHolds'
     | 'providerMeterStates'
@@ -184,8 +181,7 @@ export async function readDrynessPastShortBench(
   }
   /**
    Reads which providers the meters keep dry, only while a hold runs: the meters say whether a hold ending can bring
-   its provider back, so a reading with no hold has nothing to ask them. NeuralWatt is left out while its hold is its
-   day start, since the day starting again is what turns its meter wet.
+   its provider back, so a reading with no hold has nothing to ask them.
 
    @param running - how long each provider's refusal still holds it out
 
@@ -196,21 +192,13 @@ export async function readDrynessPastShortBench(
       return running[provider] > 0;
     },))
       return new Set();
-    /**
-     Providers the meters say are dry.
-     */
-    const dryByMeter = meterDryOf({
+    return meterDryOf({
       meters: await readMeterStates({
         client,
         signal,
         l,
       },),
     },);
-    if (client.neuralwattHeldByReturn?.({ returnBoundMs: passBoundOf({ client, }), },) ?? true)
-      return new Set([...dryByMeter,].filter(function isNotNeuralWatt(provider,): boolean {
-        return provider !== 'neuralwatt';
-      },),);
-    return dryByMeter;
   }
   /**
    Dryness as first read.
@@ -225,9 +213,16 @@ export async function readDrynessPastShortBench(
    */
   const benches = benchesOf({ seats: judgeSeatsFor({ dry: first, },), },);
   /**
-   How long each provider's refusal still holds it out, as the pass allows it to be waited for.
+   How long each provider's refusal still holds it out, without the holds of providers whose last return served
+   nothing, which are said once a bench is found short.
    */
-  const running = holdsWithinPass({ client, },);
+  const {
+    held: running,
+    skipped: skippedFirst,
+  } = leaveOutFutileReturns({
+    client,
+    running: client.providerHolds(),
+  },);
   /**
    Providers the meters keep dry, whose holds ending bring no return.
    */
@@ -276,6 +271,13 @@ export async function readDrynessPastShortBench(
       unreachableWriters: [],
     };
   }
+  // A BENCH IS SHORT, so a hold left out because its provider's last return served nothing is said before the reading
+  // goes on without it or waits for another hold.
+  sayFutileSkips({
+    skipped: skippedFirst,
+    phase,
+    l,
+  },);
   if (shortest === 0) {
     return seatWithoutWaiting({
       client,
@@ -313,13 +315,11 @@ export async function readDrynessPastShortBench(
       return `${provider} ${String(waiting.holds[provider],)}ms`;
     },);
     /**
-     Whose hold is the shortest, and for NeuralWatt when its day starts again, for the lines.
+     Whose hold is the shortest, for the lines.
      */
     const reason = holdReasonOf({
       holds: waiting.holds,
       shortest: waiting.shortest,
-      neuralwatt: neuralwattOf({ client, },),
-      neuralwattHeldByReturn: client.neuralwattHeldByReturn?.({ returnBoundMs: passBoundOf({ client, }), },) ?? true,
     },);
     l.warn(
       `JUDGE SEATS phase=${phase} short of quorum: ${
@@ -349,7 +349,14 @@ export async function readDrynessPastShortBench(
     );
     // Dryness after the wait, the holds still running, and what the meters keep dry.
     waiting.dry = await readDryness();
-    waiting.running = holdsWithinPass({ client, },);
+    /**
+     The holds running after the wait, without those of providers whose last return served nothing.
+     */
+    const rerun = leaveOutFutileReturns({
+      client,
+      running: client.providerHolds(),
+    },);
+    waiting.running = rerun.held;
     waiting.meterDry = await readMeterDry(waiting.running,);
     /* oxlint-enable no-await-in-loop */
     /**
@@ -373,9 +380,14 @@ export async function readDrynessPastShortBench(
       .length
       === 0) && (stillBelow.length === 0))
       break;
-    // A HOLD THAT ENDED FIRST IS NOT THE END OF THE WAITING: a bench still short while another hold runs (the
-    // NeuralWatt return behind a rate-limit hold) is waited for too, bounded by the entry's abort, by the holds that
-    // serve a short bench, and by the pass bound the client carries (a return past it is not a hold).
+    sayFutileSkips({
+      skipped: rerun.skipped,
+      phase,
+      l,
+    },);
+    // A HOLD THAT ENDED FIRST IS NOT THE END OF THE WAITING: a bench still short while another hold runs (a longer
+    // refusal hold on another provider) is waited for too, bounded by the entry's abort and by the holds that serve a
+    // short bench. NeuralWatt's day return is no hold and is never waited for.
     waiting.holds = holdsThatCureShortBenches({
       holds: waiting.running,
       dry: waiting.dry,

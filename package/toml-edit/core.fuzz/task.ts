@@ -53,7 +53,7 @@ for (const file of files) {
       run: `
 const root = join(process.env.TASK_REPO_ROOT, 'package', 'toml-edit', 'core.fuzz')
 const mode = (process.env.usage_write === 'true') ? 'write' : 'check'
-const dir = mkdtempSync(join(tmpdir(), 'toml-edit-cov-'))
+const dir = mkdtempSync(join(scratchBase(), 'toml-edit-cov-'))
 try {
   execFileSync(process.execPath, [join(root, 'src', 'coverage-driver.ts')], { stdio: 'inherit', env: { ...process.env, MONOCHROMATIC_WARN: 'false', NODE_V8_COVERAGE: dir } })
   execFileSync(process.execPath, [join(root, 'src', 'coverage-report.ts'), mode, dir, join(root, 'coverage-baseline.json')], { stdio: 'inherit' })

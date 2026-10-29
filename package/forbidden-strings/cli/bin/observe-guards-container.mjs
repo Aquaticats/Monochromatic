@@ -10,7 +10,6 @@ import {
   stat,
   writeFile
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve
@@ -19,6 +18,13 @@ import {
   run,
   ScannerVerificationError
 } from './container-snapshot.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'forbidden-strings');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Select only a terminal, expected control result; incomplete or previously failed campaigns do not qualify. */
 async function control({
@@ -111,7 +117,7 @@ async function main() {
       .find(item => item.path === 'package/forbidden-strings/cli/tests/panic_contract.rs');
     if (source?.sha256 !== originalSha256) throw new ScannerVerificationError(`Consumer assertions differ in ${selected.directory}.`);
     const context = await mkdtemp(join(
-      tmpdir(),
+      scratchBase,
       'scanner-guard-observer-'
     ));
     const evidence = await mkdtemp(join(

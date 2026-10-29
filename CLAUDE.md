@@ -735,6 +735,13 @@ DCB:
  even as guardrail tests;
  test guardrails with moderately dangerous ones.
 
+FDL:
+ `find` deletions:
+ list matches with `-print`,
+ then delete exactly those paths in a separate command;
+ `-delete` implies `-depth`,
+ which turns `-prune` into a no-op.
+
 VKI:
  Synthetic key input:
  nested compositor or caller-independent broker only;

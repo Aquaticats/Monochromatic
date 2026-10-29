@@ -190,6 +190,7 @@ fn real_git_supplies_blobs() {
         real_git: root.join("no-git"),
         overlay: Vec::new(),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     assert!(
         load_blob_batch(

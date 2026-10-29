@@ -595,11 +595,11 @@ Each is the exact string the log carries.
     `INTERRUPTED`,
     `DESTINATIONS`,
     `DEFECTS`,
+    `INTERIM`,
     `CLEANUP`,
     `REATTEMPT`,
     `STALLED`,
-    `INCOMPLETE`,
-    `NOT RESUMED`),
+    `INCOMPLETE`),
     straight after the keyword and the entry
     (and after the status on a `TALLY`,
     or `queued` on a `REATTEMPT`).
@@ -663,35 +663,42 @@ Each is the exact string the log carries.
     Cache stays,
     but whole entry does not restart in same invocation.
 
--   `TALLY <id> status=PARKED at=<time> attempt=<n> returnsInMs=<n> returnsAt=<time>`,
-    which means the pass paused because NeuralWatt's energy returns at that time of day,
-    written as an ISO 8601 time with `Z` for UTC,
-    and the entry goes back to the front of the queue to run again after the wait.
-    Both fields are the wait the pass is in,
-    the same on every `PARKED` line of one park,
-    whatever return the entry's own failure named.
-    It is neither failure,
-    nor success,
-    nor a verdict on the entry,
-    so count it with neither `status=ERROR` nor `status=INCOMPLETE`.
-    The `error=` text is the failure the entry ended with.
-    The operator does nothing while the pass waits,
-    and the log ends the wait one of two ways.
-    When the pass resumes the entry,
-    the gate logs `the pass resumes`
-    (a logger line,
-    so it carries the logger's time)
-    and the entry's next `TALLY` line is the one that counts.
-    When the pass budget (the soft time budget or a spend ceiling) ends during or after the wait,
-    the log shows `PARKED`,
-    `the pass resumes`,
-    the budget stop line
-    and `NOT RESUMED <id>`,
-    with no later `TALLY` line for that entry:
-    it was not attempted again in this invocation and stays resumable,
-    so run the pass again.
-    A `PARKED` line with neither ending means the run was stopped during the wait,
-    and the entry is likewise left resumable.
+-   `STOP every provider is out of budget ... at=<time>`,
+    which means the pass stopped at once because no funded provider serves a writing seat.
+    The pass never waits for NeuralWatt's day to start again
+    (the owner's answer of 2026-10-29,
+    "Never wait,
+    relaunch":
+    "Stop at once and relaunch later.").
+    The cause in the line states the time of day in UTC NeuralWatt's day starts again
+    (`at 19:15:08 UTC (in 5 min 1 s)`),
+    so launch the pass again after that time.
+    The entries already settled keep their pages,
+    and the entry in flight stays resumable and ships an interim page (next entry).
+    No `TALLY` line says `PARKED`,
+    and no `NOT RESUMED` line follows a stop.
+
+-   `INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=dry-stop`,
+    printed just before the `TALLY <id> status=INCOMPLETE` line of an entry the dry stop ended in the middle of its page
+    (the owner's answer of 2026-10-29,
+    "Ship interim,
+    resumable").
+    The page of that entry in the published tree is interim:
+    `settled` slices carry the wording a consolidation record settled,
+    `archive` slices carry the archive's text,
+    and `source` slices carry the original under the note
+    "This passage has not been translated yet.
+    The original text follows."
+    No artifact is written,
+    so the entry is still pending;
+    `interim/<id>.json` in the runs directory records the counts and the digest of the page.
+    Launch the pass again after the time the stop line states:
+    it repeats the entry on its caches,
+    overwrites the page,
+    and removes the record when the entry settles.
+    A stop before the entry is sliced prints no `INTERIM` line and ships no page.
+    `mise run //package/translation-repair/run:verify-published` names the page `INTERIM PAGE` with the counts,
+    or `INTERIM PAGE DISAGREES WITH ITS RECORD` when the page on disk is not the one the record was written for.
 
 -   `STALLED <id> at=<time> attempt=<n>`,
     which is the earned-re-attempt rule refusing.
