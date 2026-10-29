@@ -757,6 +757,33 @@
       },
       "artifacts": {}
     },
+    "cargo:monochromatic-search-shadow": {
+      "request": {
+        "track": "latest"
+      },
+      "version": "0.1.1",
+      "route": "cargo-binstall",
+      "manager": "cargo",
+      "packageId": "monochromatic-search-shadow",
+      "bins": [
+        "search-shadow"
+      ],
+      "os": [
+        "linux"
+      ],
+      "env": {},
+      "options": {
+        "postinstall": {
+          "when": "always",
+          "link": {
+            "sourceBin": "search-shadow",
+            "linkName": "rg",
+            "linkDir": ".cache/search-shadow-bin"
+          }
+        }
+      },
+      "artifacts": {}
+    },
     "cargo:monochromatic-nested-wayland-session": {
       "request": {
         "track": "latest"

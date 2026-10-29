@@ -399,6 +399,32 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     env: {},
     artifacts: {},
   },
+  // The postinstall links `search-shadow` as `rg` under `.cache/search-shadow-bin`, a directory that
+  // precedes `.cache/toolchain-bin` on PATH, so every `rg` in the mise environment runs behind the
+  // shadow (doc/planning/agent-search-io-throttle.md). `grep` and `find` are not linked yet:
+  // a postinstall carries one link. Linux only: the crate uses `ioprio_set` and `/proc`.
+  {
+    id: 'cargo:monochromatic-search-shadow',
+    request: { track: 'latest' },
+    version: '0.1.1',
+    route: 'cargo-binstall',
+    manager: 'cargo',
+    packageId: 'monochromatic-search-shadow',
+    bins: ['search-shadow'],
+    os: ['linux'],
+    options: {
+      postinstall: {
+        when: 'always',
+        link: {
+          sourceBin: 'search-shadow',
+          linkName: 'rg',
+          linkDir: '.cache/search-shadow-bin',
+        },
+      },
+    },
+    env: {},
+    artifacts: {},
+  },
   {
     id: 'cargo:monochromatic-nested-wayland-session',
     request: { track: 'latest' },
