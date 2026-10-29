@@ -157,10 +157,14 @@ A string a case offers and then looks for is one named constant,
 so the two cannot drift apart (ledger B116).
 A tool version written in source is the same copy of a fact the lock holds:
 `PINNED_LINT_BINARY_VERSION` in `semantic-wrap-binary-constants.ts` must equal the version of `monochromatic-lint`
-in `mise.lock`,
+in `toolchain.lock.json`,
 and it follows each release in the change that moves the lock (ledger B700).
+The lock was `mise.lock` until the repository moved its tools to MPM on 2026-10-28.
 A lock moved by a commit of its own leaves the constant behind,
-so after any change to `mise.lock` the unit tests of typography and page-check run with the real program.
+so after any change to `toolchain.lock.json` the unit tests of typography and page-check run with the real program.
+A gate tree finds the real program in its own `.cache/toolchain-bin`,
+which `mise run toolchain:sync` makes after the tree's install;
+without it the name falls through to whatever else the PATH holds.
 
 What enforces it:
 `package/translation-repair/source-scan/src/duplicate-bodies.unit.test.ts` (ledger B19) fails on any function body of 80
@@ -196,10 +200,12 @@ fails on an import a move left unread.
 Habit holds the owner of each statement two briefs share,
 and the lead's review at the merge (ledger M144).
 The agreement case in `semantic-wrap-binary.unit.test.ts` (ledger B700),
-"HOLDS THE PINNED VERSION TO THE ONE mise.lock RECORDS",
-reads the tool's entry in `mise.lock` and fails when the constant differs.
+"HOLDS THE PINNED VERSION TO THE ONE toolchain.lock.json RECORDS",
+reads the tool's entry in `toolchain.lock.json` and fails when the constant differs.
+It read `mise.lock` until that file was deleted on 2026-10-28,
+and failed with a missing file at the first gate after the merge of main that deleted it.
 It runs with typography's tests only,
-so a commit that changes `mise.lock` alone is not checked by it until someone runs them;
+so a commit that changes `toolchain.lock.json` alone is not checked by it until someone runs them;
 this audit found no task of the package that runs them on a lock change,
 and none was added.
 
