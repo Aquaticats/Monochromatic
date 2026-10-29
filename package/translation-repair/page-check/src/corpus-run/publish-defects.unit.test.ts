@@ -25,6 +25,7 @@ import {
   pageWithoutBodyDefects,
   type PublishCheckStep,
   publishDefects,
+  tenseSwapDefects,
   type WouldShipSource,
 } from '../../dist/final/node/index.mjs';
 
@@ -413,6 +414,85 @@ await describe({
               check: 'no-valid-wording',
               message: 'entry WhiskerCat kept the archive at slice 3, where the artifact records no reason',
             },],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: tenseSwapDefects.name,
+      concurrency: DEFAULT_CONCURRENCY,
+      children: [
+        it({
+          name: 'NAMES EVERY SLICE WHERE THE TRANSLATE TEXT SHIPPED OVER A STANDING THE TENSE DETECTOR FLAGGED, and '
+            + 'says nothing for a translate winner that replaced a refused standing, an archive or a slice that '
+            + 'settled on no change (owner, 2026-10-29, "Swap only where flagged")',
+          fn: async () => {
+            /**
+             One consolidation slice shipping the translate lane winner for the reason given.
+
+             @param sliceIndex - slice the record answers
+             @param reason - why the winner shipped
+
+             @returns Slice record, carrying only what the defect reads
+
+             @example
+             ```ts
+             const slice = winnerSlice({ sliceIndex: 11, reason: 'present-tense-standing', });
+             ```
+             */
+            function winnerSlice(
+              {
+                sliceIndex,
+                reason,
+              }: {
+                readonly sliceIndex: number;
+                readonly reason: string;
+              },
+            ): Record<string, unknown> {
+              return {
+                sliceIndex,
+                terminal: 'slate-declined-standing',
+                shipped: {
+                  kind: 'translate-winner',
+                  text: 'Mittens was a tabby.',
+                  reason,
+                },
+              };
+            }
+            expect(tenseSwapDefects({
+              entryId: 'WhiskerCat',
+              consolidation: {
+                kind: 'settled',
+                slices: [
+                  winnerSlice({ sliceIndex: 11, reason: 'present-tense-standing', },),
+                  winnerSlice({ sliceIndex: 12, reason: 'refused-standing', },),
+                  sliceShipping({ sliceIndex: 13, kind: 'archive', reason: 'slate-declined', },),
+                  sliceShipping({ sliceIndex: 14, kind: 'unchanged', },),
+                  winnerSlice({ sliceIndex: 16, reason: 'present-tense-standing', },),
+                ],
+              } as unknown as WouldShipSource['consolidation'],
+            },),).toStrictEqual([{
+              check: 'tense-swap',
+              message: 'entry WhiskerCat shipped the translate lane text at slice 11, slice 16, in place of a standing '
+                + 'the tense detector flagged, where the final round could not seat two judges',
+            },],);
+          },
+        },),
+        it({
+          name: 'REPORTS NOTHING where the consolidation did not run or swapped no slice, the control the report rests on',
+          fn: async () => {
+            expect(tenseSwapDefects({
+              entryId: 'WhiskerCat',
+              consolidation: { kind: 'not-run', } as WouldShipSource['consolidation'],
+            },),).toStrictEqual([],);
+            expect(tenseSwapDefects({
+              entryId: 'WhiskerCat',
+              consolidation: {
+                kind: 'settled',
+                slices: [sliceShipping({ sliceIndex: 0, kind: 'unchanged', },),],
+              } as unknown as WouldShipSource['consolidation'],
+            },),).toStrictEqual([],);
           },
         },),
       ],

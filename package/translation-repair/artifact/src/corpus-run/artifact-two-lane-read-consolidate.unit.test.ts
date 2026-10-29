@@ -543,6 +543,63 @@ await describe({
     },),
 
     it({
+      name: 'READS WHY THE TRANSLATE LANE WINNER SHIPPED, over a refused standing or over an unendorsed standing the '
+        + 'tense detector flagged, and refuses a winner that names no reason or another one (owner, 2026-10-29, '
+        + '"Swap only where flagged")',
+      fn: async () => {
+        /**
+         Slice that shipped the translate lane winner, with the reason it names.
+
+         @param reason - reason the record carries, absent for a record that names none
+
+         @returns Slice record
+
+         @example
+         ```ts
+         const slice = winnerNaming('present-tense-standing');
+         ```
+         */
+        function winnerNaming(reason?: string,): Record<string, unknown> {
+          return {
+            ...FLOORED_SLICE,
+            sliceIndex: 0,
+            shipped: {
+              kind: 'translate-winner',
+              text: 'Mittens was a tabby.',
+              ...((reason === undefined) ? {} : { reason, }),
+            },
+          };
+        }
+        const contest = contestOf({ sliceIndexes: [0,], },);
+        for (const reason of ['refused-standing', 'present-tense-standing',]) {
+          expect(readingOf({
+            value: {
+              kind: 'settled',
+              slices: [winnerNaming(reason,),],
+            },
+            laneSelection: contest,
+            translateWinnerRecorded: true,
+          },),).toStrictEqual({
+            kind: 'settled',
+            reason: '',
+          },);
+        }
+        for (const reason of [undefined, 'because',]) {
+          expect(readingOf({
+            value: {
+              kind: 'settled',
+              slices: [winnerNaming(reason,),],
+            },
+            laneSelection: contest,
+            translateWinnerRecorded: true,
+          },).reason,).toBe(
+            `${REFUSED_AT}.slices[0].shipped.reason: expected one of refused-standing, present-tense-standing.`,
+          );
+        }
+      },
+    },),
+
+    it({
       name: 'REFUSES TEXT FROM A SLICE THAT SETTLED ON NO CHANGE, which would write a passage into '
         + 'the document that no round decided on. The terminal and the shipped kind answer the same '
         + 'question, so a record disagreeing with itself about it is not a record of anything',

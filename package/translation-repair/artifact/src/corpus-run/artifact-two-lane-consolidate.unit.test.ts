@@ -213,6 +213,39 @@ await describe({
     },),
 
     it({
+      name: 'RECORDS WHY THE TRANSLATE LANE WINNER SHIPS: over a standing the rule refused, or over an unendorsed '
+        + 'standing the tense detector flagged (owner, 2026-10-29, "Swap only where flagged")',
+      fn: async () => {
+        const swapped = describeConsolidateSlice({
+          sliceIndex: 8,
+          settlement: {
+            ...settledAs({ terminal: 'slate-declined-standing', text: 'Mittens was a tabby.', },),
+            translateWinnerShipped: true,
+            translateWinnerReason: 'present-tense-standing',
+          },
+        },);
+        expect(swapped.shipped,).toStrictEqual({
+          kind: 'translate-winner',
+          text: 'Mittens was a tabby.',
+          reason: 'present-tense-standing',
+        },);
+        const refused = describeConsolidateSlice({
+          sliceIndex: 9,
+          settlement: {
+            ...settledAs({ terminal: 'slate-declined-standing', text: 'Mittens was a tabby.', },),
+            translateWinnerShipped: true,
+            translateWinnerReason: 'refused-standing',
+          },
+        },);
+        expect(refused.shipped,).toStrictEqual({
+          kind: 'translate-winner',
+          text: 'Mittens was a tabby.',
+          reason: 'refused-standing',
+        },);
+      },
+    },),
+
+    it({
       name: 'READS THE TERMINAL RATHER THAN COMPARING TEXT, so a consolidation that agreed with the '
         + 'standing text everywhere but was still settled as a change is recorded as one. Deriving '
         + 'this from a string comparison would re-decide at the record what the wrap already decided, '
