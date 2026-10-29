@@ -21,11 +21,16 @@ const root = contextRoot({ tag: 'translation-repair', },);
 /**
  Milliseconds before the return at which it counts as passed.
 
- MEASURED, NOT PICKED: 400 timers requested at 7.4 ms fired early in 396 cases by up to 1.3 ms, because Node truncates
- fractional milliseconds (the review of 2026-10-22, keyless scratch measures). A timer that wakes a hair before its time
- would otherwise leave the cached dry reading in place and end the run a moment short of the energy coming back; two
- milliseconds covers the worst measured. The margin added to a return protects the server side, and sits inside the
- return, so it does not cover the timer.
+ IT GUARDS THE CACHED READING, NOT A TIMER. Nothing arms a timer for the return (the owner's answer of 2026-10-29,
+ "Never wait, relaunch"); the budget layer asks {@link NeuralWattReturnMark.passed} on each call that would otherwise be
+ served the cached dry reading (`provider-budget.ts`, `currentReading`). A reading taken a hair before the boundary
+ names a return that is a hair away, and without this margin the next call inside that hair would be served the dry
+ reading that named it. With it the call reads the meters again, which costs one reading and replaces the mark.
+ Past the boundary the same call reads again either way, so the margin only moves the re-read a hair earlier.
+
+ THE VALUE IS THE ONE THE TIMER MEASURE GAVE, kept as a small margin and not re-derived for the cache: 400 timers
+ requested at 7.4 ms fired early in 396 cases by up to 1.3 ms, because Node truncates fractional milliseconds
+ (the review of 2026-10-22, keyless scratch measures), and two milliseconds covered the worst measured.
  */
 const PASSED_SLACK_MS = 2;
 
@@ -161,7 +166,7 @@ export function createNeuralWattReturnMark(
   /**
    Whether the day has started again since the reading that named the return.
 
-   @returns Whether the return has passed, counting a timer that fired a hair early
+   @returns Whether the return has passed, counting the last hair before it as passed
    */
   function passed(): boolean {
     return (held.mark
