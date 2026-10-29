@@ -37,18 +37,84 @@ pub(crate) fn arm_watchdog() {
     });
 }
 
+/// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
+pub(crate) const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
+
+/// Environment variable that moves the fixture root, for example onto a tmpfs for speed.
+pub(crate) const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
+
+/// The directory fixtures are created in: `test-fixtures` beside the build output of the running test executable
+///  (`<target>/debug/deps/<test>` has the target directory three levels up), never `/tmp`.
+/// A shared tmpfs with a per-user quota fills up when failing tests leave fixtures behind (issue 1809), and then
+/// every command of every session fails.
+pub(crate) fn fixture_root() -> PathBuf {
+    let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE).map_or_else(
+        || {
+            let target: Option<PathBuf> = std::env::current_exe()
+                .ok()
+                .and_then(|executable| { return executable.ancestors().nth(3).map(Path::to_path_buf); });
+            return target
+                .unwrap_or_else(|| { return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"); })
+                .join("test-fixtures");
+        },
+        PathBuf::from,
+    );
+    std::fs::create_dir_all(&root).expect("fixture root");
+    return root;
+}
+
+/// What:
+///  Remove a fixture tree unless the person asked to keep it, trying again for up to five seconds.
+/// Why:
+///   A landed commit may leave a maintenance child finishing for a moment; a tree already gone is the explicit
+///  `remove` having run first, not a failure.
+pub(crate) fn settle_fixture(root: &Path, keep: bool) {
+    if keep {
+        return;
+    }
+    for _ in 0..50 {
+        match std::fs::remove_dir_all(root) {
+            Ok(()) => return,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+        }
+    }
+}
+
+/// The fixtures one test thread created, removed when the thread ends however the test ended.
+struct ThreadFixtures {
+    /// Roots to remove.
+    roots: std::cell::RefCell<Vec<PathBuf>>,
+}
+
+/// A panic unwinds the test thread, which runs this.
+impl Drop for ThreadFixtures {
+    fn drop(&mut self) {
+        let keep: bool = std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some();
+        for root in self.roots.borrow().iter() {
+            settle_fixture(root.as_path(), keep);
+        }
+    }
+}
+
+thread_local! {
+    /// The fixtures of the running test thread.
+    static THREAD_FIXTURES: ThreadFixtures = const { ThreadFixtures { roots: std::cell::RefCell::new(Vec::new()) } };
+}
+
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
     arm_watchdog();
-    let root: PathBuf =
-        std::env::temp_dir().join(format!("{prefix}-{}-{name}", std::process::id()));
+    let root: PathBuf = fixture_root().join(format!("{prefix}-{}-{name}", std::process::id()));
     if root.exists() {
         std::fs::remove_dir_all(&root).expect("remove stale fixture");
     }
     std::fs::create_dir(&root).expect("fresh fixture");
     // Canonical form so comparisons with Git's canonical output are exact.
-    return std::fs::canonicalize(&root).expect("canonical fixture");
+    let canonical: PathBuf = std::fs::canonicalize(&root).expect("canonical fixture");
+    THREAD_FIXTURES.with(|fixtures| { fixtures.roots.borrow_mut().push(canonical.clone()); });
+    return canonical;
 }
 
 /// Create one empty fixture directory owned by this test process and test name.
