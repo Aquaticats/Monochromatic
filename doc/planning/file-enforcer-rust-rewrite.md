@@ -790,6 +790,18 @@ stdout stays JSON lines.
   unchanged,
   and pinned cases.
 
+#### Process lessons: deferred to issue #1817
+
+Draft `AGENTS.md` rules for this round's slips
+(closed-source evidence,
+the evidence bar for tool-behavior options,
+question motivation) were put to the user,
+who answered:
+"Open gh issue and I'll look at this in another session because I have a bad feeling about these rules as is."
+Issue #1817 holds the slips,
+the corrections,
+and the unadopted drafts.
+
 ### Adopted defaults put to the user for confirmation
 
 Listed 2026-10-29 in the confirmation question;
