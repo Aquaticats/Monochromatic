@@ -1332,11 +1332,13 @@ jobs:
     # Packaging replaces the path dependency with its version requirement, so the crates.io index must already
     # list the forbidden-strings release this crate requires. A push that bumps both crates starts the
     # forbidden-strings publish job in the same run; this step waits for it for up to thirty minutes.
+    # The Rust catalog writes path dependencies as exact requirements (`version = "=0.5.0"`),
+    # and the index lists bare versions (`"vers":"0.5.0"`), so the extraction drops a leading `=`.
     - name: Wait for the required forbidden-strings release
       working-directory: package/git-policy/cli
       run: |
         set -euo pipefail
-        required=$(sed -n 's/^forbidden-strings = .*version = "\([^"]*\)".*/\1/p' Cargo.toml)
+        required=$(sed -n 's/^forbidden-strings = .*version = "=\{0,1\}\([^"]*\)".*/\1/p' Cargo.toml)
         if [ -z "$required" ]; then
           echo 'No forbidden-strings version requirement found in Cargo.toml.' >&2
           exit 1

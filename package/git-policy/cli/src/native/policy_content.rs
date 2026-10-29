@@ -23,6 +23,8 @@
 
 /// Import the layer's failure type and its causes.
 use super::candidate_error::{CandidateError, CandidateFailure};
+/// Import the lookup of content that a parent commit's tree already holds.
+use super::candidate_known_content::{ContentBasis, KnownContent, find_known_content};
 /// Import the candidate's mode,
 ///  which a correction keeps.
 use super::candidate_object::CandidateMode;
@@ -45,7 +47,7 @@ use super::scanner_adapter::CandidateScanner;
 use super::scanner_failure_code::candidate_failure_code;
 /// Import the scan pass,
 ///  its byte reader and its failure.
-use super::scanner_run::{CandidateBytes, ScanRunError, scan_version};
+use super::scanner_run::{CandidateBytes, ScanRunError, scan_version_skipping};
 /// The scanner library's per-candidate result.
 use forbidden_strings::CandidateScan;
 /// What:
@@ -542,6 +544,27 @@ impl ContentState {
         scanner: &CandidateScanner,
         rules_path: Option<&[u8]>,
     ) -> Result<Vec<CandidateScan>, ScanRunError> {
+        return self.scan_skipping(scanner, rules_path, &KnownContent::default());
+    }
+
+    /// What:
+    ///  `scan`,
+    ///  except that the candidates in `known` are given to the scanner without bytes.
+    ///       `&KnownContent` lists them by position in the prepared version.
+    /// Why:
+    ///   A candidate whose content a parent already holds has its pathname checked and its
+    ///       bytes left unread.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async scanSkipping(scanner: CandidateScanner, rulesPath: Buffer | undefined, known: KnownContent): Promise<CandidateScan[]>;
+    /// ```
+    pub fn scan_skipping(
+        &mut self,
+        scanner: &CandidateScanner,
+        rules_path: Option<&[u8]>,
+        known: &KnownContent,
+    ) -> Result<Vec<CandidateScan>, ScanRunError> {
         match &mut self.prepared {
             // The store is lent for writing and the version for reading: two separate fields.
             Some(Ok(prepared)) => {
@@ -549,9 +572,47 @@ impl ContentState {
                     store: &mut prepared.store,
                     corrected: &self.corrected,
                 };
-                return scan_version(scanner, &mut reader, &prepared.version, rules_path);
+                return scan_version_skipping(
+                    scanner,
+                    &mut reader,
+                    &prepared.version,
+                    rules_path,
+                    known,
+                );
             }
             Some(Err(_)) | None => return Err(ScanRunError::Candidate(not_prepared_error())),
+        }
+    }
+
+    /// What:
+    ///  The candidates of the prepared version whose content a parent commit's tree already holds,
+    ///       as this lifecycle's request defines the parents.
+    ///  `Option<&[u8]>` is the rules file's own pathname.
+    /// Why:
+    ///   A file this invocation corrected holds new bytes whatever its object is,
+    ///  so it is never known.
+    ///       Nothing is listed before preparation or after a failed one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async knownContent(request: CandidateRequest, rulesPath?: Buffer): Promise<KnownContent>; // throws CandidateError
+    /// ```
+    pub fn known_content(
+        &mut self,
+        request: &CandidateRequest,
+        rules_path: Option<&[u8]>,
+    ) -> Result<KnownContent, CandidateError> {
+        match &mut self.prepared {
+            Some(Ok(prepared)) => {
+                return find_known_content(
+                    &mut prepared.store,
+                    &prepared.version,
+                    &ContentBasis::of(request),
+                    rules_path,
+                    &self.corrected,
+                );
+            }
+            Some(Err(_)) | None => return Err(not_prepared_error()),
         }
     }
 }
