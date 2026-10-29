@@ -19,6 +19,10 @@
 #[path = "binary_support.rs"]
 mod support;
 
+/// Where fixtures live and that they go away however their test ends.
+#[path = "binary_fixture_tests.rs"]
+mod fixture_guard;
+
 /// Exact forwarding of arguments,
 ///  streams,
 ///  exit codes,

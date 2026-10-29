@@ -258,3 +258,7 @@ pub(crate) fn strip_hint_fields(text: &str) -> String {
     }
     return rest;
 }
+
+/// Controls for the fixture helpers above.
+#[path = "test_support_tests.rs"]
+mod tests;
