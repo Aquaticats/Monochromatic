@@ -276,7 +276,9 @@ and accepted with this record:
   it writes strict JSON,
   and its insertion-order `Map` feature keeps key order through a read-modify-write.
   The JSON embedded in the JetBrains XML is therefore edited with `serde_json`,
-  not `monochromatic-jsonc-edit`.
+  not `monochromatic-jsonc-edit`;
+  the user approved it:
+  "I'm approving serde_json as is."
 - Follow-ups:
   process rules in issue #1817.
 
