@@ -6,7 +6,7 @@ Being grilled with the user, started 2026-10-29.
 Nothing here is accepted yet;
 decisions land in this file as the user answers them.
 
-Next action (2026-10-29):
+Superseded next action (2026-10-29; the current one is the section "Next action (2026-10-29, after confirmation)"):
 before confirming shared understanding,
 the user asked for reviews by `openai/gpt-6.1-sol`,
 `openai/gpt-6-astra`,
@@ -180,7 +180,7 @@ The decision record draft is
 it moves to `doc/decision/` only on the user's explicit acceptance (`DRR` in `AGENTS.md`).
 No code before acceptance.
 
-## Next action (2026-10-29, second review round)
+## Superseded next action (2026-10-29, second review round)
 
 Asked how to close the grilling,
 the user chose "Re-review,

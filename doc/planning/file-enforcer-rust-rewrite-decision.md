@@ -15,6 +15,17 @@ evidence,
 and history is in [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md);
 this record states the result.
 
+Adopted without a direct answer from the user,
+so accepting this record accepts them:
+
+- `user` commands get their own server keyed by the per-user config path (the user answered "?").
+- mpm-shadow revalidates the plan and lock revisions before publishing,
+  with an OS lock per scope as an implementation detail (the user answered "?").
+- `toolchain.lock.json` carries a digest of its contents that `lock --check` recomputes
+  (stated in the confirmation question with the veto open).
+- A mode-only rule keeps `forbidden-strings.append.local.txt` at 0600 when present,
+  since the seed that used to set it is gone.
+
 ## Context
 
 - Request:
@@ -113,6 +124,8 @@ this record states the result.
 - `.browserslistrc.resolved.local.json` through `browserslist-rs`.
 - `.config/mise/conf.d/10-bin.local.toml` (gitignored):
   the existing non-empty `package/*/*/node_modules/.bin` directories.
+- Mode only:
+  `forbidden-strings.append.local.txt` stays 0600 when present.
 - Through `user write`:
   the JetBrains Harper LSP4IJ policy under `~/.config/JetBrains`.
 
@@ -165,7 +178,13 @@ this record states the result.
 - Lookups:
   first versions of new npm and PyPI tools from the registries,
   later ones from `mpm outdated`,
-  native lookups for the rest including Rust channels;
+  native lookups for the rest including Rust channels.
+- A locked npm or PyPI tool missing from the machine:
+  plain `update` syncs the missing tools,
+  then retries the lookup once
+  ("Require sync first,
+  and auto-sync on such failures and retry.",
+  user);
   `update --check` never installs.
 - `sync` and `status` refuse when plan and lock disagree;
   offline `lock` rejects resolution-affecting edits;
@@ -199,6 +218,9 @@ this record states the result.
   the IDE launcher and its tests,
   the scanner and cli-git configs,
   the two fixtures that still depend on the old package,
+  the commands against the deleted `mpm.managers.toml` in `doc/runbook/publish-crate-first-time.md:463`
+  and `doc/decision/mpm-toolchain-adoption.md:348`,
+  the `mise.toml` and `mise.no-env.toml` schema mappings in `.idea/jsonSchemas.xml:26,32`,
   and deletes `package/file-enforcer/core`.
 - The global plan is converted directly,
   keeping a 0600 backup beside the original until the converted global sync is verified.
