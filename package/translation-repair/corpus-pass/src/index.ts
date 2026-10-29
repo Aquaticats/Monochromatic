@@ -125,6 +125,10 @@ export {
   type PassSettlement,
   runPassSettlement,
 } from './corpus-run/pass-settlement.ts';
+export {
+  translateWinnerBallotsOf,
+  type TranslateWinnerRecord,
+} from './corpus-run/pass-translate-winner-ballots.ts';
 export { type PassPictureSources, } from './corpus-run/pass-visual-evidence.ts';
 export { contestDocumentLanes, } from './lane-contest-driver.ts';
 

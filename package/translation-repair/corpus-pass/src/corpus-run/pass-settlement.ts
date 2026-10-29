@@ -58,6 +58,9 @@ export type PassSettlement = {
  @param acceptedRepairClaimNotes - the claims the repair lane's panel accepted
  per slice, which the final polish gate reads
 
+ @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, per slice
+ (owner, 2026-10-29, "Ship the two-ballot text")
+
  @param frontMatterSlices - syntax-bearing metadata positions
 
  @param pictureReadings - paired OCR evidence
@@ -90,6 +93,7 @@ export async function runPassSettlement(
     contests,
     archiveDisputes,
     acceptedRepairClaimNotes,
+    translateWinnerBallots,
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,
@@ -105,6 +109,7 @@ export async function runPassSettlement(
     readonly contests: readonly ArtifactContestSlice[];
     readonly archiveDisputes: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
+    readonly translateWinnerBallots?: ReadonlyMap<number, number>;
     readonly frontMatterSlices: ReadonlySet<number>;
     readonly pictureReadings: ReadonlyMap<string, PairedReading>;
     readonly entryCacheDir: string;
@@ -125,6 +130,7 @@ export async function runPassSettlement(
     contests,
     archiveDisputes,
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
+    ...((translateWinnerBallots === undefined) ? {} : { translateWinnerBallots, }),
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,

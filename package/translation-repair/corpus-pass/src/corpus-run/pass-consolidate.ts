@@ -56,6 +56,9 @@ import {
  @param acceptedRepairClaimNotes - the claims that panel accepted per slice,
  which the final polish gate reads
 
+ @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, per slice
+ (owner, 2026-10-29, "Ship the two-ballot text")
+
  @param contests - lane contest records
 
  @param frontMatterSlices - syntax-bearing metadata positions
@@ -96,12 +99,14 @@ export async function runPassConsolidation(
     overlap,
     archiveDisputes,
     acceptedRepairClaimNotes,
+    translateWinnerBallots,
     l,
     stageSettings,
   }: {
     readonly client: RunClient;
     readonly archiveDisputes?: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
+    readonly translateWinnerBallots?: ReadonlyMap<number, number>;
     readonly prepared: PreparedDocumentPair;
     readonly projected: ProjectedLanes;
     readonly contests: readonly ArtifactContestSlice[];
@@ -175,6 +180,7 @@ export async function runPassConsolidation(
     },),
     ...((archiveDisputes === undefined) ? {} : { archiveDisputes, }),
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
+    ...((translateWinnerBallots === undefined) ? {} : { translateWinnerBallots, }),
     signal,
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     overlap,

@@ -27,6 +27,7 @@ import {
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { ArtifactContestSlice, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
+  contestedCountLine,
   contestedRows,
   contestedSliceName,
   indexConsolidationInputs,
@@ -45,10 +46,7 @@ import {
   type SliceCache,
 } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import {
-  inSliceLogContext,
-  wordForCount,
-} from '@monochromatic-dev/translation-repair-typography/ts';
+import { inSliceLogContext, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   mapOverlapped,
   type StageSettings,
@@ -98,6 +96,9 @@ import {
 
  @param acceptedRepairClaimNotes - the claims that panel accepted per slice,
  which the final polish gate reads and the key names
+
+ @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, per slice; a
+ slice absent from it drew none (owner, 2026-10-29, "Ship the two-ballot text")
 
  @param sheetFacts - what the page tells every sheet and key: the declared names,
  whether the original's entry records a death, the names the translation
@@ -162,6 +163,7 @@ export async function consolidateDocument(
     beforeSlice,
     archiveDisputes,
     acceptedRepairClaimNotes,
+    translateWinnerBallots,
     declaredNamePairs = [],
     l,
     stageSettings,
@@ -183,6 +185,13 @@ export async function consolidateDocument(
      the panel accepted nothing on has no entry.
      */
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
+
+    /**
+     Ballots that named the translate lane's text in the lane's own round, per slice; a slice absent from the map drew
+     none. Two or more, with the final round unable to seat two judges, ship that text over a refused standing (owner,
+     2026-10-29, "Ship the two-ballot text").
+     */
+    readonly translateWinnerBallots?: ReadonlyMap<number, number>;
     /**
      Name pairs the front matter declares, which the publication rule reads
      for a linked title naming a declared person (class one hundred
@@ -276,15 +285,7 @@ export async function consolidateDocument(
    */
   const twins: TwinMemo<ConsolidationSettlement> = new Map();
 
-  dl.info(
-    `consolidation: ${String(contests.length,)} contested ${
-      wordForCount({
-        count: contests.length,
-        one: 'slice',
-        many: 'slices',
-      },)
-    } to settle`,
-  );
+  dl.info(contestedCountLine({ count: contests.length, },),);
   return await mapOverlapped({
     items: eligibleRows,
     overlap,
@@ -522,6 +523,8 @@ export async function consolidateDocument(
                 laneTexts,
                 // The hook's slate reach is the floor check: fewer judges than ballots buys no slate.
                 ...((seating.slateReachable === undefined) ? {} : { slateReachable: seating.slateReachable, }),
+                // Over a refused standing, the translate lane's text two judges chose ships where the slate cannot seat two.
+                translateWinnerBallots: translateWinnerBallots?.get(row.sliceIndex,) ?? 0,
                 // The run-off over this eligible standing and its forfeit past an
                 // undecided gate both read a strict majority of the contest ballots
                 // (owner answers 2026-10-11, "Majority flawed yes" and "Majority,

@@ -11,6 +11,7 @@ import type {
   ArtifactConsolidationTerminal,
 } from './artifact-two-lane-consolidate.ts';
 import {
+  type ArchiveKeptReason,
   type GateBallot,
   isGateChoice,
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
@@ -28,6 +29,40 @@ import {
 // either ship a passage nobody settled on or silently drop one that was.
 
 /**
+ Reasons the archive keeps a slice, keyed by `ArchiveKeptReason` so that the compiler refuses a reason the stage gains
+ that this reader lacks, which would leave every artifact carrying it refused whole.
+ */
+const ARCHIVE_KEPT_REASON_NAMES: Readonly<Record<ArchiveKeptReason, true>> = {
+  'no-wording-passed': true,
+  'final-round-unseated': true,
+  'slate-declined': true,
+};
+
+/**
+ The reasons, in the order a refusal names them.
+ */
+const ARCHIVE_KEPT_REASONS: readonly string[] = Object.keys(ARCHIVE_KEPT_REASON_NAMES,);
+
+/**
+ Whether a stored value names a reason the archive keeps a slice.
+
+ @param value - reason as the artifact carries it
+
+ @returns Whether it is one of the names `ARCHIVE_KEPT_REASON_NAMES` holds
+
+ @example
+ ```ts
+ const known = isArchiveKeptReason('slate-declined',);
+ ```
+ */
+function isArchiveKeptReason(value: unknown,): value is ArchiveKeptReason {
+  return ((typeof value) === 'string') && Object.hasOwn(
+    ARCHIVE_KEPT_REASON_NAMES,
+    value,
+  );
+}
+
+/**
  @internal
 
  Reads what one slice contributes to the document.
@@ -36,12 +71,16 @@ import {
 
  @param terminal - how that slice left the stage
 
+ @param translateWinnerRecorded - whether the generation records why the archive keeps a slice (the `reason` key of the
+ archive kind, required from then) and the shipped kind `translate-winner`, which an older generation refuses
+
  @param path - dotted path for error messages
 
  @returns Wording to write, or a stated absence
 
  @throws {@link ArtifactParseError} when the shipped kind and the terminal
- disagree about whether this slice replaces anything
+ disagree about whether this slice replaces anything, or the kind or key belongs to a later generation, or a key the
+ generation requires is missing
 
  @example
  ```ts
@@ -52,10 +91,12 @@ export function parseShipped(
   {
     value,
     terminal,
+    translateWinnerRecorded = false,
     path,
   }: {
     readonly value: unknown;
     readonly terminal: ArtifactConsolidationTerminal;
+    readonly translateWinnerRecorded?: boolean;
     readonly path: string;
   },
 ): ArtifactConsolidateSlice['shipped'] {
@@ -91,7 +132,12 @@ export function parseShipped(
   if (record.kind === 'archive') {
     requireExactKeys({
       record,
-      allowed: ['kind',],
+      allowed: translateWinnerRecorded
+        ? [
+          'kind',
+          'reason',
+        ]
+        : ['kind',],
       path,
     },);
     if (replaces) {
@@ -100,7 +146,44 @@ export function parseShipped(
         reason: 'the consolidation a slice whose terminal is consolidated ships, rather than the archive',
       },);
     }
-    return { kind: 'archive', };
+    // THE REASON THE ARCHIVE KEEPS THE SLICE, from generation twenty-two: a record that cannot say why is refused.
+    if (!translateWinnerRecorded)
+      return { kind: 'archive', };
+    if (!isArchiveKeptReason(record.reason,)) {
+      throw new ArtifactParseError({
+        path: `${path}.reason`,
+        reason: `one of ${ARCHIVE_KEPT_REASONS.join(', ',)}`,
+      },);
+    }
+    return {
+      kind: 'archive',
+      reason: record.reason,
+    };
+  }
+  // THE TRANSLATE LANE'S WINNER CARRIES ITS TEXT, like a consolidation, and replaces what the contest left (owner,
+  // 2026-10-29, "Ship the two-ballot text"); only a generation that records it names it, and no consolidation won.
+  if (translateWinnerRecorded && (record.kind === 'translate-winner')) {
+    requireExactKeys({
+      record,
+      allowed: [
+        'kind',
+        'text',
+      ],
+      path,
+    },);
+    if (replaces) {
+      throw new ArtifactParseError({
+        path,
+        reason: 'the consolidation a slice whose terminal is consolidated ships, rather than the translate lane winner',
+      },);
+    }
+    return {
+      kind: 'translate-winner',
+      text: requireString({
+        value: record.text,
+        path: `${path}.text`,
+      },),
+    };
   }
   if (record.kind === 'incumbent') {
     requireExactKeys({
@@ -128,7 +211,9 @@ export function parseShipped(
   if (record.kind !== 'consolidated') {
     throw new ArtifactParseError({
       path: `${path}.kind`,
-      reason: 'one of archive, consolidated, incumbent, unchanged',
+      reason: translateWinnerRecorded
+        ? 'one of archive, consolidated, incumbent, translate-winner, unchanged'
+        : 'one of archive, consolidated, incumbent, unchanged',
     },);
   }
   requireExactKeys({
