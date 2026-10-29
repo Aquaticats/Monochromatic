@@ -4,6 +4,7 @@ import {
   collectIssueAuthors,
 } from './issue-authors.ts';
 import type { EditorStageResult, } from './repair-editor-stage.ts';
+import type { FootnoteReferenceHit, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import type { IssueAuthorship, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import { downgradeCount, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {
@@ -11,6 +12,7 @@ import {
   type EditableEnvelope,
   footnoteBreakCount,
   type RepairDocument,
+  restoredFootnoteReferences,
 } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import type {
   CandidateMeasurements,
@@ -164,6 +166,11 @@ export function readAppliedEnvelopes(
 
  @param targetDocument - parsed unchanged translation
 
+ @param sourceReferences - footnote references of the slice's own source;
+ an unresolved reference of the patched chunk that one of these names and
+ the translation lacked is a restoration and leaves the footnote count.
+ Absent means none, so nothing is excused
+
  @returns Measurements selection ranks by
 
  @throws Error when an applied operation names no envelope here, which no
@@ -183,6 +190,7 @@ export function measurePatchedCandidate(
     applied,
     patchedDocument,
     targetDocument,
+    sourceReferences = [],
   }: {
     readonly acceptedIssues: readonly AdjudicatedIssue[];
     readonly tallies: Readonly<Record<string, IssueResolutionTally>>;
@@ -191,6 +199,7 @@ export function measurePatchedCandidate(
     readonly applied: readonly PatchOperation[];
     readonly patchedDocument: RepairDocument;
     readonly targetDocument: RepairDocument;
+    readonly sourceReferences?: readonly FootnoteReferenceHit[];
   },
 ): CandidateMeasurements {
   /**
@@ -198,6 +207,22 @@ export function measurePatchedCandidate(
    */
   const grammarOk = downgradeCount({ document: patchedDocument, },)
     <= downgradeCount({ document: targetDocument, },);
+
+  /**
+   Unresolved references in the patched chunk that restore one the slice's
+   source carries and the translation had dropped.
+   */
+  const restoredCount = restoredFootnoteReferences({
+    patchedDocument,
+    targetDocument,
+    sourceReferences,
+  },)
+    .length;
+
+  /**
+   Footnote findings the patched chunk carries once its restorations leave the count.
+   */
+  const patchedBreakCount = footnoteBreakCount({ document: patchedDocument, },) - restoredCount;
 
   /**
    Whether the patch left footnote structure no worse than it found it.
@@ -210,9 +235,19 @@ export function measurePatchedCandidate(
    Chunk-scoped like every other measurement here, so it sees damage a patch
    does WITHIN one chunk. A definition deleted in one chunk whose reference
    lives in another still passes, since neither chunk's own count rises.
+
+   The same scoping would punish a RESTORATION: a reference the translation
+   dropped and the patch put back has its definition in another chunk, so
+   inside this one it reads as a new unresolved reference (run XingZ6022
+   slice 44, `[^3]`, definition in slice 115). The owner ruled on 2026-10-29
+   that a reference the slice's own source also carries is a restoration, so
+   those leave the patched count and every other finding stays in it. A
+   reference the source lacks, an orphan definition and a duplicated
+   definition still raise it, and the page-level guard (`page-check`
+   footnote resolution, the `assembly` integrity guard) still catches a
+   reference with no definition anywhere on the page.
    */
-  const footnotesOk = footnoteBreakCount({ document: patchedDocument, },)
-    <= footnoteBreakCount({ document: targetDocument, },);
+  const footnotesOk = patchedBreakCount <= footnoteBreakCount({ document: targetDocument, },);
 
   return {
     integrityOk: grammarOk && footnotesOk,
