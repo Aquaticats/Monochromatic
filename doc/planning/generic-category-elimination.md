@@ -271,6 +271,58 @@ Research reports:
   `cli/wg-quicker` to `wg/cli-quicker`,
   `cli/wg-quicker-exempt` to `wg/cli-quicker-exempt`.
 
+### `shim` and `stub` (settled 2026-10-29)
+
+All seven are owned by one mechanism (workspace dependency overrides),
+ so they form one family:
+`shim/<name>` to `pnpm-override/shim-<name>`
+ (`katex`,
+ `node-domexception`,
+ `proper-lockfile`,
+ `readable-stream`,
+ `ungap-structured-clone`)
+and `stub/<name>` to `pnpm-override/stub-<name>` (`silent`,
+ `throwing`).
+The `link:` overrides in `pnpm-workspace.yaml` and the names in `.pnpmfile.mjs`,
+ `.pnpmfile.policies.json`,
+ and `.changeset/config.json` move in the same commit.
+After the move,
+ tell the translation-repair session so it can annotate its katex ledger lines.
+
+Published names (`shim-node-domexception`,
+ `shim-ungap-structured-clone`,
+ `stub-silent`,
+ `stub-throwing`)
+rename with their paths;
+after the user's manual first publish of each new name,
+the old names get `npm deprecate` pointing to the new ones
+(the user runs the npm-authenticated steps).
+
+### `webapp-productivity`,
+ `desktop-daemon`,
+ `build-tool` (settled 2026-10-29)
+
+- `webapp-productivity/done` to `done/app`;
+  `webapp-productivity/done-postcss` to `done/variant-postcss`.
+- `webapp-productivity/doodle-widget` to `doodle-widget/app`.
+- `webapp-productivity/rss` to `rss/app`
+  (`module/async-iter` and `module/memoize` may join `rss` in the `module` round).
+- `webapp-productivity/syllable-break-demo` to `syllable-break-demo/app`.
+- `webapp-productivity/wc` to `wc/app`
+  (the user's Polypane state keeps the old live path;
+   nothing breaks).
+- `desktop-daemon/hall-monitor` to `hall-monitor/daemon`.
+- `build-tool/css` to `css/cli`
+  (`module/css-edit` and `test-fixture/css-*` may join `css` later).
+
+### `git` (settled 2026-10-29)
+
+`git/executable` to `git-executable/core`:
+ nothing in `git-policy` imports it,
+ and finding the real git binary is useful to any repo tool.
+
+These batches run after the `cli` batch lands.
+
 The uncommitted toolchain refactor in main
  (`file-enforcer/src/toolchain`,
  `toolchain.lock.json`,
