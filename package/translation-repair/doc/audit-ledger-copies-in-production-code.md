@@ -713,3 +713,82 @@ No code was added for this entry.
 Prevention:
 `mistake-prevention-shared-code-loops-and-keyed-tables.md`,
 "Copies of shared code".
+
+## B980: the toolchain cutover broke the lock reader of B700 and the gate's lookup of the lint program
+
+Status:
+fixed on 2026-10-29 (UTC).
+The reader of the lock is fixed in `dbfcb006d7`.
+The gate setup is scratch tooling outside the repository,
+so it has no commit;
+the order that now prevents the break is in
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools".
+
+Three breaks followed the move of the repository's tools to MPM.
+Main deleted `mise.lock` in `4cb480344f` (2026-10-26),
+and the merge `30d8d23218` of main into the translation-repair branch brought that deletion in on 2026-10-29 (UTC).
+
+The first break is a second reader of the fact of B700.
+The agreement case of `semantic-wrap-binary.unit.test.ts` read the tool's entry in `mise.lock`,
+so it failed with `ENOENT` once the file was gone.
+The message of `dbfcb006d7` names gate g221 as the gate that showed it.
+The case now reads `tools["cargo:monochromatic-lint"].version` from `toolchain.lock.json`
+and reaches the table and the entry through `isJsonRecord`,
+so a lock whose table or entry is not an object fails the case by an assertion and not by a thrown error.
+
+The second break is the size of the index.
+The merge and the stamps entries took `audit-ledger.md` to 1009 lines,
+past the bound of 1,000 that the line-limit scan holds it to.
+`e6a586cd62` moved the process mistakes to `audit-ledger-process-mistakes.md`,
+which the main index lists.
+
+The third break is the gate's tool lookup.
+Gate g219 on `30d8d23218` passed 3181 cases and failed 694,
+and the source scans exited 1.
+`confirmPinnedVersion` in `package/translation-repair/typography/src/semantic-wrap-binary.ts` runs
+`monochromatic-lint` by name,
+and on the gate's `PATH` that name resolved to the shim of `mise`,
+which printed `mise ERROR No version is set for shim`.
+The repository's tools now live in a directory of each worktree,
+`.cache/toolchain-bin`,
+which `mise run toolchain:sync` makes after the worktree's install.
+The gate's `PATH` builder had dropped the entries of the main checkout,
+and the fresh gate trees had never been synced,
+so nothing on the path held the real program.
+
+Round 8 met the same break.
+Its own red cases in `tr-w357` were the same missing `monochromatic-lint`:
+ten cases of the page-check unit tests failed with `LintBinaryMissingError`,
+and three cases of the source scans failed with `spawn monochromatic-lint ENOENT`.
+That tree predated the cutover and was never synced.
+The report of the round recorded the lookup errors word for word and installed nothing.
+
+The fix of the gate setup,
+which is the order the prevention names:
+the gate's `PATH` puts `<tree>/.cache/toolchain-bin`,
+`<tree>/.cache/cli-git-bin` and `<tree>/node_modules/.bin` first,
+and leaves out the directory of the `mise` shims.
+A fresh tree runs `mise run prepare:pnpm:install` and then `mise run toolchain:sync` before a gate,
+since the sync needs `node_modules`.
+A subagent never runs `toolchain:sync`,
+so the lead syncs a subagent's tree after the subagent merges main across a change to the toolchain.
+
+Not verified here:
+the counts of g219 and g221 are the lead's and no log of them is in the repository,
+and the commit message of `dbfcb006d7` calls g221 the first gate after the merge
+while g219 ran on the merge commit itself,
+so which gate showed the `ENOENT` first is not settled by the repository.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools",
+and `mistake-prevention-shared-code-loops-and-keyed-tables.md`,
+"Copies of shared code",
+whose rule on the lock follows the move to `toolchain.lock.json`.
+
+Recurrence:
+B700,
+which records the fact and its first reader,
+and M278 and M280,
+which record a build that ran another tree's tools and a tree tested on another commit's install.
