@@ -75,8 +75,48 @@ The rewritten header sits in the main worktree,
  (`SCANNER_SELF_MATCH_PATHS` in `package/git-policy/cli/src/native/scanner_selection.rs`).
 Copy at `~/temp/agent/package-category-elimination/builtin-rules.rewritten.txt`.
 
-### Open decision:
- guard 0.2.11
+### `module` batch:
+ applied in the main worktree,
+ not committed
+
+- Moves (`~/temp/agent/package-category-elimination/module-moves.json`):
+   all of `module` and `rust-module`,
+   plus `dev-script/file-enforcer` and the `dependency-catalog` tools
+   (`monochromatic-fb` paused them for this window and wants the commit OID).
+  User decisions:
+   `kv-store/{core,memoize}` instead of `cache/*` (`.gitignore` ignores every `cache/` dir;
+   negations rejected),
+   fork leaves drop `-fork`.
+- `npm-publish.yml` takes a package path;
+   `mise.no-env.toml` tasks are `npm:package:{pack,publish}` with `pnpm --filter ./package/$NPM_PACKAGE`.
+- Pre-commit checks pass (`module-precommit.ts`:
+   install,
+   `sync:files`,
+   file-enforcer `--check` from `package/file-enforcer/core`,
+   `cargo metadata`).
+- Blocked on guard 0.2.12:
+   three `jsonc-edit/core-rust.fuzz` seeds lack a final newline on purpose;
+   the user rejected `--no-enforce-final-newline`,
+   and chose that the final-newline policy honor `-text`.
+  A subagent is implementing it;
+   `package/jsonc-edit/core-rust.fuzz/.gitattributes` (new) marks `seed/** -text`.
+  Then:
+   release 0.2.12 (four-file bump),
+   install,
+   commit.
+- Commit routine:
+   `node module-pathspec.ts <repo>` (excludes other sessions' dirty files;
+   extend its list when the scan flags one),
+   `node batch-scan.ts <repo> module-moves.json module-scan.out.txt -- $(cat module-commit-pathspec.txt)`,
+   then `git add --pathspec-from-file=module-add-pathspec.txt`
+   and `git commit --file=module-commit-msg.txt --pathspec-from-file=module-commit-pathspec.txt`.
+- This handover is excluded from the batch;
+   after it lands,
+   remove `package/rust-module/rust-linter-{core,pattern}` (untracked build output),
+   run `lint:types` on moved packages,
+   and message `monochromatic-fb`.
+
+### Guard 0.2.11 (done)
 
 Releasing 0.2.11 fixes both hardcoded path lists
  (the source on `main` already names the new paths).
