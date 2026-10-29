@@ -86,17 +86,21 @@ fn is_process_name(name: &str) -> bool {
         return false;
     };
     return !id.is_empty()
-        && id.bytes().all(|byte| byte.is_ascii_digit())
+        && id.bytes().all(|byte| {
+            return byte.is_ascii_digit();
+        })
         && !nonce.is_empty()
-        && nonce.bytes().all(|byte| byte.is_ascii_hexdigit());
+        && nonce.bytes().all(|byte| {
+            return byte.is_ascii_hexdigit();
+        });
 }
 
 /// True when the last component of a path is a name this module makes.
 fn is_process_directory(directory: &Path) -> bool {
-    return directory
-        .file_name()
-        .and_then(|name| name.to_str())
-        .is_some_and(is_process_name);
+    let Some(name) = directory.file_name().and_then(std::ffi::OsStr::to_str) else {
+        return false;
+    };
+    return is_process_name(name);
 }
 
 /// What:
@@ -139,8 +143,10 @@ pub(super) fn claim(directory: &Path) -> Result<(), String> {
         return Ok(());
     }
     let mut held = HELD.lock().unwrap_or_else(PoisonError::into_inner);
-    if held.iter().any(|(path, _)| path == directory) {
-        return Ok(());
+    for (path, _) in held.iter() {
+        if path == directory {
+            return Ok(());
+        }
     }
     let lock = lock_path(directory);
     let file = match OpenOptions::new()
@@ -210,12 +216,16 @@ pub(super) fn reap_ended(directory: &Path) {
         if directory.file_name() == Some(name.as_os_str()) {
             continue;
         }
-        if !name.to_str().is_some_and(is_process_name) {
+        let Some(text) = name.to_str() else {
+            continue;
+        };
+        if !is_process_name(text) {
             continue;
         }
         // A link or a file with such a name is not a directory of this module: left as it is.
-        if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
-            continue;
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => {}
+            _ => continue,
         }
         remove_if_owner_ended(&entry.path());
     }

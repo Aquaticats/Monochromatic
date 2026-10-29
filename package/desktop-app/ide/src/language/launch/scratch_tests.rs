@@ -239,13 +239,27 @@ fn entries_that_are_not_scratch_directories_of_a_process_are_left() {
     let state = canonical(&parent).join("state");
     fs::create_dir(&root).expect("project");
     let server = state.join("server");
-    for name in ["tmp", "cache", "tmp-notes", "tmp-12-xyz", "tmp-1-2-3", "tmp--aa"] {
+    for name in [
+        "tmp",
+        "cache",
+        "tmp-notes",
+        "tmp-12-xyz",
+        "tmp-1-2-3",
+        "tmp--aa",
+    ] {
         fs::create_dir_all(server.join(name)).expect("unrelated directory");
         fs::write(server.join(name).join("keep"), "keep").expect("unrelated file");
     }
     fs::write(server.join("tmp-9-aa"), "a file, not a directory").expect("unrelated file");
     prepare_here(&state, &root);
-    for name in ["tmp", "cache", "tmp-notes", "tmp-12-xyz", "tmp-1-2-3", "tmp--aa"] {
+    for name in [
+        "tmp",
+        "cache",
+        "tmp-notes",
+        "tmp-12-xyz",
+        "tmp-1-2-3",
+        "tmp--aa",
+    ] {
         assert!(
             server.join(name).join("keep").exists(),
             "{name} was removed as a scratch directory"

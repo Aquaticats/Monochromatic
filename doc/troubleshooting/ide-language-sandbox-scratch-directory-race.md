@@ -32,7 +32,9 @@ every launch binds the private `/tmp` of the server,
 over `/tmp` of the sandbox (`--bind <state>/tmp /tmp`,
 `src/language/confine/recipe.rs`).
 The mise runs of one resolution use the server name `mise`,
-so their directory is `.../mise/tmp`.
+so their directory is `.../mise/tmp`
+(since 2026-10-29 the equivalent launch is the toolchain lookup, `launch_request` in `src/language/toolchain/command.rs`,
+with the server name `toolchain`).
 
 Why the source is missing:
 `prepare` (`src/language/launch/state.rs`) emptied a scratch directory by `remove_dir_all` and then `create_dir_all`.
@@ -126,7 +128,8 @@ The mise path gives a notice with the raw sandbox text:
 before the change it said `Fix what mise names (mise doctor ...)` and `mise said: bwrap: ...`,
 which sent the reader to a program that never ran.
 Now (`Failed::stopped_by_sandbox`,
-`src/language/mise/state.rs`)
+`src/language/mise/state.rs`;
+moved on 2026-10-29 to `src/language/toolchain/state.rs` when the mise runs were replaced by the toolchain lookup)
 it says the sandbox that runs mise stopped before mise started,
 that the project's mise configuration is not the cause,
 that the message does not say why,
@@ -160,7 +163,7 @@ emptied in place as before.
 The nonce keeps two live processes apart when two process-id namespaces share one cache folder.
 Every server of a project has its own state folder,
 so a process holds one scratch directory per server it has launched
-(mise's runs and the toolchain lookup use the server name `toolchain`).
+(the toolchain lookup, `launch_request` in `src/language/toolchain/command.rs`, uses the server name `toolchain`).
 
 ### How a dead owner is detected
 
@@ -231,8 +234,8 @@ this branch.
 Arms alternated per round (old, new, old again),
 each with a cache folder of its own,
 and the second old arm is the same-binary control for the spread.
-Host load average was about 90 on 28 cores when the run started;
-the run took the load there was.
+The host load average read 89.8 over one minute on 28 cores at 01:19 on 2026-10-29, before the run started;
+the run took whatever load other sessions put on the host.
 
 Sharing trial (30 per arm).
 Process A starts and writes its marker in its `/tmp`;
@@ -282,7 +285,7 @@ which only a later launch would remove).
   still share the process's directory.
   Whether the application ever runs two such lookups at once was not checked.
 - The measurement used server launches only;
-  mise's lookup run uses the same `prepare` and the same recipe,
+  the toolchain lookup uses the same `prepare` and the same recipe,
   but it was not run in the harness.
 - A bubblewrap failure for another cause shows the new notice,
   and its cause is whatever bubblewrap says.

@@ -232,10 +232,10 @@ pub fn resolve_executable(command: &str, root: &Path) -> Option<PathBuf> {
     return None;
 }
 
-/// The private state directory rules and the preparation of a launch's directories.
-mod state;
 /// The scratch directory of one process, so processes on one project never empty each other's.
 mod scratch;
+/// The private state directory rules and the preparation of a launch's directories.
+mod state;
 /// Re-exported:
 /// the confining policy and the worker use them through the seam.
 pub use scratch::scratch_name;
