@@ -6080,9 +6080,20 @@ Package move and nightly toolchain, 2026-10-29 (after the release):
 - `monochromatic-db` plans to move the repo's container base to CachyOS (rule BXD, `doc/decision/container-base-distro.md`);
   the terminal and ide Containerfiles are on hold until the user decides how to keep the IDE release glibc floor (the IDE release binary is compiled inside the image built from the terminal image).
   It will message me the commit hash if a terminal or ide Containerfile change lands, and I dry-run the IDE release on it before any real release.
+- The user decided (relayed by `monochromatic-db`, recorded in `doc/decision/container-base-distro.md`, `51874c06c6` and `3df9a372af`):
+  split each of `package/terminal/app` and `package/ide/app` into a CachyOS development image (base chosen by host CPU level through `ARG CACHYOS_IMAGE`)
+  and a separate release image based on `docker.io/library/ubuntu:24.04` (glibc 2.39, the floor the release workflow checks);
+  the first relay said the release image would stay on Fedora 41, and a later relay from the same session replaced that with Ubuntu 24.04.
+  Every release path, including the build in `localhost/monochromatic/ide` that `ide-release.yml` runs, must build from the release image.
+  No terminal or ide Containerfile change was committed at the time of writing; `monochromatic-db` will message me the hash when one lands.
+- `origin/main` was already at `7c448d8a3e` ("build the compositor image on CachyOS with pacman instead of Fedora 41 with dnf") when I checked,
+  so the compositor image changed base.
+  Its release jobs in `.github/workflows/cargo-publish.yml` (`nws-build-binary` and the packaging after it) run on named `ubuntu-24.04` and `ubuntu-24.04-arm` runners
+  and install the system libraries with the runner's package manager, not from the Containerfile image, so that change does not move the compositor release glibc (read from the workflow, not by a dry run).
 
 Next, in order:
-- Wait for that message; then dry-run `ide-release.yml` on the commit, check the glibc floor step and the recorded toolchain, and record the result here.
+- Wait for that message; then dry-run `ide-release.yml` on the commit, check that the build runs in the Ubuntu 24.04 release image, the glibc floor step (2.39) and the recorded toolchain, and compare with the baseline run 40877021793; record the result here.
+- Before the next compositor release, dry-run the compositor release in `cargo-publish.yml` once, because the package path and the image changed since `monochromatic-nested-wayland-session-v0.6.2`.
 - Release the next IDE version when there is a change worth shipping (bump `version` in `package/ide/app/Cargo.toml`, `task-run //package/ide/app:fetch`, dry run, then dispatch with `--ref main --field dry-run=false`).
 - The compositor needs no release now; its manifest is covered by the same generator fix.
 
