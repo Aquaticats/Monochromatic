@@ -1,11 +1,18 @@
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
-import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import {
+  type ProviderName,
+  type ProviderRecord,
+  providerRecord,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type { NeuralWattReturn, } from './budget-routing.ts';
+import type { NeuralWattClient, } from './neuralwatt-client.ts';
 import type { MeterState, } from './provider-meters.ts';
 
 //region Provider budget starting values
 // SPLIT OUT OF `provider-budget.ts` at its line budget: the values a budgets instance holds before any meter has
-// answered, the clock it reads by default, and the error for a hold bound that cannot bound a hold.
+// answered, the clock it reads by default, the error for a hold bound that cannot bound a hold, and what the budgets
+// know of NeuralWatt's day without asking its client to decide it.
 
 /**
  The reading before any meter has answered: nothing is dry.
@@ -95,6 +102,138 @@ export function notHeldOut(): boolean {
 }
 
 /**
+ The reading cache of a budgets instance, mutated as readings start.
+ */
+export type ReadingCache = {
+  startedAt: number;
+  inFlight: boolean;
+  reading: Promise<{
+    readonly view: ProviderRecord<boolean>;
+    readonly states: ProviderRecord<MeterState>;
+    readonly levels: ProviderRecord<string>;
+  }>;
+};
+
+/**
+ The cache of a budgets instance before any meter has answered: the last meter reading and when it was taken, stamped
+ infinitely long ago until the first.
+
+ THE PRE-READ VIEW IS NOT A PLACEHOLDER LIE. Before any meter has answered, nothing is known about any budget, and the
+ policy for an unknown budget is already that it counts as spendable. A stamp infinitely long ago is stale on any clock,
+ so the first call reads every meter regardless.
+
+ NOT ZERO. The stamp was zero for never, which an epoch clock never reads; `monotonicMs` counts from near the process's
+ start and reads zero in its first millisecond, so a reading taken then passed for no reading and every meter was read
+ again inside the window (ledger B78). Nor can zero stand as an ordinary stamp: on this clock it is the process's start,
+ so every call in the first `freshForMs` would take the pre-read view as fresh and read no meter, which failed nine of
+ the budget layer's cases when tried.
+
+ @returns Cache stamped infinitely long ago, with nothing in flight and the reading nothing is known from
+
+ @example
+ ```ts
+ const cache = beforeAnyReading();
+ ```
+ */
+export function beforeAnyReading(): ReadingCache {
+  return {
+    startedAt: Number.NEGATIVE_INFINITY,
+    inFlight: false,
+    reading: Promise.resolve({
+      view: providerRecord({ of: spendableBeforeReading, },),
+      states: providerRecord({ of: unreadBeforeReading, },),
+      levels: providerRecord({ of: noLevelBeforeReading, },),
+    },),
+  };
+}
+
+/**
+ Each provider's meter state in one reading.
+
+ @param meters - every meter's record, keyed by provider
+
+ @returns The state of each meter
+
+ @example
+ ```ts
+ const states = meterStatesOf({ meters, },);
+ ```
+ */
+export function meterStatesOf(
+  { meters, }: { readonly meters: ProviderRecord<{ readonly state: MeterState; }>; },
+): ProviderRecord<MeterState> {
+  return providerRecord({
+    of: function stateOf(provider,): MeterState {
+      /**
+       This provider's meter record.
+       */
+      const meter = meters[provider];
+      return meter.state;
+    },
+  },);
+}
+
+/**
+ Each provider's meter level in one reading, the numbers it reported joined by spaces: what a payment refusal compares a
+ later reading against.
+
+ @param meters - every meter's record, keyed by provider
+
+ @returns The joined numbers of each meter
+
+ @example
+ ```ts
+ const levels = meterLevelsOf({ meters, },);
+ ```
+ */
+export function meterLevelsOf(
+  { meters, }: { readonly meters: ProviderRecord<{ readonly fields: readonly string[]; }>; },
+): ProviderRecord<string> {
+  return providerRecord({
+    of: function levelOf(provider,): string {
+      /**
+       This provider's meter record.
+       */
+      const meter = meters[provider];
+      return meter.fields
+        .join(' ',);
+    },
+  },);
+}
+
+/**
+ What the run knows of NeuralWatt's day, without asking the client to decide it.
+
+ @param neuralwatt - the NeuralWatt meter, absent where the run has no NeuralWatt key
+
+ @returns Off without a meter, unanchored where the client has decided no day start, else the day start as a time of day
+
+ @example
+ ```ts
+ const day = neuralwattReturnOf({ neuralwatt, },);
+ ```
+ */
+export function neuralwattReturnOf(
+  { neuralwatt, }: {
+    readonly neuralwatt?: Pick<NeuralWattClient, 'energy'> & { readonly dayAnchor?: NeuralWattClient['dayAnchor']; };
+  },
+): NeuralWattReturn {
+  if (neuralwatt === undefined)
+    return { kind: 'off', };
+  // A stub client that carries no anchor decided none.
+  /**
+   What the client has decided, without asking it to decide.
+   */
+  const anchor = neuralwatt.dayAnchor?.() ?? { known: false, };
+  if (!anchor.known)
+    return { kind: 'unanchored', };
+  return {
+    kind: 'at',
+    msOfDay: anchor.msOfDay,
+  };
+}
+
+/**
  Raised when the longest hold a budgets instance may state is not a finite whole number of
  milliseconds greater than zero.
 
@@ -162,20 +301,6 @@ export type StatedWait = {
  Logger root for the budget layer.
  */
 const l = contextRoot({ tag: 'translation-repair', },);
-
-/**
- The end of a refusal hold before any refusal: never.
-
- @returns Zero, the stamp for no hold
-
- @example
- ```ts
- const heldUntil = providerRecord({ of: holdEndsNever, },);
- ```
- */
-export function holdEndsNever(): number {
-  return 0;
-}
 
 /**
  Builds the cut that keeps a wait a refusal states for itself inside the longest hold a run can use.

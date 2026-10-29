@@ -3,7 +3,8 @@
 Rules for a guard that holds a run to an amount of money:
 what it admits,
 what it counts,
-and the retries a client makes inside the call it admits.
+the retries a client makes inside the call it admits,
+and a wait taken again for a provider that has just refused.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
@@ -183,3 +184,100 @@ for each measurement that asks the same thing more than once,
 list the layers between the asker and the wire and ask which of them can answer without sending.
 A positive control comes first:
 run two repeats through the real layers with a scripted transport and count the exchanges.
+
+## A wait that buys the same refusal is not repeated
+
+What happened:
+XingZ6020 seated Synthetic while its meter read "unreadable,
+treating as spendable".
+Every call was refused,
+each refusal set a 300 s cooldown,
+and the seat reader waited the cooldown out for every slice
+and asked again,
+only to be refused at once:
+a wait of 240 to 300 s in each of 58 distinct minutes across five and a half hours (ledger B965).
+The wait was written for a provider that comes back,
+and nothing in the loop asked whether this one had.
+Each wait looked reasonable when it started,
+and the bound the entry carried did not reach it,
+because that bound filters one provider's return and a refusal cooldown is waited for whatever the bound is.
+
+The rule:
+a wait that is taken to see whether a provider comes back records what it bought.
+A provider that refused right after a wait it was given,
+with nothing served in between,
+has answered the question,
+and the next wait for it is not taken in that entry.
+The record is the layer's own evidence (the hold ended,
+the router reported nothing served,
+the provider refused),
+not a time window,
+since a window must outlast the retry ladder of the layer below it.
+A hold the refusal itself states,
+a payment refusal and a NeuralWatt day start are not guesses and are never given up.
+The record lives for the entry,
+so the next entry meets the provider fresh.
+A loop that waits and asks again is bounded by what its waits bought,
+and by its entry's abort only as the last resort.
+
+The rule for a give-up:
+giving a provider up narrows where a call may go,
+and waiting for it buys something only when its return would make the entry finishable.
+The give-up is set aside,
+and the cooldown waited out and the provider asked again,
+in two cases only:
+(a) the given-up provider is the only writing provider not dry,
+since the other way ends the run for a provider that serves again after its cooldown;
+or (b) with that provider back no bench floor the entry's stages need would be left unmet,
+while without it at least one is
+(the writing floors and the judging quorums,
+read from the seat reader's own helpers over every bench any phase leans on).
+Otherwise the give-up holds.
+The wording of round 3,
+that the give-up holds only while the providers left meet every bench floor,
+was the lead's error and is superseded:
+it set the give-up aside whenever the providers left fell short,
+whether or not the provider's return would help,
+and in XingZ6020 the 58 waits would have recurred,
+because five benches stay short there with the provider back as well.
+Reading (b) as "the return lifts any unmet floor" is not the rule either.
+The decision is taken for each provider given up,
+and the floors are read twice,
+with the providers left and with that provider added.
+Where the give-up holds,
+a call for a model only the given-up provider serves must end as that seat unreachable,
+with no request sent,
+and never as an error of the entry or the end of the run.
+
+What enforces it:
+`run/src/corpus-run/run-seats-cooldown-repeat.unit.test.ts` runs the real budgets and the real seat reader on one fake
+clock with a provider that refuses at once after each cooldown,
+and fails when the reader waits for more than the first beside a live provider,
+or ends the entry when the refusing provider is alone.
+Its pins fail for three mutants:
+the served check removed,
+the entry-start check removed,
+and a stated return counted as a cooldown.
+`provider/src/provider-budget-refusal-holds.unit.test.ts` holds the cases of the marks themselves,
+`provider/src/provider-budget-give-up-aside.unit.test.ts` those of the set-aside,
+and `provider/src/provider-budget-cooldown-set-aside.unit.test.ts` the budgets and the router's wait over it.
+`run/src/corpus-run/run-client-create.unit.test.ts` builds the run client itself (`runClientFrom`) over a
+scripted transport on a fake clock,
+and fails when the entry waits for Synthetic more than once in the state of XingZ6020
+(NeuralWatt,
+DeepSeek and Xiaomi wet),
+or beside a wet DeepSeek or NeuralWatt alone,
+or waits fewer cooldowns than it is refused when Hyper refuses beside a wet NeuralWatt,
+or ends the run for a Synthetic that is the only writing provider not dry beside a wet Xiaomi;
+`run/src/corpus-run/run-seats-give-up-floors.unit.test.ts` holds the floors,
+and `run/src/corpus-run/run-client-writing-roster.unit.test.ts` the roster the router is handed.
+`stage/src/stage-call-given-up-provider.unit.test.ts` runs the real router over the real budgets and fails when the
+seat only the given-up provider serves is anything but unreachable.
+No scan finds a loop that waits and asks again.
+
+How to find the next one:
+list every place the code waits for a provider,
+a hold or a window to end and then asks the same party again,
+and for each ask what the code knows after the second refusal that it did not know before the first wait.
+A positive control comes first:
+script the party to refuse at once after every wait and count the waits on a fake clock.

@@ -184,6 +184,190 @@ The `SEAT CREDENTIAL REFUSED` warn line is the one place the run says it,
 once per provider
 (see [Configuration](configuration.md)).
 
+## A provider that refuses at once after its cooldown is given up for the entry
+
+A refusal on a meter that says dry or cannot be read holds the provider out for a cooldown of 300 s
+(`REFUSAL_COOLDOWN_MS` in `package/translation-repair/provider/src/provider-budget.ts`),
+and the seat reader waits that hold out when the provider's return would lift a short bench
+(`readDrynessPastShortBench` in `package/translation-repair/run/src/corpus-run/run-seats-short-bench.ts`).
+The wait is a guess that the provider comes back.
+XingZ6020 (2026-10-23) showed the guess failing.
+Synthetic was seated while its meter read `unreadable-treated-as-spendable`
+(its `/quotas` body carried no `weeklyTokenLimit` object,
+so the meter could not be read),
+every call was refused with HTTP 429,
+and each refusal set a fresh 300 s cooldown.
+The first cycle in the log is the whole defect:
+the refusal at 00:29:00 UTC (line 19970),
+the wait of 267481 ms that began at 00:29:33 UTC (line 20031),
+the seat line `waited=267481ms` at 00:34:02 UTC (line 20133),
+the refusal at 00:34:14 UTC,
+twelve seconds after the wait ended (line 20260),
+and the next wait of 299850 ms at 00:34:18 UTC (line 20355).
+The cycle ran every 5 min 17 s:
+58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s.
+
+The bound an entry carries (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`) never cut this loop.
+It narrows `passLeftMs`,
+and the budgets apply that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
+so a cooldown is waited for whatever the bound is and only the entry's own abort ends the waiting.
+
+A provider that refuses right after a cooldown ran out,
+with nothing served in between,
+is now given up for the entry.
+The budget layer (`provider-budget-refusal-holds.ts`) keeps,
+for each provider,
+the last hold a refusal set,
+when the provider last served (the router reports each call it served),
+and whether the entry gave the provider up.
+A refusal gives its provider up when four things hold together:
+the hold in force was a cooldown (a meter that did not say wet and a refusal that named no return),
+that hold has ended,
+it ended after the entry began,
+and the provider has served nothing since it ended.
+Reading "nothing served since" off the router,
+and not off a time window,
+is the operational meaning of "waited out" here:
+a window would have to outlast the transport's retry ladder,
+whose length no measurement fixes.
+Where the give-up holds (see the corrected rule in this section),
+a given-up provider reads dry to the router and to the seat reader until the entry ends,
+its cooldowns count for no wait,
+and the reader seats the other providers' seats without waiting.
+One warn line from `hold` says it:
+`synthetic: refused again right after its 300000ms refusal cooldown ran out, with nothing served in between;
+entry <id> stops waiting for synthetic's cooldowns and treats it as unreachable until the entry ends,
+unless synthetic is the only writing provider not dry or its return would leave no bench floor unmet
+where without it one is`.
+A second warn line,
+written by the decision,
+says whether the give-up holds or is set aside,
+and why.
+Each attempt of an entry starts with nothing given up (`beginEntry`,
+called by `settleEntry`),
+so the next entry waits once and decides on its own evidence,
+and `beginEntry` writes an info line naming the providers it asks again.
+
+What the rule leaves alone:
+a hold that names its own return (a `Retry-After` header,
+a daily limit in the body),
+a payment refusal,
+NeuralWatt's day start,
+the quorum sizes of the benches,
+and the waits the benches take for the judges they count.
+A provider that served after its cooldown is waited for each time,
+however often it refuses later.
+
+The give-up costs the entry nothing that waiting would have bought:
+the lead's rulings of 2026-10-25,
+corrected in round 4 and open to the owner's veto.
+Waiting for a given-up provider buys something only when its return would make the entry finishable.
+So the give-up is set aside in two cases only,
+and the reader and the router then wait the cooldown out and ask the provider again,
+as they did before the give-up existed
+(the entry's own abort is again the only bound on that loop):
+(a) the given-up provider is the only writing provider not dry,
+since reading it dry would then end the run for a provider that serves again after its cooldown;
+or (b) with that provider back no bench floor the entry's stages need would be left unmet,
+while without it at least one is.
+Otherwise the give-up holds,
+and the entry waits for none of that provider's cooldowns again.
+The decision is taken for each provider given up.
+Round 3 worded it otherwise:
+the give-up held only while the providers left met every bench floor.
+That wording was the lead's error and is superseded.
+It set the give-up aside whenever the providers left fell short,
+whatever the given-up provider's return would do,
+and over the 518 readings of the meters in XingZ6020 it sets the give-up of Synthetic aside in all 518,
+so the 58 waits recur.
+With Synthetic back,
+five benches stay short in that pass as they do without it,
+so waiting for it never made the entry finishable.
+Reading (b) as "the return lifts any unmet floor" would set the give-up aside there too
+(Synthetic lifts the readers and the translators to their quorums),
+and is not the rule either.
+
+The floors are the seat reader's own,
+not copies:
+`unmetBenchFloors` (`run-seats-give-up-floors.ts`) asks `judgeSeatsFor`,
+`unreachableWritingBenches` and `shortBenches` about a dryness view in which only some providers are wet,
+for the union of the benches of all phases (`BENCHES_ANY_PHASE_LEANS_ON`).
+That is the writing floor (`WRITING_BENCH_FLOOR`) for the editors,
+refiners and translators,
+and the quorum of every bench any phase reads,
+the judging benches and the readers among them.
+The decision (`provider-budget-give-up-aside.ts`) asks for the floors twice for each given-up provider:
+with the providers left wet (not dry by their meter,
+not held by a refusal,
+not given up),
+and again with that provider added.
+A provider whose own meter reads dry is not added back,
+since waiting does not bring it back.
+(a) reads the writing roster (`RUN_WRITING_PROVIDERS`),
+which `runClientFrom` hands the budgets as `writing`:
+a provider that is wet but writes nothing (Xiaomi,
+whose one seat is a checker) is no alternative,
+as it is none against "every provider dry".
+The budgets take the floors as `unmetFloors`.
+`run-config.ts` takes them as a required parameter,
+because the seat reader imports that file for the roster and a dependency cycle is refused by the lint;
+`run-client-create.ts` hands them over in the `createRunClient` and `runClientFrom` the package exports.
+A caller that knows no roster of benches gets the floor of round 2's ruling,
+that some writing provider can be asked (`writingProviderFloor`).
+The decision is taken from each meter reading and from the holds as they stand.
+One warn line from it says when the give-up is set aside and names the condition,
+the provider that is the only writing provider not dry or the floors that stay unmet without it;
+one warn line says when the give-up holds,
+and names the floors that stay unmet with the provider back;
+and one info line says when a set-aside give-up is back in force.
+
+What the corrected rule costs,
+measured on the roster of 2026-10-25 with Bedrock off
+(scratch script over `unmetBenchFloors`,
+every set of the other providers beside the given-up one):
+with Synthetic given up,
+48 of the 64 sets of the six other providers meet every floor without it,
+each holding Hyper or OpenRouter,
+and in the other 16 a floor stays unmet with Synthetic back as well,
+so no set is one that its return cures.
+With Bedrock off,
+(b) therefore never sets aside a give-up of Synthetic,
+NeuralWatt,
+DeepSeek,
+Xiaomi or the Claude key,
+and only (a) does.
+With Hyper or OpenRouter given up,
+32 sets meet every floor without it and its return cures the other 32,
+because each alone meets every floor.
+Replayed over XingZ6020 (the 518 `METERS` readings,
+the real decision),
+the give-up of Synthetic holds in all 518,
+and the corrected rule takes 1 of the 58 measured waits,
+the one before the give-up
+(the commands are in ledger B965).
+
+Where the give-up holds,
+a call for a model only the given-up provider serves ends at the router as `NoProviderForModelError`,
+with no request sent.
+The stage reads that as that seat unreachable,
+never as an error of the entry or the end of the run,
+and the quorum and bench rules decide from there
+(the trace is in ledger B965).
+A pass whose providers left are too small for a writing bench
+(DeepSeek alone beside Synthetic)
+ends its entry with `WritingBenchUnreachableError` after the one wait,
+which parks the entry and does not end the run;
+the entry could not have finished with Synthetic back either.
+
+The limit that remains:
+the decision reads the last meter reading,
+which is up to the freshness window (60 s) old,
+and the holds as they stand,
+so a provider that went dry inside that window is counted wet until a new reading is taken.
+The rules are the lead's of 2026-10-25 and are open to the owner's veto;
+the owner kept the gather quorums above two and the bench waits as they were the same day.
+The record is ledger B965.
+
 ## Gemma's pictures reach OpenRouter since 2026-10-21
 
 With Bedrock's key expired,

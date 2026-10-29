@@ -787,7 +787,8 @@ named for that subject and listed here.
   after the grace cut 40 of its 95 streams (B815),
   a writing-bench floor that stopped an entry for want of a named return
   though NeuralWatt's return was 48 s away (B826),
-  and five phases judged against a bench their stage does not seat (B860).
+  five phases judged against a bench their stage does not seat (B860),
+  and a cooldown waited out for every slice by a provider that refused at once after each (B965).
 - [Audit ledger: probes that read one editor card](audit-ledger-editor-card-probes.md):
   An editor calibration with no flag naming a card (B870),
   a flag that confines the editing and not the spend (B871),

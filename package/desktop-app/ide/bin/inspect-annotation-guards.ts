@@ -394,7 +394,7 @@ const cases: Guard[] = [
   {
     name: 'rows-wait-for-scrolling',
     file: 'src/native/rows.rs',
-    before: 'if kept != offset && same_text && !force && (moving || scrolling(current)) {',
+    before: 'if still != offset && same_text && !force && (moving || scrolling(current)) {',
     after: 'if false && moving {',
     native: true,
     test: 'rows_above_the_view_wait_until_scrolling_has_stopped',
@@ -484,7 +484,7 @@ const cases: Guard[] = [
   },
   {
     name: 'selected-underline-ink',
-    file: 'src/tile_scene.rs',
+    file: 'src/tile_scene/frame.rs',
     before: '(severity_ink, colors.selected),',
     after: '(severity_ink, severity_ink),',
     native: true,
@@ -522,8 +522,8 @@ const cases: Guard[] = [
   {
     name: 'view-kept-still',
     file: 'src/native/rows.rs',
-    before: 'let kept = anchored(&current.row_map, &layout.map, offset).min(limit(&layout.map, height));',
-    after: 'let kept = offset.min(limit(&layout.map, height));',
+    before: 'let still = anchored(&current.row_map, &layout.map, offset).min(limit(&layout.map, height));',
+    after: 'let still = offset.min(limit(&layout.map, height));',
     native: true,
     test: 'rows_arriving_above_the_view_move_no_visible_pixel',
     failure: 'the offset did not follow the rows that arrived above the view'

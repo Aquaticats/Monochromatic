@@ -16,7 +16,6 @@ export {
 export {
   createWaitCap,
   HoldBoundError,
-  holdEndsNever,
   noLevelBeforeReading,
   notHeldOut,
   spendableBeforeReading,
@@ -56,6 +55,16 @@ export {
   createPaymentMarks,
   type PaymentMarks,
 } from './provider-budget-payment-marks.ts';
+export {
+  createGiveUpAside,
+  type GiveUpAside,
+  type UnmetFloors,
+  writingProviderFloor,
+} from './provider-budget-give-up-aside.ts';
+export {
+  createRefusalHolds,
+  type RefusalHolds,
+} from './provider-budget-refusal-holds.ts';
 export { reachPastHoldsOrRefusal, } from './reach-past-holds.ts';
 
 //endregion Hold public index
