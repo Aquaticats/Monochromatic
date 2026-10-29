@@ -4354,6 +4354,12 @@ is `floor((p + drawn) / 24) + 1` for a text without virtual rows
 `pointer_log.rs` builds the fields,
 and the arguments are read only when the level is enabled,
 so a build that does not log pays nothing.
+The record is written by the log writer thread,
+so on a busy disk a press that was handled at once can reach the file more than a second later
+(0.6 to 1.7 s in the sampled sessions, 2.75 s the slowest of 3,350):
+a reader waits for the line and reads again after the session has ended
+before it calls a press missing
+(`doc/troubleshooting/nested-wayland-gui-test-footguns.md`, "A click whose log line is not in the file yet").
 Verify a press by comparing `line_number` with that formula for the frame stamped before the press,
 and read the gutter of a screenshot to prove the formula against the picture:
 the compositor's screenshot is its last committed frame,

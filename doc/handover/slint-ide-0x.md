@@ -5717,7 +5717,9 @@ Stalled-launch tall map:
 
 Left after these:
 - Per-process scratch under the shared per-server `/tmp` (two IDE processes on one project share it).
-- Two of 210 press events that logged nothing (0 of 30 later).
+- Two of 210 press events that logged nothing (0 of 30 later):
+  explained as presses whose log line was late, not lost,
+  in the section "Two of 210 press events that logged nothing" below.
 - `mise.toml` and `task.ts` of the IDE and terminal packages are two copies of one task list with nothing keeping them in step.
 
 ### Later the same day: guards, the stalled map, the 403 and the delegated items
@@ -5807,6 +5809,171 @@ The 403 at `POST git/refs` (probe branch `probe-403-again`, run logs read throug
 Delegated (Sonnet subagents in worktrees, branch push only; results land only after I read their diffs):
 - Per-process scratch under the shared per-server `/tmp` (two IDE processes on one project).
 - The 2 of 210 press events that logged nothing: dropped press, logging gap, compositor delivery or harness artefact.
+
+## Two of 210 press events that logged nothing, 2026-10-29 (branch worktree-agent-a1ba2331a7bd7b972)
+
+Verdict:
+no press was dropped by the application and none was undelivered by the compositor in any trial where the session
+outlived the latency.
+In 3,350 such trials every press reached the application and was logged,
+but the line reached the log file up to 2.75 s after the click,
+and a harness that reads the file at a fixed time and then ends the session sees "no pointer line at all".
+That is classification (d), the harness reading a late line as a missing one,
+with two late-line mechanisms measured below.
+It is not harmless for a reader that ends the session early:
+under that reading rule 7 of 400 presses left no record at all, at the end of the session
+(whether the window thread had handled them by then is unknown for those 7).
+The two original events cannot be examined (their logs and the driver are gone),
+so "the same cause" for them is an inference from the matching rate and the matching symptom,
+not an observation.
+No IDE or compositor code was changed.
+
+From the code first:
+- `on_pointer_press` (`src/native/input.rs`) has no path that selects without calling `log_press`,
+  and no early return except a window that is gone;
+  the record is built only when the debug level is enabled.
+- The record goes to the writer thread (`src/logging/background.rs`),
+  which writes it to standard output;
+  a record that the output does not accept in time stays queued,
+  and at a clean exit the flush waits at most `FLUSH_GRACE` (1 s).
+  So a record can exist and not be in the file.
+- The toolkit's `Flickable` holds a left press for 100 ms (`DelayForwarding`) and forwards it at the release
+  (`i-slint-core-1.18.1/window.rs` calls `process_delayed_event` of `input.rs` before it handles a `Released` event);
+  the compositor's `click` sends motion, press and release back to back,
+  so no event arrives between the delayed press and its release.
+  This was read, not proved;
+  the measurement below is what shows that no press is lost there.
+- The compositor's `click` (`package/cli/nested-wayland-session/src/input.rs`) answers `ok` after the seat calls,
+  and reaches nobody when no surface is under the point (README, "Pointer input").
+
+Harness (scratch below `~/temp/agent`, removed after this session; the method is what matters):
+- Headless compositor on RADV (`--headless --gpu /dev/dri/renderD128 --size 1080x1880 --scale 2`),
+  the IDE on a generated 1,500-line `long.ts`,
+  `wheel 540 900 0 300` (reply read, repeated on `err`), a delay of 50, 65 or 80 ms, then `click 400 900`;
+  the reply of each command recorded.
+- Three sessions at a time under `systemd-run --user` with `MemoryMax=12G` and `CPUQuota=600%`,
+  arms alternating trial by trial,
+  on a host at load average 22 to 90 (measured under the load there was).
+- Layers read per trial:
+  the compositor's reply,
+  `wl_pointer.button` in the client's `WAYLAND_DEBUG=client` output (wire arms),
+  a `winit delivered a mouse button` record from the window event hook (scratch build with 15 added lines in
+  `frame_trace.rs`, not committed),
+  `source pointer press` in the app log,
+  and every 100 ms the state, kernel wait channel and syscall of the application's main thread and of `ide-log-writer`
+  from `/proc/<pid>/task/<tid>/`.
+- Positive controls (8 of 8 each):
+  a click at 1500,900 (no window there) shows no `wl_pointer.button`, no hook record, no press line, even after 20 s,
+  and a click at 1070,900 (the minimap) shows the button on the wire and in the hook, no press line, even after 20 s.
+  So the harness separates "never delivered" and "delivered, not handled by the text area" from "late".
+  A third control, a build that drops every Nth press inside `on_pointer_press`, was not built;
+  the minimap click has the same observable result (hook sees the press, no press line).
+
+Counts:
+- The old reading rule (the file read 1.5 s after the click reply, then the session ended),
+  installed binary `d60a2272574c0a64` (0.1.1), 100 trials in each of 4 arms
+  (50 and 80 ms, with and without `WAYLAND_DEBUG`):
+  8 of 400 had no press line at the read (50 ms with `WAYLAND_DEBUG` 1, 80 ms with it 4, 50 ms without it 2,
+  80 ms without it 1);
+  one of them had the line at exit,
+  so 7 of 400 had no press line even after the session ended;
+  3 of the 5 misses in the arms with `WAYLAND_DEBUG` had `wl_pointer.button` on the wire
+  (the other 2 had none at the end of the session, which fits a window thread that had not yet read its socket).
+  This reproduced the 2 of 210 order of magnitude (a rate near 1 to 2 percent).
+- The waiting rule (wait for the press line: 3 s in two campaigns, 2 s and then 20 s more in three,
+  then read again after the session ended),
+  5 campaigns, installed binary and a build of this branch plus the hook record, 3,350 trials:
+  3,350 of 3,350 press lines (and releases) appeared;
+  1,850 of 1,850 trials with a hook record of a press logged it;
+  1,900 of 1,900 wire arm trials show the press and the release on the wire;
+  3,350 of 3,350 `click` replies were `ok`.
+  The line was in the file later than 0.5 s after the click reply in 96,
+  later than 1.0 s in 40,
+  later than 1.5 s in 20 (0.6 percent; these would have been misses under the old rule),
+  later than 2.5 s in 3 (the slowest 2.75 s).
+- The old and the new rule do not differ in the app,
+  only in how long the reader waits.
+  The rate of 20 of 3,350 under the new data against 8 of 400 in the first run is not explained by the data;
+  the 1-minute load average was 90 about five minutes before the first run and 22 to 36 during the others,
+  which is a guess about the difference, not a measurement of it.
+
+Why the line is late (campaign of 750 trials with the thread sampler, 40 late presses kept;
+a press is late when its stamp is more than 450 ms after the click or its line is in the file more than 450 ms after
+the click reply, the threshold of the keep rule):
+- The press line was stamped on time but reached the file late in 8 trials (6 plain, 2 with `WAYLAND_DEBUG`);
+  in the 6 plain ones the stamp was 3 to 15 ms after the click and the line was in the file 0.6 to 1.7 s after.
+  In all 8, `ide-log-writer` was in `write(1, ...)` (standard output, the log file) in state `D`,
+  wait channel `folio_wait_bit_common`;
+  the window thread kept running in the 6 plain ones.
+  This is the writer thread doing what it is for;
+  the window was not held up,
+  and the line was in the file once the write returned.
+- The press was handled late (stamp more than 450 ms after the click) in 32 trials of that campaign,
+  all in the wire arms (19 installed, 13 build of this branch), none in the plain arm:
+  in 31 of them the window thread was in `write(2, ...)` in state `D`, wait channel `folio_wait_bit_common`,
+  for the whole delay, with no CPU time and no run queue delay.
+  File descriptor 2 is where `WAYLAND_DEBUG=client` writes,
+  so this stall is made by the instrument,
+  on the window thread,
+  and the events wait in the socket until it returns.
+  The remaining one (603 ms) has no sample inside its window.
+  The plain arms did not show this stall in that campaign,
+  but a plain arm of an earlier campaign did show late handling (next point), so not every late press is the instrument.
+- In the plain arms of an earlier campaign the window thread also waited 0.4 to 0.9 s in `dma_fence_wait_any_timeout`
+  and `amdgpu_ttm_copy_mem_to_mem` (waits on the GPU) around the press,
+  seen in the samples of 2 kept trials: presses handled 0.6 s late without any `WAYLAND_DEBUG`.
+- What stalls the write is not identified.
+  `folio_wait_bit_common` is a wait on a bit of a page cache folio,
+  and the log directory is on btrfs on an encrypted device with writeback from other sessions running;
+  the holder of the bit was not read.
+
+What this means for a reader of the IDE log:
+- A press (or any record) missing from the file at a fixed delay is not evidence that the app did not handle it.
+  Wait for the line with a deadline well above the measured 2.75 s,
+  and read again after the process has ended.
+- The window thread is not held up by a stalled log file (running in the samples of the 6 plain trials);
+  a record still queued when the session ends can be lost,
+  because the exit flush gives up after 1 s.
+  The first campaign measured the consequence for a reader that ends the session:
+  7 of 400 presses had no record after the session ended.
+  The waiting campaigns did not end sessions inside a stall,
+  so a record lost to the 1 s exit flush is not separated from a press that was never handled in time.
+- `WAYLAND_DEBUG` to a file on a busy disk blocks the window thread;
+  keep it on memory-backed storage or do not use it where timing is the question.
+
+Not shown, and open:
+- That the original 2 of 210 were this.
+- Whether the 7 of 400 presses without a record at exit were handled by the window thread before the session ended
+  (that build had no hook record),
+  and so whether the click's effect was lost or only its record.
+- A control that drops every Nth press inside `on_pointer_press`.
+- The holder of `folio_wait_bit_common` and the one wire arm late press without a `write(2)` sample.
+- The compositor was exonerated for 1,900 wire arm trials only through the client's own protocol log;
+  its `click` has no debug record of its own,
+  so a press the compositor failed to send to a socket would show as a missing `wl_pointer.button` (none seen).
+
+The hook record of the scratch build, for the next verifier
+(it was not committed because it would need the package gates for a debug record; it goes in `log_window_event`):
+
+```rust
+// package/desktop-app/ide/src/native/frame_trace.rs
+        WindowEvent::MouseInput { state, button, .. } => {
+            tracing::debug!(
+                target: "monochromatic_ide::native::frame",
+                state = ?state,
+                button = ?button,
+                "winit delivered a mouse button"
+            );
+        }
+        WindowEvent::CursorMoved { position, .. } => {
+            tracing::debug!(
+                target: "monochromatic_ide::native::frame",
+                x = position.x,
+                y = position.y,
+                "winit delivered a pointer move"
+            );
+        }
+```
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
