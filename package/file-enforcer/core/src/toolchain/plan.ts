@@ -5,7 +5,7 @@
  `mpm.managers.toml` are generated from (see `generate.ts`), and the record
  `toolchain.lock.json` names in its `generatedFrom` field.
 
- The tool data lives in `plan.tools.ts` (tools) and `plan.artifacts.ts`
+ The tool data lives in `plan.tools.data.ts` (tools) and `plan.artifacts.data.ts`
  (per-platform artifact provenance).
  */
 
@@ -14,7 +14,7 @@ import {
   BIN_BOOTSTRAP,
   MPM_BOOTSTRAP,
   TOOLS,
-} from './plan.tools.ts';
+} from './plan.tools.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 export {
@@ -23,11 +23,11 @@ export {
   MPM_BOOTSTRAP,
   TOOLS,
 };
-export { ARTIFACTS, } from './plan.artifacts.ts';
+export { ARTIFACTS, } from './plan.artifacts.data.ts';
 export type {
   ArtifactRow,
   ToolArtifacts,
-} from './plan.artifacts.ts';
+} from './plan.artifacts.data.ts';
 export { TOOL_ROUTES, } from './types.ts';
 export type {
   PostinstallLink,

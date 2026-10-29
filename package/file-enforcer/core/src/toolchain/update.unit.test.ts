@@ -14,7 +14,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import type { ToolArtifacts, } from './plan.artifacts.ts';
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import {
   mapGithubRows,

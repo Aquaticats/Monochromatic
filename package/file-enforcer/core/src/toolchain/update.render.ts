@@ -1,47 +1,51 @@
 /**
  Deterministic rendering of the plan's inline resolution data
- (`plan.artifacts.ts` rows and the `version` fields in `plan.tools.ts`),
+ (`plan.artifacts.data.ts` rows and the `version` fields in `plan.tools.data.ts`),
  which `toolchain:update` rewrites after re-resolution.
  */
 
-import type { ToolArtifacts, } from './plan.artifacts.ts';
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 
-//region plan.artifacts.ts
+//region plan.artifacts.data.ts
 
 /**
- Header block of `plan.artifacts.ts`, preserved verbatim (it records how the
+ Header block of `plan.artifacts.data.ts`, preserved verbatim (it records how the
  first resolutions were captured).
  */
 const ARTIFACTS_HEADER = `/**
- * Per-platform artifact provenance for the toolchain plan.
- *
- * Seeded from the \`mise.lock\` resolutions extracted to
- * \`\${HOME}/temp/agent/mise-lock-extract-2026-10-26.json\` on 2026-10-26.
- * Linux-only rows are carried over as-is
- * (doc/decision/mise-lock-linux-only-stopgap.md);
- * macOS and Windows artifact rows stay absent until they are resolved.
- *
- * Rewritten by \`toolchain:update\` when a re-resolution moves a version;
- * the header keeps the original capture record (2026-10-26).
- *
- * \`taplo\`'s \`mise.lock\` row recorded a blake3 digest for \`linux-x64\`; the
- * SHA-256 recorded here was computed from the same artifact bytes on
- * 2026-10-26, so every row stays a SHA-256 the sync can check.
+ Per-platform artifact provenance for the toolchain plan.
+
+ Seeded from the \`mise.lock\` resolutions extracted to
+ \`\${HOME}/temp/agent/mise-lock-extract-2026-10-26.json\` on 2026-10-26.
+ Linux-only rows are carried over as-is
+ (doc/decision/mise-lock-linux-only-stopgap.md);
+ macOS and Windows artifact rows stay absent until they are resolved.
+
+ Rewritten by \`toolchain:update\` when a re-resolution moves a version;
+ the header keeps the original capture record (2026-10-26).
+
+ \`taplo\`'s \`mise.lock\` row recorded a blake3 digest for \`linux-x64\`; the
+ SHA-256 recorded here was computed from the same artifact bytes on
+ 2026-10-26, so every row stays a SHA-256 the sync can check.
  */
 
-/** One downloadable artifact: its URL and the SHA-256 the lock records. */
+/**
+ One downloadable artifact: its URL and the SHA-256 the lock records.
+ */
 export type ArtifactRow = {
   readonly url: string;
   readonly sha256: string;
 };
 
-/** Artifact rows keyed by platform id (\`linux-x64\`, \`linux-arm64-musl\`, ...). */
+/**
+ Artifact rows keyed by platform id (\`linux-x64\`, \`linux-arm64-musl\`, ...).
+ */
 export type ToolArtifacts = Readonly<Record<string, ArtifactRow>>;
 
 `;
 
 /**
- Renders `plan.artifacts.ts` from one artifact map.
+ Renders `plan.artifacts.data.ts` from one artifact map.
  
  @param options - Artifact tables keyed by tool id
  
@@ -81,23 +85,25 @@ export function renderPlanArtifactsTs(
       if (row === undefined)
         continue;
       rows.push(
-        `    '${platform}': { url: '${
+        `    '${platform}': {\n      url: '${
           row.url
-        }', sha256: '${
+        }',\n      sha256: '${
           row.sha256
-        }' },`,
+        }',\n    },`,
       );
     }
-    blocks.push(`  '${id}': {\n${
-      rows.join('\n',)
-    }\n  },`,);
+    blocks.push(rows.length === 0
+      ? `  '${id}': {},`
+      : `  '${id}': {\n${
+        rows.join('\n',)
+      }\n  },`,);
   }
   return `${
     ARTIFACTS_HEADER
   }/**
- * Artifact provenance keyed by tool id, then by platform id.
- *
- * Keys are sorted for deterministic rendering.
+ Artifact provenance keyed by tool id, then by platform id.
+
+ Keys are sorted for deterministic rendering.
  */
 export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
 ${
@@ -107,28 +113,36 @@ ${
 
 /**
  Looks one tool's artifact table up by tool id.
- 
+
  @param id - Stable tool id
- 
+
  @returns Artifact table recorded for the tool
- 
- @throws {Error} when the id has no artifact table
+
+ @throws Error when the id has no artifact table
+
+ @example
+ \`\`\`ts
+ artifacts('age');
+ \`\`\`
  */
 export function artifacts(id: string,): ToolArtifacts {
+  /**
+   Recorded table, absent for an unknown id.
+   */
   const table = ARTIFACTS[id];
   if (table === undefined)
-    throw new Error(\`no artifact provenance recorded for \${JSON.stringify(id,)}\`);
+    throw new Error(\`no artifact provenance recorded for \${JSON.stringify(id,)}\`,);
   return table;
 }
 `;
 }
 
-//endregion plan.artifacts.ts
+//endregion plan.artifacts.data.ts
 
-//region plan.tools.ts
+//region plan.tools.data.ts
 
 /**
- Rewrites each named entry's resolution in `plan.tools.ts`, carrying the
+ Rewrites each named entry's resolution in `plan.tools.data.ts`, carrying the
  literals that pin it.
  
  @param options - File text and the new versions keyed by tool id
@@ -210,4 +224,4 @@ export function patchPlanVersions(
   return patched;
 }
 
-//endregion plan.tools.ts
+//endregion plan.tools.data.ts

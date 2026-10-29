@@ -6,10 +6,10 @@
  version `mise.lock` carried on 2026-10-26, the install route, the MPM manager
  identity, the exposure bins measured from the Mise-installed trees on that
  date, OS filters, provider options, tool environment exports, and the
- per-platform artifact provenance from `plan.artifacts.ts`.
+ per-platform artifact provenance from `plan.artifacts.data.ts`.
  */
 
-import { artifacts, } from './plan.artifacts.ts';
+import { artifacts, } from './plan.artifacts.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Tools

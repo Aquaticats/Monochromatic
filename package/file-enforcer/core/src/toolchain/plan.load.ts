@@ -1,6 +1,6 @@
 /**
  Loads and validates a scope's plan data modules:
- `plan.tools.ts` (declarations) plus the generated `plan.artifacts.ts`
+ `plan.tools.data.ts` (declarations) plus the generated `plan.artifacts.data.ts`
  (per-platform artifact rows).
 
  The machine-global scope keeps those files outside the repository
@@ -26,7 +26,7 @@ import {
 type RawEntry = Record<string, unknown>;
 
 /**
- Raw `plan.artifacts.ts` payload.
+ Raw `plan.artifacts.data.ts` payload.
  */
 type RawArtifacts = Readonly<Record<string, Readonly<Record<string, {
   readonly url: string;
@@ -239,7 +239,7 @@ function parseEntry(
 /**
  Loads, validates and merges one scope's plan data modules.
  
- @param options - Directory holding `plan.tools.ts` and `plan.artifacts.ts`
+ @param options - Directory holding `plan.tools.data.ts` and `plan.artifacts.data.ts`
  
  @returns Typed plan entries in declaration order
  
@@ -257,14 +257,14 @@ export async function loadPlanFromDir(
    */
   const toolsModule = await import(pathToFileURL(join(
     dir,
-    'plan.tools.ts',
+    'plan.tools.data.ts',
   ),)
     .href,) as { TOOLS?: unknown; };
   if (!Array.isArray(toolsModule.TOOLS,)) {
     throw new Error(
       `${join(
         dir,
-        'plan.tools.ts',
+        'plan.tools.data.ts',
       )}: expected a TOOLS array export`,
     );
   }
@@ -273,7 +273,7 @@ export async function loadPlanFromDir(
    */
   const artifactsModule = await import(pathToFileURL(join(
     dir,
-    'plan.artifacts.ts',
+    'plan.artifacts.data.ts',
   ),)
     .href,) as { ARTIFACTS?: unknown; };
   if ((artifactsModule.ARTIFACTS === undefined)
@@ -282,7 +282,7 @@ export async function loadPlanFromDir(
     throw new Error(
       `${join(
         dir,
-        'plan.artifacts.ts',
+        'plan.artifacts.data.ts',
       )}: expected an ARTIFACTS object export`,
     );
   }
@@ -312,14 +312,14 @@ export async function loadPlanFromDir(
       artifacts,
       file: join(
         dir,
-        'plan.tools.ts',
+        'plan.tools.data.ts',
       ),
     },);
     if (seenIds.has(entry.id,)) {
       planError({
         file: join(
           dir,
-          'plan.tools.ts',
+          'plan.tools.data.ts',
         ),
         id: entry.id,
         problem: 'declared twice',
@@ -340,7 +340,7 @@ export async function loadPlanFromDir(
         planError({
           file: join(
             dir,
-            'plan.tools.ts',
+            'plan.tools.data.ts',
           ),
           id: entry.id,
           problem: `exposure name ${

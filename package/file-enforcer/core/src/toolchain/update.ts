@@ -30,7 +30,7 @@ import {
   resolveToolchainPaths,
   type ToolchainPaths,
 } from './paths.ts';
-import type { ToolArtifacts, } from './plan.artifacts.ts';
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import { loadPlanFromDir, } from './plan.load.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import {
@@ -526,7 +526,7 @@ export function writeResolutions(
   const artifactsText = renderPlanArtifactsTs({ artifacts, },);
   const artifactsPath = join(
     planDir,
-    'plan.artifacts.ts',
+    'plan.artifacts.data.ts',
   );
   if (readFileSync(
     artifactsPath,
@@ -537,7 +537,7 @@ export function writeResolutions(
       artifactsText,
       'utf8',
     );
-    written.push('plan.artifacts.ts',);
+    written.push('plan.artifacts.data.ts',);
   }
   /**
    Version patches keyed by tool id.
@@ -556,7 +556,7 @@ export function writeResolutions(
      */
     const toolsPath = join(
       planDir,
-      'plan.tools.ts',
+      'plan.tools.data.ts',
     );
     const patched = patchPlanVersions({
       source: readFileSync(
@@ -574,7 +574,7 @@ export function writeResolutions(
         patched,
         'utf8',
       );
-      written.push('plan.tools.ts',);
+      written.push('plan.tools.data.ts',);
     }
   }
   /**

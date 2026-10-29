@@ -13,7 +13,7 @@
 
 import { createHash, } from 'node:crypto';
 import { basename, } from 'node:path';
-import type { ToolArtifacts, } from './plan.artifacts.ts';
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Fetching
