@@ -201,6 +201,9 @@ pub struct TransactionResult {
     pub exit_code: i32,
     /// The landed commit, when the transaction landed one.
     pub landed_oid: Option<String>,
+    /// Whether the Git configuration read when the commit began holds LFS keys, so the commit's auto-push must upload
+    ///  LFS objects first; `false` when nothing landed.
+    pub uses_lfs: bool,
 }
 
 /// What:
@@ -559,6 +562,7 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
                 }],
                 exit_code: 1,
                 landed_oid: None,
+                uses_lfs: false,
             });
         }
     }
@@ -669,6 +673,7 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
             }],
             exit_code: 2,
             landed_oid: None,
+            uses_lfs: false,
         });
     }
     let candidate_paths: Vec<Vec<u8>> = list_changed_index_paths(
@@ -692,6 +697,7 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
             events: converged.pass.events,
             exit_code: code,
             landed_oid: None,
+            uses_lfs: false,
         });
     }
     return conclude_commit_transaction(ConclusionInput {

@@ -234,6 +234,7 @@ fn helper_auto_pushes() {
             return (OsString::from(name), OsString::from(value));
         })
         .collect(),
+        lfs_pre_push: None,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
     let mut err: Vec<u8> = Vec::new();
@@ -449,6 +450,7 @@ fn skips_silently_without_an_upstream_or_an_origin_remote() {
                     OsString::from("/nonexistent-global-config"),
                 ),
             ],
+            lfs_pre_push: None,
         },
         &landed,
         &mut err,

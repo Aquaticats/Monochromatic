@@ -30,6 +30,7 @@ fn git_for(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment: fixture_environment(),
+        lfs_pre_push: None,
     };
 }
 
@@ -341,6 +342,7 @@ fn a_failed_probe_removes_its_scratch_directory() {
         real_git: PathBuf::from("/nonexistent/git"),
         cwd: repo.clone(),
         environment: fixture_environment(),
+        lfs_pre_push: None,
     };
     let not_started = root.join("not-started");
     assert!(capture_probed_updates(&missing, &[], &[], &not_started).is_err());

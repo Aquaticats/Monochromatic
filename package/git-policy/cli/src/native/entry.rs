@@ -18,7 +18,10 @@
 /// Import the sibling modules the decision combines.
 use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
 use super::command_push::stackable_option_tokens;
+use super::lfs_pre_push::{hook_entry_arguments, run_hook_entry, uses_lfs, with_lfs_hook};
+use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
+use super::command_push::parse_push_region;
 use super::child_environment::{
     FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
 };
@@ -232,6 +235,7 @@ pub fn plan_invocation(
                     &mut checks,
                 ),
                 environment,
+                inputs.own_executable.as_path(),
             );
         }
         WrappedOutcome::Exit { code, stderr } => {
@@ -261,6 +265,10 @@ pub fn plan_invocation(
 /// function runProcess(args: string[], environment: [string, string][]): number;
 /// ```
 pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)]) -> i32 {
+    // Git starts the LFS pre-push hook as `cli-git lfs-pre-push <remote> <url>`; it needs no repository facts.
+    if let Some(hook_arguments) = hook_entry_arguments(arguments) {
+        return run_hook_entry(hook_arguments);
+    }
     let action: Action = match process_resolution_inputs(environment) {
         Ok(inputs) => plan_invocation(arguments, environment, &inputs),
         Err(error) => failure(
@@ -514,21 +522,62 @@ fn forward_action(
 }
 
 /// What:
-///  Turn the forward of a plain push that may be integrated into a run that can integrate it.
+///  The executable the Git LFS pre-push hook names, when `command` is a push that must upload LFS objects first.
+///  `Option<&Path>` is "the executable, or nothing to add".
+/// Why:
+///   A push that sends nothing (`--dry-run`) needs no upload, and a repository without LFS keys needs none either.
+///  One configuration read answers it, made with the invocation's own global options; when Git cannot list its
+///  configuration the hook is added anyway, because it then decides with Git's own answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lfsHookExecutable(command, realGit, overlay, ownExecutable): string | undefined;
+/// ```
+fn lfs_hook_executable<'executable>(
+    command: &ResolvedCommand,
+    real_git: &Path,
+    overlay: &[(OsString, OsString)],
+    own_executable: &'executable Path,
+) -> Option<&'executable Path> {
+    if command.word() != b"push" {
+        return None;
+    }
+    if parse_push_region(command.region(), &[]).is_ok_and(|region| {
+        return region.dry_run;
+    }) {
+        return None;
+    }
+    let context: GitContext = GitContext {
+        real_git: real_git.to_path_buf(),
+        overlay: overlay.to_vec(),
+        global_prefix: command.arguments[..command.subcommand_index].to_vec(),
+    };
+    let snapshot: Option<ConfigSnapshot> = match std::env::current_dir() {
+        Ok(directory) => read_config_snapshot(&context, directory.as_path()),
+        Err(_) => None,
+    };
+    return match snapshot {
+        Some(found) if !uses_lfs(&found) => None,
+        Some(_) | None => Some(own_executable),
+    };
+}
+
+/// What:
+///  Turn the forward of a plain push that may be integrated into a run that can integrate it,
+///  and put the Git LFS upload in front of every push that publishes.
 /// Why:
 ///   A push that lost a race to another session cannot succeed again, and the wrapper can only look at its status
 ///  while it is alive;
 ///  the stacked push itself carries `STACKED_PUSH_MARKER`, so it is forwarded as it is and never stacks again.
+///   A real push in a repository with LFS keys carries the pre-push hook of `lfs_pre_push`, the stacked push too;
+///  the integration step's own dry-run queries run without it, because they would upload objects.
 ///   Every other action is returned unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function stackIfPush(action: Action, environment): Action;
+/// function stackIfPush(action: Action, environment, ownExecutable): Action;
 /// ```
-fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action {
-    if environment_value(environment, STACKED_PUSH_MARKER).is_some() {
-        return action;
-    }
+fn stack_if_push(action: Action, environment: &[(OsString, OsString)], own_executable: &Path) -> Action {
     let (real_git, arguments, overlay, copy, stderr) = match action {
         Action::Forward {
             real_git,
@@ -551,7 +600,10 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
         global_prefix: Vec::new(),
     };
     let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
-    if command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {
+    let lfs_executable: Option<&Path> =
+        lfs_hook_executable(&command, real_git.as_path(), overlay.as_slice(), own_executable);
+    let stacked_already: bool = environment_value(environment, STACKED_PUSH_MARKER).is_some();
+    if !stacked_already && command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {
         return Action::ForwardPush {
             forward: Box::new(PushForward {
                 real_git,
@@ -560,21 +612,26 @@ fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action
                 overlay,
                 copy,
                 environment: environment.to_vec(),
+                lfs_pre_push: lfs_executable.map(Path::to_path_buf),
             }),
             stderr,
         };
     }
+    let forwarded: Vec<OsString> = match lfs_executable {
+        Some(executable) => with_lfs_hook(arguments.as_slice(), executable),
+        None => arguments,
+    };
     return match copy {
         Some(facts) => Action::ForwardSettled {
             real_git,
-            arguments,
+            arguments: forwarded,
             overlay,
             copy: facts,
             stderr,
         },
         None => Action::Forward {
             real_git,
-            arguments,
+            arguments: forwarded,
             overlay,
             stderr,
         },

@@ -34,6 +34,7 @@ fn push_git(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment: fixture_environment(),
+        lfs_pre_push: None,
     };
 }
 

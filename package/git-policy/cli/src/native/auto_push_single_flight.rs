@@ -23,6 +23,7 @@ use super::bounded_push::{PUSH_DEADLINE_VARIABLE, STOP_GRACE, lock_wait_limit};
 use super::bounded_query::{QueryOutput, query_deadline, run_bounded_query};
 use super::diagnostic_log::debug;
 use super::js_text::trim_javascript;
+use super::lfs_pre_push::with_lfs_hook;
 use super::owner_lock::{
     DEFAULT_POLL_DELAY, OwnerLock, OwnerLockError, WaitNotice, acquire_owner_lock_for,
 };
@@ -203,6 +204,27 @@ pub struct PushGit {
     pub cwd: PathBuf,
     /// Complete environment every Git child receives: the invocation's variables with the overlay applied.
     pub environment: Vec<(OsString, OsString)>,
+    /// The wrapper executable the Git LFS pre-push hook names, when the pushes of this coordinator must upload LFS
+    ///  objects first; queries and fetches never carry it.
+    pub lfs_pre_push: Option<PathBuf>,
+}
+
+/// What:
+///  Build a real Git `push` command: the hook of the Git LFS upload comes first when the coordinator has one.
+/// Why:
+///   Auto-push and its reconcile pushes publish refs, so they must upload the LFS objects the pushed commits point to
+///  exactly as a typed `git push` does; the hook runs inside Git, which gives it the remote, the URL and the update
+///  lines, and a failed upload stops the push before any ref changes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitCommand(git, [...lfsHookArguments(git.lfsPrePush), ...pushArguments])
+/// ```
+pub fn push_command(git: &PushGit, arguments: &[OsString]) -> Command {
+    return match git.lfs_pre_push.as_deref() {
+        Some(executable) => git_command(git, &with_lfs_hook(arguments, executable)),
+        None => git_command(git, arguments),
+    };
 }
 
 /// What:

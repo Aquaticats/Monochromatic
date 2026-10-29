@@ -19,7 +19,7 @@ use super::auto_push_reconcile::{
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome, git_command,
+    PushAttempt, PushGit, SingleFlightError, SingleFlightKind, SingleFlightOutcome, push_command,
     resolve_push_coordination_paths, run_query, run_single_flight_push,
 };
 /// The deadline-bound push runner and the limits it applies.
@@ -168,7 +168,7 @@ fn read_symbolic_head(git: &PushGit) -> Result<Option<String>, SingleFlightError
 /// ```
 fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, SingleFlightError> {
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
-    let mut command = git_command(git, &argv);
+    let mut command = push_command(git, &argv);
     apply_low_speed_defaults(&mut command, &git.environment);
     return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE);
 }

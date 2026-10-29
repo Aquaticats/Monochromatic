@@ -256,6 +256,7 @@ fn a_blocked_gate_exits_two_and_does_not_back_up() {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.clone(),
         environment: overlay.clone(),
+        lfs_pre_push: None,
     };
     let mut err: Vec<u8> = Vec::new();
     let outcome = run_post_commit(
@@ -290,6 +291,7 @@ fn a_clean_gate_hands_the_commit_to_auto_push() {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.clone(),
         environment: overlay.clone(),
+        lfs_pre_push: None,
     };
     let mut err: Vec<u8> = Vec::new();
     let outcome = run_post_commit(

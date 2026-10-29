@@ -626,6 +626,9 @@ pub mod traditional_hook_warning;
 /// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
 pub mod doctor;
 
+/// The Git LFS upload before a push, as a configuration hook the wrapper puts in effect for its own pushes.
+pub mod lfs_pre_push;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
