@@ -132,8 +132,8 @@ retired-entry removal is disabled.
 The first is kept, and this departs from the instruction to drop both. It is not a durability sync of a removal but
 an ordering barrier: the rename must reach the disk before the deletions inside the directory do. Without it a
 filesystem that persists the unlinks but not the rename leaves the published name `<id>` with `owner.json` gone, and a
-published directory without a valid owner record is a fail-closed exit 2 that keeps its contents (see the recovery
-outcome list for the slice J3 harness, case "owner record deleted"). Dropping it too saves one more sync (about 2 ms
+published directory without a valid owner record is a fail-closed exit 2 that keeps its contents (J3 outcome below:
+deleting `owner.json` sticks at every phase). Dropping it too saves one more sync (about 2 ms
 here) and is a one-line change if the user accepts that filesystem ordering assumption.
 
 Measured with `node sync-count.ts` and `node sync-count.ts warm` before and after: 42 to 41 cold and 41 to 40 warm
@@ -141,6 +141,200 @@ Measured with `node sync-count.ts` and `node sync-count.ts warm` before and afte
 `disposal_syncs_the_registry_once`; both fail with the final `sync_parent` restored. No test in the repository counts
 syncs of the built binary (`strace` appears only in `binary_fork_failure_tests.rs`), so the sync budget named under
 Budgets does not exist yet.
+
+### J3 outcome: what recovery does with emptied, halved and dropped records
+
+The harness is `src/native/binary_recovery_tearing_tests.rs` in `package/git-policy/cli`, with the recorded outcomes in
+`binary_recovery_tearing_expected.rs`. A real wrapped `git commit --message=killed a.txt` is killed by
+`CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill:<dir>` at each of the six phases a commit reaches. Then each regular file
+the commit left is damaged on its own, and the next wrapped commands run: `git status` twice, then a `git commit`. The
+files are everything under `cli-git-transactions` (journal records, index snapshots, the landing lock), everything
+under `cli-git-captures` (the capture lock, `sequence`, `worktree-id`, landed records), `cli-git/hook.lock`, and the
+real `index.lock` with its `index~pid.lock`. The three damages are empty (zero bytes), half (cut to half the length)
+and delete (the file is gone while the records written after it stay, a flush that reached the disk out of order). A
+damage that cannot change the file (emptying an empty file, halving a file under two bytes) is skipped. A kill leaves
+the page cache intact, so the kill alone shows nothing; the damage step is the test, and the harness fails when the
+damage step is disabled (shown) or when any recorded outcome changes.
+
+Vocabulary of the outcomes: **completes** (exit 0, the commit is on the branch and the index matches it), **discards**
+(exit 0, nothing landed and the edit is intact), **sticks** (exit 2 again on a repeat, so every guarded command fails
+until someone removes the file by hand), **fails closed once** (exit 2, then a later command works; no case
+did this). A suffix marks a degraded state: the following commit exits 2 although `git status` was fine, or an
+`index.lock` is left behind. Run it with
+`mise run //package/git-policy/cli:native:test:binary:host -- recovery_tearing` (six tests, about 15 seconds);
+regenerate the record by setting `CLI_GIT_TEARING_REPORT=<file>`.
+
+Totals over 247 cases (two runs gave identical outcomes): 92 discard, 67 complete, 63 stick, 11 discard but the next
+commit exits 2, 6 complete but the next commit exits 2, 4 discard and leave `index.lock` with the next commit failing,
+2 leave a corrupt real index, 2 are inconsistent without any error. No case hung, and none failed closed and then
+recovered.
+
+#### Read first: the cases that matter
+
+- Two index snapshots are not synced today and the table shows what tearing them does. `pre-landing-1.index` and
+  `post-1.index` are written by a plain copy and by Git (the sync-site table in the handover has no sync for either,
+  and Git's default `core.fsync=committed,-loose-object` excludes `index`, per `git help config`). The landing record
+  names them only by device and inode, so recovery trusts their content. At `ref-updated`, an emptied or halved
+  `post-1.index` is installed as the real index and every later command fails with
+  `fatal: .git/index: index file smaller than expected` or `fatal: unable to read <object>` (`git status` exits 128,
+  the next commit exits 1); an emptied or halved `pre-landing-1.index` sticks with "Real index no longer matches
+  the pre-landing snapshot". A power loss that persists `landing-1.json` and the ref but not the snapshots' data
+  produces exactly this. This is a real exposure in the current code, not only a constraint on removing syncs. The
+  remedies are a sync of both snapshots before `landing-1.json`, or recovery verifying their content. Neither is done
+  here.
+- Records that are synced today and must stay synced, because tearing them sticks every command: `owner.json` (all
+  damages at every phase), `preparing.json` (empty and half), `index-lock-1.json`
+  (empty and half before the ref moves), `landing-1.json` and `ref-updated.json` (empty and half), `store-held.json`
+  after the ref moved, and the `owner.json` of `landing.lock`. Their messages are fail-closed by design.
+- Silent inconsistency: with `landing-1.json` or `preparing.json` missing at `ref-updated`, `git status` exits 0
+  although the branch moved and the index and worktree were never reconciled (the observed outcome is neither completes nor
+  discards; the likely cause is that a transaction without its landing record is treated as never landed). For
+  `landing-1.json` the next commit then also succeeds; for `preparing.json` it exits 2. Only the sync of
+  `landing-1.json` and its directory before the compare-and-swap prevents this; no later sync may replace it.
+- A torn capture `sequence` or an emptied `worktree-id` leaves `git status` working while every later commit exits 2
+  (the sequence is parsed only by a commit). A torn `capture.lock/owner.json` does the same. The sequence temporary
+  file sync and the lock candidate syncs must stay.
+- Deleted `index-lock-1.json` or `preparing.json` before the ref moves leaves the real `index.lock` in place, because
+  recovery removes it only when a record names it; the next commit fails. That window also exists for a kill between
+  creating `index.lock` and writing its record, so it is not caused by syncing.
+- Deleting `index.lock` at `ref-updated` sticks ("opening the index lock ... No such file or directory"): the lock's
+  directory entry is not synced before the compare-and-swap. This one is reachable only by losing the entry while the
+  ref update persists.
+- The J2 link: deleting `owner.json` sticks at every phase. That is the case the kept rename-barrier sync in
+  `remove_transaction_directory` prevents.
+- What the user is told: only the owner-record messages name a path. The messages for `preparing.json`, the landing
+  record, the index-lock record and the ref-updated record say that the record "is not a schema-version-2 ... record"
+  without naming the file or the transaction, and every message carries the hint about fetching history, which does not
+  apply. Nothing says how to recover (remove the named transaction directory by hand). That is a diagnostic gap
+  to fix before relying on fail-closed as the user-facing outcome.
+
+#### What the table allows
+
+Benign at every phase and every damage, so their syncs are candidates to drop (a user decision, not done here):
+`prepared.json` (file and directory sync), `hooks/plan.json`, `captured.json` (a torn one only costs a warning "could
+not record the capture of landed ..." and subsumption in later replays), `index~pid.lock`, and the unsynced
+`captured.index`, `commit.index` and scratch policy indexes (already unsynced). `store-held.json` is benign before the
+ref moves and sticks after it, so it can lose its own sync only if the landing barrier makes it durable.
+Everything else listed under the first two bullets above stays.
+
+#### Outcomes by phase
+
+Abbreviations: `T` is `cli-git-transactions/<id>`, `C` is `cli-git-captures`, `L` is `cli-git-transactions`. A line
+lists the outcome of the next wrapped commands for each damage of one file. `cli-git/hook.lock` never appears: the hook
+lock is released before the first phase marker.
+
+#### capture-locked
+
+Undamaged: discards.
+
+- `C/capture.lock/owner.json`: empty discards, next commit exits 2; half discards, next commit exits 2; delete discards
+- `T/conclusion/store-held.json`: all applicable damages discards
+- `T/owner.json`: all applicable damages sticks
+- `T/preparing.json`: empty sticks; half sticks; delete discards
+
+#### preparation-done
+
+Undamaged: discards.
+
+- `C/sequence`: empty discards, next commit exits 2; half discards, next commit exits 2; delete discards
+- `C/worktree-id`: empty discards, next commit exits 2; half discards; delete discards
+- `T/captured.index`: all applicable damages discards
+- `T/captured.json`: all applicable damages discards
+- `T/cli-git-add-policy-<n>-<n>-0/index`: all applicable damages discards
+- `T/commit.index`: all applicable damages discards
+- `T/conclusion/store-held.json`: all applicable damages discards
+- `T/hooks/plan.json`: all applicable damages discards
+- `T/owner.json`: all applicable damages sticks
+- `T/prepared.json`: all applicable damages discards
+- `T/preparing.json`: empty sticks; half sticks; delete discards
+
+#### landing-locked
+
+Undamaged: discards.
+
+- `C/sequence`: empty discards, next commit exits 2; half discards, next commit exits 2; delete discards
+- `C/worktree-id`: empty discards, next commit exits 2; half discards; delete discards
+- `T/captured.index`: all applicable damages discards
+- `T/captured.json`: all applicable damages discards
+- `T/cli-git-add-policy-<n>-<n>-0/index`: all applicable damages discards
+- `T/commit.index`: all applicable damages discards
+- `T/conclusion/store-held.json`: all applicable damages discards
+- `T/hooks/plan.json`: all applicable damages discards
+- `T/index-lock-1.json`: empty sticks; half sticks; delete discards, leaves index.lock, next commit exits 2
+- `T/owner.json`: all applicable damages sticks
+- `T/prepared.json`: all applicable damages discards
+- `T/preparing.json`: empty sticks; half sticks; delete discards, leaves index.lock, next commit exits 2
+- `L/landing.lock/owner.json`: empty sticks; half sticks; delete discards
+- `index.lock`: all applicable damages discards
+- `index~pid.lock`: all applicable damages discards
+
+#### objects-migrated
+
+Undamaged: discards.
+
+- `C/sequence`: empty discards, next commit exits 2; half discards, next commit exits 2; delete discards
+- `C/worktree-id`: empty discards, next commit exits 2; half discards; delete discards
+- `T/captured.index`: all applicable damages discards
+- `T/captured.json`: all applicable damages discards
+- `T/cli-git-add-policy-<n>-<n>-0/index`: all applicable damages discards
+- `T/commit.index`: all applicable damages discards
+- `T/conclusion/store-held.json`: all applicable damages discards
+- `T/hooks/plan.json`: all applicable damages discards
+- `T/index-lock-1.json`: empty sticks; half sticks; delete discards, leaves index.lock, next commit exits 2
+- `T/owner.json`: all applicable damages sticks
+- `T/prepared.json`: all applicable damages discards
+- `T/preparing.json`: empty sticks; half sticks; delete discards, leaves index.lock, next commit exits 2
+- `L/landing.lock/owner.json`: empty sticks; half sticks; delete discards
+- `index.lock`: all applicable damages discards
+- `index~pid.lock`: all applicable damages discards
+
+#### ref-updated
+
+Undamaged: completes.
+
+- `C/sequence`: empty completes, next commit exits 2; half completes, next commit exits 2; delete completes
+- `C/worktree-id`: empty completes, next commit exits 2; half completes; delete completes
+- `T/captured.index`: all applicable damages completes
+- `T/captured.json`: all applicable damages completes
+- `T/cli-git-add-policy-<n>-<n>-0/index`: all applicable damages completes
+- `T/commit.index`: all applicable damages completes
+- `T/conclusion/store-held.json`: all applicable damages sticks
+- `T/hooks/plan.json`: all applicable damages completes
+- `T/index-lock-1.json`: all applicable damages completes
+- `T/landing-1.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/owner.json`: all applicable damages sticks
+- `T/post-1.index`: empty corrupt index (exit 128); half corrupt index (exit 128); delete sticks
+- `T/pre-landing-1.index`: all applicable damages sticks
+- `T/prepared.json`: all applicable damages completes
+- `T/preparing.json`: empty sticks; half sticks; delete inconsistent (exit 0)
+- `T/ref-updated.json`: empty sticks; half sticks; delete completes
+- `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
+- `index.lock`: all applicable damages sticks
+- `index~pid.lock`: all applicable damages completes
+
+#### index-installed
+
+Undamaged: completes.
+
+- `C/landed/<commit>.json`: all applicable damages completes
+- `C/sequence`: empty completes, next commit exits 2; half completes, next commit exits 2; delete completes
+- `C/worktree-id`: empty completes, next commit exits 2; half completes; delete completes
+- `T/captured.index`: all applicable damages completes
+- `T/captured.json`: all applicable damages completes
+- `T/cli-git-add-policy-<n>-<n>-0/index`: all applicable damages completes
+- `T/commit.index`: all applicable damages completes
+- `T/conclusion/store-held.json`: all applicable damages sticks
+- `T/hooks/plan.json`: all applicable damages completes
+- `T/index-installed`: all applicable damages completes
+- `T/index-lock-1.json`: all applicable damages completes
+- `T/landing-1.json`: empty sticks; half sticks; delete completes
+- `T/owner.json`: all applicable damages sticks
+- `T/post-1.index`: empty completes; half completes; delete sticks
+- `T/pre-landing-1.index`: empty completes; half completes; delete sticks
+- `T/prepared.json`: all applicable damages completes
+- `T/preparing.json`: empty sticks; half sticks; delete completes
+- `T/ref-updated.json`: empty sticks; half sticks; delete completes
+- `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
 
 ## Budgets
 
