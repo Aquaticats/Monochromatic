@@ -506,11 +506,13 @@ export const MODEL_CARDS: Readonly<Record<RosterModelId, ModelCard>> = {
     xiaomi: MIMO_V2_6_FLASH_ON_XIAOMI,
     // THE RULE'S READING OF 2026-10-29 (`mise run cap-census`; ledger P10,
     // B990): Xiaomi's own endpoint p99 5,098 over 293 completed calls;
-    // OpenRouter 553 over 1,362, none of the 1,655 at the cap. Both hold the
-    // 100 calls the rule reads (`completion-cap.ts`), and the highest p99 is
-    // above the pooled 90th (3,831). Until 2026-10-29 the card named the
-    // pooled 99th (13,082) for want of 100 calls: it held 78 on OpenRouter,
-    // p99 1,719 (ledger P10, 2026-09-28).
+    // OpenRouter 553 over 1,362, none of the 1,655 at the old cap of 13,082.
+    // Both hold the 100 calls the rule reads (`completion-cap.ts`), and the
+    // highest p99 is above the pooled 90th (3,831). At 5,098, 3 of Xiaomi's
+    // 293 calls reach the cap (1.02 percent, 2 with content), the census's
+    // `CUTS OVER ONE PERCENT`; a higher cap is open to the owner's veto. Until
+    // 2026-10-29 the card named the pooled 99th (13,082) for want of 100
+    // calls: it held 78 on OpenRouter, p99 1,719 (ledger P10, 2026-09-28).
     completionCap: 5_098,
     // Owner, 2026-09-27: approved on OpenRouter with Mimo v2.6 Pro. Checks
     // since the checker benchmark that day: through the run client 81 of 85
