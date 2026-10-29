@@ -254,6 +254,23 @@ fn command_output(command: &str, arguments: &[&std::ffi::OsStr]) -> Option<Strin
 /// ```
 #[cfg(target_os = "linux")]
 fn linux_fs_id(path: &Path) -> Option<String> {
+    return linux_fs_id_with(path, command_output);
+}
+
+/// What:
+///  The Linux identity of `linux_fs_id` with the mechanism that starts a platform command passed in.
+/// Why:
+///   A control that counts which commands start can only do so by replacing the mechanism.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function resolveLinuxFsId({ path, run }): Promise<FsIdResolution>;
+/// ```
+#[cfg(target_os = "linux")]
+fn linux_fs_id_with(
+    path: &Path,
+    run_command: fn(&str, &[&std::ffi::OsStr]) -> Option<String>,
+) -> Option<String> {
     let target: &std::ffi::OsStr = path.as_os_str();
     // The mount table and the udev record answer most paths without starting `findmnt`;
     // a shape they cannot answer exactly is `Unknown` and still spawns it.
@@ -266,7 +283,7 @@ fn linux_fs_id(path: &Path) -> Option<String> {
         }
         MountUuid::Absent => {}
         MountUuid::Unknown => {
-            if let Some(output) = command_output(
+            if let Some(output) = run_command(
                 "findmnt",
                 &[
                     std::ffi::OsStr::new("--target"),
@@ -280,7 +297,7 @@ fn linux_fs_id(path: &Path) -> Option<String> {
             }
         }
     }
-    let fallback: String = command_output(
+    let fallback: String = run_command(
         "stat",
         &[
             std::ffi::OsStr::new("--file-system"),
