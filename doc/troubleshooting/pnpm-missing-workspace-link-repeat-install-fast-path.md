@@ -459,6 +459,15 @@ app/package.json:      {"name":"app","version":"1.0.0","dependencies":{"lib":"wo
 3. `pnpm install --offline` prints `Already up to date`, exits 0 and leaves the link absent.
 4. `pnpm install --offline --force` restores it.
 
+The same steps run as a GitHub Actions workflow in
+https://github.com/Aquaticat/pnpm-missing-workspace-link-repro
+(pnpm 12.16.1 installed from its release and checked against a pinned SHA-256).
+A red run means the bug reproduced:
+the step named "Expected" fails with `ls: cannot access 'app/node_modules/lib': No such file or directory`.
+Runs:
+[40909405945](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909405945) and
+[40909700195](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909700195).
+
 Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
 entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
 install's scope holds every project.
