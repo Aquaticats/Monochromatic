@@ -1076,6 +1076,20 @@ Remaining:
       none of the three outside readers uses those fields (checked: core-matrix reads only `.tools.node.artifacts`);
       `bin-paths.ts` keeps Node built-ins only and takes one justified scoped disable for `prefer-caught-value-text`;
       AGENTS.md MXL stays as written ("Leave MXL as is").
+     Landed `cd1943f4f3` (optional fields, validator-based loader).
+     Coordination (2026-10-29): session `monochromatic-71` owns `types.ts`, `exposure.ts`, `sync.ts`,
+      `plan.tools.data.ts`, and `plan.load.guards.ts` while it adds a `postinstall.run` kind;
+      it will message when done, and this session then regenerates `toolchain.lock.json` once for both changes.
+     Queue while waiting:
+      `plan.load.ts` lint (4);
+      `layout.ts` `findToolBin` async plus its nullish return and `BinSearchContext` (callers in `providers.*`);
+      `generate.ts` `writeArtifacts` async (awaited in `update.apply.ts`);
+      `providers.bin.ts` `seedBinConfig` async (sync-status tests);
+      the remaining `providers.*` nullish unions;
+      `paths.ts` lint except `isMainModule` (its `realpathSync` fix touches `sync.ts`, so it waits);
+      the toolchain tests' `require-eventual-artifact` imports through `src/index.ts`.
+     Waiting on `monochromatic-71`: `plan.load.guards.ts` lint (12), `exec.ts` `atomicSymlink`/`symlinkOrCopy` no-sync
+      (called from `exposure.ts`), `isMainModule`, and the lock regeneration.
      Former open question for the owner:
       `types.ts` mirrors `toolchain.lock.json`, which holds 120 JSON `null` values
       (30 `manager`, 30 `packageId`, 59 `os`, 1 `requiresTool`)
