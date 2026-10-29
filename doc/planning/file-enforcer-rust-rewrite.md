@@ -68,7 +68,25 @@ the user chose "In-repo jsonc-edit" over `jsonc-parser` (dprint) and the `config
   no line or column on `ConfigError`,
   environment keys lowercased,
   and read-only.
-  Research notes: `${HOME}/temp/agent/fe-rust/crates.md` (scratch, not durable).
+  Evidence:
+  [`doc/research/file-enforcer-rust-rewrite-crates.md`](../research/file-enforcer-rust-rewrite-crates.md),
+  whose claims come from reading source and docs,
+  not from running the crates.
+
+## Research
+
+- [`doc/research/file-enforcer-rust-rewrite-meow-status.md`](../research/file-enforcer-rust-rewrite-meow-status.md):
+  meow's state and its decisions about file enforcement.
+- [`doc/research/file-enforcer-rust-rewrite-inventory.md`](../research/file-enforcer-rust-rewrite-inventory.md):
+  every file the repo needs managed,
+  stated as outcomes,
+  plus the old tool's flaws.
+- [`doc/research/file-enforcer-rust-rewrite-crates.md`](../research/file-enforcer-rust-rewrite-crates.md):
+  clap,
+  config-rs,
+  JSONC,
+  schema,
+  and structured-edit crates.
 
 ### Adopted from the request and repository rules
 
@@ -111,8 +129,11 @@ the user chose "In-repo jsonc-edit" over `jsonc-parser` (dprint) and the `config
 - `exec` leaves with the rewrite:
   `package/vm-builder/cli` gets its private runner,
   as already designed in `doc/decision/monorepo-manager-all-rust.md` ("Consequences").
-- The Rust dependency catalog sync and the pnpr publishable-package list become Rust features,
-  since deleting the TypeScript tool would otherwise drop them.
+- The root `mise.toml` stays generated from `mise.no-env.toml` until Mise is removed,
+  as `doc/decision/monorepo-manager-all-rust.md` already decides.
+- Long fixed text (the `CLAUDE.md` preamble,
+  the `mise.toml` `[env]` block) lives in content files the config names,
+  never inline in the config.
 - The TypeScript file-enforcer keeps running until the Rust tool replaces it;
   concurrent edits in `package/file-enforcer/core` belong to other sessions.
 
