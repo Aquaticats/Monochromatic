@@ -11,7 +11,8 @@ Design and rationale:
 
 ## Add a dependency
 
-1.  In the crate directory, run `cargo add <crate>` (with `--features`, `--optional`, or `--no-default-features` as needed).
+1.  In the crate directory, run `cargo add <crate>`
+     (with `--features`, `--optional`, or `--no-default-features` as needed).
 2.  From the repository root, run `mise run sync:files`.
     The sync adopts the literal version into `rust-catalog.toml` as a `>=` floor
      (or raises an existing floor to satisfy it)
@@ -67,9 +68,10 @@ With `catalogPrune = true` (the repository's setting),
 
 ## Update every crate
 
-1.  `node package/dev-script/rust-catalog-update/src/cli.ts --dry-run` lists what would change and restores every lockfile.
-2.  `node package/dev-script/rust-catalog-update/src/cli.ts` re-resolves every `Cargo.lock` to the newest releases older than
-     `minimumReleaseAge`,
+1.  `node package/dev-script/rust-catalog-update/src/cli.ts --dry-run` lists what would change
+     and restores every lockfile.
+2.  `node package/dev-script/rust-catalog-update/src/cli.ts` re-resolves every `Cargo.lock`
+     to the newest releases older than `minimumReleaseAge`,
      checks every newly locked version against the release age and the trust policy,
      and keeps the result only when all of them pass.
 3.  `mise run catalog:tighten` raises each `>=` floor to the highest locked version.

@@ -76,8 +76,11 @@ A cold `--verify` over the current lockfiles is about 1024 requests,
 
 ## Limits
 
-- The update needs a nightly cargo for `-Zunstable-options`;
-   the repository pins one in `toolchain.lock.json`.
+- The update needs a nightly cargo for `-Zunstable-options`.
+   It runs cargo under `RUSTUP_TOOLCHAIN` when the environment sets it,
+   and otherwise under the nightly `toolchain.lock.json` pins (`.tools.rust.version`),
+   so it works outside a mise shell too (a systemd unit or a bare CI step,
+   where rustup would fall back to its default toolchain).
 - An exclude selector that names exact versions (`zbus@5.19.0`) exempts only those versions from the checks;
    it does not move the crate, because the cutoff already chose its version.
 - `--verify` does not re-check release age on committed lockfiles,

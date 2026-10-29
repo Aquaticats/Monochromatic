@@ -61,11 +61,13 @@ export type RunCargo = (request: {
 },) => Promise<CargoOutcome>;
 
 /**
- Default {@link RunCargo} through `nano-spawn`.
+ Runs cargo through `nano-spawn` under one rustup toolchain.
 
  @param cwd - directory cargo runs in
 
  @param args - cargo arguments
+
+ @param toolchain - `RUSTUP_TOOLCHAIN` for the child; empty to inherit the caller's
 
  @returns whether cargo exited 0, with its output
 
@@ -73,15 +75,17 @@ export type RunCargo = (request: {
 
  @example
  ```ts
- await spawnCargo({ cwd: 'package/cli/a', args: ['generate-lockfile',], });
+ await spawnCargo({ cwd: 'package/cli/a', args: ['generate-lockfile',], toolchain: 'nightly-2026-10-29', });
  ```
  */
 export async function spawnCargo({
   cwd,
   args,
+  toolchain,
 }: {
   readonly cwd: string;
-  readonly args: readonly string[]
+  readonly args: readonly string[];
+  readonly toolchain: string;
 },): Promise<CargoOutcome> {
   /**
    Logger for cargo runs.
@@ -90,7 +94,7 @@ export async function spawnCargo({
     tag: spawnCargo.name,
     l,
   },);
-  log.debug(`cargo ${args.join(' ',)} in ${cwd}`,);
+  log.debug(`cargo ${args.join(' ',)} in ${cwd} with toolchain ${toolchain === '' ? '(inherited)' : toolchain}`,);
   try {
     /**
      Finished run.
@@ -98,7 +102,10 @@ export async function spawnCargo({
     const result = await spawn(
       'cargo',
       [...args,],
-      { cwd, },
+      {
+        cwd,
+        env: toolchain === '' ? {} : { RUSTUP_TOOLCHAIN: toolchain, },
+      },
     );
     return {
       ok: true,
@@ -114,6 +121,31 @@ export async function spawnCargo({
     }
     throw error;
   }
+}
+
+/**
+ {@link RunCargo} bound to one rustup toolchain, so the update does not depend on the caller's environment.
+
+ @param toolchain - `RUSTUP_TOOLCHAIN` value; empty to inherit the caller's
+
+ @returns cargo runner
+
+ @example
+ ```ts
+ const runCargo = createSpawnCargo({ toolchain: 'nightly-2026-10-29', });
+ ```
+ */
+export function createSpawnCargo({ toolchain, }: { readonly toolchain: string; },): RunCargo {
+  return async function runCargo({
+    cwd,
+    args,
+  },): Promise<CargoOutcome> {
+    return await spawnCargo({
+      cwd,
+      args,
+      toolchain,
+    },);
+  };
 }
 
 //endregion Runner
@@ -156,8 +188,10 @@ export class CargoResolveError extends Error {
       `\`${command}\` failed in ${crateDir}; every lockfile was restored.`,
       'Cargo output:',
       output.trim(),
-      'If no release old enough satisfies a requirement, either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,',
+      'Fix the cause cargo names. When it is that no release old enough satisfies a requirement,',
+      'either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,',
       'or set minimumReleaseAgeStrict = false to fall back to a younger release.',
+      'When cargo says `-Z` needs the nightly channel, set RUSTUP_TOOLCHAIN to the nightly toolchain.lock.json pins.',
     ].join('\n',),);
     this.name = 'CargoResolveError';
     this.crateDir = crateDir;
