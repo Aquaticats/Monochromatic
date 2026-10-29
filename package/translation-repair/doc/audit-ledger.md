@@ -802,6 +802,11 @@ named for that subject and listed here.
   the follow-up that does not ask the same judges the same slate again (B1023),
   the trace of a patch that resolved every accepted issue and lost (B1024),
   and artifact generation 22 with the cache versions that did not move (B1025).
+- [Audit ledger: an archive with no body ships an empty page](audit-ledger-an-archive-with-no-body.md):
+  An entry whose archive holds no body,
+  which was cut into no slice (B1045),
+  the page of 0 bytes that nothing reported (B1046),
+  and the roster path measured for an archive that does not align with two original sections (B1047).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:
