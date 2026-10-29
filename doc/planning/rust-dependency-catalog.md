@@ -1139,9 +1139,8 @@ Remaining:
       or keeps `null` in the on-disk mirror type behind a documented scoped disable.
      `paths.ts`'s `isMainModule` uses `realpathSync` at every toolchain entry point's top level,
       so its `no-sync` fix changes callers in all three clusters (now inside the cascade agent's scope).
-5.  Open, not fixed:
-     the overwrite, TOML-write, JetBrains, and Mise-manifest suites time out on
-     `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` when the whole suite runs in parallel,
-     and `src/io/write.unit.test.ts` passes alone; there is no baseline from before the import change,
-     and tests sharing one real lock path is itself a defect to propose to the owner.
-     The toolchain plan and generator tests still expect `nightly-2026-10-28` and node `26.12.1`.
+5.  Done (2026-10-29): the overwrite, TOML-write, JetBrains, and Mise-manifest suites timed out on the real
+     `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` because they wrote through the default
+     manifest path; they now pass a per-test `manifestPath` (`35386af393`, `9ae7e793e3`, see item 4).
+     The plan and generator tests no longer expect `nightly-2026-10-28` or node `26.12.1`; those strings remain only
+     as fixture inputs in `update.unit.test.ts`.
