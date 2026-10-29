@@ -20,6 +20,9 @@ const MARKER_NAME: &str = "CLI_GIT_PUSH_ENVIRONMENT_MARKER";
 /// The marker's value.
 const MARKER_VALUE: &str = "carried-by-the-invocation";
 
+/// The per-user scratch directory relative to `HOME`, where the manual-push probe makes its private directory.
+const SCRATCH_RELATIVE: &str = ".local/state/cli-git/scratch";
+
 /// One repository, its bare origin, and the shim's record.
 struct PushWorld {
     /// The working repository.
@@ -45,6 +48,8 @@ struct Start {
     forward_target: String,
     /// The environment-supplied configuration count the lock PID injection adds, or `unset`.
     config_count: String,
+    /// The entry names in the invocation's per-user scratch directory at the moment of the start, comma-terminated.
+    scratch: String,
 }
 
 /// The shim: records the child's environment, refuses without the marker, then serves the bare repository.
@@ -52,9 +57,10 @@ struct Start {
 fn shim_source(record: &Path) -> String {
     return format!(
         "#!/bin/sh\n\
-         printf 'service=%s|marker=%s|home=%s|path=%s|target=%s|count=%s\\n' \
+         printf 'service=%s|marker=%s|home=%s|path=%s|target=%s|count=%s|scratch=%s\\n' \
          \"$1\" \"${{{MARKER_NAME}-unset}}\" \"${{HOME-unset}}\" \"${{PATH-unset}}\" \
-         \"${{CLI_GIT_NATIVE_FORWARD_TARGET-unset}}\" \"${{GIT_CONFIG_COUNT-unset}}\" >> '{record}'\n\
+         \"${{CLI_GIT_NATIVE_FORWARD_TARGET-unset}}\" \"${{GIT_CONFIG_COUNT-unset}}\" \
+         \"$(ls \"${{HOME}}/{SCRATCH_RELATIVE}\" 2>/dev/null | tr '\\n' ',')\" >> '{record}'\n\
          [ \"${{{MARKER_NAME}-}}\" = '{MARKER_VALUE}' ] || {{ echo 'the push environment lost the marker' >&2; exit 1; }}\n\
          exec {REAL_GIT} \"${{1#git-}}\" \"$2\"\n",
         record = record.display(),
@@ -112,6 +118,7 @@ fn starts(world: &PushWorld) -> Vec<Start> {
                 path: field("path"),
                 forward_target: field("target"),
                 config_count: field("count"),
+                scratch: field("scratch"),
             };
         })
         .collect();
@@ -177,6 +184,41 @@ fn a_manual_push_probes_and_pushes_with_the_invocation_environment() {
         "probe dry run, confirmation query, then the push itself: {started:?}"
     );
     assert_inherited(&fixture, started.as_slice());
+    remove(&fixture);
+}
+
+/// A manual push needs no system temporary directory: with `TMPDIR` naming a path that does not exist it still
+/// pushes, the probe's private directory exists in the per-user scratch directory while the dry run is in flight,
+/// and it is gone before the push itself starts and after the command ends.
+#[test]
+fn a_manual_push_keeps_its_probe_scratch_in_the_per_user_state_directory() {
+    let fixture: Fixture = fixture("push-scratch-location");
+    let world: PushWorld = push_world(&fixture);
+    git(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=second", "a.txt"]);
+    let unusable: PathBuf = fixture.root.join("no-such-tmpdir");
+    let pushed: Observed = observe(
+        wrapped_with_marker(&fixture, world.repo.as_path(), &["push", "origin", "main"]).env("TMPDIR", &unusable),
+        b"",
+    );
+    let stderr: String = stderr_of(&pushed);
+    assert_eq!(pushed.code, Some(0), "{stderr}");
+    let head: String = git_head(&fixture, world.repo.as_path());
+    assert_eq!(git_head_of(&fixture, world.bare.as_path(), "refs/heads/main"), head, "{stderr}");
+    let started: Vec<Start> = starts(&world);
+    let scratch: Vec<&str> = started.iter().map(|start| { return start.scratch.as_str(); }).collect();
+    assert_eq!(scratch.len(), 3, "probe dry run, confirmation query, push: {started:?}");
+    assert!(
+        scratch.first().is_some_and(|names| { return names.starts_with("cli-git-push-facts-"); }),
+        "the dry run sees its probe directory: {started:?}"
+    );
+    assert_eq!(scratch.get(2).copied(), Some(""), "the push starts after the probe directory is gone: {started:?}");
+    let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
+    let left: Vec<std::ffi::OsString> = std::fs::read_dir(&directory)
+        .expect("the per-user scratch directory exists")
+        .map(|entry| { return entry.expect("entry").file_name(); })
+        .collect();
+    assert!(left.is_empty(), "nothing is left in {}: {left:?}", directory.display());
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
     remove(&fixture);
 }
 
