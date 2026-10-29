@@ -749,7 +749,8 @@ import type { RepairModels, } from '@monochromatic-dev/translation-repair-assemb
  them runs the resolution checkers. No record has been written at 49, which this change sets first.
 
  Stays at 49 for the removal of `hf:Qwen/Qwen3.8-27B` from the critics, the panel, the select judges and the checker
- order (owner, 2026-10-29, "Remove Qwen from wide seats"; ledger B1030). {@link repairRunShape} hashes the critic, panel,
+ order (owner, 2026-10-29, "Remove Qwen from wide seats"; ledger B1030; commits `6d39223583` and `ac692efa7f`).
+ {@link repairRunShape} hashes the critic, panel,
  judge and checker lists, so a slice settled with Qwen seated is keyed apart from one settled without it, and no stored
  record is served to a bench it was not settled by. The translate, refine and consolidate versions stay for the same
  reason: each of their keys hashes the seat lists its stage was settled by.
