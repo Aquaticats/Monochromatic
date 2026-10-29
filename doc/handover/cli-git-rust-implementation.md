@@ -1,5 +1,11 @@
 # cli-git and unified-linter implementation
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`.
+
 ## Authority
 
 Implementation authorized on 2026-10-04 by the user's "Do it."
@@ -2856,3 +2862,46 @@ The manifest now pins unicode-ident 1.0.24 and unicode-properties 0.1.4,
 the same Unicode 17 pair as the incumbent;
 compilation and the Rust container suite pass.
 An explicit dependency-fetch task prepares all target archives before offline vendoring.
+
+## Issue 1804: stack concurrent changes on push (2026-10-29)
+
+User instruction: "Look at gh issue #1804", then chose "Reproduce in podman, then propose".
+No implementation until the user approves a plan in `doc/planning/`.
+The issue (open, `needs-triage`, no comments) mixes three failures that need separate evidence:
+- an explicit `git push origin HEAD:main` rejected as non-fast-forward from a detached linked worktree;
+- the detached-HEAD message "skipping auto-push";
+- the "auto-push failed" message when a linked worktree branch name differs from its upstream `origin/main`.
+Reproduced 2026-10-29 in podman with the installed wrapper (log `~/temp/agent/podman-1804/repro.log`;
+a first run was invalid because the wrapper link failed, so it was discarded):
+- an explicit push is rejected and never integrated (the wrapper only adds `--atomic`);
+- a detached HEAD skips auto-push by design;
+- a branch named differently from its upstream (`feature` tracking `origin/main`) fails every auto-push with git's
+  `fatal: The upstream branch of your current branch does not match`, with no race needed;
+  `reconcile_divergent_push` never runs because the output has no `[rejected]`;
+- control: auto-push on a checked-out `main` already merges and fast-forwards.
+Proposal written: `doc/planning/cli-git-stack-concurrent-pushes.md` (change A: push to the tracked ref on a name mismatch;
+change B: reconcile a stale-rejected explicit push by reusing the loop).
+User decisions (2026-10-29): merge like auto-push; any non-force single-branch update; leave a detached HEAD where it is
+and print the merge commit. The user then chose "A and B together in one release" (2026-10-29), so the plan is accepted for implementation.
+Order: read `manual_push_probe.rs`, `manual_push_range.rs`, `manual_push_lifecycle.rs`, `command_push.rs` and
+`rule_atomic_push.rs` for the policy input range; write failing tests first; implement A and B; run the chain, the
+container gate and the podman harness again; release; start the mutation campaign without blocking the release.
+Design findings (also in the planning doc, "Implementation findings"): an eligible explicit push runs as a child with
+inherited streams; after a non-zero exit the loop re-probes the updates, fetches the destination tip and merges only
+when the remote diverged; the merge is pushed by the wrapper invoking itself with an environment marker so the push
+gates run on the integrated result.
+Queued, not in this release: the auto-push merge push runs no push-time policy (pre-existing); gating it could stop merges
+that publish today, so it needs the user's decision.
+Tasks: 63 (change A), 64 (change B).
+Progress 2026-10-29: change A committed (auto-push names the tracked ref via `named_destination_push`; two tests shown
+failing first, 116 auto-push tests pass). Change B committed as `d926d5621a`: `push_stacking.rs`
+(`Action::ForwardPush`, `STACKED_PUSH_MARKER`), the reconcile loop generalized as `integrate_and_push` with
+`Reconcile { explicit }` (auto-push wording and behavior unchanged), `stackable_option_tokens` in `command_push.rs`
+(force, delete, mirror, all, tags, prune, follow-tags, repo, porcelain, set-upstream, dry-run and `+refspec` are never
+stacked). Six unit and four binary tests pass on the first run, so the guard proof is still owed: disable `stack_if_push`,
+rebuild, show the lost-race binary test fail, restore.
+Chain unit `cli-git-chain-1804` (logs `~/temp/agent/b1804-{clippy,host,bin}.log`) is running; do not edit `src/native`
+while it runs. Still owed: command_push unit tests for `stackable_option_tokens`, container gate, podman harness rerun,
+README section, release, mutation campaign (non-blocking).
+Not stacked by design: no single-flight lock for explicit pushes (the remote arbitrates; the loop is bounded at 10).
+Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).

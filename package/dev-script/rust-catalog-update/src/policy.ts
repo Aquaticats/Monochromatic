@@ -91,7 +91,11 @@ export function releaseAgeProblems(
     readonly now: number;
   },
 ): readonly string[] {
-  if (isExcluded({ selectors: settings.minimumReleaseAgeExclude, name, version, },))
+  if (isExcluded({
+    selectors: settings.minimumReleaseAgeExclude,
+    name,
+    version,
+  },))
     return [];
   if (pubtime === '') {
     return settings.minimumReleaseAgeIgnoreMissingTime
@@ -126,31 +130,64 @@ export function releaseAgeProblems(
  ```
  */
 function isPrerelease(version: string,): boolean {
-  return version.split('+',)[0]?.includes('-',) === true;
+  return version.split('+',)[0]
+    ?.includes('-',)
+    === true;
 }
 
 /**
+ Trust level of a release published through Trusted Publishing.
+ */
+const TRUSTED_PUBLISHING_LEVEL = 3;
+
+/**
+ Trust level of a token publish by an account that published an earlier release.
+ */
+const KNOWN_PUBLISHER_LEVEL = 2;
+
+/**
+ Trust level of a token publish by an account new to the crate.
+ */
+const FIRST_TIME_PUBLISHER_LEVEL = 1;
+
+/**
  Heuristic trust level of one release given the releases published before it.
+
+ A token publish ranks as a known publisher when the account published an
+ earlier release or is a listed crate owner (owner decision, 2026-10-29,
+ issue #1806), so maintainer rotation inside the owner list is not a downgrade.
 
  @param record - release to rate
 
  @param earlier - releases published before it
 
+ @param ownerIds - account ids of the crate's listed individual owners; empty when not looked up
+
  @returns 3 for Trusted Publishing, 2 for a known token publisher, 1 for a first-time publisher
 
  @example
  ```ts
- trustLevel({ record, earlier: [], }); // 1 or 3
+ trustLevel({ record, earlier: [], ownerIds: new Set(), }); // 1 or 3
  ```
  */
-export function trustLevel({ record, earlier, }: { readonly record: VersionRecord; readonly earlier: readonly VersionRecord[]; },): number {
+export function trustLevel({
+  record,
+  earlier,
+  ownerIds,
+}: {
+  readonly record: VersionRecord;
+  readonly earlier: readonly VersionRecord[];
+  readonly ownerIds: ReadonlySet<string>;
+},): number {
   if (record.trustpubRepository !== '')
-    return 3;
+    return TRUSTED_PUBLISHING_LEVEL;
+  if ((record.publisherId !== '') && ownerIds.has(record.publisherId,))
+    return KNOWN_PUBLISHER_LEVEL;
   return earlier.some(function samePublisher(previous: VersionRecord,): boolean {
     return (previous.publisherId !== '') && (previous.publisherId === record.publisherId);
   },)
-    ? 2
-    : 1;
+    ? KNOWN_PUBLISHER_LEVEL
+    : FIRST_TIME_PUBLISHER_LEVEL;
 }
 
 /**
@@ -166,11 +203,13 @@ export function trustLevel({ record, earlier, }: { readonly record: VersionRecor
 
  @param now - current time in milliseconds
 
+ @param ownerIds - account ids of the crate's listed individual owners; empty when not looked up
+
  @returns problem descriptions, empty when the version passes or the policy is off
 
  @example
  ```ts
- trustProblems({ name: 'anyhow', version: '1.0.104', history, settings, now: Date.now(), });
+ trustProblems({ name: 'anyhow', version: '1.0.104', history, settings, now: Date.now(), ownerIds: new Set(), });
  ```
  */
 export function trustProblems(
@@ -180,15 +219,21 @@ export function trustProblems(
     history,
     settings,
     now,
+    ownerIds,
   }: {
     readonly name: string;
     readonly version: string;
     readonly history: readonly VersionRecord[];
     readonly settings: RustCatalogSettings;
     readonly now: number;
+    readonly ownerIds: ReadonlySet<string>;
   },
 ): readonly string[] {
-  if ((settings.trustPolicy === 'off') || isExcluded({ selectors: settings.trustPolicyExclude, name, version, },))
+  if ((settings.trustPolicy === 'off') || isExcluded({
+    selectors: settings.trustPolicyExclude,
+    name,
+    version,
+  },))
     return [];
   /**
    The release being checked.
@@ -198,16 +243,20 @@ export function trustProblems(
   },);
   if (record === undefined)
     return [`${name}@${version} is not in the crates.io version list, so its trust cannot be checked; add it to trustPolicyExclude if it is expected`,];
-  if ((settings.trustPolicyIgnoreAfter !== undefined) && (Date.parse(record.createdAt,) + (settings.trustPolicyIgnoreAfter * MS_PER_MINUTE) <= now))
+  if ((settings.trustPolicyIgnoreAfter !== undefined) && ((Date.parse(record.createdAt,) + (settings.trustPolicyIgnoreAfter * MS_PER_MINUTE)) <= now))
     return [];
   /**
    Releases published before this one, oldest first.
    */
   const earlier = history.filter(function isEarlier(entry: VersionRecord,): boolean {
     return Date.parse(entry.createdAt,) < Date.parse(record.createdAt,);
-  },).toSorted(function byDate(left: VersionRecord, right: VersionRecord,): number {
-    return Date.parse(left.createdAt,) - Date.parse(right.createdAt,);
-  },);
+  },)
+    .toSorted(function byDate(
+      left: VersionRecord,
+      right: VersionRecord,
+    ): number {
+      return Date.parse(left.createdAt,) - Date.parse(right.createdAt,);
+    },);
   /**
    Problems found.
    */
@@ -215,17 +264,38 @@ export function trustProblems(
   /**
    This release's level.
    */
-  const level = trustLevel({ record, earlier, },);
+  const level = trustLevel({
+    record,
+    earlier,
+    ownerIds,
+  },);
   /**
    Highest level among earlier stable releases (prereleases do not raise the bar for a stable release).
    */
-  const best = earlier.reduce(function highest(top: number, entry: VersionRecord, index: number,): number {
+  const best = earlier.reduce(
+    function highest(
+      top: number,
+      entry: VersionRecord,
+      index: number,
+    ): number {
     // Each entry is rated against the releases before it in `earlier`, so the
     // slice uses the unfiltered position; prereleases are only skipped as candidates.
-    if (!isPrerelease(version,) && isPrerelease(entry.num,))
-      return top;
-    return Math.max(top, trustLevel({ record: entry, earlier: earlier.slice(0, index,), },),);
-  }, 0,);
+      if ((!isPrerelease(version,)) && isPrerelease(entry.num,))
+        return top;
+      return Math.max(
+        top,
+        trustLevel({
+          record: entry,
+          earlier: earlier.slice(
+            0,
+            index,
+          ),
+          ownerIds,
+        },),
+      );
+    },
+    0,
+  );
   if (best > level)
     problems.push(`${name}@${version} has trust level ${String(level,)}, below an earlier release's ${String(best,)} (3 trusted publishing, 2 known publisher, 1 first-time publisher)`,);
   /**
@@ -233,16 +303,23 @@ export function trustProblems(
    */
   const trustedRepositories = new Set(earlier.map(function toRepo(entry: VersionRecord,): string {
     return entry.trustpubRepository;
-  },).filter(function isSet(repository: string,): boolean {
-    return repository !== '';
-  },),);
-  if ((record.trustpubRepository !== '') && (trustedRepositories.size > 0) && !trustedRepositories.has(record.trustpubRepository,))
+  },)
+    .filter(function isSet(repository: string,): boolean {
+      return repository !== '';
+    },),);
+  if ((record.trustpubRepository !== '') && (trustedRepositories.size > 0)
+    && (!trustedRepositories.has(record.trustpubRepository,)))
     problems.push(`${name}@${version} was trusted-published from ${record.trustpubRepository}, not ${[...trustedRepositories,].join(', ',)}`,);
   /**
    The release just before this one.
    */
   const previous = earlier.at(-1,);
-  if ((previous !== undefined) && (previous.repository !== record.repository))
+  // Only a change between two declared repositories counts; an undeclared one
+  // on either side carries no evidence about who controls the crate
+  // (owner decision, 2026-10-29, issue #1806).
+  if ((previous !== undefined) && (previous.repository !== '')
+    && (record.repository !== '')
+    && (previous.repository !== record.repository))
     problems.push(`${name}@${version} declares repository ${JSON.stringify(record.repository,)}, but ${previous.num} declared ${JSON.stringify(previous.repository,)}`,);
   return problems.map(function withRemedy(problem: string,): string {
     return `${problem}; review the release, then add "${name}@${version}" to trustPolicyExclude in rust-catalog.toml if it is legitimate`;

@@ -16,6 +16,9 @@ import type {
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm';
 import type {
+  SessionId,
+} from '@deepseek-ai/dsh-session/types';
+import type {
   DshAdvisorLlmSurface,
 } from './types.ts';
 import { buildDshAdvisorGenerateOptions, } from './request-map.ts';
@@ -49,6 +52,10 @@ export type CreateDshAdvisorProviderOptions = {
    DSH greatest-below-max rule.
    */
   readonly reasoningEffortByModelId: ReadonlyMap<string, ReasoningEffortId>;
+  /**
+   Session identity stamped onto every request this provider issues.
+   */
+  readonly sessionId: SessionId;
 };
 
 //endregion Types
@@ -83,7 +90,7 @@ function resolveDshAdapterCredentials(): Promise<undefined> {
 
  @example
  ```ts
- const provider = createDshAdvisorProvider({ llm, providerInfo, getModels, reasoningEffortByModelId });
+ const provider = createDshAdvisorProvider({ llm, providerInfo, sessionId, getModels, reasoningEffortByModelId });
  ```
  */
 export function createDshAdvisorProvider(
@@ -327,6 +334,7 @@ function startAdvisorRouteStream(
     generate: buildDshAdvisorGenerateOptions({
       context,
       model,
+      sessionId: options.sessionId,
       ...(effort === undefined
         ? {}
         : { reasoningEffort: effort, }),

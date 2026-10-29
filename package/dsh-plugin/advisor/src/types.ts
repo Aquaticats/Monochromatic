@@ -13,6 +13,9 @@ import type {
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm';
 import type {
+  SessionId,
+} from '@deepseek-ai/dsh-session/types';
+import type {
   AssembleContext,
 } from '@deepseek-ai/dsh-system-prompt';
 import type {
@@ -28,7 +31,7 @@ import type {
 
  @example
  ```ts
- const catalog = await buildDshAdvisorCatalog({ llm: ctx.llm, maxAdvisorOutputTokens });
+ const catalog = await buildDshAdvisorCatalog({ llm: ctx.llm, sessionId: agent.id, maxAdvisorOutputTokens });
  ```
  */
 export type DshAdvisorLlmSurface = Pick<
@@ -76,7 +79,7 @@ export type DshAdvisorModelFacts = {
 
  @example
  ```ts
- const catalog = await buildDshAdvisorCatalog({ llm, maxAdvisorOutputTokens });
+ const catalog = await buildDshAdvisorCatalog({ llm, sessionId, maxAdvisorOutputTokens });
  ```
  */
 export type DshAdvisorCatalog = AdvisorModelResolution & {
@@ -114,6 +117,10 @@ export type DshAdvisorMessageSource = {
  ```
  */
 export type DshAdvisorAgentSurface = {
+  /**
+   Session identity stamped onto Advisor requests for provider routing.
+   */
+  readonly sessionId: SessionId;
   /**
    Derived-history source for the review context.
    */

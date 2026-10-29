@@ -45,10 +45,12 @@ Read-only commands,
   The wrapper checks the committed bytes again,
    then pushes the branch.
   A branch without an upstream is pushed to `origin` with `--set-upstream` when that remote exists.
-  A branch with an upstream is pushed to it.
+  A branch with an upstream is pushed to it,
+   including a branch whose upstream has another name, such as a linked worktree branch created from `origin/main`:
+   Git itself refuses that push under its default `push.default=simple`, so the wrapper names the tracked branch.
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
-   at most three times.
+   at most ten times.
   While the merge is computed and pushed, the local branch, the index, the worktree and untracked files are not read
    or changed, so another session's uncommitted files cannot block the push.
   Afterwards the local branch follows the published merge by a fast-forward when nothing can be lost:
@@ -63,6 +65,21 @@ Read-only commands,
    as native Git runs it after a commit,
    runs after each landing,
   because a landing stores its objects in one new pack.
+- A manual push that lost a race.
+  When another session pushes to the same branch between your commit and your `git push`,
+   Git rejects the push as non-fast-forward.
+  The wrapper runs a plain push of one branch as a child process with your terminal,
+   so Git's own output is unchanged.
+  When that push fails and the remote branch has commits yours lacks,
+   the wrapper merges them in from Git objects alone and pushes the merge by running itself,
+   so every push policy reads the integrated result,
+   at most ten times.
+  A conflict is reported with the conflicting paths and publishes nothing.
+  The checked-out branch follows the published merge under the same conditions as after a commit;
+   a detached HEAD stays where it is, and the report says so.
+  Forced, deleting, mirroring, tag, `--all`, `--set-upstream`, `--porcelain` and `--dry-run` pushes,
+   and pushes of a `+refspec`, are never integrated,
+   and a failure that is not a divergence (authentication, offline, a refusing hook) keeps Git's own report.
 - Linked worktrees.
   When a Git command creates a linked worktree,
    the wrapper copies the ignored state of the source worktree into it

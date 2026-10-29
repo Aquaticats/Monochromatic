@@ -17,12 +17,17 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import {
   isRegistryPackage,
+  type LockedPackage,
   parseCargoLock,
 } from '@monochromatic-dev/module-rust-catalog/ts';
 import spawn, { SubprocessError, } from 'nano-spawn';
 
 import { l, } from './logger.ts';
-import { parseSelector, matchesPattern, } from './selectors.ts';
+import {
+  matchesPattern,
+  type ParsedSelector,
+  parseSelector,
+} from './selectors.ts';
 
 //region Runner
 
@@ -50,12 +55,19 @@ export type CargoOutcome = {
  const runCargo: RunCargo = async ({ cwd, args, }) => ({ ok: true, output: '', });
  ```
  */
-export type RunCargo = (request: { readonly cwd: string; readonly args: readonly string[]; },) => Promise<CargoOutcome>;
+export type RunCargo = (request: {
+  readonly cwd: string;
+  readonly args: readonly string[]
+},) => Promise<CargoOutcome>;
 
 /**
- Default {@link RunCargo} through `nano-spawn`.
+ Runs cargo through `nano-spawn` under one rustup toolchain.
 
- @param request - directory and arguments
+ @param cwd - directory cargo runs in
+
+ @param args - cargo arguments
+
+ @param toolchain - `RUSTUP_TOOLCHAIN` for the child; empty to inherit the caller's
 
  @returns whether cargo exited 0, with its output
 
@@ -63,28 +75,77 @@ export type RunCargo = (request: { readonly cwd: string; readonly args: readonly
 
  @example
  ```ts
- await spawnCargo({ cwd: 'package/cli/a', args: ['generate-lockfile',], });
+ await spawnCargo({ cwd: 'package/cli/a', args: ['generate-lockfile',], toolchain: 'nightly-2026-10-29', });
  ```
  */
-export async function spawnCargo({ cwd, args, }: { readonly cwd: string; readonly args: readonly string[]; },): Promise<CargoOutcome> {
+export async function spawnCargo({
+  cwd,
+  args,
+  toolchain,
+}: {
+  readonly cwd: string;
+  readonly args: readonly string[];
+  readonly toolchain: string;
+},): Promise<CargoOutcome> {
   /**
    Logger for cargo runs.
    */
-  const log = tagged({ tag: spawnCargo.name, l, },);
-  log.debug(`cargo ${args.join(' ',)} in ${cwd}`,);
+  const log = tagged({
+    tag: spawnCargo.name,
+    l,
+  },);
+  log.debug(`cargo ${args.join(' ',)} in ${cwd} with toolchain ${toolchain === '' ? '(inherited)' : toolchain}`,);
   try {
     /**
      Finished run.
      */
-    const result = await spawn('cargo', [...args,], { cwd, },);
-    return { ok: true, output: result.output, };
+    const result = await spawn(
+      'cargo',
+      [...args,],
+      {
+        cwd,
+        env: toolchain === '' ? {} : { RUSTUP_TOOLCHAIN: toolchain, },
+      },
+    );
+    return {
+      ok: true,
+      output: result.output,
+    };
   } catch (error) {
     if ((error instanceof SubprocessError) && (error.exitCode !== undefined)) {
       log.debug(`cargo ${args.join(' ',)} in ${cwd} exited ${String(error.exitCode,)}`,);
-      return { ok: false, output: error.output, };
+      return {
+        ok: false,
+        output: error.output,
+      };
     }
     throw error;
   }
+}
+
+/**
+ {@link RunCargo} bound to one rustup toolchain, so the update does not depend on the caller's environment.
+
+ @param toolchain - `RUSTUP_TOOLCHAIN` value; empty to inherit the caller's
+
+ @returns cargo runner
+
+ @example
+ ```ts
+ const runCargo = createSpawnCargo({ toolchain: 'nightly-2026-10-29', });
+ ```
+ */
+export function createSpawnCargo({ toolchain, }: { readonly toolchain: string; },): RunCargo {
+  return async function runCargo({
+    cwd,
+    args,
+  },): Promise<CargoOutcome> {
+    return await spawnCargo({
+      cwd,
+      args,
+      toolchain,
+    },);
+  };
 }
 
 //endregion Runner
@@ -114,13 +175,23 @@ export class CargoResolveError extends Error {
 
    @param output - cargo output
    */
-  constructor({ crateDir, command, output, }: { readonly crateDir: string; readonly command: string; readonly output: string; },) {
+  constructor({
+    crateDir,
+    command,
+    output,
+  }: {
+    readonly crateDir: string;
+    readonly command: string;
+    readonly output: string
+  },) {
     super([
       `\`${command}\` failed in ${crateDir}; every lockfile was restored.`,
       'Cargo output:',
       output.trim(),
-      'If no release old enough satisfies a requirement, either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,',
+      'Fix the cause cargo names. When it is that no release old enough satisfies a requirement,',
+      'either wait, add the crate to minimumReleaseAgeExclude in rust-catalog.toml,',
       'or set minimumReleaseAgeStrict = false to fall back to a younger release.',
+      'When cargo says `-Z` needs the nightly channel, set RUSTUP_TOOLCHAIN to the nightly toolchain.lock.json pins.',
     ].join('\n',),);
     this.name = 'CargoResolveError';
     this.crateDir = crateDir;
@@ -155,9 +226,18 @@ const ISO_SECONDS_LENGTH = 19;
  publishTimeCutoff({ now: Date.parse('2026-10-29T12:00:00Z'), minutes: 1440, }); // '2026-10-28T12:00:00Z'
  ```
  */
-export function publishTimeCutoff({ now, minutes, }: { readonly now: number; readonly minutes: number; },): string {
+export function publishTimeCutoff({
+  now,
+  minutes,
+}: {
+  readonly now: number;
+  readonly minutes: number
+},): string {
   return `${new Date(now - (minutes * MS_PER_MINUTE),).toISOString()
-    .slice(0, ISO_SECONDS_LENGTH,)}Z`;
+    .slice(
+      0,
+      ISO_SECONDS_LENGTH,
+    )}Z`;
 }
 
 /**
@@ -183,7 +263,13 @@ export function publishTimeCutoff({ now, minutes, }: { readonly now: number; rea
  ```
  */
 export async function resolveCrate(
-  { root, crateDir, cutoff, strict, runCargo, }: {
+  {
+    root,
+    crateDir,
+    cutoff,
+    strict,
+    runCargo,
+  }: {
     readonly root: string;
     readonly crateDir: string;
     readonly cutoff: string;
@@ -194,30 +280,55 @@ export async function resolveCrate(
   /**
    Logger for this crate.
    */
-  const log = tagged({ tag: resolveCrate.name, l, },);
+  const log = tagged({
+    tag: resolveCrate.name,
+    l,
+  },);
   /**
    Absolute crate directory.
    */
-  const cwd = join(root, crateDir,);
+  const cwd = join(
+    root,
+    crateDir,
+  );
   /**
    Constrained resolution arguments.
    */
-  const constrained = cutoff === '' ? ['generate-lockfile',] : ['-Zunstable-options', 'generate-lockfile', '--publish-time', cutoff,];
+  const constrained = cutoff === '' ? ['generate-lockfile',] : [
+    '-Zunstable-options',
+    'generate-lockfile',
+    '--publish-time',
+    cutoff,
+  ];
   /**
    First attempt.
    */
-  const first = await runCargo({ cwd, args: constrained, },);
+  const first = await runCargo({
+    cwd,
+    args: constrained,
+  },);
   if (first.ok)
     return { fellBack: false, };
   if (strict || (cutoff === ''))
-    throw new CargoResolveError({ crateDir, command: `cargo ${constrained.join(' ',)}`, output: first.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: `cargo ${constrained.join(' ',)}`,
+      output: first.output,
+    },);
   log.warn(`${crateDir}: no resolution satisfies the release-age cutoff ${cutoff}; minimumReleaseAgeStrict is false, so resolving without it`,);
   /**
    Unconstrained fallback.
    */
-  const fallback = await runCargo({ cwd, args: ['generate-lockfile',], },);
+  const fallback = await runCargo({
+    cwd,
+    args: ['generate-lockfile',],
+  },);
   if (!fallback.ok)
-    throw new CargoResolveError({ crateDir, command: 'cargo generate-lockfile', output: fallback.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: 'cargo generate-lockfile',
+      output: fallback.output,
+    },);
   return { fellBack: true, };
 }
 
@@ -240,25 +351,42 @@ export async function resolveCrate(
  excludedUpdateSpecs({ lock, selectors: ['ring',], }); // ['ring@0.17.8']
  ```
  */
-export function excludedUpdateSpecs({ lock, selectors, }: { readonly lock: string; readonly selectors: readonly string[]; },): readonly string[] {
+export function excludedUpdateSpecs({
+  lock,
+  selectors,
+}: {
+  readonly lock: string;
+  readonly selectors: readonly string[]
+},): readonly string[] {
   /**
    Name patterns that exempt every version.
    */
-  const patterns = selectors.map(parseSelector,).filter(function isNameOnly(selector,): boolean {
-    return selector.versions.length === 0;
+  const patterns = selectors.map(function parse(selector: string,): ParsedSelector {
+    return parseSelector(selector,);
   },)
-    .map(function toPattern(selector,): string {
+    .filter(function isNameOnly(selector: ParsedSelector,): boolean {
+      return selector.versions
+        .length
+        === 0;
+    },)
+    .map(function toPattern(selector: ParsedSelector,): string {
       return selector.pattern;
     },);
   if (patterns.length === 0)
     return [];
-  return [...new Set(parseCargoLock(lock,).filter(isRegistryPackage,)
-    .filter(function isExempt(locked,): boolean {
+  return [...new Set(parseCargoLock(lock,)
+    .filter(function isRegistry(locked: LockedPackage,): boolean {
+      return isRegistryPackage(locked,);
+    },)
+    .filter(function isExempt(locked: LockedPackage,): boolean {
       return patterns.some(function matches(pattern: string,): boolean {
-        return matchesPattern({ pattern, name: locked.name, },);
+        return matchesPattern({
+          pattern,
+          name: locked.name,
+        },);
       },);
     },)
-    .map(function toSpec(locked,): string {
+    .map(function toSpec(locked: LockedPackage,): string {
       return `${locked.name}@${locked.version}`;
     },),),].toSorted();
 }
@@ -282,7 +410,12 @@ export function excludedUpdateSpecs({ lock, selectors, }: { readonly lock: strin
  ```
  */
 export async function updateExempt(
-  { root, crateDir, specs, runCargo, }: {
+  {
+    root,
+    crateDir,
+    specs,
+    runCargo,
+  }: {
     readonly root: string;
     readonly crateDir: string;
     readonly specs: readonly string[];
@@ -294,9 +427,22 @@ export async function updateExempt(
   /**
    Update outcome.
    */
-  const outcome = await runCargo({ cwd: join(root, crateDir,), args: ['update', ...specs,], },);
+  const outcome = await runCargo({
+    cwd: join(
+      root,
+      crateDir,
+    ),
+    args: [
+      'update',
+      ...specs,
+    ],
+  },);
   if (!outcome.ok)
-    throw new CargoResolveError({ crateDir, command: `cargo update ${specs.join(' ',)}`, output: outcome.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: `cargo update ${specs.join(' ',)}`,
+      output: outcome.output,
+    },);
 }
 
 //endregion Resolve

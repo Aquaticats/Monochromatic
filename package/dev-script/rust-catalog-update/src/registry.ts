@@ -45,7 +45,7 @@ const API_URL = 'https://crates.io/api/v1';
 /**
  crates.io's documented minimum spacing between API requests.
  */
-export const API_MIN_INTERVAL_MS = 1000;
+export const API_MIN_INTERVAL_MS = 1_000;
 
 /**
  Repo-relative cache directory for version histories.
@@ -55,7 +55,10 @@ export const HISTORY_CACHE_DIR = '.cache/rust-catalog-update/crates-io';
 /**
  Crate-name lengths with a dedicated sparse-index directory.
  */
-const SHORT_NAME_LENGTHS: ReadonlySet<number> = new Set([1, 2,],);
+const SHORT_NAME_LENGTHS: ReadonlySet<number> = new Set([
+  1,
+  2,
+],);
 
 /**
  Crate-name length whose directory also takes the first character.
@@ -99,7 +102,15 @@ export class RegistryError extends Error {
 
    @param cause - underlying failure
    */
-  constructor({ url, status, cause, }: { readonly url: string; readonly status: number; readonly cause?: unknown; },) {
+  constructor({
+    url,
+    status,
+    cause,
+  }: {
+    readonly url: string;
+    readonly status: number;
+    readonly cause?: unknown
+  },) {
     super(
       status === 0
         ? `Could not reach ${url}; check the network, then rerun.`
@@ -142,9 +153,16 @@ export type FetchText = (url: string,) => Promise<string>;
  */
 async function fetchOrThrow(url: string,): Promise<Response> {
   try {
-    return await fetch(url, { headers: { 'user-agent': USER_AGENT, }, },);
+    return await fetch(
+      url,
+      { headers: { 'user-agent': USER_AGENT, }, },
+    );
   } catch (error) {
-    throw new RegistryError({ url, status: 0, cause: error, },);
+    throw new RegistryError({
+      url,
+      status: 0,
+      cause: error,
+    },);
   }
 }
 
@@ -168,7 +186,10 @@ export async function fetchTextWithUserAgent(url: string,): Promise<string> {
    */
   const response = await fetchOrThrow(url,);
   if (!response.ok)
-    throw new RegistryError({ url, status: response.status, },);
+    throw new RegistryError({
+      url,
+      status: response.status,
+    },);
   return await response.text();
 }
 
@@ -197,8 +218,17 @@ export function sparseIndexPath(name: string,): string {
   if (SHORT_NAME_LENGTHS.has(lower.length,))
     return `${String(lower.length,)}/${lower}`;
   if (lower.length === THREE_CHARACTER_NAME)
-    return `${String(THREE_CHARACTER_NAME,)}/${lower.slice(0, 1,)}/${lower}`;
-  return `${lower.slice(0, PREFIX_SEGMENT,)}/${lower.slice(PREFIX_SEGMENT, PREFIX_SEGMENT * 2,)}/${lower}`;
+    return `${String(THREE_CHARACTER_NAME,)}/${lower.slice(
+      0,
+      1,
+    )}/${lower}`;
+  return `${lower.slice(
+    0,
+    PREFIX_SEGMENT,
+  )}/${lower.slice(
+    PREFIX_SEGMENT,
+    PREFIX_SEGMENT * 2,
+  )}/${lower}`;
 }
 
 /**
@@ -214,7 +244,66 @@ export function sparseIndexPath(name: string,): string {
  ```
  */
 function isObject(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null) && (!Array.isArray(value,));
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
+}
+
+/**
+ A string field of parsed JSON, or empty when it is missing or not a string.
+
+ @param object - parsed JSON object
+
+ @param key - field name
+
+ @returns field text
+
+ @example
+ ```ts
+ stringField({ object: { num: '1.0.0', }, key: 'num', }); // '1.0.0'
+ ```
+ */
+function stringField({
+  object,
+  key,
+}: {
+  readonly object: Readonly<Record<string, unknown>>;
+  readonly key: string
+},): string {
+  /**
+   Field value.
+   */
+  const value = object[key];
+  return (typeof value) === 'string' ? value : '';
+}
+
+/**
+ A numeric or string id of parsed JSON as text, or empty when absent.
+
+ @param object - parsed JSON object
+
+ @param key - field name
+
+ @returns id text
+
+ @example
+ ```ts
+ idField({ object: { id: 3618, }, key: 'id', }); // '3618'
+ ```
+ */
+function idField({
+  object,
+  key,
+}: {
+  readonly object: Readonly<Record<string, unknown>>;
+  readonly key: string
+},): string {
+  /**
+   Field value.
+   */
+  const value = object[key];
+  if ((typeof value) === 'number')
+    return String(value,);
+  return (typeof value) === 'string' ? value : '';
 }
 
 /**
@@ -243,8 +332,18 @@ export function parseIndexPubtimes(text: string,): ReadonlyMap<string, string> {
      One version record.
      */
     const record: unknown = JSON.parse(line,);
-    if (isObject(record,) && ((typeof record.vers) === 'string'))
-      times.set(String(record.vers,), (typeof record.pubtime) === 'string' ? String(record.pubtime,) : '',);
+    if (isObject(record,) && ((typeof record.vers) === 'string')) {
+      times.set(
+        stringField({
+          object: record,
+          key: 'vers',
+        },),
+        stringField({
+          object: record,
+          key: 'pubtime',
+        },),
+      );
+    }
   }
   return times;
 }
@@ -272,23 +371,80 @@ export function parseVersionHistory(text: string,): readonly VersionRecord[] {
    Raw version entries.
    */
   const versions = isObject(body,) && Array.isArray(body.versions,) ? body.versions : [];
-  return versions.filter(isObject,).map(function toRecord(version: Readonly<Record<string, unknown>>,): VersionRecord {
-    /**
-     Publishing account, absent for Trusted Publishing.
-     */
-    const publisher = isObject(version.published_by,) ? version.published_by : {};
-    /**
-     Trusted Publishing provenance, absent for a token publish.
-     */
-    const trustpub = isObject(version.trustpub_data,) ? version.trustpub_data : {};
-    return {
-      num: (typeof version.num) === 'string' ? String(version.num,) : '',
-      createdAt: (typeof version.created_at) === 'string' ? String(version.created_at,) : '',
-      publisherId: (publisher.id === undefined) || (publisher.id === null) ? '' : String(publisher.id,),
-      trustpubRepository: (typeof trustpub.repository) === 'string' ? String(trustpub.repository,) : '',
-      repository: (typeof version.repository) === 'string' ? String(version.repository,) : '',
-    };
-  },);
+  return versions.filter(function isEntry(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+    return isObject(entry,);
+  },)
+    .map(function toRecord(version: Readonly<Record<string, unknown>>,): VersionRecord {
+      /**
+       Publishing account, absent for Trusted Publishing.
+       */
+      const publisher = isObject(version.published_by,) ? version.published_by : {};
+      /**
+       Trusted Publishing provenance, absent for a token publish.
+       */
+      const trustpub = isObject(version.trustpub_data,) ? version.trustpub_data : {};
+      return {
+        num: stringField({
+          object: version,
+          key: 'num',
+        },),
+        createdAt: stringField({
+          object: version,
+          key: 'created_at',
+        },),
+        publisherId: idField({
+          object: publisher,
+          key: 'id',
+        },),
+        trustpubRepository: stringField({
+          object: trustpub,
+          key: 'repository',
+        },),
+        repository: stringField({
+          object: version,
+          key: 'repository',
+        },),
+      };
+    },);
+}
+
+/**
+ Account ids of a crate's listed individual owners from a crates.io owners response.
+
+ Team owners (`kind: "team"`) are left out: the API does not list their members.
+
+ @param text - `/api/v1/crates/<name>/owners` body
+
+ @returns user ids as text
+
+ @throws SyntaxError when the body is not JSON
+
+ @example
+ ```ts
+ parseOwnerIds('{"users":[{"id":3618,"kind":"user"},{"id":9,"kind":"team"}]}'); // Set { '3618' }
+ ```
+ */
+export function parseOwnerIds(text: string,): ReadonlySet<string> {
+  /**
+   Parsed body.
+   */
+  const body: unknown = JSON.parse(text,);
+  /**
+   Raw owner entries.
+   */
+  const users = isObject(body,) && Array.isArray(body.users,) ? body.users : [];
+  return new Set(users.filter(function isUser(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+    return isObject(entry,) && (entry.kind === 'user');
+  },)
+    .map(function toId(entry: Readonly<Record<string, unknown>>,): string {
+      return idField({
+        object: entry,
+        key: 'id',
+      },);
+    },)
+    .filter(function isPresent(id: string,): boolean {
+      return id !== '';
+    },),);
 }
 
 //endregion Parse
@@ -311,7 +467,14 @@ export type Registry = {
   /**
    Version history of a crate, refetched when a needed version is missing from the cache.
    */
-  readonly history: (request: { readonly name: string; readonly versions: readonly string[]; },) => Promise<readonly VersionRecord[]>;
+  readonly history: (request: {
+    readonly name: string;
+    readonly versions: readonly string[]
+  },) => Promise<readonly VersionRecord[]>;
+  /**
+   Account ids of a crate's listed individual owners, fetched fresh because ownership changes.
+   */
+  readonly owners: (name: string,) => Promise<ReadonlySet<string>>;
 };
 
 /**
@@ -330,21 +493,47 @@ async function readCachedHistory(path: string,): Promise<readonly VersionRecord[
   /**
    Logger for cache misses.
    */
-  const log = tagged({ tag: readCachedHistory.name, l, },);
+  const log = tagged({
+    tag: readCachedHistory.name,
+    l,
+  },);
   try {
     /**
      Cache file body.
      */
-    const parsed: unknown = JSON.parse(await readFile(path, 'utf8',),);
-    return Array.isArray(parsed,) ? parsed.filter(isObject,).map(function toRecord(entry,): VersionRecord {
-      return {
-        num: String(entry.num ?? '',),
-        createdAt: String(entry.createdAt ?? '',),
-        publisherId: String(entry.publisherId ?? '',),
-        trustpubRepository: String(entry.trustpubRepository ?? '',),
-        repository: String(entry.repository ?? '',),
-      };
-    },) : [];
+    const parsed: unknown = JSON.parse(await readFile(
+      path,
+      'utf8',
+    ),);
+    if (!Array.isArray(parsed,))
+      return [];
+    return parsed.filter(function isEntry(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+      return isObject(entry,);
+    },)
+      .map(function toRecord(entry: Readonly<Record<string, unknown>>,): VersionRecord {
+        return {
+          num: stringField({
+            object: entry,
+            key: 'num',
+          },),
+          createdAt: stringField({
+            object: entry,
+            key: 'createdAt',
+          },),
+          publisherId: stringField({
+            object: entry,
+            key: 'publisherId',
+          },),
+          trustpubRepository: stringField({
+            object: entry,
+            key: 'trustpubRepository',
+          },),
+          repository: stringField({
+            object: entry,
+            key: 'repository',
+          },),
+        };
+      },);
   } catch (error) {
     log.debug(`no usable cache at ${path} (${String(error,)}); fetching from crates.io`,);
     return [];
@@ -368,12 +557,23 @@ async function readCachedHistory(path: string,): Promise<readonly VersionRecord[
  ```
  */
 export function createRegistry(
-  { root, fetchText, minIntervalMs = API_MIN_INTERVAL_MS, }: { readonly root: string; readonly fetchText: FetchText; readonly minIntervalMs?: number; },
+  {
+    root,
+    fetchText,
+    minIntervalMs = API_MIN_INTERVAL_MS,
+  }: {
+    readonly root: string;
+    readonly fetchText: FetchText;
+    readonly minIntervalMs?: number
+  },
 ): Registry {
   /**
    Logger for requests.
    */
-  const log = tagged({ tag: createRegistry.name, l, },);
+  const log = tagged({
+    tag: createRegistry.name,
+    l,
+  },);
   /**
    Time of the last API request, for spacing; callers request histories one at a time.
    */
@@ -381,8 +581,39 @@ export function createRegistry(
   /**
    History cache directory.
    */
-  const cacheDir = join(root, HISTORY_CACHE_DIR,);
+  const cacheDir = join(
+    root,
+    HISTORY_CACHE_DIR,
+  );
+  /**
+   Fetches a crates.io API URL no sooner than `minIntervalMs` after the previous one.
+
+   @param url - API URL
+
+   @returns response body
+
+   @throws RegistryError when the request fails
+
+   @example
+   ```ts
+   await spacedApiGet('https://crates.io/api/v1/crates/anyhow/owners');
+   ```
+   */
+  async function spacedApiGet(url: string,): Promise<string> {
+    /**
+     Time left before the next request is allowed.
+     */
+    const delay = (throttle.lastRequestAt + minIntervalMs) - Date.now();
+    if (delay > 0)
+      await wait(delay,);
+    throttle.lastRequestAt = Date.now();
+    log.info(`fetching ${url}`,);
+    return await fetchText(url,);
+  }
   return {
+    owners: async function owners(name: string,): Promise<ReadonlySet<string>> {
+      return parseOwnerIds(await spacedApiGet(`${API_URL}/crates/${encodeURIComponent(name,)}/owners`,),);
+    },
     pubtimes: async function pubtimes(name: string,): Promise<ReadonlyMap<string, string>> {
       /**
        Index file URL.
@@ -391,11 +622,17 @@ export function createRegistry(
       log.debug(`fetching ${url}`,);
       return parseIndexPubtimes(await fetchText(url,),);
     },
-    history: async function history({ name, versions, },): Promise<readonly VersionRecord[]> {
+    history: async function history({
+      name,
+      versions,
+    },): Promise<readonly VersionRecord[]> {
       /**
        Cache file for this crate.
        */
-      const path = join(cacheDir, `${name}.json`,);
+      const path = join(
+        cacheDir,
+        `${name}.json`,
+      );
       /**
        Cached records.
        */
@@ -411,23 +648,17 @@ export function createRegistry(
       },))
         return cached;
       /**
-       Time left before the next request is allowed.
-       */
-      const delay = throttle.lastRequestAt + minIntervalMs - Date.now();
-      if (delay > 0)
-        await wait(delay,);
-      throttle.lastRequestAt = Date.now();
-      /**
-       API URL for this crate.
-       */
-      const url = `${API_URL}/crates/${encodeURIComponent(name,)}/versions`;
-      log.info(`fetching ${url}`,);
-      /**
        Fresh records.
        */
-      const fresh = parseVersionHistory(await fetchText(url,),);
-      await mkdir(cacheDir, { recursive: true, },);
-      await writeFile(path, `${JSON.stringify(fresh,)}\n`,);
+      const fresh = parseVersionHistory(await spacedApiGet(`${API_URL}/crates/${encodeURIComponent(name,)}/versions`,),);
+      await mkdir(
+        cacheDir,
+        { recursive: true, },
+      );
+      await writeFile(
+        path,
+        `${JSON.stringify(fresh,)}\n`,
+      );
       return fresh;
     },
   };

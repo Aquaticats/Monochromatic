@@ -110,7 +110,14 @@ export type UpdateReport = {
  ```
  */
 async function resolveAll(
-  { root, crateDirs, cutoff, strict, exclude, runCargo, }: {
+  {
+    root,
+    crateDirs,
+    cutoff,
+    strict,
+    exclude,
+    runCargo,
+  }: {
     readonly root: string;
     readonly crateDirs: readonly string[];
     readonly cutoff: string;
@@ -122,21 +129,47 @@ async function resolveAll(
   /**
    Logger for progress.
    */
-  const log = tagged({ tag: resolveAll.name, l, },);
+  const log = tagged({
+    tag: resolveAll.name,
+    l,
+  },);
   /**
    Crates that fell back.
    */
   const fellBack: string[] = [];
   for (const crateDir of crateDirs) {
     log.info(`resolving ${crateDir}${cutoff === '' ? '' : ` with releases published before ${cutoff}`}`,);
+    /**
+     Whether this crate fell back to an unconstrained resolution.
+     */
     // oxlint-disable-next-line no-await-in-loop -- crates share cargo's package cache lock, so parallel runs only queue.
-    const { fellBack: crateFellBack, } = await resolveCrate({ root, crateDir, cutoff, strict, runCargo, },);
+    const { fellBack: crateFellBack, } = await resolveCrate({
+      root,
+      crateDir,
+      cutoff,
+      strict,
+      runCargo,
+    },);
     if (crateFellBack)
       fellBack.push(crateDir,);
+    /**
+     Lockfile this crate's resolution just wrote.
+     */
     // oxlint-disable-next-line no-await-in-loop -- the exempt update reads the lockfile this crate's resolution just wrote.
-    const [snapshot,] = await readLocks({ root, crateDirs: [crateDir,], },);
+    const [snapshot,] = await readLocks({
+      root,
+      crateDirs: [crateDir,],
+    },);
     // oxlint-disable-next-line no-await-in-loop -- same crate, same cargo lock as the resolution.
-    await updateExempt({ root, crateDir, specs: excludedUpdateSpecs({ lock: snapshot?.source ?? '', selectors: exclude, },), runCargo, },);
+    await updateExempt({
+      root,
+      crateDir,
+      specs: excludedUpdateSpecs({
+        lock: snapshot?.source ?? '',
+        selectors: exclude,
+      },),
+      runCargo,
+    },);
   }
   return fellBack;
 }
@@ -172,7 +205,13 @@ async function resolveAll(
  ```
  */
 export async function updateRustLockfiles(
-  { root, dryRun, now, runCargo, registry, }: {
+  {
+    root,
+    dryRun,
+    now,
+    runCargo,
+    registry,
+  }: {
     readonly root: string;
     readonly dryRun: boolean;
     readonly now: number;
@@ -183,11 +222,17 @@ export async function updateRustLockfiles(
   /**
    Logger for the run.
    */
-  const log = tagged({ tag: updateRustLockfiles.name, l, },);
+  const log = tagged({
+    tag: updateRustLockfiles.name,
+    l,
+  },);
   /**
    Catalog file and settings.
    */
   const catalog = await readRustCatalog({ rootDir: root, },);
+  /**
+   Release-age and trust settings.
+   */
   const { settings, } = catalog.document;
   /**
    Crate roots with a lockfile.
@@ -196,7 +241,10 @@ export async function updateRustLockfiles(
   /**
    Lockfiles before the update.
    */
-  const before: readonly LockSnapshot[] = await readLocks({ root, crateDirs, },);
+  const before: readonly LockSnapshot[] = await readLocks({
+    root,
+    crateDirs,
+  },);
   log.info(`snapshotted ${String(before.length,)} lockfiles`,);
   try {
     /**
@@ -205,7 +253,10 @@ export async function updateRustLockfiles(
     const fellBack = await resolveAll({
       root,
       crateDirs,
-      cutoff: settings.minimumReleaseAge === 0 ? '' : publishTimeCutoff({ now, minutes: settings.minimumReleaseAge, },),
+      cutoff: settings.minimumReleaseAge === 0 ? '' : publishTimeCutoff({
+        now,
+        minutes: settings.minimumReleaseAge,
+      },),
       strict: settings.minimumReleaseAgeStrict,
       exclude: settings.minimumReleaseAgeExclude,
       runCargo,
@@ -213,42 +264,95 @@ export async function updateRustLockfiles(
     /**
      Lockfile texts after the update.
      */
-    const after = (await readLocks({ root, crateDirs, },)).map(function toSource(snapshot: LockSnapshot,): string {
+    const after = (await readLocks({
+      root,
+      crateDirs,
+    },)).map(function toSource(snapshot: LockSnapshot,): string {
       return snapshot.source;
     },);
     /**
      Newly locked versions across every crate.
      */
-    const added = addedVersions({ before: before.map(function toSource(snapshot,): string {
-      return snapshot.source;
-    },), after, },);
+    const added = addedVersions({
+      before: before.map(function toSource(snapshot,): string {
+        return snapshot.source;
+      },),
+      after,
+    },);
     /**
      Release-age findings.
      */
-    const age = await checkReleaseAge({ versions: added, settings, registry, now, },);
+    const age = await checkReleaseAge({
+      versions: added,
+      settings,
+      registry,
+      now,
+    },);
     /**
      Refusals.
      */
-    const problems = [...age.problems, ...await checkTrust({ versions: added, settings, registry, now, },),];
+    const problems = [
+      ...age.problems,
+      ...await checkTrust({
+        versions: added,
+        settings,
+        registry,
+        now,
+      },),
+    ];
     /**
      Whether to keep the new lockfiles.
      */
     const keep = (problems.length === 0) && (!dryRun);
     if (!keep) {
       log.info(dryRun ? 'dry run: restoring every lockfile' : `refused by ${String(problems.length,)} findings: restoring every lockfile`,);
-      await restoreLocks({ root, snapshots: before, },);
-      return { crateDirs, added, problems, warnings: age.warnings, fellBack, written: false, pruned: [], };
+      await restoreLocks({
+        root,
+        snapshots: before,
+      },);
+      return {
+        crateDirs,
+        added,
+        problems,
+        warnings: age.warnings,
+        fellBack,
+        written: false,
+        pruned: [],
+      };
     }
     /**
      Catalog with stale exclude selectors pruned.
      */
-    const pruned = pruneExcludes({ source: await readFile(catalog.sourcePath, 'utf8',), settings, locked: registryVersions(after,), },);
-    if (pruned.removed.length > 0)
-      await writeFile(catalog.sourcePath, pruned.source,);
-    return { crateDirs, added, problems, warnings: age.warnings, fellBack, written: true, pruned: pruned.removed, };
+    const pruned = pruneExcludes({
+      source: await readFile(
+        catalog.sourcePath,
+        'utf8',
+      ),
+      settings,
+      locked: registryVersions(after,),
+    },);
+    if (pruned.removed
+      .length
+      > 0)
+      await writeFile(
+        catalog.sourcePath,
+        pruned.source,
+      );
+    return {
+      crateDirs,
+      added,
+      problems,
+      warnings: age.warnings,
+      fellBack,
+      written: true,
+      pruned: pruned.removed,
+    };
   } catch (error) {
     log.error(`update failed (${String(error,)}); restoring every lockfile`,);
-    await restoreLocks({ root, snapshots: before, },);
+    await restoreLocks({
+      root,
+      snapshots: before,
+    },);
     throw error;
   }
 }

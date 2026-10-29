@@ -21,6 +21,9 @@ import type {
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm';
 import type {
+  SessionId,
+} from '@deepseek-ai/dsh-session/types';
+import type {
   ForeignBorrowed,
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
@@ -47,6 +50,10 @@ export type BuildDshAdvisorCatalogOptions = {
    DSH LLM surface listing and resolving provider routes.
    */
   readonly llm: DshAdvisorLlmSurface;
+  /**
+   Session identity stamped onto every catalog route's requests.
+   */
+  readonly sessionId: SessionId;
   /**
    Configured output token budget used when a route declares no capacity.
    */
@@ -166,7 +173,7 @@ function resolveAdvisorRequestAuth(
 
  @example
  ```ts
- const catalog = await buildDshAdvisorCatalog({ llm: ctx.llm, maxAdvisorOutputTokens: 4096 });
+ const catalog = await buildDshAdvisorCatalog({ llm: ctx.llm, sessionId, maxAdvisorOutputTokens: 4096 });
  ```
  */
 export async function buildDshAdvisorCatalog(
@@ -281,6 +288,7 @@ export async function buildDshAdvisorCatalog(
       createDshAdvisorProvider({
         llm: options.llm,
         providerInfo,
+        sessionId: options.sessionId,
         getModels: function getModels() {
           return models.filter(function belongsToProvider(
             model: ForeignBorrowed<Model<Api>>,

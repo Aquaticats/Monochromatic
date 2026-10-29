@@ -856,6 +856,9 @@ pub mod manual_push_probe;
 /// Published-set and range computation for manual-push scans: which pushed commits a remote does not have.
 pub mod manual_push_range;
 
+/// An explicit push that lost a race: run as a child, merge in what landed on the remote and publish the merge.
+pub mod push_stacking;
+
 /// The manual-push candidate scope of one push: the commits and trees the destination lacks.
 pub mod manual_push_lifecycle;
 /// The one failure type of the linked-worktree ignored-state copy and its diagnostics.

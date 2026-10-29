@@ -36,6 +36,7 @@ await describe({
           );
         const surface = toDshAdvisorAgentSurface({
           agent: {
+            id: SessionId('session-agent-surface-a',),
             session,
             options: {
               provider: 'route',
@@ -46,6 +47,7 @@ await describe({
             get: (): string => '/work/dir',
           } as unknown as ProjectOptions['workingDirectory'],
         },);
+        expect(surface.sessionId,).toBe('session-agent-surface-a',);
         expect(surface.cwd,).toBe('/work/dir',);
         expect(surface.options,).toEqual({
           provider: 'route',
@@ -62,6 +64,7 @@ await describe({
       fn: async () => {
         const surface = toDshAdvisorAgentSurface({
           agent: {
+            id: SessionId('session-agent-surface-b',),
             session: {
               deriveMessages: () => [],
             },
@@ -80,6 +83,7 @@ await describe({
       name: 'carries the agent identity and signal in the assembly context',
       fn: async () => {
         const agent = {
+          id: SessionId('session-agent-surface-c',),
           session: {
             deriveMessages: () => [],
           },

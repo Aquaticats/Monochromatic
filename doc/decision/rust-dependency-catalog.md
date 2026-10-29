@@ -80,6 +80,11 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    (Trusted Publishing above a known token publisher above a first-time publisher;
    a changed trusted-publishing repository or declared `repository` fails),
    cached per `name@version`.
+   Amended by the owner on 2026-10-29 ([issue #1806](https://github.com/Aquaticats/Monochromatic/issues/1806)):
+   a listed individual crate owner counts as a known publisher
+   (checked against `/api/v1/crates/<name>/owners` only for a release that would otherwise be refused),
+   and only a change between two declared `repository` values fails;
+   an undeclared value on either side carries no evidence.
    The CI check re-verifies every locked registry version.
 - `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
    it writes no lockfiles.

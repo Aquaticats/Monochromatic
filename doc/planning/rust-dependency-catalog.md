@@ -894,3 +894,57 @@ The `ARG` defaults are synced by hand,
    `cargo generate-lockfile --help` lists `--publish-time` and `cargo update --help` does not,
    with or without `-Zunstable-options`,
    so the update keeps full re-resolution through `generate-lockfile`.
+
+## Status and next actions (2026-10-29)
+
+Landed:
+ `module-rust-catalog` (catalog parser and the shared `Cargo.lock` reader),
+ the `file-enforcer` sync and `--check` mode with the per-crate `default-features` rendering,
+ the migration of all 24 manifests,
+ the Cargo source of `catalog-tighten`,
+ `package/dev-script/rust-catalog-update` (update, dry run, CI `--verify`, exclude pruning, tests, README),
+ the pinned-nightly build images (`8652ba7d7f`),
+ and the contributor runbook `doc/runbook/rust-dependencies.md`.
+
+The first real dry runs (systemd units, throwaway worktree) failed in their first crate
+ with "the `-Z` flag is only accepted on the nightly channel":
+ the host's systemd user manager exports `RUSTUP_TOOLCHAIN=1.98.1`
+ (`systemctl --user show-environment`; rustup's own default is nightly,
+ and neither `~/.config/environment.d`, the shell profiles, nor the global mise config set it,
+ so its origin is still unknown).
+Commit `8620661b05` first let an inherited `RUSTUP_TOOLCHAIN` win, which kept the stale stable pin;
+ the follow-up makes the `toolchain.lock.json` nightly pin win and logs a differing inherited value.
+Both failures restored every lockfile, as designed.
+
+The third run resolved all 24 crates on the pinned nightly and refused 6 first-publisher releases
+ ([issue #1806](https://github.com/Aquaticats/Monochromatic/issues/1806));
+ the owner approved all six (`trustPolicyExclude`, commit `f722a78ea5`)
+ and amended the trust policy (commit `81fbb6ae68`):
+ a listed individual crate owner counts as a known publisher,
+ and only a change between two declared repositories fails.
+Re-checked against crates.io, only `wayland-server@0.31.14` (published through a team owner) would still be refused.
+The fourth run passed:
+ 161 newly locked versions of 161 crates,
+ every check clean,
+ every lockfile restored (dry run).
+The host's `RUSTUP_TOOLCHAIN=1.98.1` stays on purpose as a canary for tools that do not pin the toolchain
+ (owner decision, [issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
+The warm crates.io history cache (161 crates) is in the main checkout's gitignored `.cache/rust-catalog-update/`.
+
+Queued, waiting for another session's uncommitted package-rename batch,
+ which holds edits to the files these steps touch
+ (root `mise.toml`, `.github/workflows/advisory-core.yml`, `pnpm-lock.yaml`, and parts of `package/dev-script/file-enforcer`):
+
+1.  Add a thin `rust:update` mise task in `mise.no-env.toml` running the update bin, then `mise run sync:files`.
+2.  Add the CI steps to `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`:
+     `file-enforcer --check`,
+     then `rust-catalog-update --verify` between pinned `actions/cache/restore` and `actions/cache/save` steps
+     for `.cache/rust-catalog-update/`,
+     keyed on a hash of every `Cargo.lock`.
+3.  Fix every pre-existing `file-enforcer` lint and type error
+     (including `src/toolchain/update.ts:632` and `:633` TS7006,
+     and the toolchain tests that still expect `nightly-2026-10-28` and node `26.12.1`),
+     committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
+4.  Commit `pnpm-lock.yaml` with the `rust-catalog-update` importer:
+     the other session includes it in its batch commit.
+5.  Close #1800 with the final commit.

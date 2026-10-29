@@ -46,8 +46,8 @@ so both forms resolve models, build context, and render results identically.
   reviewer), `/advisor status`, `/advisor off`, `/advisor on`. `off` masks the
   tool through `ctx.tools.restrict` and records the disposer; `on` lifts the
   mask. Cancellation reports `Advisor review cancelled.`; failures persist the
-  operation ledger as a durable `advisor/operation` session event and return
-  the error text.
+  operation ledger as a durable `plugin:advisor/operation` plugin record and
+  return the error text.
 
 The tool description and prompt section carry the pi prompt snippet plus the
 four prompt guidelines unchanged. One text deviation is deliberate: the
@@ -126,7 +126,8 @@ behavior.
   prompt consumes text only.
 - Progress from `onUpdate` snapshots folds into the result text tail.
 - Failed operations persist their ledger through a durable
-  `advisor/operation` session event instead of pi's session-persistence
+  `plugin:advisor/operation` plugin record (an ignorable session event every
+  reader may skip) instead of pi's session-persistence
   handle; non-message events never enter `deriveMessages()`.
 - The session toggle and the tool mask are plugin-process scoped
   (`ctx.tools.restrict` is global to the plugin instance).

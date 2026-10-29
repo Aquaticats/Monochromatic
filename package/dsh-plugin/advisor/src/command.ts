@@ -233,6 +233,8 @@ export async function runDshAdvisorCommand(
      */
     const catalog = await buildDshAdvisorCatalog({
       llm: options.llm,
+      sessionId: options.agent
+        .sessionId,
       maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
       signal: options.signal,
     },);

@@ -69,16 +69,26 @@ export function registryVersions(sources: readonly string[],): readonly LockedVe
    */
   const byKey = new Map<string, LockedVersion>();
   for (const source of sources) {
-    for (const locked of parseCargoLock(source,).filter(isRegistryPackage,)) {
+    for (const locked of parseCargoLock(source,)
+      .filter(function isRegistry(entry: LockedPackage,): boolean {
+        return isRegistryPackage(entry,);
+      },)) {
       /**
        Version without the fields the checks do not read.
        */
       const version = toLockedVersion(locked,);
-      byKey.set(versionKey(version,), version,);
+      byKey.set(
+        versionKey(version,),
+        version,
+      );
     }
   }
-  return [...byKey.values(),].toSorted(function byNameThenVersion(left: LockedVersion, right: LockedVersion,): number {
-    return versionKey(left,).localeCompare(versionKey(right,),);
+  return [...byKey.values(),].toSorted(function byNameThenVersion(
+    left: LockedVersion,
+    right: LockedVersion,
+  ): number {
+    return versionKey(left,)
+      .localeCompare(versionKey(right,),);
   },);
 }
 
@@ -117,14 +127,22 @@ function toLockedVersion(locked: LockedPackage,): LockedVersion {
  addedVersions({ before: [oldLock,], after: [newLock,], });
  ```
  */
-export function addedVersions({ before, after, }: { readonly before: readonly string[]; readonly after: readonly string[]; },): readonly LockedVersion[] {
+export function addedVersions({
+  before,
+  after,
+}: {
+  readonly before: readonly string[];
+  readonly after: readonly string[]
+},): readonly LockedVersion[] {
   /**
    Keys locked before the update.
    */
-  const previous = new Set(registryVersions(before,).map(versionKey,),);
-  return registryVersions(after,).filter(function isNew(locked: LockedVersion,): boolean {
-    return !previous.has(versionKey(locked,),);
-  },);
+  const previous = new Set(registryVersions(before,)
+    .map(versionKey,),);
+  return registryVersions(after,)
+    .filter(function isNew(locked: LockedVersion,): boolean {
+      return !previous.has(versionKey(locked,),);
+    },);
 }
 
 //endregion Versions

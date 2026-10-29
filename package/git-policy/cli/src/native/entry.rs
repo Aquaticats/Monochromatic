@@ -16,7 +16,9 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
+use super::action::{Action, ENGINE_FAILURE_EXIT_CODE, PushForward, failure};
+use super::command_push::stackable_option_tokens;
+use super::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use super::child_environment::{
     FORWARD_TARGET_VARIABLE, child_environment_overlay, environment_value,
 };
@@ -219,14 +221,17 @@ pub fn plan_invocation(
                 || stripped.layout.outcome != GlobalOutcome::Command
                 || decide_require_root(forwarded.as_slice(), &[])
                     != RequireRootDecision::NeedsRepositoryRoot;
-            return forward_action(
-                real_git,
-                forwarded,
-                overlay,
-                stderr,
+            return stack_if_push(
+                forward_action(
+                    real_git,
+                    forwarded,
+                    overlay,
+                    stderr,
+                    environment,
+                    copy_bypassed,
+                    &mut checks,
+                ),
                 environment,
-                copy_bypassed,
-                &mut checks,
             );
         }
         WrappedOutcome::Exit { code, stderr } => {
@@ -311,6 +316,10 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
                 overlay.as_slice(),
                 Some(&*copy),
             ));
+        }
+        Action::ForwardPush { forward, stderr } => {
+            write_stream(&mut std::io::stderr(), stderr.as_str());
+            return run_stacked_push(&forward);
         }
         Action::Exit {
             code,
@@ -501,6 +510,74 @@ fn forward_action(
             copy,
         }),
         stderr,
+    };
+}
+
+/// What:
+///  Turn the forward of a plain push that may be integrated into a run that can integrate it.
+/// Why:
+///   A push that lost a race to another session cannot succeed again, and the wrapper can only look at its status
+///  while it is alive;
+///  the stacked push itself carries `STACKED_PUSH_MARKER`, so it is forwarded as it is and never stacks again.
+///   Every other action is returned unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function stackIfPush(action: Action, environment): Action;
+/// ```
+fn stack_if_push(action: Action, environment: &[(OsString, OsString)]) -> Action {
+    if environment_value(environment, STACKED_PUSH_MARKER).is_some() {
+        return action;
+    }
+    let (real_git, arguments, overlay, copy, stderr) = match action {
+        Action::Forward {
+            real_git,
+            arguments,
+            overlay,
+            stderr,
+        } => (real_git, arguments, overlay, None, stderr),
+        Action::ForwardSettled {
+            real_git,
+            arguments,
+            overlay,
+            copy,
+            stderr,
+        } => (real_git, arguments, overlay, Some(copy), stderr),
+        other => return other,
+    };
+    let context: GitContext = GitContext {
+        real_git: real_git.clone(),
+        overlay: overlay.clone(),
+        global_prefix: Vec::new(),
+    };
+    let command: ResolvedCommand = resolve_forwarded_command(&context, arguments.as_slice());
+    if command.word() == b"push" && stackable_option_tokens(command.region()).is_some() {
+        return Action::ForwardPush {
+            forward: Box::new(PushForward {
+                real_git,
+                subcommand_index: command.subcommand_index,
+                arguments: command.arguments,
+                overlay,
+                copy,
+                environment: environment.to_vec(),
+            }),
+            stderr,
+        };
+    }
+    return match copy {
+        Some(facts) => Action::ForwardSettled {
+            real_git,
+            arguments,
+            overlay,
+            copy: facts,
+            stderr,
+        },
+        None => Action::Forward {
+            real_git,
+            arguments,
+            overlay,
+            stderr,
+        },
     };
 }
 

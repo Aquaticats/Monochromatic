@@ -46,6 +46,7 @@ export function toDshAdvisorAgentSurface(
   },
 ): DshAdvisorAgentSurface {
   return {
+    sessionId: agent.id,
     session: agent.session,
     cwd: workingDirectory
       .get(agent.session,),

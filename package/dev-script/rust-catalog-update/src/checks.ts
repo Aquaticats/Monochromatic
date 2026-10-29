@@ -12,6 +12,7 @@ import { l, } from './logger.ts';
 import {
   releaseAgeProblems,
   trustProblems,
+  type VersionRecord,
 } from './policy.ts';
 import type { Registry, } from './registry.ts';
 
@@ -35,7 +36,13 @@ export function groupByName(versions: readonly LockedVersion[],): ReadonlyMap<st
    */
   const groups = new Map<string, string[]>();
   for (const locked of versions)
-    groups.set(locked.name, [...(groups.get(locked.name,) ?? []), locked.version,],);
+    groups.set(
+      locked.name,
+      [
+        ...(groups.get(locked.name,) ?? []),
+        locked.version,
+      ],
+    );
   return groups;
 }
 
@@ -83,7 +90,12 @@ export type CheckOutcome = {
  ```
  */
 export async function checkReleaseAge(
-  { versions, settings, registry, now, }: {
+  {
+    versions,
+    settings,
+    registry,
+    now,
+  }: {
     readonly versions: readonly LockedVersion[];
     readonly settings: RustCatalogSettings;
     readonly registry: Registry;
@@ -91,24 +103,94 @@ export async function checkReleaseAge(
   },
 ): Promise<CheckOutcome> {
   if (settings.minimumReleaseAge === 0)
-    return { problems: [], warnings: [], };
+    return {
+      problems: [],
+      warnings: [],
+    };
   /**
    Findings across every crate.
    */
-  const findings = (await Promise.all([...groupByName(versions,),].map(async function checkName([name, nameVersions,],): Promise<readonly string[]> {
+  const findings = (await Promise.all([...groupByName(versions,),].map(async function checkName([name, nameVersions,]: readonly [
+    string,
+    readonly string[],
+  ],): Promise<readonly string[]> {
     /**
      Publish time per version of this crate.
      */
     const times = await registry.pubtimes(name,);
     return nameVersions.flatMap(function check(version: string,): readonly string[] {
-      return releaseAgeProblems({ name, version, pubtime: times.get(version,) ?? '', settings, now, },);
+      return releaseAgeProblems({
+        name,
+        version,
+        pubtime: times.get(version,) ?? '',
+        settings,
+        now,
+      },);
     },);
   },),)).flat();
-  return settings.minimumReleaseAgeStrict ? { problems: findings, warnings: [], } : { problems: [], warnings: findings, };
+  return settings.minimumReleaseAgeStrict ? {
+    problems: findings,
+    warnings: [],
+  } : {
+    problems: [],
+    warnings: findings,
+  };
 }
 
 /**
- Checks the trust policy, one crates.io history request per crate at most.
+ Trust problems of several versions of one crate.
+
+ @param name - crate name
+
+ @param versions - versions to check
+
+ @param history - every release of the crate
+
+ @param settings - catalog settings
+
+ @param now - current time in milliseconds
+
+ @param ownerIds - account ids of the crate's listed individual owners
+
+ @returns problems across the versions
+
+ @example
+ ```ts
+ crateTrustProblems({ name, versions, history, settings, now, ownerIds: new Set(), });
+ ```
+ */
+function crateTrustProblems(
+  {
+    name,
+    versions,
+    history,
+    settings,
+    now,
+    ownerIds,
+  }: {
+    readonly name: string;
+    readonly versions: readonly string[];
+    readonly history: readonly VersionRecord[];
+    readonly settings: RustCatalogSettings;
+    readonly now: number;
+    readonly ownerIds: ReadonlySet<string>;
+  },
+): readonly string[] {
+  return versions.flatMap(function check(version: string,): readonly string[] {
+    return trustProblems({
+      name,
+      version,
+      history,
+      settings,
+      now,
+      ownerIds,
+    },);
+  },);
+}
+
+/**
+ Checks the trust policy: one crates.io history request per crate at most,
+ plus an owners request for a crate that would otherwise be refused.
 
  Requests run one at a time so the registry's spacing holds.
 
@@ -130,7 +212,12 @@ export async function checkReleaseAge(
  ```
  */
 export async function checkTrust(
-  { versions, settings, registry, now, }: {
+  {
+    versions,
+    settings,
+    registry,
+    now,
+  }: {
     readonly versions: readonly LockedVersion[];
     readonly settings: RustCatalogSettings;
     readonly registry: Registry;
@@ -140,7 +227,10 @@ export async function checkTrust(
   /**
    Logger for progress.
    */
-  const log = tagged({ tag: checkTrust.name, l, },);
+  const log = tagged({
+    tag: checkTrust.name,
+    l,
+  },);
   if (settings.trustPolicy === 'off')
     return [];
   /**
@@ -157,9 +247,38 @@ export async function checkTrust(
      Every release of this crate.
      */
     // oxlint-disable-next-line no-await-in-loop -- crates.io allows one API request per second, so lookups must be sequential.
-    const history = await registry.history({ name, versions: nameVersions, },);
-    for (const version of nameVersions)
-      problems.push(...trustProblems({ name, version, history, settings, now, },),);
+    const history = await registry.history({
+      name,
+      versions: nameVersions,
+    },);
+    /**
+     Findings without the owner list; most crates pass here and cost no owners request.
+     */
+    const withoutOwners = crateTrustProblems({
+      name,
+      versions: nameVersions,
+      history,
+      settings,
+      now,
+      ownerIds: new Set<string>(),
+    },);
+    if (withoutOwners.length === 0)
+      continue;
+    // A listed owner's first release ranks as a known publisher, so a refusal is
+    // rechecked against the current owner list before it stands.
+    /**
+     Account ids of the crate's listed individual owners.
+     */
+    // oxlint-disable-next-line no-await-in-loop -- crates.io allows one API request per second, so lookups must be sequential.
+    const ownerIds = await registry.owners(name,);
+    problems.push(...crateTrustProblems({
+      name,
+      versions: nameVersions,
+      history,
+      settings,
+      now,
+      ownerIds,
+    },),);
   }
   return problems;
 }

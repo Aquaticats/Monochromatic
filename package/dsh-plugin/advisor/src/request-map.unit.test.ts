@@ -16,6 +16,8 @@ import type {
 
 import { ReasoningEffortId, } from '@deepseek-ai/dsh-llm';
 
+import { SessionId, } from '@deepseek-ai/dsh-session';
+
 import { buildDshAdvisorGenerateOptions, } from '../dist/final/node/index.mjs';
 
 await describe({
@@ -59,12 +61,14 @@ await describe({
             provider: 'route',
             id: 'model-id',
           } as unknown as Model<Api>,
+          sessionId: SessionId('session-request-map-a',),
           reasoningEffort: ReasoningEffortId('high',),
           maxTokens: 2_048,
           temperature: 0.5,
         },);
         expect(generate.provider,).toBe('route',);
         expect(generate.model,).toBe('model-id',);
+        expect(generate.sessionId,).toBe('session-request-map-a',);
         expect(generate.system,).toBe('prompt a\n\nprompt b',);
         expect(generate.maxTokens,).toBe(2_048,);
         expect(generate.temperature,).toBe(0.5,);
@@ -106,6 +110,7 @@ await describe({
             provider: 'route',
             id: 'model-id',
           } as unknown as Model<Api>,
+          sessionId: SessionId('session-request-map-b',),
         },);
         expect('system' in generate,).toBe(false,);
         expect('maxTokens' in generate,).toBe(false,);
@@ -131,6 +136,7 @@ await describe({
               provider: 'route',
               id: 'model-id',
             } as unknown as Model<Api>,
+            sessionId: SessionId('session-request-map-c',),
           },);
         }
         catch (error) {

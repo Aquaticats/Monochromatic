@@ -6035,11 +6035,26 @@ IDE 0.1.3 released, 2026-10-29 (pre-release `ide-v0.1.3`, commit `d1477a13ba`, r
 - Remote branch `release-ide-0-1-3` deleted; no `ide-*` systemd units remain.
 - Slip to avoid: `task-run` is not on the agent's PATH; call `node package/dev-script/task-cli/src/run.ts //package/desktop-app/ide:<task>`.
 
+Installed and verified, 2026-10-29:
+- `:bundle` and `:install` ran through the node task CLI against the main checkout, whose `package/desktop-app/ide` had no diff against `d1477a13ba` and no uncommitted changes.
+  `~/.local/bin/monochromatic-ide` and `package/desktop-app/ide/dist/monochromatic-ide` share sha256 `6f6d4952e54a847a839a9fae9990a8755013fe4e6e8fe0e9b3223ea18f6e9cb0`; `--version` prints `monochromatic-ide 0.1.3`.
+  This binary was built here, not taken from the release archive, so its hash differs from the archive's contents.
+- Verifier agent `a7d762ab5939b203e` (nested compositor 0.6.1, headless on RADV, `--scale 2`, disposable Cargo project and cache), nothing failed:
+  start and open file 1 of 1; `rust-analyzer` ready and `didOpen` 1 of 1;
+  hover on `add` showed the signature and doc 1 of 1; Ctrl+click placed the caret on the definition 1 of 1;
+  while running, exactly `tmp-<pid>-<hex>` and `tmp-<pid>-<hex>.lock` existed and the lock was held (`flock --nonblock` exit 1);
+  after `kill -9` the directory and lock file stayed and the lock was free (exit 0);
+  the next launch logged `removed the scratch directory of an ended process` and also answered a hover 1 of 1.
+  Two launches, two hovers, one Ctrl+click, one kill; no synthetic load; no units or processes left.
+- Clean-quit case, second verifier run (fresh project and cache, two launches): after a clean `quit` the first IDE's `tmp-<pid>-<hex>` directory and `.lock` stayed (2 entries);
+  the second IDE on the same project logged `removed the scratch directory of an ended process` once, and the listing then held only the second IDE's own two entries (stale 1 and 1 before, 0 and 0 after).
+  The second IDE's own directory after its quit was not listed.
+- Scratch worktrees `land-scratch` and `rel-0-1-3` removed.
+  `monochromatic-db` was told the three packages are idle and answered that it moves them after its cli batch (it will message me).
+  It recorded that `ide-release.yml`, the `//package/desktop-app/ide` task addresses and this handover carry package paths that must change with the move.
+
 Next, in order:
-- Install the 0.1.3 build (`:bundle`, `:install` through the node task CLI), compare `sha256sum` of `~/.local/bin/monochromatic-ide` with `dist/monochromatic-ide`, check `--version` prints 0.1.3, and have the verifier agent `a7d762ab5939b203e` check the installed binary.
-- Remove `~/temp/agent/land-scratch` (detached worktree and its `node_modules` symlink) and `~/temp/agent/rel-0-1-3`.
-- Message `monochromatic-db` that `package/desktop-app/ide`, `package/cli/nested-wayland-session` and `package/desktop-app/terminal` are idle.
-  Peer session `monochromatic-db` is planning to move packages into product categories (`doc/planning/generic-category-elimination.md`) and holds them until told.
+- When `monochromatic-db` announces the move, check `ide-release.yml`, the `task.ts` and `mise.toml` addresses and this handover's paths, and dry-run the next release from the new location.
 - The compositor needs no release now; its manifest is covered by the same generator fix.
 
 [scope]: ../decision/slint-ide-0x-scope.md
