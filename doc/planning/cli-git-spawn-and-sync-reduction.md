@@ -97,6 +97,29 @@ pre-landing records with a tearing, dropping and reordering harness (a kill is n
 file syncs of pre-landing records. Lock-candidate syncs stay: a torn blocking `owner.json` would stick every
 acquirer. The sync-site table is in `doc/handover/cli-git-rust-implementation.md`.
 
+### J1 outcome: the `ensure_*` syncs were already conditional
+
+The three `ensure_*` syncs in the handover table (`.git` twice, `cli-git-captures` once) are creation syncs, not
+redundant ones. `ensure_transaction_root` syncs its parent only in the arm where it created the directory,
+`ensure_worktree_id` only after it wrote the identity file, and `record_landed_capture` only after it wrote a new
+record. The measurement ran a first commit in a fresh repository, where the registry, the capture store and the
+landed-record directory really were created. A steady-state commit has none of them. No production code changed.
+
+Measured on the debug binary (`strace -f` on `fsync` and `fdatasync`; the split is by the last `execve` of the calling
+process, so a Git child counts as a child and a re-entered hook shim counts as the wrapper):
+
+- fresh repository, `node sync-count.ts`: 42 calls, 36 by the wrapper and 6 by children. Three are `ensure_*`
+  creation syncs (`.git` for the registry, `.git` for the capture store, `cli-git-captures` for the landed-record
+  directory), and the new `worktree-id` file and its directory add two more;
+- warm repository (one earlier wrapped commit), `node sync-count.ts warm`: 41 calls, 31 by the wrapper and 10 by
+  children, none from an `ensure_*` helper. Per-call attribution comes from `node sync-sites.ts` (cold) and
+  `WARM=1 node sync-sites.ts` (warm), which print the calling function of each sync in call order.
+
+The deliverable is the pin: a test-only recorder in `sync_directory` (`take_directory_syncs` in
+`src/native/private_storage.rs`, per thread) and unit tests that assert the exact directories synced when a helper
+creates and the empty list when it finds. With the three guards broken (sync also on the already-exists and
+already-written paths) all six tests fail; they pass restored.
+
 ## Budgets
 
 The host and gate suites carry a spawn budget (from `GIT_TRACE2_PERF`) and the host suite a sync budget (from

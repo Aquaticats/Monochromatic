@@ -274,6 +274,8 @@ fn private_directory_builder() -> std::fs::DirBuilder {
 /// async function syncDirectory(path: string): Promise<void>;
 /// ```
 pub fn sync_directory(path: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    record_directory_sync(path);
     #[cfg(unix)]
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
@@ -284,6 +286,46 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     #[cfg(not(unix))]
     let _ = path;
     return Ok(());
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Canonical paths of the directories this thread asked `sync_directory` to flush, in call order.
+    static DIRECTORY_SYNCS: std::cell::RefCell<Vec<std::path::PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  Remember that this thread asked for a directory sync.
+/// Why:
+///   Unit tests prove that a helper syncs a directory exactly when it changed one, which no file on disk shows;
+///  the list is per thread, so parallel tests never see each other's syncs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// syncedDirectories.push(await realpath(path));
+/// ```
+#[cfg(test)]
+fn record_directory_sync(path: &Path) {
+    let canonical: std::path::PathBuf = std::fs::canonicalize(path).unwrap_or_else(|_| return path.to_path_buf());
+    DIRECTORY_SYNCS.with(|syncs| {
+        syncs.borrow_mut().push(canonical);
+    });
+}
+
+/// What:
+///  Take and clear the directories this thread has synced so far.
+/// Why:
+///   A test calls it before the step under test to drop earlier syncs, and after it to read exactly that step's syncs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const synced = syncedDirectories.splice(0);
+/// ```
+#[cfg(test)]
+pub fn take_directory_syncs() -> Vec<std::path::PathBuf> {
+    return DIRECTORY_SYNCS.with(|syncs| {
+        return std::mem::take(&mut *syncs.borrow_mut());
+    });
 }
 
 /// What:

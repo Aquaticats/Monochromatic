@@ -1,6 +1,7 @@
 //! Controls for the commit workspace: publication with an owner record, and disposal that honors recovery.
 
 use super::*;
+use crate::private_storage::take_directory_syncs;
 use crate::test_support::{fixture, remove};
 use crate::transaction_journal::RefFormat;
 use std::path::Path;
@@ -54,6 +55,25 @@ fn every_workspace_has_its_own_identity() {
     let second: CommitWorkspace = create_commit_workspace(&layout(root.as_path())).expect("second");
     assert_ne!(first.landing.transaction_id, second.landing.transaction_id);
     assert_ne!(first.landing.directory, second.landing.directory);
+    remove(root.as_path());
+}
+
+/// The Git directory is synced once, by the workspace that creates the registry, and not by a workspace that finds it.
+#[test]
+fn only_the_workspace_that_creates_the_registry_syncs_the_git_directory() {
+    let root: PathBuf = fixture("workspace-registry-sync");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir_all(&git_dir).expect("git dir");
+    take_directory_syncs();
+    let first: CommitWorkspace = create_commit_workspace(&layout(root.as_path())).expect("first");
+    let creating: Vec<PathBuf> = take_directory_syncs();
+    assert_eq!(creating.iter().filter(|synced| return **synced == git_dir).count(), 1, "{creating:?}");
+    let second: CommitWorkspace = create_commit_workspace(&layout(root.as_path())).expect("second");
+    let finding: Vec<PathBuf> = take_directory_syncs();
+    assert!(!finding.contains(&git_dir), "{finding:?}");
+    // Publication still syncs the candidate and the registry for each workspace.
+    assert!(finding.contains(&git_dir.join("cli-git-transactions")), "{finding:?}");
+    drop((first, second));
     remove(root.as_path());
 }
 
