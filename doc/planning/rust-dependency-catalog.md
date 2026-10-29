@@ -265,6 +265,147 @@ Why:
  one place then covers every version,
  matching the JS rule that every external dependency uses `catalog:`.
 
+### Catalog format
+
+A standalone TOML file in Cargo dependency syntax,
+ not named `Cargo.toml`,
+ read and validated by `file-enforcer` on every sync and in the CI check.
+Why:
+ it uses the syntax Rust contributors already write and is a plain data file like `pnpm-workspace.yaml`;
+ a standalone TypeScript module would add edit-time typing but put Rust versions in TypeScript syntax,
+ and inline data in `file-enforcer.config.ts` fails the issue's "discoverable" requirement.
+
+### Lockfile alignment
+
+Out of scope for #1800,
+ tracked in [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+Why:
+ aligning resolved versions also covers transitive dependencies and legitimate per-crate older resolutions,
+ a separate policy that does not change the catalog's design.
+
+### Follow pnpm's full catalog feature set
+
+Owner direction:
+ model the Rust catalog on everything pnpm catalogs offer,
+ not only the subset this repo's JS side uses today,
+ and ask which features to omit.
+The mapping is in the section "pnpm feature map".
+
+### Exceptions
+
+pnpm-style named catalogs:
+ alternative versions live in `[catalogs.<name>]` tables of the catalog file.
+Where a crate selects a named catalog is still open
+ (pnpm selects at the consumer with `catalog:<name>`).
+
+### Catalog name and location
+
+`rust-catalog.toml` at the repository root,
+ beside `pnpm-workspace.yaml`.
+Why:
+ it names the content in the repo's own term ("catalog");
+ `cargo-catalog.toml` reads like a cargo subcommand binary,
+ and `Cargo.catalog.toml` looks like a manifest variant.
+Renovate's cargo manager matches only files named `Cargo.toml`,
+ so it will not misread this file.
+
+## pnpm feature map
+
+Read from the pnpm docs source (`pnpm/pnpm.io` `docs/catalogs.md`,
+`docs/workspaces.md`,
+`docs/settings/_catalogMode.mdx`,
+`docs/settings/_catalogPrune.mdx`,
+`docs/cli/update.md`,
+`docs/cli/add.md`,
+`docs/config-includes.md`,
+`docs/config-dependencies.md`,
+`docs/settings/dependency-resolution.md`,
+`docs/filtering.md`,
+`docs/errors.md`),
+ cloned 2026-10-29.
+Each item gives the pnpm feature,
+ then its Rust mapping.
+
+### Reference forms
+
+- Default catalog and `catalog:` references:
+   `[dependencies]` in `rust-catalog.toml`,
+   use sites `{ workspace = true }` through the generated per-crate table.
+- Named catalogs (`catalogs.<name>`, `catalog:<name>`):
+   `[catalogs.<name>]` tables;
+   pnpm's consumer-side selection needs a Cargo-sanctioned place such as `[package.metadata]`,
+   because unknown keys in a dependency table warn.
+   `catalogs.default` as a synonym of the default catalog,
+   with an error when both are defined.
+- `catalog:` in `dependencies`,
+`devDependencies`,
+`optionalDependencies`:
+   Cargo `dependencies`,
+   `dev-dependencies`,
+   `build-dependencies`,
+   and `target.<cfg>.*`;
+   optionality is a use-site key.
+   `peerDependencies` has no Cargo counterpart.
+- `workspace:` ranges in the catalog (pnpm v12.2.0),
+   replaced on publish (`workspace:*` to exact,
+   `workspace:^` to caret,
+   `workspace:~` to tilde):
+   an internal crate named in the catalog renders a per-consumer relative `path` plus a `version` derived from the
+   target's `package.version`;
+   `cargo publish` already drops the path and keeps the version.
+   Aliases (`workspace:foo@*`) map to Cargo's `package` rename key.
+- `file:` and `link:` entries relative to the catalog file (pnpm v12.6.0):
+   a `path` relative to the repository root,
+   rendered relative to each crate.
+- Location specifiers are never moved into a catalog automatically (pnpm v12.3.0),
+   because one path cannot mean the same directory for every project.
+
+### Workflow
+
+- `catalogMode` (`manual`, `prefer`, `strict`) governing `pnpm add`:
+   a mode setting in `rust-catalog.toml`;
+   adding happens through `cargo add` (literal) followed by the sync adopting the literal into the catalog
+   (`pnpm add --save-catalog` and `--save-catalog-name`).
+- `catalogPrune` (default `false`):
+   the sync removes entries no crate references.
+- `pnpm update` writes new ranges to the catalog entry instead of `package.json`:
+   an update task that rewrites catalog entries.
+- `pnpm update --changeset`:
+   no Rust crate uses changesets (`.changeset/` mentions none).
+- Migration codemod (`pnx codemod pnpm/catalog`):
+   the first sync adopts every existing literal requirement.
+
+### Checks
+
+- Frozen install fails when the lockfile's recorded catalogs differ
+   (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`):
+   the CI drift check.
+- `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC` and
+   `ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION`:
+   named diagnostics in the check.
+- Filtering counts a project as changed when a catalog version it takes changes:
+   the check can list crates affected by a catalog edit.
+
+### Not directly mappable
+
+- `overrides` referencing the catalog,
+   and convergence overrides:
+   Cargo has no transitive version override in manifests;
+   only the lockfile can,
+   which belongs to [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+- Config includes (catalogs in delegated files with their own owners),
+   config dependencies and `updateConfig` hooks (catalogs shared across repositories),
+   `pnpm config get catalog.<name>`,
+   and `pnx <tool>@catalog:`.
+
+### Version families
+
+pnpm has no grouping construct:
+ a family repeats its version on every entry,
+ as this repo's JS catalog does for the `@deepseek-ai/dsh-*` packages.
+Following pnpm,
+ the Rust catalog adds none.
+
 ## Rejected
 
 - Repository-root Cargo workspace:
@@ -280,17 +421,9 @@ Why:
 
 ## Open questions
 
-- Catalog format (standalone TOML,
-   standalone TypeScript data module,
-   or inline in `file-enforcer.config.ts`):
-   re-asked,
-   the first answer was voided.
-- Lockfile alignment:
-   filed as [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801) before the owner voided the answer
-   that prompted it;
-   keep, fold in, or close.
-- Exception syntax,
-   version groups (Slint, rust-analyzer, Helix rev, CXX-Qt),
-   path-dependency `version` derivation,
-   catalog name and location,
-   and where the CI check runs.
+- Which pnpm features to omit
+   (asked as a feature list).
+- Where a crate selects a named catalog.
+- Whether strict membership now covers internal crates through `workspace:` entries,
+   which pnpm allows but does not require.
+- Where the CI check runs.
