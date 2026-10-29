@@ -2,7 +2,9 @@
 
 Status:
  proposal,
- design decisions in progress with the owner.
+ awaiting the owner's acceptance of the summary in "Proposed design".
+Three veto lists asked as multi-select questions came back without any answer;
+ their items are recorded as accepted and repeated in the summary for veto.
 Tracks [issue #1800](https://github.com/Aquaticat/Monochromatic/issues/1800).
 Builds on `doc/planning/cargo-toml-file-enforcer.md` and respects `.out-of-scope/cargo-workspace.md`.
 
@@ -14,6 +16,76 @@ a CI check that fails on drift,
 documented per-crate exceptions,
 and stale-entry detection,
 without a repository-root Cargo workspace and without centralizing profiles.
+
+## Proposed design (summary for acceptance)
+
+Each item links to its decision section for evidence and rejected alternatives.
+
+### Catalog file
+
+- `rust-catalog.toml` at the repository root,
+   in Cargo dependency syntax,
+   with `[catalog]` and `[catalogs.<name>]` tables (pnpm's names).
+- Entries are `>=` floors;
+   named-catalog entries are bounded (caret or exact).
+- Supply-chain keys with pnpm's names and the repo's values:
+   `minimumReleaseAge = 1440`,
+   `minimumReleaseAgeExclude = []`,
+   `minimumReleaseAgeStrict = true`,
+   `minimumReleaseAgeIgnoreMissingTime = false`,
+   `trustPolicy = "no-downgrade"`,
+   `trustPolicyExclude`,
+   `trustPolicyIgnoreAfter`,
+   `trustPolicyExcludePrune`.
+- No version-family grouping (pnpm has none).
+
+### Crate manifests
+
+- Each crate keeps its own `[workspace]` root and profiles.
+- `file-enforcer` renders a generated `[workspace.dependencies]` table per crate holding only the catalog entries that
+   crate uses;
+   use sites say `workspace = true` plus crate-local `features`,
+   `optional`,
+   `default-features`,
+   in every dependency table including `dev-dependencies`,
+   `build-dependencies`,
+   and `target.<cfg>.*`.
+- Strict membership:
+   every registry and git dependency comes from the catalog.
+- A crate picks a named catalog in `[package.metadata.rust-catalog.catalogs]`.
+- Internal crates stay out of the catalog and are depended on by `path`;
+   the sync writes `version = "=<target package.version>"` (the `workspace:*` counterpart).
+
+### `file-enforcer` sync and check
+
+- Adopt on sync:
+   a literal left by `cargo add` moves into the catalog as a `>=` floor and the use site becomes `workspace = true`;
+   a literal conflicting with an existing entry fails instead.
+- Prune catalog entries no crate uses.
+- Check-only mode for CI with named diagnostics and a list of affected crates,
+   run in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`.
+
+### Recursive update and tightening
+
+- A mise task with inline TypeScript runs `cargo update` in every crate root (the `pnpm -r --no-save update`
+   counterpart),
+   with dry run,
+   then enforces release age (strict, from the sparse index `pubtime`)
+   and the trust policy (heuristic levels from the crates.io API,
+   cached per `name@version`),
+   refusing and reporting violations.
+- `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
+   it writes no lockfiles.
+- The CI check re-verifies release age and trust for every locked registry version.
+
+### Out of scope here
+
+- Lockfile drift reporting and transitive policy:
+   [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+- Change intents for Rust crates:
+   [issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802).
+- `package/dev-script/deps-update`:
+   treated as unusable.
 
 ## Measured facts (2026-10-29)
 
@@ -516,7 +588,40 @@ Per-version evidence from `https://crates.io/api/v1/crates/<name>/versions`:
 
 The lockfiles hold 1388 distinct registry `name@version` pairs across 1024 crate names
  (measured 2026-10-29),
- so whole-lockfile verification needs cached API results.
+ so whole-lockfile verification needs cached API results:
+ the crates.io data-access page allows "a maximum of 1 request per second" with an identifying user-agent,
+ while "No rate limits are required to use data from the sparse crate index".
+
+Decided (owner, 2026-10-29):
+
+- Levels:
+   Trusted Publishing (`trustpub_data` present) is highest;
+   among token publishes,
+   an account that published an earlier release ranks above a first-time publisher.
+   A release ranking below any earlier-published stable release fails (`no-downgrade`).
+- A trusted-publishing release whose `trustpub_data.repository` differs from earlier trusted releases is a downgrade.
+- A release whose declared `repository` differs from the previous release fails unless excluded.
+- Kept settings:
+   `trustPolicyExclude`,
+   `trustPolicyIgnoreAfter`,
+   `trustPolicyExcludePrune`,
+   and re-verification of every locked entry in the CI check (pnpm's default `trustLockfile: false`).
+
+### Owner of the recursive update
+
+A mise task written in TypeScript (owner decision),
+ inline through `shell = "node --input-type=module-typescript -e"` as the repo's task rules require.
+
+### Update selection features
+
+Omitted (owner decision):
+ patterns and negation,
+ crate filter,
+ direct-only,
+ dependency-kind filters,
+ interactive picker.
+Kept:
+ release age and dry run.
 
 [rust-lang/cargo#16271]: https://github.com/rust-lang/cargo/issues/16271
 
@@ -643,8 +748,13 @@ Following pnpm,
 
 ## Open questions
 
-- Which pnpm features to omit
-   (asked as a feature list).
-- Whether strict membership now covers internal crates through `workspace:` entries,
-   which pnpm allows but does not require.
-- Where the CI check runs.
+- Owner acceptance of "Proposed design".
+- To verify at implementation start,
+   not yet probed:
+   that a `>=` requirement in a per-crate `[workspace.dependencies]` entry inherits cleanly,
+   and that `cargo update` in crates with system-library builds
+   (`package/music-player/desktop-app`,
+   `package/desktop-app/file-manager-qt`)
+   needs only the registry index,
+   not their Podman build environment.
+- Name of the mise task.
