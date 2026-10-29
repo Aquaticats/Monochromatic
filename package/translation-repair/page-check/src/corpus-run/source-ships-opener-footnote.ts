@@ -113,11 +113,13 @@ function splitFlowsOf(
     range,
     starts,
     closed,
+    htmlRanges,
   }: {
     readonly source: string;
     readonly range: TextRange;
     readonly starts: readonly number[];
     readonly closed: readonly TextRange[];
+    readonly htmlRanges: readonly TextRange[];
   },
 ): OpenerInCode {
   /**
@@ -197,6 +199,11 @@ function splitFlowsOf(
     range,
   },)) {
     if (line.start === range.start)
+      continue;
+    // A line in a block of raw HTML of the source is text to its reader, and the page writes it as text.
+    if (htmlRanges.some(function holds(html,): boolean {
+      return (html.start <= line.start) && (line.start < html.end);
+    },))
       continue;
     /**
      What its container takes of the line.
@@ -283,6 +290,9 @@ function splitFlowsOf(
 
  @param footnotes - where the page reads a footnote definition, and where a reader of the source does
 
+ @param htmlRanges - where a reader of the source reads a block of raw HTML, whose lines are text to the reader and are not
+ read as the blocks of a footnote; none when absent
+
  @returns Edits that take the lines holding an opener out of their fence or display math, and the openers they write
 
  @example
@@ -296,11 +306,13 @@ export function openersInFootnoteFlowsOf(
     starts,
     closed,
     footnotes,
+    htmlRanges = [],
   }: {
     readonly source: string;
     readonly starts: readonly number[];
     readonly closed: readonly TextRange[];
     readonly footnotes: readonly BlockRange[];
+    readonly htmlRanges?: readonly TextRange[];
   },
 ): OpenerInCode {
   /**
@@ -343,6 +355,7 @@ export function openersInFootnoteFlowsOf(
       range,
       starts,
       closed,
+      htmlRanges,
     },);
   },);
   return {

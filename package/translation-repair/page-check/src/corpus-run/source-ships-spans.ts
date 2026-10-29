@@ -120,7 +120,10 @@ export function spansOf(
     footnoteRanges,
     rawHtmlRegions,
     pageOnlyStarts,
-  } = footnoteReadingsOf({ readable, },);
+  } = footnoteReadingsOf({
+    readable,
+    source,
+  },);
   /**
    Stretches read as text.
    */
@@ -279,6 +282,22 @@ export function spansOf(
       parent,
       after,
     );
+    // THE LINES OF A BLOCK OF RAW HTML A FOOTNOTE DEFINITION IN A CONTAINER OPENS WITH are text on the page, whatever the plain
+    // reading makes of them (`source-ships-footnote-html-region.ts`).
+    /**
+     Their content, when the block is one of them.
+     */
+    const html = rawHtmlBlockReading({
+      source,
+      readable,
+      regions: rawHtmlRegions,
+      range,
+      inContainer: (!isRootChild) && BLOCK_PARENTS.has(parentType,),
+    },);
+    if (html.inRegion) {
+      absorb({ nested: html, },);
+      continue;
+    }
     // A BLOCK THAT BELONGS TO A FOOTNOTE DEFINITION is read as the body of the footnote is, which
     // `source-ships-footnote-spans.ts` says how.
     /**
@@ -304,22 +323,6 @@ export function spansOf(
         read.state,
       );
       absorb({ nested: read.spans, },);
-      continue;
-    }
-    // THE LINES OF A BLOCK OF RAW HTML A FOOTNOTE DEFINITION IN A CONTAINER OPENS WITH are text on the page, whatever the plain
-    // reading makes of them (`source-ships-footnote-html-region.ts`).
-    /**
-     Their content, when the block is one of them.
-     */
-    const html = rawHtmlBlockReading({
-      source,
-      readable,
-      regions: rawHtmlRegions,
-      range,
-      inContainer: (!isRootChild) && BLOCK_PARENTS.has(parentType,),
-    },);
-    if (html.inRegion) {
-      absorb({ nested: html, },);
       continue;
     }
     // A definition, and display math the strict grammar reads, end their block at the line, which no fence mark after it joins.

@@ -34,8 +34,148 @@ export type RawHtmlRegion = TextRange & {
 };
 
 /**
+ Names of the elements whose block of raw HTML ends at the closing tag.
+ */
+const RAW_TEXT_ELEMENTS: readonly string[] = [
+  'script',
+  'pre',
+  'style',
+  'textarea',
+];
+
+/**
+ Letters, of which a declaration starts with one after its exclamation mark.
+ */
+const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+
+/**
+ What ends a block of raw HTML of the first five kinds, by what the block starts with: a comment, a processing instruction, a
+ declaration, a CDATA section and a raw text element. These do not end at a blank line, and the other two kinds do.
+
+ @param text - the text of the block's first line
+
+ @returns The characters that end it, an empty string for a block a blank line ends
+
+ @example
+ ```ts
+ const mark = endMarkOf({ text: '<!-- c', },); // '-->'
+ ```
+ */
+function endMarkOf({ text, }: { readonly text: string; },): string {
+  /**
+   The text in lower case, since the names of elements are matched without case.
+   */
+  const lower = text.toLowerCase();
+  if (lower.startsWith('<!--',))
+    return '-->';
+  if (lower.startsWith('<?',))
+    return '?>';
+  if (lower.startsWith('<![cdata[',))
+    return ']]>';
+  if (lower.startsWith('<!',) && LETTERS.includes(lower.charAt(2,),) && (lower.charAt(2,) !== ''))
+    return '>';
+  /**
+   The element the block starts with, when it is one of those.
+   */
+  const element = RAW_TEXT_ELEMENTS.find(function startsHere(name,): boolean {
+    return lower.startsWith(`<${name}`,) && (' \t>'.includes(lower.charAt(name.length + 1,),) || (lower.length === (name.length + 1)));
+  },);
+  return (element === undefined) ? '' : `</${element}>`;
+}
+
+/**
+ Where the lines of a block of raw HTML that a footnote definition opens with end: at the first blank line, which ends a
+ block of the last two kinds, or at the line that holds what ends a block of the first five, or at the end of the footnote.
+
+ @param source - text
+ @param range - where the footnote stands, from its label
+ @param prefix - what the container puts before the label on its line
+ @param from - where the lines start
+
+ @returns Index where the lines end
+
+ @example
+ ```ts
+ const end = regionEndOf({ source, range, prefix: '> ', from: 12, },);
+ ```
+ */
+function regionEndOf(
+  {
+    source,
+    range,
+    prefix,
+    from,
+  }: {
+    readonly source: string;
+    readonly range: TextRange;
+    readonly prefix: string;
+    readonly from: number;
+  },
+): number {
+  /**
+   Where the text after the label starts, on the definition's own line.
+   */
+  const bodyAt = source.indexOf(
+    ']:',
+    range.start,
+  ) + 2;
+  /**
+   The first line of the block, less the white space before it.
+   */
+  const first = source
+    .slice(
+      bodyAt,
+      from,
+    )
+    .trim();
+  /**
+   What ends the block, none where a blank line does.
+   */
+  const mark = endMarkOf({ text: first, },);
+  for (let lineStart = from; lineStart < range.end;) {
+    /**
+     Where the line ends.
+     */
+    const feed = source.indexOf(
+      LINE_FEED,
+      lineStart,
+    );
+    /**
+     Where the line's content ends, before its line ending.
+     */
+    const lineEnd = ((feed === (-1)) || (feed > range.end)) ? range.end : feed;
+    /**
+     What its container takes of the line.
+     */
+    const container = footnoteContainerPrefixOf({
+      source,
+      at: lineStart,
+      pattern: prefix,
+    },);
+    /**
+     What the line holds after the marks of its container.
+     */
+    const rest = source.slice(
+      lineStart + container.length,
+      lineEnd,
+    );
+    // A block of the first five kinds ends at the line that holds what ends it, and a block of the other two at a blank line.
+    // A line without the marks of a block quote is a lazy line of a paragraph and ends nothing.
+    if (mark !== '') {
+      if (rest.includes(mark,))
+        return lineEnd;
+    }
+    else if (container.marked && (rest.trim() === '')) {
+      return lineStart;
+    }
+    lineStart = lineEnd + 1;
+  }
+  return range.end;
+}
+
+/**
  Where the lines of the block of raw HTML that a footnote definition opens with stand, for each footnote that opens with
- one: from the line after the definition's own to the first blank line, or to the end of the footnote.
+ one: from the line after the definition's own to where the block ends, or to the end of the footnote.
 
  @param source - text the footnotes were read from
 
@@ -93,49 +233,16 @@ export function rawHtmlRegionsOf(
       ) + 1,
       range.start,
     );
-    /**
-     Where the region ends: at the first blank line, or at the end of the footnote.
-     */
-    const region = {
+    regions.push({
       start: firstFeed + 1,
-      end: range.end,
-      prefix,
-    };
-    for (let lineStart = region.start; lineStart < range.end;) {
-      /**
-       Where the line ends.
-       */
-      const feed = source.indexOf(
-        LINE_FEED,
-        lineStart,
-      );
-      /**
-       Where the line's content ends, before its line ending.
-       */
-      const lineEnd = ((feed === (-1)) || (feed > range.end)) ? range.end : feed;
-      /**
-       What its container takes of the line.
-       */
-      const container = footnoteContainerPrefixOf({
+      end: regionEndOf({
         source,
-        at: lineStart,
-        pattern: prefix,
-      },);
-      /**
-       What the line holds after the marks of its container.
-       */
-      const rest = source.slice(
-        lineStart + container.length,
-        lineEnd,
-      );
-      // A line without the marks of a block quote is a lazy line of a paragraph and ends nothing.
-      if (container.marked && (rest.trim() === '')) {
-        region.end = lineStart;
-        break;
-      }
-      lineStart = lineEnd + 1;
-    }
-    regions.push(region,);
+        range,
+        prefix,
+        from: firstFeed + 1,
+      },),
+      prefix,
+    },);
   }
   return regions;
 }

@@ -35,6 +35,70 @@ function isBlank({ text, }: { readonly text: string; },): boolean {
 }
 
 /**
+ Characters that stand before the label of a footnote definition on its line: the marks of block quotes, the indentation and
+ the marker of a list item.
+ */
+const BEFORE_LABEL = ' \t>-*+0123456789.)';
+
+/**
+ Whether an index follows the label of a footnote definition on its line, with nothing between but white space.
+
+ @param text - text
+
+ @param at - index to look before
+
+ @returns Whether the characters before the index on its line are the marks of containers, a label `[^name]:` and white
+ space
+
+ @example
+ ```ts
+ const after = followsFootnoteLabel({ text: '> [^1]: <!-- c', at: 9, },); // true
+ ```
+ */
+function followsFootnoteLabel(
+  {
+    text,
+    at,
+  }: {
+    readonly text: string;
+    readonly at: number;
+  },
+): boolean {
+  /**
+   The line before the index, up to the index.
+   */
+  const line = text.slice(
+    text.lastIndexOf(
+      '\n',
+      at - 1,
+    ) + 1,
+    at,
+  );
+  /**
+   The line less the white space before the index.
+   */
+  const head = line.trimEnd();
+  if (!head.endsWith(']:',))
+    return false;
+  /**
+   Where the label opens.
+   */
+  const open = head.lastIndexOf('[^',);
+  if (open === (-1))
+    return false;
+  /**
+   What stands in the label.
+   */
+  const label = head.slice(
+    open + 2,
+    head.length - 2,
+  );
+  return (!label.includes(']',)) && (!/\s/u.test(label,)) && Array.from(head.slice(0, open,),).every(function isMark(character,): boolean {
+    return BEFORE_LABEL.includes(character,);
+  },);
+}
+
+/**
  Finds the openers of a comment that never closes at which a reader of the source reads a block of raw HTML start.
 
  @param text - text with its comments that close blanked, of the length of the text the openers stand in
@@ -113,6 +177,15 @@ export function blockOpenerStarts(
     );
     if (isBlank({ text: gap, },) && starts.includes(opener,))
       found.push(opener,);
+  }
+  // An opener right after the label of a footnote definition starts the block of raw HTML the definition opens with, which
+  // the plain reading, with no footnotes, does not see.
+  for (const start of starts) {
+    if ((!found.includes(start,)) && followsFootnoteLabel({
+      text,
+      at: start,
+    },))
+      found.push(start,);
   }
   return found.toSorted(function ascending(
     left,

@@ -427,6 +427,36 @@ export function openersInCodeOf(
 }
 
 /**
+ Finds the blocks of raw HTML of a parse.
+
+ @param root - parse of the text by the plain reading with the site's math
+
+ @returns Where each block of raw HTML stands
+
+ @example
+ ```ts
+ const ranges = htmlRangesOf({ root, },);
+ ```
+ */
+function htmlRangesOf({ root, }: { readonly root: TreeNode; },): readonly TextRange[] {
+  /**
+   Ranges found.
+   */
+  const found: TextRange[] = [];
+  /**
+   Nodes still to read, a work stack so that a deep tree is no deep recursion.
+   */
+  const pending: TreeNode[] = [root,];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if ('children' in node)
+      pending.push(...node.children,);
+    if (node.type === 'html')
+      found.push(rangeOf({ node, },),);
+  }
+  return found;
+}
+
+/**
  Merges the edits of the other readers with the openers' own and with what takes an opener out of code or math.
 
  @param source - text the parse was read from, with its comments as they stand
@@ -471,13 +501,15 @@ export function editsWithOpeners(
   },
 ): readonly TextEdit[] {
   /**
-   What holds an opener inside a fence or display math under a footnote definition, written outside it.
+   What holds an opener inside a fence or display math under a footnote definition, written outside it, less the lines of
+   the blocks of raw HTML a reader of the source reads, which are text to that reader.
    */
   const underFootnotes = openersInFootnoteFlowsOf({
     source,
     starts,
     closed,
     footnotes,
+    htmlRanges: htmlRangesOf({ root, },),
   },);
   /**
    The openers the footnotes' lines took.
