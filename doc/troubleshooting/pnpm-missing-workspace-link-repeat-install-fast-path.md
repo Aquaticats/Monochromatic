@@ -423,11 +423,50 @@ Before anyone posts it:
   check the live repository and its contribution policy again on the day of posting.
   Filing is the poster's decision.
   This doc makes no recommendation to file,
-  because the conditions for one are not met:
-  no human has re-run the reproduction,
-  the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change),
-  and the trust-system search covers a snapshot,
-  not the live repository.
+  because the conditions for one are not met.
+  Readiness check of 2026-10-29:
+  not ready.
+  Run that day against the live repository:
+  the latest release was still 12.16.1;
+  four issue searches found no duplicate;
+  a pull-request search found #15569,
+  which states the exemption this report asks to narrow;
+  no `VOUCHED.td` exists in the root or `.github` of the default branch and no workflow is named for such a list;
+  and the default branch still contains `is_dangling_link` and its comment.
+  Not met:
+  no human has re-run the reproduction;
+  pnpm 11 was not tested although the same check exists there;
+  the required Node.js version field has no answer;
+  the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change);
+  and every live check above must be repeated on the day of posting.
+- Fill pnpm's bug form field by field;
+  its blank-issue option is off and its contact links say issues are for bug reports only
+  (read from `.github/ISSUE_TEMPLATE/bug-report.yaml` and `config.yml` on the default branch on 2026-10-29).
+  The block below maps to the form like this:
+  the reproduction repository URL goes in "Link to the code that reproduces this issue";
+  the numbered steps go in "Reproduction steps";
+  the paragraphs before the steps go in "Describe the Bug";
+  the sentence under "Expected" goes in "Expected Behavior".
+  The Node.js version is a required field that only the poster can answer,
+  because the Actions reproduction does not record one;
+  do not guess it.
+  "I verified that the issue exists in the latest pnpm release" was true for 12.16.1 on 2026-10-29,
+  the latest release then,
+  so re-check it on the day.
+  "I am working on a fix" assigns the issue to the poster;
+  tick it only if a pull request is planned.
+- Know what happens after posting.
+  pnpm's `triage-issues.yml` runs an automated agent on every issue from a human account
+  that labels it and posts a triage comment,
+  and `issue-fix-intent.sh` comments to ask whether the author plans a pull request when the form's fix box is absent
+  (read on 2026-10-29).
+- Know the limits of the evidence.
+  Only pnpm 12.16.1 was tested.
+  pnpm 11.28.9 was the latest 11.x release on 2026-10-29 and was not tested,
+  yet pnpm's contribution checklist says bug fixes go into every affected version,
+  and the prototype patch changes only the Rust (pnpm 12) code.
+  The check on links in pull request 15569 exists for both stacks,
+  so a fix may need both.
 - Decide whether to open a pull request instead of an issue.
   `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
@@ -442,6 +481,14 @@ treats a link that exists but points nowhere as stale and an absent entry as hea
 ([`is_dangling_link`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207): `fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()`).
 The doc comment says a missing entry is not a broken link because skipped optional and excluded dependencies have none,
 but a non-optional `workspace:` dependency under the isolated linker has no such reason.
+
+Prior art:
+[pnpm/pnpm#15569](https://github.com/pnpm/pnpm/pull/15569) added the check on links that exist but point nowhere,
+closing [#9758](https://github.com/pnpm/pnpm/issues/9758),
+and its description states the exemption:
+"[A missing entry still passes, because skipped optional and excluded dependencies have none.](https://github.com/pnpm/pnpm/pull/15569#:~:text=A%20missing%20entry%20still%20passes%2C%20because%20skipped%20optional%20and%20excluded%20dependencies%20have%20none.)"
+This report asks to narrow that exemption for non-optional `workspace:` dependencies,
+which are always linked by the isolated linker and have no such reason to be absent.
 
 Reproduction (pnpm 12.16.1, default linker, no registry access needed):
 
@@ -458,6 +505,8 @@ app/package.json:      {"name":"app","version":"1.0.0","dependencies":{"lib":"wo
 2. `rm app/node_modules/lib`.
 3. `pnpm install --offline` prints `Already up to date`, exits 0 and leaves the link absent.
 4. `pnpm install --offline --force` restores it.
+
+Expected: step 3 recreates `app/node_modules/lib`, as step 4 does.
 
 The same steps run as a GitHub Actions workflow in
 https://github.com/Aquaticat/pnpm-missing-workspace-link-repro
