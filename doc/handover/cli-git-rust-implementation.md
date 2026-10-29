@@ -3919,3 +3919,13 @@ This block supersedes "State at 2026-10-29 (night, later)".
   land: reword the `AGENTS.md` rules that say `--memory=2g --cpus=2` (RXI and NLG) to name 2 GB and 2 CPUs as the
   default that the agent may raise or lower per task with a stated reason, regenerate `CLAUDE.md` with file-enforcer,
   and run one campaign with explicit non-default values to prove the options reach `podman`.
+
+- User feedback (answer to "I am a little bit disappointed"): the launcher bug, and that the custom cargo-mutants
+  scripts should have been promoted to a package earlier. New direction: one shared, product-neutral package holds all
+  non-product-specific cargo-mutants tooling (launcher, slot limiter, and whatever generic parts of
+  `package/git-policy/cli/bin/mutate-native-container.ts`, `native-mutation-options.ts`,
+  `native-planted-controls.ts` and other Rust packages' scripts the inventory finds); product-specific scripts stay as
+  thin adapters. Agent `aba63f1400b66332c` builds the package and writes the inventory and migration plan to
+  `doc/planning/shared-cargo-mutants-package.md`. The migration of the `cli/bin` scripts waits for the limits agent
+  `a7a7ce613876ad8e8` to land (same files). Lesson recorded: promote any script that more than one run depends on to
+  a package with tests the first time it is reused, before running campaigns on it.
