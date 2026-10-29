@@ -170,12 +170,12 @@ pub fn pathspecs_of_file(bytes: &[u8], nul_separated: bool) -> Option<Vec<OsStri
         if element.is_empty() {
             return None;
         }
-        let bytes: Vec<u8> = if !nul_separated && element[0] == b'"' {
+        let decoded: Vec<u8> = if !nul_separated && element[0] == b'"' {
             unquote_c_style(element)?
         } else {
             element.to_vec()
         };
-        pathspecs.push(os_from_path_bytes(bytes.as_slice()));
+        pathspecs.push(os_from_path_bytes(decoded.as_slice()));
     }
     return Some(pathspecs);
 }
