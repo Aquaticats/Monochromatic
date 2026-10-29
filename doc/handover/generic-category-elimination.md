@@ -97,19 +97,29 @@ User decisions taken during execution
    and regenerate on the next build of each package;
    `file-manager/variant-qt/.qmlls.ini` was pointed at the new build directory.
 
+## Follow-ups done after the batches
+
+- `75fd6a4b49`:
+   the `forbidden-strings` publish job's detect step skips a push whose version is already on crates.io,
+   so a package move no longer runs a doomed publish and release
+   (run 40845758673 after the `cli` move failed that way;
+    the `jsonc-edit` and `nested-wayland-session` jobs already skipped).
+  Probed against the live index:
+   0.5.0 skips,
+   0.5.99 publishes.
+- `065c567802`:
+   `package/test-fixture/toml-edit/.gitattributes` declares `src/** -text`.
+- `68527f4eb8`:
+   the guard's final-newline policy no longer lists any package path;
+   seeds and fixtures are exempt only through `-text`.
+  New test `the_toml_edit_fixture_declaration_preserves_its_sources` fails with the declaration emptied and passes with it;
+   the 21 final-newline tests and clippy pass.
+  Installed guards pick this up with the next release;
+   until then 0.2.12 still lists the two paths,
+   which is harmless.
+
 ## Open follow-ups
 
-- `cargo-publish.yml` reads a moved manifest's old path as empty and starts a publish of the unchanged version.
-  The `jsonc-edit` and `nested-wayland-session` jobs skip versions already on crates.io,
-   so run 40854963672 for this batch succeeded;
-  the `forbidden-strings` job has no such skip,
-   so run 40845758673 after the `cli` move failed
-   ("crate forbidden-strings@0.5.0 already exists").
-  Giving that job the same skip would stop the false failure.
-- `PRESERVED_PREFIXES` in `package/git-policy/cli/src/native/policy_final_newline.rs`
-   still lists `package/forbidden-strings/core.fuzz/seed/` (no such directory)
-   and `package/test-fixture/toml-edit/src/` (no `.gitattributes` yet);
-  giving the fixture a `-text` `.gitattributes` would let the list go.
 - npm:
    `module-logger` and `module-fs-path` (and the published shims) were renamed;
    the user first-publishes the new names through `npm-publish.yml`
