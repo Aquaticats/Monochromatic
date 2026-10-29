@@ -114,7 +114,8 @@ const ENTRY_KEYS: ReadonlySet<string> = new Set([
  ```
  */
 function isTable(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null) && !Array.isArray(value,);
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
 }
 
 /**
@@ -212,7 +213,10 @@ function parseEntry(
       return undefined;
     }
     return issues.length === issuesBefore
-      ? { kind: 'registry', version: value as string, }
+      ? {
+        kind: 'registry',
+        version: value as string,
+      }
       : undefined;
   }
 
@@ -249,7 +253,7 @@ function parseEntry(
    Optional rename target, validated like a crate name.
    */
   const packageName = value.package;
-  if ((packageName !== undefined) && (((typeof packageName) !== 'string') || !isCrateName(packageName as string,))) {
+  if ((packageName !== undefined) && (((typeof packageName) !== 'string') || (!isCrateName(packageName as string,)))) {
     issues.push({
       location,
       problem: '`package` is not a valid crate name',
@@ -259,7 +263,11 @@ function parseEntry(
 
   if (value.git !== undefined) {
     if (((typeof value.git) !== 'string') || ((value.git as string).length === 0)) {
-      issues.push({ location, problem: '`git` is not a non-empty string', remedy: 'set `git` to the repository URL', },);
+      issues.push({
+        location,
+        problem: '`git` is not a non-empty string',
+        remedy: 'set `git` to the repository URL',
+      },);
     }
     if (((typeof value.rev) !== 'string') || ((value.rev as string).length === 0)) {
       issues.push({
@@ -269,7 +277,11 @@ function parseEntry(
       },);
     }
     if (value.version !== undefined) {
-      issues.push({ location, problem: 'git entry also declares `version`', remedy: 'remove `version` from git entries', },);
+      issues.push({
+        location,
+        problem: 'git entry also declares `version`',
+        remedy: 'remove `version` from git entries',
+      },);
     }
     if (issues.length !== issuesBefore)
       return undefined;
@@ -282,9 +294,13 @@ function parseEntry(
   }
 
   if (value.rev !== undefined) {
-    issues.push({ location, problem: 'declares `rev` without `git`', remedy: 'add `git` or remove `rev`', },);
+    issues.push({
+      location,
+      problem: 'declares `rev` without `git`',
+      remedy: 'add `git` or remove `rev`',
+    },);
   }
-  if (((typeof value.version) !== 'string') || !versionRule.accepts(value.version as string,)) {
+  if (((typeof value.version) !== 'string') || (!versionRule.accepts(value.version as string,))) {
     issues.push({
       location,
       problem: `version requirement ${JSON.stringify(value.version,)} is not accepted here`,
@@ -338,7 +354,11 @@ function parseCatalogTable(
   if (value === undefined)
     return entries;
   if (!isTable(value,)) {
-    issues.push({ location, problem: 'is not a table', remedy: `declare it as \`[${location}]\``, },);
+    issues.push({
+      location,
+      problem: 'is not a table',
+      remedy: `declare it as \`[${location}]\``,
+    },);
     return entries;
   }
   for (const [name, entryValue,] of Object.entries(value,)) {
@@ -353,7 +373,10 @@ function parseCatalogTable(
       issues,
     },);
     if (entry !== undefined)
-      entries.set(name, entry,);
+      entries.set(
+        name,
+        entry,
+      );
   }
   return entries;
 }
@@ -391,10 +414,14 @@ function readStringList(
 ): readonly string[] {
   if (value === undefined)
     return [];
-  if (!Array.isArray(value,) || !value.every(function isString(item: unknown,): boolean {
+  if ((!Array.isArray(value,)) || (!value.every(function isString(item: unknown,): boolean {
     return (typeof item) === 'string';
-  },)) {
-    issues.push({ location: key, problem: 'is not a list of strings', remedy: `write \`${key} = ["name", "name@1.2.3"]\``, },);
+  },))) {
+    issues.push({
+      location: key,
+      problem: 'is not a list of strings',
+      remedy: `write \`${key} = ["name", "name@1.2.3"]\``,
+    },);
     return [];
   }
   return value as readonly string[];
@@ -434,7 +461,11 @@ function readBoolean(
   if (value === undefined)
     return fallback;
   if ((typeof value) !== 'boolean') {
-    issues.push({ location: key, problem: 'is not a boolean', remedy: `write \`${key} = true\` or \`${key} = false\``, },);
+    issues.push({
+      location: key,
+      problem: 'is not a boolean',
+      remedy: `write \`${key} = true\` or \`${key} = false\``,
+    },);
     return fallback;
   }
   return value as boolean;
@@ -473,8 +504,13 @@ function readMinutes(
    Numeric form of the setting.
    */
   const minutes = toNumber(value,);
-  if ((minutes === undefined) || !Number.isInteger(minutes,) || (minutes < 0)) {
-    issues.push({ location: key, problem: 'is not a non-negative whole number of minutes', remedy: `write \`${key} = 1440\``, },);
+  if ((minutes === undefined) || (!Number.isInteger(minutes,))
+    || (minutes < 0)) {
+    issues.push({
+      location: key,
+      problem: 'is not a non-negative whole number of minutes',
+      remedy: `write \`${key} = 1440\``,
+    },);
     return undefined;
   }
   return minutes;
@@ -518,7 +554,7 @@ function readTrustPolicy(
 /**
  pnpm's documented default for `minimumReleaseAge`, in minutes.
  */
-const DEFAULT_MINIMUM_RELEASE_AGE = 1440;
+const DEFAULT_MINIMUM_RELEASE_AGE = 1_440;
 
 /**
  Reads every supply-chain setting with pnpm's names and defaults.
@@ -549,11 +585,19 @@ function readSettings(
   /**
    Explicit minimum release age, absent when the file leaves it to the default.
    */
-  const explicitAge = readMinutes({ key: 'minimumReleaseAge', value: root.minimumReleaseAge, issues, },);
+  const explicitAge = readMinutes({
+    key: 'minimumReleaseAge',
+    value: root.minimumReleaseAge,
+    issues,
+  },);
   /**
    Explicit trust-policy age cutoff.
    */
-  const ignoreAfter = readMinutes({ key: 'trustPolicyIgnoreAfter', value: root.trustPolicyIgnoreAfter, issues, },);
+  const ignoreAfter = readMinutes({
+    key: 'trustPolicyIgnoreAfter',
+    value: root.trustPolicyIgnoreAfter,
+    issues,
+  },);
   return {
     minimumReleaseAge: explicitAge ?? DEFAULT_MINIMUM_RELEASE_AGE,
     minimumReleaseAgeExclude: readStringList({
@@ -579,8 +623,15 @@ function readSettings(
       fallback: explicitAge !== undefined,
       issues,
     },),
-    trustPolicy: readTrustPolicy({ value: root.trustPolicy, issues, },),
-    trustPolicyExclude: readStringList({ key: 'trustPolicyExclude', value: root.trustPolicyExclude, issues, },),
+    trustPolicy: readTrustPolicy({
+      value: root.trustPolicy,
+      issues,
+    },),
+    trustPolicyExclude: readStringList({
+      key: 'trustPolicyExclude',
+      value: root.trustPolicyExclude,
+      issues,
+    },),
     trustPolicyExcludePrune: readBoolean({
       key: 'trustPolicyExcludePrune',
       value: root.trustPolicyExcludePrune,
@@ -629,19 +680,32 @@ export function parseRustCatalog(
   /**
    Logger tagged for this call.
    */
-  const log = tagged({ tag: parseRustCatalog.name, l: logger, },);
+  const log = tagged({
+    tag: parseRustCatalog.name,
+    l: logger,
+  },);
   log.debug(`parsing ${sourcePath}`,);
 
   /**
    Whole document materialized as plain values.
    */
-  const root = tomlGetValue({ edit: parseTomlEdit({ source, },), path: [], },);
+  const root = tomlGetValue({
+    edit: parseTomlEdit({ source, },),
+    path: [],
+  },);
   /**
    Problems found across the whole file.
    */
   const issues: RustCatalogIssue[] = [];
   if (!isTable(root,))
-    throw new RustCatalogError({ sourcePath, issues: [{ location: '(file)', problem: 'is not a TOML table', remedy: 'start from `[catalog]`', },], },);
+    throw new RustCatalogError({
+      sourcePath,
+      issues: [{
+        location: '(file)',
+        problem: 'is not a TOML table',
+        remedy: 'start from `[catalog]`',
+      },],
+    },);
 
   for (const key of Object.keys(root,)) {
     if (!TOP_LEVEL_KEYS.has(key,)) {
@@ -656,7 +720,12 @@ export function parseRustCatalog(
   /**
    Default catalog of `>=` floors and git pins.
    */
-  const catalog = parseCatalogTable({ location: 'catalog', value: root.catalog, bounded: false, issues, },);
+  const catalog = parseCatalogTable({
+    location: 'catalog',
+    value: root.catalog,
+    bounded: false,
+    issues,
+  },);
   /**
    Named catalogs of bounded requirements.
    */
@@ -674,25 +743,44 @@ export function parseRustCatalog(
         }
         catalogs.set(
           catalogName,
-          parseCatalogTable({ location: `catalogs.${catalogName}`, value, bounded: true, issues, },),
+          parseCatalogTable({
+            location: `catalogs.${catalogName}`,
+            value,
+            bounded: true,
+            issues,
+          },),
         );
       }
     } else {
-      issues.push({ location: 'catalogs', problem: 'is not a table', remedy: 'declare named catalogs as `[catalogs.<name>]`', },);
+      issues.push({
+        location: 'catalogs',
+        problem: 'is not a table',
+        remedy: 'declare named catalogs as `[catalogs.<name>]`',
+      },);
     }
   }
 
   /**
    Supply-chain settings with defaults applied.
    */
-  const settings = readSettings({ root, issues, },);
+  const settings = readSettings({
+    root,
+    issues,
+  },);
   if (issues.length > 0) {
     log.error(`${sourcePath}: ${String(issues.length,)} problem(s)`,);
-    throw new RustCatalogError({ sourcePath, issues, },);
+    throw new RustCatalogError({
+      sourcePath,
+      issues,
+    },);
   }
 
   log.debug(`${sourcePath}: ${String(catalog.size,)} default entries, ${String(catalogs.size,)} named catalogs`,);
-  return { catalog, catalogs, settings, };
+  return {
+    catalog,
+    catalogs,
+    settings,
+  };
 }
 
 //endregion Public parser

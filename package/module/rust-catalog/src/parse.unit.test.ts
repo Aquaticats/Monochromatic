@@ -120,7 +120,7 @@ await describe({
          */
         const { settings, } = parseLines(['[catalog]',],);
         expect(settings,).toEqual({
-          minimumReleaseAge: 1440,
+          minimumReleaseAge: 1_440,
           minimumReleaseAgeExclude: [],
           minimumReleaseAgeExcludePrune: false,
           minimumReleaseAgeIgnoreMissingTime: true,
@@ -150,7 +150,7 @@ await describe({
           '[catalog]',
         ],);
         expect(settings,).toEqual({
-          minimumReleaseAge: 1440,
+          minimumReleaseAge: 1_440,
           minimumReleaseAgeExclude: ['ring', 'zbus@5.19.0 || 5.19.1',],
           minimumReleaseAgeExcludePrune: true,
           minimumReleaseAgeIgnoreMissingTime: false,
@@ -158,7 +158,7 @@ await describe({
           trustPolicy: 'no-downgrade',
           trustPolicyExclude: ['clap@4.6.7',],
           trustPolicyExcludePrune: true,
-          trustPolicyIgnoreAfter: 525600,
+          trustPolicyIgnoreAfter: 525_600,
         },);
       },
     },),
@@ -229,7 +229,7 @@ await describe({
           '[catalog]',
           '"__proto__" = ">=1"',
           '"../escape" = ">=1"',
-          '"a\\nb" = ">=1"',
+          String.raw`"a\nb" = ">=1"`,
           '"9lives" = ">=1"',
           'x = { version = ">=1", registry = "other" }',
           'y = 3',

@@ -32,18 +32,31 @@ export const RUST_CATALOG_FILENAME = 'rust-catalog.toml';
  */
 export async function readRustCatalog(
   { rootDir, }: { readonly rootDir: string; },
-): Promise<{ readonly source: string; readonly sourcePath: string; readonly document: RustCatalogDocument; }> {
+): Promise<{
+  readonly source: string;
+  readonly sourcePath: string;
+  readonly document: RustCatalogDocument
+}> {
   /**
    Absolute path of the catalog file.
    */
-  const sourcePath = join(rootDir, RUST_CATALOG_FILENAME,);
+  const sourcePath = join(
+    rootDir,
+    RUST_CATALOG_FILENAME,
+  );
   /**
    Exact file text.
    */
-  const source = await readFile(sourcePath, 'utf8',);
+  const source = await readFile(
+    sourcePath,
+    'utf8',
+  );
   return {
     source,
     sourcePath,
-    document: parseRustCatalog({ source, sourcePath, },),
+    document: parseRustCatalog({
+      source,
+      sourcePath,
+    },),
   };
 }

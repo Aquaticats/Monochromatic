@@ -72,7 +72,9 @@ export function isCrateName(name: string,): boolean {
   if (!isAsciiLetter(name.charAt(0,),))
     return false;
   return [...name,].every(function isNameCharacter(character,): boolean {
-    return isAsciiLetter(character,) || isAsciiDigit(character,) || (character === '-') || (character === '_');
+    return isAsciiLetter(character,) || isAsciiDigit(character,)
+      || (character === '-')
+      || (character === '_');
   },);
 }
 
@@ -117,7 +119,9 @@ function isLabel(label: string,): boolean {
   if (label.length === 0)
     return false;
   return [...label,].every(function isLabelCharacter(character,): boolean {
-    return isAsciiLetter(character,) || isAsciiDigit(character,) || (character === '.') || (character === '-');
+    return isAsciiLetter(character,) || isAsciiDigit(character,)
+      || (character === '.')
+      || (character === '-');
   },);
 }
 
@@ -147,8 +151,11 @@ export function isVersion(version: string,): boolean {
   /**
    Version without its build label.
    */
-  const withoutBuild = buildAt === -1 ? version : version.slice(0, buildAt,);
-  if ((buildAt !== -1) && !isLabel(version.slice(buildAt + 1,),))
+  const withoutBuild = buildAt === (-1) ? version : version.slice(
+    0,
+    buildAt,
+  );
+  if ((buildAt !== (-1)) && (!isLabel(version.slice(buildAt + 1,),)))
     return false;
   /**
    Position of the prerelease label.
@@ -157,14 +164,17 @@ export function isVersion(version: string,): boolean {
   /**
    Dot-separated numeric core.
    */
-  const core = prereleaseAt === -1 ? withoutBuild : withoutBuild.slice(0, prereleaseAt,);
-  if ((prereleaseAt !== -1) && !isLabel(withoutBuild.slice(prereleaseAt + 1,),))
+  const core = prereleaseAt === (-1) ? withoutBuild : withoutBuild.slice(
+    0,
+    prereleaseAt,
+  );
+  if ((prereleaseAt !== (-1)) && (!isLabel(withoutBuild.slice(prereleaseAt + 1,),)))
     return false;
   /**
    Numeric components of the core.
    */
   const parts = core.split('.',);
-  if ((parts.length < 1) || (parts.length > 3))
+  if ((parts.length === 0) || (parts.length > 3))
     return false;
   return parts.every(isNumericComponent,);
 }
@@ -185,7 +195,8 @@ export function isVersion(version: string,): boolean {
 export function isFloorRequirement(requirement: string,): boolean {
   if (!requirement.startsWith('>=',))
     return false;
-  return isVersion(requirement.slice(2,).trim(),);
+  return isVersion(requirement.slice(2,)
+    .trim(),);
 }
 
 /**
@@ -242,7 +253,8 @@ export function isBoundedRequirement(requirement: string,): boolean {
 export function floorVersion(requirement: string,): string {
   if (!isFloorRequirement(requirement,))
     throw new TypeError(`${JSON.stringify(requirement,)} is not a \`>=\` floor requirement.`,);
-  return requirement.slice(2,).trim();
+  return requirement.slice(2,)
+    .trim();
 }
 
 //endregion Versions
