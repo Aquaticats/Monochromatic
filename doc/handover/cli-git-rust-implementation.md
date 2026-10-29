@@ -3616,3 +3616,26 @@ blocks after it. Times are local.
 - A commit through the wrapper waits silently on the landing lock under load; issue 1811 is the fix.
 - A peer's question about another package's timeouts was answered from the commit message of `e655dcad15` (read the
   message, not the author field: all sessions commit as the same identity).
+
+## Update at 2026-10-29 (evening): rule NMJ conversion started; peer monochromatic-80 unreachable
+
+- The user asked why oxlint runs on `.mjs` files. Answer, with evidence: rule NMJ in `AGENTS.md` forbids `.mjs`
+  scripts; the shared config `package/config/oxlint/src/config-base.ts` lists `**/*.js` and `**/*.cjs` in
+  `ignorePatterns` but not `**/*.mjs`, so `.mjs` is linted by omission. There are 32 `.mjs` files under
+  `package/git-policy` (111 under `package/`); nine tasks in `package/git-policy/cli/mise.toml` call them as
+  `node bin/<name>.mjs`. The oxlint cleanup branch therefore fixed the symptom of files that must not exist. Adding
+  `**/*.mjs` to `ignorePatterns` was rejected (LN7, and it hides the violation).
+- The user decided: "Convert." Agent `ab1d5540a005d7319` converts the 32 files to `.ts` with `git mv` on a worktree
+  branch that starts from main and first merges `worktree-agent-afe3b1e78082f5280` (the oxlint cleanup), resolving
+  conflicts with the peer's `7da722af96`. It updates every reference (`mise.toml`, Containerfiles, docs), reports
+  `.github/workflows` hits without editing them (another session owns CI), checks that node type stripping works on
+  the host and inside the images the scripts build, type-checks and lints the result with zero findings, and runs each
+  runner in the cheapest real way. It does not run the container gate; the parent runs one gate at the end.
+- Merge order: land the combined tree (scratch locations, issue 1811, oxlint) first, then this branch; the oxlint
+  branch is an ancestor of the conversion branch, so the later merge repeats no work.
+- Peer `monochromatic-80` (uds `/run/user/1000/cc-socks/2748920.sock`) is no longer in `ListAgents` and its socket is
+  gone, so two messages could not be delivered: (a) do not edit the 32 `.mjs` files until the conversion lands; (b)
+  the scratch branch lands with `Closes #1810`. Issue 1810's follow-up for non-Rust files was reported finished by
+  that session; only the scratch-location branch remained. Peers now listed: `monochromatic-fb`, `monochromatic-db`,
+  `monochromatic-71`, and a translation-quality session; none is known to own issue 1810.
+- Task numbers: 75 (conversion), with 73 (issue 1811) and 74 (LFS) still open.
