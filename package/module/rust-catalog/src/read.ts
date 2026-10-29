@@ -23,7 +23,7 @@ export const RUST_CATALOG_FILENAME = 'rust-catalog.toml';
  @returns the exact source text and the validated document; tools that rewrite the file keep `source` for
  comment-preserving edits
 
- @throws {RustCatalogError} when the catalog is invalid
+ @throws RustCatalogError when the catalog is invalid
 
  @example
  ```ts

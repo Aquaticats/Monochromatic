@@ -120,6 +120,7 @@ await describe({
          */
         const { settings, } = parseLines(['[catalog]',],);
         expect(settings,).toEqual({
+          catalogPrune: false,
           minimumReleaseAge: 1_440,
           minimumReleaseAgeExclude: [],
           minimumReleaseAgeExcludePrune: false,
@@ -139,6 +140,7 @@ await describe({
          Settings of a file that declares all of them.
          */
         const { settings, } = parseLines([
+          'catalogPrune = true',
           'minimumReleaseAge = 1440',
           'minimumReleaseAgeExclude = ["ring", "zbus@5.19.0 || 5.19.1"]',
           'minimumReleaseAgeExcludePrune = true',
@@ -150,6 +152,7 @@ await describe({
           '[catalog]',
         ],);
         expect(settings,).toEqual({
+          catalogPrune: true,
           minimumReleaseAge: 1_440,
           minimumReleaseAgeExclude: ['ring', 'zbus@5.19.0 || 5.19.1',],
           minimumReleaseAgeExcludePrune: true,
@@ -275,6 +278,18 @@ await describe({
           'minimumReleaseAgeStrict',
           'trustPolicy',
         ],);
+      },
+    },),
+
+    it({
+      name: 'rejects mixed-type lists, non-boolean prune switches, and quoted minute counts',
+      fn: async () => {
+        expect(issueLocations([
+          'minimumReleaseAge = "1440"',
+          'catalogPrune = 1',
+          'trustPolicyExclude = ["clap@4.6.7", 3]',
+          '[catalog]',
+        ],),).toEqual(['minimumReleaseAge', 'catalogPrune', 'trustPolicyExclude',],);
       },
     },),
 

@@ -46,6 +46,45 @@ function isAsciiDigit(character: string,): boolean {
   return (character >= '0') && (character <= '9');
 }
 
+/**
+ Whether every character of `text` passes `accepts`.
+
+ Scans UTF-16 code units by index. Every accepted character is ASCII, so any
+ non-ASCII unit (including half of a surrogate pair) fails the check, which is
+ the correct outcome for crate names and versions.
+
+ @param text - string to scan
+
+ @param accepts - per-character predicate
+
+ @returns whether all characters pass
+
+ @example
+ ```ts
+ everyCharacter({ text: '104', accepts: isAsciiDigit, }); // true
+ ```
+ */
+function everyCharacter(
+  {
+    text,
+    accepts,
+  }: {
+    readonly text: string;
+    readonly accepts: (character: string) => boolean;
+  },
+): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    if (!accepts(text.charAt(index,),))
+      return false;
+  }
+  return true;
+}
+
+/**
+ Most dot-separated numeric parts a version may have (major, minor, patch).
+ */
+const MAX_VERSION_PARTS = 3;
+
 //endregion Characters
 
 //region Crate names
@@ -71,10 +110,13 @@ export function isCrateName(name: string,): boolean {
     return false;
   if (!isAsciiLetter(name.charAt(0,),))
     return false;
-  return [...name,].every(function isNameCharacter(character,): boolean {
-    return isAsciiLetter(character,) || isAsciiDigit(character,)
-      || (character === '-')
-      || (character === '_');
+  return everyCharacter({
+    text: name,
+    accepts: function isNameCharacter(character,): boolean {
+      return isAsciiLetter(character,) || isAsciiDigit(character,)
+        || (character === '-')
+        || (character === '_');
+    },
   },);
 }
 
@@ -100,7 +142,28 @@ function isNumericComponent(part: string,): boolean {
     return false;
   if ((part.length > 1) && part.startsWith('0',))
     return false;
-  return [...part,].every(isAsciiDigit,);
+  return everyCharacter({
+    text: part,
+    accepts: isAsciiDigit,
+  },);
+}
+
+/**
+ Whether `character` may appear in a semver prerelease or build label.
+
+ @param character - single character to test
+
+ @returns whether it is an ASCII letter, digit, `.`, or `-`
+
+ @example
+ ```ts
+ isLabelCharacter('.'); // true
+ ```
+ */
+function isLabelCharacter(character: string,): boolean {
+  return isAsciiLetter(character,) || isAsciiDigit(character,)
+    || (character === '.')
+    || (character === '-');
 }
 
 /**
@@ -118,10 +181,9 @@ function isNumericComponent(part: string,): boolean {
 function isLabel(label: string,): boolean {
   if (label.length === 0)
     return false;
-  return [...label,].every(function isLabelCharacter(character,): boolean {
-    return isAsciiLetter(character,) || isAsciiDigit(character,)
-      || (character === '.')
-      || (character === '-');
+  return everyCharacter({
+    text: label,
+    accepts: isLabelCharacter,
   },);
 }
 
@@ -174,9 +236,11 @@ export function isVersion(version: string,): boolean {
    Numeric components of the core.
    */
   const parts = core.split('.',);
-  if ((parts.length === 0) || (parts.length > 3))
+  if ((parts.length === 0) || (parts.length > MAX_VERSION_PARTS))
     return false;
-  return parts.every(isNumericComponent,);
+  return parts.every(function isPart(part,): boolean {
+    return isNumericComponent(part,);
+  },);
 }
 
 /**
@@ -243,7 +307,7 @@ export function isBoundedRequirement(requirement: string,): boolean {
 
  @returns version text after `>=`
 
- @throws {TypeError} when `requirement` is not a `>=` floor
+ @throws TypeError when `requirement` is not a `>=` floor
 
  @example
  ```ts

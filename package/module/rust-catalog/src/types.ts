@@ -89,6 +89,7 @@ export type RustCatalogTrustPolicy = 'no-downgrade' | 'off';
  @example
  ```ts
  const settings: RustCatalogSettings = {
+   catalogPrune: false,
    minimumReleaseAge: 1440,
    minimumReleaseAgeExclude: [],
    minimumReleaseAgeExcludePrune: false,
@@ -101,6 +102,7 @@ export type RustCatalogTrustPolicy = 'no-downgrade' | 'off';
  ```
  */
 export type RustCatalogSettings = {
+  readonly catalogPrune: boolean;
   readonly minimumReleaseAge: number;
   readonly minimumReleaseAgeExclude: readonly string[];
   readonly minimumReleaseAgeExcludePrune: boolean;
