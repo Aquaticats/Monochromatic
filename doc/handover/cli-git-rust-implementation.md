@@ -3929,3 +3929,20 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `doc/planning/shared-cargo-mutants-package.md`. The migration of the `cli/bin` scripts waits for the limits agent
   `a7a7ce613876ad8e8` to land (same files). Lesson recorded: promote any script that more than one run depends on to
   a package with tests the first time it is reused, before running campaigns on it.
+
+## Update at 2026-10-29 (night, survivors landed)
+
+- Landed on main: the four further `merge_isolation.rs` survivors (437, 499, 500, 632; commits `43a48dbb9a`,
+  `6b34a591d2`; 195:40 is equivalent, proof in the agent's report: a terminal and a non-terminal never share a device
+  and inode) and the two `auto_push_reconcile.rs` survivors (635 guard, 724 `delete !`; commit `ff7fcc3ea5`, four retry
+  tests over auto-push or explicit crossed with stale or non-stale failure).
+- Flaky `forwarding::exit_codes_and_stderr_match_native_git` (5.6 s at the shared bound, once): no mechanism found
+  after 3600 timed starts (median 3.7 to 5.9 ms, maximum 63 ms, no waiting syscalls in `strace`); the whole container
+  was 20 to 50 times slower at that moment, and unrelated tests hit the same bound in other baselines. The bound is
+  unchanged on purpose; `observe_raw` now names the command and directory when it trips
+  (`6171c37a65`, `a32a87e80c`), and the measurements are in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`. If a later occurrence names a
+  command with no waiting call, measure process start and file reads inside the container during the stall. Task 66
+  stays open for that.
+- Next: confirmation campaign over `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the final tree,
+  after the limits and shared-package branches land (so one build serves them all); wave 5 results.
