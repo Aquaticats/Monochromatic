@@ -26,6 +26,7 @@
 //! ```
 
 /// Import the layer's failure type and its closed list of causes.
+use super::candidate_attribute::{AttributeSource, CandidateAttributes};
 use super::candidate_error::{CandidateError, CandidateFailure};
 /// The landed commit object name a landed-delta request reads.
 use super::candidate_object::ObjectId;
@@ -54,6 +55,7 @@ use super::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git,
 /// ```ts
 /// // string, but byte-preserving.
 /// ```
+use std::collections::HashMap;
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
 use std::path::{Path, PathBuf};
@@ -186,6 +188,8 @@ pub struct PreparedCandidates {
     /// The real index the private copy was made from,
     ///  which a direct fix proves unchanged.
     pub real_index: PathBuf,
+    /// Reads the `text` attribute of the candidates from the state they were listed from.
+    pub attributes: CandidateAttributes,
     /// Kept only so the private directory lives as long as the store;
     ///  never read.
     _private: PrivateIndex,
@@ -476,6 +480,29 @@ fn staged_scope(
 }
 
 /// What:
+///  Record `source` as the commit or tree that first lists each pathname of `listed`.
+///  `HashMap::entry(..).or_insert_with(..)` keeps the first source of a pathname.
+/// Why:
+///   A pushed pathname can be listed by several commits;
+///  its candidate comes from the first, so its attributes do too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const record of listed) if (!listedFrom.has(record.path)) listedFrom.set(record.path, source);
+/// ```
+fn note_listing(
+    listed_from: &mut HashMap<Vec<u8>, ObjectId>,
+    listed: &[CandidateRecord],
+    source: &ObjectId,
+) {
+    for record in listed {
+        listed_from
+            .entry(record.path.clone())
+            .or_insert_with(|| { return source.clone(); });
+    }
+}
+
+/// What:
 ///  Prepare the candidates of one request.
 ///  `real_git`,
 ///  `global_prefix` and `overlay`
@@ -529,17 +556,30 @@ pub fn prepare_candidates(
         let mut pushed_store: CandidateStore =
             CandidateStore::new(real_git, global_prefix, private_overlay.as_slice());
         let mut records: Vec<CandidateRecord> = Vec::new();
+        // The commit or tree that first lists a pathname answers for its attributes, as it answers for the
+        // pathname's candidate.
+        let mut listed_from: HashMap<Vec<u8>, ObjectId> = HashMap::new();
         for commit in &scope.commits {
-            records.extend(pushed_store.committed_records(commit)?);
+            let listed: Vec<CandidateRecord> = pushed_store.committed_records(commit)?;
+            note_listing(&mut listed_from, listed.as_slice(), commit);
+            records.extend(listed);
         }
         for tree in &scope.trees {
-            records.extend(pushed_store.tree_records(tree)?);
+            let listed: Vec<CandidateRecord> = pushed_store.tree_records(tree)?;
+            note_listing(&mut listed_from, listed.as_slice(), tree);
+            records.extend(listed);
         }
         let version: Rc<CandidateVersion> = pushed_store.derived_version(records);
         return Ok(PreparedCandidates {
             store: pushed_store,
             version,
             real_index,
+            attributes: CandidateAttributes::new(
+                real_git,
+                global_prefix,
+                private_overlay.as_slice(),
+                AttributeSource::PerPath(listed_from),
+            ),
             _private: private,
         });
     }
@@ -553,6 +593,12 @@ pub fn prepare_candidates(
             store: landed_store,
             version,
             real_index,
+            attributes: CandidateAttributes::new(
+                real_git,
+                global_prefix,
+                private_overlay.as_slice(),
+                AttributeSource::Tree(commit.clone()),
+            ),
             _private: private,
         });
     }
@@ -618,6 +664,13 @@ pub fn prepare_candidates(
         store,
         version,
         real_index,
+        // Staged and projected candidates are judged by the private index they were listed from.
+        attributes: CandidateAttributes::new(
+            real_git,
+            global_prefix,
+            private_overlay.as_slice(),
+            AttributeSource::Index,
+        ),
         _private: private,
     });
 }
