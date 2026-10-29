@@ -672,6 +672,51 @@ so the metadata,
 lint,
 and profile keys stay written.
 
+#### Toolchain lock: plan and lock, mpm-shadow writes the lock
+
+The user chose "Plan + lock;
+mpm-shadow writes",
+replacing the three-file "Separate resolution file" decision.
+
+- `toolchain.plan.jsonc` (people) and `toolchain.lock.json` (mpm-shadow only).
+- `mpm-shadow update` resolves and writes the whole lock;
+  an offline `mpm-shadow lock` re-projects plan edits without network.
+- file-enforcer `check` verifies that the lock's plan fields equal the plan,
+  and never writes the lock.
+- Conversion cuts the plan out of today's lock,
+  and the lock itself stays.
+
+#### First version of a new npm or PyPI tool: a direct registry lookup
+
+The user chose "Direct lookup for first version".
+A planned npm or PyPI tool with no lock entry gets its first version from `registry.npmjs.org` or `pypi.org` once;
+later updates use `mpm outdated`.
+
+#### Concurrency: server-client architecture
+
+Asked how concurrent runs avoid clobbering each other
+(flock plus a target re-check was recommended);
+the user answered "server client architecture".
+One server process serializes all writes,
+and CLI invocations are clients;
+discovery,
+startup,
+and the relation to `watch` are follow-up questions.
+Transport adopted from meow's design
+(`doc/planning/monorepo-manager-from-scratch-design.md`, "RPC"):
+a filesystem Unix socket under `$XDG_RUNTIME_DIR` with owner-only permissions,
+newline-delimited JSON-RPC 2.0,
+private plumbing behind the tool's own commands,
+and a socket path length check (the design hit "path must be shorter than SUN_LEN").
+
+#### New capabilities: diffs through standard tools, and explain
+
+The user chose `check --diff` and `explain <path>`,
+adding:
+"We don't have to implement diff ourselves.
+We can make our output outputs in a way that can be piped into standard unix tools to render nice diffs."
+The output form that feeds `diff` or `git diff --no-index` is a follow-up question.
+
 ### Adopted defaults put to the user for confirmation
 
 Listed 2026-10-29 in the confirmation question;
