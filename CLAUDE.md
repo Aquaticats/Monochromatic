@@ -1219,6 +1219,7 @@ RCI:
  Before proposing a new owner for a responsibility,
  inspect existing repo-owned generators and managers;
  extend one that already owns it.
+ A stopgap for a misbehaving tool is not an owner.
 
 ### Adding new packages
 
