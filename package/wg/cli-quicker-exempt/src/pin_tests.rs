@@ -635,7 +635,7 @@ fn write_pin_fixture(directory: &Path, marker: &[u8]) -> io::Result<()> {
 /// Atomic exchange makes all new files visible and removes all old files.
 #[test]
 fn replacement_exchange_commits_complete_pin_set() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!("wg-quicker-pin-exchange-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-exchange-{}", std::process::id()));
     std::fs::create_dir(&scratch)?;
     let final_dir = scratch.join("final");
     let staging_dir = scratch.join("staging");
@@ -653,7 +653,7 @@ fn replacement_exchange_commits_complete_pin_set() -> io::Result<()> {
 /// Failed exchange leaves prior complete pin set untouched.
 #[test]
 fn failed_exchange_preserves_prior_pin_set() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!("wg-quicker-pin-failure-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-failure-{}", std::process::id()));
     std::fs::create_dir(&scratch)?;
     let final_dir = scratch.join("final");
     let missing_staging = scratch.join("missing");
@@ -669,7 +669,7 @@ fn failed_exchange_preserves_prior_pin_set() -> io::Result<()> {
 /// Exact cleanup removes owned names but refuses an unrelated directory entry.
 #[test]
 fn exact_cleanup_preserves_unrelated_entry() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!("wg-quicker-pin-cleanup-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-cleanup-{}", std::process::id()));
     write_pin_fixture(&scratch, b"owned")?;
     let unrelated = scratch.join("unrelated");
     std::fs::write(&unrelated, b"keep")?;
@@ -685,7 +685,7 @@ fn exact_cleanup_preserves_unrelated_entry() -> io::Result<()> {
 /// Hex path encoding distinguishes slash boundaries while avoiding reserved dots.
 #[test]
 fn canonical_pin_path_is_injective_for_slash_boundaries() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!("wg-quicker-pin-path-{}", std::process::id()));
+    let scratch = crate::test_scratch::scratch_root().join(format!("wg-quicker-pin-path-{}", std::process::id()));
     let first = scratch.join("a").join("b__c.scope");
     let second = scratch.join("a__b").join("c.scope");
     std::fs::create_dir_all(&first)?;

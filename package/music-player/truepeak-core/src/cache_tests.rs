@@ -249,7 +249,7 @@ async fn probe_is_stored_after_an_exact_row_is_removed() {
 
 // The path of a throwaway database file unique to this process and test name.
 fn scratch_db_path(name: &str) -> std::path::PathBuf {
-    return std::env::temp_dir().join(format!("truepeak-core-cache-{}-{name}.db", std::process::id()))
+    return crate::test_scratch::scratch_root().join(format!("truepeak-core-cache-{}-{name}.db", std::process::id()))
 }
 
 // Delete the throwaway database and any sibling journal files Turso created.

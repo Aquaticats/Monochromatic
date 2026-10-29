@@ -252,3 +252,7 @@ fn main() -> ExitCode {
     usage();
     return ExitCode::from(2);
 }
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;
