@@ -312,6 +312,9 @@ named for that subject and listed here.
   the pass's own lines and the logger's lines that carried no time or no attempt,
   and the cap wording (B963),
   and docs that claimed what the code did not (B964).
+- [Audit ledger: the cap census and the Xiaomi cap](audit-ledger-the-cap-census-and-the-xiaomi-cap.md):
+  A card that still named the pooled 99th percentile after the cap rule could read its calls (B990),
+  and a census that named every dangling link under the agent root and buried its own summary (B991).
 - [Audit ledger: footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md):
   Scans for footnote markers and link destinations that disagreed with the parse,
   about where a marker is a reference or where an address ends,
