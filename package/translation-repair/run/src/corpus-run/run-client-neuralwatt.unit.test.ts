@@ -343,6 +343,9 @@ await describe({
         expect(lines.length,).toBe(1,);
         expect(lines[0],).toContain('PLAN ENERGY SPENT',);
         expect(lines[0],).toContain('0.5 Wh',);
+        // THE RUN'S OWN METER BESIDE IT: ONE CALL OF 0.0000005 KWH, WHICH IS 0.0005 WH.
+        expect(lines[0],).toContain('this run\'s own meter drew 0.0005 Wh',);
+        expect(lines[0],).toContain('not this run\'s draw',);
       },
     },),
 

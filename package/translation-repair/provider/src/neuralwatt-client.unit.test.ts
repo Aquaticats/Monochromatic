@@ -632,5 +632,31 @@ await describe({
         },),).toBeInstanceOf(Error,);
       },
     },),
+
+    it({
+      name: 'REPORTS WHAT THE RUN ITSELF DREW as the sum of the lines its own calls wrote, none before a call, and '
+        + 'not the energy already in the ledger file from an earlier run of the day',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'whiskers-neuralwatt-client-', },);
+        const { client, ledger, clock, } = scripted({ dir: scratch.path, },);
+        // AN EARLIER RUN OF THE SAME DAY LEFT 0.4 WH IN THE FILE: ANOTHER LEDGER OBJECT OVER IT.
+        const earlier = createNeuralWattLedger({ path: ledger.path, dailyWh: 550, now: clock.now, },);
+        const outcome = await earlier.reserve({
+          model: 'deepseek-v4.1-flash',
+          promptTokens: 10,
+          estimateWh: 0.5,
+          day: { kind: 'anchored', start: new Date('2026-10-20T05:05:25.000Z',), },
+        },);
+        if (!outcome.granted)
+          throw new Error('the call fits and should have been granted',);
+        await outcome.reservation.settle({ measuredWh: 0.4, },);
+        expect(client.drawnWh(),).toBe(0,);
+        await ask({ client, },);
+        await ask({ client, },);
+        // TWO CALLS OF 0.015 WH EACH (ENERGY_COMMENT); THE EARLIER RUN'S 0.4 WH IS IN THE DAY'S SPEND, NOT IN THE DRAW.
+        expect(client.drawnWh(),).toBeCloseTo(0.03, 12,);
+        expect((await client.energy({ signal: SIGNAL, },)).spentWh,).toBeCloseTo(0.43, 12,);
+      },
+    },),
   ],
 },);

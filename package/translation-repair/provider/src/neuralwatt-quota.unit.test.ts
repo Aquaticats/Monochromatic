@@ -303,6 +303,56 @@ await describe({
               .toContain('the billing period rolled over',);
           },
         },),
+
+        it({
+          name: 'PRINTS WHAT THE RUN\'S OWN METER DREW BESIDE THE PLAN FIGURE and says the plan figure is the account\'s '
+            + 'charge, not the run\'s draw (XingZ6022: 1730.5 Wh charged against 238.272 Wh drawn)',
+          fn: async () => {
+            /**
+             The sentence for a plan figure far above what the run's own meter drew.
+             */
+            const said = describePlanSpend({ spend: { kind: 'measured', kwh: 1.7305, inOverage: false, }, drawnWh: 238.272, },);
+            expect(said,).toContain('1730.5 Wh',);
+            expect(said,).toContain('this run\'s own meter drew 238.272 Wh',);
+            expect(said,).toContain('not this run\'s draw',);
+            expect(said,).toContain('can include energy this run did not draw',);
+            expect(said,).toContain('anything else done on the account in that time is in this figure too',);
+          },
+        },),
+
+        it({
+          name: 'PRINTS THE RUN\'S OWN DRAW ON EVERY BRANCH: a zero difference, a difference measured from a later '
+            + 'reading, and readings that could not be compared; and leaves the sentences as they were where none is given',
+          fn: async () => {
+            /**
+             The sentence for a zero difference.
+             */
+            const zero = describePlanSpend({ spend: { kind: 'measured', kwh: 0, inOverage: false, }, drawnWh: 0.0005, },);
+            expect(zero,).toContain('no plan energy was spent',);
+            expect(zero,).toContain('this run\'s own meter drew 0.0005 Wh',);
+            expect(zero,).toContain('free daily energy',);
+            /**
+             The sentence for a difference measured from a later reading.
+             */
+            const later = describePlanSpend({
+              spend: { kind: 'measured', kwh: 0.05, inOverage: false, laterStartAt: '2026-10-20T12:01:00.000Z', },
+              drawnWh: 12,
+            },);
+            expect(later,).toContain('this run\'s own meter drew 12 Wh',);
+            expect(later,).toContain('before it is not counted',);
+            /**
+             The sentence for readings that could not be compared.
+             */
+            const none = describePlanSpend({
+              spend: { kind: 'not-comparable', reason: 'the billing period rolled over', },
+              drawnWh: 3.25,
+            },);
+            expect(none,).toContain('the billing period rolled over',);
+            expect(none,).toContain('this run\'s own meter drew 3.25 Wh',);
+            expect(describePlanSpend({ spend: { kind: 'measured', kwh: 0.05, inOverage: false, }, },),)
+              .not.toContain('own meter',);
+          },
+        },),
       ],
     },),
   ],

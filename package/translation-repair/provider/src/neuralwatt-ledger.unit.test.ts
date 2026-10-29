@@ -386,6 +386,40 @@ await describe({
         },),
 
         it({
+          name: 'COUNTS ONLY THE LINES THIS LEDGER OBJECT APPENDED as the draw of its own run (measured, unreported '
+            + 'estimate and abandoned estimate alike), and none the file already held or another object appended',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'whiskers-neuralwatt-', },);
+            const path = join(scratch.path, 'e.jsonl',);
+            const { now, } = handClock({ start: '2026-10-20T12:00:00.000Z', },);
+            // AN EARLIER RUN ON THE SAME DAY LEFT 0.3 WH IN THE FILE.
+            const earlier = createNeuralWattLedger({ path, dailyWh: 550, now, },);
+            const first = await earlier.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.5, day: DAY, },);
+            if (!first.granted)
+              throw new Error('the call fits and should have been granted',);
+            await first.reservation.settle({ measuredWh: 0.3, },);
+
+            const ledger = createNeuralWattLedger({ path, dailyWh: 550, now, },);
+            expect(ledger.drawnWh(),).toBe(0,);
+            const measured = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.5, day: DAY, },);
+            const unreported = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.125, day: DAY, },);
+            const abandoned = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.25, day: DAY, },);
+            const refused = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 9000, day: DAY, },);
+            if (!measured.granted || !unreported.granted || !abandoned.granted)
+              throw new Error('the calls fit and should have been granted',);
+            await measured.reservation.settle({ measuredWh: 0.015, },);
+            await unreported.reservation.settle({},);
+            await abandoned.reservation.noteAbandoned();
+            abandoned.reservation.release();
+            // 0.015 MEASURED, 0.125 ESTIMATED BECAUSE THE STREAM REPORTED NONE, 0.25 ESTIMATED FOR THE ABANDONED ATTEMPT.
+            expect(ledger.drawnWh(),).toBeCloseTo(0.39, 12,);
+            expect(refused.granted,).toBe(false,);
+            expect(earlier.drawnWh(),).toBeCloseTo(0.3, 12,);
+            expect((await ledger.read({ day: DAY, },)).spentWh,).toBeCloseTo(0.69, 12,);
+          },
+        },),
+
+        it({
           name: 'REFUSES A SECOND SETTLEMENT OF ONE RESERVATION, since the call it stood for is over',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'whiskers-neuralwatt-', },);
