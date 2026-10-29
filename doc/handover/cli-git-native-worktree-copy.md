@@ -1,5 +1,9 @@
 # Native worktree-copy lane (slice 11)
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 ## Purpose
 
 This lane ports the linked-worktree ignored-state copy from `package/git-policy/cli/src/worktree-copy/*.ts` to native
