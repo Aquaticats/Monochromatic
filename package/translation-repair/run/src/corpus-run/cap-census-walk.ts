@@ -17,6 +17,13 @@ import {
 // WHERE THE CAP CENSUS LOOKS FOR LOGS (ledger P10). The agent root holds
 // thousands of logs, some large, so the walk names paths only: it opens
 // nothing, and a path it cannot read is counted rather than fatal.
+//
+// WHAT IS NAMED ON STDERR IS WHAT COULD HAVE HELD A LOG (ledger B991). A
+// directory it cannot list may hold one, and a link named like a log may stand
+// for one, so both are named and counted as unreadable. A link to nothing under
+// any other name holds nothing the walk would read, so it is counted apart and
+// not named: on 2026-10-29, 312 of the 315 paths the walk reported were such
+// links (browser profile locks, scratch `bin/git` links) and buried the summary.
 
 /**
  How deep below a named directory the walk goes: the run directories under the
@@ -47,6 +54,11 @@ type PendingPath = {
    How far below its named root it sits.
    */
   readonly depth: number;
+
+  /**
+   Whether its directory listing named it a symbolic link, which a stat follows to a target that may be missing.
+   */
+  readonly link: boolean;
 };
 
 /**
@@ -59,7 +71,54 @@ type Visit =
       readonly children: readonly PendingPath[]
     }
     | { readonly kind: 'nothing'; }
+    | { readonly kind: 'dangling-link'; }
     | { readonly kind: 'unreadable'; };
+
+/**
+ Whether a read failed because the path, or the target of a link, is not there.
+
+ @param error - what the read raised
+
+ @returns Whether it carries the system code for a missing path
+
+ @example
+ ```ts
+ const missing = isMissingPath({ error, },);
+ ```
+ */
+function isMissingPath({ error, }: { readonly error: unknown; },): boolean {
+  return (error instanceof Error) && ('code' in error) && (error.code === 'ENOENT');
+}
+
+/**
+ Whether a failed visit was a link to nothing that no log can be named by.
+
+ A LINK TO NOTHING HOLDS NO LOG: a directory it stood for would be there to list, and a file it stood for to read. Its
+ name decides whether the census would have taken it: only a name ending `.log` is a log, so a dangling link under any
+ other name (a browser profile's `SingletonLock`, a scratch `bin/git`) cannot change the result. A path named on the
+ command line is always reported, whatever it is.
+
+ @param next - the path that failed
+ @param error - what the read raised
+
+ @returns Whether the failure may be passed over without a word
+
+ @example
+ ```ts
+ const passedOver = isLogLessDanglingLink({ next, error, },);
+ ```
+ */
+function isLogLessDanglingLink(
+  {
+    next,
+    error,
+  }: {
+    readonly next: PendingPath;
+    readonly error: unknown;
+  },
+): boolean {
+  return next.link && (next.depth > 0) && (!next.path.endsWith('.log',)) && isMissingPath({ error, },);
+}
 
 /**
  Says on stderr that a path could not be read, with what the system answered.
@@ -113,25 +172,38 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
     /**
      The directory's entries.
      */
-    const names = await readdir(next.path,);
+    const entries = await readdir(
+      next.path,
+      { withFileTypes: true, },
+    );
     return {
       kind: 'children',
-      children: names
-        .filter(function visited(name,): boolean {
-          return !SKIPPED_DIRS.has(name,);
+      children: entries
+        .filter(function visited(entry,): boolean {
+          // A REGULAR FILE THAT IS NO LOG IS DROPPED BY ITS NAME, before any stat: it would be read as nothing.
+          return (!SKIPPED_DIRS.has(entry.name,)) && ((!entry.isFile()) || entry.name.endsWith('.log',));
         },)
-        .map(function child(name,): PendingPath {
+        .map(function child(entry,): PendingPath {
           return {
             path: join(
               next.path,
-              name,
+              entry.name,
             ),
             depth: next.depth + 1,
+            link: entry.isSymbolicLink(),
           };
         },),
     };
   }
   catch (error) {
+    // A LINK TO NOTHING UNDER A NAME NO LOG HAS IS PASSED OVER, counted apart and not named: it holds nothing the
+    // census could read, and naming it buries the summary (ledger B991).
+    if (isLogLessDanglingLink({
+      next,
+      error,
+    },))
+      return { kind: 'dangling-link', };
+
     // A PATH THE WALK CANNOT READ IS COUNTED, NOT FATAL: the agent root holds
     // other sessions' directories this user cannot open.
     reportCapCensusUnreadable({
@@ -147,19 +219,21 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
 
  @param roots - files or directories named on the command line
 
- @returns Log paths, each once however many named paths reach it, and how many
- paths the walk could not read
+ @returns Log paths, each once however many named paths reach it, how many
+ paths the walk could not read (each named on stderr), and how many dangling
+ links under a name no log has it passed over without a word
 
  @example
  ```ts
- const { logs, unreadable, } = await capCensusLogsUnder({ roots: ['/runs',], },);
+ const { logs, unreadable, danglingLinks, } = await capCensusLogsUnder({ roots: ['/runs',], },);
  ```
  */
 export async function capCensusLogsUnder(
   { roots, }: { readonly roots: readonly string[]; },
 ): Promise<{
   readonly logs: readonly string[];
-  readonly unreadable: number
+  readonly unreadable: number;
+  readonly danglingLinks: number
 }> {
   /**
    Paths still to visit, a work stack so the walk needs no recursion.
@@ -168,6 +242,7 @@ export async function capCensusLogsUnder(
     return {
       path,
       depth: 0,
+      link: false,
     };
   },);
 
@@ -180,6 +255,11 @@ export async function capCensusLogsUnder(
    Paths the walk could not read.
    */
   const unreadable: string[] = [];
+
+  /**
+   Dangling links passed over for a name no log has.
+   */
+  const danglingLinks: string[] = [];
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
     /* oxlint-disable no-await-in-loop -- a work-stack walk: each directory's entries decide what is visited next */
     /**
@@ -193,6 +273,8 @@ export async function capCensusLogsUnder(
       pending.push(...found.children,);
     else if (found.kind === 'unreadable')
       unreadable.push(next.path,);
+    else if (found.kind === 'dangling-link')
+      danglingLinks.push(next.path,);
     // A PATH THAT IS NEITHER, a file other than a log or a directory past the
     // depth, has nothing to read.
   }
@@ -211,6 +293,7 @@ export async function capCensusLogsUnder(
     },),)
       .values(),],
     unreadable: unreadable.length,
+    danglingLinks: danglingLinks.length,
   };
 }
 
