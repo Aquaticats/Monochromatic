@@ -6,7 +6,7 @@
     "name": "Aquaticat"
   },
   "hooks": {
-    "Stop": [
+    "PreToolUse": [
       {
         "hooks": [
           {

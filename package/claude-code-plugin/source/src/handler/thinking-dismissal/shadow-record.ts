@@ -67,6 +67,17 @@ type ThinkingDismissalRecord = {
   readonly transcriptPath: string;
 
   /**
+   Tool the dismissal preceded,
+   so the record attributes it to an action.
+   */
+  readonly toolName: string;
+
+  /**
+   Identifier of the tool call the dismissal preceded.
+   */
+  readonly toolUseId: string;
+
+  /**
    Thinking blocks the tail scan examined.
    */
   readonly thinkingBlocks: number;

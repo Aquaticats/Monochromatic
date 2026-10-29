@@ -1,11 +1,22 @@
 # thinking-dismissal
 
-Claude Code `Stop` hook that shadow-records cost dismissals found in the
-session's thinking blocks.
+Claude Code `PreToolUse` hook that shadow-records cost dismissals found in
+the session's thinking blocks.
+
+## Why `PreToolUse`
+
+A dismissal matters when it justifies an action.
+`PreToolUse` is the earliest point where the fresh thinking and the tool call
+it led to are both visible,
+so each record can attribute a dismissal to the action that followed it.
+A `Stop` hook only learns later that some dismissal happened somewhere in the
+turn,
+and it is also where a graduated gate would need to stand
+to demand a proof before an action runs.
 
 ## What it does
 
-Reads the tail of the session transcript at every stop,
+Reads the tail of the session transcript before every tool call,
 looks at each thinking block's sentences,
 and flags the ones that carry algorithmic cost and a dismissal together
 (for example a quadratic scan waved away because the input is short).
@@ -13,21 +24,22 @@ and flags the ones that carry algorithmic cost and a dismissal together
 Everything runs on this machine.
 The record carries a block hash,
 a sentence index,
-and a pattern id;
+a pattern id,
+the tool name and the tool call id;
 never reasoning text,
 because the log must stay safe to keep and read back.
 
 The hook only records.
-It never blocks a stop,
+It never denies a tool call,
 never injects context,
 and never contacts a provider.
 
 ## Where records land
 
-One JSONL line per stop at
+One JSONL line per tool call at
 `~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`,
 overridable with `MONOCHROMATIC_THINKING_DISMISSAL_LOG` for tests.
-Hits a previous stop already recorded are dropped,
+Hits an earlier record already carries are dropped,
 so overlapping tail rescans do not repeat themselves.
 
 ## Pattern

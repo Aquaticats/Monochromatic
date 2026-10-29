@@ -9,8 +9,8 @@
  */
 
 import type {
-  StopInput,
-  StopOutput,
+  PreToolUseInput,
+  PreToolUseOutput,
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import type {
   ReadonlyDeep,
@@ -48,31 +48,36 @@ type ThinkingDismissalDependencies = {
 /**
  Output of the thinking-dismissal handler.
 
- The hook only records, so it never sets `decision` and never blocks a stop.
+ The hook only records, so it sets no `permissionDecision`
+ and lets every tool call through.
  */
-type ThinkingDismissalOutput = StopOutput;
+type ThinkingDismissalOutput = PreToolUseOutput;
 
 /**
- Builds the Stop hook handler that shadow-records size dismissals in thinking.
+ Builds the PreToolUse hook handler that shadow-records size dismissals in
+ thinking.
 
+ `PreToolUse` is the earliest point where the fresh thinking and the action
+ it justifies are both visible,
+ so a record can attribute a dismissal to the tool call that followed it.
  Scanning is local and the record carries hashes and indexes only,
  so no reasoning text reaches the log or any external provider.
- The handler never throws and never blocks:
- a shadow record that cannot be written must not fail the stop.
+ The handler never throws and never denies:
+ a shadow record that cannot be written must not fail the tool call.
 
  @param dependencies - Ambient inputs, defaulting to `process.env`
 
- @returns Handler for one `Stop` event
+ @returns Handler for one `PreToolUse` event
 
  @example
  ```ts
  const handler = createThinkingDismissalHandler();
- await handler({ hook_event_name: 'Stop', stop_hook_active: false, session_id: 's', transcript_path: '/t', cwd: '/c', permission_mode: 'default' });
+ await handler({ hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: {}, tool_use_id: 't', session_id: 's', transcript_path: '/t', cwd: '/c', permission_mode: 'default' });
  ```
  */
 function createThinkingDismissalHandler(
   dependencies: Readonly<ThinkingDismissalDependencies> = {},
-): (event: ReadonlyDeep<StopInput>,) => Promise<ThinkingDismissalOutput> {
+): (event: ReadonlyDeep<PreToolUseInput>,) => Promise<ThinkingDismissalOutput> {
   /**
    Resolved ambient inputs.
    */
@@ -87,7 +92,7 @@ function createThinkingDismissalHandler(
     l: logger,
   },);
 
-  return async function thinkingDismissalHandler(event: ReadonlyDeep<StopInput>,): Promise<ThinkingDismissalOutput> {
+  return async function thinkingDismissalHandler(event: ReadonlyDeep<PreToolUseInput>,): Promise<ThinkingDismissalOutput> {
     /**
      Handler-scoped logger.
      */
@@ -129,6 +134,8 @@ function createThinkingDismissalHandler(
           sessionId: event.session_id,
           time: now,
           transcriptPath: event.transcript_path,
+          toolName: event.tool_name,
+          toolUseId: event.tool_use_id,
           thinkingBlocks: scannedBlocks,
           hits,
         },
@@ -143,22 +150,22 @@ function createThinkingDismissalHandler(
 }
 
 /**
- Parses raw stdin as a {@link StopInput}.
+ Parses raw stdin as a {@link PreToolUseInput}.
 
  Input is trusted; it comes from Claude Code's hook dispatch system.
 
  @param raw - JSON-encoded event payload received on stdin
 
- @returns the parsed Stop event
+ @returns the parsed PreToolUse event
 
  @example
  ```ts
- thinkingDismissalParser('{"hook_event_name":"Stop","stop_hook_active":false}');
+ thinkingDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}');
  ```
  */
-function thinkingDismissalParser(raw: string,): StopInput {
+function thinkingDismissalParser(raw: string,): PreToolUseInput {
   /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted input from Claude Code hook system */
-  return JSON.parse(raw,) as StopInput;
+  return JSON.parse(raw,) as PreToolUseInput;
 }
 
 /**
@@ -185,7 +192,7 @@ function thinkingDismissalWriter(output: ThinkingDismissalOutput,): string {
 /**
  Default handler instance, wired to `process.env`.
  */
-const thinkingDismissalHandler: (event: ReadonlyDeep<StopInput>,) => Promise<ThinkingDismissalOutput> =
+const thinkingDismissalHandler: (event: ReadonlyDeep<PreToolUseInput>,) => Promise<ThinkingDismissalOutput> =
   createThinkingDismissalHandler();
 
 export type {

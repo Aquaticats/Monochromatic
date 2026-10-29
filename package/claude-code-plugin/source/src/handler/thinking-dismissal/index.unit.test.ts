@@ -73,8 +73,10 @@ async function runHandler(
     env: { MONOCHROMATIC_THINKING_DISMISSAL_LOG: logPath, },
   },);
   await handler({
-    hook_event_name: 'Stop',
-    stop_hook_active: false,
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Edit',
+    tool_input: {},
+    tool_use_id: `tool-${id}`,
     session_id: `session-${id}`,
     transcript_path: transcript,
     cwd: SCRATCH,
@@ -111,9 +113,11 @@ await describe({
         ],);
         const record = JSON.parse(raw.trimEnd(),) as {
           readonly thinkingBlocks: number;
+          readonly toolName: string;
           readonly hits: readonly { readonly pattern: string, }[];
         };
         verify(record.thinkingBlocks,).toBe(1,);
+        verify(record.toolName,).toBe('Edit',);
         verify(record.hits.length,).toBe(1,);
         verify(raw.includes('lines are short'),).toBe(false,);
         verify(raw.includes('Quadratic'),).toBe(false,);
@@ -146,16 +150,20 @@ await describe({
           env: { MONOCHROMATIC_THINKING_DISMISSAL_LOG: logPath, },
         },);
         await handler({
-          hook_event_name: 'Stop',
-          stop_hook_active: false,
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Edit',
+          tool_input: {},
+          tool_use_id: 'tool-dedupe-1',
           session_id: 'session-dedupe',
           transcript_path: transcript,
           cwd: SCRATCH,
           permission_mode: 'default',
         },);
         await handler({
-          hook_event_name: 'Stop',
-          stop_hook_active: true,
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: {},
+          tool_use_id: 'tool-dedupe-2',
           session_id: 'session-dedupe',
           transcript_path: transcript,
           cwd: SCRATCH,
@@ -185,10 +193,10 @@ await describe({
       },
     },),
     it({
-      name: 'parses the Stop payload and serializes an unblocking output',
+      name: 'parses the PreToolUse payload and serializes an allowing output',
       fn: async () => {
-        const event = thinkingDismissalParser('{"hook_event_name":"Stop","stop_hook_active":false}',);
-        verify(event.hook_event_name,).toBe('Stop',);
+        const event = thinkingDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}',);
+        verify(event.hook_event_name,).toBe('PreToolUse',);
         verify(thinkingDismissalWriter({},),).toBe('{}',);
       },
     },),
