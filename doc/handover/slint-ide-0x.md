@@ -6018,26 +6018,42 @@ The log writer thread sat in `write(1)` (state `D`, `folio_wait_bit_common`) for
 `WAYLAND_DEBUG` writes from the window thread and stalls the press itself.
 Not shown: that the original two were this, and what holds the folio bit.
 
-Peer session `monochromatic-db` is planning to move packages into product categories (`doc/planning/generic-category-elimination.md`).
-It holds `package/desktop-app/ide`, `package/cli/nested-wayland-session` and `package/desktop-app/terminal` until I tell it they are idle.
-Send it that message (SendMessage to `monochromatic-db`) when the 0.1.3 release below is done and the scratch worktrees are gone.
+IDE 0.1.3 released, 2026-10-29 (pre-release `ide-v0.1.3`, commit `d1477a13ba`, run 40836615403, all jobs succeeded):
+- Cause of the earlier block: the rust-catalog migration (`fd0bd03540`, #1800) made cargo refuse `default-features = false` on a `workspace = true` dependency.
+  Session `monochromatic-fb` fixed the generator in `d1477a13ba` (each crate's generated `[workspace.dependencies]` entry now carries `default-features = false`);
+  I did not edit `rust-catalog.toml` or the generated tables.
+  Control from that session: the old manifest still failed in the same image.
+  Here, `fetch` through the node task CLI in the container passed on the synced tree (exit 0) and left `Cargo.lock` unchanged (`ide` 0.1.3, clean `git status`).
+- Release page: four assets (`ide-0.1.3-linux-x64.tar.gz` 23,492,727 B, `ide-0.1.3-linux-arm64.tar.gz` 23,897,501 B,
+  `ide-0.1.3-third-party-licenses.txt` 581,554 B, `SHA256SUMS`), pre-release true, draft false.
+  `sha256sum --check SHA256SUMS`: three OK.
+  `gh attestation verify` for both archives: signer `ide-release.yml@refs/heads/main`, source digest `d1477a13ba`
+  (the plain command printed nothing on a non-terminal with exit 0; the check was repeated with `--format json` to read the signer).
+  This run was dispatched with `dry-run=false` on `main` without a second dry run; the first dry run (40832288255) had passed on the same version bump.
+- The release workflow now runs in an image whose toolchain `monochromatic-fb` is changing to the pinned nightly (`8652ba7d7f`);
+  the next release records a different `rustc --version`.
+- Remote branch `release-ide-0-1-3` deleted; no `ide-*` systemd units remain.
+- Slip to avoid: `task-run` is not on the agent's PATH; call `node package/dev-script/task-cli/src/run.ts //package/desktop-app/ide:<task>`.
+
+Installed and verified, 2026-10-29:
+- `:bundle` and `:install` ran through the node task CLI against the main checkout, whose `package/desktop-app/ide` had no diff against `d1477a13ba` and no uncommitted changes.
+  `~/.local/bin/monochromatic-ide` and `package/desktop-app/ide/dist/monochromatic-ide` share sha256 `6f6d4952e54a847a839a9fae9990a8755013fe4e6e8fe0e9b3223ea18f6e9cb0`; `--version` prints `monochromatic-ide 0.1.3`.
+  This binary was built here, not taken from the release archive, so its hash differs from the archive's contents.
+- Verifier agent `a7d762ab5939b203e` (nested compositor 0.6.1, headless on RADV, `--scale 2`, disposable Cargo project and cache), nothing failed:
+  start and open file 1 of 1; `rust-analyzer` ready and `didOpen` 1 of 1;
+  hover on `add` showed the signature and doc 1 of 1; Ctrl+click placed the caret on the definition 1 of 1;
+  while running, exactly `tmp-<pid>-<hex>` and `tmp-<pid>-<hex>.lock` existed and the lock was held (`flock --nonblock` exit 1);
+  after `kill -9` the directory and lock file stayed and the lock was free (exit 0);
+  the next launch logged `removed the scratch directory of an ended process` and also answered a hover 1 of 1.
+  After a clean quit the directory stayed until the next launch (consistent with the module doc); a third launch to confirm that removal was not run.
+  Two launches, two hovers, one Ctrl+click, one kill; no synthetic load; no units or processes left.
+- Scratch worktrees `land-scratch` and `rel-0-1-3` removed.
+  `monochromatic-db` was told the three packages are idle and answered that it moves them after its cli batch (it will message me).
+  It recorded that `ide-release.yml`, the `//package/desktop-app/ide` task addresses and this handover carry package paths that must change with the move.
 
 Next, in order:
-- Release IDE 0.1.3 (the shipped binary changed with the scratch directories), BLOCKED:
-  the version bump `1998eda5c5` (`Cargo.toml` and one line of `Cargo.lock`) passed a dry run (run 40832288255, branch `release-ide-0-1-3`:
-  tag `ide-v0.1.3`, four assets, printed `gh release create`),
-  and was pushed to `main` as a merge (`62503cafb3`) on top of another session's `fd0bd03540`
-  "migrate every Rust crate onto rust-catalog.toml (#1800)", which made `package/desktop-app/ide/Cargo.toml` fail to parse:
-  `default-features = false` on a `workspace = true` dependency (`futures-util`, `tree-house`, `vello`, `slint`, `tracing-log`, `clap`, ...) is refused by cargo
-  ("`default-features = false` cannot override workspace's `default-features`").
-  The release run on that push (40835052264) was cancelled before it built; nothing was published, no `ide-v0.1.3` tag or release exists.
-  Seven packages carry `default-features = false` (ide, terminal, nested-wayland-session, truepeak-core, monochromatic-lint, forbidden-regex, forbidden-strings),
-  so the compositor cannot be built either until the catalog or generator is fixed.
-  I messaged the sessions `monochromatic-fb`, `-33` and `-51` (whichever owns #1800) and did not edit `rust-catalog.toml` or the generated `[workspace.dependencies]` tables.
-  When `cargo metadata` in the IDE works again on `origin/main`: rerun the gates that touch dependency resolution (`fetch`, `lint:clippy`, `test`),
-  push a fresh dispatch of `ide-release.yml` with `dry-run=false` (the bump is already on `main`, so a push will not release it),
-  then `sha256sum --check`, `gh attestation verify`, build and install (`task-run //package/desktop-app/ide:bundle` and `:install`), and have the verifier agent check the installed binary.
-- Remove the scratch worktrees (`~/temp/agent/fix-guards`, `~/temp/agent/land-scratch`), the two agent worktrees and branches, `~/temp/agent/guard-cache`, the guard log directories and the `ide-source-guard-*` and `ide-language-confinement-*` artifact directories.
+- When `monochromatic-db` announces the move, check `ide-release.yml`, the `task.ts` and `mise.toml` addresses and this handover's paths, and dry-run the next release from the new location.
+- The compositor needs no release now; its manifest is covered by the same generator fix.
 
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md

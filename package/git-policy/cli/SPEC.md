@@ -3140,6 +3140,7 @@ Annotated tags peel to their target.
 A pushed commit with no known published commit on its destination scans its final tree.
 Directly pushed tree and blob targets scan their complete content.
 Deduplicate exact candidate identities across updates.
+Skip the bytes of a candidate whose blob a parent's tree already holds, as "Content already in history" defines.
 Load unique Git blobs through one `git cat-file --batch` process per evaluation.
 The scanner reads candidate content in process, and no scanner file is materialized.
 Wrapper-added latency for every forwarded real Git command must remain strictly less than `2,000 ms`.
@@ -3159,6 +3160,64 @@ and a scanner failure are engine failures that exit `2`;
 an incomplete policy result emits `policy-incomplete`.
 The policy defaults to error and is warn-unsafe.
 Preserve the independent SLSA-attested CI invocation.
+
+#### Content already in history
+
+A scanned candidate is an added or modified path, so a rename lists its file as an addition,
+and a merge lists every file that one parent lacks as an addition,
+although the bytes are already in history.
+A blob's object name is the hash of its bytes, so a candidate whose blob a parent's tree holds carries no new byte:
+rescanning it only refuses moves of content that was accepted when it entered history.
+The policy therefore reads no bytes for such a candidate.
+
+The reference trees depend on the request that produced the candidates:
+
+- `Add`, `Staged` and `StagedAtBase`: the tree of the baseline commit,
+   which is the recorded base of a commit transaction, else the commit `HEAD` names.
+   An unborn branch has none.
+- `Landed`: the tree of every parent of the landed commit.
+   A root commit has none.
+- `Pushed`: the tree of every parent of a pushed commit that is not itself a pushed commit,
+   so only history the remote already had vouches.
+   A push that carries a tip tree (a tip with no known published commit) has no such parents and skips nothing,
+   because its candidates share one version with the commits' candidates.
+- `Direct`: none.
+   A direct check reports what the selected files hold now.
+
+The rule is exact and local:
+
+- The comparison is the blob object name of the candidate against the blob object names of the reference trees,
+   per candidate.
+   It never compares pathnames and never uses rename or similarity detection.
+   A changed byte changes the object name and the candidate is scanned in full.
+- Only scanned blobs qualify.
+   A deleted path, a submodule entry and the rules file and canonical self-match sources the scanner excludes
+   keep their existing handling, and a gitlink in a reference tree never vouches for a blob.
+- A candidate that this invocation's fix corrected never qualifies,
+   because its bytes are no longer its object's.
+- A known candidate is still given to the scanner with empty content,
+   so a pathname that matches a rule is reported as before, masked.
+- Each reference tree is listed at most once, in reference order, and listing stops when every candidate is placed.
+   No Git process starts for a version without a scannable candidate or without a reference.
+- Failing to list the reference trees never allows a candidate:
+   every candidate is scanned in full and a warning names the failure.
+- Each skip is a decision record on the debug channel (`MONOCHROMATIC_VERBOSE=true`):
+   the scanner's masked pathname, the blob's object name, and the commit whose tree holds it.
+
+Security reasoning.
+The policy exists to keep secrets from entering history and from being published.
+A blob a parent already holds is not new exposure: it is already in the tree the new commit builds on,
+and in a push it is already on the remote.
+Scanning it again blocks legitimate moves without protecting anything new.
+A push counts only parents the remote already had,
+so a secret introduced by a pushed commit is scanned at that commit even when a later pushed commit copies it.
+
+Tradeoffs.
+Content that entered history through an earlier bypass stays unscanned when it is copied or moved,
+and so does content at the paths the scanner never reads, such as the rules file and its own rule sources,
+which is what lets the scanner package move.
+A rule added after a file entered history applies to the file again only when its bytes change.
+The skip can only be as strong as the parent trees: it is never taken from the worktree or the index.
 
 ### Final newline
 
