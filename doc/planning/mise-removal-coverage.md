@@ -578,6 +578,23 @@ The acceptance-boundary behaviors
 This reframe is scoped to the task slice;
  the other slices in this document keep their own gates.
 
+Update 2026-10-29 (contract answer):
+ the user chose Pants 2.33.1
+ as the task-slice owner,
+ and chose the `OPT` tightening
+ ("Score capability for the target workload,
+ never fidelity to incumbents."),
+ commit `3b928a1db5`.
+The reopened vet for Pants
+ opens at
+ [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md);
+ adoption waits on that vet
+ and on explicit acceptance,
+ which unlocks the `doc/decision/` record
+ and the migration of 1,811 task names,
+ 603 edges,
+ and the `//package/<path>:<task>` call sites.
+
 Capability catalog:
  address one task of one package,
 exact dependency edges,
