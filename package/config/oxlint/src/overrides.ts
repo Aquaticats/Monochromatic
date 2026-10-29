@@ -334,9 +334,28 @@ const readonlyEffectSelfHostingOverride = {
 } satisfies OxlintOverride;
 
 /**
+ Two tests read the system temporary directory only to prove that a scratch
+ directory is not inside it, which is the property the `no-system-tmpdir` rule
+ protects, so they must name `tmpdir()` to compare against it. Vendored
+ `upstream-fork` code follows its upstream and is not rewritten to this
+ repository's scratch conventions.
+ */
+const systemTmpdirComparisonOverride = {
+  files: [
+    '**/test-harness/core/src/scratch-root.unit.test.ts',
+    '**/git-clone-size/cli/src/temp-dir.unit.test.ts',
+    '**/upstream-fork/**',
+  ],
+  rules: {
+    'no-restricted-syntax/no-system-tmpdir': 'off' as const,
+  },
+} satisfies OxlintOverride;
+
+/**
  All overrides, ordered from most specific to least specific.
  */
 export const overrides: OxlintOverride[] = [
+  systemTmpdirComparisonOverride,
   readonlyEffectSelfHostingOverride,
   figmaOverride,
   typeFileOverride,
