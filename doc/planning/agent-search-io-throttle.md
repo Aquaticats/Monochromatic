@@ -58,6 +58,26 @@ positive control, but the disk was not saturated: the heavy reader finished 600 
 unlike the 20 to 100 files per second measured earlier under load. The test therefore shows `io.weight` is honored under
 BFQ and says nothing yet about relief during a real stall. The idle class did not protect the light reader in the one run.
 
+### Persistence
+
+The user approved persisting BFQ. `/etc/udev/rules.d/61-nvme-bfq.rules` sets `queue/scheduler` to `bfq` for `nvme0n1`
+on `add|change`; it sorts after Fedora's `/usr/lib/udev/rules.d/60-schedulers.rules`, which sets `kyber` for NVMe.
+Positive control: after resetting the scheduler to `kyber`, `udevadm trigger --action=change --name-match=/dev/nvme0n1`
+restored `bfq`, and `sda` stayed on `kyber`. The boot-time `add` event was not exercised (no reboot).
+To revert, delete the rule file and run `echo kyber | sudo tee /sys/block/nvme0n1/queue/scheduler`.
+
+## Scope requirement: not Claude only
+
+The user ruled out a fix that applies only to Claude Code.
+`package/dev-script/claude-cpu-cap/src/paths.ts` targets exactly one cgroup,
+`app.slice/claude-code-bash`, and re-applies the limit on every pass because Claude Code recreates it each boot.
+Each running `claude` TUI sits in its own `app.slice/app-ghostty-surface-transient-<n>.scope`,
+so any terminal-launched tool (other agent harnesses under `package/pi-plugin` and `package/dsh-plugin`, builds, the user's
+own commands) lands in the same kind of scope. A cgroup name cannot tell an agent from the user's own terminal work.
+Any mechanism must therefore key on something harness-neutral: a dedicated slice that launchers opt into,
+the terminal scopes as a class, or protecting the interactive desktop instead of limiting the agents.
+No `pi` process was running when this was checked, so its cgroup placement is unobserved.
+
 ## Commits are a second I/O consumer
 
 While this note was committed, `ps` showed three concurrent shadow-repository `git commit` processes
