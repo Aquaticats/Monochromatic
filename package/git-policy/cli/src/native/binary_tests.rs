@@ -133,3 +133,7 @@ mod push_environment;
 /// An explicit push that lost a race to another session: the merge is published through the executable's own push.
 #[path = "binary_push_stacking_tests.rs"]
 mod push_stacking;
+
+/// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
+#[path = "binary_lfs_pre_push_tests.rs"]
+mod lfs_pre_push;
