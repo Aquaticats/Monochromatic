@@ -183,6 +183,19 @@ named for that subject and listed here.
   differentials,
   search,
   real-corpus counts and residual classes of the answer to the fourth re-check (B832 follow-ups).
+- [Audit ledger: the source text under a note, the footnote readings, round 8](audit-ledger-source-text-follow-ups-the-footnote-readings-round-eight.md):
+  The image alternative text with an autolink or a code span,
+  the list marker after indented code,
+  indented display math after a line of a paragraph,
+  the footnote that opens with a tag alone,
+  the fence mark indented four columns,
+  the twenty-nine minimal texts of the containers re-check,
+  the pin of the tab path,
+  the placing of the block comparison in the time of the places that matter,
+  and the search,
+  differentials,
+  real-corpus counts,
+  gates and limits of the round (B970 to B979).
 - [Audit ledger: providers, routing and seating](audit-ledger-providers-routing-and-seating.md):
   Findings in the provider clients,
   the router and the seating of models.
