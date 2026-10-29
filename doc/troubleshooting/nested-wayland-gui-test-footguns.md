@@ -173,6 +173,37 @@ none of the 226 accepted ones lost (see `slint-flickable-wheel-jump-outruns-the-
   which never answer `err`,
   wait for the app's own "first frame drawn" fact.
 
+## A click whose log line is not in the file yet is not a lost click (2026-10-29)
+
+A driver sent `click` to the IDE and read the application log a fixed time later:
+2 of 210 sessions had no `source pointer press` line,
+and a rerun of the same reading rule (1.5 s after the reply) gave 8 of 400 on the installed IDE.
+Nothing was lost.
+With a driver that waited for the line,
+3,350 of 3,350 clicks were logged,
+every `click` answered `ok`,
+and the client's own protocol log showed the press and the release on the wire in 1,900 of 1,900 sessions
+(full account with counts: `doc/handover/slint-ide-0x.md`, section "Two of 210 press events that logged nothing").
+The line was in the file up to 2.75 s late (20 of 3,350 later than 1.5 s).
+
+- The IDE's log writer thread can sit in `write(1, ...)` in state `D` (wait channel `folio_wait_bit_common`)
+  for more than a second on a busy disk,
+  while the window thread handles the press at once (8 of 8 sampled late lines);
+  the record exists and is not in the file yet.
+- `WAYLAND_DEBUG=client` writes to the client's standard error from the window thread,
+  so on the same busy disk it stalls the window thread and delays the press itself
+  (26 of 27 sampled late presses were in `write(2, ...)`).
+  Keep that output on memory-backed storage,
+  or leave it off when the question is timing.
+- Workaround for a driver:
+  wait for the line with a deadline well above 3 s,
+  read the file again after the session has ended,
+  and count a click as lost only when `WAYLAND_DEBUG=client` shows no `wl_pointer.button` for it.
+- Positive controls that make the harness show a click that did not reach the text area:
+  `click` at a point no window covers (no `wl_pointer.button` on the wire),
+  and `click` over the minimap (the button reaches the client, no `source pointer press`).
+  Both were seen in 8 of 8 sessions, and neither line appeared in the file within 20 s.
+
 ## Upstream filing decision
 
 `.out-of-scope/` was checked:
