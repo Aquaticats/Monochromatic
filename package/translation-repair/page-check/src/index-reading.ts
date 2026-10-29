@@ -28,11 +28,38 @@ export {
   type BlockDifference,
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
+export { boundOf, } from './corpus-run/source-reading-bound.ts';
+export { cheapestPlacing, } from './corpus-run/source-reading-cheapest.ts';
+export {
+  type Lookahead,
+  lookaheadsOf,
+} from './corpus-run/source-reading-lookahead.ts';
+export {
+  type OverlapIndex,
+  overlapIndexOf,
+  reachesAny,
+} from './corpus-run/source-reading-overlap.ts';
 export {
   indexOfWords,
   matchesAt,
   placedAfter,
 } from './corpus-run/source-reading-places.ts';
+export { firstAtLeast, } from './corpus-run/source-reading-words.ts';
+export { autolinkReading, } from './corpus-run/source-ships-autolink.ts';
+export { joinBeforeFenceMark, } from './corpus-run/source-ships-fence-join.ts';
+export {
+  bodyStartsOnLabelLine,
+  withoutLabelLineTable,
+} from './corpus-run/source-ships-label-line-table.ts';
+export {
+  isIndentedCodeBlock,
+  markerEscapeEdits,
+} from './corpus-run/source-ships-list-marker.ts';
+export { literalBlockReading, } from './corpus-run/source-ships-literal-block.ts';
+export {
+  charactersAt,
+  endOfEdit,
+} from './corpus-run/source-ships-nested-text.ts';
 export { decodedTarget, } from './corpus-run/source-reading-target.ts';
 export { footnoteOpensRawHtml, } from './corpus-run/source-ships-footnote-html.ts';
 export {

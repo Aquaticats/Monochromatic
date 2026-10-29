@@ -1,222 +1,108 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import {
+  type Lookahead,
+  NO_LOOKAHEAD,
+} from './source-reading-lookahead.ts';
+import {
+  firstAtLeast,
+  matchesAt,
+  type Placing,
+  type Placings,
+  type Segment,
+  type WordIndex,
+} from './source-reading-words.ts';
+
+export {
+  indexOfWords,
+  matchesAt,
+  type Placings,
+  type Segment,
+  type WordIndex,
+} from './source-reading-words.ts';
 
 //region Source reading places
 // WHERE THE WORDS OF THE BLOCKS NO RANGE REACHES STAND IN THE WORDS OF THE PAGE, and what it costs to read the page so
 // (`source-reading-blocks.ts` says what the blocks are and why). Each such block, an anchor, is looked for in the words the
 // page shows after the places the anchors before it can end at. The places an anchor can stand at are read off an index of
 // where each word of the page stands, from the first place the anchors before it can end at on, and the places the anchors
-// before it can end at are kept in the order of the page, so no pass reads the whole page for one anchor. What is left is
-// the number of pairs of an anchor and a place it can end at, which grows with the anchors times the places for a page
-// whose anchors all show the same words, and with the places the anchor's first word stands at otherwise.
+// before it can end at are kept in the order of the page, so no pass reads the whole page for one anchor. Where blocks a
+// range reaches stand before an anchor, the places it ends at are not all written: a place that no later anchor can use
+// better than another is left out (`placedAfter` says which), so the work grows with the places that matter and not with
+// the pairs of an anchor and a place it can end at, however often the same words repeat.
 
 /**
- A run of blocks of the source that a disagreeing range reaches, or that none reaches, and the words they show.
+ A place for a list that has none left: at infinity, so that it is never the next.
  */
-export type Segment = {
-  /**
-   Whether a disagreeing range reaches the blocks.
-   */
-  readonly reached: boolean;
-
-  /**
-   Words the blocks show, in order.
-   */
-  readonly words: readonly string[];
-
-  /**
-   How many blocks of the source are in the segment.
-   */
-  readonly blocks: number;
+const NO_PLACING: Placing = {
+  place: Number.POSITIVE_INFINITY,
+  cost: Number.POSITIVE_INFINITY,
 };
 
 /**
- How far the page is read once the words of the blocks no range reaches are placed in it, and what it cost: for each place
- the last such block can end at, in the order of the page, the fewest blocks the readings cannot be asked about on the way
- there.
- */
-export type Placings = ReadonlyMap<number, number>;
+ Where the place at an index of a list stands.
 
-/**
- Where each word of the page stands, in the order of the page.
- */
-export type WordIndex = ReadonlyMap<string, readonly number[]>;
+ @param list - places in the order of the page
 
-/**
- A place the blocks before can end at, and what getting there cost.
- */
-type Placing = {
-  /**
-   Index of the page word the blocks end after.
-   */
-  readonly place: number;
+ @param at - index in the list
 
-  /**
-   Blocks a range reaches that the readings cannot be asked about on the way there.
-   */
-  readonly cost: number;
-};
-
-/**
- Lists where each word of the page stands.
-
- @param page - words the page shows
-
- @returns For each word, the indices it stands at, in order
+ @returns Index of the page word the place stands at; infinity past the end of the list
 
  @example
  ```ts
- const index = indexOfWords({ page: ['a', 'b', 'a',], },); // a: [0, 2], b: [1]
+ const place = placeAt({ list: [{ place: 3, cost: 0, },], at: 1, },); // Infinity
  ```
  */
-export function indexOfWords({ page, }: { readonly page: readonly string[]; },): WordIndex {
-  /**
-   Indices found.
-   */
-  const index = new Map<string, number[]>();
-  for (const [at, word,] of page.entries()) {
-    /**
-     The places the word was found at so far.
-     */
-    const found = index.get(word,);
-    if (found === undefined) {
-      index.set(
-        word,
-        [at,],
-      );
-    }
-    else
-      found.push(at,);
-  }
-  return index;
-}
-
-/**
- Whether a run of words stands in a list of words at an index.
-
- @param page - words to look in
-
- @param at - index to look at
-
- @param words - run of words
-
- @returns Whether the words are the ones of the list from the index on; false for a run that does not fit
-
- @example
- ```ts
- const stands = matchesAt({ page: ['a', 'b',], at: 1, words: ['b',], },); // true
- ```
- */
-export function matchesAt(
+function placeAt(
   {
-    page,
+    list,
     at,
-    words,
   }: {
-    readonly page: readonly string[];
+    readonly list: readonly Placing[];
     readonly at: number;
-    readonly words: readonly string[];
   },
-): boolean {
-  if ((at < 0) || ((at + words.length) > page.length))
-    return false;
-  return words.every(function stands(
-    word,
-    offset,
-  ): boolean {
-    return page[at + offset] === word;
-  },);
+): number {
+  return (list[at] ?? NO_PLACING).place;
 }
 
 /**
- Where the first of a list of ascending numbers that is not below a number stands.
+ Where the first place from an index on stands at which a block may stand.
 
- @param positions - ascending numbers
+ @param positions - where the block's first word stands in the page, in order
 
- @param from - number to reach
+ @param from - first index the place may stand at
 
- @returns Index of the first that is at least the number; the length of the list when there is none
+ @param mayStand - whether the block may stand at a place
+
+ @returns The place; infinity where there is none
 
  @example
  ```ts
- const at = firstAtLeast({ positions: [1, 4, 9,], from: 4, },); // 1
+ const place = firstPlaceAt({ positions: [2, 5,], from: 3, mayStand: () => true, },); // 5
  ```
  */
-function firstAtLeast(
+function firstPlaceAt(
   {
     positions,
     from,
+    mayStand,
   }: {
     readonly positions: readonly number[];
     readonly from: number;
+    readonly mayStand: (place: number,) => boolean;
   },
 ): number {
-  /**
-   The stretch of the list still to search: it holds the answer or ends where it stands.
-   */
-  const search = {
-    low: 0,
-    high: positions.length,
-  };
-  while (search.low < search.high) {
-    /**
-     Middle of the stretch.
-     */
-    const middle = Math.floor((search.low + search.high) / 2,);
-    if (nonNullishOrThrow(positions[middle],) < from)
-      search.low = middle + 1;
-    else
-      search.high = middle;
-  }
-  return search.low;
-}
-
-/**
- Where a run of words stands in the page, at every place from an index on.
-
- @param page - words to look in
-
- @param index - where each word of the page stands
-
- @param words - run of words to find
-
- @param from - first index a place may stand at
-
- @returns Index of the first word of each place the run stands, in order
-
- @example
- ```ts
- const places = placesOf({ page, index: indexOfWords({ page, }), words: ['a',], from: 0, },);
- ```
- */
-function placesOf(
-  {
-    page,
-    index,
-    words,
+  for (let at = firstAtLeast({
+    positions,
     from,
-  }: {
-    readonly page: readonly string[];
-    readonly index: WordIndex;
-    readonly words: readonly string[];
-    readonly from: number;
-  },
-): readonly number[] {
-  /**
-   Where the first word of the run stands in the page, in order.
-   */
-  const positions = index.get(nonNullishOrThrow(words[0],),) ?? [];
-  return positions
-    .slice(firstAtLeast({
-      positions,
-      from,
-    },),)
-    .filter(function standsHere(place,): boolean {
-      return matchesAt({
-        page,
-        at: place,
-        words,
-      },);
-    },);
+  },); at < positions.length; at += 1) {
+    /**
+     A place the first word stands at.
+     */
+    const place = nonNullishOrThrow(positions[at],);
+    if (mayStand(place,))
+      return place;
+  }
+  return Number.POSITIVE_INFINITY;
 }
 
 /**
@@ -254,6 +140,118 @@ function keepCheapest(
 }
 
 /**
+ Lists the places the blocks before can end at, with their cost, in the order of the page.
+
+ @param placings - where the blocks before can end
+
+ @returns The same as a list
+
+ @example
+ ```ts
+ const froms = placingsList({ placings: new Map([[3, 1,],],), },); // [{ place: 3, cost: 1 }]
+ ```
+ */
+function placingsList({ placings, }: { readonly placings: Placings; },): readonly Placing[] {
+  /**
+   The places, as they come.
+   */
+  const froms: Placing[] = [];
+  for (const [place, cost,] of placings) {
+    froms.push({
+      place,
+      cost,
+    },);
+  }
+  return froms;
+}
+
+/**
+ Reads off the places the blocks before can end at the ones that cost less than every place before them: the cost of
+ getting past any place is that of the cheapest place at or before it, and it falls only at these.
+
+ @param froms - places the blocks before can end at, in the order of the page
+
+ @returns The places that cost less than each one before them, in the order of the page
+
+ @example
+ ```ts
+ const steps = stairsOf({ froms: [{ place: 1, cost: 3, }, { place: 2, cost: 4, }, { place: 5, cost: 1, },], },); // places 1, 5
+ ```
+ */
+function stairsOf({ froms, }: { readonly froms: readonly Placing[]; },): readonly Placing[] {
+  /**
+   The steps found.
+   */
+  const steps: Placing[] = [];
+  /**
+   The least cost seen so far.
+   */
+  const seen = { least: Number.POSITIVE_INFINITY, };
+  for (const from of froms) {
+    if (from.cost < seen.least) {
+      steps.push(from,);
+      seen.least = from.cost;
+    }
+  }
+  return steps;
+}
+
+/**
+ Where a block can start so that it follows a place the blocks before end at with exactly the words the blocks a range
+ reaches show between them, and what that costs.
+
+ @param page - words the page shows
+
+ @param froms - places the blocks before can end at, in the order of the page
+
+ @param held - what the blocks a range reaches show since the last block no range reaches
+
+ @param canStartAt - whether the block may start at a place
+
+ @returns The places in the order of the page, each with the cost of the place it follows
+
+ @example
+ ```ts
+ const starts = exactStartsOf({ page, froms, held, canStartAt: () => true, },);
+ ```
+ */
+function exactStartsOf(
+  {
+    page,
+    froms,
+    held,
+    canStartAt,
+  }: {
+    readonly page: readonly string[];
+    readonly froms: readonly Placing[];
+    readonly held: Segment;
+    readonly canStartAt: (place: number,) => boolean;
+  },
+): readonly Placing[] {
+  /**
+   The words the blocks a range reaches show.
+   */
+  const { words: heldWords, } = held;
+  return froms
+    .filter(function showsHeldWords(from,): boolean {
+      return matchesAt({
+        page,
+        at: from.place,
+        words: heldWords,
+      },);
+    },)
+    .map(function startAfter(from,): Placing {
+      return {
+        place: from.place + heldWords.length,
+        cost: from.cost,
+      };
+    },)
+    .filter(function mayStart({ place, },): boolean {
+      return canStartAt(place,);
+    },);
+}
+
+/**
  Places the words of one block no range reaches after each place the blocks before it can end at.
 
  The cost of a way of getting to a place is the cost of the place the blocks before ended at, and the blocks a range
@@ -262,6 +260,12 @@ function keepCheapest(
  and the cheapest of every place the words can start after, which is read off the places in order and not asked of each
  pair. The places the blocks before can end at are in the order of the page, since every call writes them in the order
  of the places it reads, which come in the order of the page and end at the place plus the same number of words.
+
+ THE PLACES THAT CAN NOT BE OF USE ARE LEFT UNWRITTEN when the lookahead says what the blocks after this one ask of them. A
+ place the next stretch is read from is of use only where the page shows the words between the two blocks right after it;
+ and a place that costs as much as the stretch more than a place before it that is of use is not, since the cost of
+ getting from that place to wherever this one leads is no more, and it reaches every place after it. That leaves the
+ places the cost falls at and the few the exact words lead to, however many places the block's words stand at.
 
  @param page - words the page shows
 
@@ -274,6 +278,12 @@ function keepCheapest(
  @param held - what the blocks a range reaches show since the last block no range reaches
 
  @param isLast - whether no block of the source follows
+
+ @param ahead - what the blocks after this one ask of the places it ends at; nothing, so that every place is written, when
+ absent
+
+ @param bound - a cost some way of placing all the blocks is known to have: a place that costs as much is not written, since
+ no way through it costs less; infinity when absent
 
  @returns Where the block can end, with the cost, in the order of the page; none when the page shows its words nowhere
  it can come
@@ -291,6 +301,8 @@ export function placedAfter(
     segment,
     held,
     isLast,
+    ahead = NO_LOOKAHEAD,
+    bound = Number.POSITIVE_INFINITY,
   }: {
     readonly page: readonly string[];
     readonly index: WordIndex;
@@ -298,6 +310,8 @@ export function placedAfter(
     readonly segment: Segment;
     readonly held: Segment;
     readonly isLast: boolean;
+    readonly ahead?: Lookahead;
+    readonly bound?: number;
   },
 ): Placings {
   /**
@@ -305,12 +319,9 @@ export function placedAfter(
    */
   const { words, } = segment;
   /**
-   What the blocks a range reaches show since the last block no range reaches, and how many they are.
+   How many blocks a range reaches stand before the block.
    */
-  const {
-    words: heldWords,
-    blocks: heldBlocks,
-  } = held;
+  const { blocks: heldBlocks, } = held;
   /**
    Where the block can end, with the cost.
    */
@@ -332,14 +343,30 @@ export function placedAfter(
     return (!isLast) || ((place + words.length) === page.length);
   }
 
+  /**
+   Whether the block's words stand at a place, and the block may end there.
+
+   @param place - index of the block's first word
+
+   @returns Whether the block may stand there
+
+   @example
+   ```ts
+   const may = canStandAt(3,);
+   ```
+   */
+  function canStandAt(place: number,): boolean {
+    return canEnd({ place, },) && matchesAt({
+      page,
+      at: place,
+      words,
+    },);
+  }
+
   if (heldBlocks === 0) {
     // No block a range reaches stands between: the block starts where the blocks before it ended.
     for (const [place, cost,] of placings) {
-      if (canEnd({ place, },) && matchesAt({
-        page,
-        at: place,
-        words,
-      },)) {
+      if ((cost < bound) && canStandAt(place,)) {
         keepCheapest({
           next,
           end: place + words.length,
@@ -352,13 +379,7 @@ export function placedAfter(
   /**
    The places the blocks before can end at, with their cost, in the order of the page.
    */
-  const froms: Placing[] = [];
-  for (const [place, cost,] of placings) {
-    froms.push({
-      place,
-      cost,
-    },);
-  }
+  const froms = placingsList({ placings, },);
   /**
    The first place the blocks before can end at.
    */
@@ -366,69 +387,136 @@ export function placedAfter(
   if (first === undefined)
     return next;
   /**
-   Where the block's words stand, the last block's only where they end the page, from the first place the blocks before it
-   can end at.
+   The places the cost of getting past a place falls at.
    */
-  const places = placesOf({
-    page,
-    index,
-    words,
-    from: first.place,
-  },)
-    .filter(function mayEnd(place,): boolean {
-      return canEnd({ place, },);
-    },);
+  const stairs = stairsOf({ froms, },);
   /**
-   How many of those places the words start after, and the cheapest of them.
+   Where the block can start after exactly the words the blocks a range reaches show.
    */
-  const reading = {
-    taken: 0,
-    cheapest: Number.POSITIVE_INFINITY,
+  const exacts = exactStartsOf({
+    page,
+    froms,
+    held,
+    canStartAt: canStandAt,
+  },);
+  /**
+   Where the first word of the block stands in the page.
+   */
+  const positions = index.get(nonNullishOrThrow(words[0],),) ?? [];
+  /**
+   Where the walk over the places has got to: the next place that may be read, how many exact starts and steps of the
+   stairs are behind it, the least cost of a place kept, and the first place the words stand at from the walk on.
+   */
+  const walk = {
+    at: first.place,
+    exact: 0,
+    step: 0,
+    least: Number.POSITIVE_INFINITY,
+    standing: -1,
   };
-  for (const place of places) {
-    for (;;) {
-      /**
-       The next place the blocks before can end at.
-       */
-      const from = froms[reading.taken];
-      if ((from === undefined) || (from.place > place))
-        break;
-      reading.cheapest = Math.min(
-        reading.cheapest,
-        from.cost,
-      );
-      reading.taken += 1;
+  for (;;) {
+    if (walk.standing < walk.at) {
+      walk.standing = firstPlaceAt({
+        positions,
+        from: walk.at,
+        mayStand: canStandAt,
+      },);
     }
     /**
-     The place the blocks before ended at if the words of the page between it and this one are what the blocks a range
-     reaches show.
+     The next exact start, none left where it stands at infinity.
      */
-    const exact = place - heldWords.length;
+    const exact = exacts[walk.exact] ?? NO_PLACING;
     /**
-     What getting there from that place costs, absent where the words are other or no block ended there.
+     The next place the cost is asked at: where the words stand, or an exact start.
      */
-    const exactCost = matchesAt({
-      page,
-      at: exact,
-      words: heldWords,
-    },)
-      ? placings.get(exact,)
-      : undefined;
+    const place = Math.min(
+      walk.standing,
+      exact.place,
+    );
+    if (!Number.isFinite(place,))
+      break;
+    while (placeAt({
+      list: stairs,
+      at: walk.step + 1,
+    },) <= place)
+      walk.step += 1;
     /**
-     The cheapest way to this place: from any place before it at the cost of the blocks a range reaches, or from the exact
-     one at none.
+     Whether the place follows exactly the words the blocks a range reaches show.
+     */
+    const isExact = exact.place === place;
+    /**
+     The cost of getting there from any place before, and from the place exactly the held words back.
+     */
+    const step = nonNullishOrThrow(stairs[walk.step],);
+    /**
+     The cost of getting there from any place before.
+     */
+    const reachedFromAny = step.cost + heldBlocks;
+    /**
+     The cheaper of the two.
      */
     const cost = Math.min(
-      reading.cheapest + heldBlocks,
-      exactCost ?? Number.POSITIVE_INFINITY,
+      reachedFromAny,
+      isExact ? exact.cost : Number.POSITIVE_INFINITY,
     );
-    if (Number.isFinite(cost,)) {
+    if (isExact)
+      walk.exact += 1;
+    walk.at = place + 1;
+    if (reachedFromAny >= bound) {
+      // The places after this one cost as much from any place before, up to where the cost falls or an exact start.
+      walk.at = Math.min(
+        placeAt({
+          list: stairs,
+          at: walk.step + 1,
+        },),
+        placeAt({
+          list: exacts,
+          at: walk.exact,
+        },),
+      );
+    }
+    if (cost >= bound)
+      continue;
+    if (!Number.isFinite(ahead.cost,)) {
       keepCheapest({
         next,
         end: place + words.length,
         cost,
       },);
+      continue;
     }
+    // A place that the next block asked of it is not shown after is of no use.
+    if (!matchesAt({
+      page,
+      at: place + words.length,
+      words: ahead.words,
+    },))
+      continue;
+    if (cost >= (walk.least + ahead.cost)) {
+      // The places after this one that cost the same are of no use either, up to where the cost falls or an exact start.
+      if (!isExact) {
+        walk.at = Math.min(
+          placeAt({
+            list: stairs,
+            at: walk.step + 1,
+          },),
+          placeAt({
+            list: exacts,
+            at: walk.exact,
+          },),
+        );
+      }
+      continue;
+    }
+    walk.least = Math.min(
+      walk.least,
+      cost,
+    );
+    keepCheapest({
+      next,
+      end: place + words.length,
+      cost,
+    },);
   }
   return next;
 }

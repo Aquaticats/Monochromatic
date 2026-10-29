@@ -1,4 +1,5 @@
 import {
+  parseGfmMathBody,
   parseMarkdownMathBody,
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
@@ -32,6 +33,78 @@ import { asTheParseReadsIt, } from './source-ships-readable.ts';
  */
 function isBlank({ text, }: { readonly text: string; },): boolean {
   return text.trim() === '';
+}
+
+/**
+ Finds the openers a tree reads a block of raw HTML to start at.
+
+ @param root - tree of the text
+
+ @param body - text the tree was read from
+
+ @param starts - index of the `<` of each opener of a comment that never closes
+
+ @returns Those of the openers at which a block of raw HTML of the tree starts, after at most white space
+
+ @example
+ ```ts
+ const found = htmlBlockOpeners({ root, body: '<!-- a\n', starts: [0,], },);
+ ```
+ */
+function htmlBlockOpeners(
+  {
+    root,
+    body,
+    starts,
+  }: {
+    readonly root: TreeNode;
+    readonly body: string;
+    readonly starts: readonly number[];
+  },
+): readonly number[] {
+  /**
+   Openers found.
+   */
+  const found: number[] = [];
+  /**
+   Nodes still to read, a work stack so that a deep tree is no deep recursion.
+   */
+  const pending: TreeNode[] = [root,];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if ('children' in node)
+      pending.push(...node.children,);
+    if ((node.type !== 'html') || (node.position === undefined))
+      continue;
+    /**
+     Where the block starts, as a position.
+     */
+    const { start, } = node.position;
+    /**
+     Where the block starts in the text.
+     */
+    const from = start.offset ?? 0;
+    /**
+     Where the first opener at or after the start stands: the block starts at the opener or at white space before it, and a
+     tab that a list item takes in part is read as spaces the text does not hold, so the opener is looked for in the text and
+     not counted off the characters of the block's value.
+     */
+    const opener = body.indexOf(
+      COMMENT_OPEN,
+      from,
+    );
+    if (opener === (-1))
+      continue;
+    /**
+     What stands between the start of the block and the opener.
+     */
+    const gap = body.slice(
+      from,
+      opener,
+    );
+    if (isBlank({ text: gap, },) && starts.includes(opener,))
+      found.push(opener,);
+  }
+  return found;
 }
 
 /**
@@ -72,49 +145,25 @@ export function blockOpenerStarts(
     === 'beyond') {
     return [];
   }
+  // The plain reading has no footnotes, so a block of raw HTML in the body of a footnote definition is seen only by the
+  // reader of the source, which reads them (a comment opener after the label, or on a line of the body indented four
+  // columns, is a block of raw HTML there and indented code or a lazy line to the plain reading).
   /**
-   Openers found.
+   Openers found by each of the two readings.
    */
-  const found: number[] = [];
-  /**
-   Nodes still to read, a work stack so that a deep tree is no deep recursion.
-   */
-  const pending: TreeNode[] = [parseMarkdownMathBody({ body, },),];
-  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
-    if ('children' in node)
-      pending.push(...node.children,);
-    if ((node.type !== 'html') || (node.position === undefined))
-      continue;
-    /**
-     Where the block starts, as a position.
-     */
-    const { start, } = node.position;
-    /**
-     Where the block starts in the text.
-     */
-    const from = start.offset ?? 0;
-    /**
-     Where the first opener at or after the start stands: the block starts at the opener or at white space before it, and a
-     tab that a list item takes in part is read as spaces the text does not hold, so the opener is looked for in the text and
-     not counted off the characters of the block's value.
-     */
-    const opener = body.indexOf(
-      COMMENT_OPEN,
-      from,
-    );
-    if (opener === (-1))
-      continue;
-    /**
-     What stands between the start of the block and the opener.
-     */
-    const gap = body.slice(
-      from,
-      opener,
-    );
-    if (isBlank({ text: gap, },) && starts.includes(opener,))
-      found.push(opener,);
-  }
-  return found.toSorted(function ascending(
+  const found = new Set<number>([
+    ...htmlBlockOpeners({
+      root: parseMarkdownMathBody({ body, },),
+      body,
+      starts,
+    },),
+    ...htmlBlockOpeners({
+      root: parseGfmMathBody({ body, },),
+      body,
+      starts,
+    },),
+  ],);
+  return [...found,].toSorted(function ascending(
     left,
     right,
   ): number {

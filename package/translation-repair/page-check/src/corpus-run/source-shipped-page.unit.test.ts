@@ -942,7 +942,7 @@ await describe({
             ];
             const { page, checks, warnings, } = await publishRows({ rows, },);
             expect(checks,).toEqual([],);
-            expect(page,).toContain(`${NOTE}\n\n${String.raw`    \`\`\``}\n`,);
+            expect(page,).toContain(`${NOTE}\n\n    &#96;&#96;&#96;\n`,);
             expect(page,).toContain('She slept on the counter.',);
             const lines = compositionLines({ warnings, },);
             expect(lines.length,).toBe(1,);

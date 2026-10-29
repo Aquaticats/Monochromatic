@@ -2,6 +2,8 @@ import type {
   BlockRange,
   TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import { readsAsDisplayMath, } from './source-ships-display-math.ts';
+import { rawHtmlRegionsOf, } from './source-ships-footnote-html-region.ts';
 import { splitFlow, } from './source-ships-opener-flow.ts';
 import { openersInFootnoteFlowsOf, } from './source-ships-opener-footnote.ts';
 import {
@@ -334,7 +336,11 @@ export function openersInCodeOf(
      Where the node stands.
      */
     const range = rangeOf({ node, },);
-    if ((type === 'inlineCode') || (type === 'inlineMath')) {
+    // Inline math that is display math to the strict grammar (`source-ships-display-math.ts`) is split as a display math is.
+    if (((type === 'inlineCode') || (type === 'inlineMath')) && (!readsAsDisplayMath({
+      source,
+      range,
+    },))) {
       /**
        What the span comes to.
        */
@@ -421,6 +427,36 @@ export function openersInCodeOf(
 }
 
 /**
+ Finds the blocks of raw HTML of a parse.
+
+ @param root - parse of the text by the plain reading with the site's math
+
+ @returns Where each block of raw HTML stands
+
+ @example
+ ```ts
+ const ranges = htmlRangesOf({ root, },);
+ ```
+ */
+function htmlRangesOf({ root, }: { readonly root: TreeNode; },): readonly TextRange[] {
+  /**
+   Ranges found.
+   */
+  const found: TextRange[] = [];
+  /**
+   Nodes still to read, a work stack so that a deep tree is no deep recursion.
+   */
+  const pending: TreeNode[] = [root,];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    if ('children' in node)
+      pending.push(...node.children,);
+    if (node.type === 'html')
+      found.push(rangeOf({ node, },),);
+  }
+  return found;
+}
+
+/**
  Merges the edits of the other readers with the openers' own and with what takes an opener out of code or math.
 
  @param source - text the parse was read from, with its comments as they stand
@@ -465,27 +501,40 @@ export function editsWithOpeners(
   },
 ): readonly TextEdit[] {
   /**
-   What holds an opener inside a fence or display math under a footnote definition, written outside it.
+   What holds an opener inside a fence or display math under a footnote definition, written outside it, less the lines of
+   the blocks of raw HTML a reader of the source reads, which are text to that reader.
    */
   const underFootnotes = openersInFootnoteFlowsOf({
     source,
     starts,
     closed,
     footnotes,
+    htmlRanges: htmlRangesOf({ root, },),
   },);
   /**
    The openers the footnotes' lines took.
    */
   const { handled: taken, } = underFootnotes;
   /**
+   Where the lines of a block of raw HTML that a footnote definition opens with stand: text on the page, in which the
+   plain reading's code span or math is no code, so an opener there is written as the character reference like any other.
+   */
+  const rawHtml = rawHtmlRegionsOf({
+    source,
+    footnotes,
+  },);
+  /**
    What holds an opener inside code or math elsewhere, written outside it: the openers a footnote's lines took are left to
-   them, since the plain reading may read the same lines as a code span or as indented code.
+   them, since the plain reading may read the same lines as a code span or as indented code, and those in the lines of a
+   block of raw HTML are left as text.
    */
   const atTop = openersInCodeOf({
     source,
     root,
     starts: starts.filter(function notTaken(start,): boolean {
-      return !taken.includes(start,);
+      return (!taken.includes(start,)) && (!rawHtml.some(function holds(region,): boolean {
+        return (region.start <= start) && (start < region.end);
+      },));
     },),
     edits,
     closed,

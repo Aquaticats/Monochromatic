@@ -9,6 +9,10 @@ import {
   endLineOf,
   hasFootnoteLabel,
 } from './source-ships-footnote.ts';
+import {
+  type RawHtmlRegion,
+  rawHtmlRegionsOf,
+} from './source-ships-footnote-html-region.ts';
 import type { FootnoteState, } from './source-ships-pending.ts';
 import {
   closingBracket,
@@ -284,6 +288,16 @@ export type FootnoteReadings = {
   readonly footnoteRanges: readonly BlockRange[];
 
   /**
+   Where the lines of a block of raw HTML that a footnote definition opens with stand, which are text on the page.
+   */
+  readonly rawHtmlRegions: readonly RawHtmlRegion[];
+
+  /**
+   Where a footnote definition starts, for the reader of the source and for the page.
+   */
+  readonly footnoteStarts: readonly number[];
+
+  /**
    Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
    after a paragraph or a link reference definition, less the lines that follow a row of a table.
    */
@@ -295,15 +309,26 @@ export type FootnoteReadings = {
 
  @param readable - text as the parse reads it, with its comments blanked
 
- @returns The tables, the footnote definitions of the page and of the two readings together, and the starts only the page
- reads
+ @param source - the text itself, whose label lines hold the comment openers that `readable` writes as text, so that a
+ footnote definition that opens with one is found to open with raw HTML; `readable` when absent
+
+ @returns The tables, the footnote definitions of the page and of the two readings together, the lines of the raw HTML
+ blocks the definitions open with, and the starts only the page reads
 
  @example
  ```ts
  const { pageOnlyStarts, } = footnoteReadingsOf({ readable: 'a\n    [^1]: y', },);
  ```
  */
-export function footnoteReadingsOf({ readable, }: { readonly readable: string; },): FootnoteReadings {
+export function footnoteReadingsOf(
+  {
+    readable,
+    source = readable,
+  }: {
+    readonly readable: string;
+    readonly source?: string;
+  },
+): FootnoteReadings {
   /**
    Where the strict grammar reads a table.
    */
@@ -322,6 +347,19 @@ export function footnoteReadingsOf({ readable, }: { readonly readable: string; }
     footnoteRanges: withPageOnlyStarts({
       source: sourceFootnoteRanges,
       page: pageFootnoteRanges,
+    },),
+    rawHtmlRegions: rawHtmlRegionsOf({
+      source,
+      footnotes: [
+        ...sourceFootnoteRanges,
+        ...pageFootnoteRanges,
+      ],
+    },),
+    footnoteStarts: [
+      ...sourceFootnoteRanges,
+      ...pageFootnoteRanges,
+    ].map(function startOf({ start, },): number {
+      return start;
     },),
     pageOnlyStarts: startsOffTables({
       source: readable,

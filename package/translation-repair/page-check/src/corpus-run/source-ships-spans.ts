@@ -1,16 +1,17 @@
 import type { TreeNode, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { isLazyDefinition, } from './source-ships-footnote.ts';
 import { continuesTheFootnote, } from './source-ships-footnote-container.ts';
-import {
-  contentStretches,
-  lineJoinsOf,
-} from './source-ships-lines.ts';
-import {
-  autolinkWritten,
-  cutByTable,
-} from './source-ships-links.ts';
+import { lineJoinsOf, } from './source-ships-lines.ts';
+import { autolinkReading, } from './source-ships-autolink.ts';
+import { readsAsDisplayMath, } from './source-ships-display-math.ts';
 import { footnoteRead, } from './source-ships-footnote-spans.ts';
-import { afterLiteralBlockEdits, } from './source-ships-separation.ts';
+import { rawHtmlBlockReading, } from './source-ships-footnote-html-region.ts';
+import { imageAltReading, } from './source-ships-image-alt.ts';
+import {
+  isIndentedCodeBlock,
+  markerEscapeEdits,
+} from './source-ships-list-marker.ts';
+import { literalBlockReading, } from './source-ships-literal-block.ts';
 import {
   footnoteReadingsOf,
   NO_PAGE_ONLY_DEFINITION,
@@ -23,15 +24,11 @@ import {
   topLevelPending,
   withEndLine,
 } from './source-ships-pending.ts';
-import { fenceLengthEdits, } from './source-ships-fenced.ts';
 import {
   closingBracket,
-  FENCE_MARKS,
-  imageTextRanges,
   rangeOf,
   secondLabel,
   type SourceSpans,
-  startsAny,
   type TextEdit,
   type TextRange,
 } from './source-ships-ranges.ts';
@@ -114,15 +111,20 @@ export function spansOf(
   },
 ): SourceSpans {
   /**
-   Where the strict grammar reads a table and a footnote definition, and where the page starts a footnote definition and a
-   reader of the source does not.
+   Where the strict grammar reads a table and a footnote definition, where the page starts a footnote definition and a
+   reader of the source does not, and where the lines of a block of raw HTML that a definition opens with stand.
    */
   const {
     tables,
     pageFootnoteRanges,
     footnoteRanges,
+    rawHtmlRegions,
     pageOnlyStarts,
-  } = footnoteReadingsOf({ readable, },);
+    footnoteStarts,
+  } = footnoteReadingsOf({
+    readable,
+    source,
+  },);
   /**
    Stretches read as text.
    */
@@ -172,6 +174,11 @@ export function spansOf(
    */
   const footnotes = new Map<TreeNode, FootnoteState>();
   /**
+   For each container, whether the block read last in it is indented code, which a line that looks like a list marker
+   right after it is text to.
+   */
+  const endsInIndentedCode = new Map<TreeNode, boolean>();
+  /**
    Nodes still to read, the last of the root's children on top so they come out in order.
    */
   const pending = topLevelPending({ root, },);
@@ -190,6 +197,17 @@ export function spansOf(
      Where its characters are.
      */
     const range = rangeOf({ node, },);
+    /**
+     Whether the block read right before it in its parent is indented code.
+     */
+    const afterIndentedCode = endsInIndentedCode.get(parent,) ?? false;
+    endsInIndentedCode.set(
+      parent,
+      isIndentedCodeBlock({
+        source,
+        node,
+      },),
+    );
     /**
      What the block read last in its parent was.
      */
@@ -265,6 +283,23 @@ export function spansOf(
       parent,
       after,
     );
+    // THE LINES OF A BLOCK OF RAW HTML A FOOTNOTE DEFINITION IN A CONTAINER OPENS WITH are text on the page, whatever the plain
+    // reading makes of them (`source-ships-footnote-html-region.ts`).
+    /**
+     Their content, when the block is one of them.
+     */
+    const html = rawHtmlBlockReading({
+      source,
+      readable,
+      regions: rawHtmlRegions,
+      footnoteStarts,
+      range,
+      inContainer: (!isRootChild) && BLOCK_PARENTS.has(parentType,),
+    },);
+    if (html.inRegion) {
+      absorb({ nested: html, },);
+      continue;
+    }
     // A BLOCK THAT BELONGS TO A FOOTNOTE DEFINITION is read as the body of the footnote is, which
     // `source-ships-footnote-spans.ts` says how.
     /**
@@ -292,7 +327,11 @@ export function spansOf(
       absorb({ nested: read.spans, },);
       continue;
     }
-    if (node.type === 'definition')
+    // A definition, and display math the strict grammar reads, end their block at the line, which no fence mark after it joins.
+    if ((node.type === 'definition') || ((node.type === 'inlineMath') && readsAsDisplayMath({
+      source,
+      range,
+    },)))
       definitionEnds.push(range.end,);
     edits.push(...lineJoinsOf({
       source,
@@ -301,59 +340,45 @@ export function spansOf(
       definitionEnds,
       footnoteStarts: pageOnlyStarts,
     },),);
+    // A LINE THAT LOOKS LIKE A LIST MARKER RIGHT AFTER INDENTED CODE is text to the parse and a list on the page, which has
+    // no indented code, so its marker is written with a backslash (`source-ships-list-marker.ts`).
+    if (afterIndentedCode && (node.type === 'paragraph')) {
+      edits.push(...markerEscapeEdits({
+        source,
+        start: range.start,
+      },),);
+    }
     // A TEXT, AND RAW HTML AMONG INLINE CONTENT, are what MDX reads a brace and a less-than sign in.
     if ((node.type === 'text') || ((node.type === 'html') && (!BLOCK_PARENTS.has(parentType,)))) {
       text.push(range,);
       continue;
     }
-    // A RAW HTML BLOCK, which MDX does not have: it reads such lines as a
-    // paragraph, and the reader sees them as they stand.
-    if (node.type === 'html') {
-      literal.push(...contentStretches({
+    // A RAW HTML BLOCK, AND CODE, EXCEPT THE FENCED KIND, which MDX does not have: it reads such lines as a paragraph,
+    // and the reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
+    if ((node.type === 'html') || (node.type === 'code')) {
+      /**
+       What the block comes to for the page.
+       */
+      const block = literalBlockReading({
         source,
+        readable,
         node,
         range,
-      },),);
-      edits.push(...afterLiteralBlockEdits({
-        readable,
-        range,
-        inContainer: !isRootChild,
-      },),);
+        isRootChild,
+      },);
+      literal.push(...block.literal,);
+      edits.push(...block.edits,);
       continue;
     }
     // THE ALTERNATIVE TEXT OF AN IMAGE is text too; the destination and the title after it are not.
     if ((node.type === 'image') || (node.type === 'imageReference')) {
-      text.push(...imageTextRanges({
-        source,
-        node,
-        range,
-      },),);
-      continue;
-    }
-    // CODE IS COPIED, EXCEPT THE INDENTED KIND, which MDX does not have: it reads such lines as a paragraph, and the
-    // reader sees them as they stand. A fence is lengthened where its code holds a mark MDX would close it at.
-    if (node.type === 'code') {
-      if (startsAny({
-        text: source,
-        at: range.start,
-        candidates: FENCE_MARKS,
-      },))
-        edits.push(...fenceLengthEdits({
-          source,
-          range,
-        },),);
-      else {
-        literal.push(...contentStretches({
+      absorb({
+        nested: imageAltReading({
           source,
           node,
           range,
-        },),);
-        edits.push(...afterLiteralBlockEdits({
-          readable,
-          range,
-          inContainer: !isRootChild,
-        },),);
-      }
+        },),
+      },);
       continue;
     }
     // A DEFINITION that is no footnote keeps its destination and title and has a label read as text.
@@ -372,20 +397,12 @@ export function spansOf(
     // its address is written as text there, without the brackets, and where a table cuts it at a pipe, which leaves no
     // autolink in the source, so it is text as it stands. Any other link keeps everything but its text.
     if ((node.type === 'link') && (source.charAt(range.start,) === '<')) {
-      if (cutByTable({
-        source,
-        range,
-        tables,
-      },)) {
-        text.push(range,);
-        continue;
-      }
-      edits.push({
-        ...range,
-        replacement: autolinkWritten({
+      absorb({
+        nested: autolinkReading({
           source,
           url: node.url,
           range,
+          tables,
           insideLink,
         },),
       },);

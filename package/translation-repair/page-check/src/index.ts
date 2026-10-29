@@ -225,6 +225,11 @@ export {
   takeFootnote,
   topLevelPending,
 } from './corpus-run/source-ships-pending.ts';
+export { readsAsDisplayMath, } from './corpus-run/source-ships-display-math.ts';
+export {
+  rawHtmlBlockReading,
+  rawHtmlRegionsOf,
+} from './corpus-run/source-ships-footnote-html-region.ts';
 export { fenceLengthEdits, } from './corpus-run/source-ships-fenced.ts';
 export {
   holdsIndentedFenceMark,

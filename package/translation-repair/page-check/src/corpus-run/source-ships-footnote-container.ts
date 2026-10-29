@@ -104,6 +104,65 @@ export function footnoteContainerPrefixOf(
 }
 
 /**
+ Whether a line carries the whole of what a container puts before a line: each mark of a block quote, and the indentation
+ a list item asks of a line that is part of it. The one space after the mark of a block quote is no part of it.
+
+ @param source - text
+
+ @param at - index of the first character of the line
+
+ @param pattern - what the container put before the footnote's label on its line, such as `> ` or `- `
+
+ @returns Whether the line is in the container for a reader that lets no lazy line into a block that is no paragraph
+
+ @example
+ ```ts
+ const inside = carriesContainerIndentation({ source: '- a\nb', at: 4, pattern: '- ', },); // false
+ ```
+ */
+export function carriesContainerIndentation(
+  {
+    source,
+    at,
+    pattern,
+  }: {
+    readonly source: string;
+    readonly at: number;
+    readonly pattern: string;
+  },
+): boolean {
+  /**
+   Characters taken off the line so far.
+   */
+  const taken = { count: 0, };
+  for (let place = 0; place < pattern.length; place += 1) {
+    /**
+     The pattern's character at this place.
+     */
+    const mark = pattern.charAt(place,);
+    /**
+     The line's character at the place the pattern is matched against.
+     */
+    const character = source.charAt(at + taken.count,);
+    if (mark === '>') {
+      for (let spaces = 0; (spaces < MOST_SPACES_BEFORE_MARK) && (source.charAt(at + taken.count,) === ' '); spaces += 1)
+        taken.count += 1;
+      if (source.charAt(at + taken.count,) !== '>')
+        return false;
+      taken.count += 1;
+    }
+    else if ((character === ' ') || (character === '\t')) {
+      taken.count += 1;
+    }
+    else if (pattern.charAt(place - 1,) !== '>') {
+      // Anywhere but right after the mark of a block quote, the place must be filled.
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  The indices of the characters of a block indented under a footnote definition in a container that remain once each line
  gives up the marks and the indentation of the container and then the four columns the footnote takes. A lazy line, which
  carries no mark of a block quote, gives up nothing.
@@ -289,7 +348,7 @@ export function opensFootnoteBody(
     return false;
   if (isRootChild || (node.type === 'definition'))
     return true;
-  return node.type === 'paragraph';
+  return (node.type === 'paragraph') || (node.type === 'table');
 }
 
 /**
@@ -405,6 +464,17 @@ export function goesOnAsLazyText(
    */
   const isText = (node.type === 'paragraph') || (node.type === 'html');
   if (!(rightAfter && isText))
+    return false;
+  // A block of raw HTML is no paragraph, so a line without the marks of the container ends the container for a reader of
+  // the source: it is no lazy line of the definition's paragraph, and the lines after it are no part of the footnote.
+  if (state.opensRawHtml && (!carriesContainerIndentation({
+    source,
+    at: source.lastIndexOf(
+      '\n',
+      range.start - 1,
+    ) + 1,
+    pattern: state.prefix,
+  },)))
     return false;
   return !opensFootnote({
     source,

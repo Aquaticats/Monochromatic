@@ -713,6 +713,13 @@ None of these is a text that read the same before.
 The proof that a fix is impossible is not claimed for any of them:
 each is a limit not reached in the time of this round.
 
+Round 8 fixed four of these five kinds at source
+(the image alternative text,
+the tag-alone footnote,
+the list marker after indented code,
+and most of the fence marks indented four columns),
+and records what it left in [its ledger file][round-eight-file] (B970 to B979).
+
 ### Stated limits after the re-check
 
 Dated 2026-10-25.
@@ -726,6 +733,9 @@ and none changes an answer on the real corpus as the re-check measured it
 (274 distinct texts of the pinned clone `a41fc607ea5a70d8a7625cc67d5ed8c444f53379`,
 where every class of text shape named in this section is 0 files,
 with a positive control for each).
+
+Round 8 made the placing linear on this shape (B977 in [its ledger file][round-eight-file]);
+the paragraphs of this section state the limit as the re-check found it.
 
 The work of the placing is quadratic on one shape.
 `placedAfter` in `source-reading-places.ts` costs the square of the blocks when every block shows the same two words
@@ -967,3 +977,4 @@ No version is bumped.
 [tables-file]: audit-ledger-source-text-follow-ups-tables-emphasis-and-raw-html-after-a-paragraph.md
 [blocks-file]: audit-ledger-source-text-follow-ups-the-block-comparison-and-the-openers-in-code.md
 [reading-file]: audit-ledger-source-text-follow-ups-the-reading-comparison-and-the-real-corpus.md
+[round-eight-file]: audit-ledger-source-text-follow-ups-the-footnote-readings-round-eight.md

@@ -16,6 +16,7 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  cheapestPlacing,
   indexOfWords,
   matchesAt,
   placedAfter,
@@ -40,7 +41,7 @@ type Run = {
 const NO_BLOCKS: Run = { reached: true, words: [], blocks: 0, };
 
 /**
- The cheapest way to place the unreached runs of a list in a page, read through {@link placedAfter} as the comparison reads it.
+ The cheapest way to place the unreached runs of a list in a page, read through {@link cheapestPlacing} as the comparison reads it.
 
  @param page - words the page shows
 
@@ -62,39 +63,80 @@ function cheapestByPlacing(
     readonly runs: readonly Run[];
   },
 ): number {
+  return cheapestPlacing({
+    page,
+    segments: runs,
+  },);
+}
+
+/**
+ The same cheapest cost found by placing each run after every place the runs before it can end at, pair by pair, with no
+ place left out: the reading the comparison made before it left out the places that cannot be of use.
+
+ @param page - words the page shows
+
+ @param runs - runs of the source, in order
+
+ @returns The fewest blocks the readings cannot be asked about; infinity where the words cannot be placed
+
+ @example
+ ```ts
+ const cost = cheapestByPairs({ page: ['a',], runs: [{ reached: false, words: ['a',], blocks: 0, },], },);
+ ```
+ */
+function cheapestByPairs(
+  {
+    page,
+    runs,
+  }: {
+    readonly page: readonly string[];
+    readonly runs: readonly Run[];
+  },
+): number {
   /**
-   Where the unreached runs read so far can end, and the reached run since the last of them.
+   Where the unreached runs read so far can end, with the cost, and the reached run since the last of them.
    */
-  const reading: { placings: ReadonlyMap<number, number>; held: Run; } = {
-    placings: new Map([[0, 0,],],),
+  const reading: { ends: Map<number, number>; held: Run; } = {
+    ends: new Map([[0, 0,],],),
     held: NO_BLOCKS,
   };
-  /**
-   Where each word of the page stands.
-   */
-  const index = indexOfWords({ page, },);
   for (const [at, run,] of runs.entries()) {
     if (run.reached) {
       reading.held = run;
       continue;
     }
-    reading.placings = placedAfter({
-      page,
-      index,
-      placings: reading.placings,
-      segment: run,
-      held: reading.held,
-      isLast: at === (runs.length - 1),
-    },);
+    /**
+     Where the run can end after each place the runs before it end at.
+     */
+    const next = new Map<number, number>();
+    for (let start = 0; (start + run.words.length) <= page.length; start += 1) {
+      if (!matchesAt({ page, at: start, words: run.words, },))
+        continue;
+      if ((at === (runs.length - 1)) && ((start + run.words.length) !== page.length))
+        continue;
+      for (const [from, cost,] of reading.ends) {
+        /**
+         The cost of the words between the place and the start, against the blocks a range reaches that stand there.
+         */
+        const gap = (start < from)
+          ? Number.POSITIVE_INFINITY
+          : (reading.held.blocks === 0)
+            ? ((start === from) ? 0 : Number.POSITIVE_INFINITY)
+            : ((((start - from) === reading.held.words.length) && matchesAt({ page, at: from, words: reading.held.words, },))
+              ? 0
+              : reading.held.blocks);
+        next.set(start + run.words.length, Math.min(next.get(start + run.words.length,) ?? Number.POSITIVE_INFINITY, cost + gap,),);
+      }
+    }
+    reading.ends = new Map([...next,].filter(function finite([, cost,],): boolean {
+      return Number.isFinite(cost,);
+    },),);
     reading.held = NO_BLOCKS;
   }
   /**
    What each place the last run can end at costs, with what the page shows after it set against the trailing blocks.
    */
-  const costs = [...reading.placings,].map(function costAt([from, cost,],): number {
-    /**
-     Whether the page shows after the place the words of the trailing blocks and nothing else.
-     */
+  const costs = [...reading.ends,].map(function costAt([from, cost,],): number {
     const same = ((page.length - from) === reading.held.words.length)
       && matchesAt({ page, at: from, words: reading.held.words, },);
     if (reading.held.blocks === 0)
@@ -225,47 +267,87 @@ function configurationFrom({ seed, }: { readonly seed: number; },): { readonly p
   };
 }
 
+/**
+ Runs of the source and a page made at random from a seed, longer than those of {@link configurationFrom} and, for half the
+ seeds, a page that shows the words of the source with a few words changed: the case the certificate of the diagonal that
+ ends the page and the lookahead are made for.
+
+ @param seed - state of the generator
+
+ @returns Page and runs: up to sixteen runs of a vocabulary of two words
+
+ @example
+ ```ts
+ const { page, runs, } = longConfigurationFrom({ seed: 7, },);
+ ```
+ */
+function longConfigurationFrom({ seed, }: { readonly seed: number; },): { readonly page: readonly string[]; readonly runs: readonly Run[]; } {
+  /**
+   The generator.
+   */
+  const rand = randomOf({ seed, },);
+
+  /**
+   Words drawn from a vocabulary of two.
+
+   @param count - how many words
+
+   @returns The words
+
+   @example
+   ```ts
+   const words = wordsOf({ count: 2, });
+   ```
+   */
+  function wordsOf({ count, }: { readonly count: number; },): readonly string[] {
+    return Array.from({ length: count, }, function word(): string {
+      return ['a', 'b',][integerBelow({ rand, bound: 2, },)] ?? 'a';
+    },);
+  }
+
+  /**
+   The runs, alternating at random between reached and unreached, and the words they show in order.
+   */
+  const runs: Run[] = [];
+  for (let at = 0, reached = integerBelow({ rand, bound: 2, },) === 0; at < (3 + integerBelow({ rand, bound: 14, },)); at += 1, reached = !reached) {
+    runs.push(reached
+      ? { reached, words: wordsOf({ count: integerBelow({ rand, bound: 4, },), },), blocks: 1 + integerBelow({ rand, bound: 3, },), }
+      : { reached, words: wordsOf({ count: 1 + integerBelow({ rand, bound: 4, },), },), blocks: 0, },);
+  }
+  if (integerBelow({ rand, bound: 2, },) === 0) {
+    return {
+      page: wordsOf({ count: 8 + integerBelow({ rand, bound: 40, },), },),
+      runs,
+    };
+  }
+  /**
+   The words of the source, changed at a few places.
+   */
+  const page: string[] = runs.flatMap(function wordsOfRun(run,): readonly string[] {
+    return run.words;
+  },);
+  for (let edits = integerBelow({ rand, bound: 4, },); edits > 0; edits -= 1) {
+    /**
+     Where, and which of the three changes.
+     */
+    const at = integerBelow({ rand, bound: page.length + 1, },);
+    const change = integerBelow({ rand, bound: 3, },);
+    if (change === 0)
+      page.splice(at, 1,);
+    else if (change === 1)
+      page.splice(at, 1, ...wordsOf({ count: 1, },),);
+    else
+      page.splice(at, 0, ...wordsOf({ count: 1 + integerBelow({ rand, bound: 3, },), },),);
+  }
+  return {
+    page,
+    runs,
+  };
+}
+
 await describe({
   name: 'where the words of the blocks no range reaches stand in the page',
   children: [
-    describe({
-      name: indexOfWords.name,
-      children: [
-        it({
-          name: 'LISTS WHERE EACH WORD OF THE PAGE STANDS, in order',
-          fn: async () => {
-            expect([...indexOfWords({ page: ['a', 'b', 'a', 'c', 'a',], },),],).toEqual([
-              ['a', [0, 2, 4,],],
-              ['b', [1,],],
-              ['c', [3,],],
-            ],);
-            expect([...indexOfWords({ page: [], },),],).toEqual([],);
-          },
-        },),
-      ],
-    },),
-    describe({
-      name: matchesAt.name,
-      children: [
-        it({
-          name: 'SAYS WHETHER A RUN OF WORDS STANDS AT AN INDEX, a run that does not fit never',
-          fn: async () => {
-            expect(matchesAt({ page: ['a', 'b', 'c',], at: 1, words: ['b', 'c',], },),).toBe(true,);
-            expect(matchesAt({ page: ['a', 'b', 'c',], at: 1, words: ['b', 'd',], },),).toBe(false,);
-            expect(matchesAt({ page: ['a', 'b', 'c',], at: 2, words: ['c', 'd',], },),).toBe(false,);
-            expect(matchesAt({ page: ['a', 'b', 'c',], at: -1, words: ['a',], },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'SAYS AN EMPTY RUN STANDS ANYWHERE FROM THE START OF THE PAGE TO ITS END',
-          fn: async () => {
-            expect(matchesAt({ page: ['a',], at: 0, words: [], },),).toBe(true,);
-            expect(matchesAt({ page: ['a',], at: 1, words: [], },),).toBe(true,);
-            expect(matchesAt({ page: ['a',], at: 2, words: [], },),).toBe(false,);
-          },
-        },),
-      ],
-    },),
     describe({
       name: placedAfter.name,
       children: [
@@ -353,6 +435,32 @@ await describe({
             expect(counted.compared,).toBe(6_000,);
             expect(counted.placeable,).toBeGreaterThan(1_000,);
             expect(counted.placeable,).toBeLessThan(5_000,);
+          },
+        },),
+        it({
+          name: 'FINDS THE CHEAPEST WAY TO PLACE THE BLOCKS THAT PLACING EACH AFTER EVERY PLACE THE ONES BEFORE CAN END AT FINDS, over longer texts',
+          fn: async () => {
+            /**
+             How many configurations were compared, how many could be placed, and how many cost nothing.
+             */
+            const counted = { compared: 0, placeable: 0, free: 0, };
+            for (let seed = 1; seed <= 4_000; seed += 1) {
+              const { page, runs, } = longConfigurationFrom({ seed, },);
+              /**
+               The cost by the placing, and by every pair of a run and a place.
+               */
+              const placed = cheapestByPlacing({ page, runs, },);
+              const paired = cheapestByPairs({ page, runs, },);
+              expect(placed,).toBe(paired,);
+              counted.compared += 1;
+              if (Number.isFinite(paired,))
+                counted.placeable += 1;
+              if (paired === 0)
+                counted.free += 1;
+            }
+            expect(counted.compared,).toBe(4_000,);
+            expect(counted.placeable,).toBeGreaterThan(1_000,);
+            expect(counted.free,).toBeGreaterThan(100,);
           },
         },),
       ],

@@ -25,6 +25,7 @@ import {
   sourceRunsOf,
   wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
+import { compareWithBracketedAlt, } from './source-reading-bracketed-alt.test-fixture.ts';
 import {
   sourceShippedArtifact,
   type SourceShippedRow,
@@ -62,7 +63,9 @@ function differenceFor(
   }: {
     readonly rows: readonly SourceShippedRow[];
     readonly encoded: readonly number[];
-    readonly compareReadings?: () => { readonly kind: 'undecided'; readonly reason: string; };
+    readonly compareReadings?: (
+      input: { readonly source: string; readonly carried: string; },
+    ) => ReturnType<typeof compareWithBracketedAlt>;
   },
 ): {
   readonly defects: ReturnType<typeof differenceDefectsOf>;
@@ -138,7 +141,8 @@ await describe({
       name: 'NAMES THE SLICES OF EACH RUN THE PAGE SHOWS DIFFERENTLY IN ONE DEFECT, and no text of the page',
       fn: async () => {
         /**
-         Two runs apart by a paragraph the archive covers, each holding an image with an angle autolink.
+         Two runs apart by a paragraph the archive covers, each holding an image with an angle autolink, compared with a
+         page built by hand that shows the brackets the source does not.
          */
         const { defects, } = differenceFor({
           rows: [
@@ -160,6 +164,7 @@ await describe({
             1,
             3,
           ],
+          compareReadings: compareWithBracketedAlt,
         },);
         expect(defects.map(function checkOf({ check, },): string {
           return check;
@@ -303,7 +308,7 @@ await describe({
       fn: async () => {
         /**
          A block quote whose footnote the two readings end at different places, and an image whose alternative text is an
-         angle autolink after it.
+         angle autolink after it, compared with a page built by hand that shows the brackets the source does not.
          */
         const { defects, } = differenceFor({
           rows: [
@@ -314,6 +319,7 @@ await describe({
             },
           ],
           encoded: [1,],
+          compareReadings: compareWithBracketedAlt,
         },);
         expect(defects.map(function checkOf({ check, },): string {
           return check;

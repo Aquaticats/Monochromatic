@@ -1,11 +1,10 @@
 import type { SourceBlock, } from './source-reading-account.ts';
+import { cheapestPlacing, } from './source-reading-cheapest.ts';
 import {
-  indexOfWords,
-  matchesAt,
-  placedAfter,
-  type Placings,
-  type Segment,
-} from './source-reading-places.ts';
+  overlapIndexOf,
+  reachesAny,
+} from './source-reading-overlap.ts';
+import type { Segment, } from './source-reading-words.ts';
 import type { TextRange, } from './source-ships-ranges.ts';
 
 //region Source reading blocks
@@ -27,10 +26,10 @@ import type { TextRange, } from './source-ships-ranges.ts';
 // not show where it comes is a difference, and so is a stretch that holds no block of the source and for which the page
 // shows words; a stretch that does not show the same, with a block of the source in it, is undecided.
 //
-// THE WORK. Each anchor is placed in one pass over the places its words stand at and the places the anchors before it can
-// end at (`placedAfter` in `source-reading-places.ts`), read off an index of where each word of the page stands, so
-// the work grows with the number of pairs of an anchor and a place it can end at, and not with the blocks times the words
-// of the page, nor with their cube, however often the same words repeat.
+// THE WORK. Each anchor is placed in one pass over the places that matter (`cheapestPlacing` in `source-reading-cheapest.ts`),
+// read off an index of where each word of the page stands, so the work grows with the places an anchor can end at that no
+// other place makes useless and not with the blocks times the words of the page, nor with their cube, however often the
+// same words repeat.
 
 /**
  What the blocks of a source and of a page say of each other.
@@ -46,39 +45,6 @@ export type BlockDifference = {
    How many blocks of the source a disagreeing range reaches and show other text than the page's blocks in their stretch.
    */
   readonly undecidedBlocks: number;
-};
-
-/**
- Whether two stretches of a text share a character.
-
- @param left - one stretch
-
- @param right - other stretch
-
- @returns Whether they overlap
-
- @example
- ```ts
- const overlap = overlaps({ left: { start: 0, end: 5, }, right: { start: 4, end: 9, }, },); // true
- ```
- */
-function overlaps({
-  left,
-  right,
-}: {
-  readonly left: TextRange;
-  readonly right: TextRange
-},): boolean {
-  return (left.start < right.end) && (right.start < left.end);
-}
-
-/**
- The blocks a range reaches when there are none: nothing shown, no block.
- */
-const NO_BLOCKS: Segment = {
-  reached: true,
-  words: [],
-  blocks: 0,
 };
 
 /**
@@ -197,25 +163,29 @@ export function blockDifferenceOf(
   },
 ): BlockDifference {
   /**
+   The blocks of the source and the ranges, put in the order of their starts to be asked which share a character.
+   */
+  const blockIndex = overlapIndexOf({ ranges: sourceBlocks, },);
+  /**
+   The same for the ranges.
+   */
+  const rangeIndex = overlapIndexOf({ ranges: disagreements, },);
+  /**
    Whether a range reaches no block of the source, so that no block can be set apart as the one it is in.
    */
   const unplaced = disagreements.some(function reachesNone(range,): boolean {
-    return !sourceBlocks.some(function reaches(block,): boolean {
-      return overlaps({
-        left: range,
-        right: block,
-      },);
+    return !reachesAny({
+      index: blockIndex,
+      range,
     },);
   },);
   /**
    For each block of the source, whether a range reaches it.
    */
   const reached = sourceBlocks.map(function reachedOne(block,): boolean {
-    return unplaced || disagreements.some(function reaches(range,): boolean {
-      return overlaps({
-        left: range,
-        right: block,
-      },);
+    return unplaced || reachesAny({
+      index: rangeIndex,
+      range: block,
     },);
   },);
   /**
@@ -224,10 +194,6 @@ export function blockDifferenceOf(
   const page = pageBlocks.flatMap(function wordsOfBlock(account,): readonly string[] {
     return wordsOf({ account, },);
   },);
-  /**
-   Where each word the page shows stands.
-   */
-  const pageIndex = indexOfWords({ page, },);
   /**
    The runs of blocks of the source.
    */
@@ -248,66 +214,12 @@ export function blockDifferenceOf(
     0,
   );
   /**
-   Where the blocks no range reaches can end, and what that cost, as the segments are read in order.
-   */
-  const reading: {
-    placings: Placings;
-    held: Segment
-  } = {
-    placings: new Map([[
-      0,
-      0,
-    ],],),
-    held: NO_BLOCKS,
-  };
-  for (const [index, segment,] of segments.entries()) {
-    if (segment.reached) {
-      reading.held = segment;
-      continue;
-    }
-    reading.placings = placedAfter({
-      page,
-      index: pageIndex,
-      placings: reading.placings,
-      segment,
-      held: reading.held,
-      isLast: index === (segments.length - 1),
-    },);
-    reading.held = NO_BLOCKS;
-  }
-  /**
-   What the blocks a range reaches show after the last block no range reaches.
-   */
-  const trailing = reading.held;
-  /**
-   For each place the last block can end, what the page shows after it against what the trailing blocks show.
-   */
-  const ends: number[] = [];
-  /**
-   What the trailing blocks show, and how many they are.
-   */
-  const {
-    words: trailingWords,
-    blocks: trailingBlocks,
-  } = trailing;
-  for (const [from, cost,] of reading.placings) {
-    /**
-     Whether the page shows after the place what the trailing blocks show, and nothing else.
-     */
-    const same = ((page.length - from) === trailingWords.length) && matchesAt({
-      page,
-      at: from,
-      words: trailingWords,
-    },);
-    if (same)
-      ends.push(cost,);
-    else
-      ends.push((trailingBlocks === 0) ? Number.POSITIVE_INFINITY : (cost + trailingBlocks),);
-  }
-  /**
    The fewest blocks the readings cannot be asked about over every way the words can be placed.
    */
-  const cheapest = Math.min(...ends,);
+  const cheapest = cheapestPlacing({
+    page,
+    segments,
+  },);
   if (Number.isFinite(cheapest,)) {
     return {
       differs: false,
