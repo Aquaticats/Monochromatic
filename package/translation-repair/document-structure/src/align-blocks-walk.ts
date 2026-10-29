@@ -253,7 +253,7 @@ function buildTable(
 
  @param cursor - position inside it
 
- @returns The move that produced that cell
+ @returns Move that produced that cell
 
  @example
  ```ts

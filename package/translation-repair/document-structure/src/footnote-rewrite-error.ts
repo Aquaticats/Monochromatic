@@ -88,7 +88,7 @@ export class FootnoteRewriteError extends Error {
 
  @param error - what the catch caught
 
- @returns The refusal
+ @returns Refusal
 
  @throws The caught value unchanged when it is anything but a rewrite
  refusal, an unexpected state that must keep propagating

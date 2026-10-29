@@ -52,15 +52,15 @@ const SHAPES: readonly string[] = [
 /**
  Every stretch of the stored text a span of the shown one comes back as, joined.
 
- @param shown - the shown text with its runs
+ @param shown - shown text with its runs
 
- @param text - the stored text
+ @param text - stored text
 
  @param start - first offset of the span in the shown text
 
  @param end - exclusive offset where it ends
 
- @returns The stored words of each stretch, in order
+ @returns Stored words of each stretch, in order
 
  @example
  ```ts
@@ -98,7 +98,7 @@ function storedWordsOf(
 
  @param text - text to read
 
- @returns The text with those characters taken out
+ @returns Text with those characters taken out
 
  @example
  ```ts

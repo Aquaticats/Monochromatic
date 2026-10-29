@@ -134,7 +134,7 @@ function textsOf(
 
  @param body - text
 
- @returns The tree as JSON text, positions included
+ @returns Tree as JSON text, positions included
 
  @example
  ```ts

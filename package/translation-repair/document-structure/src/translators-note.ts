@@ -379,7 +379,7 @@ function isGapOnOneLine(
 
  @param text - text the notes stand in
 
- @param notes - the notes to cut, in source order
+ @param notes - notes to cut, in source order
 
  @returns One stretch for each run of notes, in source order and apart from
  each other: a word or a line break stands between any two
@@ -448,10 +448,10 @@ function noteStretchesOf(
 
  @param text - text the stretch stands in
 
- @param stretch - the notes to cut, from the first one's opening delimiter to
+ @param stretch - notes to cut, from the first one's opening delimiter to
  the last one's end
 
- @returns The stretch to remove, in offsets of the text
+ @returns Stretch to remove, in offsets of the text
 
  @example
  ```ts
@@ -544,10 +544,10 @@ function cutAround(
 
  @param text - passage whose notes are cut
 
- @param original - the original passage, whose own comments stay: a note found
+ @param original - original passage, whose own comments stay: a note found
  verbatim in it is the original's markup, whatever language it is in
 
- @returns The stretches to take out, in source order and apart from each other;
+ @returns Stretches to take out, in source order and apart from each other;
  none for a text with no note of its own
 
  @example
@@ -589,7 +589,7 @@ export function noteCutsOf(
 
  @param text - passage whose wording is compared
 
- @param original - the original passage, whose own comments stay: a note found
+ @param original - original passage, whose own comments stay: a note found
  verbatim in it is the original's markup, whatever language it is in
 
  @returns Text with each note cut out along with the space or line it stood on
@@ -640,11 +640,11 @@ export function withoutTranslatorsNotes(
 /**
  The archive's notes between translators that a page's wording does not carry.
 
- @param archive - the archive's text for a slice
+ @param archive - archive's text for a slice
 
- @param page - the text the page carries for it
+ @param page - text the page carries for it
 
- @returns The archive's notes whose words no comment of the page repeats, in
+ @returns Archive's notes whose words no comment of the page repeats, in
  archive order; a note re-wrapped across lines counts as carried
 
  @example

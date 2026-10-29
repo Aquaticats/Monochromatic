@@ -111,7 +111,7 @@ export function leadingMarkWidth({ text, }: { readonly text: string; },): number
  and for a malformed position answered states the parser never produces,
  where a changed parser should fail loudly instead (T8, twenty-third batch).
 
- @param cause - the parser's refusal
+ @param cause - parser's refusal
 
  @returns Phrase naming position and fault code
 
@@ -191,7 +191,7 @@ export class FrontMatterParseError extends Error {
 
  @param error - what the catch caught
 
- @returns The refusal
+ @returns Refusal
 
  @throws The caught value unchanged when it is anything but the YAML
  refusal, an unexpected state that must keep propagating

@@ -30,7 +30,7 @@ import {
 /**
  A state that has read nothing.
 
- @returns A fresh state, its counts all zero
+ @returns Fresh state, its counts all zero
 
  @example
  ```ts

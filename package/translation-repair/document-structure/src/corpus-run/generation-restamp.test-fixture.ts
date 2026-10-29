@@ -13,7 +13,7 @@ import { isJsonRecord, } from '../../dist/final/node/index.mjs';
 
  @param text - artifact JSON as the writer wrote it
 
- @returns The restamped artifact's JSON text
+ @returns Restamped artifact's JSON text
 
  @throws {@link Error} when the text is not a JSON object, which no artifact writer writes
 

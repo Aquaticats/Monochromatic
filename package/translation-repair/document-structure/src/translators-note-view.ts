@@ -103,9 +103,9 @@ export type StoredStretch = {
 /**
  The runs of a text between its cuts.
 
- @param text - the stored text
+ @param text - stored text
 
- @param cuts - the stretches taken out, in order and apart from each other
+ @param cuts - stretches taken out, in order and apart from each other
 
  @returns One stretch of stored offsets for each gap between cuts, the empty
  ones left out
@@ -150,12 +150,12 @@ function storedRunsBetween(
 /**
  A text as a judge is shown it, with the map back to the stored text.
 
- @param text - the stored passage
+ @param text - stored passage
 
- @param original - the original passage, whose own comments stay in view: the
+ @param original - original passage, whose own comments stay in view: the
  same one the sheet was cut against, or the map describes another text
 
- @returns The shown text, identical to `withoutTranslatorsNotes` for the same
+ @returns Shown text, identical to `withoutTranslatorsNotes` for the same
  arguments, and the runs of it that stand unbroken in the stored text
 
  @example
@@ -223,7 +223,7 @@ export function shownTranslation(
 /**
  Whether the shown character at an offset is a space, a tab or a line break.
 
- @param shown - the shown text
+ @param shown - shown text
 
  @param at - offset in it
 
@@ -253,13 +253,13 @@ function isBreakOrSpace(
 /**
  First offset of a stretch of the shown text that is not a space, a tab or a line break.
 
- @param shown - the shown text
+ @param shown - shown text
 
  @param from - first offset of the stretch
 
  @param to - exclusive offset where it ends
 
- @returns The offset, `to` when the stretch is nothing but breaks and spaces
+ @returns Offset, `to` when the stretch is nothing but breaks and spaces
 
  @example
  ```ts
@@ -292,13 +292,13 @@ function offsetPastBreaks(
 /**
  Exclusive offset past the last character of a stretch of the shown text that is not a space, a tab or a line break.
 
- @param shown - the shown text
+ @param shown - shown text
 
  @param from - first offset of the stretch
 
  @param to - exclusive offset where it ends
 
- @returns The offset, `from` when the stretch is nothing but breaks and spaces
+ @returns Offset, `from` when the stretch is nothing but breaks and spaces
 
  @example
  ```ts
@@ -332,15 +332,15 @@ function offsetBeforeBreaks(
  The reach of a span inside one run, without the whitespace a cut left on the
  edge it touches.
 
- @param shown - the shown text with its runs
+ @param shown - shown text with its runs
 
- @param run - the run
+ @param run - run
 
  @param start - first offset of the span in the shown text
 
  @param end - exclusive offset where it ends
 
- @returns The stored stretch, none where the span misses the run or what it
+ @returns Stored stretch, none where the span misses the run or what it
  reaches of it is whitespace beside a cut
 
  @example
@@ -411,7 +411,7 @@ function stretchInRun(
 /**
  Where a span of the shown text stands in the stored text.
 
- @param shown - the shown text with its runs
+ @param shown - shown text with its runs
 
  @param start - first offset of the span in the shown text
 

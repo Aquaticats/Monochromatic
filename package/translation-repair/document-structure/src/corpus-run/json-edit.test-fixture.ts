@@ -91,9 +91,9 @@ export type JsonEdit =
 
  @param path - where the value goes
 
- @param value - the value
+ @param value - value
 
- @returns The edit
+ @returns Edit
 
  @example
  ```ts
@@ -119,7 +119,7 @@ export function setAt({
 
  @param path - where the key sits
 
- @returns The edit
+ @returns Edit
 
  @example
  ```ts
@@ -138,9 +138,9 @@ export function removeAt({ path, }: { readonly path: JsonPath; },): JsonEdit {
 
  @param path - where the array sits
 
- @param value - the value
+ @param value - value
 
- @returns The edit
+ @returns Edit
 
  @example
  ```ts
@@ -166,7 +166,7 @@ export function appendAt({
 
  @param path - where the array sits
 
- @returns The edit
+ @returns Edit
 
  @example
  ```ts
@@ -183,11 +183,11 @@ export function dropLastAt({ path, }: { readonly path: JsonPath; },): JsonEdit {
 /**
  What sits at a path.
 
- @param root - the record
+ @param root - record
 
  @param path - where to look
 
- @returns The value there
+ @returns Value there
 
  @throws {@link Error} when the path leaves the record
 
@@ -221,13 +221,13 @@ export function valueAt({
 /**
  A copy of a record with the value at a path replaced by a function of it.
 
- @param root - the record
+ @param root - record
 
  @param path - where the value sits, empty for the record itself
 
  @param change - makes the new value from the old
 
- @returns The changed copy; the original is untouched
+ @returns Changed copy; the original is untouched
 
  @throws {@link Error} when the path leaves the record
 
@@ -291,11 +291,11 @@ function changedAt(
 /**
  Applies edits to a record, one after another.
 
- @param root - the record
+ @param root - record
 
- @param edits - the changes, in order
+ @param edits - changes, in order
 
- @returns The changed copy; the original is untouched
+ @returns Changed copy; the original is untouched
 
  @throws {@link Error} when an edit's path leaves the record
 

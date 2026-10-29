@@ -87,7 +87,7 @@ export type ParsedSpan = {
 
  @param node - link or reference link whose own span the caller found present
 
- @param bounds - the link's own span
+ @param bounds - link's own span
 
  @returns Spans in source order, the whole link when its label is empty
 
@@ -252,7 +252,7 @@ function ownSpans(
 
  @param root - tree one grammar read the masked text into
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @param comments - spans of the comments masked out of it
 
@@ -341,11 +341,11 @@ type GrammarReading = {
 
  @param root - tree one grammar read the masked text into
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @param comments - spans of the comments masked out of it
 
- @returns The spans and the definition starts
+ @returns Spans and definition starts
 
  @throws FootnoteRewriteError of the `position` kind when an unpositioned run
  cannot be placed in the raw text, a tree shape no input is known to build
@@ -393,11 +393,11 @@ const NO_PLAIN_READING: unique symbol = Symbol('plain markdown refused the text 
 /**
  Reads what plain markdown settles.
 
- @param masked - the text the parser reads
+ @param masked - text the parser reads
 
  @param comments - spans of the comments masked out of it
 
- @returns The reading, or {@link NO_PLAIN_READING} when the parser's stack is exhausted
+ @returns Reading, or {@link NO_PLAIN_READING} when the parser's stack is exhausted
 
  @throws FootnoteRewriteError of the `position` kind when an unpositioned run
  cannot be placed in the raw text, a tree shape no input is known to build
@@ -442,7 +442,7 @@ function plainReading(
 
  @param right - disjoint spans in source order
 
- @returns The stretches both lists cover, disjoint and in source order
+ @returns Stretches both lists cover, disjoint and in source order
 
  @example
  ```ts

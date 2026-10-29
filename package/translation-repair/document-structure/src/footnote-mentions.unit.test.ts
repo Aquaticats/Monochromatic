@@ -27,7 +27,7 @@ import {
 
  @param count - markers to write
 
- @returns The text
+ @returns Text
  */
 function markers({ count, }: { readonly count: number; },): string {
   return Array.from(

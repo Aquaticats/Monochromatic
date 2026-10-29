@@ -132,7 +132,7 @@ const LINE_END_SPACE: ReadonlySet<string> = new Set([
 
  @param line - line without its line feed
 
- @returns The line without trailing spaces, tabs and carriage returns; any other white space stays, since it is text
+ @returns Line without trailing spaces, tabs and carriage returns; any other white space stays, since it is text
 
  @example
  ```ts

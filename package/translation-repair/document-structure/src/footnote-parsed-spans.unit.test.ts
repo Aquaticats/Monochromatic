@@ -25,7 +25,7 @@ import {
 
  @param text - fragment to read
 
- @returns The spans, disjoint and in source order
+ @returns Spans, disjoint and in source order
 
  @example
  ```ts

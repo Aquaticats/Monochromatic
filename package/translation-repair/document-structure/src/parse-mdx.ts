@@ -373,7 +373,7 @@ function movePastDropped(
  Moves both ends of a parsed position on by the characters the parser
  dropped.
 
- @param position - the `position` of a node, moved in place
+ @param position - `position` of a node, moved in place
 
  @param width - characters the parser dropped from the start of the body
 
@@ -602,7 +602,7 @@ export function parseMdxBody({ body, }: { readonly body: string; },): Root {
 
  @param error - what the catch caught
 
- @returns The refusal the grammar raised, or the one {@link withMdxExhaustionRefused} built for an exhaustion of the parse
+ @returns Refusal the grammar raised, or the one {@link withMdxExhaustionRefused} built for an exhaustion of the parse
 
  @throws The caught value unchanged when it is anything but the grammar's refusal,
  the engine's stack exhaustion among it, an unexpected state that must keep propagating
@@ -628,7 +628,7 @@ export function requireMdxRefusal({ error, }: { readonly error: unknown; },): Md
  call, so a boundary reads the page as text and goes on. An exhaustion raised by any other code of the boundary's block
  is not raised by this call, reaches {@link requireMdxRefusal} raw and propagates.
 
- @param parse - the parse call, such as `parseMdxBody`, whose exhaustion is a fact about the text it was given
+ @param parse - parse call, such as `parseMdxBody`, whose exhaustion is a fact about the text it was given
 
  @param input - what the parse is given
 
@@ -694,7 +694,7 @@ export class MarkdownParseError extends RangeError {
 
    @param reading - where the body passed the bound, or `'stack-exhausted'`
 
-   @param cause - the stack exhaustion that was caught, whose message is fixed
+   @param cause - stack exhaustion that was caught, whose message is fixed
    engine text, absent for a body refused by the bound
 
    @example
@@ -802,7 +802,7 @@ export function parseMarkdownBody({ body, }: { readonly body: string; },): Root 
 
  @param error - what the catch caught
 
- @returns The refusal the plain grammar raised, or the one {@link withMarkdownExhaustionRefused} built for an exhaustion of the parse
+ @returns Refusal the plain grammar raised, or the one {@link withMarkdownExhaustionRefused} built for an exhaustion of the parse
 
  @throws The caught value unchanged when it is anything but the plain
  grammar's refusal, the engine's stack exhaustion among it, an unexpected state that must keep propagating
@@ -826,7 +826,7 @@ export function requireMarkdownRefusal({ error, }: { readonly error: unknown; },
  too deep to read that the refusal names. The refusal is built here, after the stack has unwound to this call. An
  exhaustion raised by any other code of the boundary's block is not raised by this call and propagates.
 
- @param parse - the parse call, such as `parseMarkdownBody`, whose exhaustion is a fact about the text it was given
+ @param parse - parse call, such as `parseMarkdownBody`, whose exhaustion is a fact about the text it was given
 
  @param input - what the parse is given
 
@@ -915,7 +915,7 @@ type ReadyRefusals = {
 /**
  Builds each refusal for a stack exhaustion once and drops it.
 
- @returns The refusals built, which the module-level call that runs this at load drops
+ @returns Refusals built, which the module-level call that runs this at load drops
 
  @example
  ```ts

@@ -227,7 +227,7 @@ const TAILS: readonly Tail[] = [
 
  @param tail - text that follows
 
- @returns The text, lines joined by a line feed
+ @returns Text, lines joined by a line feed
 
  @example
  ```ts
@@ -348,7 +348,7 @@ function rawTreeDepth(
 /**
  How long one entry takes to parse a text, and whether it refused.
 
- @param run - the entry applied to the text
+ @param run - entry applied to the text
 
  @returns Milliseconds taken and the refusal the entry raised, if any
 

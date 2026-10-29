@@ -112,7 +112,7 @@ type SeparatorForm = {
 
  @param separator - what stands between the name and the rest of the tag
 
- @returns The forms, in a fixed order
+ @returns Forms, in a fixed order
 
  @example
  ```ts

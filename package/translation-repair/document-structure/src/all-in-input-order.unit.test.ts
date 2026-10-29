@@ -73,11 +73,11 @@ function membersOf(
 /**
  One gate of a run.
 
- @param gates - the run's gates
+ @param gates - run's gates
 
  @param position - gate to take
 
- @returns The gate at that position
+ @returns Gate at that position
 
  @example
  ```ts

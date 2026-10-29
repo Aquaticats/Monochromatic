@@ -63,7 +63,7 @@ export const NO_NODE_BOUNDS: unique symbol = Symbol('no raw bounds on a node MDA
 
  @param node - any node the walk holds
 
- @returns The node's raw offsets in the masked parser input, or
+ @returns Node's raw offsets in the masked parser input, or
  {@link NO_NODE_BOUNDS} where a transform rebuilt the node without
  positions
 
