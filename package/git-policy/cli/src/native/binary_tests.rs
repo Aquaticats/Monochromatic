@@ -137,3 +137,7 @@ mod push_stacking;
 /// The Git LFS upload before a push: every push the executable starts carries it, and a failure stops the push.
 #[path = "binary_lfs_pre_push_tests.rs"]
 mod lfs_pre_push;
+
+/// The same upload with the real `git-lfs` against an LFS server written inline.
+#[path = "binary_lfs_server_tests.rs"]
+mod lfs_server;
