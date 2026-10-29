@@ -369,6 +369,36 @@ The last four run only where the file lists them.
    which may be absent.
   A file named by `rulesFile` or by the variable must exist.
 
+#### Content already in history is not scanned again
+
+`security/forbidden-strings` reads the bytes of a candidate
+only when no parent commit's tree already holds that exact blob.
+A pure rename, a copy of an existing file, and a merge that brings a file only one parent has therefore pass,
+because a blob's object name is the hash of its bytes and the bytes are already in history.
+What counts as a parent depends on the command:
+
+- `git add`, and a commit being made: the commit the new commit is based on (the recorded base, else `HEAD`).
+- The post-commit pass over a landed commit: every parent of that commit.
+- The pre-push pass: every parent of a pushed commit that is not itself being pushed,
+   so a parent that is part of the push vouches for nothing.
+   A push that includes a tip with no known published history skips nothing.
+- `git cli-git check`, a root commit and an unborn branch have no parent tree, so everything is scanned.
+
+The comparison is by exact blob object name per path, never by path name or by similarity,
+so one changed byte makes the file new and it is scanned in full.
+The pathname of a skipped file is still scanned, because a rename gives the content a new name.
+A file that a fix corrected during the same invocation is never skipped, because its bytes are no longer its object's.
+If the parent trees cannot be listed, every candidate is scanned in full and a warning says why.
+
+Each skipped file is recorded on standard error as a debug line when `MONOCHROMATIC_VERBOSE=true`:
+the masked pathname, the blob's object name, and the commit whose tree holds it.
+
+Tradeoffs.
+Content that reached a parent through an earlier bypass, or that sits at a path the scanner never reads
+(the rules file and the scanner's own rule sources), stays unscanned wherever it is copied or moved to afterwards.
+That is also what lets the scanner's own package move to a new directory.
+A rule added to the scanner after a file entered history is applied to that file again only when its bytes change.
+
 A `warn` setting reports findings without blocking.
 A policy whose protection `warn` would remove produces a configuration warning event when the file sets it to `warn`.
 
