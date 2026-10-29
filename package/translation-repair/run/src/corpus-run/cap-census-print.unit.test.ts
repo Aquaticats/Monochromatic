@@ -58,7 +58,7 @@ const TALLY_PLURAL = {
  @param sinceCaps - of those, calls since the caps
  @param atCap - of those, calls at the cap
 
- @returns The reading, its cut calls all carrying content
+ @returns Reading, its cut calls all carrying content
 
  @example
  ```ts
@@ -92,10 +92,10 @@ function readingOf(
  A seat's row over the given readings.
 
  @param placeholder - whether the card names the pooled 99th
- @param ruleCap - the rule's reading
+ @param ruleCap - rule's reading
  @param providers - one reading per provider
 
- @returns The row
+ @returns Row
 
  @example
  ```ts
@@ -125,11 +125,11 @@ function rowOf(
 /**
  What `printCapCensus` printed for a census and a tally.
 
- @param census - the rule applied per seat
+ @param census - rule applied per seat
  @param tally - what was counted before it
  @param printed - capture of `console.log`
 
- @returns The lines, one per call
+ @returns Lines, one per call
 
  @example
  ```ts

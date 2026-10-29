@@ -203,7 +203,7 @@ function refusalSays({ names, }: { readonly names: readonly string[]; },): strin
 
  @param lines - lines the report printed with console.log
 
- @returns The summary, parsed, as an object
+ @returns Summary, parsed, as an object
 
  @example
  ```ts

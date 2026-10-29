@@ -60,7 +60,7 @@ export type ProviderKeys = {
 
  @param env - environment the keys are read from: `process.env` in a run
 
- @returns The five keys, and the two optional ones empty where unset
+ @returns Five keys, and the two optional ones empty where unset
 
  @throws {@link StatedRefusalError} when any key is absent or empty, naming
  each variable and whether it is present, since a sample of some providers

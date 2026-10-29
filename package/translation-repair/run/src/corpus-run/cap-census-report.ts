@@ -31,7 +31,7 @@ import type { CommandLineOf, } from './command-lines.ts';
 
  Returns nothing: the report on stdout IS the output.
 
- @param line - the census's command line, read whole by `reportingRefusals`,
+ @param line - census's command line, read whole by `reportingRefusals`,
  which refuses it when no path is named
 
  @example

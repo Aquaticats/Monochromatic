@@ -67,7 +67,7 @@ const HYPER_ID = MODEL_CARDS[SEAT].hyper?.id ?? 'no hyper block';
 
  @param completions - completion counts, one sample each
 
- @returns The samples
+ @returns Samples
 
  @example
  ```ts
@@ -103,7 +103,7 @@ function samplesOf(
 
  @param step - multiplier
 
- @returns The counts
+ @returns Counts
 
  @example
  ```ts
@@ -121,13 +121,13 @@ function stepped({ n, step, }: { readonly n: number; readonly step: number; },):
 
  @param placeholder - whether the card names the pooled 99th
 
- @param ruleCap - the rule's reading
+ @param ruleCap - rule's reading
 
  @param sinceCaps - calls since the caps
 
  @param atCap - of those, calls at the cap
 
- @returns The row
+ @returns Row
 
  @example
  ```ts

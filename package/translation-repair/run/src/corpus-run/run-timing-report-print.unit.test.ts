@@ -81,7 +81,7 @@ const INSTANT_ROUND: RoundTiming = {
 
  @param rounds - rounds the log reported
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts

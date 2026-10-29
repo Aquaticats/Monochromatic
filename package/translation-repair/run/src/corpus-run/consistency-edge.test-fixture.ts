@@ -124,7 +124,7 @@ export function everySeatQuotes(
  as the first place's pattern asks, and the sentence's sheet as the first place
  winning.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of a seat that answers it
 
@@ -160,7 +160,7 @@ export function fourthAlreadyFollows({ sheet, }: { readonly sheet: string; },): 
  Every seat answers the sentence's sheet with a second quote that runs on into
  the refrain's line, and the refrain's sheet as the first place winning.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of a seat that answers it
 
@@ -197,7 +197,7 @@ export function sentenceQuoteSpansTheRefrain({ sheet, }: { readonly sheet: strin
  subject's name inside the slot's line, and the sentence's sheet as the first
  place winning.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of a seat that answers it
 
@@ -237,7 +237,7 @@ export function slotWithTheName({ sheet, }: { readonly sheet: string; },): SeatB
 
  @param prepared - preparation of the page
 
- @returns The same preparation with its blocks' text blanked
+ @returns Same preparation with its blocks' text blanked
 
  @example
  ```ts
@@ -273,7 +273,7 @@ export function withBlankedBlocks(
 /**
  The outcome of every place of every group, group by group.
 
- @param consistency - the section
+ @param consistency - section
 
  @returns One list of outcomes per group, in page order
 

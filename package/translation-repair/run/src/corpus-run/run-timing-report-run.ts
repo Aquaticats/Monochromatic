@@ -27,7 +27,7 @@ import {
 
  Returns nothing: the report on stdout IS the output.
 
- @param line - the report's command line, read whole by `reportingRefusals`,
+ @param line - report's command line, read whole by `reportingRefusals`,
  which refuses it when no log is named: any log a pass, probe or calibration
  wrote will do, and passing several reads them as one run
 

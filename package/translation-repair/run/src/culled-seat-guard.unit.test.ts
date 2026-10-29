@@ -54,7 +54,7 @@ const DECISION_REPLY = { answers: ['windowsill',], } as unknown as DecisionReply
 
  @param withDecide - whether it carries the decision exchange
 
- @returns The client and the calls it received, as `exchange model`
+ @returns Client and calls it received, as `exchange model`
  */
 function recordingClient({ withDecide, }: { readonly withDecide: boolean; },): {
   readonly client: ModelClient;
@@ -105,7 +105,7 @@ function recordingClient({ withDecide, }: { readonly withDecide: boolean; },): {
 
  @param modelId - model named
 
- @returns The request, cast past the fields the guard never reads
+ @returns Request, cast past the fields the guard never reads
  */
 function requestFor(modelId: string,): ChatTextRequest & ChatJsonRequest<unknown> & DecisionRequest {
   return { modelId, } as unknown as ChatTextRequest & ChatJsonRequest<unknown> & DecisionRequest;

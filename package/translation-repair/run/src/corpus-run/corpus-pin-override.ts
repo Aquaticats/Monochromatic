@@ -175,9 +175,9 @@ export function readCorpusPinSetting(
  after its START line: a line on every launch saying nothing changed would
  bury the one that says something did.
 
- @param setting - the resolved pin beside where each half came from
+ @param setting - resolved pin beside where each half came from
 
- @returns The launch line, or empty when neither half was overridden
+ @returns Launch line, or empty when neither half was overridden
 
  @example
  ```ts

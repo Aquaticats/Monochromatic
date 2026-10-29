@@ -42,7 +42,7 @@ const RUN_CORPUS_PIN_FALLBACK: CorpusPin = {
 
  @param env - environment of the process the entry runs in
 
- @returns The pin beside a per-half source
+ @returns Pin beside a per-half source
 
  @throws StatedRefusalError when an override is written and unreadable
 

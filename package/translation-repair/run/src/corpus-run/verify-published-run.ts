@@ -98,7 +98,7 @@ export async function judgePublishedEntries(
  ordinarily the entry's own `import.meta.dirname`, whose digest names the
  build a disagreement over another build's artifact is read by
 
- @returns The exit code the command leaves: 0 for a run read to its end,
+ @returns Exit code the command leaves: 0 for a run read to its end,
  whatever it found, and 2 for a run that left nothing to read
 
  @example

@@ -60,7 +60,7 @@ export type CapCensusTally = {
 /**
  Renders one provider's two readings.
 
- @param reading - the provider's calls of one seat
+ @param reading - provider's calls of one seat
 
  @returns Line for the report
 
@@ -112,7 +112,7 @@ const FLAG_TEXT: Readonly<Record<CapFlag, (row: CapCensusRow,) => string>> = {
 /**
  Prints the census: what was read, then each seat's rows and flags.
 
- @param census - the rule applied per seat
+ @param census - rule applied per seat
 
  @param tally - what the walk and the reads counted
 

@@ -121,7 +121,7 @@ export type StartTicksRead =
 /**
  Reads this machine's name, boot and process-id namespace.
 
- @returns The three, or that `/proc` did not answer
+ @returns Three, or that `/proc` did not answer
 
  @example
  ```ts
@@ -168,7 +168,7 @@ export async function hostIdentity(): Promise<HostRead> {
  The command name sits in parentheses and may itself hold spaces or a closing
  parenthesis, so the fields are read after the LAST one.
 
- @param stat - the line the kernel prints for one process
+ @param stat - line the kernel prints for one process
 
  @returns Its start time, or that the line holds none
 

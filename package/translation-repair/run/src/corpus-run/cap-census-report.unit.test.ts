@@ -78,7 +78,7 @@ const FIXTURE_PASS_START = `START tip=${'f'.repeat(40,)} `
  Lines of a pass-run log holding two completed Hyper calls of the seat, one
  far under its cap and one at it, whose stream delivered content.
 
- @returns The log's lines, opened by the marker a pass run opens with
+ @returns Log's lines, opened by the marker a pass run opens with
 
  @example
  ```ts
@@ -108,7 +108,7 @@ function passRunLines(): readonly string[] {
 
  @param name - file name
 
- @param lines - the log's lines
+ @param lines - log's lines
 
  @example
  ```ts

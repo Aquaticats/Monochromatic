@@ -158,11 +158,11 @@ export type ConfiguredProviders = {
  attempt can be billed; what it throws ends that call before the attempt is sent. A probe that holds an arm to an amount
  hands it here, since the client retries inside one call. Absent in a pass, whose Claude client then tells nobody
 
- @param writing - the providers whose wet reading keeps the run going, which the budgets read to set an entry's give-up
+ @param writing - providers whose wet reading keeps the run going, which the budgets read to set an entry's give-up
  of a provider aside when that provider is the only one of them not dry, and as the floor where no `unmetFloors` is
  given; every provider counts where absent
 
- @param unmetFloors - the bench floors the entry's stages need, which the budgets read to set an entry's give-up of a
+ @param unmetFloors - bench floors the entry's stages need, which the budgets read to set an entry's give-up of a
  provider aside when with that provider back none would be left unmet where without it one is (`unmetBenchFloors`, the
  seat reader's own floors); absent where the caller knows no roster
 
@@ -203,9 +203,9 @@ export function configureProviders(
 
    @param provider - provider the key belongs to
 
-   @param key - the environment's value, empty when unset
+   @param key - environment's value, empty when unset
 
-   @returns The key, or empty for a provider that is off or has none
+   @returns Key, or empty for a provider that is off or has none
 
    @example
    ```ts

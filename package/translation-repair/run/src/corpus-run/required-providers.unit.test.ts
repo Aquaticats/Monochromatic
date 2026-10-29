@@ -120,9 +120,9 @@ async function unreachedTransport(): ReturnType<ModelTransport> {
  `current_period_start` places the day, and the by-model usage, whose period echoes the window asked and whose rows
  show no covered energy used.
 
- @param exchange - the request
+ @param exchange - request
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts
@@ -161,7 +161,7 @@ async function neuralWattAccountTransport(exchange: TransportExchange,): ReturnT
 
  @param act - gate call
 
- @returns The refusal, or `'passed'`
+ @returns Refusal, or `'passed'`
  */
 async function gateOutcome(act: () => Promise<void>,): Promise<unknown> {
   try {

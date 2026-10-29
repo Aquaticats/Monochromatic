@@ -46,12 +46,12 @@ const LEDGER_READ = 0;
  The report on stdout and the returned exit code ARE the output; the entry
  file sets the code on the process, so a case reads it without starting one.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @param runsDir - run directory to read, which the entry takes from the
  environment or the house default so this never reads either
 
- @returns The exit code the command leaves: 1 for a run that wrote no ledger,
+ @returns Exit code the command leaves: 1 for a run that wrote no ledger,
  2 when a ledger file would not read, whatever else did, and 0 otherwise
 
  @example

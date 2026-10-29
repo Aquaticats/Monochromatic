@@ -32,7 +32,7 @@ import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provide
 
  @param request - exchange the client sent
 
- @returns A reply by address
+ @returns Reply by address
 
  @example
  ```ts

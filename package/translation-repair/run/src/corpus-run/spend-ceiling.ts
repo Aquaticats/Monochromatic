@@ -164,7 +164,7 @@ export function spendCeilingOverrideNote({ ceilingUsd, }: { readonly ceilingUsd:
 
  @param spentUsd - what the run has spent on the metered provider so far
 
- @param ceilingUsd - the run's allowance
+ @param ceilingUsd - run's allowance
 
  @returns Whether no further entry may start
 
@@ -188,11 +188,11 @@ export function spendCeilingReached(
 /**
  Explains why the run is starting no more entries.
 
- @param provider - the metered provider whose spend reached the ceiling
+ @param provider - metered provider whose spend reached the ceiling
 
  @param spentUsd - what the run has spent on that provider
 
- @param ceilingUsd - the run's allowance
+ @param ceilingUsd - run's allowance
 
  @returns Line naming both figures, the provider, and the dial that raises
  the allowance

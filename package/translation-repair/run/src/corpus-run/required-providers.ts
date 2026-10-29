@@ -96,7 +96,7 @@ export class RequiredProviderError extends StatedRefusalError {
 /**
  Parses measured-arm provider requirement from CLI.
 
- @param line - the pass's command line, read whole by `reportingRefusals`
+ @param line - pass's command line, read whole by `reportingRefusals`
 
  @returns Required providers in caller order without duplicates
 

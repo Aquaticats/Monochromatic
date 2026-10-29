@@ -167,7 +167,7 @@ export function failedControlsOf(
 
  @param occurrences - places the group stands, each with its one-based line
 
- @returns The line of each occurrence, in the order given
+ @returns Line of each occurrence, in the order given
 
  @example
  ```ts

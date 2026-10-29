@@ -144,10 +144,10 @@ export class TimingLineError extends Error {
 
    @param kind - which line the reader took it for
 
-   @param line - the log line its marker chose, quoted whole so an operator
+   @param line - log line its marker chose, quoted whole so an operator
    can find it
 
-   @param cause - the field's refusal
+   @param cause - field's refusal
    */
   constructor(
     {
@@ -416,7 +416,7 @@ function durationIn(
  and either rode into the report as a round that heard nobody or a round that
  never summed.
 
- @param field - the payload's first field, shaped `<heard>/<asked> heard`
+ @param field - payload's first field, shaped `<heard>/<asked> heard`
 
  @returns Heard and asked counts
 
@@ -457,7 +457,7 @@ function ratioIn({ field, }: { readonly field: string; },): {
  Reads the count a round needed off its no-quorum field, checking the heard
  count the field repeats against the ratio's.
 
- @param field - the payload's third field, shaped `no quorum (<heard> of <needed> needed)`
+ @param field - payload's third field, shaped `no quorum (<heard> of <needed> needed)`
 
  @param heard - heard count the ratio carries
 

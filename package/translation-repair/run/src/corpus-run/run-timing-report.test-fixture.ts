@@ -56,7 +56,7 @@ export const ROUND_NEVER_LINE: string = `${ROUND_PREFIX} ${
 
  @param elapsedMs - how long the call ran
 
- @returns The whole log line
+ @returns Whole log line
 
  @example
  ```ts

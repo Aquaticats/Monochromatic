@@ -64,7 +64,7 @@ export type GuardedCommand = {
 
    @param directory - scratch directory the case owns
 
-   @returns The command's arguments
+   @returns Command's arguments
    */
   readonly prepare: (directory: string,) => Promise<readonly string[]>;
 
@@ -77,11 +77,11 @@ export type GuardedCommand = {
 /**
  The whole stderr of the guard's refusal for a child that holds one key.
 
- @param command - the command the child ran
+ @param command - command the child ran
 
  @param owner - directory name of the package that owns the command, which names its task
 
- @returns The line `reportingRefusals` prints, with its newline
+ @returns Line `reportingRefusals` prints, with its newline
 
  @example
  ```ts
@@ -110,7 +110,7 @@ export function guardRefusal(
 /**
  Runs one command in a child under a scratch directory.
 
- @param guarded - the command and what it reads
+ @param guarded - command and what it reads
 
  @param holdsKey - whether the child holds the invented key
 
@@ -157,7 +157,7 @@ async function runGuarded(
  The three cases that show the guard for one command: refused when the process holds a key and names no command,
  let go on when it names the command, and let go on when it holds no key.
 
- @param guarded - the command and what it reads
+ @param guarded - command and what it reads
 
  @returns Suite of the three cases
 

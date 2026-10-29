@@ -23,7 +23,7 @@ import {
 
  @param text - page text
 
- @returns The entry's line census and the package's own groups for it
+ @returns Entry's line census and package's own groups for it
 
  @example
  ```ts

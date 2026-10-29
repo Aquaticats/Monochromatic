@@ -21,7 +21,7 @@ import {
 
  @param seats - seats billed in USD per token, each OpenRouter's, Bedrock's, DeepSeek's, Xiaomi's or Anthropic's
 
- @returns The providers present in the order OpenRouter, Bedrock, DeepSeek, Xiaomi, Anthropic, joined by
+ @returns Providers present in the order OpenRouter, Bedrock, DeepSeek, Xiaomi, Anthropic, joined by
  commas and a last "and"
 
  @throws {@link Error} when a seat belongs to none of them, which the

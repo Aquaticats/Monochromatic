@@ -52,7 +52,7 @@ const UNWRITTEN: FlagValue = {
 
  @param value - text written after the flag
 
- @returns The flag as written with that value
+ @returns Flag as written with that value
 
  @example
  ```ts

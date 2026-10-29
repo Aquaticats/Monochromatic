@@ -57,7 +57,7 @@ const UNWEIGHED_NOTE = 'UNWEIGHED because the artifact predates the stored archi
 
  @param index - position among the entries
 
- @returns The entry id
+ @returns Entry id
 
  @example
  ```ts
@@ -99,7 +99,7 @@ type Verified = {
 
  @param runsDir - run directory to verify
 
- @returns The exit code and the printed lines
+ @returns Exit code and printed lines
 
  @example
  ```ts

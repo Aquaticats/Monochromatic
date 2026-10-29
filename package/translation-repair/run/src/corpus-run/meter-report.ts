@@ -28,7 +28,7 @@ import { reportMeters, } from './meter-report-run.ts';
 /**
  Reports the named logs and leaves the exit code the report returns.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

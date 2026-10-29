@@ -147,7 +147,7 @@ export function withNeuralWattReturn(
 
  @param writing - providers whose wet reading keeps the run going
 
- @returns The refusal, stating the reading it was made on
+ @returns Refusal, stating the reading it was made on
 
  @example
  ```ts
@@ -289,11 +289,11 @@ function returnCarriedBy(
 
  @param clauses - one clause per writing bench below its floor
 
- @param dry - the dryness view the reading stopped on
+ @param dry - dryness view the reading stopped on
 
  @param client - run client, whose holds and NeuralWatt day the dry refusal states
 
- @returns The refusal to throw
+ @returns Refusal to throw
 
  @example
  ```ts

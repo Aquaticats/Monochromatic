@@ -52,7 +52,7 @@ type MeterReading = {
 
  @param reading - what the record says
 
- @returns The whole log line
+ @returns Whole log line
 
  @example
  ```ts
@@ -217,7 +217,7 @@ export const BASE_AT = 1_787_652_000_000;
 
  @param overrides - fields that differ from that reading
 
- @returns The sample
+ @returns Sample
 
  @example
  ```ts

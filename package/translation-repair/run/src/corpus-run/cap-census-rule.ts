@@ -240,7 +240,7 @@ function p99Of({ values, }: { readonly values: readonly number[]; },): number {
 
  @param cardCap - cap the seat's card carries
 
- @returns The provider's reading
+ @returns Provider's reading
 
  @example
  ```ts
@@ -304,7 +304,7 @@ function providerReading(
  @param placeholderSeats - seats to name as pooled placeholders, the roster's own by default; a caller passes its own
  to exercise the placeholder reading while no card names the pool
 
- @returns A row per seat, and how many calls went to ids no card names
+ @returns Row per seat, and how many calls went to ids no card names
 
  @example
  ```ts
@@ -402,7 +402,7 @@ export function capCensus(
 /**
  Names what a seat's row asks a reader to look at.
 
- @param row - the seat's census row
+ @param row - seat's census row
 
  @returns Flags in report order, empty where the card and its calls agree
 

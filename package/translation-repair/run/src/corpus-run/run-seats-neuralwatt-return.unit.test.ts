@@ -46,13 +46,13 @@ type ClientOptions = Omit<Parameters<typeof clientBefore>[0], 'now'>;
 
  @param sinon - case's own sandbox, which fakes the timers
 
- @param holdMs - the return the reading waits for, in milliseconds
+ @param holdMs - return the reading waits for, in milliseconds
 
  @param options - client the case builds, without a clock
 
  @param lines - receives what the reading logs
 
- @returns The writers left unreachable, and the energy reads counted
+ @returns Writers left unreachable, and the energy reads counted
 
  @example
  ```ts
@@ -99,11 +99,11 @@ async function seatsAfterWaiting(
 
  @param sinon - case's own sandbox, which fakes the timers
 
- @param holdMs - the return the reading waits for, in milliseconds
+ @param holdMs - return the reading waits for, in milliseconds
 
  @param options - client the case builds, without a clock
 
- @returns The refusal the reading threw, and the energy reads counted
+ @returns Refusal the reading threw, and the energy reads counted
 
  @example
  ```ts

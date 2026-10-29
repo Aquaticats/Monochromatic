@@ -181,7 +181,7 @@ export type Liveness =
 
  @param holder - holder to write
 
- @returns The file's contents
+ @returns File's contents
 
  @example
  ```ts

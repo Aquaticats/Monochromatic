@@ -79,7 +79,7 @@ type SeatOverrides = {
 
  @param overrides - fields that differ from the base
 
- @returns The seat
+ @returns Seat
 
  @example
  ```ts
@@ -103,7 +103,7 @@ export function seatOf({ overrides, }: { readonly overrides: SeatOverrides; },):
 
  @param overrides - fields of the seat that differ from the base
 
- @returns The priced seat, whose total is its two halves together
+ @returns Priced seat, whose total is its two halves together
 
  @example
  ```ts

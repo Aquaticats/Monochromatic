@@ -78,7 +78,7 @@ export const COMMAND_OWNERS: Readonly<Record<CommandName, string>> = {
  @param command - runner's name, which names its task and, through the owner table, the package whose
  `mise.toml` holds it
 
- @returns The task path, such as `//package/translation-repair/run:meter-report`
+ @returns Task path, such as `//package/translation-repair/run:meter-report`
 
  @example
  ```ts

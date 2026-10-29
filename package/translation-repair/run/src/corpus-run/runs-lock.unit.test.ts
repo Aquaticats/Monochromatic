@@ -200,7 +200,7 @@ const CROWDED_SEGMENT_UNITS = 200;
 
  @param root - scratch directory the path starts at
 
- @returns The path, not yet created
+ @returns Path, not yet created
 
  @example
  ```ts

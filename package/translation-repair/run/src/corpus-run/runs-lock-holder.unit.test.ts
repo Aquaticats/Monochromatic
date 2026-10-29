@@ -23,7 +23,7 @@ import { holderLiveness, } from '../../dist/final/node/index.mjs';
 
  @param host - machine the lock was taken on
 
- @returns The lock's holder, whose process still runs
+ @returns Lock's holder, whose process still runs
 
  @example
  ```ts

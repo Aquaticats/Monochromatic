@@ -115,7 +115,7 @@ const CALL_READING = {
  Writes a log of the given lines into a scratch directory.
 
  @param directory - scratch directory
- @param lines - the log's lines
+ @param lines - log's lines
  @param name - file name, so logs written side by side never share a file
 
  @returns Path written
@@ -404,9 +404,9 @@ await describe({
         /**
          A START line padded to the given number of bytes.
 
-         @param bytes - the bytes the line holds
+         @param bytes - bytes the line holds
 
-         @returns The line
+         @returns Line
          */
         function startLineOf({ bytes, }: { readonly bytes: number; },): string {
           return `${REAL_START} ${'x'.repeat(bytes - Buffer.byteLength(REAL_START,) - 1,)}`;

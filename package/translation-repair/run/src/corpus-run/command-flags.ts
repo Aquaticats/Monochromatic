@@ -243,7 +243,7 @@ export function idListFlag(
  @param within - what `known` is drawn from, completing "which ... does not
  hold": `the corpus at the pin`, `the settled archive`
 
- @returns The known ids asked for, in `known`'s order, so a filtered run
+ @returns Known ids asked for, in `known`'s order, so a filtered run
  walks its entries as an unfiltered one does; every known id when none was
  asked
 

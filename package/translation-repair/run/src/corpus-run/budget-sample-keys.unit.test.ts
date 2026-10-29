@@ -50,7 +50,7 @@ const CLOSING = 'Run under mise so sops injects them. A sample of some providers
 
  @param env - environment to read
 
- @returns The refusal's whole text
+ @returns Refusal's whole text
 
  @example
  ```ts

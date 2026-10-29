@@ -26,7 +26,7 @@ const RUNTIME = '/usr/bin/node';
 
  @param typed - arguments after the script path
 
- @returns The line its body would receive
+ @returns Line its body would receive
 
  @throws StatedRefusalError when the runner would refuse the line
 

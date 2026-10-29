@@ -73,9 +73,9 @@ const QUOTA_BODY = JSON.stringify({
  By-model usage reply for the window a request asked, with no rows: the account has used no covered energy, and the
  period echoes the window as the route does when it honours it.
 
- @param exchange - the by-model request
+ @param exchange - by-model request
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts
@@ -100,7 +100,7 @@ function usageBodyFor({ exchange, }: { readonly exchange: TransportExchange; },)
 /**
  Whether an exchange is the by-model usage read.
 
- @param exchange - the exchange
+ @param exchange - exchange
 
  @returns Whether it is
  */
@@ -122,7 +122,7 @@ const MODELS_BODY = JSON.stringify({
 /**
  Whether an exchange is the models listing.
 
- @param exchange - the exchange
+ @param exchange - exchange
 
  @returns Whether it is
  */

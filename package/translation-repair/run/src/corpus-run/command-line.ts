@@ -260,11 +260,11 @@ function usageOf(
 
  @param carried - what the token carried after the flag
 
- @param written - the whole argument the token came from
+ @param written - whole argument the token came from
 
  @param spec - what the command reads
 
- @returns The value or switch it carries, or why it is refused
+ @returns Value or switch it carries, or why it is refused
 
  @example
  ```ts
@@ -459,7 +459,7 @@ function countRefusals(
 
  @param argv - process arguments: the runtime, the script, then what was typed
 
- @returns The flags, switches and positions written, offering only those
+ @returns Flags, switches and positions written, offering only those
  declared
 
  @throws StatedRefusalError naming every problem at once, then the usage line:

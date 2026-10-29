@@ -48,7 +48,7 @@ const PAST_COOLDOWN_MS = COOLDOWN_MS + 12_000;
 /**
  Refuses Synthetic, lets the cooldown run out, refuses it again at once, and asks the holds.
 
- @param writing - the roster handed to `configureProviders`, none where the case hands none
+ @param writing - roster handed to `configureProviders`, none where the case hands none
 
  @param sinon - case's own sandbox, which fakes the clock the budgets count on
 

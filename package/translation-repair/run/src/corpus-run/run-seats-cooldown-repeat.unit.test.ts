@@ -123,7 +123,7 @@ type Rig = {
 
  @param alternative - which provider reads wet beside Synthetic
 
- @returns The rig, and the disposable that puts the real timers back
+ @returns Rig, and the disposable that puts the real timers back
 
  @example
  ```ts

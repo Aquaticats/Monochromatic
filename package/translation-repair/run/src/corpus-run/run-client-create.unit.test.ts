@@ -197,7 +197,7 @@ type Rig = {
 /**
  Whether an exchange is addressed to NeuralWatt.
 
- @param exchange - the request
+ @param exchange - request
 
  @returns Whether it is
  */
@@ -208,9 +208,9 @@ function isNeuralwatt(exchange: TransportExchange,): boolean {
 /**
  Answers a NeuralWatt route.
 
- @param exchange - the request, addressed to NeuralWatt
+ @param exchange - request, addressed to NeuralWatt
 
- @returns The reply
+ @returns Reply
  */
 function neuralwattReply(exchange: TransportExchange,): TransportReply {
   if (exchange.url.endsWith('/models',))
@@ -241,13 +241,13 @@ function neuralwattReply(exchange: TransportExchange,): TransportReply {
 
  @param sinon - case's own sandbox, which fakes the timers
  @param wet - which providers read wet beside the refusing one
- @param refuser - the provider that refuses every chat call with a meter the budgets cannot read: Synthetic as in
+ @param refuser - provider that refuses every chat call with a meter the budgets cannot read: Synthetic as in
  XingZ6020 (default), or Hyper where a case needs a refuser whose return would lift the benches
  @param routerHoldsTheAsk - whether the router holds each ask through the cooldown itself, because no provider that
  writes reads wet (default: no, the ask ends on its own and the clock does not move until it has)
  @param ledgerPath - where NeuralWatt's energy ledger lives, in a throwaway directory
 
- @returns The rig, and the disposable that puts the real timers back
+ @returns Rig, and the disposable that puts the real timers back
 
  @example
  ```ts
@@ -436,7 +436,7 @@ function rigOn(
 /**
  Runs the slices one after another, each right after the cooldown the one before waited out.
 
- @param rig - the rig to run them on
+ @param rig - rig to run them on
 
  @example
  ```ts

@@ -7,7 +7,7 @@
 
  @param lines - lines the seat reader wrote
 
- @returns The waiting lines
+ @returns Waiting lines
 
  @example
  ```ts

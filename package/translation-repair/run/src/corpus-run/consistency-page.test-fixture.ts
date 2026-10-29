@@ -125,7 +125,7 @@ export function preparedCatPage(): PreparedDocumentPair {
 
  @param prepared - preparation of the page
 
- @returns The archive's text of each slice, in slice order
+ @returns Archive's text of each slice, in slice order
 
  @example
  ```ts
@@ -324,7 +324,7 @@ function unservedCall(): Promise<never> {
 
  @param request - request the client was handed
 
- @returns The text of its messages, joined
+ @returns Text of its messages, joined
 
  @example
  ```ts
@@ -432,13 +432,13 @@ export function scriptedJudgeClient(
 /**
  One ballot as a judge sends it, reason first.
 
- @param quotes - the quotes the judge gives
+ @param quotes - quotes the judge gives
 
  @param choice - label the judge says every place should follow
 
  @param keep - labels the judge keeps for their surroundings
 
- @returns The reply text
+ @returns Reply text
 
  @example
  ```ts
@@ -493,7 +493,7 @@ export function choosing({ choice, }: { readonly choice: string; },): SeatBehavi
  the paragraph as the page has it now (the chosen words moved in by code), and a
  run-off takes the first finalist.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of the seat
 
@@ -532,9 +532,9 @@ export function otherSheetBehaviour({ sheet, }: { readonly sheet: string; },): S
  four usable choices tie two and two and the two finalists tie again; the writers write nothing
  and a choice among candidates takes the candidate that is not the paragraph as the page has it now.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of the seat
 
@@ -571,7 +571,7 @@ export function otherSheetsSplittingRunOff(
 /**
  The ballot every seat sends: the first place of each group wins and none is kept.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of a seat that answers it
 

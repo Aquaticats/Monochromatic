@@ -87,7 +87,7 @@ const COMMIT_ID_DIGITS = '0123456789abcdef';
  A COMMIT ID IS FORTY LOWERCASE HEXADECIMAL DIGITS THAT ARE NOT ONE DIGIT REPEATED. A repository does not give such an
  id; a test suite writes one as the placeholder of a fixture pass (ledger B963).
 
- @param text - the field after `tip=` on a line that opens the marker
+ @param text - field after `tip=` on a line that opens the marker
 
  @returns Whether it is forty hexadecimal digits of more than one kind
 
@@ -109,7 +109,7 @@ function isCommitId({ text, }: { readonly text: string; },): boolean {
 /**
  Whether a line opens a pass's report, which only a pass prints.
 
- @param line - a line of the log
+ @param line - line of the log
 
  @returns Whether it opens with the pass-run marker followed by a commit id
 

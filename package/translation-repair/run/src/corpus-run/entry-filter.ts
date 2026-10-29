@@ -24,7 +24,7 @@ import type { ReadsFlag, } from './command-line-types.ts';
  returns a set rather than an optional list; a caller cannot forget to handle
  absence, because absence and "no restriction" are the same value.
 
- @param line - the pass's command line, read whole by `reportingRefusals`,
+ @param line - pass's command line, read whole by `reportingRefusals`,
  which refuses `--only` written with nothing after it (ledger B75)
 
  @returns Ids to run, empty when unrestricted

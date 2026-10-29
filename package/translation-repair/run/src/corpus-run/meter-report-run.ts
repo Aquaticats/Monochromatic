@@ -86,11 +86,11 @@ export function mergeSamples({ readings, }: { readonly readings: readonly MeterL
  The report on stdout and the returned exit code ARE the output; the entry
  file sets the code on the process, so a case reads it without starting one.
 
- @param line - the report's command line, read whole by `reportingRefusals`,
+ @param line - report's command line, read whole by `reportingRefusals`,
  which refuses it when no log is named: any log a pass, probe or sample wrote
  will do, and passing several merges them into one record
 
- @returns The exit code the command leaves: 1 when the logs held no reading,
+ @returns Exit code the command leaves: 1 when the logs held no reading,
  0 once every provider was reported
 
  @example

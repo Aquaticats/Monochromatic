@@ -1072,7 +1072,7 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  @param admitClaudeAttempt - told by the Claude client before each attempt it makes, with the card and the most the
  attempt can be billed; what it throws ends that call before the attempt is sent (`configureProviders`)
 
- @param unmetFloors - the bench floors the entry's stages need, which the budgets read to tell whether a given-up
+ @param unmetFloors - bench floors the entry's stages need, which the budgets read to tell whether a given-up
  provider's return would leave none unmet where without it one is (REQUIRED, so no client runs with a floor nobody
  chose): `unmetBenchFloors`, the seat reader's own, which `run-client-create.ts` hands over. Read here from the caller
  because `run-seats.ts` reads this file's roster, and a module cannot import what imports it

@@ -210,7 +210,7 @@ const PAST_SAFE = String(BigInt(Number.MAX_SAFE_INTEGER,) + 2n,);
 
  @param read - read that must throw
 
- @returns The messages, outermost first
+ @returns Messages, outermost first
 
  @example
  ```ts

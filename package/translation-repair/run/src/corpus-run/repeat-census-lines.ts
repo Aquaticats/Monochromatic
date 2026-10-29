@@ -184,7 +184,7 @@ function cjkCount({ text, }: { readonly text: string; },): number {
 
  @param line - raw line
 
- @returns The line with that markup blanked
+ @returns Line with that markup blanked
 
  @example
  ```ts

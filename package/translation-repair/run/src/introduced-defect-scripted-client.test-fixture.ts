@@ -256,7 +256,7 @@ export function probeScriptedClient(
 
  @param clients - clients to hand out, in order
 
- @returns The builder, and a reading of how many it has handed out
+ @returns Builder, and a reading of how many it has handed out
 
  @throws {@link Error} from the builder when it is called after the last client
 

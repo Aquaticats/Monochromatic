@@ -30,7 +30,7 @@ import { resolveRunsDir, } from './run-config.ts';
  Reads the runs directory this process was pointed at, reports its ledger and
  leaves the exit code the report returns.
 
- @param line - the report's command line, read whole by `reportingRefusals`
+ @param line - report's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

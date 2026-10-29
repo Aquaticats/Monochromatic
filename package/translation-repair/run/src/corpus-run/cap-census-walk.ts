@@ -100,7 +100,7 @@ function isMissingPath({ error, }: { readonly error: unknown; },): boolean {
  other name (a browser profile's `SingletonLock`, a scratch `bin/git`) cannot change the result. A path named on the
  command line is always reported, whatever it is.
 
- @param next - the path that failed
+ @param next - path that failed
 
  @param error - what the read raised
 
