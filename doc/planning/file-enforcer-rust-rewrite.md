@@ -934,6 +934,101 @@ stdout stays JSON lines.
   unchanged,
   and pinned cases.
 
+#### Second review round: fixes adopted (one clear answer each)
+
+Reviews:
+[`doc/research/file-enforcer-rust-rewrite-review2-sol.md`](../research/file-enforcer-rust-rewrite-review2-sol.md),
+[`doc/research/file-enforcer-rust-rewrite-review2-astra.md`](../research/file-enforcer-rust-rewrite-review2-astra.md),
+[`doc/research/file-enforcer-rust-rewrite-review2-kimi.md`](../research/file-enforcer-rust-rewrite-review2-kimi.md).
+None found a contradiction between owner decisions.
+
+- Filesystem containment:
+  mirror roots,
+  their ancestors,
+  and entries are inspected with `symlink_metadata` and never followed;
+  destination symlinks are replaced or removed as links,
+  source symlinks are rejected,
+  and containment is rechecked at mutation time.
+- `check --expected-dir` requires an absent or empty directory disjoint from the worktree and every target,
+  writes paired sparse actual and expected trees for the drift set,
+  and reports removals and mode changes as events only.
+- Server election:
+  an owner-only startup lock separate from the socket;
+  only its holder probes,
+  removes a verified stale socket,
+  and spawns;
+  others wait with a deadline;
+  readiness and draining are explicit;
+  requests carry ids,
+  and an ambiguous disconnect is never replayed blindly.
+- Handshake:
+  protocol version,
+  build identity,
+  and worktree identity (canonical path plus directory identity) are checked before any request;
+  a mismatch drains and restarts the server;
+  the server exits when its worktree root disappears or changes.
+- Runtime directory:
+  an unset or unusable `$XDG_RUNTIME_DIR` falls back to a verified owner-only directory;
+  the server detaches its standard streams;
+  CI and container steps get deterministic shutdown,
+  tested in a clean container with the variable unset.
+- Each request carries its canonical config path and options;
+  the config is re-read every run.
+- Snapshot revalidation:
+  a plan records the content,
+  modes,
+  and directory membership it read,
+  and is discarded and redone if any changed before publishing;
+  the remaining race with non-participating writers is documented,
+  not denied.
+- Atomicity is per file:
+  the no-write guarantee covers validation failures only;
+  a partial run is reported,
+  the next run reconverges,
+  staging files use hidden names (mise skips hidden `conf.d` files) with final modes set before rename,
+  and abandoned staging files are cleaned at startup.
+- Composition:
+  rule kinds declare whether they compose on one file (Cargo key rules with the catalog) or own it whole;
+  only undeclared overlaps fail.
+- Discovery watches the nearest existing ancestor of an absent fan-out root.
+- The catalog library also writes `rust-catalog.toml` (adoption as `>=` floors,
+  pruning,
+  internal versions),
+  planned before manifest rendering.
+- License pruning touches only the tool-owned ids (CC-BY-SA-4.0,
+  GPL-3.0-or-later,
+  LGPL-3.0-or-later),
+  leaving hand-kept texts.
+- Offline `mpm-shadow lock` rejects additions and resolution-affecting edits (pins,
+  package id,
+  route,
+  artifact selection,
+  platforms) without changing the lock;
+  one validator serves `lock`,
+  `update`,
+  `sync`,
+  and file-enforcer's lock check.
+- `sync` and `status` refuse to run when plan and lock disagree,
+  naming `mpm-shadow lock` or `mpm-shadow update`.
+- `update --check` never auto-syncs or installs.
+- `mpm outdated` reading:
+  a tool's latest version is the outdated row's when present,
+  otherwise the installed version from mpm;
+  that is compared with the lock,
+  and an absent or failed manager result is an error,
+  never "unchanged".
+- Rules list:
+  each `FORBIDDEN_STRINGS_RULES` entry is anchored with `{{config_root}}`,
+  cli-git array paths are relative to its config file,
+  files join with an explicit newline boundary and a per-file source map,
+  and duplicate sections across files fail.
+- The forbidden-strings and git-policy changes join the pre-switch build list,
+  and the switch lock must pin releases that understand the new rules list.
+- The IDE launcher finds `mpm-shadow` by an explicit path (never the `mpm` link,
+  whose name selects pass-through mode),
+  tested in the real sandbox with the toolchain present and missing.
+- The bootstrap runbook installs and verifies rustup before `cargo install`.
+
 #### Process lessons: deferred to issue #1817
 
 Draft `AGENTS.md` rules for this round's slips
