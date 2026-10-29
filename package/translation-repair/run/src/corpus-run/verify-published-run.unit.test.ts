@@ -40,13 +40,13 @@ import {
   BUILT_PIPELINE_DIR,
   builtPipelineDigest,
   declineEntry,
-  interimEntry,
   publishedPagePath,
   publishedRun,
   SETTLED_BY,
   strayPage,
 } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/published-run.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
+import { interimEntry, } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/interim-entry.test-fixture.ts';
 
 /**
  Ending of the closing line, which says how many pages had no length to check.

@@ -6,6 +6,8 @@ import {
   DECLINED_DIR,
   declinedEntryIds,
   digestPipeline,
+  INTERIM_DIR,
+  readInterimEntries,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   type EntryAgreement,
@@ -18,6 +20,7 @@ import {
   type JudgedEntry,
   judgePublishedEntry,
 } from './verify-published-entry.ts';
+import { interimLine, } from './verify-published-interim.ts';
 
 //region Verify published run
 // A run's PUBLISHED TREE read back against the artifacts that produced it, and
@@ -203,6 +206,16 @@ export async function verifyPublishedRun(
     ),
   },);
 
+  /**
+   Entries whose page a dry stop shipped and whose entry is still open, by id.
+   */
+  const interim = await readInterimEntries({
+    interimDir: join(
+      runsDir,
+      INTERIM_DIR,
+    ),
+  },);
+
   console.log(
     `verify-published: matched=${String(matched.length,)} `
       + `settledWithNoPage=${String(unpublished.length,)} `
@@ -216,15 +229,29 @@ export async function verifyPublishedRun(
         + 'this runs directory writes it from its artifact',
     );
   }
-  for (const id of unsettled) {
-    console.log(
-      declined.has(id,)
+  /**
+   One line per page with no artifact, in the order the run lists them, read before any is printed.
+   */
+  const strayLines = await allInInputOrder({
+    members: unsettled.map(async function lineFor(id,): Promise<string> {
+      /**
+       The record of an interim page, absent for a page no dry stop shipped.
+       */
+      const record = interim.get(id,);
+      if ((record !== undefined) && (!declined.has(id,)))
+        return await interimLine({
+          runsDir,
+          record,
+        },);
+      return declined.has(id,)
         ? `  DECLINED AND PUBLISHED ANYWAY: ${id}. The archive's note says the page is the author's own `
           + 'English, so no page should stand here; the next pass started in this runs directory removes it'
         : `  PUBLISHED AND NOT SETTLED: ${id}. It ships as it stands, with no artifact to check it against, `
-          + 'until a pass settles the entry again and overwrites it',
-    );
-  }
+          + 'until a pass settles the entry again and overwrites it';
+    },),
+  },);
+  for (const strayLine of strayLines)
+    console.log(strayLine,);
 
   /**
    This build, which reads every artifact this check compares; an artifact another build

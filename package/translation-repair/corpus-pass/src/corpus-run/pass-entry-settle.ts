@@ -45,6 +45,9 @@ import type {
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
 
+ @param interimDir - directory the interim record of an entry stopped dry in the middle of its page is written into;
+ beside `artifactsDir`, where the pass's runs layout puts it, when absent
+
  @param sliceCacheDir - root under which this entry claims its own cache subdirectory
 
  @param tip - repository head recorded into the artifact
@@ -111,6 +114,7 @@ export async function settleEntry(
     artifactsDir,
     publishDir,
     declinedDir,
+    interimDir,
     sliceCacheDir,
     tip,
     pipelineDigest,
@@ -134,6 +138,7 @@ export async function settleEntry(
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
+    readonly interimDir?: string;
     readonly sliceCacheDir: string;
     readonly tip: string;
     readonly pipelineDigest: PipelineDigest;
@@ -183,6 +188,7 @@ export async function settleEntry(
     artifactsDir,
     publishDir,
     declinedDir,
+    ...((interimDir === undefined) ? {} : { interimDir, }),
     entryCacheDir,
     tip,
     pipelineDigest,

@@ -56,6 +56,11 @@ export {
 } from './corpus-run/pass-contest-reseat.ts';
 export { runPassContest, } from './corpus-run/pass-contest.ts';
 export {
+  retireInterimRecord,
+  shipInterimOnDryStop,
+  startEntryProgress,
+} from './corpus-run/pass-entry-interim.ts';
+export {
   persistSettledEntry,
   printSettledLines,
 } from './corpus-run/pass-entry-persist.ts';

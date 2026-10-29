@@ -58,6 +58,9 @@ export type PassSettlement = {
  @param acceptedRepairClaimNotes - the claims the repair lane's panel accepted
  per slice, which the final polish gate reads
 
+ @param onSliceSettled - told of each consolidation record the moment it is made, so an entry stopped dry in the middle
+ of its page keeps the slices that finished
+
  @param frontMatterSlices - syntax-bearing metadata positions
 
  @param pictureReadings - paired OCR evidence
@@ -90,6 +93,7 @@ export async function runPassSettlement(
     contests,
     archiveDisputes,
     acceptedRepairClaimNotes,
+    onSliceSettled,
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,
@@ -105,6 +109,7 @@ export async function runPassSettlement(
     readonly contests: readonly ArtifactContestSlice[];
     readonly archiveDisputes: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
+    readonly onSliceSettled?: (slice: ArtifactConsolidateSlice,) => void;
     readonly frontMatterSlices: ReadonlySet<number>;
     readonly pictureReadings: ReadonlyMap<string, PairedReading>;
     readonly entryCacheDir: string;
@@ -125,6 +130,7 @@ export async function runPassSettlement(
     contests,
     archiveDisputes,
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
+    ...((onSliceSettled === undefined) ? {} : { onSliceSettled, }),
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,

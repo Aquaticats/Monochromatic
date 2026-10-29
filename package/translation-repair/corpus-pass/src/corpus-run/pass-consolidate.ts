@@ -56,6 +56,8 @@ import {
  @param acceptedRepairClaimNotes - the claims that panel accepted per slice,
  which the final polish gate reads
 
+ @param onSliceSettled - told of each slice's record the moment it is made, so a stop keeps the slices that finished
+
  @param contests - lane contest records
 
  @param frontMatterSlices - syntax-bearing metadata positions
@@ -96,10 +98,12 @@ export async function runPassConsolidation(
     overlap,
     archiveDisputes,
     acceptedRepairClaimNotes,
+    onSliceSettled,
     l,
     stageSettings,
   }: {
     readonly client: RunClient;
+    readonly onSliceSettled?: (slice: ArtifactConsolidateSlice,) => void;
     readonly archiveDisputes?: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
     readonly prepared: PreparedDocumentPair;
@@ -175,6 +179,7 @@ export async function runPassConsolidation(
     },),
     ...((archiveDisputes === undefined) ? {} : { archiveDisputes, }),
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
+    ...((onSliceSettled === undefined) ? {} : { onSliceSettled, }),
     signal,
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     overlap,

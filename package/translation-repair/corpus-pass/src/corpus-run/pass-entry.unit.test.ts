@@ -1497,12 +1497,15 @@ const FOOTNOTE_ENTRY = {
 };
 
 /**
- Entry whose archive holds no English at all, so no slice has text to stand on.
+ Entry whose archive holds the first paragraph alone, so the two linked paragraphs after it have no text to stand on.
+
+ AN ARCHIVE WITH NO ENGLISH AT ALL IS NOT THIS CASE: it is sliced into no slice, and the entry settles as an empty page
+ (`TALLY status=SETTLED slices=0`), so there is no interim page to ship for it.
  */
-const NO_ARCHIVE_ENTRY = {
-  id: 'CatEntryNoArchive',
-  sourceText: SOURCE_TEXT,
-  targetText: '',
+const TWO_GAPS_ENTRY = {
+  id: 'CatEntryTwoGaps',
+  sourceText: `${GAP_SOURCE_TEXT}\n猫猫的[第二条记录](https://example.test/cat-record-2)说她喜欢鱼。\n`,
+  targetText: GAP_TARGET_TEXT,
 };
 
 /**
@@ -1587,10 +1590,16 @@ async function settledCaptured(
     dirs,
     entry,
     client,
+    baseSignal = new AbortController().signal,
   }: {
     readonly dirs: Awaited<ReturnType<typeof throwawayDirs>>;
     readonly entry: { readonly id: string; readonly sourceText: string; readonly targetText: string; };
     readonly client: RunClient;
+
+    /**
+     Abort every call of the entry forwards from, which a case aborts with the refusal as the pass's dry gate does.
+     */
+    readonly baseSignal?: AbortSignal;
   },
 ): Promise<{
   readonly outcome: Awaited<ReturnType<typeof settleEntry>>;
@@ -1617,7 +1626,7 @@ async function settledCaptured(
         outsideReads: NO_OUTSIDE_READS,
         pictureSources: NO_PICTURE_SOURCES,
         hardCapMs: HANG_STOP_MS,
-        baseSignal: new AbortController().signal,
+        baseSignal,
         overlap: ONE_AT_A_TIME,
         stageSettings: SCRIPTED_STAGE_SETTINGS,
       },);
@@ -1655,15 +1664,39 @@ function footnoteLabelsOf(
   readonly referenced: readonly string[];
   readonly defined: readonly string[];
 } {
+  /**
+   Every footnote mark on the page, each beside whether it opens a definition.
+   */
+  const marks = page.split('[^',)
+    .slice(1,)
+    .map(function markOf(piece,): { readonly label: string; readonly definition: boolean; } {
+      /**
+       Where the mark closes.
+       */
+      const close = piece.indexOf(']',);
+      return {
+        label: piece.slice(
+          0,
+          close,
+        ),
+        definition: piece.charAt(close + 1,) === ':',
+      };
+    },);
   return {
-    referenced: [...page.matchAll(/\[\^([^\]\s]+)\](?!:)/gu,),]
-      .map(function labelOf(match,): string {
-        return nonNullishOrThrow(match[1],);
+    referenced: marks
+      .filter(function isReference({ definition, },): boolean {
+        return !definition;
+      },)
+      .map(function labelOf({ label, },): string {
+        return label;
       },)
       .toSorted(),
-    defined: [...page.matchAll(/^\[\^([^\]\s]+)\]:/gmu,),]
-      .map(function labelOf(match,): string {
-        return nonNullishOrThrow(match[1],);
+    defined: marks
+      .filter(function isDefinition({ definition, },): boolean {
+        return definition;
+      },)
+      .map(function labelOf({ label, },): string {
+        return label;
       },)
       .toSorted(),
   };
@@ -4035,7 +4068,7 @@ await describe({
           entry: GAP_ENTRY,
           client: entryClient({
             served: [],
-            coverageScript: 'none',
+            coverageScript: 'absent',
             failWhen: function inLanes({ schema, },): boolean {
               return (schema === 'critic_report') || (schema === 'translation_report');
             },
@@ -4060,40 +4093,50 @@ await describe({
     },),
 
     it({
-      name: 'SHIPS THE ORIGINAL OF EVERY SLICE UNDER ONE NOTE PER RUN when the archive holds no English at all and every '
-        + 'provider goes dry before any slice is consolidated',
+      name: 'SHIPS A RUN OF PARAGRAPHS THE ARCHIVE LACKS UNDER ONE NOTE when the dry gate aborts the entry once the lanes '
+        + 'return, so the page is composed from the lanes\' own rows and no slice is consolidated',
       fn: async () => {
         await using dirs = await throwawayDirs();
-        await settledCaptured({
+        /**
+         The refusal, and the abort the pass's dry gate raises with it: a refusal inside the translate lane of an anchor
+         costs that slice and not the entry, so the abort is what ends the entry once the lanes return.
+         */
+        const refusal = dryRefusal();
+        const gate = new AbortController();
+        const stopped = await settledCaptured({
           dirs,
-          entry: NO_ARCHIVE_ENTRY,
+          entry: TWO_GAPS_ENTRY,
+          baseSignal: gate.signal,
           client: entryClient({
             served: [],
-            coverageScript: 'none',
-            // THE LANES FINISH here (a refusal inside the translate lane of an anchor costs that slice, not the entry),
-            // and the first consolidation is the first call that ends the entry, so no slice has a record.
-            failWhen: function inFirstConsolidation({ schema, content, },): boolean {
-              return (schema === 'translation_report') && content.includes(CONSOLIDATION_MARK,);
+            coverageScript: 'absent',
+            failWhen: function dryAtTheFirstTranslation({ schema, },): boolean {
+              if (schema !== 'translation_report')
+                return false;
+              gate.abort(refusal,);
+              return true;
             },
-            failWith: dryRefusal(),
+            failWith: refusal,
           },),
         },);
         const page = await readFile(
           fixedPagePath({
             publishDir: dirs.publishDir,
-            entryId: NO_ARCHIVE_ENTRY.id,
+            entryId: TWO_GAPS_ENTRY.id,
           },),
           'utf8',
         );
         const record = await interimRecordOf({
           dirs,
-          entryId: NO_ARCHIVE_ENTRY.id,
+          entryId: TWO_GAPS_ENTRY.id,
         },);
+        expect(stopped.outcome,).toEqual({ kind: 'stopped', },);
         expect(page.split(UNTRANSLATED_NOTE,).length - 1,).toBe(1,);
-        expect(page,).toContain('猫猫在窗台上打盹。',);
-        expect(page,).toContain('窗台上有一只鸟。',);
-        expect([record.settledSlices, record.archiveSlices,],).toEqual([0, 0,],);
-        expect(record.sourceSlices,).toBeGreaterThan(0,);
+        expect(page,).toContain('The cat sleeps.',);
+        expect(page,).toContain('猫猫最后的[记录](https://example.test/cat-record)说她去世时 26 岁。',);
+        expect(page,).toContain('猫猫的[第二条记录](https://example.test/cat-record-2)说她喜欢鱼。',);
+        // The two paragraphs the archive lacks are one slice, so the one note stands before both.
+        expect([record.settledSlices, record.archiveSlices, record.sourceSlices,],).toEqual([0, 1, 1,],);
       },
     },),
 

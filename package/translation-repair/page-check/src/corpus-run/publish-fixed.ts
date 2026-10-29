@@ -194,6 +194,7 @@ export async function publishFixedPage(
   },
 ): Promise<{
   readonly path: string;
+  readonly pageText: string;
   readonly destinations: DestinationCheck;
   readonly defects: readonly PublishDefect[];
 }> {
@@ -430,6 +431,7 @@ export async function publishFixedPage(
     l.warn(`publish: ${finding}`,);
   return {
     path,
+    pageText,
     destinations,
     defects,
   };

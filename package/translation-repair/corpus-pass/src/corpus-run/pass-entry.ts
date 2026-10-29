@@ -39,6 +39,12 @@ import type {
   PassVisualEvidenceReader,
 } from './pass-visual-evidence.ts';
 import { openEntryCaches, } from './pass-entry-caches.ts';
+import {
+  interimDirBeside,
+  retireInterimRecord,
+  shipInterimOnDryStop,
+  startEntryProgress,
+} from './pass-entry-interim.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
 import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { runPassLanes, } from './pass-lanes.ts';
@@ -82,6 +88,10 @@ import {
 
  @param declinedDir - directory a decline record is written into when the
  archive's note says the whole page is the author's own English
+
+ @param interimDir - directory the interim record is written into when every provider goes dry in the middle of the
+ page and the entry ships what it has and stays open; the directory beside `artifactsDir` where the pass's runs layout
+ puts it when absent
 
  @param entryCacheDir - this entry's own cache directory
 
@@ -131,6 +141,7 @@ export async function runEntryPipeline(
     artifactsDir,
     publishDir,
     declinedDir,
+    interimDir = interimDirBeside({ artifactsDir, },),
     entryCacheDir,
     tip,
     pipelineDigest,
@@ -154,6 +165,7 @@ export async function runEntryPipeline(
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
+    readonly interimDir?: string;
     readonly entryCacheDir: string;
     readonly tip: string;
     readonly pipelineDigest: PipelineDigest;
@@ -179,6 +191,17 @@ export async function runEntryPipeline(
    inside the entry's attempt names the attempt (ledger B963).
    */
   const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
+
+  /**
+   What the stages have finished so far, which the `catch` below reads when every provider goes dry in the middle of the
+   page and the entry ships what it has (`pass-entry-interim.ts`).
+   */
+  const progress = startEntryProgress();
+
+  /**
+   The consolidation records the progress keeps, filled as slices finish.
+   */
+  const { consolidated, } = progress;
 
   /**
    Per-entry hard-cap deadline. Disposal at return defuses the timer and
@@ -355,6 +378,8 @@ export async function runEntryPipeline(
       admission: admissionAsRead,
       l: el,
     },);
+    progress.prepared = prepared;
+    progress.archiveText = settledArchiveText;
 
     /**
      What both lanes made of that slicing, with neither preferred, on the
@@ -409,6 +434,7 @@ export async function runEntryPipeline(
      contest needs it first, to know which slices are worth asking about.
      */
     const projected = projectLanes({ lanes, },);
+    progress.projected = projected;
 
     /**
      Syntax-bearing metadata slice indexes shared by final quality stages.
@@ -437,6 +463,7 @@ export async function runEntryPipeline(
       l: el,
       stageSettings,
     },);
+    progress.contestSlices = contestSlices;
 
     /**
      Third rendering and final naturalness decisions for contested slices, then
@@ -458,6 +485,10 @@ export async function runEntryPipeline(
       // archive or not, for the polish gate that decides a rewording of the
       // consolidated text (CuspariaKLSY21 slice 0, 2026-10-21).
       ...repairClaimEvidenceOf({ repair: lanes.repair, },),
+      // A STOP IN THE MIDDLE OF THE PAGE keeps the slices that finished, which the settlement's own result would lose.
+      onSliceSettled: function keepSettled(slice,): void {
+        consolidated.push(slice,);
+      },
       frontMatterSlices,
       pictureReadings,
       entryCacheDir,
@@ -545,9 +576,33 @@ export async function runEntryPipeline(
           : { archiveOriginalSpans: prepared.archiveOriginalSpans, }),
       },),
     },);
+    // AFTER THE ARTIFACT, which now says the entry is done: the interim page an earlier stop left was just replaced by
+    // the settled one, so the record that called it interim goes (`pass-entry-interim.ts`).
+    await retireInterimRecord({
+      interimDir,
+      entryId: entry.id,
+      l: el,
+    },);
     return { kind: 'settled', };
   }
   catch (error) {
+    // EVERY PROVIDER DRY IN THE MIDDLE OF THE PAGE ships what the entry has (the owner's answer of 2026-10-29, "Ship
+    // interim, resumable") and leaves the entry open: the tally below still files the stop as it did, no artifact is
+    // written, and a later run repeats the entry and replaces the page.
+    await shipInterimOnDryStop({
+      error,
+      progress,
+      entryId: entry.id,
+      sourceText: entry.sourceText,
+      publishDir,
+      interimDir,
+      tip,
+      pipelineDigest,
+      corpusSha: pin.commitSha,
+      attempt,
+      wallClock,
+      l: el,
+    },);
     return tallyCaughtEntry({
       entryId: entry.id,
       error,

@@ -1,7 +1,6 @@
 import type { ArtifactContestSlice, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
   type ArtifactConsistency,
-  type ArtifactConsolidateSlice,
   type ArtifactPageAssembly,
   consistencyOverrideAt,
   NO_CONSISTENCY,
@@ -16,6 +15,14 @@ import {
   carryingSource,
   markRuns,
 } from './source-ships.ts';
+import {
+  consolidatedWordingAt,
+  polishedWordingAt,
+} from './would-ship-consolidation.ts';
+import {
+  type InterimCarrier,
+  isUnsettledSlice,
+} from './would-ship-interim.ts';
 
 //region Would-ship vocabulary
 // WHAT A READER WOULD SEE AT ONE SLICE, and no field holds it. Two deciding
@@ -74,6 +81,7 @@ export type WouldShipSilence =
     | 'no-valid-wording-and-archive-silent'
     | 'contest-declined-and-archive-silent'
     | 'contest-unasked-and-archive-silent'
+    | 'interim-unsettled-and-archive-silent'
     | 'lanes-agreed-on-no-wording';
 
 /**
@@ -179,7 +187,7 @@ export type WouldShipReading =
 export type WouldShipSource = Pick<
   ParsedTwoLaneArtifact,
   'comparison' | 'consolidation' | 'laneSelection'
-  > & ArchiveTextCarrier & PageAssemblyCarrier & ConsistencyCarrier & SourceTextCarrier;
+  > & ArchiveTextCarrier & PageAssemblyCarrier & ConsistencyCarrier & SourceTextCarrier & InterimCarrier;
 
 /**
  The original of every slice, as either artifact shape records it in the translate lane's
@@ -436,158 +444,6 @@ function archiveStandsOr(
 }
 
 /**
- What the third rendering contributes at one slice.
-
- A NAMED ABSENCE RATHER THAN `undefined`, for the reason the union it feeds
- carries: this stage contributing nothing is a state to read, not a value
- missing. `ArtifactConsolidateShipped` makes the same choice one level
- below, and collapsing it here would put the trap back one call deeper.
-
- @example
- ```ts
- const contribution: ConsolidationContribution = { kind: 'replaced-nothing', };
- ```
- */
-type ConsolidationContribution =
-  | {
-    /**
-     This stage settled wording here, and it replaces whatever stood.
-     */
-    readonly kind: 'wording';
-
-    /**
-     Exactly what it settled, wrapped as the stage left it.
-     */
-    readonly text: string;
-  }
-    | {
-    /**
-     No wording passed the deterministic rule here, so the archive keeps the
-     slice over whatever the lane contest chose (owner, 2026-09-27, "Keep
-     archive, ship").
-     */
-      readonly kind: 'archive-kept';
-    }
-    | {
-    /**
-     This stage replaced nothing here, so whatever stood still stands.
-     */
-      readonly kind: 'replaced-nothing';
-    };
-
-/**
- Reads final body polish wording where generation six stage replaced base.
-
- @param artifact - parsed artifact carrying optional polish records
-
- @param sliceIndex - slice to answer
-
- @returns Polished wording or named absence
-
- @example
- ```ts
- const text = polishedWordingAt({ artifact, sliceIndex: 0, });
- ```
- */
-function polishedWordingAt(
-  {
-    artifact,
-    sliceIndex,
-  }: {
-    readonly artifact: WouldShipSource;
-    readonly sliceIndex: number;
-  },
-): ConsolidationContribution {
-  /**
-   Consolidation stage carrying optional polish records.
-   */
-  const { consolidation, } = artifact;
-  if (consolidation.kind !== 'settled')
-    return { kind: 'replaced-nothing', };
-  /**
-   Consolidation record for requested slice.
-   */
-  const slice = consolidation.slices
-    .find(function namesIt(candidate: ArtifactConsolidateSlice,): boolean {
-      return candidate.sliceIndex === sliceIndex;
-    },);
-  if (slice === undefined)
-    return { kind: 'replaced-nothing', };
-  /**
-   Polish decision for requested slice, absent before generation six.
-   */
-  const { polish, } = slice;
-  if ((polish === undefined) || (polish.kind !== 'settled'))
-    return { kind: 'replaced-nothing', };
-  if (!polish.changed)
-    return { kind: 'replaced-nothing', };
-  return {
-    kind: 'wording',
-    text: polish.text,
-  };
-}
-
-/**
- Names consolidation wording at one slice, or that it contributed none.
-
- @param artifact - parsed artifact whose consolidation is read
-
- @param sliceIndex - slice to answer
-
- @returns Consolidated wording or named absence
-
- @example
- ```ts
- const text = consolidatedWordingAt({ artifact, sliceIndex: 0, });
- ```
- */
-function consolidatedWordingAt(
-  {
-    artifact,
-    sliceIndex,
-  }: {
-    readonly artifact: WouldShipSource;
-    readonly sliceIndex: number;
-  },
-): ConsolidationContribution {
-  /**
-   What this artifact says about its third rendering, across all three states.
-   */
-  const { consolidation, } = artifact;
-  if (consolidation.kind !== 'settled')
-    return { kind: 'replaced-nothing', };
-
-  /**
-   Record this stage left for the slice, absent where it was never eligible.
-   */
-  const slice = consolidation
-    .slices
-    .find(function namesIt(candidate: ArtifactConsolidateSlice,): boolean {
-      return candidate.sliceIndex === sliceIndex;
-    },);
-  if (slice === undefined)
-    return { kind: 'replaced-nothing', };
-
-  /**
-   Wording this slice contributes, or a named absence saying it contributes none.
-
-   THE INCUMBENT THAT STOOD IN IS WORDING TOO (owner, 2026-09-09): the lane
-   contest left a standing the gate refused, so what the contest chose is
-   not what ships, and only this record says so.
-   */
-  const { shipped, } = slice;
-  if (shipped.kind === 'unchanged')
-    return { kind: 'replaced-nothing', };
-  if (shipped.kind === 'archive')
-    return { kind: 'archive-kept', };
-
-  return {
-    kind: 'wording',
-    text: shipped.text,
-  };
-}
-
-/**
  Names what an uncontested slice contributes, where both lanes offer one wording.
 
  AGREEMENT NEEDS NO DECIDER, which is why this case has its own name rather
@@ -699,6 +555,17 @@ function stagesReading(
     readonly row: ArtifactComparisonRow;
   },
 ): WouldShipReading {
+  // A SLICE OF AN INTERIM PAGE NOTHING SETTLED reads as the archive's text, and as the original where the archive has
+  // none (`carryingSource`), whatever else the artifact says of it.
+  if (isUnsettledSlice({
+    artifact,
+    sliceIndex: row.sliceIndex,
+  },))
+    return archiveStandsOr({
+      row,
+      silence: 'interim-unsettled-and-archive-silent',
+    },);
+
   /**
    What the page-level guard did here, read FIRST: it read the page `lanes`,
    `laneSelection` and `consolidation` compose, and its record says what that page carries.
