@@ -144,8 +144,48 @@ some needs to be folded into our mpm wrapper."
 
 - The mpm wrapper is `package/mpm-shadow/cli` (Rust,
   clap).
-- Which responsibility goes where is being researched;
-  the proposed split comes back to the user as a question.
+- Research:
+  [`doc/research/file-enforcer-rust-rewrite-toolchain-split.md`](../research/file-enforcer-rust-rewrite-toolchain-split.md).
+
+Then asked 2026-10-29 how to split;
+the user chose "Split by side effect":
+
+- file-enforcer renders,
+  from committed inputs only,
+  `mpm.packages.toml` and `mpm.managers.toml` from the lock,
+  and the lock's declaration fields from the plan.
+- mpm-shadow gains `sync`,
+  `status`,
+  and `update` (network resolution writing lock versions and artifacts),
+  each with `--global` for the machine scope,
+  plus the `.cache/toolchain-bin` exposure farm and postinstall links.
+  Under the `mpm` name it stays a pass-through plus prune.
+- The bounded container runner moves to `package/test-harness/core-matrix`.
+- Dropped as unused:
+  `clearExposure`,
+  `symlinkOrCopy`,
+  `.cache/toolchain.env.json` (no reader),
+  and the TypeScript plan loaders.
+
+### Toolchain plan: JSONC plan and JSON lock
+
+Asked 2026-10-29 where the hand-written plan lives;
+the user chose "JSONC plan + JSON lock" over making the lock the only file.
+
+- `toolchain.plan.jsonc` holds intent
+  (id,
+  request,
+  route,
+  bins,
+  os,
+  options)
+  with rationale comments.
+- `toolchain.lock.json` stays strict JSON for its `jq` readers
+  (`Dockerfile:24-45`,
+  `.github/actions/task-cli-setup/action.yml:42-46`,
+  `.github/workflows/music-player-release.yml`).
+- A file-enforcer rule projects the plan's fields into the lock,
+  and `check` fails on drift.
 
 ### browserslist through browserslist-rs
 
