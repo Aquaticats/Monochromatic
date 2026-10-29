@@ -378,5 +378,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();
