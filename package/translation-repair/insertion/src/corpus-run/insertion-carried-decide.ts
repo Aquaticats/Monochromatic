@@ -116,7 +116,7 @@ type NeighbourShare = {
  @param neighbours - paired slices next to the carried one, earlier first,
  which hold every holder's block
 
- @returns The carrier
+ @returns Carrier
 
  @example
  ```ts

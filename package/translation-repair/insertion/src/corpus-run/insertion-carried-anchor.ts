@@ -223,7 +223,7 @@ export function anchorRegion(
 
  @param one - either source chunk
 
- @param other - the other one
+ @param other - other one
 
  @returns True where the spans abut across blank space alone
 

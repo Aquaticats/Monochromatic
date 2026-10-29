@@ -52,7 +52,7 @@ const LAST_SUCCESS = 299;
  answers with a status outside 200 to 299, built from the status alone since
  the reason phrase and the body are the provider's wording
 
- @returns The listing as parsed JSON, read from a body with every credential
+ @returns Listing as parsed JSON, read from a body with every credential
  the request carried masked out of it
 
  @throws {@link StatedRefusalError} When the provider answers with a status

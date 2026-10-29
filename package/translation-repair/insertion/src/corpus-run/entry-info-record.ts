@@ -123,7 +123,7 @@ export class EntryInfoParseError extends Error {
 
  @param text - raw `info.yml` text
 
- @returns The parsed value; corpus shapes vary, so no schema is imposed here
+ @returns Parsed value; corpus shapes vary, so no schema is imposed here
 
  @throws {@link EntryInfoParseError} when YAML refuses to parse
 
@@ -162,7 +162,7 @@ function parseEntryInfoYaml(
 
  @param kind - phrase naming the kind of the value, as `unreadableDeathKindOf` words it
 
- @returns The clause, without closing punctuation, which each sentence supplies
+ @returns Clause, without closing punctuation, which each sentence supplies
 
  @example
  ```ts
@@ -187,7 +187,7 @@ function unreadableDeathClause({ kind, }: { readonly kind: string; },): string {
  are named on, left out by a command whose terminal output is pinned (the settled
  replays), which then reads all three in silence
 
- @returns The parsed record, the absence when the entry has no `info.yml`, or the
+ @returns Parsed record, absence when the entry has no `info.yml`, or
  unreadable record when the file is there and is not YAML; the last two record no death
 
  @throws {@link Error} when the file exists but cannot be read

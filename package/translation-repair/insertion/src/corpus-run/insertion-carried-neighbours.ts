@@ -141,7 +141,7 @@ export function pairedNeighbourToward(
 
  @param position - where the carried slice stands
 
- @returns The paired neighbours found, earlier first
+ @returns Paired neighbours found, earlier first
 
  @example
  ```ts

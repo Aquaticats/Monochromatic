@@ -46,11 +46,11 @@ export const CARRIED_SHIFTED_FINDING = 'insertion-carried-shifted';
 
  @param holders - every evidence block's holder
 
- @param carrier - the paired slice the passage folds into
+ @param carrier - paired slice the passage folds into
 
- @param carriedPosition - the carried passage
+ @param carriedPosition - carried passage
 
- @returns The receiving slice, none where the plain fold stands
+ @returns Receiving slice, none where the plain fold stands
 
  @example
  ```ts
@@ -141,7 +141,7 @@ export function shiftReceiver(
 
  @param absorbed - slice whose source joins it
 
- @returns The widened slice
+ @returns Widened slice
 
  @example
  ```ts
@@ -219,11 +219,11 @@ export function widenSource(
 
  @param slices - prepared slices as they stand
 
- @param carrier - the paired slice the passage folds into
+ @param carrier - paired slice the passage folds into
 
- @param receiver - the far neighbour taking the carrier's own source
+ @param receiver - far neighbour taking the carrier's own source
 
- @param carried - the carried slice
+ @param carried - carried slice
 
  @returns Slices with both replaced
 
@@ -278,11 +278,11 @@ export function shiftSlices(
 /**
  Names a shift the way every other admission finding is named.
 
- @param carrierSliceIndex - the slice the passage folded into
+ @param carrierSliceIndex - slice the passage folded into
 
- @param receiverSliceIndex - the far neighbour that took the carrier's source
+ @param receiverSliceIndex - far neighbour that took the carrier's source
 
- @param carriedSliceIndex - the carried passage
+ @param carriedSliceIndex - carried passage
 
  @returns Finding in scorecard-stable wording
 

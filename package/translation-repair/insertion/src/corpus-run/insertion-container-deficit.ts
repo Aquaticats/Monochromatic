@@ -116,7 +116,7 @@ function splitFinding({ row, }: { readonly row: InsertionCoverageRow; },): reado
 /**
  Finding naming a container left uncounted and the slice the parse refused.
 
- @param reading - the container as read, uncounted
+ @param reading - container as read, uncounted
 
  @returns One finding
 

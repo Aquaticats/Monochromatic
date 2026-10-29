@@ -61,7 +61,7 @@ const BLOCK: readonly ChunkPair[] = [
 
  @param position - where the half stands
 
- @param sourceText - the half's original
+ @param sourceText - half's original
 
  @returns Row neither admitted nor proven carried
 

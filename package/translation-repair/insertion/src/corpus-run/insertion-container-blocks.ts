@@ -206,7 +206,7 @@ function insideContainer(
 
  @param position - prepared position of the slice
 
- @param pair - the container's halves
+ @param pair - container's halves
 
  @returns Which part of the container the slice is
 
@@ -278,7 +278,7 @@ function sideText(
 
  @param slices - prepared slices in document order
 
- @param pair - the container's halves
+ @param pair - container's halves
 
  @param side - which side to read
 

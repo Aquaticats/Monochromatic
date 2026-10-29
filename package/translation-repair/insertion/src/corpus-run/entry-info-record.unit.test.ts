@@ -65,7 +65,7 @@ async function missingInfoFixture(): Promise<string> {
 
  @param text - text handed to the parser
 
- @returns The parser's refusal as text, empty when it parses the text
+ @returns Parser's refusal as text, empty when it parses the text
 
  @example
  ```ts
