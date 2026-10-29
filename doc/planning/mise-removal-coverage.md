@@ -514,6 +514,16 @@ It closes the "no pilot" gap with a conditional ranking,
 and the remaining open item is whether the user accepts three semantic shifts
 for a pnpm-owned task slice.
 
+Update 2026-10-29 (Nadle):
+ [`nadle-task-execution-pilot.md`](nadle-task-execution-pilot.md)
+pilots Nadle 0.6.1 against the same gates and compares both with meow.
+Nadle covers exact task edges,
+typed in-process bodies,
+caching,
+and machine-readable output,
+but its name grammar bans the colon task vocabulary,
+so the contract choice is now a three-way flagged decision.
+
 Parity gate:
  preserve package namespaces,
 partial invocation,
