@@ -380,6 +380,16 @@ Each event sees a part of the turn the others miss:
 Observations are kept once per event type,
 joinable on the block hash.
 It records and never denies.
+The DSH side is built
+(`package/dsh-plugin/thinking-dismissal`,
+installed in the `web` profile):
+ one handler-equivalent plugin folding reasoning blocks in a
+`ctx.sessionProjections` unit
+and recording at `tools/pre-execute`,
+`tools/result`,
+and `agent/turn-stopping`,
+writing the same shared log as `cctd`,
+so both agent runtimes are observed.
 Any Luna leg over non-thinking text stays open.
 
 ## Scratch artifacts
