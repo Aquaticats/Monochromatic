@@ -58,9 +58,9 @@ const QUOTE_CHARACTERS: ReadonlySet<string> = new Set(Array.from('\'"`‘’‚�
 /**
  How many quotation marks a text holds.
 
- @param text - the words
+ @param text - words
 
- @returns The count
+ @returns Count
 
  @example
  ```ts
@@ -89,7 +89,7 @@ function quoteCountOf({ text, }: { readonly text: string; },): number {
  Whether a splice's words hold one quotation mark and no other. For a splice that gains an apostrophe at an edge, which the
  caller has checked, that one mark is the apostrophe at the edge: an edge apostrophe is one of the characters counted.
 
- @param edit - the splice
+ @param edit - splice
 
  @returns Whether exactly one character of its words is a quotation mark
 
@@ -107,7 +107,7 @@ function holdsOneQuoteMark({ edit, }: { readonly edit: ConsistencyEdit; },): boo
 
  @param edits - every replacement addressed to the slice
 
- @param edit - the splice
+ @param edit - splice
 
  @returns Whether some other replacement meets its words
 
@@ -137,11 +137,11 @@ function touchesAnother(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param edit - the splice
+ @param edit - splice
 
- @param side - the edge: `end` for the character after the words, `start` for the one before
+ @param side - edge: `end` for the character after the words, `start` for the one before
 
  @returns Whether the character is known to stay as it is, and the characters beside the mark, each a whole character: one,
  or none at the edge of the page; an empty gap between two slices leaves the next slice's own words beside the mark, which
@@ -246,9 +246,9 @@ function besideOf(
  curly mark and the low, reversed and angle marks are partners of every apostrophe and are never proven themselves), with a Latin
  letter or a digit directly inside it, which is the one side of the proof's reading that the splice's own words decide.
 
- @param edit - the splice
+ @param edit - splice
 
- @param side - the edge it is read at
+ @param side - edge it is read at
 
  @returns Whether the first or last whole character of its words is such a mark with a letter or a digit inside it
 
@@ -288,11 +288,11 @@ function readsAsEdgeApostrophe(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param edit - the splice
+ @param edit - splice
 
- @param side - the edge it is read at
+ @param side - edge it is read at
 
  @returns Whether the proof reads this splice's mark as the trailing (or leading) apostrophe of its words on its own, so that
  the page with every such splice made proves it exactly where the page with it alone would: it gains a mark at that edge
@@ -399,7 +399,7 @@ function isScreenable(
 
  @param ledger - what the step knows of the page; its blocked splices and reasons are added to
 
- @param side - the edge the screen reads: `end` for the trailing marks, `start` for the leading ones
+ @param side - edge the screen reads: `end` for the trailing marks, `start` for the leading ones
 
  @example
  ```ts

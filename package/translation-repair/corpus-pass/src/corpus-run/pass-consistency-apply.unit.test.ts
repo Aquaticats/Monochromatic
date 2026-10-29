@@ -79,11 +79,11 @@ const WIDENED_REFRAIN_QUOTES = REFRAIN_QUOTES.map(function widened(quote,): Reco
 /**
  The ballots of three judges who all choose one place and keep none.
 
- @param quotes - the quotes every judge gives
+ @param quotes - quotes every judge gives
 
- @param choice - the label every judge chooses
+ @param choice - label every judge chooses
 
- @returns The voices, in seat order
+ @returns Voices, in seat order
 
  @example
  ```ts
@@ -120,7 +120,7 @@ function alikeVoices(
  The carry of every receiving place when the bench chooses the chosen words moved in by code, as the
  pass would record it where the writers wrote nothing; a place the code cannot reach keeps its English.
 
- @param decided - the group with its receivers
+ @param decided - group with its receivers
 
  @returns One carried place per receiver, in the order of the receivers
 
@@ -187,7 +187,7 @@ function carriedBySplice({ decided, }: { readonly decided: DecidedGroup; },): re
  The carry of every receiving place when the bench keeps the current English everywhere, as the pass
  records a carry that reached no decision: no place of the group is replaced.
 
- @param decided - the group with its receivers
+ @param decided - group with its receivers
 
  @returns One carried place per receiver, in the order of the receivers
 
@@ -230,15 +230,15 @@ function carriedKeepingCurrent({ decided, }: { readonly decided: DecidedGroup; }
 
  @param english - what each slice would ship, the archive by default
 
- @param sentenceQuotes - the quotes the judges give for the repeated sentence
+ @param sentenceQuotes - quotes the judges give for the repeated sentence
 
- @param frameQuotes - the quotes the judges give for the refrain
+ @param frameQuotes - quotes the judges give for the refrain
 
- @param choice - the label the judges choose, the first place by default
+ @param choice - label the judges choose, first place by default
 
  @param carryOf - how the chosen words are carried to a group's receiving places, by code by default
 
- @returns The settled groups in page order and the facts of every slice
+ @returns Settled groups in page order and facts of every slice
 
  @example
  ```ts
@@ -303,7 +303,7 @@ function settledCatPage(
 /**
  Outcomes of every place of every group, in page order.
 
- @param groups - the groups with final outcomes
+ @param groups - groups with final outcomes
 
  @returns One list of outcomes per group
 
@@ -328,7 +328,7 @@ function outcomesOf({ groups, }: { readonly groups: readonly ArtifactConsistency
 
  @param applied - what applying came to
 
- @returns The text of the third slice when it changed, none when it did not
+ @returns Text of the third slice when it changed, none when it did not
 
  @example
  ```ts
@@ -351,9 +351,9 @@ function thirdSliceOf({ applied, }: { readonly applied: ReturnType<typeof applyC
 
  @param applied - what applying came to
 
- @param page - the settled groups and slice facts the section was applied to
+ @param page - settled groups and slice facts the section was applied to
 
- @returns The section as the reader gives it back, which is the section itself when the reader accepts it
+ @returns Section as the reader gives it back, which is the section itself when the reader accepts it
 
  @throws {@link ArtifactParseError} when the reader refuses the section
 
@@ -386,7 +386,7 @@ function readBackOf(
 
  @param applied - what applying came to
 
- @returns The section as it is written
+ @returns Section as it is written
 
  @example
  ```ts
@@ -400,7 +400,7 @@ function writtenOf({ applied, }: { readonly applied: ReturnType<typeof applyCons
 /**
  The place each overlapped place of a section says it gave way to, in page order, for every group.
 
- @param groups - the groups with final outcomes
+ @param groups - groups with final outcomes
 
  @returns One list per group, naming for each place the group and label it gave way to, or none
 
@@ -423,7 +423,7 @@ function gaveWayOf({ groups, }: { readonly groups: readonly ArtifactConsistencyG
 /**
  Applies the replacements of a settled cat page with no declared names.
 
- @param page - the settled groups and slice facts
+ @param page - settled groups and slice facts
 
  @param lines - sink for the level and text of every line the pass logs
 
@@ -460,11 +460,11 @@ const KITTEN_SLICE = 'Later the kitten naps in the sun.';
 /**
  A group of the kitten page with a code splice over its place in the kitten slice.
 
- @param quote - the words the judges locate for the group's place in the kitten slice
+ @param quote - words the judges locate for the group's place in the kitten slice
 
  @param splice - where the splice starts and ends, and the words it puts in
 
- @returns The group, whose first place stands in another slice and whose second place the splice replaces
+ @returns Group, whose first place stands in another slice and whose second place the splice replaces
 
  @example
  ```ts
@@ -494,7 +494,7 @@ function kittenGroupSpliced(
 /**
  The facts of the kitten page's two slices, whose English is what each ships now.
 
- @returns The facts of the kitten slice and of the slice after it
+ @returns Facts of the kitten slice and of the slice after it
 
  @example
  ```ts
@@ -750,9 +750,9 @@ const NO_SHAPES: readonly (readonly ArrangementPlace[])[] = [[],];
 
  @param index - index of the slice on the page
 
- @param words - the words, which the slice's English joins with spaces and ends with a full stop
+ @param words - words, which the slice's English joins with spaces and ends with a full stop
 
- @returns The slice with the span of each word
+ @returns Slice with the span of each word
 
  @example
  ```ts
@@ -796,7 +796,7 @@ function sliceOfWords(
 /**
  The sets of located words a group's places can have in a slice: runs of words that do not meet each other.
 
- @param slice - the slice
+ @param slice - slice
 
  @param count - how many places the group has in the slice
 
@@ -849,9 +849,9 @@ function coreSetsOf(
  Every replacement a group could plan over its places: a splice over each place's words, and every block span
  that holds the words of the places it carries.
 
- @param places - the group's receiving places
+ @param places - group's receiving places
 
- @returns The replacements, each carrying places of one slice
+ @returns Replacements, each carrying places of one slice
 
  @example
  ```ts
@@ -946,11 +946,11 @@ function editCandidatesOf({ places, }: { readonly places: readonly ArrangementPl
 /**
  Every set of replacements a group can plan, none carrying a place another carries and none meeting another.
 
- @param candidates - the replacements to choose from
+ @param candidates - replacements to choose from
 
- @param chosen - the replacements already chosen
+ @param chosen - replacements already chosen
 
- @returns The chosen replacements, and each way to add later candidates to them
+ @returns Chosen replacements, and each way to add later candidates to them
 
  @example
  ```ts
@@ -994,7 +994,7 @@ function editSetsFrom(
 /**
  Every group a model allows.
 
- @param model - the slices and how many places a group has in each
+ @param model - slices and how many places a group has in each
 
  @returns Each choice of located words for the places, with each set of replacements over them
 
@@ -1045,9 +1045,9 @@ function groupsOf({ model, }: { readonly model: ArrangementModel; },): readonly 
  The settled group an arrangement's group stands for: a chosen place in another slice, then its receiving places,
  those a replacement carries to be replaced and the rest kept for their context.
 
- @param group - the arrangement's group
+ @param group - arrangement's group
 
- @returns The settled group with its pending replacements
+ @returns Settled group with its pending replacements
 
  @example
  ```ts
@@ -1124,9 +1124,9 @@ function settledArrangementGroup({ group, }: { readonly group: ArrangementGroup;
 /**
  The facts of the slices an arrangement is applied over, whose English is what each ships now.
 
- @param model - the slices and how many places a group has in each
+ @param model - slices and how many places a group has in each
 
- @returns The facts of each slice of the model and of the slice the chosen places stand in
+ @returns Facts of each slice of the model and of the slice the chosen places stand in
 
  @example
  ```ts
@@ -1158,9 +1158,9 @@ function arrangementSliceFacts({ model, }: { readonly model: ArrangementModel; }
  Whether a made replacement changes the located words of a place: it meets them and either does not hold all of
  them or drops words it holds.
 
- @param edit - the replacement
+ @param edit - replacement
 
- @param place - the place of another group
+ @param place - place of another group
 
  @returns Whether the place's words are changed
 
@@ -1188,7 +1188,7 @@ function changesPlace(
 
  @param position - position of the place among the group's receiving places, from zero
 
- @returns The label, counting the chosen place first
+ @returns Label, counting the chosen place first
 
  @example
  ```ts
@@ -1205,11 +1205,11 @@ function receivingLabel({ position, }: { readonly position: number; },): string 
  replacement left out for changing the words of the place it names, or as a replacement that lost the words to a
  made one whose first carried place it names.
 
- @param groups - the arrangement's groups, in the order they were applied
+ @param groups - arrangement's groups, in the order they were applied
 
  @param applied - what applying them came to
 
- @returns The breaches found and how many places each branch of the arbitration recorded
+ @returns Breaches found and how many places each branch of the arbitration recorded
 
  @example
  ```ts
@@ -1354,7 +1354,7 @@ function judgedArrangement(
 /**
  Applies every arrangement of a model and judges each.
 
- @param model - the slices and how many places a group has in each
+ @param model - slices and how many places a group has in each
 
  @returns How many arrangements were built, how many changes were judged, how each branch recorded them, and the first breaches
 
@@ -2342,7 +2342,7 @@ await describe({
             /**
              Applies the group's replacements to the kitten page.
 
-             @param group - the group
+             @param group - group
              */
             function appliedTo({ group, }: { readonly group: SettledGroup; },): ReturnType<typeof applyConsistency> {
               return applyConsistency({

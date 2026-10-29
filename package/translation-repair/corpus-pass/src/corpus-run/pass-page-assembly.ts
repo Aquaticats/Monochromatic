@@ -48,7 +48,7 @@ import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glos
 
  @param l - logger the guard's findings reach
 
- @returns The artifact to write
+ @returns Artifact to write
 
  @example
  ```ts

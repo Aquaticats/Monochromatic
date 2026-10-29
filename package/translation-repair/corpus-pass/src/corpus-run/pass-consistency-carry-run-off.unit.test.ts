@@ -46,11 +46,11 @@ import {
 /**
  A judge that chooses the candidate its place on the bench points at, so a bench of three or more judges splits over three candidates.
 
- @param judges - the bench, in roster order
- @param seat - the judge asked
- @param sheet - the sheet the judge was shown
+ @param judges - bench, in roster order
+ @param seat - judge asked
+ @param sheet - sheet the judge was shown
 
- @returns The behaviour of a judge that picks by its place on the bench
+ @returns Behaviour of a judge that picks by its place on the bench
  */
 function splitAmong(
   {
@@ -126,8 +126,8 @@ const BENCH_OF_THREE: readonly string[] = [SEAT_HYPER_ONLY, SEAT_BEDROCK_ONLY_TE
  A bench that splits three ways in the first ask, one candidate for each seat, and agrees on the writer's paragraph after.
 
  @param before - how many calls came before this one
- @param seat - the judge asked
- @param sheet - the sheet the judge was shown
+ @param seat - judge asked
+ @param sheet - sheet the judge was shown
 
  @returns What the judge does
 
@@ -147,8 +147,8 @@ function splitsThreeWaysThenAgrees({ before, seat, sheet, }: Parameters<SeatScri
  A bench whose third seat is lost, whose other two name the first and the third candidate in the first ask, and which names the
  last finalist after.
 
- @param seat - the judge asked
- @param sheet - the sheet the judge was shown
+ @param seat - judge asked
+ @param sheet - sheet the judge was shown
 
  @returns What the judge does
 
@@ -171,8 +171,8 @@ function twoLeadersThenLastFinalist({ seat, sheet, }: Parameters<SeatScript>[0],
  asked once to store the two records (the first ask and the run-off), and the carry then reads them back instead of asking.
 
  @param behave - what the bench does when the records are first stored
- @param change - the record to read back in place of the stored one, by the order the records were stored in
- @param judgeModelIds - the bench, the scene's by default
+ @param change - record to read back in place of the stored one, by the order the records were stored in
+ @param judgeModelIds - bench, scene's by default
 
  @returns What the carry came to, the lines it logged, the keys the records were stored under and how often the bench was asked
  when they were read back

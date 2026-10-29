@@ -44,7 +44,7 @@ import type {
 
  @param voice - ballot with its seat
 
- @returns The recorded ballot
+ @returns Recorded ballot
 
  @example
  ```ts
@@ -76,7 +76,7 @@ function recordedBallot(
 
  @param count - what the first round's ballots came to, with finalists
 
- @param asked - the ballots heard
+ @param asked - ballots heard
 
  @returns One sentence naming the finalists and their ballots, empty when the choices have no finalists
 
@@ -143,11 +143,11 @@ export function runOffReasonOf(
 /**
  Counts the first round's ballots over the places.
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
- @param asked - the ballots heard, the quorum and the gather's findings
+ @param asked - ballots heard, quorum and gather's findings
 
  @returns What the usable ballots come to, the finalists of a split with no strict majority included
 
@@ -195,17 +195,17 @@ export function countAsked(
  Counts what the bench said about a group and decides what each place is to
  receive.
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
- @param unplaced - the places no slice holds whole
+ @param unplaced - places no slice holds whole
 
- @param asked - the ballots heard, the quorum and the gather's findings
+ @param asked - ballots heard, quorum and gather's findings
 
  @param runOff - what the run-off heard when the choices had finalists
 
- @returns The group with its verdict, renderings and provisional outcomes, and the places the chosen rendering is still to be carried to
+ @returns Group with its verdict, renderings and provisional outcomes, and the places the chosen rendering is still to be carried to
 
  @throws {@link ConsistencyInvariantError} when the winner is not a located place of the group
 
@@ -337,11 +337,11 @@ export function settleAsked(
 /**
  Settles a decided group once its receiving places are carried to.
 
- @param decided - the group with its receivers
+ @param decided - group with its receivers
 
  @param carried - how the carry to each block of receiving places ended, in any order
 
- @returns The group with the carries' records in the order of the receivers, the replacements the chosen candidates make, and each receiver's provisional outcome
+ @returns Group with the carries' records in the order of the receivers, the replacements the chosen candidates make, and each receiver's provisional outcome
 
  @throws {@link ConsistencyInvariantError} when the carries are not one record per receiver
 

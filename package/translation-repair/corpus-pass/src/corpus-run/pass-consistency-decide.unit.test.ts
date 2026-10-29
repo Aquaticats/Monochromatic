@@ -35,7 +35,7 @@ import { runOffOf, } from './consistency-settle.test-fixture.ts';
 
  @param position - position of the place in its group, which is also its slice
 
- @returns The place
+ @returns Place
 
  @example
  ```ts
@@ -85,7 +85,7 @@ const DIFFERENT: ConsistencyRendering = { kind: 'located', quote: 'the kitten na
 
  @param over - fields this case replaces
 
- @returns The count
+ @returns Count
 
  @example
  ```ts

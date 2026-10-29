@@ -135,9 +135,9 @@ export type FloorsAsked = {
 /**
  The index of the slice a settled slice stands for.
 
- @param slice - the settled slice
+ @param slice - settled slice
 
- @returns The index of the slice, as the artifact names it
+ @returns Index of the slice, as the artifact names it
 
  @example
  ```ts
@@ -160,11 +160,11 @@ export function sliceIndexOf({ slice, }: { readonly slice: SettledSlice; },): nu
  The question the floors are asked about a slice with a set of replacements made: the slice and the replacements, which is
  what makes the same question the same.
 
- @param sliceIndex - the slice
+ @param sliceIndex - slice
 
- @param edits - the replacements made in it, in priority order
+ @param edits - replacements made in it, in priority order
 
- @returns The question as a key for what the floors said
+ @returns Question as a key for what the floors said
 
  @example
  ```ts
@@ -194,7 +194,7 @@ export function floorsQuestionOf(
 
  @param reason - why the final page does not carry the splice
 
- @returns The reason as a clause that follows "because"
+ @returns Reason as a clause that follows "because"
 
  @example
  ```ts
@@ -226,7 +226,7 @@ function becauseOf({ reason, }: { readonly reason: GainReason; },): string {
 
  @param reason - why the final page does not carry the splice
 
- @returns The record's name for the reason, one for each kind
+ @returns Record's name for the reason, one for each kind
 
  @example
  ```ts
@@ -248,13 +248,13 @@ export function keptReasonOfGain({ reason, }: { readonly reason: GainReason; },)
 /**
  What is reported of a code splice that was left out, in the words of the reason that holds on the final page.
 
- @param sliceIndex - the slice the splice was addressed to
+ @param sliceIndex - slice the splice was addressed to
 
  @param id - name of the splice
 
  @param reason - why the final page does not carry it
 
- @returns The finding, which ends with the place keeping its words
+ @returns Finding, which ends with the place keeping its words
 
  @example
  ```ts

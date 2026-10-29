@@ -31,7 +31,7 @@ import { isLetterOrDigitOfAnyScript, } from '@monochromatic-dev/translation-repa
  The stretches of words of places that must stay as they are and cross an edge of a
  block, each with the edge of the block it must stay at.
 
- @param block - the block a writer would rewrite
+ @param block - block a writer would rewrite
 
  @param spans - where the words of the places that must stay stand in the slice's English, with the words
 
@@ -168,13 +168,13 @@ type CrossingKept = {
  whose plan is `unavailable`, and the chosen place, the places the majority keeps for
  their context and the places that already read as the chosen place does.
 
- @param block - the block of the unit
+ @param block - block of the unit
 
- @param members - the unit's own receiving places
+ @param members - unit's own receiving places
 
  @param held - every receiving place of the group
 
- @param kept - the words of the places that stay, of this group and, marked, of the other groups of the page
+ @param kept - words of the places that stay, of this group and, marked, of the other groups of the page
 
  @returns One entry for each edge of the block such a place reaches over, in the page order of the places
 
@@ -294,9 +294,9 @@ const WHITE_SPACE: ReadonlySet<string> = new Set([
  words a writer laid out again on other lines are the same words. One pass over
  the characters, never a scan for each.
 
- @param text - the words
+ @param text - words
 
- @returns The words in one line
+ @returns Words in one line
 
  @example
  ```ts
@@ -333,9 +333,9 @@ function oneLineOf({ text, }: { readonly text: string; },): string {
  the edge it stood at, character for character apart from white space, and not as
  the beginning or the end of a longer word.
 
- @param paragraph - the writer's paragraph as it would ship
+ @param paragraph - writer's paragraph as it would ship
 
- @param crossing - the stretch and the edge
+ @param crossing - stretch and edge
 
  @returns Whether the paragraph starts (for a start edge) or ends (for an end edge) with the stretch
 
@@ -382,11 +382,11 @@ function holdsAtEdge(
  The stretches of crossing places' words that a writer's paragraph no longer holds
  at the edge of the block they stood at.
 
- @param paragraph - the writer's paragraph as it would ship
+ @param paragraph - writer's paragraph as it would ship
 
- @param crossing - the stretches and their edges
+ @param crossing - stretches and their edges
 
- @returns The entries the paragraph does not hold at their edge, in order
+ @returns Entries the paragraph does not hold at their edge, in order
 
  @example
  ```ts

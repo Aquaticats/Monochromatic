@@ -53,12 +53,12 @@ import type { SettledGroup, } from './pass-consistency-types.ts';
 /**
  Plans the replacements of every slice of a page already read, that carries English and has replacements.
 
- @param page - the slices that carry English with their replacements, and the text the published page carries between them
+ @param page - slices that carry English with their replacements, and the text the published page carries between them
 
- @param refused - the indexes of the slices the floors refused, which keep their wording, so the page the apostrophes are
+ @param refused - indexes of the slices the floors refused, which keep their wording, so the page the apostrophes are
  checked on holds none of their replacements and they make none; none by default
 
- @returns The plan of each slice that has replacements, in page order
+ @returns Plan of each slice that has replacements, in page order
 
  @throws {@link ConsistencyInvariantError} when the text between the slices does
  not count one more than the slices
@@ -136,7 +136,7 @@ export function plansOnPage(
 /**
  Whether the floors refused the slice with its plan made.
 
- @param slice - the settled slice
+ @param slice - settled slice
 
  @returns True when the floors refused it
 
@@ -156,16 +156,16 @@ function isRefusedByFloors({ slice, }: { readonly slice: SettledSlice; },): bool
 /**
  The plans of one round, each put through the floors, a slice the floors refused in an earlier round standing as it did.
 
- @param page - the slices that carry English with their replacements, and the text between them
+ @param page - slices that carry English with their replacements, and the text between them
 
- @param refused - the slices the floors refused in earlier rounds, by the index of the slice
+ @param refused - slices the floors refused in earlier rounds, by the index of the slice
 
  @param asked - what the floors said of a slice with a set of replacements made, by the slice and the replacements, so that
  a slice whose replacements did not change is not put through the floors again; mutated by this function
 
  @param floorsOn - runs the floors on a slice with its plan made
 
- @returns The settled slices of the round, in page order
+ @returns Settled slices of the round, in page order
 
  @example
  ```ts
@@ -264,13 +264,13 @@ function roundOf(
  order, on the page the loop ended with (`readmittedSlicesOf`), which puts back each one the page would carry and gives the
  reason for each one that stays out.
 
- @param settled - the groups in page order, with their pending replacements
+ @param settled - groups in page order, with their pending replacements
 
  @param slices - what the pass knows of each slice, in page order
 
  @param floorsOn - runs the floors on a slice with its plan made
 
- @returns The settled slices in page order: the plan of each slice that has replacements, the slice with the plan made and the
+ @returns Settled slices in page order: the plan of each slice that has replacements, the slice with the plan made and the
  floors' verdict, and for a refused slice the plan as it stood when the floors refused it; each with the reason every splice
  it leaves out is left out for
 
@@ -321,7 +321,7 @@ export function settledSlicesOf(
   /**
    The slices of a round that the floors refused and that no earlier round had refused.
 
-   @returns The slices of the latest round that are newly refused
+   @returns Slices of the latest round that are newly refused
    */
   function newlyRefused(): readonly SettledSlice[] {
     return state.round

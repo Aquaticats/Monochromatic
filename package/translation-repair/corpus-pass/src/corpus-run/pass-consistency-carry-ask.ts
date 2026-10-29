@@ -76,7 +76,7 @@ export type CarryChoiceAsked = ConsistencyChoiceRecord & {
 
  @param value - what the cache holds under a key
 
- @returns The record as a list of one, none when the value is another kind
+ @returns Record as a list of one, none when the value is another kind
 
  @example
  ```ts
@@ -92,11 +92,11 @@ function storedWriters(value: ConsistencyCacheValue,): readonly ConsistencyWrite
 
  @param quorum - voices the gather closed on
 
- @param voices - the paragraphs heard, with their seats
+ @param voices - paragraphs heard, with their seats
 
  @param findings - what the gather reported
 
- @returns The record, as the cache keeps it
+ @returns Record, as the cache keeps it
 
  @example
  ```ts
@@ -141,7 +141,7 @@ function writersRecordOf(
 
  @param modelIds - writer bench asked, in roster order
 
- @param subject - the repeated wording, the chosen place and the receiving place
+ @param subject - repeated wording, chosen place and receiving place
 
  @param cache - store an earlier answer is read from and a settled one kept in
 
@@ -153,7 +153,7 @@ function writersRecordOf(
 
  @param stageSettings - straggler windows the entry file read for this launch
 
- @returns The paragraphs heard, the quorum the gather closed on and its findings
+ @returns Paragraphs heard, quorum the gather closed on and its findings
 
  @throws {@link StageRosterRepeatError} when the bench seats one model twice
 
@@ -253,7 +253,7 @@ export async function askCarryWriters(
 
  @param modelIds - judge bench asked, in roster order
 
- @param subject - the repeated wording, the receiving place and its candidates
+ @param subject - repeated wording, receiving place and its candidates
 
  @param cache - store an earlier answer is read from and a settled one kept in
 
@@ -269,7 +269,7 @@ export async function askCarryWriters(
  was split between them, so that it differs from the first ask's sheet even when every candidate is a finalist, and whose answer
  is kept under a key of its own; the first ask among all of them where absent
 
- @returns The choices heard, the quorum the gather closed on and its findings
+ @returns Choices heard, quorum the gather closed on and its findings
 
  @throws {@link StageRosterRepeatError} when the bench seats one model twice
 

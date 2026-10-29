@@ -86,9 +86,9 @@ type Made = {
 /**
  Runs the apply stage over a page whose first slice holds the chosen place and whose later slices each hold one splice.
 
- @param splices - the splices of the later slices, in slice order
+ @param splices - splices of the later slices, in slice order
 
- @returns The outcomes, the slices and the reason of each finding
+ @returns Outcomes, slices and reason of each finding
 
  @example
  ```ts

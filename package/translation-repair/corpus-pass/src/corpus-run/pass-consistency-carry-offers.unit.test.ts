@@ -50,11 +50,11 @@ import {
 /**
  What a seat does when every writer returns a paragraph with the chosen words in it, and a judge is never asked.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -70,11 +70,11 @@ function writersAnswer({ seat, sheet, }: { readonly seat: string; readonly sheet
 /**
  The receiving place with another plan.
 
- @param receiver - the receiving place
+ @param receiver - receiving place
 
- @param plan - the plan for it
+ @param plan - plan for it
 
- @returns The receiver
+ @returns Receiver
 
  @example
  ```ts
@@ -96,11 +96,11 @@ function withPlan(
 /**
  The context with the floors told of a declared name.
 
- @param context - the context
+ @param context - context
 
  @param declaredNames - names the front matter declares
 
- @returns The context
+ @returns Context
 
  @example
  ```ts
@@ -124,7 +124,7 @@ function withDeclaredNames(
 
  @param context - what the carry reads
 
- @returns The writer bench, none when the writers are not asked
+ @returns Writer bench, none when the writers are not asked
 
  @example
  ```ts
@@ -140,7 +140,7 @@ function writerSeatsOf({ context, }: { readonly context: CarryContext; },): read
 
  @param context - what the carry reads
 
- @returns The seat, empty when the writers are not asked
+ @returns Seat, empty when the writers are not asked
 
  @example
  ```ts

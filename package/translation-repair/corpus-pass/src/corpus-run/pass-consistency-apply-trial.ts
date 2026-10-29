@@ -81,7 +81,7 @@ export type Trial = {
 
  @param left - one set
 
- @param right - the other
+ @param right - other
 
  @returns Whether every name of one is in the other
 
@@ -139,11 +139,11 @@ export type WithSplice = {
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param edit - the splice
+ @param edit - splice
 
- @returns The replacements with the splice, the slice with them made, and whether the splice's words overlap one that stood
+ @returns Replacements with the splice, slice with them made, and whether the splice's words overlap one that stood
 
  @throws {@link ConsistencyInvariantError} when the slice has no plan, since only a slice with a plan leaves a splice out
 
@@ -175,11 +175,11 @@ export function madeWithSplice(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param set - the splices, left out of the slice now
+ @param set - splices, left out of the slice now
 
- @returns The replacements with the splices, the slice with them made, and whether the words of a splice overlap one that stood or
+ @returns Replacements with the splices, slice with them made, and whether the words of a splice overlap one that stood or
  one of the others, so that the page cannot hold them all
 
  @throws {@link ConsistencyInvariantError} when the slice has no plan, since only a slice with a plan leaves a splice out
@@ -277,15 +277,15 @@ export function madeWithSet(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param edit - the splice
+ @param edit - splice
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 
  @param floorsOn - runs the floors on a slice with its replacements made
 
- @returns The floors' verdict on the slice with the splice made, none when the splice's words overlap a replacement that
+ @returns Floors' verdict on the slice with the splice made, none when the splice's words overlap a replacement that
  stood, since the page then cannot hold the splice and no slice is made with it
 
  @throws {@link ConsistencyInvariantError} when the slice has no plan, since only a slice with a plan leaves a splice out
@@ -324,15 +324,15 @@ export function floorsWithSplice(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param set - the splices
+ @param set - splices
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 
  @param floorsOn - runs the floors on a slice with its replacements made
 
- @returns The floors' verdict on the slice with the splices made, none when the words of a splice overlap a replacement that
+ @returns Floors' verdict on the slice with the splices made, none when the words of a splice overlap a replacement that
  stood or one of the others, since the page then cannot hold them and no slice is made with them
 
  @throws {@link ConsistencyInvariantError} when the slice has no plan, since only a slice with a plan leaves a splice out
@@ -407,9 +407,9 @@ export function floorsWithSet(
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param edit - the splice
+ @param edit - splice
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 

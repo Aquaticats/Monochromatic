@@ -125,9 +125,9 @@ const CHOICE_KEY = consistencyKey({
 /**
  What a writer sends, naming itself so a paragraph is told from the others'.
 
- @param seat - the seat answering
+ @param seat - seat answering
 
- @returns The seat's reply as text
+ @returns Seat's reply as text
 
  @example
  ```ts
@@ -141,9 +141,9 @@ function paragraphOf({ seat, }: { readonly seat: RosterModelId; }): string {
 /**
  What a seat does when every writer answers with a paragraph.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -157,9 +157,9 @@ function everyWriterAnswers({ seat, }: { readonly seat: RosterModelId; },): Seat
 /**
  What a seat does when every judge chooses the second candidate.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -175,9 +175,9 @@ function everyJudgeChooses({ seat, }: { readonly seat: RosterModelId; },): SeatB
 
  @param behave - what each seat does
 
- @param cache - the store
+ @param cache - store
 
- @param subject - the question put, the cat sheet by default
+ @param subject - question put, cat sheet by default
 
  @param lines - sink for the level and text of every line logged
 
@@ -222,7 +222,7 @@ async function askWriters(
 
  @param behave - what each seat does
 
- @param cache - the store
+ @param cache - store
 
  @param lines - sink for the level and text of every line logged
 

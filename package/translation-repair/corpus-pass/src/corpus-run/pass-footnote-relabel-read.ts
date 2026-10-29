@@ -99,7 +99,7 @@ export type ClosedRelabelReading = {
 
  @param archiveText - archive text
 
- @returns The reading with its closure, or the disagreement
+ @returns Reading with its closure, or the disagreement
 
  @example
  ```ts
@@ -159,7 +159,7 @@ function closeReading(
 
  @param l - entry logger
 
- @returns The reading that stands with its closure, or the disagreement
+ @returns Reading that stands with its closure, or the disagreement
 
  @example
  ```ts

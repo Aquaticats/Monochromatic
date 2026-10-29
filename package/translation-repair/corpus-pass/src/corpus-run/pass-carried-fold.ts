@@ -35,7 +35,7 @@ import { foldCarriedInsertions, } from '@monochromatic-dev/translation-repair-in
 
  @param l - entry logger
 
- @returns The preparation and the admission after the fold
+ @returns Preparation and admission after the fold
 
  @example
  ```ts

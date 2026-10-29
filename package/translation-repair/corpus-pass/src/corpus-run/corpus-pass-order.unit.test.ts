@@ -32,7 +32,7 @@ import { orderPendingEntries, } from '../../dist/final/node/index.mjs';
  @param id - entry id
  @param bytes - size of the original page in UTF-8 bytes, all of it ASCII
 
- @returns The pair
+ @returns Pair
 
  @example
  ```ts

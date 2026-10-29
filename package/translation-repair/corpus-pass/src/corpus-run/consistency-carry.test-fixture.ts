@@ -152,7 +152,7 @@ export type CarryScene = {
 
  @param writers - whether the writers are asked, the whole bench by default
 
- @returns The scene
+ @returns Scene
 
  @example
  ```ts
@@ -311,7 +311,7 @@ export function carryScene(
 /**
  A second receiving place of the scene's block, worded differently, whose words stand after the first's.
 
- @param receiver - the scene's receiving place
+ @param receiver - scene's receiving place
 
  @returns Another place of the same slice, at position 2, whose plan moves in the warm sun
 

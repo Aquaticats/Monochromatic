@@ -29,13 +29,13 @@ import type { ConsistencyWriterVoice, } from './pass-consistency-cache.ts';
 /**
  The slice with one block of its English replaced.
 
- @param english - the slice's English
+ @param english - slice's English
 
- @param block - the block replaced
+ @param block - block replaced
 
- @param paragraph - the block's new text
+ @param paragraph - block's new text
 
- @returns The slice's English with the block's text replaced
+ @returns Slice's English with the block's text replaced
 
  @example
  ```ts
@@ -62,19 +62,19 @@ export function composeSlice(
 /**
  What the floors make of a candidate slice, as one sentence.
 
- @param facts - the slice
+ @param facts - slice
 
- @param currentText - the wording the slice carries now
+ @param currentText - wording the slice carries now
 
- @param candidateText - the slice with a candidate paragraph in it
+ @param candidateText - slice with a candidate paragraph in it
 
  @param declared - name pairs the front matter declares
 
  @param declaredNames - declared name forms
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
- @returns The floors' findings joined as a list of zero or one, none when every floor passed
+ @returns Floors' findings joined as a list of zero or one, none when every floor passed
 
  @example
  ```ts
@@ -125,7 +125,7 @@ export function floorRefusalOf(
 
  @param text - text a writer returned
 
- @returns The text from its first character that is not a line break to its last
+ @returns Text from its first character that is not a line break to its last
 
  @example
  ```ts
@@ -161,11 +161,11 @@ function withoutEdgeBreaks({ text, }: { readonly text: string; },): string {
 
  @param seat - seat that wrote it, which each finding names
 
- @param translation - the paragraph as the model wrote it
+ @param translation - paragraph as the model wrote it
 
  @param lineStructured - whether the line-structure rule governs the slice
 
- @returns The paragraph as it would ship
+ @returns Paragraph as it would ship
 
  @throws Whatever the semantic wrap throws for text it refuses, which the caller contains
 
@@ -205,16 +205,16 @@ function shippingParagraphOf(
 /**
  The words of other places that a writer's paragraph no longer holds.
 
- @param paragraph - the writer's paragraph as it would ship
+ @param paragraph - writer's paragraph as it would ship
 
- @param block - the block it replaces
+ @param block - block it replaces
 
  @param keeping - English words that must stay as they are, one entry for each place
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), which a reference in the paragraph or the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), which a reference in the paragraph or the
  block resolves against whichever slice holds the definition; none where the slice carries no page (n173)
 
- @returns The entries the paragraph holds fewer times than the block does, in order
+ @returns Entries the paragraph holds fewer times than the block does, in order
 
  @example
  ```ts
@@ -257,23 +257,23 @@ function keptWordsLost(
  for the block and charged to no writer. What a reply raises after that is the
  reply's own, and is recorded for its seat alone.
 
- @param voices - the writers' replies with their seats, in roster order
+ @param voices - writers' replies with their seats, in roster order
 
- @param english - the receiving places' slice English
+ @param english - receiving places' slice English
 
- @param block - the block of it the writers rewrote
+ @param block - block of it the writers rewrote
 
  @param keeping - English words of other places inside the block that must stay as they are
 
  @param crossing - stretches of words of places that must stay as they are and run over an edge of the block, each of which must stand at that edge of the paragraph
 
- @param facts - the slice
+ @param facts - slice
 
  @param declared - name pairs the front matter declares
 
  @param declaredNames - declared name forms
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param l - logger the stage writes to
 

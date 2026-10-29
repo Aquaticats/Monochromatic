@@ -59,7 +59,7 @@ function catSlices(): readonly ConsistencySliceFacts[] {
 /**
  The repeat groups of the cat page's original.
 
- @returns The sentence group and the refrain group, in page order
+ @returns Sentence group and refrain group, in page order
 
  @example
  ```ts
@@ -81,7 +81,7 @@ function catGroups(): ReturnType<typeof repeatGroupsOf> {
 
  @param position - position of the group on the page
 
- @returns The group
+ @returns Group
 
  @example
  ```ts

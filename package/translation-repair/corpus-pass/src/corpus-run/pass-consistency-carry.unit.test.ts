@@ -60,7 +60,7 @@ const WRITTEN = 'Later the cat dozes in the sun.';
 /**
  Writers that all write the same paragraph, and judges that all choose the candidate holding a text.
 
- @param choice - the text of the candidate every judge chooses
+ @param choice - text of the candidate every judge chooses
 
  @returns What each seat does
 
@@ -87,7 +87,7 @@ function writtenAndChosen({ choice, }: { readonly choice: string; },) {
  A writer that rewrites the second paragraph of the crossing page, and judges that choose a writer's paragraph where one
  is on offer and the first candidate other than the current paragraph otherwise.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns What the seat does
 
@@ -116,9 +116,9 @@ function writerOfSecondParagraph({ sheet, }: { readonly sheet: string; },): Seat
 /**
  Carries the chosen words to the scene's receiving block.
 
- @param scene - the scene
+ @param scene - scene
 
- @param unit - the receiving block, the scene's by default
+ @param unit - receiving block, scene's by default
 
  @returns How the carry ended
 
@@ -147,11 +147,11 @@ async function carriedIn(
 /**
  The scene's block with its one receiving place replaced.
 
- @param scene - the scene
+ @param scene - scene
 
- @param receiver - the receiving place, as a change to the scene's own
+ @param receiver - receiving place, as a change to the scene's own
 
- @returns The unit holding that place alone
+ @returns Unit holding that place alone
 
  @example
  ```ts

@@ -141,17 +141,17 @@ export type AppliedConsistency = {
 /**
  Runs the floors on a changed slice.
 
- @param facts - the slice
+ @param facts - slice
 
- @param currentText - the wording the slice carries now
+ @param currentText - wording the slice carries now
 
- @param candidateText - the slice with the replacements made
+ @param candidateText - slice with the replacements made
 
  @param declared - name pairs the front matter declares
 
  @param declaredNames - declared name forms
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @returns What the floors found
 
@@ -194,7 +194,7 @@ function floorsOn(
  Applies every group's replacements slice by slice and puts each changed slice
  through the floors.
 
- @param settled - the groups in page order, with their pending replacements
+ @param settled - groups in page order, with their pending replacements
 
  @param slices - what the pass knows of each slice
 
@@ -202,11 +202,11 @@ function floorsOn(
 
  @param declaredNames - declared name forms
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param l - logger the pass writes to
 
- @returns The groups with final outcomes, the changed slices and the findings
+ @returns Groups with final outcomes, changed slices and findings
 
  @example
  ```ts
@@ -260,7 +260,7 @@ export function applyConsistency(
 
    @param ids - names of the replacements
 
-   @param name - the place they gave way to
+   @param name - place they gave way to
    */
   function recordGaveWay(
     {

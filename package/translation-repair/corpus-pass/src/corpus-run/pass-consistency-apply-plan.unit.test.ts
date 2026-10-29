@@ -40,13 +40,13 @@ import {
 /**
  A group whose first place stands in the first slice and whose second place a code splice in the second slice replaces.
 
- @param first - the English of the first slice
+ @param first - English of the first slice
 
- @param second - the English of the second slice
+ @param second - English of the second slice
 
  @param splice - where the splice starts and ends in the second slice and the words it puts in
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -79,9 +79,9 @@ function splicedGroup(
  The facts of a page, each slice that carries English given the page as it will be published: the slices' English and the
  text the case says the page carries around them.
 
- @param slices - the facts of the slices, in page order
- @param between - the text before the first slice that carries English, between each two and after the last
- @returns The facts, a slice that carries English now holding the page and where it starts in it
+ @param slices - facts of the slices, in page order
+ @param between - text before the first slice that carries English, between each two and after the last
+ @returns Facts, slice that carries English now holding the page and where it starts in it
  @example
  ```ts
  const slices = withPageBetween({ slices: factsOf({ englishes, },), between: ['', '\n\n', '',], },);
@@ -119,10 +119,10 @@ function withPageBetween(
 /**
  Plans the slices of a page from its groups and the facts of its slices.
 
- @param settled - the groups in page order, with their pending replacements
+ @param settled - groups in page order, with their pending replacements
  @param slices - what the pass knows of each slice, in page order
- @param refused - the indexes of the slices the floors refused; none by default
- @returns The plan of each slice that has replacements
+ @param refused - indexes of the slices the floors refused; none by default
+ @returns Plan of each slice that has replacements
  @example
  ```ts
  const plans = slicePlansOf({ settled, slices, },);
@@ -145,7 +145,7 @@ function slicePlansOf(
 /**
  What the plans of a page come to, for a case to compare.
 
- @param plans - the plans of the slices that have replacements
+ @param plans - plans of the slices that have replacements
 
  @returns For each slice, its index, the names of the replacements it makes and of the splices left out for their apostrophe, and the replacements left out for the words of another group
 

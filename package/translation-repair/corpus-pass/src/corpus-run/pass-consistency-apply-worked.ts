@@ -106,11 +106,11 @@ export type WorkedPage = {
 /**
  The names of the replacements that are code splices.
 
- @param named - a slice's replacements with the pending replacement under each name
+ @param named - slice's replacements with the pending replacement under each name
 
- @param candidates - the replacements to look at
+ @param candidates - replacements to look at
 
- @returns The names of those that are code splices
+ @returns Names of those that are code splices
 
  @example
  ```ts
@@ -145,11 +145,11 @@ function splicesAmong(
 /**
  The slice that carries English, with its replacements and the ones another group's located words leave out.
 
- @param index - the page's groups read by slice
+ @param index - page's groups read by slice
 
  @param facts - what the pass knows of the slice
 
- @returns The slice as a list of one, none when the slice carries no English
+ @returns Slice as a list of one, none when the slice carries no English
 
  @throws {@link ConsistencyInvariantError} when two replacements of one group overlap in the slice
 
@@ -236,9 +236,9 @@ function workedOn(
 /**
  The text the published page carries around the slices that carry English, read off the page the facts carry.
 
- @param worked - the slices that carry English, in page order
+ @param worked - slices that carry English, in page order
 
- @returns The text before the first slice, between each two and after the last, none when a slice carries no page or the
+ @returns Text before the first slice, between each two and after the last, none when a slice carries no page or the
  slices carry different pages, which is how facts built without a page look
 
  @throws {@link ConsistencyInvariantError} when a slice does not lie inside its page, or starts before the slice before it ends
@@ -352,11 +352,11 @@ function textAroundWorked(
  Reads the slices of a page that carry English, with their replacements and the text the published page carries around
  them.
 
- @param settled - the groups in page order, with their pending replacements
+ @param settled - groups in page order, with their pending replacements
 
  @param slices - what the pass knows of each slice, in page order
 
- @returns The slices that carry English and the text around them
+ @returns Slices that carry English and text around them
 
  @throws {@link ConsistencyInvariantError} when two replacements of one group overlap in a slice, or the facts' page does
  not hold the slices in order

@@ -92,7 +92,7 @@ const REFUSED_LINE = `[translation-repair] [loadNamespacedSlices] consistency-ge
 /**
  What storing a value and opening the cache again resumes, with the warnings written meanwhile.
 
- @param stored - the value the first cache is handed to store
+ @param stored - value the first cache is handed to store
 
  @returns Whether the second cache resumed it, and the warnings the second open wrote
 
@@ -130,9 +130,9 @@ async function reopenedWith(
 /**
  Whether each stored value was resumed, and how many warnings the opens wrote.
 
- @param stored - the values to store, one cache each
+ @param stored - values to store, one cache each
 
- @returns The resumed flags in order and the warnings of all the opens
+ @returns Resumed flags in order and warnings of all the opens
 
  @example
  ```ts

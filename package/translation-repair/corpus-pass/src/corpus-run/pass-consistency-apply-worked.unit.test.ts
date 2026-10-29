@@ -43,7 +43,7 @@ const THIRD = 'Fill the family bowl.';
 /**
  A group whose chosen place stands in the first slice and whose receiving place a code splice in the third replaces.
 
- @returns The group with its pending splice
+ @returns Group with its pending splice
 
  @example
  ```ts

@@ -143,7 +143,7 @@ const SILENT_CLIENT: ModelClient = {
 
  @param request - exchange as the lane sent it
 
- @returns The scripted reply, which the stage's own guard has accepted
+ @returns Scripted reply, which the stage's own guard has accepted
 
  @throws Error naming a stage this script does not answer, or a reply its
  guard refused

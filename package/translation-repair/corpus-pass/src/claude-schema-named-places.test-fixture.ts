@@ -123,7 +123,7 @@ type Matching = {
 
  @param places - named places
 
- @returns The reports and the places that were not matched
+ @returns Reports and places that were not matched
 
  @example
  ```ts
@@ -186,7 +186,7 @@ function matchOf(
 
  @param places - named places
 
- @returns The reports left, in order
+ @returns Reports left, in order
 
  @example
  ```ts
@@ -219,7 +219,7 @@ export function spotsNotNamed(
 
  @param places - named places
 
- @returns The places left, in order
+ @returns Places left, in order
 
  @example
  ```ts

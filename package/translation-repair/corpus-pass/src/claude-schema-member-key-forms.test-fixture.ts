@@ -44,7 +44,7 @@ const NAMESPACE_IMPORT = 'import * as sender from \'../../corpus-pass/src/corpus
 
  @param name - name of the case
 
- @param imports - the import of the sender
+ @param imports - import of the sender
 
  @param lines - lines of the stage file after the two imports
 

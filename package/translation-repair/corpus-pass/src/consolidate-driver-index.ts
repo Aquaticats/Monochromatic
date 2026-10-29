@@ -146,7 +146,7 @@ export function contestedRows(
 
  @param item - contested row and its contest
 
- @returns The slice by its index
+ @returns Slice by its index
 
  @example
  ```ts

@@ -155,7 +155,7 @@ export function namesStoredInto({ node, }: { readonly node: unknown; },): readon
 
  @param call - call
 
- @returns The first name of the object a storing method is called on, or of the first argument of `Object.assign` and of
+ @returns First name of the object a storing method is called on, or of the first argument of `Object.assign` and of
  the methods that define properties, none for any other call
 
  @example

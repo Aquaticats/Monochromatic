@@ -105,9 +105,9 @@ type Page = {
 /**
  The generator of a seed: a mulberry32 step, so a seed names one page.
 
- @param seed - the seed
+ @param seed - seed
 
- @returns The draws, each in zero up to one
+ @returns Draws, each in zero up to one
 
  @example
  ```ts
@@ -140,11 +140,11 @@ function randomOf({ seed, }: { readonly seed: number; },): () => number {
 /**
  Builds the page of a seed.
 
- @param seed - the seed
+ @param seed - seed
 
  @param markup - whether the slices are drawn with markup too
 
- @returns The page
+ @returns Page
 
  @example
  ```ts
@@ -164,7 +164,7 @@ function pageOf(
   /**
    Draws one of the options.
 
-   @param options - the options
+   @param options - options
 
    @returns One of them
    */
@@ -284,11 +284,11 @@ function pageOf(
 /**
  The English of every slice with exactly the gains of a subset made.
 
- @param page - the page
+ @param page - page
 
- @param subset - the places of the gains made, in the order of the page
+ @param subset - places of the gains made, in the order of the page
 
- @returns The English of each slice
+ @returns English of each slice
 
  @example
  ```ts
@@ -338,9 +338,9 @@ function textsWith(
  Whether a subset of the gains is valid on the page: each gain mark of it is a proven apostrophe on the page made with it, and
  the floors pass every slice it touches.
 
- @param page - the page
+ @param page - page
 
- @param subset - the places of the gains made, in the order of the page
+ @param subset - places of the gains made, in the order of the page
 
  @returns Whether it is valid
 
@@ -458,7 +458,7 @@ type Reading = {
 /**
  Runs the pass over the page of a seed and reads it against every subset of the gains.
 
- @param seed - the seed
+ @param seed - seed
 
  @param markup - whether the slices are drawn with markup too
 
@@ -561,9 +561,9 @@ function readingOf(
 /**
  The places of the gains the pass makes on a page.
 
- @param page - the page
+ @param page - page
 
- @returns The places made
+ @returns Places made
 
  @example
  ```ts

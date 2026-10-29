@@ -46,9 +46,9 @@ const FOURTH = 'Dusk: the kitten purrs in the sun.';
 
  @param start - where the replaced text starts
 
- @param text - the text that goes in
+ @param text - text that goes in
 
- @returns The replacement, naming the second place of the group
+ @returns Replacement, naming the second place of the group
 
  @example
  ```ts

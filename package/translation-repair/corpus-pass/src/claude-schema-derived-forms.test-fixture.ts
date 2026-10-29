@@ -26,7 +26,7 @@ export const DERIVED_ARGUMENTS = '{ schemaName: \'derived\', verdicts: [], asksA
 
  @param name - name of the case
 
- @param signature - the function's signature as written, from its name to the opening brace
+ @param signature - function's signature as written, from its name to the opening brace
 
  @param body - lines of the function's body, the last of which hands the sender a builder call
 

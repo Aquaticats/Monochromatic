@@ -29,7 +29,7 @@ import {
  Chooses the entries a pass runs: every complete unsettled pair at the pin, or
  only those the command line names, ordered to resume cached progress first.
 
- @param line - the pass's command line, which may restrict the entries
+ @param line - pass's command line, which may restrict the entries
 
  @param pin - clone and commit the corpus is read at
 

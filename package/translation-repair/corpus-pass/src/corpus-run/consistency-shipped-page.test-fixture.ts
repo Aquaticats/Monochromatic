@@ -78,9 +78,9 @@ type ParsedTemplate = {
 /**
  Reads a template whose places are written between `⟦1` and `1⟧`, `⟦2` and `2⟧`, `⟦3` and `3⟧`.
 
- @param template - the English of the first section with the markers
+ @param template - English of the first section with the markers
 
- @returns The English and the words each place quotes
+ @returns English and words each place quotes
 
  @example
  ```ts
@@ -214,9 +214,9 @@ function ballotsOf({ quotes, }: { readonly quotes: readonly string[]; },): SeatS
 /**
  The English of each slice of a preparation, in the order of the slices.
 
- @param slices - the slices of the preparation
+ @param slices - slices of the preparation
 
- @returns The target English of each slice
+ @returns Target English of each slice
 
  @example
  ```ts
@@ -235,7 +235,7 @@ function targetEnglishOf(
  What a seat does with a sheet that is not a first-round ballot when the writers are silent: a writer throws and every other
  sheet is answered as the fixture of the pass answers it.
 
- @param sheet - the sheet the seat was shown
+ @param sheet - sheet the seat was shown
 
  @returns Behaviour of the seat
 
@@ -253,15 +253,15 @@ function writersSilent({ sheet, }: { readonly sheet: string; },): SeatBehaviour 
 /**
  Runs the pass over a page and builds the page that ships.
 
- @param template - the English of the first section, with the markers of places one to three
+ @param template - English of the first section, with the markers of places one to three
 
- @param secondSection - the English of the second section, which holds the fourth place's words 'kittens'
+ @param secondSection - English of the second section, which holds the fourth place's words 'kittens'
 
  @param silentWriters - whether the writers throw, for the pages whose space the writer sheets show changed
  (`invisible-variants.ts` maps U+202F to a space and drops U+FEFF), where a writer that returns the paragraph as it stands
  would return a different paragraph
 
- @returns The page before, the page shipped and the outcomes of the first group
+ @returns Page before, page shipped and outcomes of the first group
 
  @example
  ```ts

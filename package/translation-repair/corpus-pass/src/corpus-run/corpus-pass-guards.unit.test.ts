@@ -75,7 +75,7 @@ const FIXED_TIP = '1111111111111111111111111111111111111111';
 /**
  A complete settled artifact of the entry, recording {@link RECORDED_DIGEST}.
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts

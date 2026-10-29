@@ -71,9 +71,9 @@ const CURLY_PAGE: {
 /**
  Prepares a page of the original and the archive.
 
- @param page - the original and the archive
+ @param page - original and archive
 
- @returns The preparation
+ @returns Preparation
 
  @example
  ```ts
@@ -92,13 +92,13 @@ function preparedOf(
 /**
  The page the publishing builds when the lanes agree on the English given and the consistency pass wrote the rows given.
 
- @param prepared - the preparation of the page
+ @param prepared - preparation of the page
 
  @param english - what each slice ships before the pass, in slice order
 
  @param rows - what the consistency pass wrote, by slice index
 
- @returns The text `spliceSlices` writes from what `shippableReplacements` gives for the artifact that carries the guard's record
+ @returns Text `spliceSlices` writes from what `shippableReplacements` gives for the artifact that carries the guard's record
 
  @example
  ```ts
@@ -165,7 +165,7 @@ function shippedTextOf(
 /**
  What the pass reads of each slice of a page whose lanes agree on the English given.
 
- @param prepared - the preparation of the page
+ @param prepared - preparation of the page
 
  @param english - what each slice ships, in slice order
 
@@ -203,9 +203,9 @@ function factsOf(
 
  @param facts - what the pass reads of each slice
 
- @param trial - the English a slice is read with in place of the one it carries, by slice index
+ @param trial - English a slice is read with in place of the one it carries, by slice index
 
- @returns The page the proof of an apostrophe reads
+ @returns Page the proof of an apostrophe reads
 
  @example
  ```ts
@@ -249,9 +249,9 @@ function trialPageOf(
  The positions an English proves as the last character of a possessive and as the first of an elision, sorted, in a form
  that compares.
 
- @param english - the English to read
+ @param english - English to read
 
- @returns The two lists
+ @returns Two lists
 
  @example
  ```ts
@@ -304,9 +304,9 @@ const TYPOGRAPHY_ROWS: readonly string[] = [
 /**
  The English of the slices when the lanes agree on a wording for the second.
 
- @param wording - the second slice's wording, as the lane wrote it
+ @param wording - second slice's wording, as the lane wrote it
 
- @returns The English of each slice
+ @returns English of each slice
 
  @example
  ```ts
@@ -324,9 +324,9 @@ function englishWith({ wording, }: { readonly wording: string; },): readonly str
 /**
  Draws one generated page and the English the lanes agree on for it, from a seed.
 
- @param seed - the seed
+ @param seed - seed
 
- @returns The preparation, the English of each slice, and the English a trial reads some slices with
+ @returns Preparation, English of each slice, and English a trial reads some slices with
 
  @example
  ```ts
@@ -376,7 +376,7 @@ function drawnPageOf(
   /**
    A wording of some pieces.
 
-   @returns The wording
+   @returns Wording
    */
   function wording(): string {
     /**

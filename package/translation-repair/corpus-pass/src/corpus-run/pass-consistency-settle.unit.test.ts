@@ -82,13 +82,13 @@ const SENTENCE_QUOTES = [
 
  @param seat - seat that answered
 
- @param quotes - the quotes the judge gives
+ @param quotes - quotes the judge gives
 
- @param choice - the label the judge chooses
+ @param choice - label the judge chooses
 
- @param keep - the labels the judge keeps
+ @param keep - labels the judge keeps
 
- @returns The voice
+ @returns Voice
 
  @example
  ```ts
@@ -120,13 +120,13 @@ function voiceOf(
 /**
  What the gather of three seats came to.
 
- @param voices - the voices heard
+ @param voices - voices heard
 
  @param quorum - voices the gather closed on
 
  @param findings - what the gather reported
 
- @returns The gather as the settling reads it
+ @returns Gather as the settling reads it
 
  @example
  ```ts
@@ -155,9 +155,9 @@ function askedOf(
 /**
  Three voices that give the same quotes and choose alike.
 
- @param quotes - the quotes every judge gives
+ @param quotes - quotes every judge gives
 
- @returns The voices, in seat order
+ @returns Voices, in seat order
 
  @example
  ```ts
@@ -176,7 +176,7 @@ function threeAlike({ quotes, }: { readonly quotes: ConsistencyVoice['quotes']; 
 /**
  Four voices that give the same quotes and choose the first place twice and the second twice, a tie for first.
 
- @returns The voices, in seat order
+ @returns Voices, in seat order
 
  @example
  ```ts
@@ -200,7 +200,7 @@ function fourSplit(): readonly ConsistencyVoice[] {
  Four voices that give the same quotes and choose the first place twice, the second once and the third once, a lone leader
  without a majority.
 
- @returns The voices, in seat order
+ @returns Voices, in seat order
 
  @example
  ```ts
@@ -223,11 +223,11 @@ function leaderSplit(): readonly ConsistencyVoice[] {
 /**
  Settles the repeated sentence in its three places from what the bench came to.
 
- @param asked - the ballots heard, the quorum and the gather's findings
+ @param asked - ballots heard, quorum and gather's findings
 
  @param runOff - what the run-off heard, none when the choices did not tie
 
- @returns The decided group
+ @returns Decided group
 
  @example
  ```ts
@@ -274,7 +274,7 @@ const CARRY: ArtifactConsistencyCarry = {
 
  @param findings - what the carry reported
 
- @returns The carried place
+ @returns Carried place
 
  @example
  ```ts

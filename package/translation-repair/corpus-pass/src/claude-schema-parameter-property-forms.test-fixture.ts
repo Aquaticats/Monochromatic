@@ -49,7 +49,7 @@ function constructorSpotAt({ line, }: { readonly line: number; },): BlindSpot {
 
  @param name - name of the case
 
- @param parameter - the constructor's parameter as written
+ @param parameter - constructor's parameter as written
 
  @returns Case that lists the stage file and reports its constructor
 

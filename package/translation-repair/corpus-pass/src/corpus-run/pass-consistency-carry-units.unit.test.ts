@@ -60,7 +60,7 @@ const SECOND_BLOCK: CarryBlock = { start: 18, end: 52, text: 'The kitten purrs. 
 
  @param position - its position in the group
 
- @param sliceIndex - the slice it stands in
+ @param sliceIndex - slice it stands in
 
  @param core - its located words, the first stand of the kitten napping by default
 
@@ -68,7 +68,7 @@ const SECOND_BLOCK: CarryBlock = { start: 18, end: 52, text: 'The kitten purrs. 
 
  @param plan - how the chosen words move into it, a replacement of its words by themselves by default
 
- @returns The receiving place
+ @returns Receiving place
 
  @example
  ```ts
@@ -108,11 +108,11 @@ function receiverIn(
 /**
  A receiving place held by a block.
 
- @param receiver - the receiving place
+ @param receiver - receiving place
 
- @param block - the block that holds it, none where its words lie in no single block
+ @param block - block that holds it, none where its words lie in no single block
 
- @returns The held receiver
+ @returns Held receiver
 
  @example
  ```ts

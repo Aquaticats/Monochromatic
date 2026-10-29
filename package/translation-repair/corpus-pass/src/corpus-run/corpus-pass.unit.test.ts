@@ -56,7 +56,7 @@ const WALL_CLOCK_FLOOR = '2026-01-01T00:00:00.000Z';
 /**
  Whether a clock time a child printed reads as the wall clock: a time after the floor, in UTC.
 
- @param time - the instant, without its `at=` key
+ @param time - instant, without its `at=` key
 
  @returns Whether it sorts after the floor and ends in Z
 
@@ -72,9 +72,9 @@ function isWallClockTime(time: string,): boolean {
 /**
  What the lock file a live pass wrote records of its holder.
 
- @param text - the lock file's text
+ @param text - lock file's text
 
- @returns The holder's process id and the instant it took the lock
+ @returns Holder's process id and instant it took the lock
 
  @throws {@link Error} when the text is not a lock holder, which the case that wrote it rules out
 

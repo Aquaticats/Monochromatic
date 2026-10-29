@@ -66,7 +66,7 @@ export function editId(
 
  @param place - position of the place in the group, from zero
 
- @returns The key
+ @returns Key
 
  @example
  ```ts
@@ -88,9 +88,9 @@ export function placeKey(
 /**
  A rendering as the artifact records it.
 
- @param rendering - the counter's rendering
+ @param rendering - counter's rendering
 
- @returns The recorded rendering
+ @returns Recorded rendering
 
  @example
  ```ts
@@ -183,7 +183,7 @@ type OverlappingPair = {
 
  @param left - one replacement's span
 
- @param right - the other replacement's span
+ @param right - other replacement's span
 
  @returns Whether a word lies in both
 
@@ -208,9 +208,9 @@ function spansOverlap(
  The first pair of one group's replacements whose words overlap, none when no two
  of a group meet.
 
- @param named - a slice's replacements with their names and groups
+ @param named - slice's replacements with their names and groups
 
- @returns The pair as a list of zero or one, the earlier replacement first
+ @returns Pair as a list of zero or one, earlier replacement first
 
  @example
  ```ts
@@ -250,11 +250,11 @@ function overlappingInOneGroup(
  The replacements of one slice, named, with the places each carries and the
  group each belongs to.
 
- @param index - the page's groups read by slice
+ @param index - page's groups read by slice
 
- @param sliceIndex - the slice
+ @param sliceIndex - slice
 
- @returns The slice's replacements, earlier groups first, with what ties each name back to its places and group
+ @returns Slice's replacements, earlier groups first, with what ties each name back to its places and group
 
  @throws {@link ConsistencyInvariantError} when two replacements of one group overlap in the slice, naming both, since the places of one group that a block holds are carried by one replacement and the arbitration would record the later place as overlapped by its own group
 
@@ -365,11 +365,11 @@ export function sliceEditsOf(
 /**
  The pending replacement a name stands for.
 
- @param pendings - the slice's pending replacements by name
+ @param pendings - slice's pending replacements by name
 
  @param id - name of a replacement that was made
 
- @returns The replacement with its group's position
+ @returns Replacement with its group's position
 
  @throws {@link ConsistencyInvariantError} when no pending replacement has the name
 
@@ -404,9 +404,9 @@ export function pendingNamed(
 
  @param group - position of the replacement's group on the page, from zero
 
- @param edit - the replacement
+ @param edit - replacement
 
- @returns The group and label of the place
+ @returns Group and label of the place
 
  @throws {@link ConsistencyInvariantError} when the replacement carries no receiving place
 
@@ -439,11 +439,11 @@ export function carriedPlaceName(
  The replacement that won the words a later replacement overlapped: the first one
  made, in priority order, whose span meets the later one's.
 
- @param loser - the replacement left out for overlapping an earlier one
+ @param loser - replacement left out for overlapping an earlier one
 
- @param made - the replacements that were made, in priority order
+ @param made - replacements that were made, in priority order
 
- @returns The replacement that won
+ @returns Replacement that won
 
  @throws {@link ConsistencyInvariantError} when no replacement that was made meets the one left out
 
@@ -479,16 +479,16 @@ export function winnerOver(
  offsets, line, rendering and final outcome, and for an overlapped place the place
  it gave way to.
 
- @param settled - the groups in page order, with their provisional outcomes
+ @param settled - groups in page order, with their provisional outcomes
 
  @param outcomes - what the replacements and the floors made of each place a replacement carried, by `placeKey`
 
- @param gaveWayTo - the place each overlapped place gave way to, by `placeKey`
+ @param gaveWayTo - place each overlapped place gave way to, by `placeKey`
 
  @param keptBecause - why the pass left a place as it was after a code splice it carried was left out, by `placeKey`; the
  reason the group holds of a splice refused at the edge stands for a place this does not name; none by default
 
- @returns The recorded groups, in the order of the settled ones
+ @returns Recorded groups, in the order of the settled ones
 
  @throws {@link ConsistencyInvariantError} when a place has no rendering or outcome, a place to be
  replaced was neither made, left out nor refused, or a place ended overlapped with no place it gave way to

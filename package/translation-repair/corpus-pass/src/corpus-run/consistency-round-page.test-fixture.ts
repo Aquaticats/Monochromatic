@@ -96,9 +96,9 @@ type SliceEnglish = {
 /**
  The facts of slices of the cat page from what each ships now, an empty English being a slice that ships nothing.
 
- @param englishes - the slice index and the English of each slice, in page order
+ @param englishes - slice index and English of each slice, in page order
 
- @returns The facts of the slices
+ @returns Facts of the slices
 
  @example
  ```ts
@@ -150,9 +150,9 @@ type RoundPage = {
 /**
  The round page: the settled groups and the facts of the three slices.
 
- @param third - the third slice and the span its splice replaces
+ @param third - third slice and span its splice replaces
 
- @returns The settled groups and the facts of the slices
+ @returns Settled groups and facts of the slices
 
  @example
  ```ts
@@ -233,7 +233,7 @@ export function roundPage({ third, }: { readonly third: RoundThird; },): RoundPa
 /**
  The round page with a third group that changes the second slice beside the first group's splice.
 
- @returns The settled groups and the facts of the slices
+ @returns Settled groups and facts of the slices
 
  @example
  ```ts
@@ -280,11 +280,11 @@ export function roundPageWithTwoEdits(): RoundPage {
 /**
  What applying the round page came to, for a case to compare.
 
- @param third - the third slice and the span its splice replaces
+ @param third - third slice and span its splice replaces
 
- @param declaredNames - the declared name forms the floors keep in each slice
+ @param declaredNames - declared name forms the floors keep in each slice
 
- @returns The outcome of each place of each group, the slices that changed with their text, and the findings
+ @returns Outcome of each place of each group, slices that changed with their text, and findings
 
  @example
  ```ts
@@ -348,7 +348,7 @@ export function roundApplied(
  What the pass reports when the floors refuse the third slice of the page whose closer comes back, with its words taken out
  for `the folks`.
 
- @returns The finding
+ @returns Finding
 
  @throws {@link Error} when the floors pass the slice, which would leave the case with no refusal to test
 

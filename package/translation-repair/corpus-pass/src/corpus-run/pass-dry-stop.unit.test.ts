@@ -37,7 +37,7 @@ import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provide
 
  @param thrown - what each call throws
 
- @returns The client
+ @returns Client
 
  @example
  ```ts
@@ -64,9 +64,9 @@ function throwingClient({ thrown, }: { readonly thrown: Error; },): ModelClient 
 /**
  Request every chat call here sends.
 
- @param signal - the call's abort handle
+ @param signal - call's abort handle
 
- @returns A request over no messages
+ @returns Request over no messages
 
  @example
  ```ts

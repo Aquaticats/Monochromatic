@@ -135,7 +135,7 @@ export type ReadmitLedger = {
 
  @param ledger - what the step knows of the page
 
- @returns The three, ready to hand to `unprovenOnPage`
+ @returns Three, ready to hand to `unprovenOnPage`
 
  @example
  ```ts
@@ -169,11 +169,11 @@ export function pageFrameOf(
 /**
  The key a splice is kept under: its slice's place in the page and its name.
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
  @param id - name of the splice
 
- @returns The key
+ @returns Key
 
  @example
  ```ts
@@ -195,7 +195,7 @@ export function keyOf(
 /**
  The names of some replacements.
 
- @param edits - the replacements
+ @param edits - replacements
 
  @returns Their names
 
@@ -213,13 +213,13 @@ export function idsOf({ edits, }: { readonly edits: readonly ConsistencyEdit[]; 
 /**
  A list with one entry replaced.
 
- @param list - the list
+ @param list - list
 
- @param position - the place of the entry
+ @param position - place of the entry
 
  @param entry - what goes there
 
- @returns A copy of the list with the entry replaced
+ @returns Copy of the list with the entry replaced
 
  @example
  ```ts
@@ -247,9 +247,9 @@ export function replacedAt<Entry,>(
  A slice as the check of the apostrophes reads it, with all the replacements that were not left out for another group's
  words.
 
- @param worked - the slice
+ @param worked - slice
 
- @returns The slice and its replacements
+ @returns Slice and its replacements
 
  @example
  ```ts
@@ -306,11 +306,11 @@ export const NO_POSITION = -1;
 /**
  The place of a slice in the page.
 
- @param worked - the slices that carry English, in page order
+ @param worked - slices that carry English, in page order
 
- @param sliceIndex - the index the artifact names the slice by
+ @param sliceIndex - index the artifact names the slice by
 
- @returns The place, or {@link NO_POSITION} when the slice carries no English
+ @returns Place, or {@link NO_POSITION} when the slice carries no English
 
  @example
  ```ts
@@ -334,11 +334,11 @@ export function positionOfSlice(
 /**
  The page and the plans as the step starts from them.
 
- @param page - the slices that carry English and the text between them
+ @param page - slices that carry English and text between them
 
- @param round - the settled slices of the page, each with the plan the floors agreed to
+ @param round - settled slices of the page, each with the plan the floors agreed to
 
- @param refused - the indexes of the slices the floors refused
+ @param refused - indexes of the slices the floors refused
 
  @returns What the step knows of the page
 
@@ -534,7 +534,7 @@ export function candidatesOf({ ledger, }: { readonly ledger: ReadmitLedger; },):
 
  @param ledger - what the step knows of the page
 
- @returns The same page, plans and replacements, with ledgers of its own
+ @returns Same page, plans and replacements, with ledgers of its own
 
  @example
  ```ts

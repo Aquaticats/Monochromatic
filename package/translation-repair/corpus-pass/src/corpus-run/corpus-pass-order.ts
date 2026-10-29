@@ -83,7 +83,7 @@ function numberOfEntry(
 
  @param attempts - attempt counts from earlier runs
 
- @returns The same pairs in run order
+ @returns Same pairs in run order
 
  @example
  ```ts

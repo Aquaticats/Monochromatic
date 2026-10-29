@@ -887,7 +887,7 @@ const LOGGED_ATTEMPT = 2;
 
  @param sinon - calling case's own sandbox (`ctx.sinon`)
 
- @param run - the work, a seam run
+ @param run - work, seam run
 
  @returns Lines the seam wrote that name the entry, from `console.info` and `console.warn`
 

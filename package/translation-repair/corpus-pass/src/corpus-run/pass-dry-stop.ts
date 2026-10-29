@@ -226,7 +226,7 @@ type DryStopState = {
 /**
  Runs one call of a guarded client and hands any failure to the gate before it propagates.
 
- @param call - the client's own call
+ @param call - client's own call
 
  @param trip - what the gate does with a failure
 

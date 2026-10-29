@@ -63,7 +63,7 @@ const AT = 'at=2026-10-22T08:10:11.123Z';
 /**
  Wall clock that reads the same instant every time it is asked.
 
- @returns The instant the lines are printed at
+ @returns Instant the lines are printed at
 
  @example
  ```ts
@@ -79,7 +79,7 @@ function fixedWallClock(): Date {
 
  @param id - entry id
 
- @returns The pair
+ @returns Pair
 
  @example
  ```ts
@@ -103,7 +103,7 @@ function pairOf({ id, }: { readonly id: string; },): {
 
  @param instants - what it reads, first first
 
- @returns The clock
+ @returns Clock
 
  @example
  ```ts

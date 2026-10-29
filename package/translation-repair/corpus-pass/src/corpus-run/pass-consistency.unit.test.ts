@@ -146,7 +146,7 @@ function readOnlyDirectory({ path, }: { readonly path: string; },): Disposable &
 /**
  The texts the pass changed, by slice.
 
- @param consistency - the section
+ @param consistency - section
 
  @returns Slice index and text of every changed slice
 
@@ -167,7 +167,7 @@ function changedTexts(
 /**
  Outcomes of a group's places, in order.
 
- @param consistency - the section
+ @param consistency - section
 
  @param group - position of the group on the page
 
@@ -231,7 +231,7 @@ function groupTwoPage(): ReturnType<typeof prepareDocumentPair> {
  The live ballots of group two: four judges answer, two quoting with the closing full stop and two without, three
  choosing the first place and one the second; the other seats throw.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
  @returns Behaviour of the seat
 
@@ -269,9 +269,9 @@ function groupTwoBallots({ seat, }: { readonly seat: RosterModelId; },): SeatBeh
  the third carries them as they stand, the rest return the paragraph unchanged; the judges choose the candidate that
  carries the chosen words without the "also".
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
  @returns Behaviour of the seat
 
@@ -376,7 +376,7 @@ function twoInBlockPage(): ReturnType<typeof prepareDocumentPair> {
 /**
  The ballots of the page: every judge quotes all three places and chooses the third.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
  @returns Behaviour of the seat
 
@@ -404,9 +404,9 @@ function twoInBlockBallots({ seat, }: { readonly seat: RosterModelId; },): SeatB
  The writers and the bench of the page: the first two writers put the chosen words in both places of the paragraph
  and also change the sentence between them, which the splice leaves alone; the judges choose a writer's paragraph.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
  @returns Behaviour of the seat
 
@@ -501,7 +501,7 @@ function crossingPage(
 /**
  The ballots of the page: every judge quotes all three places and chooses the third.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
  @returns Behaviour of the seat
 
@@ -529,9 +529,9 @@ function crossingBallots({ seat, }: { readonly seat: RosterModelId; },): SeatBeh
  The writers and the bench of the page: a writer that is asked puts the chosen words in the second paragraph and changes
  the warm sentence of it; the judges choose a writer's paragraph where one is on offer and the code splice otherwise.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
  @returns Behaviour of the seat
 
@@ -694,7 +694,7 @@ function markedBallots(
 
  @param quotes - what every judge quotes for the three places, in order, the page's own by default
 
- @returns The run
+ @returns Run
 
  @example
  ```ts
@@ -725,9 +725,9 @@ async function markedRun(
 /**
  The single marks the section records beside each place's words.
 
- @param consistency - the section
+ @param consistency - section
 
- @returns The mark before and the mark after of every place of the first group, `none` where there is none
+ @returns Mark before and mark after of every place of the first group, `none` where there is none
 
  @example
  ```ts
@@ -760,7 +760,7 @@ const PARTLY_SENTENCE = '窗台上的阳光让小猫睡着了。厨房里很暖�
 
  @param places - how many places the first section holds
 
- @returns The Chinese source
+ @returns Chinese source
 
  @example
  ```ts
@@ -785,7 +785,7 @@ const PARTLY_CHOSEN = 'the kittens purr';
 
  @param others - what the writers and the bench of candidates do, the page's own by default
 
- @returns The run, with the lines it logged
+ @returns Run, with the lines it logged
 
  @example
  ```ts
@@ -827,10 +827,10 @@ async function partlyCarriedRun(
 /**
  What the pass recorded of a partly carried page, for the cases to compare.
 
- @param run - the run
+ @param run - run
 
- @returns The outcomes of the first group, the first section's text, the kinds of candidates each place's carry holds and
- the findings that name a partly carried unit
+ @returns Outcomes of the first group, first section's text, kinds of candidates each place's carry holds and
+ findings that name a partly carried unit
 
  @example
  ```ts
@@ -863,7 +863,7 @@ function partlySeenIn({ run, }: { readonly run: CatRun; },): {
 /**
  Whether a logged line says the entry stopped or that an invariant of the pass fired.
 
- @param line - a line the pass logged
+ @param line - line the pass logged
 
  @returns Whether it names the stop or the invariant
 
@@ -879,7 +879,7 @@ function stopsTheEntry(line: string,): boolean {
 /**
  Fails unless the section reads back as the one the pass wrote.
 
- @param consistency - the section
+ @param consistency - section
 
  @example
  ```ts
@@ -899,9 +899,9 @@ function expectReadsBack({ consistency, }: { readonly consistency: ArtifactConsi
  The writers and the bench of the page of a crossing place beside a block with two receiving places: a writer puts the
  chosen words in both places of the block and changes the warm sentence, and the judges choose the paragraph with the change.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
  @returns Behaviour of the seat
 
@@ -957,7 +957,7 @@ function partlyWriters(
  places of the block and, where it is told to, also changes words of the block that another place holds, and the choice
  among candidates takes the first that is not the paragraph as the page has it now (the splice).
 
- @param change - the words a writer changes and what it writes in their place, none for a writer that changes no more
+ @param change - words a writer changes and what it writes in their place, none for a writer that changes no more
  than the receiving places
 
  @returns What each seat does when asked
@@ -1001,9 +1001,9 @@ function crossingWriters(
 
  @param quotes - what every judge quotes for the places of the first section, in order
 
- @param change - the words a writer changes besides the receiving places' own, none for a writer that changes no more
+ @param change - words a writer changes besides the receiving places' own, none for a writer that changes no more
 
- @returns The outcomes of the first group, the kinds of candidates each place's carry holds, and how many writers'
+ @returns Outcomes of the first group, kinds of candidates each place's carry holds, and how many writers'
  paragraphs were withheld for the words of another place
 
  @example
@@ -1116,7 +1116,7 @@ const GROUP_ONE_QUOTES: readonly (readonly (readonly [string, string,])[])[] = [
  The live ballots of group one: four judges answer, two choosing the third place and two the fourth, so the choices
  tie for first; the other seats throw.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
  @returns Behaviour of the seat
 
@@ -1172,9 +1172,9 @@ const GROUP_ONE_REWRITES: readonly (readonly [string, string, string])[] = [
  place in the run-off and one the fourth, every writer puts the receiving place's own slot in the chosen frame, and the
  judges choose the candidate that is not the paragraph as it stands.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @param sheet - the sheet it was shown
+ @param sheet - sheet it was shown
 
  @returns Behaviour of the seat
 

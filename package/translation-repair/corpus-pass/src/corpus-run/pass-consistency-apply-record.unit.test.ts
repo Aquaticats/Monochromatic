@@ -48,7 +48,7 @@ const FOURTH = 'Dusk: the kitten purrs in the sun.';
 /**
  A group of two places, the first chosen and the second a receiving place.
 
- @returns The group, whose second place is provisionally to be replaced
+ @returns Group, whose second place is provisionally to be replaced
 
  @example
  ```ts
@@ -70,7 +70,7 @@ function twoPlaceGroup(): SettledGroup {
 /**
  What each place of the groups was recorded as, with the place it gave way to.
 
- @param groups - the recorded groups
+ @param groups - recorded groups
 
  @returns One list per group, naming each place's label, slice, outcome and the place it gave way to or none
 

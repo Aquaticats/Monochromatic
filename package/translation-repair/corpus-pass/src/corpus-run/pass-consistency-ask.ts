@@ -61,11 +61,11 @@ export type ConsistencyAsked = ConsistencyRecord & {
 
  @param seat - roster seat that answered, which no reply field can replace
 
- @param ballot - the reply, of the right shape
+ @param ballot - reply, of the right shape
 
  @param labels - labels the sheet showed
 
- @returns The ballot with its seat
+ @returns Ballot with its seat
 
  @example
  ```ts
@@ -120,7 +120,7 @@ function voiceOf(
 
  @param value - what the cache holds under a key
 
- @returns The record as a list of one, none when the value is another kind
+ @returns Record as a list of one, none when the value is another kind
 
  @example
  ```ts
@@ -137,13 +137,13 @@ function storedBallots(value: ConsistencyCacheValue,): readonly ConsistencyRecor
 
  @param quorum - voices the gather closed on
 
- @param voices - the ballots heard with their seats
+ @param voices - ballots heard with their seats
 
  @param findings - what the gather reported
 
  @param labels - labels the sheet showed, which each ballot's places are stored as
 
- @returns The record, as the cache keeps it
+ @returns Record, as the cache keeps it
 
  @example
  ```ts
@@ -186,7 +186,7 @@ function ballotRecordOf(
 
  @param modelIds - bench asked, in roster order
 
- @param subject - the repeated wording and every place it stands
+ @param subject - repeated wording and every place it stands
 
  @param cache - store an earlier answer is read from and a settled one kept in
 
@@ -198,7 +198,7 @@ function ballotRecordOf(
 
  @param stageSettings - straggler windows the entry file read for this launch
 
- @returns The ballots heard, the quorum the gather closed on and its findings
+ @returns Ballots heard, quorum the gather closed on and its findings
 
  @throws {@link StageRosterRepeatError} when the bench seats one model twice
 

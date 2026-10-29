@@ -171,9 +171,9 @@ function bySliceOf({ set, }: { readonly set: readonly Candidate[]; },): Readonly
 
  @param ledger - what the step knows of the page
 
- @param position - the slice's place in the page
+ @param position - slice's place in the page
 
- @param set - the splices of that slice
+ @param set - splices of that slice
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 
@@ -237,15 +237,15 @@ function sliceSetOf(
 
  @param ledger - what the step knows of the page, which is not changed
 
- @param candidates - the splices left out that can still be put back, in the order of the page
+ @param candidates - splices left out that can still be put back, in the order of the page
 
- @param toBeat - the size the sets must beat: the sets of this size and fewer are not looked at
+ @param toBeat - size the sets must beat: the sets of this size and fewer are not looked at
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 
  @param floorsOn - runs the floors on a slice with its replacements made
 
- @returns The first valid set, in the order of the page, of the largest size that has one, {@link NO_LARGER_SET} when no set
+ @returns First valid set, in the order of the page, of the largest size that has one, {@link NO_LARGER_SET} when no set
  larger than `toBeat` is valid
 
  @example
@@ -276,7 +276,7 @@ export function largestValidSetOf(
    Whether a set of splices is valid: every slice it touches can be made and the floors pass it, and every gain of the page is
    proven on the page that ships with the set made.
 
-   @param set - the splices with the place of their slices, in the order of the page
+   @param set - splices with the place of their slices, in the order of the page
 
    @returns Whether the page can hold them
    */
@@ -368,7 +368,7 @@ export function largestValidSetOf(
 
  @param ledger - what the step knows of the page, replaced slice by slice
 
- @param set - the splices with the place of their slices, in the order of the page
+ @param set - splices with the place of their slices, in the order of the page
 
  @param asked - what the floors said of each set of replacements, mutated by this function
 

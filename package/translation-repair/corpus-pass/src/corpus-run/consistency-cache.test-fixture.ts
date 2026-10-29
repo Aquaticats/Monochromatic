@@ -18,7 +18,7 @@ import type { ConsistencyCacheValue, } from '../../dist/final/node/index.mjs';
 
  @param refusal - what storing fails with, absent when it works
 
- @returns The cache
+ @returns Cache
 
  @example
  ```ts

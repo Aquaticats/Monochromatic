@@ -88,9 +88,9 @@ const KEY = consistencyKey({
 /**
  What a seat does when every seat chooses the second finalist.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -106,7 +106,7 @@ function everySeatChooses({ seat, }: { readonly seat: RosterModelId; },): SeatBe
 
  @param behave - what each seat does
 
- @param cache - the store
+ @param cache - store
 
  @param asked - sink for the seat of every call
 

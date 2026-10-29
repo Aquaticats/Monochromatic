@@ -122,7 +122,7 @@ export type Row = {
 /**
  The report of a place for the module a case declares.
 
- @param place - the place
+ @param place - place
 
  @param isForwarder - whether the module declares a forwarder, and not a wrapper of the contest builder
 
@@ -187,9 +187,9 @@ function spotOf(
 /**
  The two cases of a form: the module declares a forwarder, and its twin declares a wrapper of the contest builder.
 
- @param row - the form
+ @param row - form
 
- @returns The forwarder case and the case of its twin
+ @returns Forwarder case and case of its twin
 
  @example
  ```ts

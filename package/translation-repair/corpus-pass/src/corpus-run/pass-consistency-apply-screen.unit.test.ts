@@ -46,12 +46,12 @@ const LEADING: SecondSliceSplice = { quote: 'the family', chosen: 'the parentsâ€
 /**
  What a screen of one side blocked, for a page whose second slice leaves the splices named out.
 
- @param second - the English of the second slice
- @param edits - the replacements of the second slice
- @param side - the edge the screen reads
- @param between - the text the page carries around its slices, a blank line between them where none is given
- @param refused - the indexes of the slices the floors refused
- @returns The keys of the splices blocked, and the reason given for each
+ @param second - English of the second slice
+ @param edits - replacements of the second slice
+ @param side - edge the screen reads
+ @param between - text the page carries around its slices, blank line between them where none is given
+ @param refused - indexes of the slices the floors refused
+ @returns Keys of the splices blocked, and the reason given for each
  @example
  ```ts
  const seen = screened({ second, edits: [TRAILING,], side: 'end', },);

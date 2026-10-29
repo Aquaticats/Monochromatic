@@ -102,7 +102,7 @@ const INSTANT_LENGTH = 24;
 
  @param text - what the pass printed
 
- @returns The text without the ` at=<instant>` fields, and the instants in the order they were printed
+ @returns Text without the ` at=<instant>` fields, and the instants in the order they were printed
 
  @example
  ```ts
@@ -157,7 +157,7 @@ function splitClockTimes({ text, }: { readonly text: string; },): {
 
  @param text - what the pass printed
 
- @returns The instants, without their `at=` key
+ @returns Instants, without their `at=` key
 
  @example
  ```ts
@@ -178,7 +178,7 @@ function clockTimesIn({ text, }: { readonly text: string; },): readonly string[]
 
  @param text - what the pass printed
 
- @returns The text without the ` at=<instant>` fields
+ @returns Text without the ` at=<instant>` fields
 
  @example
  ```ts
@@ -287,7 +287,7 @@ export async function runPass(
 
  @param hardMs - per-entry ceiling in milliseconds
 
- @returns The whole line, without its newline
+ @returns Whole line, without its newline
 
  @example
  ```ts
@@ -320,7 +320,7 @@ export async function startLine(
 
  @param clone - throwaway corpus clone and its commit
 
- @returns The whole line, without its newline
+ @returns Whole line, without its newline
 
  @example
  ```ts

@@ -55,7 +55,7 @@ const l = tagged({ tag: 'pass-consistency-bench-test', },);
  A group that lists no place, which the pass never builds and the bench cannot
  word.
 
- @returns The group with its places, both empty
+ @returns Group with its places, both empty
 
  @example
  ```ts
@@ -103,7 +103,7 @@ function catGroups(): readonly PreparedGroup[] {
 /**
  Consecutive equal labels counted as one run each, in order.
 
- @param labels - the labels in the order they came
+ @param labels - labels in the order they came
 
  @returns Each run as its label and how many times it came in a row
 

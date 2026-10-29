@@ -644,11 +644,11 @@ const NONE_TOUCHED: readonly string[] = ['untouched', 'untouched', 'untouched', 
 
  @param name - what the case is about
 
- @param before - the English around the second place without the markers
+ @param before - English around the second place without the markers
 
- @param marked - the English around the second place with the markers
+ @param marked - English around the second place with the markers
 
- @returns The page case
+ @returns Page case
 
  @example
  ```ts
@@ -950,9 +950,9 @@ const MARK_SPELLINGS: readonly string[] = [
 /**
  How many single marks a text shows a reader, whichever way each is written.
 
- @param text - the text
+ @param text - text
 
- @returns The count
+ @returns Count
 
  @example
  ```ts
@@ -968,9 +968,9 @@ function marksIn({ text, }: { readonly text: string; },): number {
 /**
  A text with the markers of the places taken out, as the archive wrote it.
 
- @param text - the text with the markers
+ @param text - text with the markers
 
- @returns The text without them
+ @returns Text without them
 
  @example
  ```ts
@@ -995,11 +995,11 @@ function unmarked({ text, }: { readonly text: string; },): string {
 
  @param name - what the case is about
 
- @param second - the sentence that holds the receiving place
+ @param second - sentence that holds the receiving place
 
  @param tail - what follows the paragraph
 
- @returns The outcome of the receiving place, the sentence around it as the page ships it, and the sentence it stood in
+ @returns Outcome of the receiving place, the sentence around it as the page ships it, and sentence it stood in
 
  @example
  ```ts

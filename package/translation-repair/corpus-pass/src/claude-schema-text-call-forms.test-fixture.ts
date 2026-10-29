@@ -43,7 +43,7 @@ type Expected = {
 
  @param lines - lines of the file
 
- @param expected - the reports the check gives, in the order of the lines
+ @param expected - reports the check gives, in the order of the lines
 
  @returns Case
 

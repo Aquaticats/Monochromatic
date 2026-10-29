@@ -38,7 +38,7 @@ import { pairsOver, } from '@monochromatic-dev/translation-repair-slice-reading/
 /**
  The names of some edits.
 
- @param edits - the edits
+ @param edits - edits
  @returns Their names, in order
  @example
  ```ts
@@ -55,8 +55,8 @@ function idsOf(edits: readonly ConsistencyEdit[],): readonly string[] {
  The sides a slice's code splices gain an edge apostrophe on, for one splice.
 
  @param id - name of the splice
- @param side - the side of its words it brings the mark in on
- @returns The sides by name
+ @param side - side of its words it brings the mark in on
+ @returns Sides by name
  @example
  ```ts
  const gained = gainedOn({ id: 'a', side: 'end', },);
@@ -98,9 +98,9 @@ type SliceCase = {
 /**
  The names of the edits kept and of the edits left out in each slice of a page, for a case to compare.
 
- @param slices - the slices of the page, in page order
- @param between - the text the page carries around the slices, a blank line between each two when absent
- @returns The two lists of names for each slice
+ @param slices - slices of the page, in page order
+ @param between - text the page carries around the slices, blank line between each two when absent
+ @returns Two lists of names for each slice
  @example
  ```ts
  const seen = namesOver({ slices: [{ english: 'Fill the family bowl.', edits: [], splices: [], },], },);
@@ -138,10 +138,10 @@ function namesOver(
 /**
  The names of the edits kept and of the edits left out of a page of one slice.
 
- @param english - the English before any edit
- @param edits - the edits, in priority order
- @param splices - the names of the edits that are code splices, the only ones whose carried apostrophe is checked
- @returns The two lists of names
+ @param english - English before any edit
+ @param edits - edits, in priority order
+ @param splices - names of the edits that are code splices, only ones whose carried apostrophe is checked
+ @returns Two lists of names
  @example
  ```ts
  const seen = namesOf({ english: 'Fill the family bowl.', edits: [], splices: [], },);

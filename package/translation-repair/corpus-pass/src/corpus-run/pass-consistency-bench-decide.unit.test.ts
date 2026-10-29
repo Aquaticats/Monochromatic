@@ -60,7 +60,7 @@ const BENCH: readonly RosterModelId[] = [SEAT_HYPER_ONLY, SEAT_BEDROCK_ONLY_TEXT
 /**
  The cat page's repeated sentence as the pass hands it to the bench.
 
- @returns The first repeat group of the page with its places
+ @returns First repeat group of the page with its places
 
  @example
  ```ts

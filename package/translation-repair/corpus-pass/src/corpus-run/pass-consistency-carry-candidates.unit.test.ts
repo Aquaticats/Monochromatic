@@ -53,7 +53,7 @@ const BLOCK: CarryBlock = {
 
  @param lineStructured - whether the line-structure rule governs the slice
 
- @returns The slice's facts
+ @returns Slice's facts
 
  @example
  ```ts
@@ -76,13 +76,13 @@ function factsOf({ lineStructured, }: { readonly lineStructured: boolean; },): C
 /**
  What the writers' paragraphs come to.
 
- @param voices - the replies with their seats, in roster order
+ @param voices - replies with their seats, in roster order
 
  @param lineStructured - whether the line-structure rule governs the slice
 
  @param lines - sink for the level and text of every line logged
 
- @returns The surviving paragraphs and the findings
+ @returns Surviving paragraphs and findings
 
  @example
  ```ts

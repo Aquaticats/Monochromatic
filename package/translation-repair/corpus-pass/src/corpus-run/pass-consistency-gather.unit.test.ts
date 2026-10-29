@@ -71,9 +71,9 @@ const FINALISTS = ['OCCURRENCE 1', 'OCCURRENCE 2',];
 /**
  What a seat sends, naming itself in its reason so a voice is told from the others'.
 
- @param seat - the seat answering
+ @param seat - seat answering
 
- @returns The seat's reply as text
+ @returns Seat's reply as text
 
  @example
  ```ts
@@ -87,9 +87,9 @@ function replyOf({ seat, }: { readonly seat: RosterModelId; },): string {
 /**
  The voice a seat's reply comes to, as the record keeps it.
 
- @param seat - the seat that answered
+ @param seat - seat that answered
 
- @returns The voice
+ @returns Voice
 
  @example
  ```ts
@@ -103,9 +103,9 @@ function voiceOf({ seat, }: { readonly seat: string; },): ConsistencyChoiceRecor
 /**
  What a seat does when every seat answers with a usable choice.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -119,9 +119,9 @@ function everySeatAnswers({ seat, }: { readonly seat: RosterModelId; },): SeatBe
 /**
  What a seat does when one seat answers and the others choose a place that is not on the sheet.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -139,9 +139,9 @@ function oneSeatAnswers({ seat, }: { readonly seat: RosterModelId; },): SeatBeha
 
  @param behave - what each seat does
 
- @param cache - the store
+ @param cache - store
 
- @param modelIds - the bench, the roster by default
+ @param modelIds - bench, roster by default
 
  @param lines - sink for the level and text of every line logged
 

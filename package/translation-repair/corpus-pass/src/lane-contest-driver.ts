@@ -70,7 +70,7 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
  @param item - comparison row of the slice
 
- @returns The slice by its index
+ @returns Slice by its index
 
  @example
  ```ts

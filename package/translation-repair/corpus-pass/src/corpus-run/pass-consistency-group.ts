@@ -86,7 +86,7 @@ export type GroupDisposition =
 
  @param slices - what the pass knows of each slice
 
- @returns The places a slice holds whole, in page order
+ @returns Places a slice holds whole, in page order
 
  @throws {@link Error} when a place names a slice the pass knows nothing of,
  since the groups are found over the same slices the facts are gathered from
@@ -140,7 +140,7 @@ export function placesOf(
 
  @param text - whole original
 
- @returns The frame of a refrain, or the run of a maximal repeat as the original writes it
+ @returns Frame of a refrain, or the run of a maximal repeat as the original writes it
 
  @example
  ```ts
@@ -198,7 +198,7 @@ export function repeatOf(
  render the wording twice, and the pass cannot see inside an English without a
  judge.
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
  @returns That the bench is asked, or why not
 
@@ -255,11 +255,11 @@ export function dispositionOf(
 /**
  The block of the original holding a place, with the place's offsets inside it.
 
- @param place - the place
+ @param place - place
 
  @param text - whole original
 
- @returns The block, or the whole slice's original where no block holds the
+ @returns Block, or the whole slice's original where no block holds the
  place, and where the place starts and ends inside it
 
  @throws {@link Error} when the offsets do not read the same words in the
@@ -342,11 +342,11 @@ function paragraphOf(
 /**
  What the sheet shows of one place.
 
- @param place - the place
+ @param place - place
 
  @param text - whole original
 
- @returns The place's paragraph with its marked wording, its slot for a frame,
+ @returns Place's paragraph with its marked wording, its slot for a frame,
  and the English of its slice
 
  @throws {@link Error} when the place's offsets do not read the same words in

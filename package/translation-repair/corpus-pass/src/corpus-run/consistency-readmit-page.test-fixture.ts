@@ -59,13 +59,13 @@ export type SecondSliceSplice = {
  A page of two slices and the round that dropped every replacement of the second slice that is named, for a case to put
  back.
 
- @param second - the English of the second slice
+ @param second - English of the second slice
 
- @param edits - the replacements of the second slice, each a group of its own in the order given
+ @param edits - replacements of the second slice, each a group of its own in the order given
 
- @param dropped - the names of the replacements the round dropped, the rest being made
+ @param dropped - names of the replacements the round dropped, the rest being made
 
- @returns The page and the round
+ @returns Page and round
 
  @example
  ```ts
@@ -176,7 +176,7 @@ export function droppedRound(
 /**
  Floors that pass every slice.
 
- @returns The verdict
+ @returns Verdict
 
  @example
  ```ts

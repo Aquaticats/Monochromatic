@@ -71,7 +71,7 @@ export function storingCase(
 
  @param declaration - line that declares the object
 
- @param call - the call that stores the parameter
+ @param call - call that stores the parameter
 
  @param argument - what the builder call reads
 

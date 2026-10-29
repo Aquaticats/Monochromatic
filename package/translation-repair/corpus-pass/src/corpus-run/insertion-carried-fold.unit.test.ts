@@ -505,9 +505,9 @@ function mirroredPair(): PreparedDocumentPair {
  Runs the pass's fold over the nap carried on one region, keeping every line
  it logged behind its level.
 
- @param region - the one region the roster anchored
+ @param region - one region the roster anchored
 
- @returns The admission after the fold beside the lines
+ @returns Admission after the fold beside the lines
 
  @example
  ```ts

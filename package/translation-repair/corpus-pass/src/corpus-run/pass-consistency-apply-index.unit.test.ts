@@ -34,7 +34,7 @@ const FOURTH = 'Dusk: the kitten purrs in the sun.';
 /**
  A group of two places, the first in the second slice and the second in the fourth.
 
- @returns The group, whose second place is provisionally to be replaced
+ @returns Group, whose second place is provisionally to be replaced
 
  @example
  ```ts

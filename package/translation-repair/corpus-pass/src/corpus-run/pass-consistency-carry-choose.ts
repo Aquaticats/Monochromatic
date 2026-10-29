@@ -44,9 +44,9 @@ import { RUN_PER_CALL_TIMEOUT_MS, } from '@monochromatic-dev/translation-repair-
 
  @param decision - how it ended
 
- @param candidates - the texts on offer, if any
+ @param candidates - texts on offer, if any
 
- @returns The record under each label
+ @returns Record under each label
 
  @example
  ```ts
@@ -82,17 +82,17 @@ export function carryWithoutChoice(
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param unit - the unit
+ @param unit - unit
 
- @param offers - the distinct candidates, the current block among them
+ @param offers - distinct candidates, current block among them
 
  @param findings - what the candidates' making reported
 
- @returns The carry's record for each receiving place, the replacements it makes and what it reported
+ @returns Carry's record for each receiving place, replacements it makes and what it reported
 
  @example
  ```ts

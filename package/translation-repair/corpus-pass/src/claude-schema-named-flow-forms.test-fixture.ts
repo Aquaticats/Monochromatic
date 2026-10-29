@@ -109,7 +109,7 @@ function flowSpotAt(
 
  @param lines - lines of the dependencies file after the import, the first of which is line two
 
- @param imports - the import of the forwarders the dependencies file starts with; where it holds two lines, the lines
+ @param imports - import of the forwarders the dependencies file starts with; where it holds two lines, the lines
  after it start at line three
 
  @param unnamed - reports no name stands for

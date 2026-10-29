@@ -94,7 +94,7 @@ const AT = 'at=2026-10-22T08:10:11.123Z';
 /**
  Wall clock that reads the same instant every time it is asked.
 
- @returns The instant the lines are printed at
+ @returns Instant the lines are printed at
 
  @example
  ```ts
@@ -307,7 +307,7 @@ async function runPass(
 /**
  Throwaway directory standing for the built pipeline, holding one built file.
 
- @returns The directory and the digest taken over it
+ @returns Directory and digest taken over it
 
  @example
  ```ts

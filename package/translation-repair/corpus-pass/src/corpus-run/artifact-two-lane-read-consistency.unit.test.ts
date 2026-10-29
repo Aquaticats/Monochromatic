@@ -76,7 +76,7 @@ const SLICES = new Set([0, 1, 2, 3,],);
 
  @param behave - what each seat does when asked, the first place winning every group by default
 
- @returns The section as a file holds it
+ @returns Section as a file holds it
 
  @example
  ```ts
@@ -110,7 +110,7 @@ async function sectionOf(
 
  @param english - what each slice ships, the archive by default
 
- @returns The section as a file holds it
+ @returns Section as a file holds it
 
  @example
  ```ts
@@ -143,7 +143,7 @@ async function sectionOfRun(
 
  @param value - what the file holds
 
- @returns The section
+ @returns Section
 
  @example
  ```ts
@@ -164,7 +164,7 @@ function readWritten({ value, }: { readonly value: unknown; },): ReturnType<type
 
  @param value - what the file holds
 
- @returns The refusal's message, or a note that nothing was refused
+ @returns Refusal's message, or a note that nothing was refused
 
  @example
  ```ts
@@ -186,11 +186,11 @@ function refusalOf({ value, }: { readonly value: unknown; },): string {
 /**
  Refusal for a section that has been altered.
 
- @param section - the valid section to alter
+ @param section - valid section to alter
 
- @param edits - the alterations, in order
+ @param edits - alterations, in order
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @example
  ```ts
@@ -223,7 +223,7 @@ function refusalAfter(
 
  @param field - what to reach inside the place
 
- @returns The path
+ @returns Path
 
  @example
  ```ts
@@ -253,13 +253,13 @@ function placePath(
 /**
  Five equal refrain ballots, as the seats send them.
 
- @param quotes - the quotes each ballot gives
+ @param quotes - quotes each ballot gives
 
- @param choice - the place each ballot chooses
+ @param choice - place each ballot chooses
 
- @param keep - the places each ballot keeps
+ @param keep - places each ballot keeps
 
- @returns The refrain behaviour of five seats
+ @returns Refrain behaviour of five seats
 
  @example
  ```ts

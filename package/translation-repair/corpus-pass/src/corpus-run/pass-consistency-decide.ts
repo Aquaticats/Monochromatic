@@ -39,7 +39,7 @@ import type {
 
  @param runOff - what the run-off heard, as a list of zero or one: none when the choices had no finalists
 
- @returns The winner, and the run-off as the artifact records it when there was one, as a list of zero or one
+ @returns Winner, and the run-off as the artifact records it when there was one, as a list of zero or one
 
  @throws {@link ConsistencyInvariantError} when a run-off was heard for choices that had no finalists, or the choices had finalists and no run-off was heard
 
@@ -121,13 +121,13 @@ export function afterRunOff(
 /**
  The winning place with its located rendering.
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
  @param renderings - each place's rendering, in the order of the places
 
  @param position - position of the winner among the places, minus one when none won
 
- @returns The place and its rendering as a list of one, none when no place won
+ @returns Place and its rendering as a list of one, none when no place won
 
  @throws {@link ConsistencyInvariantError} when a winner's place or rendering is missing or its rendering is not located, since a winner is named only where its own rendering is located
 
@@ -172,9 +172,9 @@ export function chosenPlaceOf(
  What one place comes to once the winner is known: its provisional outcome, and
  the receiver it makes when the chosen rendering is to be carried to it.
 
- @param chosen - the winning place, as a list of zero or one
+ @param chosen - winning place, as a list of zero or one
 
- @param place - the place
+ @param place - place
 
  @param position - position of the place among the group's places
 
@@ -182,7 +182,7 @@ export function chosenPlaceOf(
 
  @param framed - whether the group is a frame with a slot
 
- @returns The provisional outcome and the receiver, as a list of zero or one; and, for a place whose splice the planner
+ @returns Provisional outcome and receiver, as a list of zero or one; and, for a place whose splice the planner
  refused at the edge of the span on the English around it, where the recorded words and marks alone would let code move the
  chosen words in, the refusal, which the record keeps as the reason the place was left as it was
 
@@ -251,7 +251,7 @@ export function plannedPlace(
    the pass holds it, else of the receiving slice, and those of the English of every slice of the page, a slice read alone
    included (`wholePageReferences`). The planner and the record of the edge refusal ask this one function, for any splice.
 
-   @returns The references as the English writes them, none where the receiving place carries no wording
+   @returns References as the English writes them, none where the receiving place carries no wording
    */
   function pageReference(): readonly string[] {
     if (receivingWording.kind !== 'present')

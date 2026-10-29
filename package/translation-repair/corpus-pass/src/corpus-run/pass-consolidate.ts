@@ -53,7 +53,7 @@ import {
  adjudicators disputed, whose repair text stands in for the archive (class
  one hundred seven)
 
- @param acceptedRepairClaimNotes - the claims that panel accepted per slice,
+ @param acceptedRepairClaimNotes - claims that panel accepted per slice,
  which the final polish gate reads
 
  @param contests - lane contest records

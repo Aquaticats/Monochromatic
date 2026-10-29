@@ -60,7 +60,7 @@ type StoredGather = {
  bench, not the seats left), so a floor of two would ask again a gather this
  pass made and spent paid calls on.
 
- @param record - the stored gather
+ @param record - stored gather
 
  @param modelIds - bench asked
 
@@ -102,7 +102,7 @@ export function recordFits(
 
  @param modelIds - bench asked, in roster order
 
- @param messages - the sheet every seat reads
+ @param messages - sheet every seat reads
 
  @param signal - entry deadline and caller abort
 
@@ -120,7 +120,7 @@ export function recordFits(
 
  @param cache - store an earlier answer is read from and a settled one kept in
 
- @param key - the question's identity
+ @param key - question's identity
 
  @param readStored - reads a stored value as this question's record, as a list of zero or one: none for another kind
 
@@ -128,7 +128,7 @@ export function recordFits(
 
  @param l - logger the stage writes to
 
- @returns The record and whether it was read back
+ @returns Record and whether it was read back
 
  @throws {@link StageRosterRepeatError} when the bench seats one model twice
 

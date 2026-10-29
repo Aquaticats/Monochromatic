@@ -128,9 +128,9 @@ export function preparationHooksFor(
 
  @param readPictures - shared entry reader supplying picture support
 
- @param sourceText - the original
+ @param sourceText - original
 
- @param targetText - the archive as the corpus holds it
+ @param targetText - archive as the corpus holds it
 
  @param signal - entry deadline and caller abort
 

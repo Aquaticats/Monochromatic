@@ -34,7 +34,7 @@ const STAMP = 'at=2026-10-22T08:10:11.123Z attempt=4';
 /**
  Wall clock that reads the same instant every time it is asked.
 
- @returns The instant the lines are printed at
+ @returns Instant the lines are printed at
 
  @example
  ```ts

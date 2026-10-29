@@ -63,7 +63,7 @@ const ABSENT_COMMIT = 'b'.repeat(40,);
 
  @param corpusSha - commit the artifact says its texts were read at
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts
@@ -91,7 +91,7 @@ function artifactAt({ corpusSha, }: { readonly corpusSha: string; },): string {
 
  @param corpusSha - commit the artifact says its texts were read at
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts
@@ -106,7 +106,7 @@ function artifactOfGenerationFourteen({ corpusSha, }: { readonly corpusSha: stri
  Declines the entry in a runs directory and leaves a page standing for it, as
  a crash between the page write and the decline record leaves one.
 
- @param layout - the runs directory's declined and published roots
+ @param layout - runs directory's declined and published roots
 
  @returns Directory the stale page stands in
 

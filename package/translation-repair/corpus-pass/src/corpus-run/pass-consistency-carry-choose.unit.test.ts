@@ -69,7 +69,7 @@ const WRITER_LABEL = OFFERS.find(function isWriter({ kind, },): boolean {
 /**
  Judges that all choose the candidate holding a text.
 
- @param text - the candidate's text
+ @param text - candidate's text
 
  @returns What each seat does
 

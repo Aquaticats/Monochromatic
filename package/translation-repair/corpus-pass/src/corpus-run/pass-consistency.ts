@@ -98,7 +98,7 @@ type ClassifiedGroup = PreparedGroup & {
 
  @param declaredNames - declared name forms, which the floors keep
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param entryCacheDir - per-entry cache root
 
@@ -223,7 +223,7 @@ async function settleAll(
 
  @param client - shared provider client
 
- @param prepared - the preparation both lanes ran over
+ @param prepared - preparation both lanes ran over
 
  @param projected - both lanes' rows and the comparison
 

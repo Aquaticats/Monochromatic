@@ -626,7 +626,7 @@ export function moduleHeadOf({ specifier, }: { readonly specifier: string; },): 
 
  @param node - member expression read
 
- @returns The member's name, empty where it is computed from anything else
+ @returns Member's name, empty where it is computed from anything else
 
  @example
  ```ts

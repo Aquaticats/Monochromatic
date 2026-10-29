@@ -117,7 +117,7 @@ function artifactShipping(
 
  @param run - guard call under test
 
- @returns The interruption thrown
+ @returns Interruption thrown
 
  @example
  ```ts

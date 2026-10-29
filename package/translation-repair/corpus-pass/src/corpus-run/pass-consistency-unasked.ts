@@ -40,15 +40,15 @@ export function unplacedOf({ group, }: { readonly group: RepeatGroup; },): reado
 /**
  Settles a group the bench is not asked about.
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
- @param unplaced - the places no slice holds whole
+ @param unplaced - places no slice holds whole
 
  @param reason - why the bench is not asked
 
- @returns The group with every place left as it stands, or all consistent
+ @returns Group with every place left as it stands, or all consistent
 
  @example
  ```ts
@@ -94,15 +94,15 @@ export function settleUnasked(
 /**
  Settles a group whose handling failed: every place stays as it stands.
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param places - the places a slice holds whole
+ @param places - places a slice holds whole
 
- @param unplaced - the places no slice holds whole
+ @param unplaced - places no slice holds whole
 
  @param detail - what went wrong, naming no corpus text
 
- @returns The group with every place left as it stands
+ @returns Group with every place left as it stands
 
  @example
  ```ts

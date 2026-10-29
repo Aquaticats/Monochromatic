@@ -117,7 +117,7 @@ export function insertionHooksFor(
 
  @param client - run client whose dryness view and holds the hook reads
 
- @param prepared - the entry's preparation carrying its insertion slices
+ @param prepared - entry's preparation carrying its insertion slices
 
  @param modelIds - roster the lanes' reading seated, which each candidate is
  asked of until a hold re-seats it

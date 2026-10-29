@@ -39,9 +39,9 @@ const DEFINITION = '[cat*]: https://cats.example/c';
 /**
  Two places that each hold the English whole, the second with the page the case gives.
 
- @param page - the English of the whole page, none for a slice read alone
+ @param page - English of the whole page, none for a slice read alone
 
- @returns The two places
+ @returns Two places
 
  @example
  ```ts

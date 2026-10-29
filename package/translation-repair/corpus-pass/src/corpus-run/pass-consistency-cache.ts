@@ -261,9 +261,9 @@ export type ConsistencyStage = 'ballots' | 'run-off' | 'writers' | 'choice' | 'c
  then shows a block built from them (the lead's decision of 2026-10-12); an
  entry that records none keys as before.
 
- @param stage - the question's kind
+ @param stage - question's kind
 
- @param messages - the sheet
+ @param messages - sheet
 
  @param modelIds - bench asked
 

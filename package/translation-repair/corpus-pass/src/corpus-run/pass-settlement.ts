@@ -55,7 +55,7 @@ export type PassSettlement = {
 
  @param archiveDisputes - slices whose archive rendering the repair lane disputed
 
- @param acceptedRepairClaimNotes - the claims the repair lane's panel accepted
+ @param acceptedRepairClaimNotes - claims the repair lane's panel accepted
  per slice, which the final polish gate reads
 
  @param frontMatterSlices - syntax-bearing metadata positions
@@ -75,7 +75,7 @@ export type PassSettlement = {
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch
 
- @returns The consolidation records and the consistency record
+ @returns Consolidation records and consistency record
 
  @example
  ```ts

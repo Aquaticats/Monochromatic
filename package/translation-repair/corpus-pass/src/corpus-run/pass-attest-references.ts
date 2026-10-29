@@ -41,7 +41,7 @@ const NO_ATTESTATION: ReferenceAttestation = {
  @param beforeItem - hook handing the round its roster, `keepBench` for a
  caller with none; required so no caller drops it by omission
 
- @param sourceText - the original
+ @param sourceText - original
 
  @param archiveText - archive as the preparation reads it
 

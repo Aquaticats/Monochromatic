@@ -60,7 +60,7 @@ export const DIGEST: PipelineDigest = DIGEST_TEXT;
  write nothing, a choice among candidates takes the first candidate that is not the paragraph as the page has it
  now (the chosen words moved in by code), and a run-off takes the first finalist.
 
- @param call - the call the seat was handed, of which only the sheet is read
+ @param call - call the seat was handed, of which only the sheet is read
 
  @returns Behaviour of the seat
 
@@ -104,7 +104,7 @@ export type CatRun = {
 
  @param english - what each slice ships, the archive by default
 
- @param signal - the entry's stop, a bound that outlasts the work by default
+ @param signal - entry's stop, bound that outlasts the work by default
 
  @param dark - seats no provider serves, none by default
 
@@ -112,7 +112,7 @@ export type CatRun = {
 
  @param lines - sink for the level and text of every line the pass logs, which makes the pass log there instead of to the console
 
- @returns The section, the seats asked and the sheets shown
+ @returns Section, seats asked and sheets shown
 
  @example
  ```ts
@@ -184,9 +184,9 @@ export async function runCatPass(
 /**
  The kinds of the candidates a carry was offered, sorted so the order of the sheet does not matter.
 
- @param candidates - the candidates the carry recorded
+ @param candidates - candidates the carry recorded
 
- @returns The kinds, in sorted order
+ @returns Kinds, in sorted order
 
  @example
  ```ts

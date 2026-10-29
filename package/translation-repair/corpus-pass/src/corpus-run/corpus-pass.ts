@@ -57,7 +57,7 @@ import { RUN_PICTURE_SOURCES, } from './pass-visual-evidence.ts';
  them (`stage-settings.ts`, `cap-override.ts`, `spend-ceiling.ts`,
  `pass-generation-guard.ts`).
 
- @param line - the pass's command line, read whole by `reportingRefusals`
+ @param line - pass's command line, read whole by `reportingRefusals`
 
  @example
  ```ts

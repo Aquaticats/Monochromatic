@@ -105,7 +105,7 @@ const CANONICAL: ReadonlyMap<RosterModelId, string> = new Map([
  @param client - client to wrap
  @param formats - sink for the response format of every call
 
- @returns The same client, recording the formats
+ @returns Same client, recording the formats
 
  @example
  ```ts
@@ -136,9 +136,9 @@ function formatRecording(
 /**
  What a seat sends in the first round, writing every label in another form.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -164,9 +164,9 @@ function firstRoundInOtherForms({ seat, }: { readonly seat: RosterModelId; },): 
 /**
  What a seat sends in the run-off, writing its choice in another form.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -181,7 +181,7 @@ function runOffInOtherForms({ seat, }: { readonly seat: RosterModelId; }): SeatB
  Puts the run-off to the bench.
 
  @param behave - what each seat does
- @param cache - the store
+ @param cache - store
  @param formats - sink for the response format of every call
  @param sheets - sink for the sheet of every call
 

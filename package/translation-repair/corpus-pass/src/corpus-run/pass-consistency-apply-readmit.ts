@@ -81,11 +81,11 @@ import type { ConsistencyFloorVerdict, } from './pass-consistency-floors.ts';
 
  @param ledger - what the step knows of the page after its last pass
 
- @param slice - the settled slice as it came
+ @param slice - settled slice as it came
 
- @param refused - the indexes of the slices the floors refused
+ @param refused - indexes of the slices the floors refused
 
- @returns The settled slice
+ @returns Settled slice
 
  @example
  ```ts
@@ -222,7 +222,7 @@ function settledSliceOf(
 
  @param ledger - what the step knows of the page
 
- @returns The count
+ @returns Count
 
  @example
  ```ts
@@ -244,7 +244,7 @@ function leftOutCountOf({ ledger, }: { readonly ledger: ReadmitLedger; },): numb
 
  @param floorsOn - runs the floors on a slice with its replacements made
 
- @returns The ledger after the splices are put back, with the reason each splice still left out is left out for
+ @returns Ledger after the splices are put back, with the reason each splice still left out is left out for
 
  @example
  ```ts
@@ -329,18 +329,18 @@ function readmittedLedgerOf(
  Puts back the code splices the check of the apostrophes left out that the final page would carry: the largest set the page can
  hold where few enough are left out, otherwise one at a time in the order of the page, until a pass puts back none.
 
- @param page - the slices that carry English and the text the published page carries between them
+ @param page - slices that carry English and text the published page carries between them
 
- @param round - the settled slices of the page: each plan as the floors and the check agreed to it
+ @param round - settled slices of the page: each plan as the floors and the check agreed to it
 
- @param refused - the indexes of the slices the floors refused, which keep their wording and put none of their splices back
+ @param refused - indexes of the slices the floors refused, which keep their wording and put none of their splices back
 
  @param asked - what the floors said of each slice with a set of replacements made, shared with the settling that came
  before, mutated by this function
 
  @param floorsOn - runs the floors on a slice with its replacements made
 
- @returns The settled slices, each with the reason every splice it leaves out is left out for; a slice that puts a splice back
+ @returns Settled slices, each with the reason every splice it leaves out is left out for; a slice that puts a splice back
  has the plan, the made slice and the verdict of the floors with it, and the round itself where no slice left a splice out
 
  @throws {@link ConsistencyInvariantError} when the text between the slices does

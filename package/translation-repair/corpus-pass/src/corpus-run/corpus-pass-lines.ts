@@ -37,7 +37,7 @@ import type { IncompleteEntry, } from '@monochromatic-dev/translation-repair-sli
 
  @param onlyIds - entry ids the command line named, empty when it named none
 
- @returns The one line, or none when the pass was not restricted
+ @returns One line, or none when the pass was not restricted
 
  @example
  ```ts
@@ -79,7 +79,7 @@ export function passOnlyLines({ onlyIds, }: { readonly onlyIds: ReadonlySet<stri
 
  @param wallClock - clock the time is read on, printed as `at=`; the wall clock unless a test fixes it
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -185,7 +185,7 @@ const HARD_CAP_SCOPE = 'per-attempt';
 
  @param wallClock - clock the time is read on, printed as `at=`; the wall clock unless a test fixes it
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -232,7 +232,7 @@ export function passStartLine(
 
  @param pinSetting - corpus pin beside where each half came from
 
- @returns The lines to print, none empty
+ @returns Lines to print, none empty
 
  @example
  ```ts
@@ -319,7 +319,7 @@ export function passLaunchLines(
 
  @param providers - providers the command line required, none when it required none
 
- @returns The one line, or none when none was required
+ @returns One line, or none when none was required
 
  @example
  ```ts
@@ -366,7 +366,7 @@ export function passProvidersOffLines({ off, }: { readonly off: readonly Provide
 
  @param previewCount - how many of them the line names
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -492,7 +492,7 @@ function countAmong(
  @param wallClock - clock the time the line ends with is read on, printed as `at=`; the wall clock unless a test fixes
  it. The line belongs to the pass and carries no attempt (ledger B960)
 
- @returns The line
+ @returns Line
 
  @example
  ```ts

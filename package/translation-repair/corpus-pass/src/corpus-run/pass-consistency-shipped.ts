@@ -36,17 +36,17 @@ const KEPT_PAGES = 16;
 /**
  Builds the writer of what every slice ships, for one page.
 
- @param prepared - the preparation both lanes ran over, whose spans the replacements address and whose original the passes read
+ @param prepared - preparation both lanes ran over, whose spans the replacements address and whose original the passes read
 
- @param comparison - the comparison row of each slice
+ @param comparison - comparison row of each slice
 
  @param contestSlices - what the contest decided
 
  @param consolidateSlices - what the third rendering settled
 
- @param raw - the wording each slice that carries English would ship before the pass, by the slice's index
+ @param raw - wording each slice that carries English would ship before the pass, by the slice's index
 
- @returns A writer that gives the replacement of every slice that writes anything for the English handed to it, the same
+ @returns Writer that gives the replacement of every slice that writes anything for the English handed to it, the same
  list for the same English
 
  @example

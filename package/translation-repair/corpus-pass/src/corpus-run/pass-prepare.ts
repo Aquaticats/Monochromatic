@@ -70,7 +70,7 @@ export type PassPreparation = Omit<PairedPreparation, 'findings'>;
  @param findings - what the relabel, the evidence rounds and the archive
  review reported, which the artifact would otherwise never see
 
- @returns The preparation with them on its `alignmentFindings`
+ @returns Preparation with them on its `alignmentFindings`
 
  @example
  ```ts

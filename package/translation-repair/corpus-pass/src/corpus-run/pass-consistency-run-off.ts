@@ -52,7 +52,7 @@ export type ConsistencyRunOffAsked = ConsistencyChoiceRecord & {
 
  @param value - what the cache holds under a key
 
- @returns The record as a list of one, none when the value is another kind
+ @returns Record as a list of one, none when the value is another kind
 
  @example
  ```ts
@@ -68,14 +68,14 @@ export function storedChoices(value: ConsistencyCacheValue,): readonly Consisten
 
  @param quorum - voices the gather closed on
 
- @param voices - the choices heard with their seats
+ @param voices - choices heard with their seats
 
  @param findings - what the gather reported
 
  @param labels - labels the sheet showed, which each choice is stored as the shown label it names (the lead's ruling of
  2026-10-15); each choice is stored as heard where absent
 
- @returns The record
+ @returns Record
 
  @example
  ```ts
@@ -136,7 +136,7 @@ export function choiceRecordOf(
 
  @param modelIds - bench asked, in roster order
 
- @param subject - the repeated wording and every place it stands
+ @param subject - repeated wording and every place it stands
 
  @param finalists - labels of the finalists, the only places the sheet shows
 
@@ -152,7 +152,7 @@ export function choiceRecordOf(
 
  @param stageSettings - straggler windows the entry file read for this launch
 
- @returns The choices heard, the quorum the gather closed on and its findings
+ @returns Choices heard, quorum the gather closed on and its findings
 
  @throws {@link StageRosterRepeatError} when the bench seats one model twice
 

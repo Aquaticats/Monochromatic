@@ -362,7 +362,7 @@ const HOOK_ATTEMPT = 2;
 
  @param sinon - calling case's own sandbox (`ctx.sinon`)
 
- @param run - the work, a hook or a reading
+ @param run - work, hook or reading
 
  @returns Lines it wrote that name the entry, from `console.info` and `console.warn`
 

@@ -19,11 +19,11 @@ import type {
 /**
  The replacements a winning candidate makes.
 
- @param unit - the unit
+ @param unit - unit
 
- @param winner - the candidate the choices named, as a list of zero or one
+ @param winner - candidate the choices named, as a list of zero or one
 
- @returns A replacement of the words of each receiving place that has one for the splice, a replacement of the block for a writer's block carrying every receiving place, and none when the current block or nobody won
+ @returns Replacement of the words of each receiving place that has one for the splice, a replacement of the block for a writer's block carrying every receiving place, and none when the current block or nobody won
 
  @throws {@link ConsistencyInvariantError} when the splice won in a unit none of whose receiving places has words that code can move, since no splice is offered then
 
@@ -100,11 +100,11 @@ export function editsOf(
 /**
  The finding for a block the splice carried in part, in the words of the other findings of the carry.
 
- @param unit - the unit
+ @param unit - unit
 
- @param winner - the candidate the choices named, as a list of zero or one
+ @param winner - candidate the choices named, as a list of zero or one
 
- @returns A finding, as a list of zero or one, naming the places the chosen words were moved into and the places that kept their words because code cannot move the chosen words into them; none unless the splice won and some receiving place of the block has no replacement
+ @returns Finding, as a list of zero or one, naming the places the chosen words were moved into and the places that kept their words because code cannot move the chosen words into them; none unless the splice won and some receiving place of the block has no replacement
 
  @example
  ```ts

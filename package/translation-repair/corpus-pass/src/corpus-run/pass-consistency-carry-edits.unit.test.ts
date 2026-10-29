@@ -53,7 +53,7 @@ const OFFERS = carryOffersOf({
 
  @param kind - which candidate
 
- @returns The candidate as the winner is passed
+ @returns Candidate as the winner is passed
 
  @throws {@link Error} when the candidates hold none of the kind
 
@@ -79,7 +79,7 @@ function winnerOfKind({ kind, }: { readonly kind: CarryOffer['kind']; },): reado
 
  @param secondPlan - how the chosen words reach the second place
 
- @returns The unit
+ @returns Unit
 
  @example
  ```ts

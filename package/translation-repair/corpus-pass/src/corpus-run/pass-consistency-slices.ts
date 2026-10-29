@@ -136,7 +136,7 @@ type SliceRead = {
 /**
  Gathers what the pass reads of every slice.
 
- @param prepared - the preparation both lanes ran over
+ @param prepared - preparation both lanes ran over
 
  @param projected - both lanes' rows and the comparison
 

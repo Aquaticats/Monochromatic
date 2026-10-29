@@ -44,13 +44,13 @@ const FAMILY: SecondSliceSplice = { quote: 'the family', chosen: 'the parents’
 /**
  What a trial of the first splice the round leaves out came to.
 
- @param second - the English of the second slice
- @param edits - the replacements of the second slice, a group of their own each
- @param dropped - the names of the replacements the round left out
- @param between - the text the page carries around its slices, a blank line between them where none is given
+ @param second - English of the second slice
+ @param edits - replacements of the second slice, group of their own each
+ @param dropped - names of the replacements the round left out
+ @param between - text the page carries around its slices, blank line between them where none is given
  @param floorsOn - runs the floors, which pass every slice by default
  @param asked - what the floors said of each set of replacements, empty by default
- @returns The trial
+ @returns Trial
  @example
  ```ts
  const trial = trialOfFirst({ second, edits: [FAMILY,], dropped: ['group 1 OCCURRENCE 2',], },);
@@ -88,10 +88,10 @@ function trialOfFirst(
 /**
  What the step knows of a page whose second slice leaves a splice out, and that splice.
 
- @param second - the English of the second slice
- @param edits - the replacements of the second slice, a group of their own each
- @param dropped - the names of the replacements the round left out
- @returns The ledger and the first splice the second slice leaves out
+ @param second - English of the second slice
+ @param edits - replacements of the second slice, group of their own each
+ @param dropped - names of the replacements the round left out
+ @returns Ledger and first splice the second slice leaves out
  @example
  ```ts
  const { ledger, edit, } = ledgerWithSplice({ second, edits: [FAMILY,], dropped: ['group 1 OCCURRENCE 2',], },);
@@ -357,8 +357,8 @@ await describe({
             /**
              Refuses every slice, noting the text it was given.
 
-             @param candidateText - the slice with its replacements made
-             @returns The refusal
+             @param candidateText - slice with its replacements made
+             @returns Refusal
              */
             function floorsOn({ candidateText, }: { readonly candidateText: string; },): ConsistencyFloorVerdict {
               given.push(candidateText,);

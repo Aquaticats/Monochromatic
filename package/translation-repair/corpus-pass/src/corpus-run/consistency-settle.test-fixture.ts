@@ -21,9 +21,9 @@ const WORDS = '小猫打盹';
 
  @param position - position of the place in its group, which is also its slice
 
- @param english - the English the place's slice carries
+ @param english - English the place's slice carries
 
- @returns The place with the facts of its slice
+ @returns Place with the facts of its slice
 
  @example
  ```ts
@@ -62,13 +62,13 @@ export function placeIn(
 /**
  What a run-off heard.
 
- @param choices - the label each seat chose, in seat order
+ @param choices - label each seat chose, in seat order
 
  @param quorum - how many ballots the gather needed
 
  @param findings - what the gather reported
 
- @returns The run-off as the settling reads it
+ @returns Run-off as the settling reads it
 
  @example
  ```ts

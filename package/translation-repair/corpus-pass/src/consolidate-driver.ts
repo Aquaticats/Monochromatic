@@ -96,7 +96,7 @@ import {
  @param archiveDisputes - slices whose archive rendering the repair lane's
  adjudicators disputed, whose repair text stands in for the archive
 
- @param acceptedRepairClaimNotes - the claims that panel accepted per slice,
+ @param acceptedRepairClaimNotes - claims that panel accepted per slice,
  which the final polish gate reads and the key names
 
  @param sheetFacts - what the page tells every sheet and key: the declared names,

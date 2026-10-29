@@ -67,9 +67,9 @@ const OVERDROP_SECOND = 'Then Bowl 2 of the family is empty.';
 /**
  What applying the page of two gains that pair came to, for a case to compare.
 
- @param declaredNames - the declared name forms the floors keep in each slice
+ @param declaredNames - declared name forms the floors keep in each slice
  @param leading - whether the second slice's gain is a leading mark, which pairs with the third slice's trailing one
- @returns The outcome of each place of each group, the slices that changed with their text, and the findings
+ @returns Outcome of each place of each group, slices that changed with their text, and findings
  @example
  ```ts
  const seen = overdropApplied({ declaredNames: [], leading: true, },);
@@ -166,7 +166,7 @@ function overdropApplied(
 /**
  What a read of a round came to, for a case to compare.
 
- @param settled - the settled slices that came back
+ @param settled - settled slices that came back
  @returns For each slice, its index, the names of the replacements it makes and of the gains left out with the reason of each, and its text
  @example
  ```ts
@@ -193,8 +193,8 @@ function seenSettled(
 /**
  What applying replacements of one slice comes to, from the chosen words of a first slice, for a case to compare.
 
- @param second - the English of the second slice
- @param edits - the replacements of the second slice, each a group of its own in the order given, which is their priority
+ @param second - English of the second slice
+ @param edits - replacements of the second slice, each a group of its own in the order given, which is their priority
  @returns For each group the outcome and the reason of its place in the second slice, and the text of each slice that changed
  @example
  ```ts
@@ -268,7 +268,7 @@ function oneSliceApplied(
 
  @param neutrals - how many gains with no mark beside the ones that pair are dropped with them, each valid whatever else is made
  @param trailing - how many trailing gains the leading one pairs with, at most three
- @returns The names of the replacements the slice makes, and of the gains it leaves out with the reason of each
+ @returns Names of the replacements the slice makes, and of the gains it leaves out with the reason of each
  @example
  ```ts
  const { made, leftOut, } = wideRoundPutBack({ neutrals: 9, },);

@@ -60,7 +60,7 @@ import type {
 
  @param error - what went wrong
 
- @returns The failed carry, which changes nothing
+ @returns Failed carry, which changes nothing
 
  @example
  ```ts
@@ -100,13 +100,13 @@ function failedCarryOf(
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param unit - the receiving places of one block
+ @param unit - receiving places of one block
 
- @returns The carry's record for each place, the replacements it makes and what it reported
+ @returns Carry's record for each place, replacements it makes and what it reported
 
  @throws Whatever the asks and the readers throw, which the caller contains
 
@@ -179,13 +179,13 @@ async function carryUncontained(
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param unit - the receiving places of one block
+ @param unit - receiving places of one block
 
- @returns The carry's record for each place, the replacements it makes and what it reported
+ @returns Carry's record for each place, replacements it makes and what it reported
 
  @throws The abort reason when the caller stopped the work
 
@@ -246,11 +246,11 @@ export async function carryToUnit(
  The block of its English that holds a receiving place's words, or the failure
  of reading it.
 
- @param receiver - the receiving place
+ @param receiver - receiving place
 
  @param context - what the carry reads, whose signal and logger the reading uses
 
- @returns The place with its block, or the failed carry that keeps its English
+ @returns Place with its block, or the failed carry that keeps its English
 
  @throws The abort reason when the caller stopped the work
 
@@ -324,13 +324,13 @@ function holdingOf(
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param receivers - the receiving places, in page order
+ @param receivers - receiving places, in page order
 
- @param kept - the words of the group's other places that must stay as they are
+ @param kept - words of the group's other places that must stay as they are
 
  @returns One result for each block, and one for each place whose block could not be read
 

@@ -132,11 +132,11 @@ type Settling = {
  `consistency-splice-readings.ts`): the page, not the words, says how it reads, so the mark is proven there or the
  edit is left out.
 
- @param english - the English before any edit
+ @param english - English before any edit
 
- @param edit - the replacement
+ @param edit - replacement
 
- @returns The sides at which the replacement's words hold a single mark and the words they replace hold no edge apostrophe
+ @returns Sides at which the replacement's words hold a single mark and the words they replace hold no edge apostrophe
 
  @example
  ```ts
@@ -178,11 +178,11 @@ function gainedSidesOf(
 /**
  Where a made replacement's words stand in the English the replacements made.
 
- @param edits - the replacements that were made
+ @param edits - replacements that were made
 
- @param edit - the replacement asked about
+ @param edit - replacement asked about
 
- @returns The offset of its first character in the edited English
+ @returns Offset of its first character in the edited English
 
  @example
  ```ts
@@ -220,9 +220,9 @@ export function editedStartOf(
 /**
  The sides each code splice of a slice gains an edge apostrophe on, by the splice's name.
 
- @param slice - the slice and its replacements
+ @param slice - slice and its replacements
 
- @returns The sides of every splice, none for a replacement that is no splice
+ @returns Sides of every splice, none for a replacement that is no splice
 
  @example
  ```ts
@@ -255,11 +255,11 @@ export function gainedBy({ slice, }: { readonly slice: GainSlice; },): ReadonlyM
 /**
  A slice with the replacements that still stand made.
 
- @param slice - the slice and its replacements
+ @param slice - slice and its replacements
 
- @param remaining - the replacements still to be made
+ @param remaining - replacements still to be made
 
- @returns The English with them made and the replacements that were made
+ @returns English with them made and replacements that were made
 
  @example
  ```ts
@@ -299,13 +299,13 @@ export function madeIn(
 
  @param gained - for each slice, in the order given, the sides each code splice brings an edge apostrophe in on, by name
 
- @param between - the text the published page carries before the first slice, between each two and after the last, one piece
+ @param between - text the published page carries before the first slice, between each two and after the last, one piece
  more than there are slices; absent where the slices stand a blank line apart; read only where no layout is given
 
  @param layout - what the published page is assembled from; the page is then assembled by the code that publishes it, with the
  slices' wording written in, and `between` is not read
 
- @param sliceIndexes - the index the artifact names each slice by, which the layout names its slices by; the slice's place in
+ @param sliceIndexes - index the artifact names each slice by, which the layout names its slices by; the slice's place in
  the list by default
 
  @returns For each slice, in the order given, the made replacements whose carried apostrophe is not proven on that page
@@ -336,9 +336,9 @@ export function unprovenOnPage(
    The index a slice of the page is named by: the artifact's, which the layout of the published page names its slices by,
    else the slice's place in the list.
 
-   @param position - the slice's place in the list
+   @param position - slice's place in the list
 
-   @returns The index
+   @returns Index
    */
   function indexOf(position: number,): number {
     return sliceIndexes?.[position] ?? position;
@@ -440,7 +440,7 @@ export function unprovenOnPage(
 
  @param slices - every slice of the page that carries English, in page order, with the replacements addressed to it; a slice with none is read as it stands
 
- @param between - the text the published page carries before the first slice, between each two and after the last, one piece
+ @param between - text the published page carries before the first slice, between each two and after the last, one piece
  more than there are slices; absent where the slices stand a blank line apart; read only where no layout is given
 
  @param layout - what the published page is assembled from; the page is then assembled by the code that publishes it, with the

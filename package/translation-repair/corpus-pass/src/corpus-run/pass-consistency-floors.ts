@@ -62,12 +62,12 @@ export type ConsistencyFloorVerdict =
 
  @param sliceIndex - slice the findings name
 
- @param sourceText - the slice's original
+ @param sourceText - slice's original
 
- @param currentText - the wording the slice carries now, which the candidate
+ @param currentText - wording the slice carries now, which the candidate
  would replace
 
- @param candidateText - the slice with the pass's replacements made
+ @param candidateText - slice with the pass's replacements made
 
  @param lineStructured - whether the line-structure rule governs the slice
 
@@ -75,7 +75,7 @@ export type ConsistencyFloorVerdict =
 
  @param declaredNames - declared name forms the incumbent must keep
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param disputedWordings - wordings a disputed slice refuses
 

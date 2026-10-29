@@ -245,9 +245,9 @@ export async function runProbeOver(
 /**
  Runs something that may refuse and says how it ended.
 
- @param run - the call under test
+ @param run - call under test
 
- @returns The refusal as `String(error)` reads it, empty when the call ran to
+ @returns Refusal as `String(error)` reads it, empty when the call ran to
  its end
 
  @example
@@ -270,7 +270,7 @@ export async function refusalOf(
 /**
  The report an inert client gives every critic.
 
- @returns A report raising nothing
+ @returns Report raising nothing
 
  @example
  ```ts
@@ -287,7 +287,7 @@ function noIssues(): unknown {
 
  @param clients - list every client built is added to
 
- @returns A client answering every critic with nothing
+ @returns Client answering every critic with nothing
 
  @example
  ```ts

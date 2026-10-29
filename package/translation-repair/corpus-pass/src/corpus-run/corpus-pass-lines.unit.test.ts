@@ -40,7 +40,7 @@ const AT = 'at=2026-10-22T08:10:11.123Z';
 /**
  Wall clock that reads the same instant every time it is asked.
 
- @returns The instant the line is printed at
+ @returns Instant the line is printed at
 
  @example
  ```ts

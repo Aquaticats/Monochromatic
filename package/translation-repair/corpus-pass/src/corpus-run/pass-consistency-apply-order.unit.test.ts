@@ -30,8 +30,8 @@ import {
  The floors of a slice whose gains each pass only once the next one is made: a text that holds the gain of a number without the
  gain of the number after it is refused.
 
- @param candidateText - the slice with its replacements made
- @returns The verdict
+ @param candidateText - slice with its replacements made
+ @returns Verdict
  @example
  ```ts
  const verdict = nextFirst({ candidateText: 'Mug 1 is here. Cup 2 is here.', },); // refused
@@ -49,7 +49,7 @@ function nextFirst({ candidateText, }: { readonly candidateText: string; },): Co
 /**
  The replacements of a slice of numbered cups, each taking a cup's name for a mug's.
 
- @param second - the English of the slice, which names the cups
+ @param second - English of the slice, which names the cups
  @param count - how many cups the slice names, numbered from one
  @returns One replacement for each cup, in the order of the page
  @example

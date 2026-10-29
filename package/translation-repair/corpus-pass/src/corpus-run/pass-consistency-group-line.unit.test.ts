@@ -59,7 +59,7 @@ type RecordedGroup = Parameters<typeof groupLine>[0]['group'];
  @param position - zero-based position, which names the label
  @param outcome - outcome the place ended in
  @param keptBecause - reason the pass left the place as it was, where the record has one
- @returns The place
+ @returns Place
  */
 function placeOf(
   { position, outcome, keptBecause, }: { readonly position: number; readonly outcome: Outcome; readonly keptBecause?: string; },
@@ -79,7 +79,7 @@ function placeOf(
  @param carries - how the chosen rendering was carried to the receiving places
  @param keptBecause - reason recorded for the place at a position
  @param kind - repeat kind
- @returns The group as the record holds it
+ @returns Group as the record holds it
  */
 function groupOf(
   { outcomes, verdict, carries = [], keptBecause = {}, kind = 'refrain', }: {

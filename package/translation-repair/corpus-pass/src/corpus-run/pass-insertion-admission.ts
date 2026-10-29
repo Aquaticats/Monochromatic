@@ -53,7 +53,7 @@ import type { BenchSeating, } from '@monochromatic-dev/translation-repair-transl
 
  @param item - candidate, named by its slice
 
- @returns The slice by its index
+ @returns Slice by its index
 
  @example
  ```ts

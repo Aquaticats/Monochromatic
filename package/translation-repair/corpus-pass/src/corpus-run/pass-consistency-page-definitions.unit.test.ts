@@ -45,9 +45,9 @@ const SLICE = 'kit and tail';
 /**
  A page that holds the slice and some definition line after it.
 
- @param definition - the definition line
+ @param definition - definition line
 
- @returns The page, the slice starting at its first character
+ @returns Page, slice starting at its first character
 
  @example
  ```ts
@@ -92,9 +92,9 @@ const FACTS_ALONE: ConsistencySliceFacts = {
 /**
  The facts of the slice with the page it belongs to.
 
- @param page - the English of the whole page
+ @param page - English of the whole page
 
- @returns The slice's facts
+ @returns Slice's facts
 
  @example
  ```ts

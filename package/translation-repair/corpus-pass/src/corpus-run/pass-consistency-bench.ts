@@ -66,9 +66,9 @@ export {
 
  @param text - whole original
 
- @param decision - the group decided
+ @param decision - group decided
 
- @param others - the page's other decided groups, whose located words the carry must leave as they are
+ @param others - page's other decided groups, whose located words the carry must leave as they are
 
  @param cache - store an earlier answer is read from
 
@@ -84,7 +84,7 @@ export {
 
  @param declaredNames - declared name forms, which the floors keep
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param signal - entry deadline and caller abort
 
@@ -92,7 +92,7 @@ export {
 
  @param stageSettings - straggler windows the entry file read for this launch
 
- @returns The group settled, or left as it stands with its failure said
+ @returns Group settled, or left as it stands with its failure said
 
  @throws The abort reason when the caller stopped the work
 
@@ -253,11 +253,11 @@ function groupAskedCarriedName(
  Whether the translate stage's writer bench carries the chosen rendering, and
  which seats, or why the writers are not asked.
 
- @param translators - the writer bench as the seat reading left it
+ @param translators - writer bench as the seat reading left it
 
  @param unreachableWriters - clauses naming each writing bench below its floor that no provider has named the return of
 
- @returns The writers to ask, or why they are not asked
+ @returns Writers to ask, or why they are not asked
 
  @example
  ```ts
@@ -312,7 +312,7 @@ export function writersOf(
 
  @param declaredNames - declared name forms, which the floors keep
 
- @param declaredSubjectForms - the declared forms among them that name the subject, which may stand in for one another
+ @param declaredSubjectForms - declared forms among them that name the subject, which may stand in for one another
 
  @param entryCacheDir - per-entry cache root
 

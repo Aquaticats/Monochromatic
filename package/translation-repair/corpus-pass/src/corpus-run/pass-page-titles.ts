@@ -160,7 +160,7 @@ export async function openPageTitleCache(
  declared identity the sheet showed and the roster that answers, as one JSON
  value so no two questions share a key (the X15 lesson).
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param spans - titles asked about
 
@@ -221,11 +221,11 @@ export function pageTitleKey(
  @param beforeItem - hook handing the round its roster (ledger X12), `keepBench`
  for a caller with none; required so no caller drops it by omission
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param targetText - archive as the preparation reads it
 
- @param identityContext - the page's declared identity without the lexicon's
+ @param identityContext - page's declared identity without the lexicon's
  own lines, empty for none: the sheet asks for a work's official English
  title, which a web lookup or a note establishes (ledger B28)
 

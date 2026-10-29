@@ -1151,7 +1151,7 @@ function polishingClient({ sheets, }: { readonly sheets: string[]; },): ModelCli
  writers' rewrites, whose sheet is the only one that heads the base "CURRENT
  English translation" (ledger B805).
 
- @param sheet - a request as the client recorded it
+ @param sheet - request as the client recorded it
 
  @returns Whether it is such a ballot
 
@@ -2794,7 +2794,7 @@ await describe({
             /**
              Every producer and slate judge sheet one run sent.
 
-             @param referenceContext - the document's references, none left out
+             @param referenceContext - document's references, none left out
 
              @returns Producer and slate judge sheets
              */

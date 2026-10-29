@@ -110,12 +110,12 @@ await describe({
             /**
              A held receiving place.
 
-             @param sliceIndex - the slice it stands in
+             @param sliceIndex - slice it stands in
              @param kind - how the chosen words move into it
              @param start - where its words start
              @param core - its words
 
-             @returns The held place
+             @returns Held place
              */
             const heldIn = (
               {

@@ -98,9 +98,9 @@ export type CarryShown = {
  place of a paragraph (`occurrenceViewOf`), and then there is nothing around it
  to show: each block is absent.
 
- @param places - the receiving places, all of one slice
+ @param places - receiving places, all of one slice
 
- @returns The blocks' texts, each absent where the slice has no such block
+ @returns Blocks' texts, each absent where the slice has no such block
 
  @example
  ```ts
@@ -159,11 +159,11 @@ function neighboursOf(
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param unit - the unit
+ @param unit - unit
 
  @returns What the sheets show
 
@@ -245,13 +245,13 @@ export function shownOf(
  offered as long as some other receiving place of it has a replacement; a block
  where none has gets no splice.
 
- @param unit - the unit
+ @param unit - unit
 
- @param english - the slice's English
+ @param english - slice's English
 
  @param context - what the carry reads
 
- @returns The block as a list of zero or one, and a finding where a floor refused it
+ @returns Block as a list of zero or one, and a finding where a floor refused it
 
  @throws {@link ConsistencyInvariantError} when two receiving places of a unit have words that overlap, which the counting leaves unlocated
 
@@ -360,9 +360,9 @@ export function splicedParagraphOf(
 /**
  Why no paragraph of a unit can be rewritten, in the words of the finding.
 
- @param unit - a unit that is not writable
+ @param unit - unit that is not writable
 
- @returns The reason the unit records: the kind of block that holds its words, or why no single block does
+ @returns Reason the unit records: the kind of block that holds its words, or why no single block does
 
  @throws {@link ConsistencyInvariantError} when the unit stands in no kind of block and records no reason, since a unit that is not writable has one or the other
 
@@ -406,15 +406,15 @@ function unwritableReasonOf({ unit, }: { readonly unit: CarryUnit; },): string {
 
  @param context - what the carry reads
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param chosen - the chosen place and its located rendering
+ @param chosen - chosen place and its located rendering
 
- @param unit - the unit
+ @param unit - unit
 
- @param english - the receiving places' slice English
+ @param english - receiving places' slice English
 
- @returns The surviving blocks and what the asking and the floors reported; none, with a finding saying why, where the writers are not asked
+ @returns Surviving blocks and what the asking and the floors reported; none, with a finding saying why, where the writers are not asked
 
  @example
  ```ts

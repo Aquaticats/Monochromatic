@@ -76,7 +76,7 @@ const SPLICED_SECTIONS: readonly (readonly [number, string])[] = [
 /**
  The first-round ballots: the sentence's judges choose its first place, the refrain's judges its third.
 
- @param call - the call the seat was handed, of which only the sheet is read
+ @param call - call the seat was handed, of which only the sheet is read
 
  @returns Behaviour of the seat
 
@@ -99,9 +99,9 @@ function ballotsOfTwoGroups({ sheet, }: Parameters<SeatScript>[0],): SeatBehavio
  rewrites the sentence words that stand in its paragraph. A judge takes a paragraph that holds the rewrite when one is
  offered and otherwise the first candidate that is not the paragraph as the page has it now.
 
- @param offender - the group whose writers rewrite the other group's words
+ @param offender - group whose writers rewrite the other group's words
 
- @returns The script of the seats asked after the first round
+ @returns Script of the seats asked after the first round
 
  @example
  ```ts
@@ -178,7 +178,7 @@ function writersAndJudges({ offender, }: { readonly offender: 'sentence' | 'refr
  with writers that return the paragraph as it stands and judges that take the first candidate that is not the paragraph
  as the page has it now.
 
- @param call - the call the seat was handed, of which only the sheet is read
+ @param call - call the seat was handed, of which only the sheet is read
 
  @returns Behaviour of the seat
 
@@ -229,7 +229,7 @@ function sentenceRunsIntoChosenRefrain({ sheet, }: Parameters<SeatScript>[0],): 
 /**
  The kinds of candidate each receiving place of each group was offered, in page order, sorted within a place.
 
- @param consistency - the section the pass recorded
+ @param consistency - section the pass recorded
 
  @returns One list of kinds per receiving place, group by group
 
@@ -252,9 +252,9 @@ function offeredKindsOf(
 /**
  What the pass recorded for each place of each group.
 
- @param consistency - the section the pass recorded
+ @param consistency - section the pass recorded
 
- @returns The outcome of every place, group by group
+ @returns Outcome of every place, group by group
 
  @example
  ```ts
@@ -273,9 +273,9 @@ function outcomesOfGroups({ consistency, }: { readonly consistency: ArtifactCons
 /**
  The findings that say a writer's paragraph was withheld, with the seat taken out so they read alike.
 
- @param consistency - the section the pass recorded
+ @param consistency - section the pass recorded
 
- @returns The distinct findings, in the order they first appear
+ @returns Distinct findings, in the order they first appear
 
  @example
  ```ts

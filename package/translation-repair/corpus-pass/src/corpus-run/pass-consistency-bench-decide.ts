@@ -123,7 +123,7 @@ export type AskedDecision =
 
  @param text - whole original
 
- @param prepared - the group and its places
+ @param prepared - group and its places
 
  @param cache - store an earlier answer is read from
 
@@ -141,7 +141,7 @@ export type AskedDecision =
 
  @param stageSettings - straggler windows the entry file read for this launch
 
- @returns The group decided, or left as it stands with its failure said
+ @returns Group decided, or left as it stands with its failure said
 
  @throws The abort reason when the caller stopped the work
 

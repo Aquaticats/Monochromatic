@@ -56,7 +56,7 @@ const NO_STATIC_CALL: StaticCall = {
 
  @param node - callee, of any kind or none
 
- @returns The expression, `NO_NODE` for anything that is no node
+ @returns Expression, `NO_NODE` for anything that is no node
 
  @example
  ```ts
@@ -90,7 +90,7 @@ function calleeValueOf({ node, }: { readonly node: unknown; },): TreeNode {
 
  @param node - member expression, or any node
 
- @returns The name of the built-in object and the name of the method, both empty for a node that is no member
+ @returns Name of the built-in object and name of the method, both empty for a node that is no member
 
  @example
  ```ts
@@ -143,7 +143,7 @@ function arrayElementsOf({ node, }: { readonly node: unknown; },): readonly Tree
 
  @param args - arguments as the call writes them
 
- @returns The elements of the array and the arguments after the spread, or the arguments unchanged when the first is no
+ @returns Elements of the array and arguments after the spread, or arguments unchanged when the first is no
  spread of an array written in place
 
  @example
@@ -177,7 +177,7 @@ function spreadOut({ args, }: { readonly args: readonly TreeNode[]; },): readonl
 
  @param call - node read, of any kind
 
- @returns The name of the object, the name of the method and the arguments the method receives; the name of the object
+ @returns Name of the object, name of the method and arguments the method receives; the name of the object
  is empty for a node that is no call, and the names are whatever the callee reads for a call of anything else
 
  @example

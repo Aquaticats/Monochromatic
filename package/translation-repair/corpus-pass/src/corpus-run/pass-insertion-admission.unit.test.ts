@@ -688,7 +688,7 @@ function preparedContainerDeficit(
 
  @param archiveShort - whether the archive's block is one paragraph short
 
- @returns The admission beside the lines it logged
+ @returns Admission beside the lines it logged
 
  @example
  ```ts

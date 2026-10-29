@@ -133,13 +133,13 @@ function revisingClient({ replacement, }: { readonly replacement: string; },): M
 /**
  Reviews the one block between an opening and a closing paragraph.
 
- @param block - the block's wording
+ @param block - block's wording
 
  @param replacement - what every reviewer writes for it
 
- @param source - the original section the block is reviewed against
+ @param source - original section the block is reviewed against
 
- @returns The archive after the round, its findings, every line logged and
+ @returns Archive after the round, its findings, every line logged and
  how many structured calls the round made
 
  @example

@@ -199,7 +199,7 @@ function emptyPassConcurrency({ baseline, }: { readonly baseline?: PassConcurren
 
  @param stage - counters and rendezvous of the stage the call belongs to
 
- @param signal - the call's abort, which ends the wait with its reason so a rendezvous that is never reached fails
+ @param signal - call's abort, which ends the wait with its reason so a rendezvous that is never reached fails
  the case at the entry's hard cap and does not hold the run
 
  @throws The signal's reason when the call is aborted while it waits at the rendezvous
@@ -415,7 +415,7 @@ const STAMP = 'at=2026-10-22T08:10:11.123Z attempt=3';
 /**
  Clock that reads the same instant every time it is asked.
 
- @returns The instant the lines are printed at
+ @returns Instant the lines are printed at
 
  @example
  ```ts
@@ -661,7 +661,7 @@ function isSheetOf(
 
  @param kind - kind read
 
- @returns The three counts
+ @returns Three counts
 
  @example
  ```ts

@@ -213,9 +213,9 @@ await describe({
             /**
              What one pool required the commit given and what it printed first.
 
-             @param requiredCommit - the commit as the invoker wrote it
+             @param requiredCommit - commit as the invoker wrote it
 
-             @returns The pool's selection and partition, and its first printed line
+             @returns Pool's selection and partition, and its first printed line
 
              @example
              ```ts

@@ -58,7 +58,7 @@ const SENTENCE = '窗台上的阳光让小猫睡着了。厨房里很暖和。';
 /**
  The ballots of a page: every judge quotes every place and chooses one.
 
- @param choice - the label every judge chooses
+ @param choice - label every judge chooses
  @param quotes - what every judge quotes for the places, in order
  @returns What each seat does when asked
  @example
@@ -101,7 +101,7 @@ function ballotsOf(
  @param quotes - what every judge quotes for the places in order, the last in the second section
  @param choice - position of the place every judge chooses, counted from one
  @param others - what the writers and the bench of candidates do, the page's own by default
- @returns The run
+ @returns Run
  @example
  ```ts
  const run = await apostropheRun({ first: 'Fill the cats bowl.', second: 'Then the dogs nap.', quotes: ['the cats', 'the dogs',], choice: 2, },);
@@ -137,8 +137,8 @@ async function apostropheRun(
 /**
  What the pass recorded of the first group.
 
- @param consistency - the section
- @returns The outcomes of the places, the texts of the slices the pass changed and the findings that name a replacement left out
+ @param consistency - section
+ @returns Outcomes of the places, texts of the slices the pass changed and findings that name a replacement left out
  @example
  ```ts
  const seen = seenIn({ consistency, },);
@@ -168,7 +168,7 @@ function seenIn(
 /**
  The section as a reader of generation seventeen reads it back from a copy of the file.
 
- @param consistency - the section the pass wrote
+ @param consistency - section the pass wrote
  @returns What the reader makes of it, which is the section itself when it reads back
  @throws {@link Error} when the reader refuses the section
  @example
@@ -189,8 +189,8 @@ function readBack({ consistency, }: { readonly consistency: ArtifactConsistency;
  The writers and the bench of a page whose first paragraph runs over a blank line: a writer puts the chosen words in each
  receiving place of its paragraph and changes the warm sentence, and the judges choose the paragraph with the change.
 
- @param seat - the seat asked
- @param sheet - the sheet it was shown
+ @param seat - seat asked
+ @param sheet - sheet it was shown
  @returns Behaviour of the seat
  @example
  ```ts
@@ -250,8 +250,8 @@ function warmWriters(
  Runs the pass over a page whose first place runs over a blank line and whose splice the floors always refuse, for the
  English that follows the first place's words.
 
- @param after - the characters that follow the first place's words
- @returns The outcomes, the kinds of candidates each place's carry holds and the findings that name a paragraph no writer was asked about
+ @param after - characters that follow the first place's words
+ @returns Outcomes, kinds of candidates each place's carry holds and findings that name a paragraph no writer was asked about
  @example
  ```ts
  const seen = await residueSeen({ after: ' said she', },);
@@ -298,8 +298,8 @@ const TRANSLATORS_NOTE = '<!-- 这段话以下全部，原文都是英文，中�
  Runs the pass over a page of three sections whose middle one is a translators' note and a sealed span of the archive's own
  English, which belongs to no slice, between a section that holds the chosen place and a section that holds the receiving one.
 
- @param sealed - the English the translators kept, which the page carries between the sections
- @returns The run, whose receiving place stands in the last section
+ @param sealed - English the translators kept, which the page carries between the sections
+ @returns Run, whose receiving place stands in the last section
  @example
  ```ts
  const run = await sealedRun({ sealed: 'She said ‘fill the bowls with water.', },);

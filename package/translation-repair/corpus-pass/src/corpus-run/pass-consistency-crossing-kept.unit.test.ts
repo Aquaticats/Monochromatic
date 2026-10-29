@@ -170,7 +170,7 @@ function writersChanging({ change, }: Writing,): SeatScript {
  choosing one, and reports what the pass recorded.
 
  @param english - English of the first section
- @param choice - the place every judge says the page should follow, from one
+ @param choice - place every judge says the page should follow, from one
  @param keep - labels of the places every judge keeps for their surroundings
  @param writing - what the writers change
 

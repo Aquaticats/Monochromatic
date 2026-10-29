@@ -180,7 +180,7 @@ function argumentLinksOf({ node, }: { readonly node: TreeNode; },): readonly Lin
 
  @param node - node read
 
- @returns The links of the arguments, then the links of the callee, none for a node that is no call or `new`
+ @returns Links of the arguments, then the links of the callee, none for a node that is no call or `new`
 
  @example
  ```ts

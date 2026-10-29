@@ -146,9 +146,9 @@ export function objectAt(
 
  @param member - form of the member
 
- @param users - the files besides the stage file, each with its lines
+ @param users - files besides the stage file, each with its lines
 
- @param listed - the files besides the stage file that the search lists
+ @param listed - files besides the stage file that the search lists
 
  @param spots - reports the check gives
 

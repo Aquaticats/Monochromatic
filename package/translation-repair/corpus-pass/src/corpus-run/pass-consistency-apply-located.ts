@@ -114,13 +114,13 @@ export type LeftOutEdit = {
  Whether a replacement changes located words: it covers part of them, or
  covers all of them and holds them fewer times than the text it replaces.
 
- @param edit - the replacement
+ @param edit - replacement
 
- @param english - the slice's English as it stood when the pass began
+ @param english - slice's English as it stood when the pass began
 
- @param words - the located words, with where they start
+ @param words - located words, with where they start
 
- @param definitions - the page's link and footnote definitions (`pageDefinitionsOf`), which a reference in the replacement or in the
+ @param definitions - page's link and footnote definitions (`pageDefinitionsOf`), which a reference in the replacement or in the
  English resolves against whichever slice holds the definition; none where the slice carries no page (n173)
 
  @returns Whether the replacement changes them
@@ -180,14 +180,14 @@ function changesWords(
  group: a block replacement against any located place, a code splice against
  every located place its group does not replace in the slice.
 
- @param index - the page's groups read by slice, which holds the slice's replacements and located places and no other
+ @param index - page's groups read by slice, which holds the slice's replacements and located places and no other
  slice's, so the cost of a slice does not grow with the number of slices
 
- @param sliceIndex - the slice
+ @param sliceIndex - slice
 
- @param english - the slice's English as it stood when the pass began
+ @param english - slice's English as it stood when the pass began
 
- @param page - the English of the whole page the slice belongs to, whose link and footnote definitions a reference in the English or
+ @param page - English of the whole page the slice belongs to, whose link and footnote definitions a reference in the English or
  in a replacement resolves against (n173); absent for a slice read alone
 
  @returns Each such replacement once, with the first place it changes in page order, in the order of the groups

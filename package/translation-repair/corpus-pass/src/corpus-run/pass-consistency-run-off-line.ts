@@ -10,11 +10,11 @@ import type { ArtifactConsistencyRunOff, } from '@monochromatic-dev/translation-
 /**
  Says what a run-off came to, in one line.
 
- @param runOff - the run-off as the artifact records it
+ @param runOff - run-off as the artifact records it
 
- @param winner - the winner after the run-off
+ @param winner - winner after the run-off
 
- @returns The line, without a tag
+ @returns Line, without a tag
 
  @example
  ```ts

@@ -175,7 +175,7 @@ function exaStub(): {
 
    @param init - request production builds
 
-   @returns The endpoint's invented answer
+   @returns Endpoint's invented answer
 
    @throws Error for any endpoint but the two the readers use
    */

@@ -267,7 +267,7 @@ async function prepared(
 /**
  Whether each evidence round's report reached the findings.
 
- @param findings - the preparation's findings
+ @param findings - preparation's findings
 
  @returns One flag per evidence round
 
@@ -291,9 +291,9 @@ function evidenceReported({ findings, }: { readonly findings: readonly string[];
 /**
  The findings the info.yml reader's record put on the preparation.
 
- @param findings - the preparation's findings
+ @param findings - preparation's findings
 
- @returns The findings that begin with the info.yml reader's label
+ @returns Findings that begin with the info.yml reader's label
 
  @example
  ```ts

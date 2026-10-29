@@ -94,9 +94,9 @@ const KEY = consistencyKey({
 /**
  What a seat sends, naming itself in its reason so a ballot is told from the others'.
 
- @param seat - the seat answering
+ @param seat - seat answering
 
- @returns The seat's reply as text
+ @returns Seat's reply as text
 
  @example
  ```ts
@@ -118,9 +118,9 @@ function replyOf({ seat, }: { readonly seat: RosterModelId; },): string {
 /**
  The ballot a seat's reply comes to, as the record keeps it.
 
- @param seat - the seat that answered
+ @param seat - seat that answered
 
- @returns The seat and its ballot
+ @returns Seat and its ballot
 
  @example
  ```ts
@@ -143,9 +143,9 @@ function voiceOf({ seat, }: { readonly seat: RosterModelId; },): ConsistencyReco
 /**
  What a seat does when every seat answers with a usable ballot.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -161,11 +161,11 @@ function everySeatAnswers({ seat, }: { readonly seat: RosterModelId; },): SeatBe
 
  @param behave - what each seat does
 
- @param cache - the store
+ @param cache - store
 
- @param modelIds - the bench, the roster by default
+ @param modelIds - bench, roster by default
 
- @param subject - the question put, the repeated sentence by default
+ @param subject - question put, repeated sentence by default
 
  @param lines - sink for the level and text of every line logged
 
@@ -210,9 +210,9 @@ async function askBench(
 /**
  What a seat does when one seat answers with a ballot and the others with a reply the sheet cannot count.
 
- @param seat - the seat asked
+ @param seat - seat asked
 
- @returns The seat's reply
+ @returns Seat's reply
 
  @example
  ```ts
@@ -233,12 +233,12 @@ function oneSeatAnswers({ seat, }: { readonly seat: RosterModelId; },): SeatBeha
 
  @param behave - what each seat does
 
- @param seatTally - the run's record of what each seat did, when a case needs seats it has withheld
+ @param seatTally - run's record of what each seat did, when a case needs seats it has withheld
 
  @param benchStart - seat the rotation starts at in place of the sheet's own, for a case that names the order the gather hands its
  voices back in; absent where the case compares the gather with asking, which rotates by the sheet too
 
- @returns The gather over the same sheet and bench
+ @returns Gather over the same sheet and bench
 
  @example
  ```ts

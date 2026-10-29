@@ -69,7 +69,7 @@ export type EntryCaches = {
 
  @param pipelineDigest - identity of the built pipeline
 
- @returns The four caches
+ @returns Four caches
 
  @example
  ```ts

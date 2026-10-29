@@ -28,9 +28,9 @@ const SEATS = [
 /**
  A group whose first place wins and whose places are settled in the slices it names.
 
- @param places - the slice and the English of each place, with the quote the judges give for it
+ @param places - slice and English of each place, with the quote the judges give for it
 
- @returns The group, with no pending replacement
+ @returns Group, with no pending replacement
 
  @example
  ```ts
@@ -86,11 +86,11 @@ export function groupIn(
 /**
  The group with one pending replacement.
 
- @param group - the group
+ @param group - group
 
- @param edit - the replacement
+ @param edit - replacement
 
- @returns The group that would make it
+ @returns Group that would make it
 
  @example
  ```ts

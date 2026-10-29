@@ -137,7 +137,7 @@ const KEPT_OUTCOMES: ReadonlySet<string> = new Set([
  place, a place the majority keeps for its context, or a place that already
  reads as the chosen place does.
 
- @param outcome - the place's provisional outcome
+ @param outcome - place's provisional outcome
 
  @returns Whether a carry must leave the place's words as they are
 
@@ -160,11 +160,11 @@ export function isKeptOutcome({ outcome, }: { readonly outcome: string; },): boo
  carry may replace them, and this group's rewrite of a block must not. Those
  words are marked as another group's.
 
- @param decided - the group with its renderings and provisional outcomes
+ @param decided - group with its renderings and provisional outcomes
 
- @param others - the page's other groups, in any order; the result does not depend on it
+ @param others - page's other groups, in any order; the result does not depend on it
 
- @returns The words with their slice and offset, in page order and without
+ @returns Words with their slice and offset, in page order and without
  repeats; where this group and another locate the very same words, the entry is this group's
 
  @example
@@ -270,9 +270,9 @@ export function keptWordsOf(
 /**
  The English of a place's slice, which a located place has.
 
- @param place - the place
+ @param place - place
 
- @returns The slice's English
+ @returns Slice's English
 
  @throws {@link ConsistencyInvariantError} when the slice carries none, since a rendering is located only in English
 
@@ -298,9 +298,9 @@ export function englishOf({ place, }: { readonly place: ConsistencyPlace; },): s
 /**
  The slice that holds the receiving places of a unit, which they share.
 
- @param unit - the unit
+ @param unit - unit
 
- @returns The slice's facts
+ @returns Slice's facts
 
  @throws {@link ConsistencyInvariantError} when the unit has no receiving place
 
@@ -325,9 +325,9 @@ export function sliceOfUnit({ unit, }: { readonly unit: CarryUnit; },): Consiste
 /**
  The English of the slice that holds the receiving places of a unit.
 
- @param unit - the unit
+ @param unit - unit
 
- @returns The slice's English
+ @returns Slice's English
 
  @throws {@link ConsistencyInvariantError} when the unit has no receiving place or its slice carries no English
 
@@ -351,9 +351,9 @@ export function englishOfUnit({ unit, }: { readonly unit: CarryUnit; },): string
 /**
  The labels of the receiving places of a unit, for the findings that name them.
 
- @param unit - the unit
+ @param unit - unit
 
- @returns The labels joined by `and`, in page order
+ @returns Labels joined by `and`, in page order
 
  @example
  ```ts
@@ -372,9 +372,9 @@ export function unitLabelsOf({ unit, }: { readonly unit: CarryUnit; },): string 
  The name a stretch of English is grouped under: its slice and its offsets, or
  its slice alone for the whole English.
 
- @param held - a receiving place with its block
+ @param held - receiving place with its block
 
- @returns The grouping key
+ @returns Grouping key
 
  @example
  ```ts
@@ -405,9 +405,9 @@ function unitKeyOf({ held, }: { readonly held: HeldReceiver; },): string {
 /**
  The stretch of English a group of held receivers is carried to.
 
- @param members - the receivers of one stretch, in page order
+ @param members - receivers of one stretch, in page order
 
- @returns The block of their English, whether a writer can be given it, the kind of block no paragraph rewrite can carry words into that holds the words, and, as a list of zero or one, why a unit in no such kind is not writable
+ @returns Block of their English, whether a writer can be given it, the kind of block no paragraph rewrite can carry words into that holds the words, and, as a list of zero or one, why a unit in no such kind is not writable
 
  @throws {@link ConsistencyInvariantError} when the receivers' slice carries no English
 
@@ -473,9 +473,9 @@ function stretchOf(
  the same words, and two replacements of one group may not. A receiving place
  whose plan is not a replacement has no splice and is not counted.
 
- @param block - the block of a unit
+ @param block - block of a unit
 
- @param members - the unit's own receiving places
+ @param members - unit's own receiving places
 
  @param held - every receiving place of the group with its block
 
@@ -554,7 +554,7 @@ function overlapsOutsideReceiver(
 
  @param held - every receiving place with its block, in page order
 
- @param kept - the words of the group's other places that must stay as they are
+ @param kept - words of the group's other places that must stay as they are
 
  @returns One unit for each stretch, in the page order of its first receiving place
 

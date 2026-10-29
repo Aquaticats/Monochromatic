@@ -55,7 +55,7 @@ const COLUMNS: readonly ConsistencyOccurrenceOutcome[] = [
 /**
  How many places of a group ended in an outcome.
 
- @param group - the group with its final outcomes
+ @param group - group with its final outcomes
 
  @param outcome - outcome counted
 
@@ -85,11 +85,11 @@ function placesEndingIn(
 /**
  The reason the verdict of a group gives for places left as they stood, none when the verdict gives none.
 
- @param group - the group with its final outcomes
+ @param group - group with its final outcomes
 
  @param groupNumber - one-based number of the group, which names it in a thrown error
 
- @returns The reason as a list of zero or one
+ @returns Reason as a list of zero or one
 
  @throws {@link ConsistencyInvariantError} when the verdict named no winner and a place ended replaced, since a group whose bench
  named no winner replaces no place
@@ -141,13 +141,13 @@ function verdictReasonOf(
 /**
  The reason the carry gives for a place whose English stood: what the carry to the place decided.
 
- @param carries - the carries the record holds for the place: one, or none where the record holds none
+ @param carries - carries the record holds for the place: one, or none where the record holds none
 
  @param groupNumber - one-based number of the group, which names it in a thrown error
 
  @param label - label of the place
 
- @returns The reason
+ @returns Reason
 
  @throws {@link ConsistencyInvariantError} when the carry chose a label none of its candidates holds, or chose a writer's text, which
  replaces every receiving place of its block and so cannot leave this place as it stood
@@ -219,13 +219,13 @@ function carryReasonOf(
  carry was offered, so a recorded reason answers a splice only where one was offered; where the carry offered the writers and the
  current text alone, the carry's own decision is what ended the place.
 
- @param group - the group with its final outcomes
+ @param group - group with its final outcomes
 
  @param groupNumber - one-based number of the group, which names it in a thrown error
 
- @param occurrence - the place
+ @param occurrence - place
 
- @returns The reason
+ @returns Reason
 
  @throws {@link ConsistencyInvariantError} when the carry to the place chose what the record cannot explain
 
@@ -271,11 +271,11 @@ function keptReasonOf(
 /**
  The distinct reasons a group's places were left as they stood, in the order the places stand, the verdict's first.
 
- @param group - the group with its final outcomes
+ @param group - group with its final outcomes
 
  @param groupNumber - one-based number of the group, which names it in a thrown error
 
- @returns The reasons
+ @returns Reasons
 
  @throws {@link ConsistencyInvariantError} when the record holds a verdict or a carry the pass cannot produce
 
@@ -318,7 +318,7 @@ function reasonsOf(
  One line saying how a group came out: its repeat, the verdict, the places placed and not placed, the count of each outcome, and,
  where a place was left as it stood or the bench was not asked, failed or named no winner, the reasons.
 
- @param group - the group with its final outcomes
+ @param group - group with its final outcomes
 
  @param groupNumber - one-based number of the group, as the pass numbers its groups in the log, which names the group in a thrown error
 

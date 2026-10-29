@@ -90,9 +90,9 @@ export type SettledIndex = {
 
  @param position - position of the place in the group, from zero
 
- @param sliceIndex - the slice
+ @param sliceIndex - slice
 
- @returns The key
+ @returns Key
 
  @example
  ```ts
@@ -116,9 +116,9 @@ export function replacedKeyOf(
 /**
  Reads the groups of the page by slice.
 
- @param settled - the groups in page order, with their pending replacements
+ @param settled - groups in page order, with their pending replacements
 
- @returns The replacements and the located places of each slice, and the places that groups replace; a place the counter
+ @returns Replacements and located places of each slice, and places that groups replace; a place the counter
  could not locate is no place here, since no replacement can change its words
 
  @example
