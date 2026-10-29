@@ -98,6 +98,14 @@ const CASES: readonly (readonly [string, string])[] = [
     '- [^1]:<!-- r\n      ```',
   ],
   [
+    'INDENTED DISPLAY MATH WITH A COMMENT OPENER RIGHT AFTER A LINK REFERENCE DEFINITION, THEN A FOOTNOTE DEFINITION',
+    '[r]:u\n    $$\n    <!--\n    $$\n[^1]:',
+  ],
+  [
+    'INDENTED DISPLAY MATH WITH A COMMENT OPENER RIGHT AFTER A LINK REFERENCE DEFINITION, THEN A FOOTNOTE WITH TEXT',
+    '[r]:u\n    $$\n    <!--\n    $$\n[^1]: x',
+  ],
+  [
     'A BACKTICK, A DEFINITION OF ANOTHER LABEL INDENTED FOUR COLUMNS, THEN A TABLE AND A BACKTICK',
     '`\n    [^2]: w\na||\n-|-\n`',
   ],
