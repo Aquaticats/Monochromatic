@@ -813,7 +813,10 @@ named for that subject and listed here.
   and the gap in the real-clock scan that never saw the provider sites (B985),
   then the two 40 ms sleeps that round left open
   and the poll slices,
-  elapsed readings and clockless budgets the widened scan now reads (B995).
+  elapsed readings and clockless budgets the widened scan now reads (B995),
+  then the hold-wait file that round deferred,
+  eight of whose ten sleeping cases passed with the wait removed,
+  and the router and constant-held fake clock forms the scan now reads (B996).
 - [Audit ledger: probes that read one editor card](audit-ledger-editor-card-probes.md):
   An editor calibration with no flag naming a card (B870),
   a flag that confines the editing and not the spend (B871),

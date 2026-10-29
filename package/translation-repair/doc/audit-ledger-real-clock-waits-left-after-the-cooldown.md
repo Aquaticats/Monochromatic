@@ -2,7 +2,10 @@
 
 Three waits on the real clock that the cooldown round of B965 left in unit tests,
 and how each was replaced by an event or a fake clock (B985),
-then the two 40 ms sleeps that round left open and the three forms of wait the real-clock scan could not see (B995).
+then the two 40 ms sleeps that round left open and the three forms of wait the real-clock scan could not see (B995),
+then the file of hold-wait cases that round deferred,
+eight of whose ten sleeping cases passed with the wait removed,
+and the blind forms the scan now reads or states (B996).
 
 The entry sits in a file of its own because the file of B965,
 [providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md),
@@ -192,7 +195,8 @@ tests `a122eb68e2` (provider),
 `b5622dabda` (corpus-pass)
 and `b0f9212a4e` (run),
 cache versions none.
-One file of the provider package is deferred (see "Left open").
+One file of the provider package was deferred (see "Left open");
+B996 closed that deferral on 2026-10-29 (UTC).
 A member of the family of B318,
 B817
 and B985:
@@ -274,6 +278,7 @@ Out of reach:
 a wait reached through a router built over the budgets,
 a fake clock installed at module level,
 and a helper that installs a fake clock through a variable rather than a function declaration of its own file.
+B996 read the first and the third and stated the second as a limit.
 
 What the red scan found.
 The scan commit left the listed keys alone and the package-wide case failed with 85 findings;
@@ -378,6 +383,8 @@ which the provider package cannot import).
 The deferral carries the three keys the file held before.
 Cases that the listed keys describe as sleeping nothing are described from the case's scripted holds;
 a case that comes to register a hold the reading waits for would raise the count of its key and fail the scan.
+B996 closed the deferral on 2026-10-29 (UTC):
+it converted the file to the fake clock and took it out of `DEFERRED`.
 
 Prevention rule:
 a wait in a test is the event it stands for,
@@ -387,3 +394,274 @@ see "Tests on the real clock" in
 Recurrence:
 the family of B318 (a test whose verdict a bound on the real clock decides),
 and of B985.
+
+## B996: the hold-wait cases still on the real clock, and eight of ten that passed with the wait removed
+
+Status:
+fixed on 2026-10-29 (UTC),
+tests `5e546c6585` (the hold-wait file and the provider's fake-clock fixture)
+and `8090be3a60` (the router's two cases),
+scan `8bc09565ec`,
+cache versions none.
+The deferral of B995 is closed:
+`provider/budget-hold-wait.unit.test.ts` left `DEFERRED` in the scan.
+A member of the family of B318,
+B817,
+B985
+and B995:
+a test that waits on the real clock pays the wait in every gate and lets host load decide what it reads.
+The commit body of `8bc09565ec` miscounts the findings of the widening
+(it says 12 reads,
+10 listed in 6 keys
+and 8 counted per key);
+the counts under "What the widening found" are the measured ones,
+and the commit was not amended.
+
+What the 19 sites were for.
+The file held 17 reads of `pollMs` and 2 of `performance.now`,
+and eight of the 17 `pollMs` sites slept nothing.
+By the scripts the cases slept 104 ms of real time in all,
+30 ms of it a real timer that fired the abort of one case.
+
+- `waitOutHold`,
+  `pollMs: 2` and both `performance.now` reads.
+  It slept a 6 ms hold in three steps of 2 ms and measured the sleep (at least 5 ms).
+  A sleep it did not make could not pass it,
+  and load only lengthens a sleep,
+  so by the code a timer that fires a millisecond early was the only thing that could turn it red.
+  But the case name claims that an abort is noticed at the end of a step and after the last one,
+  and no assertion read either.
+- `waitOutHold`,
+  `pollMs: 1`.
+  The abort had fired before the call,
+  so the call threw at its first check and slept nothing.
+- `refusalOfReading`,
+  one `pollMs: 1` for three cases.
+  "STATES THE ACCOUNT'S NEURALWATT DAY START" waited 5 ms in its second half
+  and "READS THE NEURALWATT DAY AGAIN" waited 5 ms;
+  "SAYS A PAYMENT REFUSAL" waited on nothing.
+  The two waiting cases assert `after waiting 5ms`,
+  which the refusal takes from the hold it was told of and not from the time slept.
+- "RETURNS THE READING for a model Xiaomi does not serve" (two sites),
+  "ENDS THE RUN WITH A STOP LINE",
+  "DOES NOT END THE RUN",
+  "WAITS ON NO HOLD",
+  "RETURNS THE READING with the routing refusal folded in"
+  and "GOES BACK TO A REFUSER THE BUDGETS GAVE NO HOLD".
+  Their scripts hold nobody,
+  or the reading never asks for a hold,
+  so each slept nothing and load could not change it.
+- "WAITS OUT THE HOLDS" with Xiaomi wet and checker-only (6 ms),
+  "WAITS OUT THE SHORTEST HOLD" (5 ms),
+  "DOES NOT FOLD THE ROUTING REFUSAL INTO THE SECOND READING" (5 ms),
+  "ENDS THE RUN" (one site in a function that serves two arms,
+  the second sleeping 5 ms),
+  "KEEPS WAITING WHILE A HOLD STILL RUNS" (5 ms then 7 ms)
+  and "BOUNDS THE SUM OF THE NEURALWATT WAITS" (Hyper's 25 ms;
+  the 15 ms return is the one that must not be slept).
+  Each slept its hold so that the budgets were read again after it,
+  and each asserted what the reads and the hold asks counted.
+  Those counts are the same with the wait skipped:
+  the case passed with the sleep removed.
+- "BOUNDS THE WAITS ONLY BY THE CALL'S ABORT".
+  A hold of 1,000,000 ms in steps of 1 ms,
+  and a real timer of 30 ms that aborted the call.
+  The reason of the abort is asserted,
+  so the case could not pass by ending in another way.
+  Load only lengthens the 30 ms.
+
+Eight of the ten cases that slept passed with the sleep removed:
+the five that assert counts only ("WAITS OUT THE HOLDS",
+"WAITS OUT THE SHORTEST HOLD",
+"DOES NOT FOLD",
+"KEEPS WAITING"
+and "BOUNDS THE SUM"),
+the two day-start cases that assert `after waiting 5ms`,
+and "ENDS THE RUN",
+which asserts the same words.
+Each failed only at the assertion this round added,
+the fake time the reading slept (see the first demonstration).
+No case of the file could be turned red by load alone,
+by the code,
+and none was observed red under load.
+The cost was the sleep
+and,
+in eight cases,
+a green that said nothing about the wait.
+
+What replaced the sleeps.
+
+- A fixture of the provider package,
+  `fake-clock-hold-wait.test-fixture.ts`,
+  holds two functions.
+  `fakeClockStarted` is the one the NeuralWatt return cases of B985 kept in their file;
+  it moved here and both users import it.
+  `waitedOutOnFakeClock` runs a reading on that clock,
+  hands it an abort signal,
+  ticks the longest wait it can take and one poll,
+  aborts a reading that is still waiting,
+  and returns its result with the fake milliseconds that had passed when it returned.
+  The guarantees of the run package's helper hold:
+  only `setTimeout` and `clearTimeout` are faked and native timers are cleared,
+  a stuck wait ends in the abort reason and not in a hang,
+  and a reading that rejects while the clock ticks is not an unhandled rejection.
+- The run package keeps its own `readOnFakeClock`,
+  which the provider package cannot import.
+  The two are not copies:
+  the duplicate-bodies scan passed,
+  and they differ in what they hand a reading and what they report.
+  Moving both into the shared test-fixture package would unify them,
+  at the price of editing six test files of the run package and removing its fixture;
+  that was left alone.
+- Every reading of `readBudgetsPastHolds` in the file goes through one of two helpers,
+  `viewAfterHolds` and `refusalAfterHolds`,
+  including the cases that sleep nothing:
+  a hold such a case came to register would be ticked,
+  and a stuck one aborted,
+  where a listed `pollMs` would have gone on sleeping for real unseen.
+- Each case that waits asserts the fake time slept:
+  6 ms (twice),
+  5 ms (five times),
+  12 ms and 25 ms in the cases that sleep,
+  and 0 in the two cases where the reading must not wait.
+  The `waitOutHold` case also asserts that an abort fired inside a step of 4 ms
+  is noticed where that step ends and not before,
+  and that an abort fired inside the last step is noticed after it.
+  "BOUNDS THE WAITS ONLY BY THE CALL'S ABORT" ticks 30 fake milliseconds,
+  reads the promise as still waiting,
+  aborts,
+  and reads the reason.
+- The suites that fake the process-wide timers run one case at a time:
+  the `waitOutHold` and `readBudgetsPastHolds` suites of the file,
+  and the describe of `provider-router.unit.test.ts`.
+
+What the widening found.
+The scan passed on the converted file with two keys listed:
+`hold hyper: 4_000` (2 reads,
+a hold handed to the pure `shortestHold`)
+and `hold hyper: 1_000_000` (1 read,
+a hold the fake clock ticks for 30 ms and the case's own abort ends).
+No `pollMs` or `performance.now` read was left in the file,
+so nothing of the file is listed as a poll that sleeps nothing.
+
+The blind forms of B995,
+each read and decided:
+
+- A wait through a router built over the budgets.
+  Widened.
+  `holdPollMs`,
+  the router's name for the poll slice,
+  is a bound key and a poll form,
+  and a file that imports `createRoutingClient` drives budget waits,
+  so `createProviderBudgets` with no `now` beside it is a finding.
+  The fixture case that plants both failed before the widening.
+  The package-wide case then found 13 reads in two files:
+  4 in `neuralwatt-routing.unit.test.ts` (3 budgets with no `now` and 1 `holdPollMs`)
+  and 9 in `provider-router.unit.test.ts` (1 budgets with no `now` and 8 `holdPollMs`).
+  Two slept:
+  "WAITS OUT THE SHORTEST HOLD" and "GOES BACK TO THE REFUSER",
+  each a 5 ms hold slept through the router on the real clock,
+  with a call log and a hold-read count that were the same with the wait skipped.
+  Both now run on the fake clock and assert the 5 ms.
+  The other 11 reads are listed in 6 keys,
+  each with why it sleeps nothing:
+  a wet Hyper meter,
+  every provider dry with no hold,
+  Xiaomi alone wet and serving no model asked,
+  a Synthetic refusal held for no time (B124),
+  or budgets that are only read once.
+- A helper that installs a fake clock through a variable.
+  Widened.
+  An arrow or a function expression held in a constant now covers its callers like a declared function.
+  Before,
+  a case calling it had its `pollMs` read as a real wait:
+  a false finding,
+  never a missed wait.
+  The fixture case plants an arrow and a function expression and leaves the callers alone.
+  It failed with those two callers found before this part was written.
+- A fake clock installed at module level.
+  Kept as a limit.
+  A call outside every function covers no function,
+  so a poll slice in such a file is found and has to be listed:
+  a false finding and never a missed wait.
+  Covering the whole file would be unsound,
+  because whether the clock is restored before a later case cannot be read from the tree.
+  A search of the package's sources for an install at the start of a line found none;
+  the sandbox of each case does it.
+
+The red demonstrations,
+each a temporary local change to `budget-hold-wait.ts`,
+`budget-routing.ts`
+or the test's own rig,
+rebuilt into the dist the tests import,
+restored and never committed.
+The first run of the first demonstration spun,
+see "Left open".
+
+- The sleep of `waitOutHold` replaced by an await that returns at once:
+  nine cases red at the assertion this round added,
+  `expected +0 to equal 6` ("SLEEPS the hold out" and "WAITS OUT THE HOLDS"),
+  `expected +0 to equal 5` (five cases),
+  `expected +0 to equal 12` ("KEEPS WAITING")
+  and `expected +0 to equal 25` ("BOUNDS THE SUM").
+  The same change on the router's two cases:
+  `expected +0 to equal 5` in each.
+- One sleep for the whole hold in place of steps of `pollMs`:
+  `expected undefined to equal 'caller gave up'` in "SLEEPS the hold out" (the abort noticed at 10 ms and not at 8),
+  and `expected Symbol(the promise has not settled yet) to not equal Symbol(the promise has not settled yet)`
+  in "BOUNDS THE WAITS ONLY BY THE CALL'S ABORT".
+- The abort check after the last step removed:
+  `Expected the call to refuse, but it returned` in "SLEEPS the hold out".
+- The bound not reduced by what was waited
+  (`returnBoundMs - next.waitedMs` read `returnBoundMs - 0`):
+  `expected DOMException{ stack: 'AbortError: Th…' } to be an instance of EveryProviderDryError` in "BOUNDS THE SUM",
+  the stuck wait ending in the abort and not in a hang.
+- The run ended after the first wait,
+  and the NeuralWatt day not read again after the waits:
+  `expected 'Every provider is out of budget at on…' to include 'at 19:15:08 UTC'` in both day-start cases,
+  and an `EveryProviderDryError` thrown where "KEEPS WAITING" expects a reading.
+- The refusal not folded into the first reading:
+  three cases red,
+  `expected { neuralwatt: true, …(7) } to deeply equal { neuralwatt: true, …(7) }` ("RETURNS THE READING with the routing
+  refusal folded in"),
+  `expected 1 to equal 2` ("DOES NOT FOLD")
+  and `expected +0 to equal 1` ("GOES BACK TO A REFUSER").
+- Every provider counted dry,
+  the idle list emptied
+  and the meter word `dry` changed:
+  11 of the 16 cases of the suite red,
+  among them the five that sleep nothing and were red in no other demonstration
+  ("RETURNS THE READING for a model Xiaomi does not serve",
+  "ENDS THE RUN WITH A STOP LINE",
+  "DOES NOT END THE RUN",
+  "SAYS A PAYMENT REFUSAL"
+  and "WAITS ON NO HOLD").
+
+Left open.
+A wait replaced by an await that returns at once,
+in a case whose hold never ends,
+does not fail.
+It spins:
+the loop yields only to microtasks,
+and the abort guard of `waitedOutOnFakeClock` needs a macrotask,
+the real timer that `tickAsync` itself waits on.
+The first run of the first demonstration ran past 180 s with a log of thousands of lines until it was stopped.
+The guard turns a wait that stays pending on timers into a failure;
+it cannot turn a spin into one,
+and the harness sets no time limit on a case.
+Only "BOUNDS THE WAITS ONLY BY THE CALL'S ABORT" has a hold that never ends.
+A router built over stub budgets whose holds a case scripts at under a second,
+in a file that names neither `holdPollMs` nor a `now`,
+is still out of the scan's reach:
+no key or call names the figure.
+
+Prevention rule:
+a wait in a test is the event it stands for,
+and a case that waits asserts that the time passed,
+because the reads and the counts of a reading that waited are the same with the wait skipped,
+see "Tests on the real clock" in
+[Preventing mistakes: the real world, clocks and arrival order](mistake-prevention-tests-clocks-and-arrival-order.md#tests-on-the-real-clock).
+
+Recurrence:
+the family of B318 (a test whose verdict a bound on the real clock decides),
+and of B985 and B995.
