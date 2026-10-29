@@ -44,7 +44,7 @@ fn texts(items: &[&str]) -> Vec<String> {
 /// function repository(): string { const dir = mkdtemp(); mkdir(join(dir, '.git')); return dir; }
 /// ```
 fn repository() -> tempfile::TempDir {
-    let directory = tempfile::tempdir().expect("make a temporary directory");
+    let directory = crate::test_scratch::scratch();
     fs::create_dir(directory.path().join(".git")).expect("make .git");
     fs::create_dir(directory.path().join("package")).expect("make a subdirectory");
     return directory;
@@ -91,7 +91,7 @@ fn grep_operands_exclude_the_pattern_and_flag_values() {
 #[test]
 fn grep_refuses_recursion_from_a_repository_root() {
     let root = repository();
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     let implied = grep_refusal("grep", &texts(&["-rn", "foo"]), false, root.path(), home.path());
     let dot = grep_refusal("grep", &texts(&["-r", "foo", "."]), false, root.path(), home.path());
@@ -107,8 +107,8 @@ fn grep_refuses_recursion_from_a_repository_root() {
 /// The home directory and `/` are wide too, from anywhere.
 #[test]
 fn grep_refuses_recursion_over_home_and_the_filesystem_root() {
-    let work = tempfile::tempdir().expect("make a temporary directory");
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let work = crate::test_scratch::scratch();
+    let home = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
     assert!(grep_refusal("grep", &texts(&["-r", "foo", &home_text]), false, work.path(), home.path()).is_some());
@@ -119,7 +119,7 @@ fn grep_refuses_recursion_over_home_and_the_filesystem_root() {
 #[test]
 fn grep_lets_bounded_and_deliberate_calls_through() {
     let root = repository();
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     // Not recursive, a named subdirectory, escape hatch, and stdin-only input (the '-' operand).
     assert_eq!(grep_refusal("grep", &texts(&["foo", "file"]), false, root.path(), home.path()), None);
@@ -153,8 +153,8 @@ fn find_max_depth_takes_the_smallest_numeric_value() {
 #[test]
 fn find_refuses_unbounded_walks_from_wide_places() {
     let root = repository();
-    let work = tempfile::tempdir().expect("make a temporary directory");
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let work = crate::test_scratch::scratch();
+    let home = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
     let implied = find_refusal("find", &texts(&["-name", "*.ts"]), false, root.path(), home.path());
@@ -173,7 +173,7 @@ fn find_refuses_unbounded_walks_from_wide_places() {
 #[test]
 fn find_lets_bounded_walks_through() {
     let root = repository();
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     assert_eq!(find_refusal("find", &texts(&[".", "-maxdepth", "3", "-name", "x"]), false, root.path(), home.path()), None);
     assert_eq!(find_refusal("find", &texts(&["package", "-name", "x"]), false, root.path(), home.path()), None);
@@ -185,7 +185,7 @@ fn find_lets_bounded_walks_through() {
 #[test]
 fn find_lets_the_information_flags_through() {
     let root = repository();
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     assert_eq!(find_refusal("find", &texts(&["--version"]), false, root.path(), home.path()), None);
     assert_eq!(find_refusal("bfs", &texts(&["--help"]), false, root.path(), home.path()), None);
@@ -214,7 +214,7 @@ fn invocation(name: &str, arguments: &[&str], working_directory: &Path, home: &P
 #[test]
 fn the_dispatcher_picks_the_rule_by_tool_name() {
     let root = repository();
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     assert!(refusal_for(&invocation("rg", &["--hidden", "foo"], root.path(), home.path())).is_some());
     assert!(refusal_for(&invocation("rg", &["-rl", "foo"], root.path(), home.path())).is_some());

@@ -77,3 +77,7 @@ mod walk_target_tests;
 /// The unit tests of the grep and find refusal rules.
 #[cfg(test)]
 mod policy_walk_tests;
+
+/// Scratch directories for the unit tests, placed beside the build output.
+#[cfg(test)]
+mod test_scratch;

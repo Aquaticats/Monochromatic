@@ -76,7 +76,7 @@ const REAL_RG_BODY: &str = "printf 'REAL %s\\n' \"$*\"\nionice -p $$";
 /// function makeWorld(): { root: string; pathVariable: string } { ... }
 /// ```
 fn make_world() -> (tempfile::TempDir, String) {
-    let root = tempfile::tempdir().expect("make a temporary directory");
+    let root = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a scratch directory");
     let shadow_directory = root.path().join("shadow");
     let real_directory = root.path().join("real");
     fs::create_dir(&shadow_directory).expect("make the shadow directory");
@@ -256,7 +256,7 @@ fn passes_a_non_utf8_argument_through_unchanged() {
 /// `search-shadow link DIRECTORY` links only the tools that exist on PATH, reports the rest, and `--help` describes the command.
 #[test]
 fn the_link_subcommand_links_only_present_tools_and_help_mentions_it() {
-    let root = tempfile::tempdir().expect("make a temporary directory");
+    let root = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a scratch directory");
     let links_directory = root.path().join("bin");
     let (world, _path_variable) = make_world();
     // PATH holds the fake real tools of the world (rg, grep, find) and nothing else.
