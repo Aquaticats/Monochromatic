@@ -98,7 +98,19 @@ Owner follow-ups the same day:
 - `.claude` left out of the image build context (`containerignore`), which had made `COPY . /baked` take about 25 minutes.
 - Running since 11:13 local: units `mutation-p-map-3` (551 mutants) and `mutation-p-memoize-3` (363 mutants),
    reusing image `baa75398fb47`; logs `~/temp/agent/package-category-elimination/mutation-p-{map,memoize}.log`.
-  Next: survivor triage from each package's `dist/mutation-report.json`.
+  Finished 11:19 (p-memoize) and 11:30 (p-map), no infrastructure errors:
+   p-map killed 219, survived 89, timeout 9, compileError 234, ignored 58 (135 shards);
+   p-memoize killed 142, survived 15, compileError 206, ignored 9 (37 shards).
+  Survivors by file: p-map `p-map-iterable.ts` 40, `map-iterator.ts` 25, `p-map.ts` 16, `errors.ts` 5,
+   `map-options.ts`, `p-map-keyed.ts`, `p-map-stop.ts` 1 each;
+   p-memoize `p-memoize-decorator.ts` 6, `memoized-cache-store.ts` 5, `p-memoize-clear.ts` 4.
+  All ran against their files' own unit tests (none are "no tests select this file").
+
+## music-player `run`: zigbuild adopted for now
+
+Owner adopted cargo-zigbuild "for now" for the `run` fallback (glibc 2.39) and asked for issue #1814 to replace it
+ after a choosing-technology pass, because Zig's upstream cannot take this project's issue reports.
+Declined for now: distrobox ("Must be podman"), an Ubuntu 24.04 build image and running inside podman ("Neither").
 
 ## Out of scope by owner choice
 
