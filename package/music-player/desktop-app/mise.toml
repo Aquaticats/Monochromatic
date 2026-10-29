@@ -105,7 +105,9 @@ const containerCargo = (cargoArgs, containerOptions = {}) => {
     if (!existsSync(host)) { throw new Error(`containerCargo needs ${host} (mounted read-only at ${inside}) but it does not exist; run the task from the checked-out package/music-player/desktop-app directory of a full checkout`) }
     return ['-v', `${host}:${inside}:ro`]
   })
-  execFileSync('podman', ['run', '--rm', ...container.limits, '--security-opt', 'label=disable', ...debugInfoEnv, ...container.env, '-v', `${process.cwd()}:/work`, ...siblingMountArgs, '-v', `${container.cargoVolume}:/cargo`, '-w', '/work', container.image, container.program, ...cargoArgs], { stdio: 'inherit' })
+  // A private tmpfs at /run/user/0 is the container's XDG_RUNTIME_DIR, because the notification tests' private D-Bus socket needs the
+  // per-user runtime directory (438bc434e4) and a container has none.
+  execFileSync('podman', ['run', '--rm', ...container.limits, '--security-opt', 'label=disable', ...debugInfoEnv, ...container.env, '--tmpfs', '/run/user/0:mode=0700', '--env', 'XDG_RUNTIME_DIR=/run/user/0', '-v', `${process.cwd()}:/work`, ...siblingMountArgs, '-v', `${container.cargoVolume}:/cargo`, '-w', '/work', container.image, container.program, ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => {
   if (process.platform !== 'linux') { execFileSync('cargo', cargoArgs, { stdio: 'inherit' }) }
