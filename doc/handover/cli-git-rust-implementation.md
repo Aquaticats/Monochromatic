@@ -2904,4 +2904,16 @@ Chain unit `cli-git-chain-1804` (logs `~/temp/agent/b1804-{clippy,host,bin}.log`
 while it runs. Still owed: command_push unit tests for `stackable_option_tokens`, container gate, podman harness rerun,
 README section, release, mutation campaign (non-blocking).
 Not stacked by design: no single-flight lock for explicit pushes (the remote arbitrates; the loop is bounded at 10).
+Verification 2026-10-29 (all on the committed tree): clippy clean; host suite 1959 of 1960 and binary suite 159 of 160
+(only the two known host-only markdown-linter failures); container gate 2121 passed, 5 skipped, 0 failed
+(`~/temp/agent/m1804-container.log`). Guard proof: with `stack_if_push` disabled the lost-race and conflict binary tests
+fail; the refused-merge test was strengthened because it passed trivially. Podman rerun
+(`~/temp/agent/podman-1804-fixed/repro.log`, binary built from this tree): the explicit push from a detached worktree
+published the merge and left HEAD alone; the differently named upstream auto-pushes and reconciles. One harness artifact:
+after a rebase made the local HEAD equal to a remote ancestor, the later push was correctly left as rejected.
+Release 0.2.11 committed as `a302d5ee8c` (the fuzz crate's `=0.2.10` pin now needs the bump too, so a release is four
+files); publish run 40847281021. The earlier `cargo-publish` push run 40845758673 for `4fc48e3bb1` failed: not mine,
+check whether 0.2.10 reached crates.io.
+Still owed: mutation campaign over the touched files (non-blocking): `push_stacking.rs`, `auto_push_reconcile.rs`,
+`command_push.rs`, `entry.rs`; queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
