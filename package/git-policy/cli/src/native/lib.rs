@@ -784,6 +784,9 @@ pub mod process_start;
 /// The Git version check run once before work that depends on Git's behavior.
 pub mod git_version;
 
+/// The private per-user cache of the version text, keyed by the Git executable's identity.
+pub mod git_version_cache;
+
 /// Processes holding a lock file open,
 ///  found by device and inode.
 pub mod index_lock_holders;

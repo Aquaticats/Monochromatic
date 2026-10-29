@@ -17,8 +17,13 @@
 //! await requireSupportedGit({ gitPath }); // once
 //! ```
 
+/// The per-executable cache of the version text.
+use super::git_version_cache::{binary_identity, cache_directory, read_version_text, store_version_text};
 /// Running real Git.
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+/// OS strings and paths for the cache location.
+use std::ffi::OsString;
+use std::path::Path;
 /// `OnceLock` holds the one answer of this process.
 use std::sync::OnceLock;
 
@@ -88,6 +93,49 @@ pub fn unsupported_message(context: &GitContext, found: &str) -> String {
 }
 
 /// What:
+///  Decide support from the text `git version` printed.
+/// Why:
+///   One judgment serves the text a Git process printed and the text the cache kept,
+///  so both paths refuse the same releases with the same message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function judgeGitVersion(context, stdout): [number, number, number]; // throws the unsupported message
+/// ```
+fn judge_version_text(context: &GitContext, stdout: &[u8]) -> Result<GitRelease, String> {
+    let Some(version) = parse_git_version(stdout) else {
+        let shown: String = String::from_utf8_lossy(stdout).trim().to_string();
+        return Err(unsupported_message(context, format!("an unreadable version {shown:?}").as_str()));
+    };
+    if version < MINIMUM_GIT_VERSION {
+        return Err(unsupported_message(
+            context,
+            format!("version {}.{}.{}", version.0, version.1, version.2).as_str(),
+        ));
+    }
+    return Ok(version);
+}
+
+/// What:
+///  Start `git version` and return what it printed and whether it exited with success.
+/// Why:
+///   Only a successful run is worth caching;
+///  a failed start is the unsupported message.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stdout, exitCode } = await runGit({ args: ['version'] });
+/// ```
+fn run_git_version(context: &GitContext) -> Result<GitOutput, String> {
+    let mut request: GitRequest = GitRequest::new(std::path::Path::new("."), &["version"]);
+    request.without_prefix = true;
+    return match run_git(context, &request) {
+        Ok(finished) => Ok(finished),
+        Err(error) => Err(unsupported_message(context, format!("nothing ({error})").as_str())),
+    };
+}
+
+/// What:
 ///  Ask Git its version and decide support,
 ///  without the cache.
 /// Why:
@@ -98,23 +146,68 @@ pub fn unsupported_message(context: &GitContext, found: &str) -> String {
 /// async function askGitVersion(gitPath): Promise<[number, number, number]>;
 /// ```
 pub fn ask_git_version(context: &GitContext) -> Result<(u64, u64, u64), String> {
-    let mut request: GitRequest = GitRequest::new(std::path::Path::new("."), &["version"]);
-    request.without_prefix = true;
-    let output: GitOutput = match run_git(context, &request) {
-        Ok(finished) => finished,
-        Err(error) => return Err(unsupported_message(context, format!("nothing ({error})").as_str())),
+    let output: GitOutput = run_git_version(context)?;
+    return judge_version_text(context, output.stdout.as_slice());
+}
+
+/// What:
+///  Ask for the Git version through the per-executable cache in `cache_directory`,
+///  starting `git version` only on a miss.
+/// Why:
+///   The text is read from the cache only when the executable's identity matches the recorded one exactly
+///  and the text still parses;
+///  a stale,
+///  unreadable or absent entry,
+///  an executable that is not identifiable,
+///  or no cache directory all run Git.
+///  The identity is taken before the start and again after it,
+///  and the text is recorded only when both agree and Git succeeded,
+///  so an executable replaced during the start is never recorded under the old identity.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function askGitVersionCached(context, cacheDirectory?: string): Promise<[number, number, number]>;
+/// ```
+pub fn ask_git_version_cached(context: &GitContext, cache_directory: Option<&Path>) -> Result<GitRelease, String> {
+    let Some(directory) = cache_directory else {
+        return ask_git_version(context);
     };
-    let Some(version) = parse_git_version(output.stdout.as_slice()) else {
-        let shown: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string();
-        return Err(unsupported_message(context, format!("an unreadable version {shown:?}").as_str()));
+    let Some(identity) = binary_identity(context.real_git.as_path()) else {
+        return ask_git_version(context);
     };
-    if version < MINIMUM_GIT_VERSION {
-        return Err(unsupported_message(
-            context,
-            format!("version {}.{}.{}", version.0, version.1, version.2).as_str(),
-        ));
+    if let Some(text) = read_version_text(directory, &identity)
+        && parse_git_version(text.as_slice()).is_some()
+    {
+        return judge_version_text(context, text.as_slice());
     }
-    return Ok(version);
+    let output: GitOutput = run_git_version(context)?;
+    let judged: Result<GitRelease, String> = judge_version_text(context, output.stdout.as_slice());
+    let unchanged: bool = binary_identity(context.real_git.as_path()).as_ref() == Some(&identity);
+    if judged.is_ok() && output.succeeded() && unchanged {
+        store_version_text(directory, &identity, output.stdout.as_slice());
+    }
+    return judged;
+}
+
+/// What:
+///  The process-wide version ask:
+///  the cache in the user's cache directory when the environment names one.
+/// Why:
+///   `check_git_version` takes only the Git context;
+///  the environment is the process's own,
+///  as the Git children inherit it.
+///  Unit tests of the library never touch the real home, so they ask without a cache.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// askGitVersionCached(context, cacheDirectory(process.env))
+/// ```
+fn ask_git_version_with_process_cache(context: &GitContext) -> Result<GitRelease, String> {
+    if cfg!(test) {
+        return ask_git_version(context);
+    }
+    let environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    return ask_git_version_cached(context, cache_directory(environment.as_slice()).as_deref());
 }
 
 /// What:
@@ -129,7 +222,7 @@ pub fn ask_git_version(context: &GitContext) -> Result<(u64, u64, u64), String> 
 /// await requireSupportedGit({ gitPath });
 /// ```
 pub fn check_git_version(context: &GitContext) -> Result<(u64, u64, u64), String> {
-    return check_once(&CHECKED, context, ask_git_version);
+    return check_once(&CHECKED, context, ask_git_version_with_process_cache);
 }
 
 /// What:

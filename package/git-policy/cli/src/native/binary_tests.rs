@@ -87,6 +87,10 @@ mod landing_crash;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// The Git version text a commit records in the user's cache directory, and when it trusts it.
+#[path = "binary_version_cache_tests.rs"]
+mod version_cache;
+
 /// A process start that fails anywhere in a commit never strands the repository.
 #[path = "binary_fork_failure_tests.rs"]
 mod fork_failure;
