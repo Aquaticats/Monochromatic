@@ -24,7 +24,7 @@ RUN apt-get update \
       pkgconf \
       libgl1-mesa-dri libgbm1 libgl1 libegl1 \
       libwayland-client0 libwayland-cursor0 libwayland-egl1 libxkbcommon0 \
-      libfontconfig1 libfontconfig-dev libfreetype6 libfreetype-dev \
+      fontconfig libfontconfig-dev libfreetype6 libfreetype-dev \
       fonts-noto-core fonts-noto-cjk \
     && rm --recursive --force /var/lib/apt/lists/*
 
