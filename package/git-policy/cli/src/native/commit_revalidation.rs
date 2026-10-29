@@ -95,6 +95,8 @@ pub struct RevalidationContext<'a> {
     pub global_args: &'a [String],
     /// Whether the invocation bypassed `pre-commit` with `--no-verify`.
     pub no_verify: bool,
+    /// Whether the dispatch plan wrote hook entries; without them no hook can run, so the re-run starts nothing.
+    pub named_hooks_possible: bool,
 }
 
 /// What:
@@ -102,6 +104,7 @@ pub struct RevalidationContext<'a> {
 /// Why:
 ///   It runs exactly as native preparation ran it, so the shim takes the hook lock and restores the caller's
 ///  configuration; `prepare-commit-msg` and `commit-msg` do not re-run because the message is fixed.
+///  Without hook entries nothing runs, and nothing is started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,8 +116,14 @@ fn rerun_pre_commit(
     global_args: &[String],
     shadow: &Path,
     hooks_directory: &Path,
+    named_hooks_possible: bool,
     index: &Path,
 ) -> Result<(), TransactionStop> {
+    // A configuration with no hook defined by name has no dispatcher entry, so `git hook run` would find nothing.
+    if !named_hooks_possible {
+        debug(TAG, "the configuration defines no hook by name; the re-run is skipped");
+        return Ok(());
+    }
     let mut arguments: Vec<OsString> = global_args.iter().map(OsString::from).collect();
     arguments.push(OsString::from(format!("--git-dir={}", shadow.display())));
     arguments.push(OsString::from(format!("--work-tree={}", worktree_root.display())));
@@ -224,6 +233,7 @@ pub fn revalidate_replay<F: RepositoryFacts>(
             context.global_args,
             workspace.landing.shadow.as_path(),
             workspace.hooks_directory.as_path(),
+            context.named_hooks_possible,
             index.as_path(),
         )?;
     }

@@ -40,16 +40,20 @@ fn gates_follow_recovery() {
     };
     assert_eq!(
         stderr,
-        render_engine_failure(
+        render_engine_failure_with_hint(
             0,
             EngineFailureCode::ContentUnavailable,
             format!(
                 "Unexpected transaction registry entry: {}",
                 dead.registry.join("stray").display()
             )
-            .as_str()
+            .as_str(),
+            None
         )
     );
+    // The code's generic hint (fetch history) does not apply to transaction state, so none is printed.
+    assert!(!stderr.contains("\"hint\""), "{stderr}");
+    assert!(!stderr.contains("git fetch"), "{stderr}");
     std::fs::remove_dir(dead.registry.join("stray")).expect("remove stray");
     let legacy: PathBuf = dead.git_dir.join("cli-git-transaction");
     std::fs::create_dir(&legacy).expect("legacy");

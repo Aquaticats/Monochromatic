@@ -65,8 +65,8 @@ fn hermetic_command(fixture: &Fixture, program: &Path, directory: &Path) -> Comm
     return command;
 }
 
-/// A repository whose own hooks path is `shared`, with a published transaction whose entries
-/// start the native executable and whose plan comes from the real repository.
+/// A repository whose configuration defines a `pre-commit` hook that runs `script`, with a published transaction
+/// whose entries start the native executable and whose plan comes from the real repository.
 struct Prepared {
     repository: PathBuf,
     hooks: PathBuf,
@@ -74,13 +74,16 @@ struct Prepared {
 }
 
 /// Build the transaction for one repository.
-fn prepared(fixture: &Fixture, name: &str, shared: &Path, concurrent_commits: bool) -> Prepared {
+fn prepared(fixture: &Fixture, name: &str, script: &Path, concurrent_commits: bool) -> Prepared {
     let created: PathBuf = repository(fixture, std::ffi::OsStr::new(name));
     let repository_root: PathBuf = std::fs::canonicalize(created).expect("canonical");
     std::fs::create_dir_all(repository_root.join(".git").join("cli-git")).expect("cli-git");
-    let mut config: Command = hermetic_command(fixture, Path::new(REAL_GIT), repository_root.as_path());
-    config.args(["config", "core.hooksPath", shared.to_str().expect("UTF-8")]);
-    assert!(config.status().expect("config").success());
+    // A `hook.<name>.command` hook names its event with `hook.<name>.event`, per git-hook(1).
+    for (key, value) in [("hook.script.event", "pre-commit"), ("hook.script.command", script.to_str().expect("UTF-8"))] {
+        let mut config: Command = hermetic_command(fixture, Path::new(REAL_GIT), repository_root.as_path());
+        config.args(["config", key, value]);
+        assert!(config.status().expect("config").success());
+    }
     let registry: PathBuf = registered_transaction(repository_root.as_path(), true);
     let directory: PathBuf = registry.join(TRANSACTION_ID);
     let lease: String = new_preparation_lease(directory.as_path()).expect("lease");
@@ -95,6 +98,7 @@ fn prepared(fixture: &Fixture, name: &str, shared: &Path, concurrent_commits: bo
         concurrent_commits,
         inherited_lease_valid: false,
         environment: &[],
+        snapshot: None,
     })
     .expect("plan");
     let hooks: PathBuf = directory.join("hooks");
@@ -106,12 +110,11 @@ fn prepared(fixture: &Fixture, name: &str, shared: &Path, concurrent_commits: bo
     };
 }
 
-/// A shared hooks directory with the given `pre-commit` script.
-fn shared_hooks(fixture: &Fixture, script: &[u8]) -> PathBuf {
-    let shared: PathBuf = fixture.root.join("shared-hooks");
-    std::fs::create_dir_all(&shared).expect("shared hooks");
-    executable(shared.join("pre-commit").as_path(), script);
-    return shared;
+/// An executable script for the configuration's `pre-commit` hook to run.
+fn hook_script(fixture: &Fixture, script: &[u8]) -> PathBuf {
+    let path: PathBuf = fixture.root.join("hook-script");
+    executable(path.as_path(), script);
+    return path;
 }
 
 /// Run one entry by its path, as Git does, and collect its output.
@@ -145,38 +148,21 @@ fn log_lines(path: &Path) -> Vec<String> {
         .collect();
 }
 
-/// A hookdir hook and a `hook.<name>.command` hook each run once, through the dispatcher.
+/// A `hook.<name>.command` hook runs once through the dispatcher, and a traditional hook in the repository's hooks
+/// directory does not run at all, because traditional hooks are unsupported.
 #[test]
-fn a_hookdir_hook_and_a_command_hook_each_run_once() {
+fn a_command_hook_runs_once_and_a_traditional_hook_does_not_run() {
     let fixture: Fixture = fixture("hook-once");
     let log: PathBuf = fixture.root.join("log");
-    let shared: PathBuf = shared_hooks(
-        &fixture,
-        format!("#!/bin/sh\necho hookdir >> {}\n", log.display()).as_bytes(),
+    let script: PathBuf = hook_script(&fixture, format!("#!/bin/sh\necho command >> {}\n", log.display()).as_bytes());
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), false);
+    executable(
+        prepared_state.repository.join(".git/hooks/pre-commit").as_path(),
+        format!("#!/bin/sh\necho traditional >> {}\n", log.display()).as_bytes(),
     );
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), false);
-    let mut command: Command = hermetic_command(
-        &fixture,
-        Path::new(REAL_GIT),
-        prepared_state.repository.as_path(),
-    );
-    // A `hook.<name>.command` hook names its event with `hook.<name>.event`, per git-hook(1).
-    command
-        .args(["config", "hook.logcmd.command"])
-        .arg(format!("echo command >> {}", log.display()));
-    assert!(command.status().expect("config").success());
-    let mut event: Command = hermetic_command(
-        &fixture,
-        Path::new(REAL_GIT),
-        prepared_state.repository.as_path(),
-    );
-    event.args(["config", "hook.logcmd.event", "pre-commit"]);
-    assert!(event.status().expect("event config").success());
     let outcome: Output = run_entry(&fixture, &prepared_state, "pre-commit", prepared_state.repository.as_path(), "a");
     assert_eq!(outcome.status.code(), Some(0), "{}", String::from_utf8_lossy(&outcome.stderr));
-    let lines: Vec<String> = log_lines(log.as_path());
-    assert_eq!(lines.iter().filter(|line| { return line.as_str() == "hookdir"; }).count(), 1, "{lines:?}");
-    assert_eq!(lines.iter().filter(|line| { return line.as_str() == "command"; }).count(), 1, "{lines:?}");
+    assert_eq!(log_lines(log.as_path()), vec![String::from("command")]);
     assert!(!prepared_state.repository.join(".git/cli-git/hook.lock").exists());
     remove_fixture(fixture);
 }
@@ -186,7 +172,7 @@ fn a_hookdir_hook_and_a_command_hook_each_run_once() {
 fn a_hook_in_a_subdirectory_sees_the_top_level_and_an_absolute_work_tree() {
     let fixture: Fixture = fixture("hook-subdirectory");
     let log: PathBuf = fixture.root.join("log");
-    let shared: PathBuf = shared_hooks(
+    let script: PathBuf = hook_script(
         &fixture,
         format!(
             "#!/bin/sh\necho \"top=$(git rev-parse --show-toplevel)\" >> {log}\necho \"work=$GIT_WORK_TREE\" >> {log}\n",
@@ -194,7 +180,7 @@ fn a_hook_in_a_subdirectory_sees_the_top_level_and_an_absolute_work_tree() {
         )
         .as_bytes(),
     );
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), false);
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), false);
     let subdirectory: PathBuf = prepared_state.repository.join("sub");
     std::fs::create_dir(&subdirectory).expect("subdirectory");
     let outcome: Output = run_entry(&fixture, &prepared_state, "pre-commit", subdirectory.as_path(), "a");
@@ -211,8 +197,8 @@ fn a_hook_in_a_subdirectory_sees_the_top_level_and_an_absolute_work_tree() {
 #[test]
 fn a_failing_hook_propagates_its_status() {
     let fixture: Fixture = fixture("hook-status");
-    let shared: PathBuf = shared_hooks(&fixture, b"#!/bin/sh\nexit 3\n");
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), false);
+    let script: PathBuf = hook_script(&fixture, b"#!/bin/sh\nexit 3\n");
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), false);
     let outcome: Output = run_entry(&fixture, &prepared_state, "pre-commit", prepared_state.repository.as_path(), "a");
     assert_eq!(outcome.status.code(), Some(3));
     assert!(!prepared_state.repository.join(".git/cli-git/hook.lock").exists());
@@ -225,8 +211,8 @@ fn two_dispatches_serialize_by_default() {
     let fixture: Fixture = fixture("hook-serialize");
     let log: PathBuf = fixture.root.join("log");
     let release: PathBuf = fixture.root.join("release");
-    let shared: PathBuf = shared_hooks(&fixture, barrier_script(&log, &release).as_bytes());
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), false);
+    let script: PathBuf = hook_script(&fixture, barrier_script(&log, &release).as_bytes());
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), false);
     assert!(!prepared_state.plan.skip_hook_lock);
     let mut first: Child = spawn_entry(&fixture, &prepared_state, "a");
     wait_for_line(&log, "start a");
@@ -246,8 +232,8 @@ fn two_dispatches_overlap_with_concurrent_commits() {
     let fixture: Fixture = fixture("hook-overlap");
     let log: PathBuf = fixture.root.join("log");
     let release: PathBuf = fixture.root.join("release");
-    let shared: PathBuf = shared_hooks(&fixture, barrier_script(&log, &release).as_bytes());
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), true);
+    let script: PathBuf = hook_script(&fixture, barrier_script(&log, &release).as_bytes());
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), true);
     assert!(prepared_state.plan.skip_hook_lock);
     let mut first: Child = spawn_entry(&fixture, &prepared_state, "a");
     wait_for_line(&log, "start a");
@@ -263,8 +249,8 @@ fn two_dispatches_overlap_with_concurrent_commits() {
 #[test]
 fn other_start_names_behave_as_git() {
     let fixture: Fixture = fixture("hook-other-names");
-    let shared: PathBuf = shared_hooks(&fixture, b"#!/bin/sh\nexit 9\n");
-    let prepared_state: Prepared = prepared(&fixture, "repo", shared.as_path(), false);
+    let script: PathBuf = hook_script(&fixture, b"#!/bin/sh\nexit 9\n");
+    let prepared_state: Prepared = prepared(&fixture, "repo", script.as_path(), false);
     let outside: PathBuf = fixture.root.join("outside");
     std::fs::create_dir(&outside).expect("outside");
     let plain: PathBuf = outside.join("pre-commit");

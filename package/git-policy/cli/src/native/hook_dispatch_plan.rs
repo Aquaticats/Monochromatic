@@ -12,6 +12,8 @@
 //! const plan: HookDispatchPlan = await computeHookDispatchPlan({ gitPath, cwd, globalArgs, commonDir, ... });
 //! ```
 
+/// The one configuration read, and its lookup answers.
+use super::config_snapshot::{ConfigSnapshot, Lookup};
 /// Config reads and the per-transaction Git context.
 use super::transaction_git::{GitContext, GitRequest, run_git};
 /// Lenient typed readers over the plan's JSON object.
@@ -118,14 +120,12 @@ pub enum ConfigParameters {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type HookDispatchPlan = { schemaVersion: 1; gitPath: string; hooksPath: string; ... };
+/// type HookDispatchPlan = { schemaVersion: 1; gitPath: string; disabledEvents: string[]; ... };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HookDispatchPlan {
     /// Absolute real Git executable the dispatcher runs `git hook run` with.
     pub git_path: String,
-    /// Repository's own absolute hooks directory.
-    pub hooks_path: String,
     /// Events the user disabled with `hook.<event>.enabled=false`, in the silenced list's order.
     pub disabled_events: Vec<String>,
     /// Caller's config parameters including its global `-c` options.
@@ -138,6 +138,10 @@ pub struct HookDispatchPlan {
     pub hook_lock_path: String,
     /// Whether hooks skip the hook lock.
     pub skip_hook_lock: bool,
+    /// Whether the configuration may define hooks by name (`hook.<name>.event` or `.command`), which run for their
+    ///  event whatever the hooks directory holds; `true` when the configuration was not inspected.
+    ///  Not recorded in `plan.json`: the dispatchers never read it, and a plan read back says `true`.
+    pub named_hooks_possible: bool,
 }
 
 /// What:
@@ -170,6 +174,9 @@ pub struct HookPlanInputs<'a> {
     pub inherited_lease_valid: bool,
     /// Caller environment, whose `GIT_CONFIG_PARAMETERS` is inherited.
     pub environment: &'a [(OsString, OsString)],
+    /// The configuration read once with the caller's global options;
+    ///  `None` makes each key start its own `git config`.
+    pub snapshot: Option<&'a ConfigSnapshot>,
 }
 
 /// What:
@@ -316,36 +323,6 @@ pub fn normalized_path(path: &Path) -> PathBuf {
 }
 
 /// What:
-///  The hooks directory Git uses when `core.hooksPath` is unset.
-/// Why:
-///   The incumbent's `join(commonDir, 'hooks')`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// join(commonDir, 'hooks')
-/// ```
-pub fn default_hooks_directory(common_directory: &Path) -> PathBuf {
-    return normalized_path(common_directory.join("hooks").as_path());
-}
-
-/// What:
-///  The hooks directory a configured `core.hooksPath` names.
-/// Why:
-///   A relative value resolves against the worktree root,
-///  where Git runs hooks; absolute values stay absolute.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isAbsolute(configured) ? configured : resolve(worktreeRoot, configured);
-/// ```
-pub fn resolve_hooks_path(worktree_root: &Path, configured: &Path) -> PathBuf {
-    if configured.is_absolute() {
-        return normalized_path(configured);
-    }
-    return normalized_path(worktree_root.join(configured).as_path());
-}
-
-/// What:
 ///  The hook lock directory under the common Git directory.
 /// Why:
 ///   The incumbent's `join(commonDir, 'cli-git', 'hook.lock')`; the same lock serializes both wrappers.
@@ -356,55 +333,6 @@ pub fn resolve_hooks_path(worktree_root: &Path, configured: &Path) -> PathBuf {
 /// ```
 pub fn hook_lock_directory(common_directory: &Path) -> PathBuf {
     return normalized_path(common_directory.join("cli-git").join("hook.lock").as_path());
-}
-
-/// What:
-///  Read one config value through the caller's Git context; exit code 1 means unset.
-/// Why:
-///   The incumbent's `readConfig`: unset is not an error, any other failure stops planning,
-///  and one terminating newline is removed from the value.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function readConfig({ gitPath, cwd, globalArgs, type, key }): Promise<string | typeof CONFIG_UNSET>;
-/// ```
-fn read_config(
-    context: &GitContext,
-    cwd: &Path,
-    kind: &str,
-    key: &str,
-) -> Result<Option<String>, HookPlanError> {
-    // The context's global prefix precedes `config`, as the incumbent's `[...globalArgs, 'config']`.
-    let arguments: Vec<String> = vec![
-        String::from("config"),
-        format!("--type={kind}"),
-        String::from("--get"),
-        String::from(key),
-    ];
-    let request: GitRequest = GitRequest::new(cwd, arguments.as_slice());
-    let output = match run_git(context, &request) {
-        Ok(finished) => finished,
-        Err(error) => {
-            return Err(HookPlanError::ConfigRead(format!(
-                "git config --get {key} could not start: {error}"
-            )));
-        }
-    };
-    if output.code == Some(1) {
-        return Ok(None);
-    }
-    if !output.succeeded() {
-        return Err(HookPlanError::ConfigRead(format!(
-            "git config --get {key} failed: {}",
-            String::from_utf8_lossy(output.stderr.as_slice()).trim()
-        )));
-    }
-    let Ok(text) = String::from_utf8(output.stdout) else {
-        return Err(HookPlanError::ConfigRead(format!(
-            "git config --get {key} printed bytes that are not UTF-8"
-        )));
-    };
-    return Ok(Some(String::from(text.strip_suffix('\n').unwrap_or(text.as_str()))));
 }
 
 /// What:
@@ -479,10 +407,34 @@ fn read_disabled_events(context: &GitContext, cwd: &Path) -> Result<Vec<String>,
 }
 
 /// What:
+///  The silenced events the user disabled with `hook.<event>.enabled`, from the configuration snapshot.
+/// Why:
+///   The snapshot answers exactly what the `--get-regexp` read answers when every entry of the four switches is a
+///  boolean it models; one it does not model (a bad boolean, a unit suffix) is `None`,
+///  and the caller starts Git, which reports the same error it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SILENCED_HOOK_EVENTS.filter((event) => snapshot.boolValue(`hook.${event}.enabled`) === false);
+/// ```
+fn snapshot_disabled_events(snapshot: &ConfigSnapshot) -> Option<Vec<String>> {
+    let mut disabled: Vec<String> = Vec::new();
+    for event in SILENCED_HOOK_EVENTS {
+        match snapshot.bool_value(format!("hook.{event}.enabled").as_str()) {
+            Lookup::Unset | Lookup::Found(true) => {}
+            Lookup::Found(false) => disabled.push(String::from(event)),
+            Lookup::Unhandled => return None,
+        }
+    }
+    return Some(disabled);
+}
+
+/// What:
 ///  Compute the dispatch plan of one transaction from the real repository.
 /// Why:
-///   The incumbent's `computeHookDispatchPlan`:
-///  the hooks path, the event switches (only the exact value `false` disables an event),
+///   The incumbent's `computeHookDispatchPlan`, minus its hooks-path resolution, because traditional hooks are not
+///  supported:
+///  the event switches (only the exact value `false` disables an event),
 ///  the combined config parameters, the lock path and whether the lock is skipped.
 ///
 /// In TS you'd write (pseudocode):
@@ -492,17 +444,10 @@ fn read_disabled_events(context: &GitContext, cwd: &Path) -> Result<Vec<String>,
 pub fn compute_hook_dispatch_plan(
     inputs: &HookPlanInputs<'_>,
 ) -> Result<HookDispatchPlan, HookPlanError> {
-    let configured_hooks: Option<String> = read_config(
-        inputs.context,
-        inputs.cwd,
-        "path",
-        "core.hooksPath",
-    )?;
-    let hooks_path: PathBuf = match configured_hooks {
-        None => default_hooks_directory(inputs.common_directory),
-        Some(value) => resolve_hooks_path(inputs.worktree_root, Path::new(value.as_str())),
+    let disabled_events: Vec<String> = match inputs.snapshot.and_then(snapshot_disabled_events) {
+        Some(events) => events,
+        None => read_disabled_events(inputs.context, inputs.cwd)?,
     };
-    let disabled_events: Vec<String> = read_disabled_events(inputs.context, inputs.cwd)?;
     let inherited: String = inherited_config_parameters(inputs.environment)?;
     let overrides: Vec<String> = global_config_overrides(inputs.global_arguments)?;
     let config_parameters: ConfigParameters = combine_config_parameters(
@@ -511,7 +456,6 @@ pub fn compute_hook_dispatch_plan(
     )?;
     let plan: HookDispatchPlan = HookDispatchPlan {
         git_path: path_text(inputs.context.real_git.as_path(), "real Git path")?,
-        hooks_path: path_text(hooks_path.as_path(), "hooks path")?,
         disabled_events,
         config_parameters,
         worktree_root: path_text(inputs.worktree_root, "worktree root")?,
@@ -521,6 +465,7 @@ pub fn compute_hook_dispatch_plan(
             "hook lock path",
         )?,
         skip_hook_lock: inputs.concurrent_commits || inputs.inherited_lease_valid,
+        named_hooks_possible: inputs.snapshot.is_none_or(ConfigSnapshot::defines_named_hook),
     };
     return Ok(plan);
 }
@@ -556,7 +501,6 @@ pub fn encode_hook_dispatch_plan(plan: &HookDispatchPlan) -> String {
     let mut writer: ObjectWriter = ObjectWriter::new();
     writer.integer("schemaVersion", PLAN_SCHEMA_VERSION);
     writer.string("gitPath", plan.git_path.as_str());
-    writer.string("hooksPath", plan.hooks_path.as_str());
     writer.raw(
         "disabledEvents",
         string_array(plan.disabled_events.as_slice()).as_str(),
@@ -630,13 +574,13 @@ pub fn parse_hook_dispatch_plan(text: &str) -> Option<HookDispatchPlan> {
     };
     return Some(HookDispatchPlan {
         git_path: String::from(string_field(&object, "gitPath")?),
-        hooks_path: String::from(string_field(&object, "hooksPath")?),
         disabled_events,
         config_parameters,
         worktree_root: String::from(string_field(&object, "worktreeRoot")?),
         lease: String::from(string_field(&object, "lease")?),
         hook_lock_path: String::from(string_field(&object, "hookLockPath")?),
         skip_hook_lock: object.get("skipHookLock")?.as_bool()?,
+        named_hooks_possible: true,
     });
 }
 

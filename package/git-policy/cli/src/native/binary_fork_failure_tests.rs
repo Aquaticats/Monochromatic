@@ -30,7 +30,7 @@ const SWEEP_WIDTH: usize = 6;
 const BURST_LENGTH: usize = 3;
 
 /// Whether `strace` can be started.
-fn strace_available() -> bool {
+pub(super) fn strace_available() -> bool {
     return Command::new("strace").arg("--version").output().is_ok();
 }
 

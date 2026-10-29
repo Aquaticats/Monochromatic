@@ -26,6 +26,8 @@ use super::diagnostics::EngineFailureCode;
 ///  converge corrections in memory,
 ///  then install them.
 use super::direct_fix::run_direct_fix;
+/// The traditional-hook listing of `git cli-git doctor`.
+use super::doctor::doctor_action;
 use super::invocation_config::{config_invalid_event, legacy_warning_events, load_identity_config};
 use super::management_arguments::{
     MANAGEMENT_HELP, MANAGEMENT_USAGE, ManagementAction, ManagementRefusal, RetiredCommand,
@@ -50,6 +52,7 @@ use super::repository_location::RepositoryLocation;
 use super::scanner_selection::RULES_VARIABLE;
 /// Startup recovery as a command step.
 use super::transaction_gate::{Gate, recover_for_command};
+use super::transaction_git::GitContext;
 use super::index_writer_coordination::hold_landing_lock;
 use super::owner_lock::OwnerLock;
 use super::unported::{unported_from_unavailable, unported_notice};
@@ -363,6 +366,38 @@ fn run_direct_command(
 }
 
 /// What:
+///  Decide the action of `git cli-git doctor`.
+/// Why:
+///   The command is read-only and needs no configuration, recovery or lock: it asks Git where the hooks are and
+///  looks at those directories, so it also works in a repository whose configuration is invalid.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function planDoctor(gitGlobalArgs, environment, inputs): Action;
+/// ```
+fn plan_doctor(
+    git_global_arguments: &[OsString],
+    environment: &[(OsString, OsString)],
+    inputs: &ResolutionInputs,
+) -> Action {
+    let real_git: PathBuf = match resolve_real_git(inputs) {
+        Ok(found) => found,
+        Err(error) => return failure(error.to_string().as_str()),
+    };
+    let cwd: PathBuf = match std::env::current_dir() {
+        Ok(found) => found,
+        Err(error) => return failure(format!("cannot determine the current directory: {error}").as_str()),
+    };
+    let overlay: Vec<(OsString, OsString)> = child_environment_overlay(environment, real_git.as_path());
+    let context: GitContext = GitContext {
+        real_git,
+        overlay,
+        global_prefix: git_global_arguments.to_vec(),
+    };
+    return doctor_action(&context, cwd.as_path());
+}
+
+/// What:
 ///  Decide the action for the arguments after `git cli-git`.
 ///       `&[OsString]` borrows argument lists;
 ///  `&Controls` borrows what the wrapper
@@ -425,6 +460,7 @@ pub fn plan_management(
                 stderr: retired_explanation(command),
             };
         }
+        ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs),
         ManagementAction::Direct {
             fix,
             all,

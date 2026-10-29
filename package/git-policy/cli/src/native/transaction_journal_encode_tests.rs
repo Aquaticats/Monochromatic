@@ -209,6 +209,8 @@ fn landing_records_round_trip() {
         pack_name: Some(String::from("8888888888888888888888888888888888888888")),
         added_paths: Vec::new(),
         selected_worktree_paths: vec![sample_added()],
+        pre_landing_digest: None,
+        post_digest: None,
     };
     let encoded: String = encode_landing(&record);
     assert_eq!(
@@ -242,6 +244,52 @@ fn landing_records_round_trip() {
         parse_landing(text.as_bytes()).expect("normalization"),
         normalization
     );
+}
+
+/// The snapshot digests are the last keys of `landing-<n>.json`, print as a length and 16 hexadecimal digits, and
+///  read back exactly; a record without them still reads, with none.
+#[test]
+fn landing_digests_round_trip_after_the_older_fields() {
+    let record: LandingRecord = LandingRecord {
+        attempt: 1,
+        operation: LandingOperation::Commit,
+        expected_old: Base::Unborn,
+        new_oid: Some(String::from("6666666666666666666666666666666666666666")),
+        landed_tree_oid: String::from("7777777777777777777777777777777777777777"),
+        pre_landing_index: FileIdentity {
+            device: String::from("1"),
+            inode: String::from("2"),
+        },
+        post_index: FileIdentity {
+            device: String::from("1"),
+            inode: String::from("3"),
+        },
+        lock: sample_lock(),
+        pack_name: None,
+        added_paths: Vec::new(),
+        selected_worktree_paths: Vec::new(),
+        pre_landing_digest: Some(crate::content_digest::digest_bytes(b"pre")),
+        post_digest: Some(crate::content_digest::digest_bytes(b"post")),
+    };
+    let encoded: String = encode_landing(&record);
+    assert!(
+        encoded.ends_with(&format!(
+            "\"selectedWorktreePaths\":[],\"preLandingDigest\":{{\"length\":3,\"fnv1a64\":\"{}\"}},\
+             \"postDigest\":{{\"length\":4,\"fnv1a64\":\"{}\"}}}}\n",
+            crate::content_digest::digest_bytes(b"pre").hash_text(),
+            crate::content_digest::digest_bytes(b"post").hash_text(),
+        )),
+        "{encoded}"
+    );
+    assert_eq!(parse_landing(encoded.as_bytes()).expect("round trip"), record);
+    let without: LandingRecord = LandingRecord {
+        pre_landing_digest: None,
+        post_digest: None,
+        ..record
+    };
+    let older: String = encode_landing(&without);
+    assert!(!older.contains("Digest"), "{older}");
+    assert_eq!(parse_landing(older.as_bytes()).expect("older record"), without);
 }
 
 /// `ref-updated.json` names the landed commit.
@@ -314,6 +362,8 @@ fn names_that_are_not_utf8_are_written_with_their_exact_bytes() {
         pack_name: None,
         added_paths: Vec::new(),
         selected_worktree_paths: record.added_paths.clone(),
+        pre_landing_digest: None,
+        post_digest: None,
     };
     assert_eq!(parse_landing(encode_landing(&landing).as_bytes()).expect("landing"), landing);
 }

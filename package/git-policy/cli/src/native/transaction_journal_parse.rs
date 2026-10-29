@@ -12,6 +12,8 @@
 //! const preparing = parsePreparingRecord(bytes);
 //! ```
 
+/// The digest of an index snapshot.
+use super::content_digest::ContentDigest;
 /// The event form of a pathname and the base64 of its bytes.
 use super::event_path::{EventPath, base64_decode_standard};
 /// Record field readers and the fatal decoder.
@@ -316,6 +318,34 @@ impl<'a> RecordReader<'a> {
     }
 
     /// What:
+    ///  An optional content digest of an index snapshot:
+    ///  absent is `None`,
+    ///  present must be `{ "length": <whole number>, "fnv1a64": <16 lowercase hexadecimal digits> }`.
+    /// Why:
+    ///   Records written before the digests existed have none and keep their old trust in the artifact identity;
+    ///  a digest that is present but misspelled is a damaged record and never read as absent.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// read.optionalDigest(key)
+    /// ```
+    pub fn optional_digest(&self, key: &str) -> Result<Option<ContentDigest>, RecoveryError> {
+        if !self.map.contains_key(key) {
+            return Ok(None);
+        }
+        let nested: RecordReader<'a> = self.object(key)?;
+        let length: u64 = match nested.map.get("length").and_then(safe_integer) {
+            Some(whole) if whole >= 0 => whole as u64,
+            Some(_) | None => return Err(self.malformed(key)),
+        };
+        let hash_text: String = nested.string("fnv1a64")?;
+        match ContentDigest::from_record(length, hash_text.as_str()) {
+            Some(digest) => return Ok(Some(digest)),
+            None => return Err(self.malformed(key)),
+        }
+    }
+
+    /// What:
     ///  A required lock identity.
     /// Why:
     ///   The incumbent's `lock`.
@@ -600,6 +630,8 @@ pub fn parse_landing(bytes: &[u8]) -> Result<LandingRecord, RecoveryError> {
         pack_name,
         added_paths: read.added_paths("addedPaths")?,
         selected_worktree_paths: read.added_paths("selectedWorktreePaths")?,
+        pre_landing_digest: read.optional_digest("preLandingDigest")?,
+        post_digest: read.optional_digest("postDigest")?,
     });
 }
 

@@ -196,6 +196,27 @@ pub fn json_string(text: &str) -> String {
 /// function renderEngineFailure(sequence: number, code: EngineFailureCode, message: string): string;
 /// ```
 pub fn render_engine_failure(sequence: u64, code: EngineFailureCode, message: &str) -> String {
+    return render_engine_failure_with_hint(sequence, code, message, engine_failure_hint(engine_failure_code_name(code)));
+}
+
+/// What:
+///  Render one engine-failure event with the hint the caller chooses,
+///  or with none.
+/// Why:
+///   A hint is a guess about the goal that depends on the code alone.
+///  A message that already says what the person can do (a retained transaction names the file to remove or restore,
+///  and what the wrapper then does) must not carry the code's generic hint, which may not apply to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function renderEngineFailureWithHint(sequence: number, code: EngineFailureCode, message: string, hint?: string): string;
+/// ```
+pub fn render_engine_failure_with_hint(
+    sequence: u64,
+    code: EngineFailureCode,
+    message: &str,
+    hint: Option<&str>,
+) -> String {
     // `format!` builds the owned line; `{{` and `}}` are literal braces.
     let name: &str = engine_failure_code_name(code);
     let mut line: String = format!(
@@ -203,7 +224,7 @@ pub fn render_engine_failure(sequence: u64, code: EngineFailureCode, message: &s
         json_string(name),
         json_string(message)
     );
-    push_hint_field(&mut line, engine_failure_hint(name));
+    push_hint_field(&mut line, hint);
     line.push_str("}\n");
     return line;
 }

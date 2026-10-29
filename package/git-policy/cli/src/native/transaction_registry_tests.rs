@@ -4,6 +4,7 @@
 //!  listing and removal.
 
 use super::*;
+use crate::private_storage::take_directory_syncs;
 use crate::test_support::{fixture, remove};
 
 /// The canonical transaction ID used by these tests.
@@ -233,6 +234,22 @@ fn removal_retires_registry_directories() {
     remove(git_dir.as_path());
 }
 
+/// Removing a registry directory syncs nothing: a retired directory that survives a power loss is removed by
+///  recovery, and a published one that survives is cleaned as a landed transaction.
+#[test]
+fn removing_a_registry_directory_syncs_nothing() {
+    let git_dir: PathBuf = fixture("registry-remove-sync");
+    let root: PathBuf = git_dir.join(TRANSACTION_ROOT_NAME);
+    ensure_transaction_root(root.as_path()).expect("create");
+    let directory: PathBuf =
+        publish_transaction_directory(root.as_path(), ID, b"{}\n").expect("publish");
+    std::fs::write(directory.join("preparing.json"), b"{}").expect("state");
+    take_directory_syncs();
+    remove_transaction_directory(directory.as_path()).expect("remove");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    remove(git_dir.as_path());
+}
+
 /// Two recoverers retire one dead transaction:
 ///  the one that loses the rename finds the directory gone and has nothing left to do.
 #[test]
@@ -292,6 +309,24 @@ fn an_uninspectable_path_is_not_an_absent_directory() {
     );
     assert_eq!(real_directory(git_dir.as_path()).expect("directory"), Some(true));
     assert_eq!(real_directory(file.as_path()).expect("file"), Some(false));
+    remove(git_dir.as_path());
+}
+
+/// The directory holding the registry is synced when the registry is created and at no other time:
+///  finding a registry, whether this wrapper or another process made it, changes nothing to make durable.
+#[test]
+fn the_registry_parent_is_synced_only_when_the_registry_is_created() {
+    let git_dir: PathBuf = fixture("registry-sync-on-create");
+    let registry: PathBuf = git_dir.join(TRANSACTION_ROOT_NAME);
+    take_directory_syncs();
+    ensure_transaction_root(registry.as_path()).expect("created");
+    assert_eq!(take_directory_syncs(), vec![git_dir.clone()]);
+    ensure_transaction_root(registry.as_path()).expect("found");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    let foreign: PathBuf = git_dir.join("made-elsewhere");
+    std::fs::create_dir(&foreign).expect("foreign registry");
+    ensure_transaction_root(foreign.as_path()).expect("found foreign");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
     remove(git_dir.as_path());
 }
 
