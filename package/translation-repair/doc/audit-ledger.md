@@ -802,6 +802,11 @@ named for that subject and listed here.
   though NeuralWatt's return was 48 s away (B826),
   five phases judged against a bench their stage does not seat (B860),
   and a cooldown waited out for every slice by a provider that refused at once after each (B965).
+- [Audit ledger: real-clock waits left in tests after the cooldown round](audit-ledger-real-clock-waits-left-after-the-cooldown.md):
+  Three unit tests that still slept on the real clock after B965,
+  a ten-millisecond hold in the pass-entry overlap case and two NeuralWatt return waits in the provider package,
+  replaced by a rendezvous and a fake clock,
+  and the gap in the real-clock scan that never saw the provider sites (B985).
 - [Audit ledger: probes that read one editor card](audit-ledger-editor-card-probes.md):
   An editor calibration with no flag naming a card (B870),
   a flag that confines the editing and not the spend (B871),
