@@ -515,6 +515,38 @@ directory `patches/`) instead of attaching them.
 The issue type `Bug` that the form sets could not be set through the API by a non-maintainer,
 so the type is empty;
 the triage automation added the label `area: monorepo`.
+
+Outcome,
+read on 2026-10-29 from the issue timeline and the pull request:
+the report was fixed upstream by someone else,
+and no pull request from this account was needed.
+About 40 minutes after the filing,
+`snmsoodan` opened
+[pnpm/pnpm#17487](https://github.com/pnpm/pnpm/pull/17487) with `Closes pnpm/pnpm#17485`,
+and `zkochan` merged it at 21:19 UTC (merge commit `39bb7b93c5`,
+review decision `APPROVED`),
+which closed the issue.
+Nobody commented on the issue and no maintainer asked for a pull request.
+The merged change covers both stacks,
+14 files:
+the Rust v12 path (`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs` and a new `modules_dirs/direct_links.rs`)
+and the TypeScript v11 path (`pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts`,
+a jest test,
+and a CLI test in `pnpm11/pnpm/test/install/misc.ts`),
+plus a changeset.
+It treats a missing entry as dangling only when the manifest declares a `workspace:` or `link:` spec,
+no root entry stands in for it,
+the lockfile links it,
+the linker symlinks direct dependencies,
+and the project is held by the install.
+The pull request lists two known gaps where a deleted link is still not detected:
+a pinned `lockfileDir` or custom virtual-store directory for the current-lockfile fallback,
+and an override that retargets a workspace dependency while the root keeps a link to the declared target.
+The patches in the reproduction repository and the two `.patch` files beside this doc are superseded and were never posted as pull requests.
+Not checked:
+whether a release containing the merge fixes the reproduction (the matrix above predates it),
+and whether the merge reaches the pnpm 11 line (the pull request targets `main`).
+
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
 cargo workspace,
