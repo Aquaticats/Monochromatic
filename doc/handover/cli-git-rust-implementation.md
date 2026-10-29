@@ -3179,3 +3179,13 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   linter failures); container gate 2190 passed, 5 skipped, 0 failed in 66 s. Unreleased: ships with the next version,
   together with the merged slices R, S1 to S4 and J (read the current crate version first).
 - Cost: one extra `git diff-index` start per explicit-path commit (no per-commit spawn budget test exists to ratchet).
+
+## Decision at 2026-10-29: traditional Git hooks are unsupported
+
+- The user decided that traditional hooks (scripts in `.git/hooks` or a `core.hooksPath` directory) are explicitly
+  unsupported and any use is undefined behavior. Only `hook.<name>.event` with `hook.<name>.command` config hooks are
+  supported. Written into the README ("Hooks" bullet) and the SPEC ("Hook dispatcher shim").
+- The hooks-and-config agent (aac40a929f1822d77) was told: preserve, test and extend nothing for traditional hooks; report
+  rather than silently delete code that becomes dead. No code was removed for this decision; the shim still passes a
+  traditional hook through `git hook run` as a side effect. Open: remove the `core.hooksPath` handling (S3 snapshot, plan
+  recording, `-c core.hooksPath` override) once the user wants the code to follow the decision.
