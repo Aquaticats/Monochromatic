@@ -63,6 +63,28 @@ fn the_synced_writer_creates_an_exclusive_file() {
     remove(root.as_path());
 }
 
+/// The scratch writer keeps the creation mode and the bytes,
+///  refuses an existing file and a planted link,
+///  and is the one writer that never syncs.
+#[test]
+fn the_scratch_writer_creates_an_exclusive_private_file() {
+    let root: PathBuf = fixture("private-scratch");
+    let path: PathBuf = root.join("input.bin");
+    write_exclusive_scratch(path.as_path(), b"abc").expect("write");
+    assert_eq!(std::fs::read(&path).expect("read"), b"abc");
+    #[cfg(unix)]
+    assert_eq!(mode_of(path.as_path()) & 0o077, 0, "no group or other bits");
+    assert!(write_exclusive_scratch(path.as_path(), b"abc").is_err());
+    #[cfg(unix)]
+    {
+        let link: PathBuf = root.join("link.bin");
+        std::os::unix::fs::symlink(root.join("target"), &link).expect("plant link");
+        assert!(write_exclusive_scratch(link.as_path(), b"x").is_err());
+        assert!(!root.join("target").exists(), "the link target must not be created");
+    }
+    remove(root.as_path());
+}
+
 /// A private directory has no group or other bits and its parent must exist.
 #[test]
 fn a_private_directory_is_owner_only() {
