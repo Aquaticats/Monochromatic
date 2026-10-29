@@ -2882,5 +2882,15 @@ a first run was invalid because the wrapper link failed, so it was discarded):
 Proposal written: `doc/planning/cli-git-stack-concurrent-pushes.md` (change A: push to the tracked ref on a name mismatch;
 change B: reconcile a stale-rejected explicit push by reusing the loop).
 User decisions (2026-10-29): merge like auto-push; any non-force single-branch update; leave a detached HEAD where it is
-and print the merge commit. Whether to implement is not yet answered; do not start before the user accepts the plan.
+and print the merge commit. The user then chose "A and B together in one release" (2026-10-29), so the plan is accepted for implementation.
+Order: read `manual_push_probe.rs`, `manual_push_range.rs`, `manual_push_lifecycle.rs`, `command_push.rs` and
+`rule_atomic_push.rs` for the policy input range; write failing tests first; implement A and B; run the chain, the
+container gate and the podman harness again; release; start the mutation campaign without blocking the release.
+Design findings (also in the planning doc, "Implementation findings"): an eligible explicit push runs as a child with
+inherited streams; after a non-zero exit the loop re-probes the updates, fetches the destination tip and merges only
+when the remote diverged; the merge is pushed by the wrapper invoking itself with an environment marker so the push
+gates run on the integrated result.
+Queued, not in this release: the auto-push merge push runs no push-time policy (pre-existing); gating it could stop merges
+that publish today, so it needs the user's decision.
+Tasks: 63 (change A), 64 (change B).
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).

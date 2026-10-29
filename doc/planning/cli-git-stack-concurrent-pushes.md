@@ -1,6 +1,7 @@
 # Stack concurrent pushes in the git wrapper (issue 1804)
 
-Status: proposal, not accepted. No implementation until the user accepts a design.
+Status: accepted for implementation on 2026-10-29 (the user chose "A and B together in one release").
+Design findings made while implementing are recorded in the "Implementation findings" section.
 Issue: <https://github.com/Aquaticats/Monochromatic/issues/1804>.
 
 ## Evidence
@@ -99,7 +100,7 @@ When the wrapper forwarded an explicit `git push` and the result matches `was_re
 
 The user answered the three questions below on 2026-10-29, taking the recommended option each time:
 merge, any non-force single-branch update, and leave a detached HEAD where it is while printing the merge commit.
-The proposal as a whole is not yet accepted for implementation.
+The user then accepted the proposal for implementation, as one release for both changes.
 
 ## Decision questions as asked
 
@@ -110,6 +111,30 @@ The proposal as a whole is not yet accepted for implementation.
     Recommended: any non-force, single-ref, non-delete update of a branch, because the rejection mechanics are the same
     and a default-branch-only rule needs the default branch name resolved from the remote.
 3.  Detached HEAD after a successful explicit push. Recommended: leave HEAD where it is and print the merge commit.
+
+## Implementation findings
+
+Read from source on 2026-10-29, before any code.
+
+- A plain forwarded `push` replaces the wrapper process with real git (`replace_process_with_real_git`,
+  `src/native/forwarding.rs`), so the wrapper cannot see the rejection.
+  Commands that need the wrapper alive already run git as a child with inherited streams
+  (`Action::ForwardSettled`, `Action::ForwardCoordinated`, `run_forwarded_git`), including pushes from linked worktrees
+  that need the worktree copy.
+  Change B therefore runs an eligible push as a child with inherited streams, so the terminal output is unchanged.
+- No output parsing is needed for an explicit push: after a non-zero exit, the loop fetches the destination tip and
+  compares ancestry, and it already returns the original result when the remote is not a divergence
+  (authentication, offline and hook refusals fetch-fail or find the remote behind).
+  The explicit path must stay silent in those cases, unlike auto-push, which reports a failed fetch.
+- `probe_manual_push_updates` (`src/native/manual_push_probe.rs`) already resolves, per update, the remote name, the
+  destination ref, the local object and the remote's current object via `ls-remote`.
+  Change B reuses it after a failure; no refspec parser is written.
+- Policies on the merge: the merge is pushed by the wrapper invoking itself (`push <remote> <merge>:<ref>`) with an
+  environment marker that disables a second reconcile, so the normal pre-forward and manual-push gates run on the
+  integrated result with no second policy path.
+  Auto-push's own merge push stays as it is in this release (it pushes with real git and runs no push-time policy);
+  that gap is recorded in the handover and not changed here, because a gate on it would stop merges that publish today.
+- Locking: the reconcile for an explicit push is keyed by the destination ref, since a detached HEAD has no branch.
 
 ## Risks
 
