@@ -305,7 +305,10 @@ impl ConfigStore {
             FileConfiguration::Ignored => return Ok(Planned::Ignored),
             FileConfiguration::Unconfigured => RootRules::None,
             FileConfiguration::Configured { rules } => {
-                if language == Language::Rust {
+                if language == Language::Yaml {
+                    // A workflow has no host rules; its steps are linted as virtual shell files.
+                    RootRules::None
+                } else if language == Language::Rust {
                     RootRules::Rust {
                         settings: rust_rule_settings(&rules)?,
                     }

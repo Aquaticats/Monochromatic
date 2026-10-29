@@ -59,22 +59,32 @@ fn lines_over_the_budget_are_reported_once() {
 fn blank_and_comment_lines_do_not_count() {
     let source: &str = "# note\n\na\n  # indented note\nb\n\n";
     assert!(check_shell("x.sh", source, ShellDialect::Posix, &lines(2)).is_empty());
-    assert_eq!(check_shell("x.sh", source, ShellDialect::Posix, &lines(1)).len(), 1);
+    assert_eq!(
+        check_shell("x.sh", source, ShellDialect::Posix, &lines(1)).len(),
+        1
+    );
 }
 
 /// Continuations and heredoc content count as physical lines.
 #[test]
 fn continuations_and_heredocs_count() {
     let source: &str = "cmd \\\n  --flag \\\n  --other\n";
-    assert_eq!(check_shell("x.sh", source, ShellDialect::Posix, &lines(2)).len(), 1);
+    assert_eq!(
+        check_shell("x.sh", source, ShellDialect::Posix, &lines(2)).len(),
+        1
+    );
     let heredoc: &str = "cat <<EOF\nline\nEOF\n";
-    assert_eq!(check_shell("x.sh", heredoc, ShellDialect::Posix, &lines(2)).len(), 1);
+    assert_eq!(
+        check_shell("x.sh", heredoc, ShellDialect::Posix, &lines(2)).len(),
+        1
+    );
 }
 
 /// Windows line endings do not shift the reported range.
 #[test]
 fn carriage_returns_stay_outside_the_range() {
-    let found: Vec<Diagnostic> = check_shell("x.sh", "a\r\nb\r\nc\r\n", ShellDialect::Posix, &lines(2));
+    let found: Vec<Diagnostic> =
+        check_shell("x.sh", "a\r\nb\r\nc\r\n", ShellDialect::Posix, &lines(2));
     assert_eq!(range(&found[0]), (6, 7));
 }
 
@@ -83,7 +93,10 @@ fn carriage_returns_stay_outside_the_range() {
 fn cmd_comment_lines_are_free() {
     let source: &str = "rem a\n:: b\nREM c\necho x\n";
     assert!(check_shell("x.cmd", source, ShellDialect::Cmd, &lines(1)).is_empty());
-    assert_eq!(check_shell("x.cmd", source, ShellDialect::Posix, &lines(1)).len(), 1);
+    assert_eq!(
+        check_shell("x.cmd", source, ShellDialect::Posix, &lines(1)).len(),
+        1
+    );
 }
 
 /// With a budget of none,
@@ -121,7 +134,15 @@ fn other_constructs_and_inapplicable_dialects_are_quiet() {
         1
     );
     assert!(check_shell("x.ps1", "echo `x`", ShellDialect::PowerShell, &settings).is_empty());
-    assert!(check_shell("x.sh", "echo ok", ShellDialect::Posix, &ShellRuleSettings::default()).is_empty());
+    assert!(
+        check_shell(
+            "x.sh",
+            "echo ok",
+            ShellDialect::Posix,
+            &ShellRuleSettings::default()
+        )
+        .is_empty()
+    );
 }
 
 /// Both budgets report from one call.
@@ -132,6 +153,7 @@ fn both_budgets_report_together() {
         constructs: construct(Construct::Semicolon, 0, Severity::Error).constructs,
     };
     let found: Vec<Diagnostic> = check_shell("x.sh", "a; b\nc\n", ShellDialect::Posix, &settings);
-    let codes: Vec<&str> = found.iter().map(|finding| finding.code.as_str()).collect();
-    assert_eq!(codes, ["shell/max-lines", "shell/no-semicolon"]);
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].code, "shell/max-lines");
+    assert_eq!(found[1].code, "shell/no-semicolon");
 }

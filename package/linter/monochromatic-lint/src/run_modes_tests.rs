@@ -48,7 +48,7 @@ fn the_listing_describes_every_registered_rule_in_order() {
     assert_eq!(
         listing.lines().last(),
         Some(
-            r#"{"id":"markdown/lfs-image-url","fixable":true,"options":["exclude"],"suppressible":true}"#
+            r#"{"id":"shell/no-ampersand","fixable":false,"options":["max"],"suppressible":false}"#
         )
     );
     let mut fixable: Vec<&str> = Vec::<&str>::new();
@@ -75,11 +75,13 @@ fn the_listing_describes_every_registered_rule_in_order() {
 }
 
 /// Exactly the line budget,
-///  the documentation requirement and the compiler-backed closure check refuse inline directives,
+///  the documentation requirement,
+///  the compiler-backed closure check and the nine shell rules refuse inline directives,
 ///  and the lookup answers by the identifier a finding carries.
-///  The closure check is suppressed by rustc's own `expect` attribute only.
+///  The closure check is suppressed by rustc's own `expect` attribute only,
+///  and the shell rules are held by configuration ratchets only.
 #[test]
-fn only_the_line_budget_and_rustdoc_rules_declare_themselves_unsuppressible() {
+fn only_the_budget_rustdoc_closure_and_shell_rules_declare_themselves_unsuppressible() {
     let mut unsuppressible: Vec<&str> = Vec::<&str>::new();
     for rule in RULES {
         if !rule.suppressible {
@@ -91,7 +93,16 @@ fn only_the_line_budget_and_rustdoc_rules_declare_themselves_unsuppressible() {
         [
             "rust/max-lines",
             "rust/require-rustdoc",
-            "rust/avoidable-closure"
+            "rust/avoidable-closure",
+            "shell/max-lines",
+            "shell/no-pipe",
+            "shell/no-and-chain",
+            "shell/no-or-chain",
+            "shell/no-pipe-stderr",
+            "shell/no-semicolon",
+            "shell/no-dollar-paren",
+            "shell/no-backtick",
+            "shell/no-ampersand"
         ]
     );
     assert_eq!(
@@ -107,9 +118,11 @@ fn only_the_line_budget_and_rustdoc_rules_declare_themselves_unsuppressible() {
     assert!(rule_info("directive/unused").is_none());
 }
 
-/// The starter is valid configuration that selects every rule except the Cargo-backed one
-///  and the closure check,
-///  which needs a library path that a starter cannot know.
+/// The starter is valid configuration that selects every rule except the Cargo-backed one,
+///  the closure check,
+///  which needs a library path that a starter cannot know,
+///  and the shell rules,
+///  which select workflow step names that only a repository with workflows can write.
 #[test]
 fn the_starter_configuration_is_valid_and_selects_the_documented_rules() {
     let blocks: Vec<ConfigBlock> =
@@ -125,7 +138,10 @@ fn the_starter_configuration_is_valid_and_selects_the_documented_rules() {
     }
     let mut expected: Vec<String> = Vec::<String>::new();
     for id in RULE_IDS {
-        if *id != "rust/require-explicit-types" && *id != "rust/avoidable-closure" {
+        if *id != "rust/require-explicit-types"
+            && *id != "rust/avoidable-closure"
+            && !id.starts_with("shell/")
+        {
             expected.push(String::from(*id));
         }
     }

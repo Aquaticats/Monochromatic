@@ -43,6 +43,9 @@ pub enum Language {
     ///  MDX syntax is parsed,
     ///  never executed.
     Mdx,
+    /// A GitHub Actions workflow (`.github/workflows/*.yml` or `.yaml`)
+    ///  or a composite action (`action.yml` or `action.yaml` under `.github/actions`).
+    Yaml,
 }
 
 /// What:
@@ -61,8 +64,44 @@ impl Language {
             Language::Rust => return ProcessorLanguage::Rust,
             Language::Markdown => return ProcessorLanguage::Markdown,
             Language::Mdx => return ProcessorLanguage::Mdx,
+            Language::Yaml => return ProcessorLanguage::Yaml,
         }
     }
+}
+
+/// What:
+///  Whether a `.yml` or `.yaml` path is a GitHub Actions workflow or composite action.
+/// Why:
+///  Reading `run:` out of arbitrary YAML would turn any stray key into a failure,
+///  so only the two places GitHub reads steps from are hosts.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isActionsYaml(path: Path): boolean;
+/// ```
+fn is_actions_yaml(path: &Path) -> bool {
+    let names: Vec<&OsStr> = path
+        .components()
+        .map(Component::as_os_str)
+        .collect::<Vec<&OsStr>>();
+    let count: usize = names.len();
+    if count >= 3
+        && names[count - 2] == OsStr::new("workflows")
+        && names[count - 3] == OsStr::new(".github")
+    {
+        return true;
+    }
+    let is_action: bool = path.file_stem() == Some(OsStr::new("action"));
+    if !is_action || count < 3 {
+        return false;
+    }
+    // Any directory below `.github/actions` may hold an action.
+    for index in 0..count - 2 {
+        if names[index] == OsStr::new(".github") && names[index + 1] == OsStr::new("actions") {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -86,6 +125,10 @@ pub fn language_of(path: &Path) -> Option<Language> {
     }
     if extension == OsStr::new("mdx") {
         return Some(Language::Mdx);
+    }
+    if (extension == OsStr::new("yml") || extension == OsStr::new("yaml")) && is_actions_yaml(path)
+    {
+        return Some(Language::Yaml);
     }
     return None;
 }

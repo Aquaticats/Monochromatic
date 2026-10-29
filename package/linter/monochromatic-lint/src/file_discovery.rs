@@ -9,6 +9,8 @@
 //! // Walk one literal input root; glob expansion and per-file configuration matching are separate boundaries.
 //! ```
 
+/// Import the language choice that decides which files are inputs.
+use crate::run_paths::language_of;
 /// Import the glob override builder that layers the crate's exclusions over ignore files.
 use ignore::overrides::{Override, OverrideBuilder};
 /// Import gitignore-aware traversal and its override-pattern compiler.
@@ -56,10 +58,8 @@ pub struct DiscoveryOptions {
 /// Check extension bytes through native OsStr equality,
 ///  without lossy path conversion.
 pub fn supported_source(path: &Path) -> bool {
-    let extension: Option<&OsStr> = path.extension();
-    return extension == Some(OsStr::new("rs"))
-        || extension == Some(OsStr::new("md"))
-        || extension == Some(OsStr::new("mdx"));
+    // One definition of a supported input serves discovery and planning, so the two cannot drift apart.
+    return language_of(path).is_some();
 }
 
 /// Git metadata is never source,

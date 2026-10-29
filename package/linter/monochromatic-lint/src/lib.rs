@@ -288,10 +288,19 @@ pub mod shell_rules;
 pub mod shell_scan;
 /// The `cmd.exe` scanner.
 mod shell_scan_cmd;
-/// The PowerShell scanner.
-mod shell_scan_powershell;
 /// The POSIX-family and fish scanner.
 mod shell_scan_posix;
+/// The PowerShell scanner.
+mod shell_scan_powershell;
+
+/// Line reading for the workflow walk.
+mod workflow_lines;
+/// The records the workflow walk returns.
+mod workflow_model;
+/// Reading the values of `run:` and `shell:` keys.
+mod workflow_run;
+/// The structural walk that finds every step of a workflow or composite action.
+mod workflow_walk;
 
 /// Disposable native filesystem helpers used only by tests.
 #[cfg(test)]
@@ -306,6 +315,10 @@ mod closure_stub_support;
 ///  parsed command lines and JSONL decoding.
 #[cfg(test)]
 mod run_test_support;
+
+/// End-to-end controls for the shell rules over workflows and composite actions.
+#[cfg(test)]
+mod run_workflow_tests;
 
 /// End-to-end directive controls through real rules,
 ///  processors,
@@ -352,3 +365,5 @@ mod processors_projection;
 mod processors_rewrite;
 /// Composed authored positions and original-host column conventions.
 mod processors_spans;
+/// Virtual shell files for the steps of a workflow or composite action.
+mod processors_workflow;

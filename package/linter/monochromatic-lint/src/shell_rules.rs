@@ -71,7 +71,13 @@ fn code_lines(source: &str, dialect: ShellDialect) -> Vec<CodeLine> {
 
 /// Build a finding in the run body's coordinates;
 ///  the processor recomputes the line and column in the workflow file.
-fn finding(code: &str, budget: &ShellBudget, message: String, filename: &str, range: (usize, usize)) -> Diagnostic {
+fn finding(
+    code: &str,
+    budget: &ShellBudget,
+    message: String,
+    filename: &str,
+    range: (usize, usize),
+) -> Diagnostic {
     return Diagnostic::new(
         code,
         budget.severity,

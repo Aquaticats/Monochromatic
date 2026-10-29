@@ -135,6 +135,43 @@ These follow from the answers above and stay open to veto.
   a guard test shown to fail with its guard removed,
   and a run over the real workflows whose per-file counts match the numbers in Measurements.
 
+## Settled while implementing
+
+These follow from the design and from reading the linter source, and stay open to veto.
+
+- **Directives:** the nine rules are declared unsuppressible in the rule listing,
+  and a workflow has no directive form at all (its directive scan returns nothing),
+  as MDX has none.
+  This replaces the earlier wording that a directive in a run body would itself be reported.
+- **Tokenization:** the longest match wins for `&&`, `||` and `|&`.
+  `>&`, `<&`, `&>`, `&>>` and `>|` are redirections, not operators.
+  `$((` is arithmetic, not `$(`.
+  A here-document body is data up to its end word, and its lines still count toward `shell/max-lines`.
+  In PowerShell a leading `&` is the call operator, and a here-string is data except `$(` inside `@"`.
+- **`shell:` first word:** the word after `env` (and its options and `NAME=value` words) names the interpreter,
+  so `env bash {0}` is bash.
+  A quoted first word may contain spaces.
+  Listed non-shell interpreters (`node`, `python`, `deno`, `bun`, `perl`, `ruby`, `php`, `lua`, `julia`
+  and similar) are out of scope; any other word is a processing failure.
+- **No `shell:`:** a job whose `runs-on` text contains `windows` defaults to PowerShell,
+  and every other job (including an expression such as `${{ matrix.runner }}`) defaults to a POSIX shell.
+  An expression runner is therefore scanned as POSIX, which can over-report a PowerShell backtick but not under-report.
+- **Hosts:** a path is a host only when it is `.github/workflows/<file>.yml` or `.yaml`
+  (direct children), or `action.yml` or `action.yaml` anywhere under `.github/actions`.
+  Other YAML is never read, so a stray `run:` key elsewhere cannot fail a run.
+- **Virtual file numbering:** the number in `<workflow>/<n>.<suffix>` counts the extracted steps
+  in file order, not the line, as for fenced Rust.
+- **Dialect sources** (fetched 2026-10-29):
+  the fish language manual lists `|`, `&&`, `||`, `;`, `$()`, the `|&` alias and a trailing `&` for background jobs,
+  and does not mention backticks;
+  the PowerShell `about_Pipeline_Chain_Operators` page says `&&` and `||` begin in PowerShell 7,
+  and `about_Operators` documents `$()`, the call operator `&`, the background operator `&` and `|`;
+  the `cmd` command reference documents `|`, `||`, `&&` and `&` as the chaining and piping operators.
+  Each rule's dialect table in `package/linter/monochromatic-lint/src/shell_dialect.rs` follows these pages.
+- **Counts:** the ratchet values come from the linter's own run over `.github`, not from the scratch script,
+  because the script counted raw lines and a regex for pipes.
+  The Measurements numbers stay a sanity bound, and each difference is explained when the ratchet is generated.
+
 ## Open
 
 None.

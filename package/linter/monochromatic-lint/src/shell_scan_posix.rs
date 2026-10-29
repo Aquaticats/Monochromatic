@@ -173,9 +173,10 @@ impl Scan<'_> {
                 if position >= self.bytes.len() {
                     break;
                 }
-                let line_end: usize = self.text[position..]
-                    .find('\n')
-                    .map_or(self.bytes.len(), |found| position + found);
+                let line_end: usize = match self.text[position..].find('\n') {
+                    Some(found) => position + found,
+                    None => self.bytes.len(),
+                };
                 let line: &str = self.text[position..line_end].trim_end_matches('\r');
                 let compared: &str = if heredoc.strip_tabs {
                     line.trim_start_matches('\t')

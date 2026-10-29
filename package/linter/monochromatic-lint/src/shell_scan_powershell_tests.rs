@@ -29,7 +29,10 @@ fn kinds(text: &str) -> Vec<Construct> {
 #[test]
 fn operators_are_found() {
     assert_eq!(kinds("a | b"), [Construct::Pipe]);
-    assert_eq!(kinds("a && b || c"), [Construct::AndChain, Construct::OrChain]);
+    assert_eq!(
+        kinds("a && b || c"),
+        [Construct::AndChain, Construct::OrChain]
+    );
     assert_eq!(kinds("a; b"), [Construct::Semicolon]);
     assert_eq!(kinds("$(Get-Date)"), [Construct::DollarParen]);
     assert_eq!(kinds("Get-Process &"), [Construct::Ampersand]);

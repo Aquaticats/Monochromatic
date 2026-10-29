@@ -35,6 +35,12 @@ pub enum ProcessorLanguage {
     /// Markdown with MDX discovery enabled,
     ///  never executed.
     Mdx,
+    /// A GitHub Actions workflow or composite action,
+    ///  read only for the `run:` scripts of its steps.
+    Yaml,
+    /// One step's script,
+    ///  extracted from a workflow.
+    Shell,
 }
 
 /// What:
@@ -108,6 +114,9 @@ pub(crate) enum Guard {
     },
     /// Hidden-line stripping and synthetic-main preparation.
     Prepared,
+    /// A workflow step's script;
+    ///  steps carry no fixes, so nothing is re-extracted.
+    Step,
 }
 
 /// Exact child snapshot with its immutable direct parent and verification operation.

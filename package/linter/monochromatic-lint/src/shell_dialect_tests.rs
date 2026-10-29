@@ -90,18 +90,34 @@ fn shells_select_their_dialect() {
         ("env -i FOO=1 sh -c {0}", ShellDialect::Posix),
         ("fish", ShellDialect::Fish),
         ("pwsh", ShellDialect::PowerShell),
-        ("\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -File {0}", ShellDialect::PowerShell),
-        ("CMD /D /E:ON /V:ON /S /C \"CALL \"{0}\"\"", ShellDialect::Cmd),
+        (
+            "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -File {0}",
+            ShellDialect::PowerShell,
+        ),
+        (
+            "CMD /D /E:ON /V:ON /S /C \"CALL \"{0}\"\"",
+            ShellDialect::Cmd,
+        ),
     ];
     for (value, dialect) in cases {
-        assert_eq!(classify_shell(value), ShellClass::Dialect(dialect), "{value}");
+        assert_eq!(
+            classify_shell(value),
+            ShellClass::Dialect(dialect),
+            "{value}"
+        );
     }
 }
 
 /// Known non-shell interpreters are out of scope.
 #[test]
 fn interpreters_are_out_of_scope() {
-    for value in ["node {0}", "python", "python3.12 {0}", "env node {0}", "deno run {0}"] {
+    for value in [
+        "node {0}",
+        "python",
+        "python3.12 {0}",
+        "env node {0}",
+        "deno run {0}",
+    ] {
         assert_eq!(classify_shell(value), ShellClass::OutOfScope, "{value}");
     }
 }

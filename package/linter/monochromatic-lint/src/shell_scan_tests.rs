@@ -26,12 +26,21 @@ fn kinds(text: &str, dialect: ShellDialect) -> Vec<Construct> {
 /// The same text means different things in different dialects.
 #[test]
 fn dialects_filter_their_own_constructs() {
-    assert_eq!(kinds("echo `x`", ShellDialect::Posix), [Construct::Backtick]);
+    assert_eq!(
+        kinds("echo `x`", ShellDialect::Posix),
+        [Construct::Backtick]
+    );
     assert_eq!(kinds("echo `x`", ShellDialect::Fish), []);
     assert_eq!(kinds("echo `x`", ShellDialect::PowerShell), []);
-    assert_eq!(kinds("a |& b", ShellDialect::Posix), [Construct::PipeStderr]);
+    assert_eq!(
+        kinds("a |& b", ShellDialect::Posix),
+        [Construct::PipeStderr]
+    );
     assert_eq!(kinds("a ; b", ShellDialect::Cmd), []);
-    assert_eq!(kinds("a ; b", ShellDialect::PowerShell), [Construct::Semicolon]);
+    assert_eq!(
+        kinds("a ; b", ShellDialect::PowerShell),
+        [Construct::Semicolon]
+    );
     assert_eq!(kinds("a & b", ShellDialect::Cmd), [Construct::Ampersand]);
     assert_eq!(kinds("a | b", ShellDialect::Fish), [Construct::Pipe]);
 }

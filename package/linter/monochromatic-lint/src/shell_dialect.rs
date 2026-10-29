@@ -237,7 +237,13 @@ fn interpreter_word(value: &str) -> Option<String> {
     // `env` hands over to the next word that is neither an option nor a VAR=value assignment.
     let mut candidate: Option<&str> = words.next();
     if candidate == Some("env") {
-        candidate = words.find(|word| !word.starts_with('-') && !word.contains('='));
+        candidate = None;
+        for word in words {
+            if !word.starts_with('-') && !word.contains('=') {
+                candidate = Some(word);
+                break;
+            }
+        }
     }
     let word: &str = candidate?;
     return word_stem(word);
