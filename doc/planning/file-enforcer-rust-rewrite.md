@@ -22,6 +22,57 @@ the confirmed ones go to the user as questions,
 and only after the user confirms does the decision record `doc/decision/file-enforcer-rust-rewrite.md` get written.
 No code before the user accepts that record.
 
+### Self-critique requested by the user (2026-10-29)
+
+The user wrote:
+"I am seeing a lot of things I don't like,
+but I'd rather not say anything specific right now,"
+and asked what Claude and its advisor think of the plan.
+Both found:
+
+- The plan ports the old tool along new seams.
+  Every old output became a rule kind,
+  about half of them repository-specific built-ins,
+  and the toolchain concepts (routes,
+  providers,
+  exposure farm,
+  postinstall links,
+  `bin-paths`,
+  global scope) moved into mpm-shadow intact.
+  The old sync calls mpm once (`mpm --rustup restore`) and installs everything else itself;
+  the plan ports that bypass instead of asking what mpm should do.
+  No question asked which generated files should exist at all,
+  or what the user wants that the old tool never did.
+- The one-switch cutover carries the whole program in one commit:
+  two crates,
+  the catalog library,
+  a much larger mpm-shadow,
+  plan conversion,
+  the resolution file,
+  pnpr's generator,
+  four technology vets,
+  the per-user subcommand,
+  vm-builder's runner,
+  and the bootstrap rework.
+- Three toolchain files (plan,
+  resolution,
+  lock) exist partly to repair a two-writer hazard the plan/lock split created.
+- Claims that do not hold:
+  a schemars schema tracks the Rust types,
+  not the hand-written decoder,
+  so it can drift;
+  the existence-based `mise.toml` PATH makes `check` machine-dependent;
+  the JSONC canonical-emit tradeoff may concern no target at all;
+  "meow can embed" is weak support for the crate split while meow has no code.
+- Process:
+  questions used unexplained internal terms ("resolver families",
+  "declaration fields"),
+  one option rested on an untraced mechanism,
+  one con was retracted,
+  and the question tree followed the old package's module tree.
+- The advisor also retracted its own claim that `package/dependency-catalog/core-rust` is a Rust crate;
+  it is TypeScript.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
