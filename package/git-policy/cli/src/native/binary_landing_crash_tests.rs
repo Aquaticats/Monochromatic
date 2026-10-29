@@ -216,6 +216,32 @@ fn a_target_moved_during_the_landing_loses_the_compare_and_swap() {
     remove(&fixture);
 }
 
+/// A landing that fails after its objects migrated but before its landing record is written removes the pack keep itself:
+///  no record hands the directory to recovery yet, and the caller removes the directory,
+///  so nothing else would ever remove the keep and the pack would stay pinned for good.
+#[test]
+fn a_failure_before_the_landing_record_removes_the_keep() {
+    let fixture: Fixture = fixture("landing-fails-before-record");
+    let world: World = World::build(&fixture);
+    let marker_directory: PathBuf = markers(&world);
+    let signal: String = format!("objects-migrated:pause:{}", marker_directory.display());
+    let mut child: Child = spawn_child(&world, signal.as_str());
+    await_marker(marker_directory.join("objects-migrated.reached").as_path(), &mut child);
+    // A directory where the pre-landing index is copied makes that copy, the first step after the migration, fail.
+    std::fs::create_dir(world.directory.join("pre-landing-1.index")).expect("block the copy");
+    std::fs::write(marker_directory.join("objects-migrated.release"), b"").expect("release");
+    let status: ExitStatus = finish(child);
+    assert!(status.success(), "the child failed; see child.log");
+    let result: String = std::fs::read_to_string(world.root.join("child-result.txt")).expect("the child's result");
+    assert!(result.starts_with("error "), "{result}");
+    assert!(result.ends_with("\npreserved=false\n"), "{result}");
+    assert!(world.keeps().is_empty(), "the failed landing removed its keep: {:?}", world.keeps());
+    assert!(!world.index_lock().exists(), "the real index lock was released");
+    assert_eq!(git_text(&fixture, world.repo.as_path(), &["rev-parse", "refs/heads/main"]), world.base);
+    assert!(!world.directory.join("landing-1.json").exists(), "no landing record was written");
+    remove(&fixture);
+}
+
 /// An install that fails after the branch advanced leaves the real index lock in place for recovery,
 ///  and the directory preserved.
 #[test]
