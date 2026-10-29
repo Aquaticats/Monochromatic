@@ -5796,6 +5796,9 @@ The 403 at `POST git/refs` (probe branch `probe-403-again`, run logs read throug
   What would settle it:
   the organization audit log (an organization owner can read it) for Actions-policy events around 2026-10-25 19:27, 19:50, 20:54 EDT and 2026-10-26 06:54 EDT.
   Cheaper check for the owner: whether any Actions policy or secret setting was changed at those times.
+  Owner's answer on 2026-10-29: "I don't remember, but I probably did. Leave it and move on."
+  The item is closed as characterised and unexplained: the cause is probably a setting change at those times, with no evidence read.
+  The throwaway probe branches (`probe-403-again`, `probe-403-exp-0` to `-11`, `probe-403-exp2-0` to `-5`) and the worktree `~/temp/agent/probe403` were deleted.
 - Practical rule meanwhile:
   cut releases from a recent commit of `main`; the probe (`POST git/refs` then `DELETE` at the exact SHA) tells in a minute whether a commit can be tagged.
   Delete the throwaway branches after the result:
