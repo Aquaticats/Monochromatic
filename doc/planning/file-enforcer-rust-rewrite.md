@@ -168,7 +168,17 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
-## Next action (2026-10-29, after confirmation)
+## Accepted (2026-10-29)
+
+The user accepted the record ("Accept");
+it is [`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md),
+and the amendments to `doc/decision/monorepo-manager-all-rust.md` and `doc/decision/mpm-toolchain-adoption.md` are applied.
+Next:
+the gates before implementation,
+then one task per area,
+tracked in the implementation issue.
+
+## Superseded next action (2026-10-29, after confirmation)
 
 The user confirmed a shared understanding ("Shared understanding"),
 with one addition adopted under the user's open veto:

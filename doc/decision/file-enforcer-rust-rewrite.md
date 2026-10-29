@@ -1,22 +1,19 @@
-# Rust file-enforcer rewrite: decision record draft
+# Rust file-enforcer rewrite
 
 ## Status
 
-Draft for acceptance,
-written 2026-10-29 after the user confirmed a shared understanding of the design
-("Shared understanding",
-answering the closing question of the grilling).
-Not accepted:
-on the user's acceptance this file moves to `doc/decision/file-enforcer-rust-rewrite.md`,
-and the amendments under "Consequences" are applied.
+Accepted 2026-10-29 by the user,
+answering "Do you accept the Rust file-enforcer decision record?" with "Accept",
+after confirming a shared understanding of the design.
+The draft was `doc/planning/file-enforcer-rust-rewrite-decision.md`.
 Every decision's question,
 answer,
 evidence,
-and history is in [`file-enforcer-rust-rewrite.md`](file-enforcer-rust-rewrite.md);
+and history is in [`doc/planning/file-enforcer-rust-rewrite.md`](../planning/file-enforcer-rust-rewrite.md);
 this record states the result.
 
 Adopted without a direct answer from the user,
-so accepting this record accepts them:
+and accepted with this record:
 
 - `user` commands get their own server keyed by the per-user config path (the user answered "?").
 - mpm-shadow revalidates the plan and lock revisions before publishing,
