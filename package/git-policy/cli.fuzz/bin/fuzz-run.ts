@@ -3,9 +3,6 @@
 
  A target may print on every execution, so both streams go straight to files instead of a bounded buffer.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed.
-/// <reference types="node" />
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
@@ -25,6 +22,7 @@ import {
   maxInputBytes,
   runImage,
 } from './fuzz-images.ts';
+import type { FuzzTarget } from './fuzz-options.ts';
 
 /** How much of the end of each stream is searched for libFuzzer's final statistics: 256 KiB. */
 const statisticsTailBytes = 262_144;
@@ -34,10 +32,10 @@ const statisticsMarker = 'stat::number_of_executed_units:';
 /**
  Last bytes of a possibly very large log, so a long campaign never loads the whole stream.
 
- @param {string} file - log path
- @returns {Promise<string>} at most the last 256 KiB as text
+ @param file - log path
+ @returns at most the last 256 KiB as text
  */
-async function readTail(file) {
+async function readTail(file: string): Promise<string> {
   await using handle = await open(
     file,
     'r',
@@ -60,10 +58,10 @@ async function readTail(file) {
 /**
  Read the executed-unit count libFuzzer prints at the end of a run.
 
- @param {string} text - the tails of both streams
- @returns {number} the count, or 0 when the line is absent or has no number after whitespace
+ @param text - the tails of both streams
+ @returns the count, or 0 when the line is absent or has no number after whitespace
  */
-export function executedUnitsIn(text) {
+export function executedUnitsIn(text: string): number {
   const markerAt = text.indexOf(statisticsMarker);
   if (markerAt === (-1))
     return 0;
@@ -89,15 +87,15 @@ export function executedUnitsIn(text) {
 /**
  Run the target's fuzzer to its time limit.
 
- @param {{ target: import('./fuzz-options.ts').FuzzTarget, evidence: string, secondsPerTarget: number }} request -
+ @param request -
    the target, the evidence directory and the seconds to fuzz
- @returns {Promise<string | undefined>} what went wrong, or nothing when the target ran and executed inputs
+ @returns what went wrong, or nothing when the target ran and executed inputs
  */
 export async function fuzzTarget({
   target,
   evidence,
   secondsPerTarget,
-}) {
+}: { target: FuzzTarget, evidence: string, secondsPerTarget: number }): Promise<string | undefined> {
   await using container = await createContainer({
     args: [
       'create',

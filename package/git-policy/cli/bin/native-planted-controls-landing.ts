@@ -1,3 +1,4 @@
+import type { PlantedControl } from './native-planted-controls.ts';
 /**
  Planted guard removals in worktree copy, landing, post-commit and the transaction journal.
 
@@ -5,8 +6,7 @@
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
 
-/** @type {readonly import('./native-planted-controls.ts').PlantedControl[]} */
-export const plantedLandingControls = [
+export const plantedLandingControls: readonly PlantedControl[] = [
   {
     name: 'worktree copy dead-owner settlement retirement',
     file: 'src/native/worktree_copy_lock.rs',

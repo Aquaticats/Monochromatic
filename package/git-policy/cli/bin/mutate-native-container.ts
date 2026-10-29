@@ -7,10 +7,6 @@
  Phase 2 runs cargo-mutants over the already tested source snapshot.
  Source mutation and compilation stay inside containers; only reports leave them.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import { createHash } from 'node:crypto';
 import {
   copyFile,
@@ -38,19 +34,36 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
-makeScratchBase(scratchBase, { recursive: true });
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy'
+);
+makeScratchBase(
+  scratchBase,
+  { recursive: true }
+);
 
 
-/** Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image. */
+/**
+ Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image.
+ */
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
   ?? 'development';
-/** Already tested source snapshot this campaign mutates; built by bin/test-native-container.ts. */
+/**
+ Already tested source snapshot this campaign mutates; built by bin/test-native-container.ts.
+ */
 const testImage = `localhost/git-policy-native-test:${imageTag}`;
-/** Campaign image layered over the tested snapshot. */
+/**
+ Campaign image layered over the tested snapshot.
+ */
 const mutationImage = `localhost/git-policy-native-mutation:${imageTag}`;
-/** Same bounds as the test gate: no network, 2 GiB, 2 CPUs, 128 PIDs. */
+/**
+ Same bounds as the test gate: no network, 2 GiB, 2 CPUs, 128 PIDs.
+ */
 const limits = [
   '--init',
   '--network=none',
@@ -58,11 +71,17 @@ const limits = [
   '--cpus=2',
   '--pids-limit=128',
 ];
-/** Report directory inside the container; the tester's home is the only writable place outside the package. */
+/**
+ Report directory inside the container; the tester's home is the only writable place outside the package.
+ */
 const containerReport = '/home/tester/mutation-report';
-/** Length of a full content-addressed Podman image or container ID: a SHA-256 digest in hexadecimal. */
+/**
+ Length of a full content-addressed Podman image or container ID: a SHA-256 digest in hexadecimal.
+ */
 const contentAddressedIdLength = 64;
-/** Digits a full content-addressed Podman ID may contain. */
+/**
+ Digits a full content-addressed Podman ID may contain.
+ */
 const lowercaseHexDigits = '0123456789abcdef';
 /**
  Mutant kinds no campaign tries, as regular expressions matched against the names `cargo mutants --list` prints.
@@ -82,10 +101,11 @@ const excludedMutantKinds = [
 /**
  Check for a full content-addressed Podman ID with one linear scan.
 
- @param {string} text - command output that should be exactly one ID
- @returns {boolean} true only for 64 lowercase hexadecimal digits, so a short or empty ID never passes
+ @param text - command output that should be exactly one ID
+ 
+ @returns true only for 64 lowercase hexadecimal digits, so a short or empty ID never passes
  */
-function isContentAddressedId(text) {
+function isContentAddressedId(text: string): boolean {
   if (text.length !== contentAddressedIdLength)
     return false;
   for (const character of text) {
@@ -98,15 +118,20 @@ function isContentAddressedId(text) {
 /**
  cargo-mutants command the campaign image runs.
 
- @param {{ scopes: readonly string[], examine: readonly string[], timeoutSeconds: number }} request - `src/native` file
+ @param request - `src/native` file
    globs, mutant-name patterns to restrict to, and per-mutant test limit
- @returns {string[]} complete argument array, also recorded in the manifest
+ 
+ @returns complete argument array, also recorded in the manifest
  */
 function mutationCommand({
   scopes,
   examine,
   timeoutSeconds
-}) {
+}: {
+  scopes: readonly string[];
+  examine: readonly string[];
+  timeoutSeconds: number
+}): string[] {
   return [
     'cargo',
     'mutants',

@@ -8,10 +8,6 @@
  sources are vendored on the host from the Cargo cache, as the scanner's are. A binary built on the host is never
  copied in: the host's C library is newer than the image's.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   join,
   resolve,
@@ -19,10 +15,14 @@ import {
 
 import { vendorLockedDependencies } from './native-scanner-snapshot.ts';
 
-/** Directory below the build context that holds the linter stage's repository-shaped sources. */
+/**
+ Directory below the build context that holds the linter stage's repository-shaped sources.
+ */
 export const linterContextDirectory = 'linter-stage';
 
-/** Where the test image holds the linter, outside every PATH a test builds, so only an explicit path reaches it. */
+/**
+ Where the test image holds the linter, outside every PATH a test builds, so only an explicit path reaches it.
+ */
 export const imageLinterPath = '/opt/monochromatic-lint/monochromatic-lint';
 
 /**
@@ -33,22 +33,24 @@ export const linterVariable = 'GIT_POLICY_NATIVE_TEST_LINTER';
 
 /**
  One file or directory to copy from the repository into the build context.
-
- @typedef {{ from: string, to: string }} SnapshotEntry
  */
+export type SnapshotEntry = {
+  from: string;
+  to: string
+};
 
 /**
  Copy entries for the linter crate and its JSONC dependency, resolved from the wrapper package directory the gate
  runs in, into the linter stage's own directory of the build context.
 
- @param {{ context: string }} request - build context directory receiving the linter stage's sources
- @returns {SnapshotEntry[]} entries keeping the repository layout, so the linter's relative path dependency resolves;
+ @param request - build context directory receiving the linter stage's sources
+ 
+ @returns entries keeping the repository layout, so the linter's relative path dependency resolves;
    a library and executable build of the linter reads only its manifest, lockfile and `src`
  */
-export function linterSnapshotEntries({ context }) {
-  /** @type {SnapshotEntry[]} */
-  const entries = [];
-  for (const [crate, names] of /** @type {const} */ ([
+export function linterSnapshotEntries({ context }: { context: string }): SnapshotEntry[] {
+  const entries: SnapshotEntry[] = [];
+  for (const [crate, names] of [
     [
       'linter/monochromatic-lint',
       [
@@ -65,7 +67,7 @@ export function linterSnapshotEntries({ context }) {
         'src',
       ],
     ],
-  ])) {
+  ] as const) {
     for (const name of names) {
       entries.push({
         from: resolve(
@@ -90,9 +92,9 @@ export function linterSnapshotEntries({ context }) {
  Vendor the linter's locked registry dependencies into its stage directory, with the source mapping that stage reads.
  Every archive the linter's lockfile names must already be in the host's Cargo cache.
 
- @param {{ context: string }} request - build context whose linter stage directory already holds the copied crates
+ @param request - build context whose linter stage directory already holds the copied crates
  */
-export async function vendorLinterDependencies({ context }) {
+export async function vendorLinterDependencies({ context }: { context: string }): Promise<void> {
   await vendorLockedDependencies({
     context: join(
       context,
@@ -107,10 +109,11 @@ export async function vendorLinterDependencies({ context }) {
  so the executable links against the C library it runs with. It uses the development profile without debug
  information, which the linter's own container suite shows fits the 2 GiB build bound; nothing here runs a test.
 
- @param {{ base: string }} request - content-addressed base image ID shared with the test image
- @returns {string[]} Containerfile lines ending with the built executable at a fixed stage path
+ @param request - content-addressed base image ID shared with the test image
+ 
+ @returns Containerfile lines ending with the built executable at a fixed stage path
  */
-export function linterStageLines({ base }) {
+export function linterStageLines({ base }: { base: string }): string[] {
   return [
     `FROM ${base} AS linter`,
     `COPY --chown=1000:1000 ${linterContextDirectory}/package /work/package`,
@@ -128,9 +131,9 @@ export function linterStageLines({ base }) {
 /**
  Containerfile lines of the test image that copy the built linter in and name it for the tests.
 
- @returns {string[]} lines to place in the test stage before it switches to the unprivileged user
+ @returns lines to place in the test stage before it switches to the unprivileged user
  */
-export function linterCopyLines() {
+export function linterCopyLines(): string[] {
   return [
     `COPY --from=linter /work/package/linter/monochromatic-lint/target/debug/monochromatic-lint ${imageLinterPath}`,
     `ENV ${linterVariable}=${imageLinterPath}`,

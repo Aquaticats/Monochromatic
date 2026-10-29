@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 /** Build instrumented targets with a read-only compiler, then fuzz without host mounts. */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed.
-/// <reference types="node" />
 import {
   cp,
   mkdir,
@@ -29,6 +26,7 @@ import {
 } from './fuzz-options.ts';
 import { fuzzTarget } from './fuzz-run.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
+import type { FuzzTarget } from './fuzz-options.ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -39,12 +37,12 @@ makeScratchBase(scratchBase, { recursive: true });
 /**
  Build the run image holding only the instrumented binaries, corpus and dictionaries.
 
- @param {{ source: string, context: string }} request - this package's directory and the build context
+ @param request - this package's directory and the build context
  */
 async function buildRunImage({
   source,
   context,
-}) {
+}: { source: string, context: string }) {
   await cp(
     join(
       source,
@@ -115,15 +113,14 @@ async function buildRunImage({
  Fuzz each selected target in turn. A failed target is recorded and the campaign goes on,
  so one finding never hides the targets after it.
 
- @param {{ selected: readonly import('./fuzz-options.ts').FuzzTarget[], evidence: string,
-   secondsPerTarget: number }} request - the targets, the evidence directory and the seconds each runs
- @returns {AsyncGenerator<string | undefined>} one outcome per target: what went wrong, or nothing
+ @param request - the targets, the evidence directory and the seconds each runs
+ @returns one outcome per target: what went wrong, or nothing
  */
 async function* fuzzOutcomes({
   selected,
   evidence,
   secondsPerTarget,
-}) {
+}: { selected: readonly FuzzTarget[], evidence: string, secondsPerTarget: number }): AsyncGenerator<string | undefined> {
   for (const target of selected) {
     yield fuzzTarget({
       target,
@@ -224,8 +221,7 @@ else {
     context: context.path,
   });
   console.log(`Fuzz evidence: ${evidence}`);
-  /** @type {string[]} */
-  const failedTargets = [];
+  const failedTargets: string[] = [];
   for await (const failure of fuzzOutcomes({
     selected: selectedTargets,
     evidence,

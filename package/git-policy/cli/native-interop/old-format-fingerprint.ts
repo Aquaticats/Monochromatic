@@ -1,7 +1,6 @@
 /**
  A cheap, comparable description of the stored repository state a refusing wrapper must leave alone.
  */
-/// <reference types="node" />
 import {
   lstat,
   readdir,
@@ -14,25 +13,30 @@ import { isMissingPath } from './support.ts';
  Directories below `.git` that hold objects, references and transaction state.
  Index and log files are left out: a read command refreshes the index and may write diagnostics.
  */
-export const STORED_STATE_DIRECTORIES = [
+export const STORED_STATE_DIRECTORIES: readonly string[] = [
   'objects',
   'refs',
   'cli-git-transactions',
   'cli-git/shadow',
 ];
 
-/** Path part that marks the record of a lock directory, which a wrapper retires when its holder is dead. */
+/**
+ Path part that marks the record of a lock directory, which a wrapper retires when its holder is dead.
+ */
 const LOCK_DIRECTORY_PART = '/landing.lock/';
-/** Suffix of the marker a landing leaves beside a pack so that nothing collects it before the ref moves. */
+/**
+ Suffix of the marker a landing leaves beside a pack so that nothing collects it before the ref moves.
+ */
 const KEEP_SUFFIX = '.keep';
 
 /**
  Files that a wrapper may retire on its own, whatever else it decides: a dead holder's lock record and a pack's keep marker.
 
- @param {string} line - a line of a fingerprint
- @returns {boolean} whether losing the file is housekeeping
+ @param line - a line of a fingerprint
+ 
+ @returns whether losing the file is housekeeping
  */
-function isHousekeeping(line) {
+function isHousekeeping(line: string): boolean {
   const path = line.slice(
     0,
     line.lastIndexOf(':'),
@@ -43,13 +47,17 @@ function isHousekeeping(line) {
 /**
  The stored files that a later fingerprint no longer shows, apart from housekeeping.
 
- @param {{ before: readonly string[], after: readonly string[] }} request - fingerprints taken before and after
- @returns {string[]} lines of files that were lost or resized
+ @param request - fingerprints taken before and after
+ 
+ @returns lines of files that were lost or resized
  */
 export function lostEntries({
   before,
   after,
-}) {
+}: {
+  before: readonly string[];
+  after: readonly string[]
+}): string[] {
   return before.filter(function wasLost(line) {
     return (!after.includes(line)) && (!isHousekeeping(line));
   });
@@ -58,14 +66,18 @@ export function lostEntries({
 /**
  Names and sizes of every file below the given directories of a repository's `.git`.
 
- @param {{ repository: string, subdirectories: readonly string[] }} request - repository and the directories below
+ @param request - repository and the directories below
    `.git` to describe
- @returns {Promise<string[]>} one `directory/name:size` line per file, in no particular order, none for a directory that is absent
+ 
+ @returns one `directory/name:size` line per file, in no particular order, none for a directory that is absent
  */
 export async function fingerprintOf({
   repository,
   subdirectories,
-}) {
+}: {
+  repository: string;
+  subdirectories: readonly string[]
+}): Promise<string[]> {
   const groups = await Promise.all(subdirectories.map(async function describeDirectory(subdirectory) {
     const base = join(
       repository,

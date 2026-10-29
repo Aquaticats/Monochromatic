@@ -2,9 +2,10 @@
  Planted defects for the dependent-version invariants, spread into the list in `planted-controls.ts`.
  Each `from` must occur exactly once in its file.
  */
+import type { Plant } from './planted-table.ts';
 
 /** A nested key is rewritten, a subpath import is missed, and an escaped quote ends a string literal. */
-export const dependentVersionPlants = [
+export const dependentVersionPlants: readonly Plant[] = [
   {
     name: 'a nested version key is rewritten',
     file: 'package/git-policy/cli/src/native/dependent_version_text.rs',

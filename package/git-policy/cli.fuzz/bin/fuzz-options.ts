@@ -7,16 +7,13 @@ import { NativeVerificationError } from '../../cli/bin/native-verification-proce
 
 /**
  One registered target and the dictionary it fuzzes with.
-
- @typedef {{ name: string, dictionary: string }} FuzzTarget
  */
+export type FuzzTarget = { name: string, dictionary: string };
 
 /**
  Registered targets, in the order the campaign runs them.
-
- @type {readonly FuzzTarget[]}
  */
-export const targets = [
+export const targets: readonly FuzzTarget[] = [
   {
     name: 'global_arguments',
     dictionary: 'arguments.dict',
@@ -90,10 +87,10 @@ const targetsOption = '--targets=';
 /**
  Whether an argument is one of the three accepted options.
 
- @param {string} argument - one command-line argument
- @returns {boolean} true for `--build-only`, `--seconds-per-target=...` and `--targets=...`
+ @param argument - one command-line argument
+ @returns true for `--build-only`, `--seconds-per-target=...` and `--targets=...`
  */
-function isAcceptedOption(argument) {
+function isAcceptedOption(argument: string): boolean {
   return (argument === buildOnlyOption)
     || argument.startsWith(secondsOption)
     || argument.startsWith(targetsOption);
@@ -102,13 +99,13 @@ function isAcceptedOption(argument) {
 /**
  The value after an option prefix, or nothing when the option is absent.
 
- @param {{ options: readonly string[], prefix: string }} request - the arguments and the `--name=` prefix to find
- @returns {string | undefined} the text after the prefix of the first matching argument
+ @param request - the arguments and the `--name=` prefix to find
+ @returns the text after the prefix of the first matching argument
  */
 function valueOf({
   options,
   prefix,
-}) {
+}: { options: readonly string[], prefix: string }): string | undefined {
   return options.find(function hasPrefix(argument) {
     return argument.startsWith(prefix);
   })
@@ -118,10 +115,10 @@ function valueOf({
 /**
  Read the whole-number seconds each target fuzzes.
 
- @param {string | undefined} text - the `--seconds-per-target` value, absent for the default
- @returns {number} seconds from 1 to the maximum
+ @param text - the `--seconds-per-target` value, absent for the default
+ @returns seconds from 1 to the maximum
  */
-function secondsOf(text) {
+function secondsOf(text: string | undefined): number {
   const seconds = text === undefined
     ? defaultSecondsPerTarget
     : Number(text);
@@ -134,10 +131,10 @@ function secondsOf(text) {
 /**
  Pick the targets a `--targets` list names, or every target when none is given.
 
- @param {string | undefined} text - the comma-separated names after `--targets=`
- @returns {readonly FuzzTarget[]} the chosen targets in registration order
+ @param text - the comma-separated names after `--targets=`
+ @returns the chosen targets in registration order
  */
-function targetsOf(text) {
+function targetsOf(text: string | undefined): readonly FuzzTarget[] {
   if (text === undefined)
     return targets;
   const names = text.split(',');
@@ -156,12 +153,12 @@ function targetsOf(text) {
 /**
  Validate the command line of the campaign.
 
- @param {readonly string[]} options - arguments after the script path
- @returns {{ buildOnly: boolean, secondsPerTarget: number, selectedTargets: readonly FuzzTarget[] }} the build-only
+ @param options - arguments after the script path
+ @returns the build-only
    flag, the seconds each target fuzzes, and the targets to fuzz
  @throws {NativeVerificationError} for an unknown option, an unknown target or seconds outside 1 to 86400
  */
-export function parseOptions(options) {
+export function parseOptions(options: readonly string[]): { buildOnly: boolean, secondsPerTarget: number, selectedTargets: readonly FuzzTarget[] } {
   if (!options.every(isAcceptedOption))
     throw new NativeVerificationError(`Only ${buildOnlyOption}, ${secondsOption}<seconds> and ${targetsOption}<name,...> are accepted.`);
   return {

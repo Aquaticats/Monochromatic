@@ -3,24 +3,42 @@
 
  `SPEC.md` ("Benchmark method") asks for the median, the p95 and the median absolute deviation of every sample set.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `node:` imports stay typed in this file on
-// its own instead of depending on a sibling module that carries the same reference.
-// That inferred program also loads only the default ECMAScript library, which lacks `Array#toSorted`, so the second
-// reference loads the library that declares it.
-/// <reference types="node" />
-/// <reference lib="es2023" />
 
-/** The fraction of samples at or below the reported high percentile. */
+/**
+ The fraction of samples at or below the reported high percentile.
+ */
 const HIGH_PERCENTILE = 0.95;
+
+/**
+ Sample at one index of an ascending set, which the median and percentile arithmetic keeps in range for a non-empty set.
+
+ @param request - ascending samples and the index to read
+ 
+ @returns the sample, so an empty set fails loudly instead of yielding `undefined`
+ 
+ @throws {RangeError} when the index is outside the set
+ */
+function sampleAt({
+  sorted,
+  index,
+}: {
+  sorted: readonly number[],
+  index: number,
+}): number {
+  const sample = sorted[index];
+  if (sample === undefined)
+    throw new RangeError(`Sample index ${String(index)} is outside a set of ${String(sorted.length)} samples.`);
+  return sample;
+}
 
 /**
  Copy a sample set in ascending order, so the caller's samples keep the order they were measured in.
 
- @param {readonly number[]} samples - measured milliseconds
- @returns {readonly number[]} the same samples, ascending
+ @param samples - measured milliseconds
+ 
+ @returns the same samples, ascending
  */
-function ascending(samples) {
+function ascending(samples: readonly number[]): readonly number[] {
   return samples.toSorted(function ascendingOrder(
     left,
     right,
@@ -32,36 +50,53 @@ function ascending(samples) {
 /**
  Middle sample, or the mean of the two middle samples of an even-sized set.
 
- @param {readonly number[]} samples - measured milliseconds, at least one
- @returns {number} the median in milliseconds
+ @param samples - measured milliseconds, at least one
+ 
+ @returns the median in milliseconds
  */
-export function median(samples) {
+export function median(samples: readonly number[]): number {
   const sorted = ascending(samples);
   const middle = Math.floor(sorted.length / 2);
-  return (sorted.length % 2) === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+  if ((sorted.length % 2) === 0)
+    return (sampleAt({
+      sorted,
+      index: middle - 1
+    }) + sampleAt({
+      sorted,
+      index: middle
+    })) / 2;
+  return sampleAt({
+    sorted,
+    index: middle
+  });
 }
 
 /**
  Nearest-rank 95th percentile.
 
- @param {readonly number[]} samples - measured milliseconds, at least one
- @returns {number} the p95 in milliseconds
+ @param samples - measured milliseconds, at least one
+ 
+ @returns the p95 in milliseconds
  */
-export function percentile95(samples) {
+export function percentile95(samples: readonly number[]): number {
   const sorted = ascending(samples);
-  return sorted[Math.min(
-    sorted.length - 1,
-    Math.ceil(HIGH_PERCENTILE * sorted.length) - 1,
-  )];
+  return sampleAt({
+    sorted,
+    index: Math.min(
+      sorted.length - 1,
+      Math.ceil(HIGH_PERCENTILE * sorted.length) - 1,
+    ),
+  });
 }
 
 /**
  Median of each sample's distance from the median, a spread that one slow outlier cannot inflate.
 
- @param {readonly number[]} samples - measured milliseconds, at least one
- @returns {number} the median absolute deviation in milliseconds
+ @param samples - measured milliseconds, at least one
+ 
+ @returns the median absolute deviation in milliseconds
  */
-export function medianAbsoluteDeviation(samples) {
+export function medianAbsoluteDeviation(samples: readonly number[]): number {
   const centre = median(samples);
   return median(samples.map(function distance(value) {
     return Math.abs(value - centre);
@@ -71,10 +106,15 @@ export function medianAbsoluteDeviation(samples) {
 /**
  Median, p95 and median absolute deviation of one sample set, the shape the report stores.
 
- @param {readonly number[]} samples - measured milliseconds, at least one
- @returns {{ median: number, p95: number, medianAbsoluteDeviation: number }} the three statistics
+ @param samples - measured milliseconds, at least one
+ 
+ @returns the three statistics
  */
-export function summary(samples) {
+export function summary(samples: readonly number[]): {
+  median: number;
+  p95: number;
+  medianAbsoluteDeviation: number
+} {
   return {
     median: median(samples),
     p95: percentile95(samples),

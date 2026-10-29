@@ -1,10 +1,6 @@
 /**
  Paired direct-versus-wrapped sampling for one scenario of the latency benchmark in `native-perf.ts`.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `node:` imports stay typed in this file on
-// its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import { timed } from './native-perf-git.ts';
 import {
   median,
@@ -14,45 +10,70 @@ import {
 
 /**
  One sample whose Git command exited nonzero.
-
- @typedef {{ scenario: string, wrapped: boolean, sample: number, status: number | null, stderr: string }} SampleFailure
  */
+export type SampleFailure = {
+  scenario: string;
+  wrapped: boolean;
+  sample: number;
+  status: number | null;
+  stderr: string
+};
 
 /**
  One scenario's statistics and raw samples.
-
- @typedef {{ scenario: string, enforced: boolean, direct: ReturnType<typeof summary>,
-   wrapped: ReturnType<typeof summary>, addedMedianMilliseconds: number, addedP95Milliseconds: number,
-   rawDirect: readonly number[], rawWrapped: readonly number[] }} ScenarioReport
  */
+export type ScenarioReport = {
+  scenario: string;
+  enforced: boolean;
+  direct: ReturnType<typeof summary>;
+  wrapped: ReturnType<typeof summary>;
+  addedMedianMilliseconds: number;
+  addedP95Milliseconds: number;
+  rawDirect: readonly number[];
+  rawWrapped: readonly number[]
+};
 
 /**
  What one scenario measured: every failed sample, and the report unless either side has no successful sample.
-
- @typedef {{ failures: readonly SampleFailure[], entry: ScenarioReport | undefined }} ScenarioMeasurement
  */
+export type ScenarioMeasurement = {
+  failures: readonly SampleFailure[];
+  entry: ScenarioReport | undefined
+};
 
 /**
  Everything one scenario needs to run its samples.
-
- @typedef {{ name: string, prepare?: (request: { directory: string, sample: number }) => Promise<void>,
-   command: (request: { sample: number }) => readonly string[], enforced: boolean, samples: number, root: string,
-   directRepository: string, wrappedRepository: string }} ScenarioSetting
  */
+export type ScenarioSetting = {
+  name: string;
+  prepare?: (request: {
+    directory: string;
+    sample: number
+  }) => Promise<void>;
+  command: (request: { sample: number }) => readonly string[];
+  enforced: boolean;
+  samples: number;
+  root: string;
+  directRepository: string;
+  wrappedRepository: string
+};
 
 /**
  One timed sample and which side and round it belongs to.
-
- @typedef {{ wrapped: boolean, sample: number, result: Awaited<ReturnType<typeof timed>> }} TimedSample
  */
+export type TimedSample = {
+  wrapped: boolean;
+  sample: number;
+  result: Awaited<ReturnType<typeof timed>>
+};
 
 /**
  Prepare and time one sample; the preparation runs before the timer starts, so it never counts as latency.
 
- @param {Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository'>
-   & { wrapped: boolean, sample: number }} request -
+ @param request -
    the scenario's hooks and repositories, which side runs, and the sample number
- @returns {Promise<TimedSample>} the timing and exit status of the sample
+ 
+ @returns the timing and exit status of the sample
  */
 async function runSample({
   prepare,
@@ -62,7 +83,10 @@ async function runSample({
   wrappedRepository,
   wrapped,
   sample,
-}) {
+}: Pick<ScenarioSetting, 'prepare' | 'command' | 'root' | 'directRepository' | 'wrappedRepository'> & {
+  wrapped: boolean;
+  sample: number
+}): Promise<TimedSample> {
   const directory = wrapped ? wrappedRepository : directRepository;
   await prepare?.({
     directory,
@@ -85,10 +109,11 @@ async function runSample({
  Run every sample of a scenario one at a time, alternating which side goes first so cache order cancels.
  Each yielded sample settles before the next one starts, because overlapping Git processes would distort the timings.
 
- @param {ScenarioSetting} setting - the scenario to sample
- @returns {AsyncGenerator<TimedSample>} the samples in the order they ran
+ @param setting - the scenario to sample
+ 
+ @returns the samples in the order they ran
  */
-async function* orderedSamples(setting) {
+async function* orderedSamples(setting: ScenarioSetting): AsyncGenerator<TimedSample> {
   for (let sample = 0; sample < setting.samples; sample += 1) {
     const order = (sample % 2) === 0
       ? [
@@ -112,18 +137,16 @@ async function* orderedSamples(setting) {
 /**
  Pair a direct and a wrapped sample, alternating which goes first so cache order cancels.
 
- @param {ScenarioSetting} setting -
+ @param setting -
    scenario name, the optional per-sample setup that runs before the timer starts, the Git arguments of a sample,
    whether the forwarded-command budget applies, the sample count, the scratch root, and both repositories
- @returns {Promise<ScenarioMeasurement>} failed samples and the scenario report
+ 
+ @returns failed samples and the scenario report
  */
-export async function measure(setting) {
-  /** @type {number[]} */
-  const direct = [];
-  /** @type {number[]} */
-  const wrappedSamples = [];
-  /** @type {SampleFailure[]} */
-  const failures = [];
+export async function measure(setting: ScenarioSetting): Promise<ScenarioMeasurement> {
+  const direct: number[] = [];
+  const wrappedSamples: number[] = [];
+  const failures: SampleFailure[] = [];
   for await (const {
     wrapped,
     sample,

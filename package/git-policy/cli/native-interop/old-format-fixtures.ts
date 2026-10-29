@@ -20,7 +20,6 @@
    must land and advance the capture sequence.
  - `hook-lock-dead`: the incumbent died holding the hook lock; a native commit must retire the lock, run the hook and land.
  */
-/// <reference types="node" />
 import {
   checkIdentityBoundPhase,
   checkRestorablePhase,
@@ -30,12 +29,12 @@ import {
   checkDeadHookLock,
 } from './old-format-state-checks.ts';
 import { createMatrix } from './support.ts';
+import type { StoredPhase } from './old-format-phase-checks.ts';
 
 /**
  Phases whose records hold no identity of a file that a copy cannot reproduce.
- @type {readonly import('./old-format-phase-checks.ts').StoredPhase[]}
  */
-const RESTORABLE_PHASES = [
+const RESTORABLE_PHASES: readonly StoredPhase[] = [
   {
     phase: 'capture-locked',
     landed: false,
@@ -47,9 +46,8 @@ const RESTORABLE_PHASES = [
 ];
 /**
  Phases whose records name device and inode numbers of files the incumbent created.
- @type {readonly import('./old-format-phase-checks.ts').StoredPhase[]}
  */
-const IDENTITY_BOUND_PHASES = [
+const IDENTITY_BOUND_PHASES: readonly StoredPhase[] = [
   {
     phase: 'landing-locked',
     landed: false,

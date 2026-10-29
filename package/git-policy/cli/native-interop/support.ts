@@ -4,7 +4,6 @@
  where `/opt/native/bin/git` is the native wrapper and `/usr/bin/git` is Git 2.56.0.
  Every repository is restored below `/work/scratch` and never leaves the container.
  */
-/// <reference types="node" />
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
@@ -13,30 +12,43 @@ import {
 } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** Directory whose `git` is the native wrapper. */
+/**
+ Directory whose `git` is the native wrapper.
+ */
 export const NATIVE_BIN = '/opt/native/bin';
-/** Real Git 2.56.0. */
+/**
+ Real Git 2.56.0.
+ */
 export const REAL_GIT = '/usr/bin/git';
-/** The system search path without the wrapper. */
+/**
+ The system search path without the wrapper.
+ */
 export const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
 
-/** A driver step whose result contradicts what it proves. */
+/**
+ A driver step whose result contradicts what it proves.
+ */
 export class InteropError extends Error {
-  name = 'InteropError';
+  override name = 'InteropError';
 }
 
 /**
  Environment of one run: no host configuration, fixed identities, the native wrapper first on `PATH` when asked.
 
- @param {{ home: string, wrapperBin?: string, extra?: Record<string, string> }} request -
+ @param request -
    disposable home, the directory whose `git` the run starts (none means real Git), and added variables
- @returns {Record<string, string>} complete environment, nothing inherited from the container
+ 
+ @returns complete environment, nothing inherited from the container
  */
 export function runEnvironment({
   home,
   wrapperBin,
   extra = {},
-}) {
+}: {
+  home: string;
+  wrapperBin?: string;
+  extra?: Record<string, string>
+}): Record<string, string> {
   return {
     HOME: home,
     PATH: wrapperBin === undefined ? SYSTEM_PATH : `${wrapperBin}:${SYSTEM_PATH}`,
@@ -53,15 +65,21 @@ export function runEnvironment({
 
 /**
  Outcome of one finished process.
- @typedef {{ status: number | null, signal: NodeJS.Signals | null, stdout: string, stderr: string }} RunOutcome
  */
+export type RunOutcome = {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string
+};
 
 /**
  Run one argument array without a shell and capture its output.
 
- @param {{ command: string, args: readonly string[], cwd: string, env: Record<string, string>, input?: string }} request -
+ @param request -
    executable, arguments, working directory, complete environment and optional standard input
- @returns {Promise<RunOutcome>} exit state and decoded output
+ 
+ @returns exit state and decoded output
  */
 export async function run({
   command,
@@ -69,7 +87,13 @@ export async function run({
   cwd,
   env,
   input,
-}) {
+}: {
+  command: string;
+  args: readonly string[];
+  cwd: string;
+  env: Record<string, string>;
+  input?: string
+}): Promise<RunOutcome> {
   const child = spawn(
     command,
     [...args],
@@ -83,23 +107,25 @@ export async function run({
       ],
     },
   );
-  /** @type {Buffer[]} */
-  const out = [];
-  /** @type {Buffer[]} */
-  const err = [];
+  const out: Buffer[] = [];
+  const err: Buffer[] = [];
   child.stdout
     .on(
     'data',
-    /** @param {Buffer} chunk - bytes the process wrote to standard output */
-    function collectStdout(chunk) {
+    /**
+     @param chunk - bytes the process wrote to standard output
+     */
+    function collectStdout(chunk: Buffer) {
       out.push(chunk);
     },
     );
   child.stderr
     .on(
     'data',
-    /** @param {Buffer} chunk - bytes the process wrote to standard error */
-    function collectStderr(chunk) {
+    /**
+     @param chunk - bytes the process wrote to standard error
+     */
+    function collectStderr(chunk: Buffer) {
       err.push(chunk);
     },
     );
@@ -131,16 +157,24 @@ export async function run({
 /**
  Run `git` through the native wrapper in a fixture and return the outcome without judging it.
 
- @param {{ wrapper: 'native', fixture: { repository: string, home: string }, args: readonly string[],
-   extra?: Record<string, string> }} request - wrapper, repository, Git arguments and added variables
- @returns {Promise<RunOutcome>} exit state and output
+ @param request - wrapper, repository, Git arguments and added variables
+ 
+ @returns exit state and output
  */
 export function runThrough({
   wrapper,
   fixture,
   args,
   extra = {},
-}) {
+}: {
+  wrapper: 'native';
+  fixture: {
+    repository: string;
+    home: string
+  };
+  args: readonly string[];
+  extra?: Record<string, string>
+}): Promise<RunOutcome> {
   if (wrapper !== 'native')
     throw new InteropError(`Only the native wrapper exists in this image, not ${String(wrapper)}.`);
   return run({
@@ -161,14 +195,21 @@ export function runThrough({
 /**
  Run real Git in a fixture and return its trimmed output.
 
- @param {{ fixture: { repository: string, home: string }, args: readonly string[] }} request -
+ @param request -
    repository and home, and the Git arguments
- @returns {Promise<string>} trimmed standard output
+ 
+ @returns trimmed standard output
  */
 export async function realGit({
   fixture,
   args,
-}) {
+}: {
+  fixture: {
+    repository: string;
+    home: string
+  };
+  args: readonly string[]
+}): Promise<string> {
   const outcome = await run({
     command: REAL_GIT,
     args,
@@ -187,13 +228,13 @@ export async function realGit({
 /**
  Whether a caught value is the error Node raises for a path that does not exist.
 
- @param {unknown} error - caught value
- @returns {boolean} true for an `ENOENT` error
+ @param error - caught value
+ 
+ @returns true for an `ENOENT` error
  */
-export function isMissingPath(error) {
+export function isMissingPath(error: unknown): boolean {
   // `Object` wraps a primitive and turns `null` into an empty object, so any caught value can be asked for a code.
-  /** @type {unknown} */
-  const code = Reflect.get(
+  const code: unknown = Reflect.get(
     new Object(error),
     'code',
   );
@@ -203,10 +244,11 @@ export function isMissingPath(error) {
 /**
  Entry names of a directory, or none when it does not exist.
 
- @param {string} directory - directory to list
- @returns {Promise<string[]>} entry names
+ @param directory - directory to list
+ 
+ @returns entry names
  */
-export async function namesIn(directory) {
+export async function namesIn(directory: string): Promise<string[]> {
   try {
     return await readdir(directory);
   }
@@ -220,10 +262,11 @@ export async function namesIn(directory) {
 /**
  Whether a path exists.
 
- @param {string} path - path to test
- @returns {Promise<boolean>} true when something is there
+ @param path - path to test
+ 
+ @returns true when something is there
  */
-export async function pathExists(path) {
+export async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
     return true;
@@ -242,14 +285,18 @@ export async function pathExists(path) {
  that never takes that lock (a `status`, an `add` that needs no landing) leaves them in place by design.
  `staleLocks` accepts them for such a command.
 
- @param {{ fixture: { repository: string }, staleLocks?: boolean }} request -
+ @param request -
    repository, and whether lock directories count as leftovers
- @returns {Promise<string[]>} descriptions of each leftover, none when the repository is quiescent
+ 
+ @returns descriptions of each leftover, none when the repository is quiescent
  */
 export async function leftovers({
   fixture,
   staleLocks = false,
-}) {
+}: {
+  fixture: { repository: string };
+  staleLocks?: boolean
+}): Promise<string[]> {
   const gitDir = join(
     fixture.repository,
     '.git',
@@ -293,13 +340,17 @@ export async function leftovers({
  Collects every check of a driver instead of stopping at the first failure,
  so one failing check never hides the others; the driver ends with `finish`.
 
- @returns {{ check: (request: { condition: boolean, message: string }) => boolean, finish: () => void }} recorder
+ @returns recorder
  */
-export function createMatrix() {
-  /** @type {string[]} */
-  const failures = [];
-  /** @type {string[]} */
-  const passes = [];
+export function createMatrix(): {
+  check: (request: {
+    condition: boolean;
+    message: string
+  }) => boolean;
+  finish: () => void
+} {
+  const failures: string[] = [];
+  const passes: string[] = [];
   return {
     check({
       condition,

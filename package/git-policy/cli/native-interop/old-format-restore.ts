@@ -6,7 +6,6 @@
  (path relative to the fixture, a tab, the absolute target).
  Each fixture is restored to the absolute location it was captured at, because its records name absolute paths.
  */
-/// <reference types="node" />
 import {
   chmod,
   copyFile,
@@ -27,17 +26,29 @@ import {
   runEnvironment,
 } from './support.ts';
 
-/** Where the fixtures sit in the image. */
+/**
+ Where the fixtures sit in the image.
+ */
 const FIXTURE_SOURCE = '/fixture/native-interop/fixture';
-/** Where each fixture is restored: the location it was captured at. */
+/**
+ Where each fixture is restored: the location it was captured at.
+ */
 const FIXTURE_TARGET = '/work/scratch/fixture';
-/** Directory name that stands for `.git` in the stored fixtures. */
+/**
+ Directory name that stands for `.git` in the stored fixtures.
+ */
 const STORED_GIT_NAME = 'dot-git';
-/** Mode of every restored directory and of restored scripts. */
+/**
+ Mode of every restored directory and of restored scripts.
+ */
 const PRIVATE_EXECUTABLE_MODE = 0o700;
-/** Mode of every other restored file. */
+/**
+ Mode of every other restored file.
+ */
 const PRIVATE_FILE_MODE = 0o600;
-/** Empty directories a repository needs but a stored tree cannot hold. */
+/**
+ Empty directories a repository needs but a stored tree cannot hold.
+ */
 const REPOSITORY_DIRECTORIES = [
   '.git/objects/pack',
   '.git/objects/info',
@@ -46,24 +57,35 @@ const REPOSITORY_DIRECTORIES = [
   '.git/hooks',
 ];
 
-/** Suffix of a pack file. */
+/**
+ Suffix of a pack file.
+ */
 const PACK_SUFFIX = '.pack';
-/** Suffix of the index that belongs to a pack file. */
+/**
+ Suffix of the index that belongs to a pack file.
+ */
 const INDEX_SUFFIX = '.idx';
 
 /**
  One restored fixture.
- @typedef {{ root: string, repository: string, home: string }} RestoredFixture
  */
+export type RestoredFixture = {
+  root: string;
+  repository: string;
+  home: string
+};
 
 /**
  Restore one stored directory tree, renaming `dot-git` entries back to `.git` and applying private modes.
 
- @param {{ from: string, to: string }} request - stored directory and destination
+ @param request - stored directory and destination
  */
 async function restoreTree({
   from,
   to,
+}: {
+  from: string;
+  to: string
 }) {
   await mkdir(
     to,
@@ -112,11 +134,16 @@ async function restoreTree({
 /**
  Parse the manifest of symbolic links.
 
- @param {string} text - manifest text, one `path<TAB>target` pair per line
- @returns {{ path: string, target: string }[]} the links to create
+ @param text - manifest text, one `path<TAB>target` pair per line
+ 
+ @returns the links to create
+ 
  @throws {InteropError} when a line is not exactly a path and a target
  */
-function parseLinks(text) {
+function parseLinks(text: string): {
+  path: string;
+  target: string
+}[] {
   return text
     .split('\n')
     .filter(function isNonEmpty(line) {
@@ -139,11 +166,16 @@ function parseLinks(text) {
 /**
  Read a fixture's link manifest, which a fixture without symbolic links does not have.
 
- @param {string} manifest - manifest path
- @returns {Promise<{ path: string, target: string }[]>} the links to create, none when the manifest is absent
+ @param manifest - manifest path
+ 
+ @returns the links to create, none when the manifest is absent
+ 
  @throws {Error} when the manifest cannot be read for any reason other than being absent, or is malformed
  */
-async function readLinks(manifest) {
+async function readLinks(manifest: string): Promise<{
+  path: string;
+  target: string
+}[]> {
   try {
     return parseLinks(await readFile(
       manifest,
@@ -163,10 +195,14 @@ async function readLinks(manifest) {
  The repository ignores `*.idx`, so the committed fixtures carry packs without their indexes, and Git cannot read a
  pack without its index. The index is derived from the pack alone, so rebuilding it restores what the incumbent wrote.
 
- @param {{ repository: string, home: string }} fixture - restored fixture
+ @param fixture - restored fixture
+ 
  @throws {InteropError} when Git cannot index a pack
  */
-async function rebuildPackIndexes(fixture) {
+async function rebuildPackIndexes(fixture: {
+  repository: string;
+  home: string
+}) {
   const packDirectory = join(
     fixture.repository,
     '.git/objects/pack',
@@ -200,10 +236,11 @@ async function rebuildPackIndexes(fixture) {
 /**
  Restore one fixture and the empty directories a repository needs but a stored tree cannot hold.
 
- @param {string} name - fixture name
- @returns {Promise<RestoredFixture>} the restored fixture
+ @param name - fixture name
+ 
+ @returns the restored fixture
  */
-export async function restoreFixture(name) {
+export async function restoreFixture(name: string): Promise<RestoredFixture> {
   const root = join(
     FIXTURE_TARGET,
     name,
@@ -268,10 +305,11 @@ export async function restoreFixture(name) {
 /**
  Read the capture store's sequence number.
 
- @param {RestoredFixture} fixture - restored fixture
- @returns {Promise<number>} the last allocated sequence
+ @param fixture - restored fixture
+ 
+ @returns the last allocated sequence
  */
-export async function captureSequence(fixture) {
+export async function captureSequence(fixture: RestoredFixture): Promise<number> {
   const text = await readFile(
     join(
       fixture.repository,

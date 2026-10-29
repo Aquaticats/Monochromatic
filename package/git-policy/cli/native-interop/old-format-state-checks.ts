@@ -2,7 +2,6 @@
  The checks of `old-format-fixtures.ts` for stored state that no transaction phase explains: the capture store of
  finished commits and the hook lock of a dead incumbent.
  */
-/// <reference types="node" />
 import {
   readFile,
   stat,
@@ -26,6 +25,7 @@ import {
   realGit,
   runThrough,
 } from './support.ts';
+import type { Matrix } from './old-format-phase-checks.ts';
 
 /**
  The lines of the hook's log.
@@ -33,10 +33,11 @@ import {
  The repository ignores `*.log`, so the committed fixture carries no log and the killed incumbent's `start` line is
  not stored; an absent log therefore counts as empty, and the native commit must still add `start` and `end`.
 
- @param {string} log - log path
- @returns {Promise<string[]>} the non-empty lines, none when the log is absent
+ @param log - log path
+ 
+ @returns the non-empty lines, none when the log is absent
  */
-async function hookLines(log) {
+async function hookLines(log: string): Promise<string[]> {
   try {
     return linesOf(await readFile(
       log,
@@ -53,9 +54,9 @@ async function hookLines(log) {
 /**
  Check that a native commit lands over the incumbent's capture store and advances its sequence.
 
- @param {{ matrix: import('./old-format-phase-checks.ts').Matrix }} request - recorder of the driver's checks
+ @param request - recorder of the driver's checks
  */
-export async function checkCompleted({ matrix }) {
+export async function checkCompleted({ matrix }: { matrix: Matrix }): Promise<void> {
   const tag = 'completed';
   const fixture = await restoreFixture('completed');
   const before = await captureSequence(fixture);
@@ -118,9 +119,9 @@ export async function checkCompleted({ matrix }) {
 /**
  Check that a native commit retires the hook lock of a dead incumbent, runs the hook once and lands.
 
- @param {{ matrix: import('./old-format-phase-checks.ts').Matrix }} request - recorder of the driver's checks
+ @param request - recorder of the driver's checks
  */
-export async function checkDeadHookLock({ matrix }) {
+export async function checkDeadHookLock({ matrix }: { matrix: Matrix }): Promise<void> {
   const tag = 'hook-lock-dead';
   const fixture = await restoreFixture('hook-lock-dead');
   const lock = join(

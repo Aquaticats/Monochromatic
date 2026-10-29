@@ -2,9 +2,10 @@
  Planted defects for the Markdown policy's invariants, spread into the list in `planted-controls.ts`.
  Each `from` must occur exactly once in its file.
  */
+import type { Plant } from './planted-table.ts';
 
 /** Linter output, event path and configuration defects, one per invariant. */
-export const markdownPlants = [
+export const markdownPlants: readonly Plant[] = [
   {
     name: 'a linter record of another severity is accepted',
     file: 'package/git-policy/cli/src/native/markdown_linter_output.rs',

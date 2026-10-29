@@ -6,19 +6,16 @@ import { markdownPlants } from './planted-markdown.ts';
 
 /**
  One defect: its name, the file it edits and the edits, each of which must match exactly once.
-
- @typedef {{ name: string, file: string, edits: readonly { from: string, to: string }[] }} Plant
  */
+export type Plant = { name: string, file: string, edits: readonly { from: string, to: string }[] };
 
 /**
  Defects with observable behavior, one per invariant family.
  Each `from` must occur exactly once so a control cannot silently stop applying.
  Removing a flag from a mutation list alone changes nothing, because unlisted flags already
  require configuration; the first plant therefore also lists the flag as presentation.
-
- @type {readonly Plant[]}
  */
-export const plants = [
+export const plants: readonly Plant[] = [
   {
     name: 'PID file text keeps trailing whitespace before the pid prefix is read',
     file: 'package/git-policy/cli/src/native/index_lock_evidence.rs',

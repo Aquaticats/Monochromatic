@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-/** Verify native wrapper modules against the selected real Git in an isolated source snapshot. */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
+/**
+ Verify native wrapper modules against the selected real Git in an isolated source snapshot.
+ */
 import {
   cp,
   mkdir,
@@ -38,15 +36,28 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
-makeScratchBase(scratchBase, { recursive: true });
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy'
+);
+makeScratchBase(
+  scratchBase,
+  { recursive: true }
+);
 
 
-/** Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image. */
+/**
+ Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
+ */
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
   ?? 'development';
-/** Source snapshot image this gate builds, tests, and lints. */
+/**
+ Source snapshot image this gate builds, tests, and lints.
+ */
 const testImage = `localhost/git-policy-native-test:${imageTag}`;
 
 /**
@@ -54,9 +65,9 @@ const testImage = `localhost/git-policy-native-test:${imageTag}`;
  Copies run concurrently, and every copy settles before this returns or throws,
  so removing the context afterwards never races an in-flight copy.
 
- @param {{ context: string }} request - build context directory receiving the repository-shaped snapshot
+ @param request - build context directory receiving the repository-shaped snapshot
  */
-async function copySourceSnapshot({ context }) {
+async function copySourceSnapshot({ context }: { context: string }) {
   const subject = join(
     context,
     'package/git-policy/cli',

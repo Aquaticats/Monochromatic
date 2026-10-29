@@ -5,10 +5,6 @@
  project's own musl release asset. The host downloads it once, verifies the checksum before anything is extracted, and
  copies the executable into the build context.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import { createHash } from 'node:crypto';
 import {
   mkdir,
@@ -26,24 +22,32 @@ import {
   runCommand,
 } from './native-verification-process.ts';
 
-/** Pinned so every gate runs the same runner; the checksum below belongs to this exact release asset. */
+/**
+ Pinned so every gate runs the same runner; the checksum below belongs to this exact release asset.
+ */
 export const nextestVersion = '0.9.148';
 
-/** SHA-256 of `cargo-nextest-0.9.148-x86_64-unknown-linux-musl.tar.gz`, equal to the digest GitHub lists for the asset. */
+/**
+ SHA-256 of `cargo-nextest-0.9.148-x86_64-unknown-linux-musl.tar.gz`, equal to the digest GitHub lists for the asset.
+ */
 const nextestSha256 = 'bf92cb81450872d960ffa13857a83084d557ec0cdc141663d263bb23ef756f97';
 
-/** Release asset, a static executable that runs on any C library. */
+/**
+ Release asset, a static executable that runs on any C library.
+ */
 const nextestUrl = `https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${nextestVersion}/cargo-nextest-${nextestVersion}-x86_64-unknown-linux-musl.tar.gz`;
 
-/** File name of the executable in the build context and in the image. */
+/**
+ File name of the executable in the build context and in the image.
+ */
 const contextFileName = 'cargo-nextest';
 
 /**
  Containerfile lines that install the runner next to `cargo`, so `cargo nextest` resolves it.
 
- @returns {string[]} lines to place after the base image is chosen, then check that the runner starts
+ @returns lines to place after the base image is chosen, then check that the runner starts
  */
-export function nextestCopyLines() {
+export function nextestCopyLines(): string[] {
   return [
     `COPY ${contextFileName} /usr/local/cargo/bin/cargo-nextest`,
     'RUN ["cargo", "nextest", "--version"]',
@@ -54,10 +58,11 @@ export function nextestCopyLines() {
  Download the pinned release asset once into the package's `target/` cache, verify its checksum, and place the
  executable in the build context.
 
- @param {{ context: string }} request - build context directory receiving the executable
+ @param request - build context directory receiving the executable
+ 
  @throws {NativeVerificationError} when the download fails or its checksum differs from the pinned one
  */
-export async function copyNextest({ context }) {
+export async function copyNextest({ context }: { context: string }): Promise<void> {
   const cache = resolve(
     'target/verification',
     'nextest-cache',
@@ -93,10 +98,11 @@ export async function copyNextest({ context }) {
 /**
  Download the pinned archive into the cache after checking its checksum.
 
- @param {string} archive - cache path to write
+ @param archive - cache path to write
+ 
  @throws {NativeVerificationError} when the download fails or its checksum differs from the pinned one
  */
-async function downloadArchive(archive) {
+async function downloadArchive(archive: string) {
   const response = await fetch(nextestUrl);
   if (!response.ok)
     throw new NativeVerificationError(`Downloading ${nextestUrl} failed with status ${String(response.status)}.`);
@@ -113,10 +119,11 @@ async function downloadArchive(archive) {
 }
 
 /**
- @param {Uint8Array} bytes - archive content
- @returns {string} lowercase hexadecimal SHA-256
+ @param bytes - archive content
+ 
+ @returns lowercase hexadecimal SHA-256
  */
-function sha256Of(bytes) {
+function sha256Of(bytes: Uint8Array): string {
   return createHash('sha256')
     .update(bytes)
     .digest('hex');

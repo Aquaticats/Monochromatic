@@ -12,10 +12,6 @@
  for (const scenario of scenarios) report(await paired(scenario, samples));
  ```
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   access,
   chmod,
@@ -36,20 +32,35 @@ import { parseArgs } from 'node:util';
 
 import { repository } from './native-perf-git.ts';
 import { measure } from './native-perf-measure.ts';
+import type {
+  SampleFailure,
+  ScenarioMeasurement,
+  ScenarioReport
+} from './native-perf-measure.ts';
 
-/** The strict upper bound for wrapper-added latency of a forwarded command, in milliseconds. */
+/**
+ The strict upper bound for wrapper-added latency of a forwarded command, in milliseconds.
+ */
 const BUDGET_MILLISECONDS = 2_000;
 
-/** The fewest samples per scenario that make a median, a p95 and a deviation meaningful. */
+/**
+ The fewest samples per scenario that make a median, a p95 and a deviation meaningful.
+ */
 const MINIMUM_SAMPLES = 5;
 
-/** Permission bits of the copied wrapper binary: executable by everyone, writable by its owner. */
+/**
+ Permission bits of the copied wrapper binary: executable by everyone, writable by its owner.
+ */
 const EXECUTABLE_MODE = 0o755;
 
-/** Permission bits of the scratch parent directory: private to the current user. */
+/**
+ Permission bits of the scratch parent directory: private to the current user.
+ */
 const PRIVATE_DIRECTORY_MODE = 0o700;
 
-/** Width of the scenario column in the printed lines, so the figures align. */
+/**
+ Width of the scenario column in the printed lines, so the figures align.
+ */
 const SCENARIO_COLUMN_WIDTH = 22;
 
 const { values } = parseArgs({
@@ -138,7 +149,9 @@ const wrappedRepository = await repository({
   name: 'wrapped-repo',
 });
 
-/** Forwarded read commands: the wrapper only classifies them and runs real Git. */
+/**
+ Forwarded read commands: the wrapper only classifies them and runs real Git.
+ */
 const forwarded = [
   {
     name: 'rev-parse',
@@ -171,17 +184,15 @@ const forwarded = [
   },
 ];
 
-/** @type {import('./native-perf-measure.ts').SampleFailure[]} */
-const failures = [];
-/** @type {import('./native-perf-measure.ts').ScenarioReport[]} */
-const report = [];
+const failures: SampleFailure[] = [];
+const report: ScenarioReport[] = [];
 
 /**
  Keep a scenario's failed samples and its report, in the order the scenarios ran.
 
- @param {import('./native-perf-measure.ts').ScenarioMeasurement} measurement - what one scenario measured
+ @param measurement - what one scenario measured
  */
-function record(measurement) {
+function record(measurement: ScenarioMeasurement) {
   failures.push(...measurement.failures);
   if (measurement.entry !== undefined) {
     report.push(measurement.entry);
@@ -191,10 +202,10 @@ function record(measurement) {
 /**
  Measure every scenario one at a time, forwarded commands first, because concurrent scenarios would distort each other.
 
- @returns {AsyncGenerator<import('./native-perf-measure.ts').ScenarioMeasurement>} one measurement per scenario,
+ @returns one measurement per scenario,
    in the order the scenarios ran
  */
-async function* measureScenarios() {
+async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
   for (const scenario of forwarded) {
     yield measure({
       name: scenario.name,

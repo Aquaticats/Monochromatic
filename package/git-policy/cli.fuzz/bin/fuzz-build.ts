@@ -3,9 +3,6 @@
 
  The compiler is a separate read-only input mounted only while compiling; fuzz execution never sees it.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed.
-/// <reference types="node" />
 import {
   copyFile,
   mkdir,
@@ -36,10 +33,10 @@ import { targets } from './fuzz-options.ts';
 /**
  Run `cargo vendor` and map the vendored directory to its path inside the build image.
 
- @param {string} context - build context directory
- @returns {Promise<string>} the Cargo source configuration for the image
+ @param context - build context directory
+ @returns the Cargo source configuration for the image
  */
-async function vendoredConfig(context) {
+async function vendoredConfig(context: string): Promise<string> {
   const vendor = await runCommand({
     command: 'cargo',
     args: [
@@ -70,9 +67,9 @@ async function vendoredConfig(context) {
 /**
  Write the Containerfile of the build image and build it.
 
- @param {string} context - build context directory holding the copied inputs
+ @param context - build context directory holding the copied inputs
  */
-async function buildImageFrom(context) {
+async function buildImageFrom(context: string) {
   await writeFile(
     join(
       context,
@@ -114,9 +111,9 @@ async function buildImageFrom(context) {
 /**
  Generator controls and Clippy prove the invariants are reached before any fuzzing result is trusted.
 
- @param {readonly string[]} compilerMount - `podman run` options that mount the read-only compiler
+ @param compilerMount - `podman run` options that mount the read-only compiler
  */
-async function proveGeneratorControls(compilerMount) {
+async function proveGeneratorControls(compilerMount: readonly string[]) {
   const prefix = [
     'run',
     '--rm',
@@ -154,7 +151,7 @@ async function proveGeneratorControls(compilerMount) {
 /**
  Build the AddressSanitizer targets in a container and copy their binaries into the context.
 
- @param {{ context: string, evidence: string, compilerMount: readonly string[] }} request - the build context,
+ @param request - the build context,
    the evidence directory receiving the container state, and the read-only compiler mount
  @throws {NativeVerificationError} when the instrumented build exits nonzero
  */
@@ -162,7 +159,7 @@ async function compileTargets({
   context,
   evidence,
   compilerMount,
-}) {
+}: { context: string, evidence: string, compilerMount: readonly string[] }) {
   await using container = await createContainer({
     args: [
       'create',
@@ -236,7 +233,7 @@ async function compileTargets({
 /**
  Copy the inputs, build the image, prove the controls and compile the instrumented binaries into `<context>/bin`.
 
- @param {{ source: string, context: string, evidence: string, compiler: string }} request - this package's
+ @param request - this package's
    directory, the build context, the evidence directory and the compiler sysroot to mount read-only
  */
 export async function buildInstrumentedTargets({
@@ -244,7 +241,7 @@ export async function buildInstrumentedTargets({
   context,
   evidence,
   compiler,
-}) {
+}: { source: string, context: string, evidence: string, compiler: string }): Promise<void> {
   await copyInputs({
     source,
     context,

@@ -1,3 +1,4 @@
+import type { PlantedControl } from './native-planted-controls.ts';
 /**
  Planted guard removals in the entry point, configuration, index locks and hook dispatch.
 
@@ -5,8 +6,7 @@
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
 
-/** @type {readonly import('./native-planted-controls.ts').PlantedControl[]} */
-export const plantedEntryControls = [
+export const plantedEntryControls: readonly PlantedControl[] = [
   {
     name: "post-commit disabled event runs nothing",
     file: "src/native/post_commit_hook.rs",

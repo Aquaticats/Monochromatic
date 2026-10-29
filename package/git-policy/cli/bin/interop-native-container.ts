@@ -13,10 +13,6 @@
  Usage: `node bin/interop-native-container.ts <driver> [arguments...]`,
  where `<driver>` names a file under `native-interop/` without its `.ts` suffix.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   cp,
   mkdir,
@@ -42,28 +38,45 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
-makeScratchBase(scratchBase, { recursive: true });
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy'
+);
+makeScratchBase(
+  scratchBase,
+  { recursive: true }
+);
 
 
-/** Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image. */
+/**
+ Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
+ */
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
   ?? 'development';
-/** Image this runner builds and runs. */
+/**
+ Image this runner builds and runs.
+ */
 const interopImage = `localhost/git-policy-native-interop:${imageTag}`;
-/** The audited Git 2.56.0 image the native gate also builds on. */
+/**
+ The audited Git 2.56.0 image the native gate also builds on.
+ */
 const gitBase = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a';
-/** Node of the gate base's Debian release (trixie), copied as one executable. */
+/**
+ Node of the gate base's Debian release (trixie), copied as one executable.
+ */
 const nodeImage = 'docker.io/library/node:24-trixie-slim';
 
 /**
  Copy the native crate, its path dependencies and the interoperability drivers into the build context.
  Copies run concurrently, and every copy settles before this returns or throws.
 
- @param {{ context: string }} request - build context directory receiving the repository-shaped snapshot
+ @param request - build context directory receiving the repository-shaped snapshot
  */
-async function copySnapshot({ context }) {
+async function copySnapshot({ context }: { context: string }) {
   const subject = join(
     context,
     'package/git-policy/cli',
@@ -137,19 +150,24 @@ async function copySnapshot({ context }) {
     );
 }
 
-/** Characters a driver name may hold: lowercase words and dashes. */
+/**
+ Characters a driver name may hold: lowercase words and dashes.
+ */
 const driverNameCharacters = 'abcdefghijklmnopqrstuvwxyz0123456789-';
 
-/** Prefix of the crate version line in `Cargo.toml`. */
+/**
+ Prefix of the crate version line in `Cargo.toml`.
+ */
 const versionLinePrefix = 'version = "';
 
 /**
  Whether text names a driver under `native-interop/`.
 
- @param {string} text - requested driver name
- @returns {boolean} whether it is non-empty and holds only lowercase letters, digits and dashes
+ @param text - requested driver name
+ 
+ @returns whether it is non-empty and holds only lowercase letters, digits and dashes
  */
-function isDriverName(text) {
+function isDriverName(text: string): boolean {
   const characters = text
     .split('');
   return (characters.length > 0)
@@ -161,10 +179,11 @@ function isDriverName(text) {
 /**
  The crate version a `Cargo.toml` declares.
 
- @param {string} manifest - text of `Cargo.toml`
- @returns {string | undefined} the first `version = "..."` line's value, none when no line has that shape
+ @param manifest - text of `Cargo.toml`
+ 
+ @returns the first `version = "..."` line's value, none when no line has that shape
  */
-function crateVersionOf(manifest) {
+function crateVersionOf(manifest: string): string | undefined {
   const line = manifest
     .split('\n')
     .find(function isVersionLine(candidate) {

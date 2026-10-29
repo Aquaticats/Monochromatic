@@ -5,9 +5,6 @@
  which call the same invariant functions as the fuzz targets, to fail.
  The worktree is only read; every edit and build happens under the operating system's temporary directory.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed.
-/// <reference types="node" />
 import {
   cp,
   mkdir,
@@ -27,6 +24,7 @@ import {
 } from '../../cli/bin/native-verification-process.ts';
 import { plants } from './planted-table.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
+import type { Plant } from './planted-table.ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -65,13 +63,13 @@ const inputs = [
  nextest prints `FAIL [ 0.012s] ( 3/38) <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a
  child process behind, and repeats each failure in its closing recap; the test name ends the line.
 
- @param {{ output: string, keyword: 'FAIL' | 'PASS' }} request - the run's combined output and the result kind
- @returns {string[]} trimmed lines that start with the keyword and hold a `[`
+ @param request - the run's combined output and the result kind
+ @returns trimmed lines that start with the keyword and hold a `[`
  */
 function resultLines({
   output,
   keyword,
-}) {
+}: { output: string, keyword: 'FAIL' | 'PASS' }): string[] {
   return output.split('\n')
     .map(function trimmed(line) {
       return line.trim();
@@ -84,11 +82,11 @@ function resultLines({
 /**
  Run the generator controls in the disposable sidecar; report status and the failing control names.
 
- @param {{ root: string }} request - the disposable copy of the repository inputs
- @returns {Promise<{ status: number | null, failed: string[], passed: number, output: string }>} exit status,
+ @param request - the disposable copy of the repository inputs
+ @returns exit status,
    the distinct failing test names, the number of passing tests and the combined output
  */
-async function controls({ root }) {
+async function controls({ root }: { root: string }): Promise<{ status: number | null, failed: string[], passed: number, output: string }> {
   const run = await runCommand({
     command: 'cargo',
     args: [
@@ -135,14 +133,14 @@ async function controls({ root }) {
 /**
  Apply one plant's edits to its file text, refusing an edit that does not match exactly once.
 
- @param {{ plant: import('./planted-table.ts').Plant, original: string }} request - the plant and its file's text
- @returns {string} the edited text
+ @param request - the plant and its file's text
+ @returns the edited text
  @throws {NativeVerificationError} when an edit matches anything but exactly once
  */
 function planted({
   plant,
   original,
-}) {
+}: { plant: Plant, original: string }): string {
   return plant.edits
     .reduce(
     function applyEdit(
@@ -166,17 +164,16 @@ function planted({
 /**
  Plant one defect, run the controls, and put the file back.
 
- @param {{ root: string, evidence: string, plant: import('./planted-table.ts').Plant, index: number }} request -
+ @param request -
    the disposable copy, the evidence directory, the defect and its position, which names its log
- @returns {Promise<{ name: string, file: string, edits: unknown, status: number | null, failed: string[],
-   noticed: boolean }>} what the controls observed
+ @returns what the controls observed
  */
 async function runPlant({
   root,
   evidence,
   plant,
   index,
-}) {
+}: { root: string, evidence: string, plant: Plant, index: number }): Promise<{ name: string, file: string, edits: unknown, status: number | null, failed: string[], noticed: boolean }> {
   const path = join(
     root,
     plant.file,
@@ -224,13 +221,13 @@ async function runPlant({
  Plant each defect in table order. Each one starts after the previous one returned and restored its file,
  because every plant edits the same disposable copy.
 
- @param {{ root: string, evidence: string }} request - the disposable copy and the evidence directory
- @returns {AsyncGenerator<Awaited<ReturnType<typeof runPlant>>>} one observation per defect
+ @param request - the disposable copy and the evidence directory
+ @returns one observation per defect
  */
 async function* observations({
   root,
   evidence,
-}) {
+}: { root: string, evidence: string }): AsyncGenerator<Awaited<ReturnType<typeof runPlant>>> {
   for (const [
     index,
     plant,
@@ -291,8 +288,7 @@ if ((baseline.status !== 0) || (baseline.passed === 0)) {
   throw new NativeVerificationError(`Unplanted generator controls did not pass; inspect ${evidence}.`);
 }
 console.log(`Unplanted controls: ${baseline.passed} passed`);
-/** @type {Awaited<ReturnType<typeof runPlant>>[]} */
-const results = [];
+const results: Awaited<ReturnType<typeof runPlant>>[] = [];
 for await (const result of observations({
   root: root.path,
   evidence,

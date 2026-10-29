@@ -4,10 +4,6 @@
  A campaign whose harness cannot observe a missing guard proves nothing, so these controls run before cargo-mutants
  and any unnoticed removal stops the campaign.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   readFile,
   writeFile,
@@ -26,34 +22,45 @@ import {
   runCommand,
 } from './native-verification-process.ts';
 
-/** Source directory inside the tested image. */
+/**
+ Source directory inside the tested image.
+ */
 const containerSource = '/work/package/git-policy/cli';
 
 /**
  Guard removal paired with the test that must notice it.
-
- @typedef {{ name: string, file: string, from: string, to: string, failing: string }} PlantedControl
  */
+export type PlantedControl = {
+  name: string;
+  file: string;
+  from: string;
+  to: string;
+  failing: string
+};
 
 /**
  Planted control plus what its container observed.
-
- @typedef {PlantedControl & { status: number | null, noticed: boolean }} PlantedControlResult
  */
+export type PlantedControlResult = PlantedControl & {
+  status: number | null;
+  noticed: boolean
+};
 
 /**
  Inputs every planted control shares.
-
- @typedef {{ base: string, limits: readonly string[], context: string, evidence: string }} PlantedControlSetting
  */
+export type PlantedControlSetting = {
+  base: string;
+  limits: readonly string[];
+  context: string;
+  evidence: string
+};
 
 /**
  Guard removals with the control that must notice each one, in the order the campaign runs them.
  The tables sit in sibling modules by area.
-
- @type {readonly PlantedControl[]}
  */
-const plantedControls = [
+const plantedControls: readonly PlantedControl[] = [
   ...plantedEntryControls,
   ...plantedCommitControls,
   ...plantedLandingControls,
@@ -62,9 +69,10 @@ const plantedControls = [
 /**
  Plant one guard removal in its own container and record whether the named control failed.
 
- @param {PlantedControlSetting & { control: PlantedControl, index: number }} request -
+ @param request -
    shared inputs, the control, and its position, which names its planted source and log files
- @returns {Promise<PlantedControlResult>} control with its container's exit status and whether the named test failed
+ 
+ @returns control with its container's exit status and whether the named test failed
  */
 async function runPlantedControl({
   base,
@@ -73,7 +81,10 @@ async function runPlantedControl({
   evidence,
   control,
   index,
-}) {
+}: PlantedControlSetting & {
+  control: PlantedControl;
+  index: number
+}): Promise<PlantedControlResult> {
   const original = await readFile(
     resolve(control.file),
     'utf8',
@@ -162,10 +173,11 @@ async function runPlantedControl({
  Planted-control results in table order. Each control starts only after the previous one returned and removed its
  container, so at most one bounded container runs at a time.
 
- @param {PlantedControlSetting} setting - inputs every planted control shares
- @returns {AsyncGenerator<PlantedControlResult>} one result per planted control
+ @param setting - inputs every planted control shares
+ 
+ @returns one result per planted control
  */
-async function* plantedControlResults(setting) {
+async function* plantedControlResults(setting: PlantedControlSetting): AsyncGenerator<PlantedControlResult> {
   for (const [
     index,
     control,
@@ -182,11 +194,10 @@ async function* plantedControlResults(setting) {
  Plant each guard removal in its own container and require the named control to fail.
  The results file is written before any unnoticed removal throws, so a failing campaign keeps its evidence.
 
- @param {PlantedControlSetting} setting - tested image ID, container bounds, scratch and evidence directories
+ @param setting - tested image ID, container bounds, scratch and evidence directories
  */
-export async function runPlantedControls(setting) {
-  /** @type {PlantedControlResult[]} */
-  const results = [];
+export async function runPlantedControls(setting: PlantedControlSetting): Promise<void> {
+  const results: PlantedControlResult[] = [];
   for await (const result of plantedControlResults(setting))
     results.push(result);
   await writeFile(

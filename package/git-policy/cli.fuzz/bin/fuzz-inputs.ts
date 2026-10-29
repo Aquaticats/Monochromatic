@@ -3,9 +3,6 @@
 
  Only package inputs are copied, never caches, dependencies, TypeScript sources or machine-local files.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed.
-/// <reference types="node" />
 import { constants } from 'node:fs';
 import {
   access,
@@ -30,10 +27,10 @@ const unusableCandidateCodes = new Set([
 /**
  Whether a failure only says that a candidate path is not an executable file.
 
- @param {unknown} error - the value an access check threw
- @returns {boolean} true for a missing, non-directory or unreadable path
+ @param error - the value an access check threw
+ @returns true for a missing, non-directory or unreadable path
  */
-function isUnusableCandidate(error) {
+function isUnusableCandidate(error: unknown): boolean {
   return ((typeof error) === 'object')
     && (error !== null)
     && ('code' in error)
@@ -43,10 +40,10 @@ function isUnusableCandidate(error) {
 /**
  Whether a path is an executable regular file.
 
- @param {string} candidate - absolute path to test
- @returns {Promise<boolean>} false when it is missing, unreadable or not a file
+ @param candidate - absolute path to test
+ @returns false when it is missing, unreadable or not a file
  */
-async function isExecutableFile(candidate) {
+async function isExecutableFile(candidate: string): Promise<boolean> {
   try {
     await access(
       candidate,
@@ -64,11 +61,11 @@ async function isExecutableFile(candidate) {
 /**
  Resolve the PATH-selected tool rather than an older unrelated Cargo-home installation.
 
- @param {string} name - executable name
- @returns {Promise<string>} absolute path of the first PATH entry holding it
+ @param name - executable name
+ @returns absolute path of the first PATH entry holding it
  @throws {NativeVerificationError} when no PATH entry holds it
  */
-export async function executable(name) {
+export async function executable(name: string): Promise<string> {
   const candidates = (process.env
     .PATH
     ?? '').split(delimiter)
@@ -87,21 +84,19 @@ export async function executable(name) {
 
 /**
  Inputs of one package to copy into the build context.
-
- @typedef {{ from: string, to: string, names: readonly string[] }} InputSet
  */
+export type InputSet = { from: string, to: string, names: readonly string[] };
 
 /**
  Copy the named entries of each input set.
 
- @param {{ source: string, context: string }} request - this package's directory and the build context
+ @param request - this package's directory and the build context
  */
 export async function copyInputs({
   source,
   context,
-}) {
-  /** @type {readonly InputSet[]} */
-  const sets = [
+}: { source: string, context: string }): Promise<void> {
+  const sets: readonly InputSet[] = [
     {
       from: '.',
       to: 'package/git-policy/cli.fuzz',

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-/** Build the selected latest-stable Git into the already used Rust verification image. */
+/**
+ Build the selected latest-stable Git into the already used Rust verification image.
+ */
 import { createHash } from 'node:crypto';
 import {
   mkdir,
@@ -21,26 +23,42 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
-makeScratchBase(scratchBase, { recursive: true });
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy'
+);
+makeScratchBase(
+  scratchBase,
+  { recursive: true }
+);
 
 
-/** Spaces of indentation in the evidence files. */
+/**
+ Spaces of indentation in the evidence files.
+ */
 const jsonIndent = 2;
 
-/** Length of a full container ID in hexadecimal digits. */
+/**
+ Length of a full container ID in hexadecimal digits.
+ */
 const containerIdLength = 64;
 
-/** Digits a container ID may hold. */
+/**
+ Digits a container ID may hold.
+ */
 const hexDigits = '0123456789abcdef';
 
 /**
  Whether text is a full container ID.
 
- @param {string} text - text returned by `podman create`
- @returns {boolean} whether it holds exactly the expected number of lowercase hexadecimal digits
+ @param text - text returned by `podman create`
+ 
+ @returns whether it holds exactly the expected number of lowercase hexadecimal digits
  */
-function isContainerId(text) {
+function isContainerId(text: string): boolean {
   const characters = text
     .split('');
   return (characters.length === containerIdLength)
@@ -74,7 +92,9 @@ const contextPath = await mkdtemp(join(
   scratchBase,
   'cli-git-native-image-'
 ));
-/** Removes the build context when the script ends, whether the build passed or failed. */
+/**
+ Removes the build context when the script ends, whether the build passed or failed.
+ */
 await using context = {
   path: contextPath,
   async [Symbol.asyncDispose]() {
@@ -165,7 +185,9 @@ const limits = [
   '--ulimit',
   'nofile=4096:4096'
 ];
-/** Removed with force when the script ends, so even a container with a malformed ID is cleaned up. */
+/**
+ Removed with force when the script ends, so even a container with a malformed ID is cleaned up.
+ */
 await using container = await createContainer({
   args: [
     'create',

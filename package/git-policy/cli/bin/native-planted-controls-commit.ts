@@ -1,3 +1,4 @@
+import type { PlantedControl } from './native-planted-controls.ts';
 /**
  Planted guard removals in replay, capture, commit preparation, the shadow repository, signals, maintenance and pushes.
 
@@ -5,8 +6,7 @@
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
 
-/** @type {readonly import('./native-planted-controls.ts').PlantedControl[]} */
-export const plantedCommitControls = [
+export const plantedCommitControls: readonly PlantedControl[] = [
   {
     name: 'strict reverse check line match guard',
     file: 'src/native/replay_reverse_apply.rs',

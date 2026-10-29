@@ -20,10 +20,6 @@
    `usage_seed`, `usage_scenario` and `usage_git` (set by mise from `--seed`, `--scenario` and `--git`)
    select the seed, the scenario names and the Git versions.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   cp,
   mkdtempDisposable,
@@ -46,34 +42,55 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
-makeScratchBase(scratchBase, { recursive: true });
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy'
+);
+makeScratchBase(
+  scratchBase,
+  { recursive: true }
+);
 
 
-/** Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image. */
+/**
+ Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
+ */
 const imageTag = process.env
   .GIT_POLICY_NATIVE_IMAGE_TAG
   ?? 'development';
-/** Image this script builds and runs. */
+/**
+ Image this script builds and runs.
+ */
 const nativeImage = `localhost/cli-git-concurrent-e2e-native:${imageTag}`;
-/** Tag of the base image; a trial build sets `GIT_POLICY_E2E_BASE_TAG` so it never replaces the shared `latest`. */
+/**
+ Tag of the base image; a trial build sets `GIT_POLICY_E2E_BASE_TAG` so it never replaces the shared `latest`.
+ */
 const baseTag = process.env
   .GIT_POLICY_E2E_BASE_TAG
   ?? 'latest';
-/** Image holding the Git builds, Node and `ssh-keygen`. */
+/**
+ Image holding the Git builds, Node and `ssh-keygen`.
+ */
 const baseImage = `localhost/cli-git-concurrent-e2e:${baseTag}`;
-/** Converts the base image build time from milliseconds to the seconds the log line reports. */
+/**
+ Converts the base image build time from milliseconds to the seconds the log line reports.
+ */
 const MILLISECONDS_PER_SECOND = 1_000;
-/** Compiler image on the same Debian release (bookworm) as the base image's Node image. */
+/**
+ Compiler image on the same Debian release (bookworm) as the base image's Node image.
+ */
 const compilerImage = 'docker.io/library/rust:1.97-bookworm';
 
 /**
  Copy the native crate, its path dependencies and the scanner crates into the build context.
  Copies run concurrently, and every copy settles before this returns or throws.
 
- @param {{ context: string }} request - build context directory receiving the repository-shaped snapshot
+ @param request - build context directory receiving the repository-shaped snapshot
  */
-async function copySnapshot({ context }) {
+async function copySnapshot({ context }: { context: string }) {
   const subject = join(
     context,
     'package/git-policy/cli',
@@ -133,7 +150,9 @@ async function copySnapshot({ context }) {
     );
 }
 
-/** Build the base image (Git builds, Node, `ssh-keygen`) from the end-to-end Containerfile; nothing is copied in. */
+/**
+ Build the base image (Git builds, Node, `ssh-keygen`) from the end-to-end Containerfile; nothing is copied in.
+ */
 async function buildBase() {
   const startedAt = performance.now();
   await runCommand({
@@ -151,7 +170,9 @@ async function buildBase() {
   console.log(`built ${baseImage} in ${String(Math.round((performance.now() - startedAt) / MILLISECONDS_PER_SECOND))} s`);
 }
 
-/** Build the two-stage image: compile the release executable, then link it as `git` into the end-to-end image. */
+/**
+ Build the two-stage image: compile the release executable, then link it as `git` into the end-to-end image.
+ */
 async function buildImage() {
   const base = await runCommand({
     command: 'podman',
@@ -212,7 +233,9 @@ async function buildImage() {
   console.log(`built ${nativeImage}`);
 }
 
-/** Run the suite in the native image under the suite's bounds. */
+/**
+ Run the suite in the native image under the suite's bounds.
+ */
 async function runSuite() {
   await runCommand({
     command: 'podman',

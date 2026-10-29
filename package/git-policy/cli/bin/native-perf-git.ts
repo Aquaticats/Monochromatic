@@ -4,10 +4,6 @@
  Every direct sample and every wrapper child runs the real Git at `/usr/bin/git`; the wrapped run only differs in
  that its PATH lists the scratch `bin` directory, where `git` is a symlink to the release wrapper, first.
  */
-// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
-// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
-// in this file on its own instead of depending on a sibling module that carries the same reference.
-/// <reference types="node" />
 import {
   mkdir,
   writeFile,
@@ -16,26 +12,36 @@ import { join } from 'node:path';
 
 import { runCommand } from './native-verification-process.ts';
 
-/** The real Git every direct sample and every wrapper child runs. */
+/**
+ The real Git every direct sample and every wrapper child runs.
+ */
 const REAL_GIT = '/usr/bin/git';
 
-/** Number of tracked files in a fixture repository, so forwarded commands read a realistic index. */
+/**
+ Number of tracked files in a fixture repository, so forwarded commands read a realistic index.
+ */
 const TRACKED_FILE_COUNT = 30;
 
-/** Nanoseconds in a millisecond, to turn a `process.hrtime.bigint()` difference into milliseconds. */
+/**
+ Nanoseconds in a millisecond, to turn a `process.hrtime.bigint()` difference into milliseconds.
+ */
 const NANOSECONDS_PER_MILLISECOND = 1e6;
 
 /**
  The environment of one sample: identical for the direct and the wrapped run apart from the PATH order.
 
- @param {{ root: string, wrapped: boolean }} request - the scratch root that holds `bin` and `home`,
+ @param request - the scratch root that holds `bin` and `home`,
    and whether the wrapper directory leads the PATH
- @returns {Record<string, string>} the complete environment, so no host variable leaks into a sample
+ 
+ @returns the complete environment, so no host variable leaks into a sample
  */
 function environment({
   root,
   wrapped,
-}) {
+}: {
+  root: string;
+  wrapped: boolean
+}): Record<string, string> {
   return {
     PATH: wrapped
       ? `${join(
@@ -59,9 +65,10 @@ function environment({
 /**
  Run Git once and return the elapsed milliseconds and the exit status.
 
- @param {{ root: string, wrapped: boolean, directory: string, arguments_: readonly string[] }} request -
+ @param request -
    scratch root, whether the wrapper runs, the repository to run in, and the Git arguments
- @returns {Promise<{ elapsed: number, status: number | null, stderr: string }>} wall-clock milliseconds,
+ 
+ @returns wall-clock milliseconds,
    exit status and captured stderr, which the caller records when the status is not zero
  */
 export async function timed({
@@ -69,7 +76,16 @@ export async function timed({
   wrapped,
   directory,
   arguments_,
-}) {
+}: {
+  root: string;
+  wrapped: boolean;
+  directory: string;
+  arguments_: readonly string[]
+}): Promise<{
+  elapsed: number;
+  status: number | null;
+  stderr: string
+}> {
   const program = wrapped
     ? join(
       root,
@@ -103,16 +119,22 @@ export async function timed({
 /**
  Run the real Git for setup and fail loudly.
 
- @param {{ root: string, directory: string, arguments_: readonly string[] }} request -
+ @param request -
    scratch root, the repository to run in, and the Git arguments
- @returns {Promise<void>} resolves once Git exited zero
+ 
+ @returns resolves once Git exited zero
+ 
  @throws {Error} when Git exits nonzero, naming the arguments, the repository and Git's stderr
  */
 async function setup({
   root,
   directory,
   arguments_,
-}) {
+}: {
+  root: string;
+  directory: string;
+  arguments_: readonly string[]
+}): Promise<void> {
   const result = await runCommand({
     command: REAL_GIT,
     args: arguments_,
@@ -132,13 +154,17 @@ async function setup({
 /**
  One repository with thirty tracked files, so the forwarded commands read a realistic index.
 
- @param {{ root: string, name: string }} request - scratch root and the directory name inside it
- @returns {Promise<string>} the repository directory
+ @param request - scratch root and the directory name inside it
+ 
+ @returns the repository directory
  */
 export async function repository({
   root,
   name,
-}) {
+}: {
+  root: string;
+  name: string
+}): Promise<string> {
   const directory = join(
     root,
     name,

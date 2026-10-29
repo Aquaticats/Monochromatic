@@ -1,7 +1,6 @@
 /**
  The per-phase checks of `old-format-fixtures.ts`: the stored incumbent transaction phases.
  */
-/// <reference types="node" />
 import {
   readFile,
   writeFile,
@@ -30,18 +29,24 @@ import {
   runThrough,
   REAL_GIT,
 } from './support.ts';
+import type { createMatrix } from './support.ts';
 
 /**
  A stored phase and whether the incumbent's commit had landed when it died.
- @typedef {{ phase: string, landed: boolean }} StoredPhase
  */
+export type StoredPhase = {
+  phase: string;
+  landed: boolean
+};
 
 /**
  Recorder of the driver's checks.
- @typedef {ReturnType<typeof import('./support.ts').createMatrix>} Matrix
  */
+export type Matrix = ReturnType<typeof createMatrix>;
 
-/** Words, in lower case, that would mean the native wrapper could not read a stored record. */
+/**
+ Words, in lower case, that would mean the native wrapper could not read a stored record.
+ */
 const UNREADABLE_RECORD_WORDS = [
   'malformed',
   'unsupported',
@@ -50,18 +55,23 @@ const UNREADABLE_RECORD_WORDS = [
   'cannot parse',
   'failed to parse',
 ];
-/** Most lost entries a check message names. */
+/**
+ Most lost entries a check message names.
+ */
 const LOST_ENTRIES_SHOWN = 6;
-/** The incumbent leaves exactly one transaction directory in a restorable phase. */
+/**
+ The incumbent leaves exactly one transaction directory in a restorable phase.
+ */
 const EXPECTED_DEAD_TRANSACTIONS = 1;
 
 /**
  Whether a native command's output says it could not read a stored record.
 
- @param {string} output - combined standard output and standard error
- @returns {boolean} true when any telltale word occurs
+ @param output - combined standard output and standard error
+ 
+ @returns true when any telltale word occurs
  */
-function reportsUnreadableRecord(output) {
+function reportsUnreadableRecord(output: string): boolean {
   const lowered = output.toLowerCase();
   return UNREADABLE_RECORD_WORDS.some(function mentioned(word) {
     return lowered.includes(word);
@@ -71,12 +81,15 @@ function reportsUnreadableRecord(output) {
 /**
  Check a phase whose records name identities that a copy cannot reproduce.
 
- @param {{ phase: string, matrix: Matrix }} request - stored phase and the recorder of the driver's checks
+ @param request - stored phase and the recorder of the driver's checks
  */
 export async function checkIdentityBoundPhase({
   phase,
   matrix,
-}) {
+}: {
+  phase: string;
+  matrix: Matrix
+}): Promise<void> {
   const name = `phase-${phase}`;
   const fixture = await restoreFixture(name);
   const base = await realGit({
@@ -170,14 +183,14 @@ export async function checkIdentityBoundPhase({
 /**
  Check a phase the native wrapper must recover completely, then land a follow-up commit.
 
- @param {StoredPhase & { matrix: Matrix }} request - stored phase, whether the incumbent's commit had landed, and the
+ @param request - stored phase, whether the incumbent's commit had landed, and the
    recorder of the driver's checks
  */
 export async function checkRestorablePhase({
   matrix,
   phase,
   landed,
-}) {
+}: StoredPhase & { matrix: Matrix }): Promise<void> {
   const tag = `phase-${phase}`;
   const fixture = await restoreFixture(tag);
   const base = await realGit({
