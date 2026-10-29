@@ -60,8 +60,9 @@ and issue #1799 prefers an existing tool over building a monorepo manager.
 - Every line the tool writes is one JSON object (`schemaVersion`, `sequence`, `type`, `code`, `message`, `hint`),
   matching meow's accepted "Emit every line as a json, error or warning or not." (user, 2026-09-17)
   and the live cli-git event stream (`package/git-policy/cli/src/native/diagnostics.rs:223`).
-  Adopted unasked because the library is meant for meow to embed;
-  open to the user's veto.
+  Adopted because the library is meant for meow to embed,
+  then confirmed 2026-10-29 when the user chose "JSON lines always" over a TTY-dependent text renderer
+  and a text default with a `--json` flag.
 - The TypeScript file-enforcer keeps running until the Rust tool replaces it;
   concurrent edits in `package/file-enforcer/core` belong to other sessions.
 
