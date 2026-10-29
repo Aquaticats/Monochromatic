@@ -217,7 +217,7 @@ async function fanoutChildren(taskName: string): Promise<void> {
   const failures: string[] = [];
   const processes = children.map((name) => spawn(
     process.execPath,
-    [join(REPO_ROOT, 'package', 'dev-script', 'task-cli', 'src', 'run.ts'), `//${packagePath}:${name}`,],
+    [join(REPO_ROOT, 'package', 'monorepo-task', 'cli', 'src', 'run.ts'), `//${packagePath}:${name}`,],
     { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1', }, },
   ),);
   const exits = await Promise.all(processes.map((proc) => once(proc, 'exit',),));

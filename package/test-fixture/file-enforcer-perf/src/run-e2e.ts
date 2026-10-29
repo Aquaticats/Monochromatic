@@ -31,8 +31,8 @@ const CLI = resolve(
   '..',
   '..',
   '..',
-  'dev-script',
   'file-enforcer',
+  'core',
   'src',
   'cli.ts',
 );

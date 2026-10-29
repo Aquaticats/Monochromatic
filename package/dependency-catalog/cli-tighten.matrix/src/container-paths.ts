@@ -28,8 +28,8 @@ export const REPO_DIR = '/repo';
 export const TOOL_ENTRY: string = join(
   REPO_DIR,
   'package',
-  'dev-script',
-  'catalog-tighten',
+  'dependency-catalog',
+  'cli-tighten',
   'src',
   'index.ts',
 );

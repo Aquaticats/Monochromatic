@@ -94,7 +94,7 @@ const runWorkspaceNode = (packagePath, entryName, entryArgs) => {
   execFileSync(process.execPath, [entry, ...entryArgs], { stdio: 'inherit' })
 }
 const runTaskCli = (name, args = []) => {
-  execFileSync(process.execPath, [join(REPO_ROOT, 'package', 'dev-script', 'task-cli', 'src', 'run.ts'), name, ...args], { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1' } })
+  execFileSync(process.execPath, [join(REPO_ROOT, 'package', 'monorepo-task', 'cli', 'src', 'run.ts'), name, ...args], { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1' } })
 }
 const newestMtime = (path) => {
   const stats = statSync(path)
@@ -251,7 +251,7 @@ const fanoutChildren = async (taskName) => {
   const failures = []
   const processes = children.map((name) => spawn(
     process.execPath,
-    [join(REPO_ROOT, 'package', 'dev-script', 'task-cli', 'src', 'run.ts'), '//' + packagePath + ':' + name],
+    [join(REPO_ROOT, 'package', 'monorepo-task', 'cli', 'src', 'run.ts'), '//' + packagePath + ':' + name],
     { stdio: 'inherit', env: { ...process.env, TASK_CLI_CHILD: '1' } },
   ))
   const exits = await Promise.all(processes.map((proc) => once(proc, 'exit')))
