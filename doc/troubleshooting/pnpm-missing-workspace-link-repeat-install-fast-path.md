@@ -543,9 +543,15 @@ The pull request lists two known gaps where a deleted link is still not detected
 a pinned `lockfileDir` or custom virtual-store directory for the current-lockfile fallback,
 and an override that retargets a workspace dependency while the root keeps a link to the declared target.
 The patches in the reproduction repository and the two `.patch` files beside this doc are superseded and were never posted as pull requests.
-Not checked:
-whether a release containing the merge fixes the reproduction (the matrix above predates it),
-and whether the merge reaches the pnpm 11 line (the pull request targets `main`).
+No release contains the merge yet:
+`gh release list --repo pnpm/pnpm` on 2026-10-29 shows the newest as 12.16.1 and 11.28.9,
+both published 2026-10-27,
+two days before the merge,
+so the matrix above still describes every released version.
+The pnpm 11 sources live under `pnpm11/` on `main`,
+and the merged diff changes them directly,
+so the v11 fix is in `main` as well.
+Rerunning the reproduction against a fixed release has to wait until one ships.
 
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
