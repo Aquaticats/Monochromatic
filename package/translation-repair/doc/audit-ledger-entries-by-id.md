@@ -485,6 +485,7 @@ which lists every file of this record.
 - [B1024, why the archive beat a patch that resolved every accepted issue](audit-ledger-the-two-ballot-translate-text.md)
 - [B1025, artifact generation 22 and the cache versions that did not move](audit-ledger-the-two-ballot-translate-text.md)
 - [B1030, Qwen3.8-27B as the late voice on the wide benches and the checker order](audit-ledger-short-benches-and-the-last-live-seat.md)
+- [B1035, scratch-parent.ts that came from main with no unit test and six lint warnings](audit-ledger-source-scans-and-coverage-census.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
