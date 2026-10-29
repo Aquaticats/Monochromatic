@@ -5661,6 +5661,65 @@ Limits:
 - The installed `~/.local/bin/monochromatic-ide` is the build of `8c60a4afb3`, which prints 0.1.1 and has the same IDE sources as the 0.1.2 release.
 - Still unexplained and unchanged: the stalled-launch tall map (36,456 px), and the 403 above.
 
+## After the release: the ported tasks run, a second parser defect, the 403 narrowed, 2026-10-29
+
+Purpose:
+ the owner asked to get to the bottom of everything left open ("Rip and tear, until it is done").
+ The reading taken: dig as deep as needed.
+ Unloading the `amdgpu` kernel driver was not done: it would end the display session and every other session on the host,
+ and no evidence so far points at the driver.
+ If evidence ever does, ask the owner first through `AskUserQuestion`.
+
+Ported IDE tasks run through `task-run` from the main checkout, two at a time in the capped unit `ide-ported-tasks`
+(scratch runner `~/temp/agent/run-ported-tasks.ts`, logs in `~/temp/agent/ported-logs`):
+- Passed with test names in the logs:
+  `test:language` 380 of 380,
+  `test:syntax` 64 of 64,
+  `test` 815 of 815,
+  `test:native` 350 of 350 (72 s),
+  `test:bin` 71 of 71,
+  `inspect:bundle-guards` 8 of 8 cases,
+  `test:nextest-config` (cases 0, 96 and 100 as expected).
+- Passed with exit 0 (their logs print no per-test counts that I read):
+  `lint:rustfmt`, `lint:clippy`, `lint:release`, `lint:slint`, `test:cli`, `test:open`, `test:find`, `test:annotations`,
+  `test:wrap`, `test:minimap`, `test:fonts`, `test:search`, `test:reader-lifecycle`, `test:tree`, `test:ignored`.
+- First run of the ten guard inspections failed in 0 s:
+  they require a disposable cache directory argument and the first call passed none (my call error).
+- Second run, with an argument, still failed: a second defect in the `task-run` usage parser.
+  A required arg is written `arg "<cache>"`; the flag-name pattern `[^\s<]+` cannot match a name that starts with `<`,
+  so the arg was dropped, its value landed in the optional `cargo` variable, and `flag` plus required `arg` tasks threw
+  `unexpected positional arguments`.
+  Positive control before the fix: `cache=unset cargo=/c1 only=/c2`; after: `cache=/c1 cargo=/c2 only=inspect`.
+  Fixed in `0031eb6cc5` (an arg's name is its whole first word).
+- Third run, the eleven guard inspections with existing cache directories under `~/temp/agent/guard-cache`
+  (the directories must exist), is the unit `ide-ported-guards2`, logs in `~/temp/agent/ported-guard-logs`.
+  Result not yet read when this block was written.
+
+The 403 at `gh release create` and at `POST git/refs` (probe branch `probe-403-again`, throwaway):
+- Probe run 40819788177, 14 hours after the first probes, same result per commit:
+  refused `5750e0b9c3`, `eb60defb1d`, `f5e1a3f44c`, `09cd40b077`;
+  accepted `ec2dec4e0d`, `9c94fe63f2`, `5d0fe99296`, `5daf37805d`.
+  So it is deterministic and tied to the commit, not to the time or to a transient outage.
+- Ruled out by measurement:
+  files under `.github` changed against the first parent (refused commits touch none, an accepted merge touches 14),
+  author, committer and signature (all the same address, all `G`),
+  commit date order, and repository rulesets (one ruleset, targeting branches only).
+- Running: probe run 40819931052 tries a tag at each of 400 recent commits of `main`
+  (list in `probe-commits.txt` on the probe branch).
+  Next step: compute features per commit (ancestry, parents, tree contents, size) and find the one that separates the refused set.
+- Delete the probe branch (`git push origin --delete probe-403-again`) and the worktree `~/temp/agent/probe403` after reading the result.
+
+Stalled-launch tall map:
+- The verifier agent (`a7d762ab5939b203e`) was resumed to run at least 150 unlimited sessions on the installed binary,
+  keep every log of a tall session, print the records from the first `left a new width to the tile worker` on,
+  and run 30 stalled sessions as a positive control.
+  Result not yet back when this block was written.
+
+Left after these:
+- Per-process scratch under the shared per-server `/tmp` (two IDE processes on one project share it).
+- Two of 210 press events that logged nothing (0 of 30 later).
+- `mise.toml` and `task.ts` of the IDE and terminal packages are two copies of one task list with nothing keeping them in step.
+
 [scope]: ../decision/slint-ide-0x-scope.md
 [plan]: ../planning/slint-ide-implementation.md
 [theme]: ../troubleshooting/slint-nested-color-scheme-portal.md
