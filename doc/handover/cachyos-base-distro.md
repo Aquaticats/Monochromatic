@@ -140,6 +140,17 @@ Owner follow-ups the same day:
    `p-memoize.ts:620` `ignoreNonConfigurable` unobservable at that call site).
   `25603427ff` exports `CACHE_DISABLED` from `src/index.ts` so a built-artifact test can pin its description
    (allowed by AGENTS.md XPT; the package is private and unpublished); `c9365744bb` rewrote the unreachable fallbacks.
+  p-map final (`84c602b6a7`, unit `pmap-survivors-final3`): killed 279, survived 0, timeout 12, compileError 249,
+   ignored 83, no infrastructure errors; lint 0 errors, `lint:types`, `buildAndTest` and `p-map.fuzz` parity pass.
+  The agent first ran the tool with every directive stripped (`strip-report.json`): 60 survived, 16 timed out.
+  Independent cross-check of the 83 against that run (`verify-final3.ts`, `verify-final3.log` in
+   `~/temp/agent/mutation-survivors/p-map/`): 61 survived or timed out without a directive (7 matched by hand
+   because the report text embeds a directive comment), 22 were killed.
+  The 22 are twins: one operator node yields two replacements in one family (`>` to `>=` and `<=`;
+   forced `true` and `false`), one equivalent and one killed, so no line split can separate them.
+  Removing them needs either a replacement filter on the directive in `mutation-test/cli`
+   or deleting guards (a design change); owner decision asked 2026-10-29.
+  Timeouts (12) are not suppressed: 8 runaway loops, 4 drop-path and spawn-loop conditionals.
 
 ## music-player `run`: zigbuild adopted for now
 
