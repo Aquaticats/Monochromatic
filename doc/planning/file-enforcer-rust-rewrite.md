@@ -168,6 +168,18 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
+## Next action (2026-10-29, after confirmation)
+
+The user confirmed a shared understanding ("Shared understanding"),
+with one addition adopted under the user's open veto:
+mpm-shadow writes a digest of the lock's contents,
+and `lock --check` recomputes it,
+so a hand edit of a resolved version fails the gate.
+The decision record draft is
+[`file-enforcer-rust-rewrite-decision.md`](file-enforcer-rust-rewrite-decision.md);
+it moves to `doc/decision/` only on the user's explicit acceptance (`DRR` in `AGENTS.md`).
+No code before acceptance.
+
 ## Next action (2026-10-29, second review round)
 
 Asked how to close the grilling,
