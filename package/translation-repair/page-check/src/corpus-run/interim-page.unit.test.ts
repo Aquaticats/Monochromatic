@@ -47,6 +47,21 @@ const TARGET_DOC = '## Section one\n\nThe cat sleeps on the sill.\n\n## Section 
 const SETTLED_FIRST = '## Section one\n\nThe cat naps on the sill.\n';
 
 /**
+ What every consolidation record of these cases shares: a consolidated slice no gate was asked about.
+ */
+const UNGATED_RECORD = {
+  terminal: 'consolidated',
+  shipped: {
+    kind: 'consolidated',
+    text: '',
+  },
+  rewrapped: false,
+  demoted: false,
+  verdicts: [],
+  gate: { kind: 'not-asked', },
+} as const;
+
+/**
  Record the consolidation left at a slice, shipping the wording it consolidated.
 
  @param sliceIndex - slice the record answers
@@ -70,16 +85,12 @@ function consolidatedAt(
   },
 ): ArtifactConsolidateSlice {
   return {
+    ...UNGATED_RECORD,
     sliceIndex,
-    terminal: 'consolidated',
     shipped: {
       kind: 'consolidated',
       text,
     },
-    rewrapped: false,
-    demoted: false,
-    verdicts: [],
-    gate: { kind: 'not-asked', },
   };
 }
 

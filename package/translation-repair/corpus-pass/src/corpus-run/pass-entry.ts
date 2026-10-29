@@ -193,7 +193,7 @@ export async function runEntryPipeline(
   const el = sliceTagged({ l: tagged({ tag: entry.id, },), },);
 
   /**
-   What the stages have finished so far, which the `catch` below reads when every provider goes dry in the middle of the
+   What the stages have finished so far, which the entry's `catch` reads when every provider goes dry in the middle of the
    page and the entry ships what it has (`pass-entry-interim.ts`).
    */
   const progress = startEntryProgress();
@@ -587,7 +587,7 @@ export async function runEntryPipeline(
   }
   catch (error) {
     // EVERY PROVIDER DRY IN THE MIDDLE OF THE PAGE ships what the entry has (the owner's answer of 2026-10-29, "Ship
-    // interim, resumable") and leaves the entry open: the tally below still files the stop as it did, no artifact is
+    // interim, resumable") and leaves the entry open: the tally still files the stop as it did, no artifact is
     // written, and a later run repeats the entry and replaces the page.
     await shipInterimOnDryStop({
       error,

@@ -580,7 +580,7 @@ export async function consolidateDocument(
             incumbentStandsIn: incumbentStandsIn || standInShips,
             ...((sheetFacts === undefined) ? {} : { sheetFacts, }),
           },);
-          // HANDED TO THE CALLER THE MOMENT IT EXISTS, since the overlapped map below discards every finished slice when
+          // HANDED TO THE CALLER THE MOMENT IT EXISTS, since the overlapped map discards every finished slice when
           // a later one fails, and an entry stopped dry mid-page ships the slices that did finish.
           onSliceSettled?.(recorded,);
           return recorded;

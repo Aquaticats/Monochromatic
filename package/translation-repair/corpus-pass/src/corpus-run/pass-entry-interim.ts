@@ -3,7 +3,6 @@ import {
   join,
 } from 'node:path';
 
-import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type {
@@ -11,6 +10,7 @@ import type {
   ProjectedLanes,
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
+import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   INTERIM_DIR,
   interimPageDigest,
@@ -243,7 +243,7 @@ export async function shipInterimOnDryStop(
   catch (failure) {
     l.error(
       `entry ${entryId}: every provider went dry and the interim page could not be shipped, so the archive stands `
-        + `(${caughtValueText(failure,)})`,
+        + `(${refusalText({ error: failure, },)})`,
     );
   }
 }
@@ -284,7 +284,7 @@ export async function retireInterimRecord(
     },);
   }
   catch (failure) {
-    l.warn(`entry ${entryId}: settled, and its interim record could not be removed (${caughtValueText(failure,)})`,);
+    l.warn(`entry ${entryId}: settled, and its interim record could not be removed (${refusalText({ error: failure, },)})`,);
   }
 }
 

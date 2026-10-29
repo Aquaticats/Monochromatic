@@ -73,11 +73,11 @@ function slicedProgress(): ReturnType<typeof startEntryProgress> {
  The refusal that ends a run.
  */
 function dryRefusal(): EveryProviderDryError {
-  return new EveryProviderDryError({ measured: 'meters read every provider dry', },);
+  return new EveryProviderDryError({ measured: 'the meters of the interim cases read dry', },);
 }
 
 await describe({
-  name: shipInterimOnDryStop.name,
+  name: 'the interim ship of a stopped entry',
   children: [
     it({
       name: 'SHIPS NOTHING for a stop that is not the every-provider-dry refusal, however far the entry got',
@@ -178,12 +178,7 @@ await describe({
         },),).toBe(true,);
       },
     },),
-  ],
-},);
 
-await describe({
-  name: retireInterimRecord.name,
-  children: [
     it({
       name: 'NAMES A RECORD IT COULD NOT REMOVE in the log and returns, since the artifact already stands',
       fn: async () => {

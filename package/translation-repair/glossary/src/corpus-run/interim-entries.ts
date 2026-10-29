@@ -11,6 +11,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   allInInputOrder,
   isJsonRecord,
+  refusalText,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   contextRoot,
@@ -416,7 +417,7 @@ function parsedRecordText(
       tag: parsedRecordText.name,
       l: root,
     },)
-      .warn(`interim record of ${entryId} is not JSON, so it is read as none (${String(error,)})`,);
+      .warn(`interim record of ${entryId} is not JSON, so it is read as none (${refusalText({ error, },)})`,);
     return false;
   }
 }
