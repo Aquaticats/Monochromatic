@@ -341,10 +341,12 @@ OPT:
 
 OPA:
  `AskUserQuestion`:
- pros + cons in each `description`,
+ question text ranks options with adjacent-pair reasons;
+ each option's `description` and `preview` give pros,
+ cons,
+ and why it ranks there;
  best first,
- "(Recommended)" on top label;
- full ranking with adjacent-pair reasons in surrounding prose.
+ marked "(Recommended)".
 
 QRX:
  Asking for decisions:
