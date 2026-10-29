@@ -972,9 +972,33 @@ Measured for the design:
 - The API now spaces requests 1100 ms apart and retries HTTP 429 after `Retry-After`
    or a doubling 30-second backoff, at most five times.
 
+Cold full verify (2026-10-29, systemd unit `rust-verify-cold`, empty cache):
+ 914 seconds and 187 crates.io API requests for 1388 locked versions of 1024 crates,
+ inside the 25-minute CI step budget.
+It exited 1 with 41 trust findings on versions already in committed lockfiles
+ (the earlier dry runs checked only newly locked versions, and the earlier warm full run stopped at HTTP 429):
+ 22 trust downgrades (mostly a first-time publisher after a known one)
+ and 19 repository changes (organization moves such as `RazrFalcon` to `linebender`,
+ backports published after a newer line such as `heapless@0.7.17` after `0.8.0`,
+ and `http` to `https` for `transpose`).
+By publish age: 38 older than 30 days, 29 older than 180 days, 20 older than 365 days, 11 older than 730 days.
+The list with dates is in `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
+The API-rich cache was restored over the dump-filled one afterwards.
+
+pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustChecks.ts`, 2026-10-29):
+ the trust check runs inside version picking (`pickWithoutTrustDowngrade`), so a frozen-lockfile install never re-checks locked versions;
+ history is ordered by publish date, not semver ("Trust checks are based solely on publish date, not semver");
+ `trustPolicyIgnoreAfter` skips versions published more than that many minutes ago;
+ and a picked version that fails is set aside and the picker retries the next candidate (up to 1000 times)
+ instead of failing the install.
+`rust-catalog-update` does not yet set aside and repick; it restores every lockfile instead.
+The verify scope and an ignore-after value go to the owner.
+
 Remaining:
 
-1.  A cold `task-run rust:verify` from an empty cache (running at the time of writing):
+1.  A cold `task-run rust:verify` from an empty cache: done (results in this section);
+     the restore below is done too.
+    Record kept:
      systemd unit `rust-verify-cold`, log `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
     The API-rich cache it replaced is in `${HOME}/temp/agent/rust-catalog/cache-before-cold-run/`;
      after the run, copy those files back over `.cache/rust-catalog-update/crates-io/` (API histories carry more fields).
