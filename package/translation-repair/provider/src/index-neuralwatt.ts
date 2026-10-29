@@ -122,7 +122,6 @@ export {
 } from './neuralwatt-reach.ts';
 export {
   NEURALWATT_RETURN_MARGIN_MS,
-  NEURALWATT_RETURN_WAIT_BOUND_MS,
   type NeuralWattCause,
   neuralWattDrynessOf,
   type NeuralWattDryness,

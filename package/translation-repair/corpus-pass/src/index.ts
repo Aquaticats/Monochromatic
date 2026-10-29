@@ -31,7 +31,6 @@ export { runPassQueue, } from './corpus-run/corpus-pass-queue.ts';
 export {
   createPassDryStop,
   type PassDryStop,
-  recordOnPark,
 } from './corpus-run/pass-dry-stop.ts';
 export { runCorpusPassOver, } from './corpus-run/corpus-pass-run.ts';
 export {
@@ -56,7 +55,6 @@ export {
   contestHooksFor,
 } from './corpus-run/pass-contest-reseat.ts';
 export { runPassContest, } from './corpus-run/pass-contest.ts';
-export { withEntryBound, } from './corpus-run/pass-entry-bound.ts';
 export {
   persistSettledEntry,
   printSettledLines,

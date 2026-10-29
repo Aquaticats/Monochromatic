@@ -84,13 +84,12 @@ export type CorpusPassInput = {
   readonly transport: ModelTransport;
 
   /**
-   Builds the one client the run asks models through, given where its prompt payloads are kept and how much the pass has
-   left, which bounds the seat reader's wait for NeuralWatt's return.
+   Builds the one client the run asks models through, given where its prompt payloads are kept and the longest hold a
+   stated wait may set.
    */
   readonly newClient: (input: {
     readonly promptPayloadDir: string;
     readonly maxHoldMs: number;
-    readonly passLeftMs: () => number;
   },) => RunClient;
 
   /**

@@ -4,7 +4,7 @@
 
  THE OWNER'S ANSWER OF 2026-10-29 is "Never wait, relaunch": "Stop at once and relaunch later." The refusals here come
  from the real budgets over stub meters and a stub wall clock, with NeuralWatt's spent day starting again 301 s later
- (past the 300 s a router call used to wait, inside what the pass had left), so the gate and the queue meet exactly
+ (past the 300 s a router call used to wait, with an hour left in the pass), so the gate and the queue meet exactly
  what a run meets. The stop line still states the time of day in UTC, so the operator knows when to relaunch.
 
  Fixtures are cat-themed invention. No corpus content appears here.
@@ -78,6 +78,7 @@ function clientOverSpentNeuralWatt(): ModelClient {
       }),
       dayAnchor: () => ({ known: true, msOfDay: DAY_START_MS_OF_DAY, }),
     },
+    now: () => 1_000,
     wallNow: () => new Date(Date.UTC(
       2_026,
       9,
@@ -157,13 +158,7 @@ await describe({
         + 'from its day start, with an hour left in the pass, trips the gate on the first refusal and the stop note '
         + 'names the time of day in UTC',
       fn: async () => {
-        const dryStop = createPassDryStop({
-          passLeftMs: () => 3_600_000,
-          now: () => 1_000,
-          waitMs: async function noWait(): Promise<void> {
-            await Promise.resolve();
-          },
-        },);
+        const dryStop = createPassDryStop();
         const client = dryStop.guard({ client: clientOverSpentNeuralWatt(), },);
         const refusal = await dryCallOf({ client, signal: dryStop.signal, },);
         expect(refusal,).toBeInstanceOf(EveryProviderDryError,);
@@ -181,13 +176,7 @@ await describe({
         resetRunSpend();
         using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
         await using scratch = await scratchDir({ prefix: 'pass-never-parks-', },);
-        const dryStop = createPassDryStop({
-          passLeftMs: () => 3_600_000,
-          now: () => 1_000,
-          waitMs: async function noWait(): Promise<void> {
-            await Promise.resolve();
-          },
-        },);
+        const dryStop = createPassDryStop();
         const client = dryStop.guard({ client: clientOverSpentNeuralWatt(), },);
         /**
          Entries attempted.

@@ -13,11 +13,9 @@ import { isIsoStampText, } from '@monochromatic-dev/translation-repair-markup/ts
 import type { XiaomiSpend, } from './xiaomi-spend.ts';
 import { modelDarkReason, } from './model-dark-reason.ts';
 import {
-  namedDrynessOf,
   type NeuralWattReturn,
   openingClauseOf,
   returnClauseOf,
-  returnTimeOf,
 } from './neuralwatt-return-words.ts';
 import type { NeuralWattDryness, } from './neuralwatt-return-hold.ts';
 
@@ -289,16 +287,9 @@ export class EveryProviderDryError extends Error {
    @param idle - providers that read wet but serve no seat that writes, which the refusal names in place of an
    exhaustion they do not have; none where every provider reads dry
 
-   @param neuralwattDryness - why NeuralWatt reads dry as the reading found it, so the refusal states only that cause;
-   absent where the caller knows none
-
-   @param neuralwattReturnsInMs - milliseconds until NeuralWatt's day starts again, set WHILE THE RETURN
-   STILL LIES AHEAD, whether or not the call waited out another hold first: the pass reads it to park until the return
-   instead of ending the run, and a return that has passed (the account lagging) names none
-
-   @param neuralwattReadAtMs - instant of the reading that named the return, on the monotonic clock, given by a
-   caller that makes the refusal some time before it reaches the pass (the seat reader), so a park counts its wait from
-   the read; absent for the router's own refusal, which names the distance as it is raised
+   @param neuralwattDryness - why NeuralWatt reads dry as the reading found it, so the refusal states only that cause
+   and, for a spent day, the time of day it starts again for the operator to relaunch by (nothing waits for it, the
+   owner's answer of 2026-10-29, "Never wait, relaunch"); absent where the caller knows none
 
    @param afterWaiting - whether the call waited for a hold before this refusal
 
@@ -313,26 +304,19 @@ export class EveryProviderDryError extends Error {
       neuralwatt = { kind: 'unanchored', },
       idle = [],
       neuralwattDryness,
-      neuralwattReturnsInMs,
-      neuralwattReadAtMs,
       afterWaiting = false,
     }: {
       readonly measured?: string;
       readonly neuralwatt?: NeuralWattReturn;
       readonly idle?: readonly ProviderName[];
       readonly neuralwattDryness?: NeuralWattDryness;
-      readonly neuralwattReturnsInMs?: number;
-      readonly neuralwattReadAtMs?: number;
       readonly afterWaiting?: boolean;
     } = {},
   ) {
     /**
      Why NeuralWatt reads dry, as the refusal states it.
      */
-    const named = namedDrynessOf({
-      ...((neuralwattDryness === undefined) ? {} : { neuralwattDryness, }),
-      ...((neuralwattReturnsInMs === undefined) ? {} : { neuralwattReturnsInMs, }),
-    },);
+    const named = (neuralwattDryness === undefined) ? {} : { dryness: neuralwattDryness, };
     super(
       `Every provider is out of budget at once: ${
         openingClauseOf({
@@ -362,43 +346,12 @@ export class EveryProviderDryError extends Error {
     this.name = 'EveryProviderDryError';
     if (neuralwattDryness !== undefined)
       this.neuralwattDryness = neuralwattDryness;
-    if (neuralwattReadAtMs !== undefined)
-      this.neuralwattReadAtMs = neuralwattReadAtMs;
-    if (neuralwattReturnsInMs !== undefined) {
-      this.neuralwattReturnsInMs = neuralwattReturnsInMs;
-      /**
-       The time of day the return falls at, for the line that parks the pass.
-       */
-      const { text, } = returnTimeOf({
-        day: neuralwatt,
-        ...named,
-      },);
-      if (text !== undefined)
-        this.neuralwattReturnsAt = text;
-    }
   }
 
   /**
    Why NeuralWatt read dry in the reading the refusal was made on, absent where the caller named none.
    */
   readonly neuralwattDryness?: NeuralWattDryness;
-
-  /**
-   Milliseconds until NeuralWatt's spent day starts again, margin included, present while the return still lies ahead,
-   whether or not the call waited out another hold: the pass parks for it when it has the time.
-   */
-  readonly neuralwattReturnsInMs?: number;
-
-  /**
-   The time of day the return falls at, with its zone, present with the distance.
-   */
-  readonly neuralwattReturnsAt?: string;
-
-  /**
-   The instant of the reading that named the return, on the monotonic clock, present where the seat reader made the
-   refusal.
-   */
-  readonly neuralwattReadAtMs?: number;
 }
 
 /**

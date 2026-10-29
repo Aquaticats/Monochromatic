@@ -47,18 +47,6 @@ function neverStopped(): boolean {
 }
 
 /**
- Takes no wait before an attempt, for a caller whose run never pauses.
-
- @example
- ```ts
- await noWait();
- ```
- */
-async function noWait(): Promise<void> {
-  await Promise.resolve();
-}
-
-/**
  Runs every pending entry once, then re-runs the ones that earned it.
 
  RE-ATTEMPTS GO TO THE BACK. Coverage of the corpus is what a first attempt
@@ -83,14 +71,6 @@ async function noWait(): Promise<void> {
  Never stops the loop on its own; `stopBeforeNext` does that. Absent, the run
  never stops during an attempt
 
- @param beforeNext - awaited before each attempt and before the stop check, so a pause the caller takes (a pass parked
- until NeuralWatt's energy returns) ends before the budget is asked whether the run goes on. Absent, no pause
-
- @param interrupted - asked after each attempt; true means a pause cut the attempt short, so the entry goes back to the
- front of the queue with no verdict, no REATTEMPT, STALLED or INCOMPLETE line, and the attempt that follows the pause
- starts further along; when the run then ends before that attempt, a NOT RESUMED line names the entry. Absent, no
- attempt is cut by a pause
-
  @param attemptOf - number of the entry's latest attempt, as the caller counts and persists it (the pass's attempts
  file), asked after each attempt and when a NOT RESUMED line is printed; every line this queue prints for an entry
  carries it as `attempt=`, so a REATTEMPT, STALLED, INCOMPLETE or NOT RESUMED line names the attempt it belongs to and
@@ -114,8 +94,6 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     attemptOf,
     wallClock = wallClockNow,
     runHasStopped = neverStopped,
-    beforeNext = noWait,
-    interrupted = neverStopped,
   }: {
     readonly pending: readonly EntryT[];
     readonly cachedCountFor: (args: { readonly entry: EntryT; },) => Promise<number>;
@@ -124,19 +102,12 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
     readonly attemptOf: (args: { readonly entry: EntryT; },) => number;
     readonly wallClock?: () => Date;
     readonly runHasStopped?: () => boolean;
-    readonly beforeNext?: () => Promise<void>;
-    readonly interrupted?: () => boolean;
   },
 ): Promise<void> {
   /**
    Attempts still to make, growing at the back as entries earn another.
    */
   const queue: EntryT[] = [...pending,];
-
-  /**
-   Entries a pause cut short and that have not been attempted since, which a stop must say were not resumed.
-   */
-  const cutShort = new Set<string>();
 
   /**
    The clock time and attempt a line about this entry carries, read when the line is printed.
@@ -163,18 +134,8 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
      */
     const entry = nonNullishOrThrow(queue.shift(),);
 
-    /* oxlint-disable no-await-in-loop -- a pause the caller takes between attempts, before the budget is asked */
-    await beforeNext();
-    /* oxlint-enable no-await-in-loop */
-    if (stopBeforeNext()) {
-      if (cutShort.has(entry.id,)) {
-        console.log(
-          `NOT RESUMED ${entry.id} ${stampOf({ entry, },)}: a pause cut its attempt short and the pass ended after the `
-            + 'pause, so it was not attempted again in this invocation and stays resumable',
-        );
-      }
+    if (stopBeforeNext())
       return;
-    }
 
     /* oxlint-disable no-await-in-loop -- one cheap read per attempt, against an attempt that may run seven hours */
     /**
@@ -189,14 +150,6 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
      */
     const outcome = await attempt({ entry, },);
     /* oxlint-enable no-await-in-loop */
-
-    // AN ATTEMPT A PAUSE CUT SHORT EARNS NO VERDICT: the entry goes back to the front, to start again after the pause.
-    if (interrupted()) {
-      cutShort.add(entry.id,);
-      queue.unshift(entry,);
-      continue;
-    }
-    cutShort.delete(entry.id,);
 
     /* oxlint-disable no-await-in-loop -- pairs with the read bracketing the other side of this attempt */
     /**

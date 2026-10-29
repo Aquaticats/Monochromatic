@@ -522,7 +522,7 @@ await describe({
     },),
 
     it({
-      name: 'SAYS NO NEURALWATT RETURN ONLY WHEN NEURALWATT IS DRY WITH NONE INSIDE WHAT THE PASS HAS LEFT: with '
+      name: 'SAYS NEURALWATT\'S DAY RETURN IS NOT WAITED FOR ONLY WHEN NEURALWATT IS DRY WITH NO HOLD: with '
         + 'NeuralWatt wet the clause is absent, and with NeuralWatt dry and no hold on it the clause '
         + 'follows the skipped holds',
       fn: async (ctx) => {
@@ -539,9 +539,9 @@ await describe({
           },);
           return noWaitWarningOf({ lines, },);
         }
-        expect(await warningOver({ view: LATE_ONE_SHORT, },),).not.toContain('no NeuralWatt return',);
+        expect(await warningOver({ view: LATE_ONE_SHORT, },),).not.toContain('NeuralWatt\'s day return',);
         expect(await warningOver({ view: { ...LATE_ONE_SHORT, neuralwatt: true, }, },),).toContain(
-          '; no NeuralWatt return inside what the pass has left,',
+          '; NeuralWatt\'s day return is not waited for,',
         );
       },
     },),

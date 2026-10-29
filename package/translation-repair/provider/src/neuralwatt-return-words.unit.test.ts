@@ -12,7 +12,6 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   keyUnblockTextOf,
-  namedDrynessOf,
   openingClauseOf,
   returnClauseOf,
   returnTimeOf,
@@ -60,27 +59,6 @@ await describe({
               returnTimeOf({ day: DECIDED_DAY, },),
               returnTimeOf({ day: { kind: 'unanchored', }, },),
             ],).toEqual([{ text: '07:30:00 UTC', }, { text: '19:15:08 UTC', }, {},],);
-          },
-        },),
-      ],
-    },),
-
-    describe({
-      name: namedDrynessOf.name,
-      concurrency: 1,
-      children: [
-        it({
-          name: 'PREFERS THE CAUSE THE CALLER NAMED, reads a bare distance as a spent day, and names none otherwise',
-          fn: async () => {
-            expect([
-              namedDrynessOf({ neuralwattDryness: { kind: 'reserved', }, neuralwattReturnsInMs: 5, },),
-              namedDrynessOf({ neuralwattReturnsInMs: 301_000, },),
-              namedDrynessOf({},),
-            ],).toEqual([
-              { dryness: { kind: 'reserved', }, },
-              { dryness: { kind: 'spent-day', dayStart: '', returnsInMs: 301_000, }, },
-              {},
-            ],);
           },
         },),
       ],

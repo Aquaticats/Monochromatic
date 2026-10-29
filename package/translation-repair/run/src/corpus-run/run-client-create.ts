@@ -39,7 +39,6 @@ export function runClientFrom(
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly promptPayloadDir?: string;
-    readonly passLeftMs?: () => number;
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
@@ -71,7 +70,6 @@ export function createRunClient(
   options: {
     readonly promptPayloadDir?: string;
     readonly maxHoldMs: number;
-    readonly passLeftMs?: () => number;
   },
 ): RunClient {
   return createRunClientWithFloors({

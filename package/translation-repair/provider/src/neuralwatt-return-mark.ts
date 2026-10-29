@@ -4,13 +4,14 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
-import { returnFitsWithin, } from './neuralwatt-return-fit.ts';
 import type { NeuralWattDryness, } from './neuralwatt-return-hold.ts';
 
 //region NeuralWatt return mark
 // WHY NEURALWATT READS DRY AND WHEN A SPENT DAY STARTS AGAIN, on the budget layer's monotonic clock, kept beside the
 // cached meter reading that named them. A reading replaces the mark, so a return never outlives the reading that named
-// it, and past it the budget layer reads the meters again whatever the reading's age (`provider-budget.ts`).
+// it, and past it the budget layer reads the meters again whatever the reading's age (`provider-budget.ts`). The mark
+// WAITS FOR NOTHING (the owner's answer of 2026-10-29, "Never wait, relaunch"): it counts the distance down for the
+// refusal that states it, and tells the budget layer when its cached dry reading is stale.
 
 /**
  Logger root for the return mark.
@@ -86,7 +87,8 @@ export type NeuralWattReturnMark = {
   readonly dryness: () => NeuralWattDryness;
 
   /**
-   Whether the day has started again since the reading that named the return.
+   Whether the day has started again since the reading that named the return, so the budget layer reads the meters
+   again whatever the age of the cached reading.
    */
   readonly passed: () => boolean;
 
@@ -94,16 +96,6 @@ export type NeuralWattReturnMark = {
    Milliseconds left until the day starts again, zero where no return is named or it has passed.
    */
   readonly leftMs: () => number;
-
-  /**
-   Milliseconds left until the day starts again, or zero where the return lies past what a caller waits for.
-
-   THE DISTANCE IS COMPARED WITH ITS MARGIN INCLUDED (`returnFitsWithin`), the way the refusal states it and the pass's
-   park counts it, so a return exactly at the bound is waited for and one within the margin past it is not.
-
-   @param boundMs - longest return the caller waits for
-   */
-  readonly leftWithinMs: (args: { readonly boundMs: number; },) => number;
 };
 
 /**
@@ -234,17 +226,6 @@ export function createNeuralWattReturnMark(
     passed,
 
     leftMs,
-
-    leftWithinMs: function leftWithinMs({ boundMs, },): number {
-      /**
-       Milliseconds until the day starts again, margin included.
-       */
-      const left = leftMs();
-      return returnFitsWithin({
-        returnsInMs: left,
-        boundMs,
-      },) ? left : 0;
-    },
   };
 }
 

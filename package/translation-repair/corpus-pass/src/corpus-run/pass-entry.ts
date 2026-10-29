@@ -11,7 +11,6 @@ import {
   type CorpusPair,
   entryArchiveOriginalOf,
   type EntryOutcome,
-  type ParkAnswer,
   recordEntryDecline,
   settledTallyLine,
   tallyCaughtEntry,
@@ -110,9 +109,6 @@ import {
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
 
- @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
- failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
-
  @param floorLimited - what earlier attempts of this pass left for this entry's translate slices that ended unfilled
  on a select bench below its floor
 
@@ -147,7 +143,6 @@ export async function runEntryPipeline(
     visualEvidenceReader,
     stageSettings,
     endRun,
-    parked,
     floorLimited,
     attempt,
     wallClock = wallClockNow,
@@ -171,7 +166,6 @@ export async function runEntryPipeline(
     readonly visualEvidenceReader?: PassVisualEvidenceReader;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
     readonly floorLimited?: FloorLimitedMemory;
   },
 ): Promise<EntryOutcome> {
@@ -563,7 +557,6 @@ export async function runEntryPipeline(
       aborted: deadline.callSignal
         .aborted,
       ...((endRun === undefined) ? {} : { endRun, }),
-      ...((parked === undefined) ? {} : { parked, }),
     },);
   }
 }

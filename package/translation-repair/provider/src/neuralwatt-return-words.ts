@@ -105,42 +105,6 @@ export function keyUnblockTextOf({ until, }: { readonly until: string; },): stri
 }
 
 /**
- The cause the refusal states: the one the caller named, else a spent day when the caller named only its distance.
-
- @param neuralwattDryness - why NeuralWatt reads dry, where the caller knows
-
- @param neuralwattReturnsInMs - milliseconds until a spent day starts again, where the caller counted them
-
- @returns Cause as `dryness`, absent where the caller named neither
-
- @example
- ```ts
- namedDrynessOf({ neuralwattReturnsInMs: 301_000, },); // => { dryness: { kind: 'spent-day', ... } }
- ```
- */
-export function namedDrynessOf(
-  {
-    neuralwattDryness,
-    neuralwattReturnsInMs,
-  }: {
-    readonly neuralwattDryness?: NeuralWattDryness;
-    readonly neuralwattReturnsInMs?: number;
-  },
-): { readonly dryness?: NeuralWattDryness; } {
-  if (neuralwattDryness !== undefined)
-    return { dryness: neuralwattDryness, };
-  if (neuralwattReturnsInMs === undefined)
-    return {};
-  return {
-    dryness: {
-      kind: 'spent-day',
-      dayStart: '',
-      returnsInMs: neuralwattReturnsInMs,
-    },
-  };
-}
-
-/**
  The opening clause about NeuralWatt, which says only what the run knows of it: why it reads dry when the caller knows,
  else spent when a day start is decided, refused until one is learned when none is, and absent when NeuralWatt is off
  and so has no energy to be out of.
