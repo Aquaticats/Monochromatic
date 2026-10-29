@@ -266,7 +266,7 @@ export function fetchedOf({ parsed, }: { readonly parsed: unknown; },): FetchedR
 
  @param init - request the transport is given, its signal the caller's
 
- @returns The endpoint's answer
+ @returns Endpoint's answer
 
  @throws The transport's rejection unchanged when the caller's signal aborted
 
@@ -320,14 +320,14 @@ async function sendContentsRequest(
  unchanged: its message quotes the text it refused, so the log names its class
  alone (ledger B166). An abort passes on unchanged too.
 
- @param response - the endpoint's answer, status already checked
+ @param response - endpoint's answer, status already checked
 
- @param signal - the call's abort
+ @param signal - call's abort
 
  @param headers - headers the request carried, which name the credentials
  the body must not repeat
 
- @returns The parsed body
+ @returns Parsed body
 
  @throws The caller's abort, or a parse failure, unchanged
 
@@ -372,7 +372,7 @@ async function readContentsBody(
 
  @param url - page to read
 
- @param signal - the call's abort
+ @param signal - call's abort
 
  @param fetchFn - transport, `fetch` in production and a stub in tests
 

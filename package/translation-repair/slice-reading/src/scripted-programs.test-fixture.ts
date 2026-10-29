@@ -60,7 +60,7 @@ export type ProgramRun = {
 
  @param args - arguments as they were given
 
- @returns The joined line
+ @returns Joined line
 
  @example
  ```ts
@@ -152,7 +152,7 @@ export function programExitFailure(
  to its last argument, which is where both `dwebp source -o target` and
  `magick source target` name their input and their output.
 
- @param args - the decoder's arguments, input first and output last
+ @param args - decoder's arguments, input first and output last
 
  @throws Whatever reading the input or writing the output raises, which the
  code under test meets as a decoder that failed
@@ -175,7 +175,7 @@ export async function copyingDecoder({ args, }: ProgramRun,): Promise<void> {
  stem` names its input and its output. With {@link copyingDecoder} before
  it, the words a case hands in as a picture's bytes are the words read back.
 
- @param args - the reader's arguments, picture first and output stem second
+ @param args - reader's arguments, picture first and output stem second
 
  @throws Whatever reading the picture or writing the text raises, which the
  code under test meets as a reader that failed
@@ -227,7 +227,7 @@ export function missingProgram(run: ProgramRun,): Promise<void> {
 
  @param stderr - what it writes to standard error before it does
 
- @returns The stand-in, which rejects with {@link programExitFailure}'s error
+ @returns Stand-in, which rejects with {@link programExitFailure}'s error
 
  @example
  ```ts
@@ -259,7 +259,7 @@ export function failingProgram(
 
  @param garbage - bytes it leaves where the decoded picture should be
 
- @returns The stand-in, which rejects with {@link programExitFailure}'s error
+ @returns Stand-in, which rejects with {@link programExitFailure}'s error
  once the garbage is written
 
  @example
@@ -293,7 +293,7 @@ export function damagingDecoder({ garbage, }: { readonly garbage: Uint8Array; },
  recorded and then rejected, so a run no case scripted shows in `runs`
  whatever the code under test makes of the rejection
 
- @returns The runner, and every run it was asked for, in order
+ @returns Runner, and every run it was asked for, in order
 
  @example
  ```ts

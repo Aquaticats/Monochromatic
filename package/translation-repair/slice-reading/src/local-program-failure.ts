@@ -34,7 +34,7 @@ const CODE_MOST_UNITS = 32;
  Whether a value is a system error code: a short upper-case word such as
  `ENOSPC` or `EACCES`, which carries no path and no output.
 
- @param value - the `code` a rejection carries
+ @param value - `code` a rejection carries
 
  @returns Whether it is two to 32 capital letters, digits and underscores, led by a capital letter
 
@@ -94,7 +94,7 @@ export type LocalProgramFailure = {
 
  @param error - caught value, of unknown type by construction
 
- @returns The failure's kind with the code or exit code it carries
+ @returns Failure's kind with the code or exit code it carries
 
  @example
  ```ts
@@ -145,7 +145,7 @@ export class LocalProgramFailedError extends Error {
 
    @param failure - how it failed, read off the rejection by `localProgramFailureOf`
 
-   @param cause - the rejection, kept for a reader who owns the process
+   @param cause - rejection, kept for a reader who owns the process
 
    @example
    ```ts
@@ -184,7 +184,7 @@ export class LocalProgramFailedError extends Error {
 
  @param error - caught value, of unknown type by construction
 
- @returns The sentence, or `refused by <class>` with ` with code <code>` where one is carried
+ @returns Sentence, or `refused by <class>` with ` with code <code>` where one is carried
 
  @example
  ```ts

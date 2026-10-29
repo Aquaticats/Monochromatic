@@ -44,7 +44,7 @@ export type LabelledReading = {
 
  @param settled - how each reader's exchange ended, in roster order
 
- @param readerModelIds - the roster the exchanges were asked of, in the same order
+ @param readerModelIds - roster the exchanges were asked of, in the same order
 
  @param assetName - picture being read, for the lines
 

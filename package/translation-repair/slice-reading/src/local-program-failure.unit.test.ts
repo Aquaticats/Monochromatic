@@ -24,7 +24,7 @@ import {
 
  @param code - value of the `code` property, or nothing for none
 
- @returns The rejection
+ @returns Rejection
 
  @example
  ```ts

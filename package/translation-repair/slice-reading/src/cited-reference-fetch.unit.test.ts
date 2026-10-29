@@ -247,7 +247,7 @@ await describe({
             /**
              Transport answering 200 and then failing mid-body.
 
-             @returns A 200 whose body stream errors
+             @returns 200 whose body stream errors
              */
             async function cutBody(): Promise<Response> {
               return bodyCutBy({ failure: cut, },);
@@ -279,7 +279,7 @@ await describe({
             /**
              Transport answering with one page that repeats the key the request carried.
 
-             @returns A 200 whose page echoes the key twice
+             @returns 200 whose page echoes the key twice
              */
             async function echoing(): Promise<Response> {
               return Response.json({

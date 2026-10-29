@@ -175,7 +175,7 @@ function keepingLogger({ said, }: { readonly said: string[]; },): Logger {
  @param client - scripted client
  @param l - logger
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts

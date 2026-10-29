@@ -17,11 +17,11 @@ type SpanRange = readonly [
 /**
  Builds the pairs over some spans of a translation.
 
- @param targetText - the translation the spans are cut from
+ @param targetText - translation the spans are cut from
 
  @param spans - where each span starts and ends in the translation, in document order
 
- @param firstIndex - the index of the first pair; the next pairs follow it; zero by default
+ @param firstIndex - index of the first pair; the next pairs follow it; zero by default
 
  @returns One pair for each span, whose two sides read the span from the translation, so offsets and text cannot disagree
 
