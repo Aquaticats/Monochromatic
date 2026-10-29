@@ -190,7 +190,7 @@ await describe({
       fn: async () => {
         expect(reports({
           lines: settlementLines({ patchedText: KEEPS_EVERY_NAME, resolved: false, },),
-          state: 'unchanged, the archive won',
+          state: 'unchanged, the archive won (the patch lost on regressions: it made an accepted issue worse)',
         },),).toBe(true,);
       },
     },),
