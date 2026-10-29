@@ -3189,3 +3189,15 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   rather than silently delete code that becomes dead. No code was removed for this decision; the shim still passes a
   traditional hook through `git hook run` as a side effect. Open: remove the `core.hooksPath` handling (S3 snapshot, plan
   recording, `-c core.hooksPath` override) once the user wants the code to follow the decision.
+
+## Queued at 2026-10-29: remove core.hooksPath handling and warn on traditional hooks
+
+- The user decided (after the unsupported-hooks docs) that the `core.hooksPath` handling is removed, and that the wrapper
+  warns whenever it detects traditional hooks (executable non-`.sample` files in `<git-common-dir>/hooks`, or any configured
+  `core.hooksPath`). Not started: it overlaps the hooks-and-config agent (aac40a929f1822d77), which edits
+  `hook_dispatch_plan.rs` and the config snapshot. Do it after that branch merges. The agent was told and asked to list
+  where the handling lives.
+- Design to settle with the code in view: the dispatcher shim currently runs `git hook run` with `core.hooksPath=<original>`
+  to avoid recursing into its own entries. After removal the inner run needs an empty directory instead, so only
+  config-based hooks run; `post-commit` in the real worktree needs the same override. The warning is non-blocking and
+  needs a rendering path that is not a blocking `CoreFinding` (those block).
