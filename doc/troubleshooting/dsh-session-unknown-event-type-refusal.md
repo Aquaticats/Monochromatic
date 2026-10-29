@@ -176,7 +176,8 @@ Raw-log catalog,
    refused with the verbatim symptom message.
    A scan of all 264 stored logs found exactly this one log with an unknown-type offender.
 2. Working patterns (same scan):
-   259 of 264 logs validate cleanly,
+   263 of 264 logs validate cleanly beside it,
+   264 of 264 after the repair,
    including live logs of the same workspace,
    which shows the refusal tracks the offending event and not the store,
    the workspace,
@@ -261,22 +262,39 @@ Raw-log catalog,
    not a fault;
    the human holding the terminal confirms the banner is gone by reopening the session.
 
-## Adjacent refusals not covered here
+## Adjacent false alarm (corrected on 2026-10-29)
 
-A full-store scan on 2026-10-29 found five more logs the persistence read path refuses,
- all with a different error class
- (`SessionPersistenceCorruptionError`):
- `stored session "..." failed validation: Error: session event "user/message" sourceEventSeqs
- must densely contain non-negative safe integers`.
- Affected sessions:
- `session-19191ea7-dd70-4791-8a04-5351044f12b3`,
- `session-466cd7a6-75a0-4348-b412-8c1f2cba24b0`,
- `session-4781b58c-63fd-430f-94ec-472c10d056d1`,
- `session-4eeb1d3e-87ca-41fb-b5b7-5c73bca5d6cb`,
- and `session-ad883975-19fe-43db-a3d2-71c4024a8e26` (live at scan time).
- Separate incident,
- undiagnosed;
- do not treat the envelope repair in this doc as a remedy for it.
+A first full-store scan reported five further refusals
+ (`stored session "..." failed validation: Error: session event "user/message"
+ sourceEventSeqs must densely contain non-negative safe integers`).
+ That reading was wrong;
+ it is recorded so the next investigator does not re-derive it.
+
+ `validateStoredEvents` takes DECODED events
+ (`@deepseek-ai/dsh-session-persistence@0.2.1-rc.4/lib/index.js:176`,
+ "exclusively owned decoded events").
+ JSONL storage range-encodes `sourceEventSeqs` on write
+ (`encodeSourceEventRanges`,
+ `dsh-session-persistence-jsonl@0.2.1-rc.4/lib/worker.cjs:10179`)
+ and expands it on read
+ (`decodeSeqRanges(record["sourceEventSeqs"], seq)`,
+ `worker.cjs:10159`;
+ the in-memory decoder is `decodeSeqRanges` at
+ `@deepseek-ai/dsh-session@0.2.1-rc.4/lib/index.js:1003`).
+ Feeding raw storage records to the validator misreads the pair
+ `[[10,14]]` as a nested value and reports the density message.
+
+ Those five logs cite their sources through the third-party `dsh-rewind` plugin
+ (`~/.dsh/profiles/web/node_modules/dsh-rewind-plugin/lib/index.js:2615`,
+ `sourceEventSeqs: [...plan.shadowedSeqs]`),
+ whose consecutive runs the codec compresses into inclusive pairs.
+ The write path verifies after decoding
+ (`verifyCurrentGeneration`),
+ which is why those writes succeeded.
+ With the decode step restored the whole store validates:
+ 264 of 264 logs clean on 2026-10-29,
+ while the pre-repair backup of the advisor log still refuses,
+ so the probe can still show the real defect.
 
 ## Upstream filing decision
 
