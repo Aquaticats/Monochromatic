@@ -12,7 +12,7 @@ using podman containers or directly on the host.
 import { matrix, } from '@monochromatic-dev/test-harness-core-matrix';
 
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
 },);
 ```
@@ -44,7 +44,7 @@ so concurrency is safe without additional coordination.
    array of OS specifications with protocol prefix.
   - `container:`:
      podman container (e.g. `'container:ubuntu'`,
-     `'container:fedora'`)
+     `'container:cachyos'`)
   - `host:`:
      run directly on the host,
      no container (e.g. `'host:'`)
@@ -96,7 +96,7 @@ For large matrices,
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora', 'container:alpine',],
+  os: ['container:cachyos', 'container:ubuntu', 'container:alpine',],
   user: ['root', 'user',],
   runtime: ['bun', 'deno', 'node',],
   concurrency: 8,
@@ -114,7 +114,7 @@ Handles prerequisite installation,
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['bun',],
 },);
@@ -125,7 +125,7 @@ select the `node` runtime:
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['node',],
 },);
@@ -195,7 +195,7 @@ Container and host entries can coexist in the same matrix:
 
 ```ts
 await matrix({
-  os: ['host:', 'container:ubuntu', 'container:fedora',],
+  os: ['host:', 'container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
   runtime: ['bun',],
   exclude: [
@@ -250,10 +250,14 @@ and keep the other distros to test portability.
 
 ```ts
 await matrix({
-  os: ['container:cachyos', 'container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
 },);
 ```
+
+Fedora was dropped from the repository's own matrices on 2026-10-29 (its package mirrors were too slow to test against).
+The `fedora` and other `dnf` distro mappings stay,
+so an explicit `'container:fedora'` still resolves to `fedora:latest` and `dnf`.
 
 The package picks no default `os`:
 the option is required,
@@ -359,8 +363,8 @@ so a host whose loader wrongly reports v4 would build and run the v4 image and f
 
 ### Container combinations
 
-1. Detect package manager from distro name (fedora becomes dnf)
-2. `podman run --rm -v ${monorepoRoot}:/workspace:Z fedora:latest sh -c "..."`
+1. Detect package manager from distro name (cachyos becomes pacman)
+2. `podman run --rm -v ${monorepoRoot}:/workspace:Z ubuntu:latest sh -c "..."`
 3. Inside the container:
    - Install prerequisites (curl,
       unzip,
@@ -415,7 +419,7 @@ After:
 import { matrix, } from '@monochromatic-dev/test-harness-core-matrix';
 
 await matrix({
-  os: ['container:ubuntu', 'container:fedora',],
+  os: ['container:cachyos', 'container:ubuntu',],
   user: ['root', 'user',],
 },);
 ```
@@ -426,7 +430,7 @@ await matrix({
 
 ```ts
 await matrix({
-  os: ['container:ubuntu', 'container:fedora', 'container:alpine',],
+  os: ['container:cachyos', 'container:ubuntu', 'container:alpine',],
   user: ['root', 'user',],
   exclude: [
     { os: 'container:alpine', user: 'user', },

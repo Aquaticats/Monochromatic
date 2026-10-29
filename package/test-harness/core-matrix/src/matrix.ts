@@ -307,7 +307,7 @@ const DEFAULT_CONCURRENCY = 4;
  @example
  ```ts
  await matrix({
-   os: ['container:ubuntu', 'container:fedora'],
+   os: ['container:cachyos', 'container:ubuntu'],
    user: ['root', 'user'],
  });
  ```

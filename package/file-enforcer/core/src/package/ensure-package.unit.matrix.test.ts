@@ -4,7 +4,6 @@
  
  Test matrix (managed by the matrix runner):
  - ubuntu:latest (apt) as root and user
- - fedora:latest (dnf) as root and user
  - cachyos:latest (pacman) as root and user
  
  Package shapes tested:
