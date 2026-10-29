@@ -7,6 +7,8 @@
  calls run at once,
  results collect in input order,
  `pMapSkip` drops a result,
+ `pMapStop` ends the iteration,
+ `pMapSettled`, `pMapKeyed`, and `pMapSettledKeyed` cover `Promise.allSettled()` and the keyed forms,
  `stopOnError` picks first-failure versus `AggregateError`,
  the abort
  `signal` rejects with its reason,
@@ -37,10 +39,12 @@ export {
   InvalidBackpressureError,
   InvalidConcurrencyError,
   InvalidInputError,
+  InvalidKeyedInputError,
   MapperRequiredError,
 } from './errors.ts';
 
 export {
+  type MapControl,
   type MapInput,
   type Mapper,
 } from './mapper.ts';
@@ -50,11 +54,28 @@ export { type SourceIterator, } from './map-iterator.ts';
 export {
   type IterableMapOptions,
   type MapOptions,
+  type SettledMapOptions,
 } from './map-options.ts';
+
+export {
+  type KeyedInput,
+  type KeyedKey,
+  type KeyedMapper,
+  type KeyedMapperFunction,
+  type KeyedMapRun,
+  type KeyedNewValue,
+  type KeyedResult,
+  type KeyedValue,
+  pMapKeyed,
+  pMapSettledKeyed,
+  type SettledKeyedMapRun,
+} from './p-map-keyed.ts';
 
 export {
   type MapRun,
   pMap,
+  pMapSettled,
+  type SettledMapRun,
 } from './p-map.ts';
 
 export {
@@ -63,3 +84,5 @@ export {
 } from './p-map-iterable.ts';
 
 export { pMapSkip, } from './p-map-skip.ts';
+
+export { pMapStop, } from './p-map-stop.ts';

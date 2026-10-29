@@ -188,6 +188,15 @@ pub fn extract(
     let mut output: Vec<VirtualSource> = Vec::new();
     while let Some(work) = pending.pop() {
         let parent: &Arc<Mapping> = &work.mapping;
+        if parent.language == ProcessorLanguage::Yaml {
+            // A workflow's steps become virtual shell files; they are never extracted again.
+            for mapping in crate::processors_workflow::steps(parent)? {
+                output.push(VirtualSource {
+                    mapping: Arc::new(mapping),
+                });
+            }
+            continue;
+        }
         if parent.language == ProcessorLanguage::Rust {
             let children: Vec<Mapping> = crate::processors_docs::docs(parent)?;
             let mut next: Vec<Pending> = Vec::new();

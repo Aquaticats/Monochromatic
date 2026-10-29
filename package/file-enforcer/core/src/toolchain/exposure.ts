@@ -2,20 +2,25 @@
  Exposure directory rebuild, tool environment exports, and postinstall links.
  */
 
+import { mkdirSync, } from 'node:fs';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import {
+  delimiter,
   dirname,
   isAbsolute,
   join,
 } from 'node:path';
-import { atomicSymlink, } from './exec.ts';
+import {
+  atomicSymlink,
+  run,
+} from './exec.ts';
+import { pathExists, } from './fs-probe.ts';
 import { findToolBin, } from './layout.ts';
 import type {
   PathEnv,
@@ -43,10 +48,22 @@ export type ExposureReport = {
  Rebuilds the per-worktree exposure directory:
  one symlink per declared binary name, created atomically (temporary name
  plus rename). Alias names link the same target as their primary.
- 
- @param options - Paths, environment, plan entries and extra bin directories
- 
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment the bin search resolves manager homes from
+
+ @param entries - Plan entries whose declared bins get links
+
+ @param extraDirs - Extra bin directories staged tools contribute
+
  @returns Which declared names linked and which are missing
+
+ @example
+ ```ts
+ const report = rebuildExposure({ paths, env: process.env, entries: ALL_TOOLS, },);
+ report.missing; // []
+ ```
  */
 export function rebuildExposure(
   {
@@ -58,7 +75,7 @@ export function rebuildExposure(
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
     readonly entries: readonly ToolPlanEntry[];
-    readonly extraDirs?: readonly string[] | undefined;
+    readonly extraDirs?: readonly string[];
   },
 ): ExposureReport {
   mkdirSync(
@@ -124,12 +141,20 @@ export function rebuildExposure(
  (`ANDROID_HOME`, `ANDROID_SDK_ROOT`, `JAVA_HOME`, `RUSTUP_TOOLCHAIN`).
  Values the plan records as toolchain-root relative paths are resolved to
  absolute machine paths here; literal values pass through.
- 
- @param options - Paths, plan entries and environment
- 
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param entries - Plan entries whose `env` blocks are merged
+
  @returns The environment record written
+
+ @example
+ ```ts
+ const env = await writeToolEnvFile({ paths, entries: ALL_TOOLS, },);
+ env.JAVA_HOME; // '/.../jdk/25'
+ ```
  */
-export function writeToolEnvFile(
+export async function writeToolEnvFile(
   {
     paths,
     entries,
@@ -137,7 +162,7 @@ export function writeToolEnvFile(
     readonly paths: ToolchainPaths;
     readonly entries: readonly ToolPlanEntry[];
   },
-): Readonly<Record<string, string>> {
+): Promise<Readonly<Record<string, string>>> {
   /**
    Environment record assembled from every entry's `env` block.
    */
@@ -152,7 +177,7 @@ export function writeToolEnvFile(
         : value;
     }
   }
-  mkdirSync(
+  await mkdir(
     dirname(paths.envFile,),
     { recursive: true },
   );
@@ -162,7 +187,7 @@ export function writeToolEnvFile(
   const temp = `${paths.envFile}.${
     process.pid
   }.tmp`;
-  writeFileSync(
+  await writeFile(
     temp,
     `${
       JSON.stringify(
@@ -173,7 +198,7 @@ export function writeToolEnvFile(
     }\n`,
     'utf8',
   );
-  renameSync(
+  await rename(
     temp,
     paths.envFile,
   );
@@ -187,10 +212,21 @@ export function writeToolEnvFile(
 /**
  Runs the plan's postinstall link steps
  (the `cli-git-bin` pattern: atomic temporary name plus rename).
- 
- @param options - Paths, plan entries and environment
- 
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param entries - Plan entries whose postinstall steps run
+
+ @param env - Environment the bin search resolves manager homes from
+
+ @param extraDirs - Extra bin directories staged tools contribute
+
  @returns Names of the links created
+
+ @example
+ ```ts
+ runPostinstallLinks({ paths, entries: ALL_TOOLS, env: process.env, },); // ['git']
+ ```
  */
 export function runPostinstallLinks(
   {
@@ -202,7 +238,7 @@ export function runPostinstallLinks(
     readonly paths: ToolchainPaths;
     readonly entries: readonly ToolPlanEntry[];
     readonly env: PathEnv;
-    readonly extraDirs?: readonly string[] | undefined;
+    readonly extraDirs?: readonly string[];
   },
 ): readonly string[] {
   /**
@@ -213,8 +249,8 @@ export function runPostinstallLinks(
     /**
      Postinstall link step of this entry, if any.
      */
-    const {postinstall} = entry.options;
-    if (postinstall === undefined)
+    const { postinstall, } = entry.options;
+    if ((postinstall === undefined) || (!('link' in postinstall)))
       continue;
     /**
      Absolute source binary behind the step's `sourceBin`.
@@ -261,18 +297,126 @@ export function runPostinstallLinks(
   return created;
 }
 
+/**
+ Runs the plan's postinstall command steps, after the exposure directory is
+ rebuilt: the command starts from the worktree root with the exposure
+ directory and the toolchain bin directory first on `PATH`, so a tool that
+ links other tools (`search-shadow link`) finds the locked ones.
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param entries - Plan entries whose postinstall steps run
+
+ @param env - Environment the command inherits and the bin search resolves manager homes from
+
+ @param extraDirs - Extra bin directories staged tools contribute
+
+ @returns Ids of the entries whose command exited with status zero, and for each other entry its command line with the output
+
+ @example
+ ```ts
+ await runPostinstallCommands({ paths, entries: ALL_TOOLS, env: process.env, },);
+ // { succeeded: ['cargo:monochromatic-search-shadow'], failed: {} }
+ ```
+ */
+export async function runPostinstallCommands(
+  {
+    paths,
+    entries,
+    env,
+    extraDirs,
+  }: {
+    readonly paths: ToolchainPaths;
+    readonly entries: readonly ToolPlanEntry[];
+    readonly env: PathEnv;
+    readonly extraDirs?: readonly string[];
+  },
+): Promise<{
+  readonly succeeded: readonly string[];
+  readonly failed: Readonly<Record<string, string>>;
+}> {
+  /**
+   Entry ids whose command succeeded.
+   */
+  const succeeded: string[] = [];
+  /**
+   Entry ids to the failing command line and its output.
+   */
+  const failed: Record<string, string> = {};
+  /**
+   `PATH` of the command: exposure directory, toolchain bin directory, then the inherited entries.
+   */
+  const commandPath = [
+    paths.exposureDir,
+    paths.toolchainBinDir,
+    ...(env.PATH === undefined ? [] : [env.PATH,]),
+  ].join(delimiter,);
+  /**
+   Environment of the command, without the undefined values `PathEnv` allows.
+   */
+  const commandEnv: Record<string, string> = { PATH: commandPath, };
+  for (const [name, text,] of Object.entries(env,)) {
+    if ((text !== undefined) && (name !== 'PATH'))
+      commandEnv[name] = text;
+  }
+  for (const entry of entries) {
+    /**
+     Postinstall step of this entry, if any.
+     */
+    const { postinstall, } = entry.options;
+    if ((postinstall === undefined) || (!('run' in postinstall)))
+      continue;
+    /**
+     Absolute bin behind the step's `sourceBin`.
+     */
+    const target = findToolBin({
+      entry,
+      name: postinstall.run.sourceBin,
+      paths,
+      env,
+      extraDirs,
+    },);
+    if (target === null)
+      continue;
+    // oxlint-disable-next-line no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time
+    const result = await run({
+      command: target,
+      args: postinstall.run.args,
+      env: commandEnv,
+      cwd: paths.worktreeRoot,
+    },);
+    if (result.code !== 0) {
+      failed[entry.id] = `postinstall command failed with exit code ${String(result.code,)}: `
+        + `${target} ${postinstall.run.args.join(' ',)}\n${result.stdout}${result.stderr}`;
+      continue;
+    }
+    succeeded.push(entry.id,);
+  }
+  return {
+    succeeded,
+    failed,
+  };
+}
+
 //endregion Postinstall
 
 //region Verification
 
 /**
  Verifies every declared `bins` entry resolves through the exposure directory.
- 
- @param options - Paths and plan entries
- 
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param entries - Plan entries whose declared bins are checked
+
  @returns Declared names that do not resolve
+
+ @example
+ ```ts
+ await unresolvableBins({ paths, entries: ALL_TOOLS, },); // []
+ ```
  */
-export function unresolvableBins(
+export async function unresolvableBins(
   {
     paths,
     entries,
@@ -280,51 +424,103 @@ export function unresolvableBins(
     readonly paths: ToolchainPaths;
     readonly entries: readonly ToolPlanEntry[];
   },
-): readonly string[] {
+): Promise<readonly string[]> {
   /**
-   Names that do not resolve.
+   Declared names across every entry, in plan order.
    */
-  const missing: string[] = [];
-  for (const entry of entries) {
-    for (const name of entry.bins) {
-      if (!existsSync(join(
+  const names = entries.flatMap(
+    function declaredNames(entry,): readonly string[] {
+      return entry.bins;
+    },
+  );
+  /**
+   Whether each declared name resolves, in the same order as `names`.
+   */
+  const resolves = await Promise.all(names.map(
+    function nameResolves(name,): Promise<boolean> {
+      return pathExists(join(
         paths.exposureDir,
         name,
-      ),))
-        missing.push(name,);
-    }
-  }
-  return missing;
+      ),);
+    },
+  ),);
+  return names.filter(
+    function isUnresolved(
+      _name,
+      index,
+    ): boolean {
+      return resolves[index] !== true;
+    },
+  );
 }
 
 //endregion Verification
 
 /**
- Reads a generated `.cache/toolchain.env.json` back.
- 
- @param paths - Resolved toolchain paths
- 
- @returns The recorded environment, or `null` when the file is absent
+ Whether a parsed JSON value is an object whose values are all strings.
+
+ @param value - Parsed JSON value to test
+
+ @returns `true` when every property value is a string
  */
-export function readToolEnvFile(
-  paths: ToolchainPaths,
-): Readonly<Record<string, string>> | null {
-  if (!existsSync(paths.envFile,))
-    return null;
-  return JSON.parse(readFileSync(
-    paths.envFile,
-    'utf8',
-  ),) as Readonly<Record<string, string>>;
+function isStringRecord(
+  value: unknown,
+): value is Readonly<Record<string, string>> {
+  return ((typeof value) === 'object')
+    && (value !== null)
+    && (!Array.isArray(value,))
+    && Object.values(value,)
+      .every(
+      function isString(propertyValue: unknown,): boolean {
+        return (typeof propertyValue) === 'string';
+      },
+      );
 }
 
 /**
- Removes the per-worktree exposure directory contents (used by tests and
- rebuilds). The directory itself is kept.
- 
- @param paths - Resolved toolchain paths
+ Reads a generated `.cache/toolchain.env.json` back.
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @returns The recorded environment; empty when the file is absent
+
+ @throws TypeError when the file exists but is not an object of string values
+
+ @example
+ ```ts
+ const env = await readToolEnvFile(paths,);
+ ```
  */
-export function clearExposure(paths: ToolchainPaths,): void {
-  rmSync(
+export async function readToolEnvFile(
+  paths: ToolchainPaths,
+): Promise<Readonly<Record<string, string>>> {
+  if (!(await pathExists(paths.envFile,)))
+    return {};
+  /**
+   Parsed file content.
+   */
+  const parsed: unknown = JSON.parse(await readFile(
+    paths.envFile,
+    'utf8',
+  ),);
+  if (!isStringRecord(parsed,))
+    throw new TypeError(`${paths.envFile} is not an object of string values`,);
+  return parsed;
+}
+
+/**
+ Removes the per-worktree exposure directory with its contents (used by tests and
+ rebuilds); the next rebuild recreates it.
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @example
+ ```ts
+ await clearExposure(paths,);
+ ```
+ */
+export async function clearExposure(paths: ToolchainPaths,): Promise<void> {
+  await rm(
     paths.exposureDir,
     {
       recursive: true,

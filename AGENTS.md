@@ -567,6 +567,15 @@ ATH:
  then `chmod 700`
  (trust checks reject group/other bits).
 
+XTD:
+ Never use `/tmp` for scratch,
+ fixtures,
+ or caches:
+ which device backs it is unknowable (tmpfs,
+ quota,
+ slow disk).
+Use `${HOME}/temp/agent` or the build directory.
+
 CLN:
  Investigating package source:
  `gh repo clone <repo> "${HOME}/temp/agent/<name>-<date>" -- --depth 1`,
@@ -1123,10 +1132,12 @@ PP8:
 PPX:
  Class members default to `#private`.
 
-#### Regular expressions
+#### Unbounded input
 
 RG2:
- Code replacing a regex makes one linear pass (O(n) time,
+ Code consuming unbounded input
+ (regex replacement included)
+ makes one linear pass (O(n) time,
  O(1) stack),
  proven O(n) for unbounded input.
 

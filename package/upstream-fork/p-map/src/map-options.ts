@@ -53,6 +53,18 @@ export type MapOptions = {
 };
 
 /**
+ Options for the settled map, mirroring upstream `p-map`'s
+ `SettledOptions`: those of {@link MapOptions} except `stopOnError`, as the
+ settled maps never reject for an error from the mapper.
+
+ @example
+ ```ts
+ const options: SettledMapOptions = { concurrency: 2, };
+ ```
+ */
+export type SettledMapOptions = Omit<MapOptions, 'stopOnError'>;
+
+/**
  Options for the streaming map, mirroring upstream `p-map`'s
  `IterableOptions`.
  
@@ -80,6 +92,16 @@ export type IterableMapOptions = {
    @defaultValue concurrency
    */
   readonly backpressure?: number;
+  /**
+   Whether to yield the results in input order. When `false`, each result is
+   yielded as soon as it is ready, a slow element no longer holds back the
+   results after it, and a mapper error is thrown as soon as it happens
+   instead of after the results before it. The `index` passed to the mapper
+   is still the position in the input.
+
+   @defaultValue true
+   */
+  readonly preserveOrder?: boolean;
 };
 
 /**
@@ -119,6 +141,7 @@ export type ResolvedMapOptions = {
  const resolved: ResolvedIterableMapOptions = {
    concurrency: 1,
    backpressure: 1,
+   preserveOrder: true,
  };
  ```
  */
@@ -133,6 +156,10 @@ export type ResolvedIterableMapOptions = {
    mapper call after the concurrency check, in upstream's order.
    */
   readonly backpressure: number;
+  /**
+   Whether results are yielded in input order, defaulting to `true`.
+   */
+  readonly preserveOrder: boolean;
 };
 
 //endregion Types
@@ -359,7 +386,8 @@ export function resolveMapOptions(options: MapOptions = {},): ResolvedMapOptions
  
  @param options - Caller-supplied options or `undefined` for the defaults.
  
- @returns Options with `concurrency` and `backpressure` filled in.
+ @returns Options with `concurrency`, `backpressure`, and `preserveOrder`
+ filled in.
  
  @throws TypeError when `options` is a non-object, non-`undefined` value
  that cannot be destructured, matching upstream `p-map`.
@@ -367,7 +395,7 @@ export function resolveMapOptions(options: MapOptions = {},): ResolvedMapOptions
  @example
  ```ts
  resolveIterableMapOptions({ concurrency: 2, },);
- // => { concurrency: 2, backpressure: 2 }
+ // => { concurrency: 2, backpressure: 2, preserveOrder: true }
  ```
  */
 export function resolveIterableMapOptions(options: IterableMapOptions = {},): ResolvedIterableMapOptions {
@@ -378,11 +406,13 @@ export function resolveIterableMapOptions(options: IterableMapOptions = {},): Re
   const {
     concurrency = Number.POSITIVE_INFINITY,
     backpressure = concurrency,
+    preserveOrder = true,
   } = options;
 
   return {
     concurrency,
     backpressure,
+    preserveOrder,
   };
 }
 

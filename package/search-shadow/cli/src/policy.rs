@@ -13,7 +13,12 @@
 //! export function refusalFor(input: Invocation): string | undefined { ... }
 //! ```
 
+/// Imports `PathBuf`, the owned path type, for the working directory and home of an invocation.
+use std::path::PathBuf;
+
 use crate::constants::ALLOW_WIDE_VARIABLE;
+use crate::policy_find::find_refusal;
+use crate::policy_grep::grep_refusal;
 
 /// What:     `const WIDE_LONG_FLAGS: &[&str] = &[...]` is a private constant list of ripgrep's long flags that widen a
 ///           walk to hidden or ignored files. `&[&str]` is a borrowed read-only list of string slices (siblings:
@@ -297,17 +302,17 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
     };
 }
 
-/// What:     `pub fn refusal_for(...) -> Option<String>` declares a public function returning `Some(message)` when the
+/// What:     `pub fn rg_refusal(...) -> Option<String>` declares a public function returning `Some(message)` when the
 ///           invocation must be refused and `None` when it may run. `String` is the owned text type (sibling `&str` is
 ///           the borrowed view).
-/// Why:      The shadow calls it before launching anything. `String` and not `&str` because the message is built here
-///           and outlives this function.
+/// Why:      `refusal_for` calls it for `rg`. `String` and not `&str` because the message is built here and outlives
+///           this function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function refusalFor(name, args, allowWide, inRepositoryRoot, stdinHasData, workingDirectory): string | undefined
+/// export function rgRefusal(name, args, allowWide, inRepositoryRoot, stdinHasData, workingDirectory): string | undefined
 /// ```
-pub fn refusal_for(
+pub fn rg_refusal(
     name: &str,
     arguments: &[String],
     allow_wide: bool,
@@ -371,4 +376,73 @@ pub fn refusal_for(
     // return message;
     // ```
     return Some(message);
+}
+
+/// What:     `pub struct Invocation { ... }` declares a record holding everything a policy may look at. Every field is OWNED
+///           (`String`, `Vec<String>`, `PathBuf`) and not borrowed (`&str`, `&[String]`, `&Path`).
+/// Why:      One value to pass instead of a long list of arguments. Owned fields mean no lifetime annotations, which have no
+///           TypeScript analogue; copying a few short texts costs nothing next to the search that follows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Invocation = { name: string; args: string[]; allowWide: boolean; stdinHasData: boolean; workingDirectory: string; home: string };
+/// ```
+pub struct Invocation {
+    /// The tool name the binary was started under (`rg`, `grep`, `find`, ...).
+    pub name: String,
+    /// The tool's arguments as lossy text.
+    pub arguments: Vec<String>,
+    /// Whether the escape-hatch variable is set to `1`.
+    pub allow_wide: bool,
+    /// Whether standard input is a pipe, file or socket (so a search may read it and walk nothing).
+    pub stdin_has_data: bool,
+    /// The directory the tool will run in.
+    pub working_directory: PathBuf,
+    /// The user's home directory.
+    pub home: PathBuf,
+}
+
+/// What:     `pub fn refusal_for(invocation: &Invocation) -> Option<String>` declares the public entry the shim calls.
+///           `&Invocation` lends the record without giving it away.
+/// Why:      It picks the policy by tool name: `rg`, the `grep` family, or `find` and its clone `bfs`. Every other shadowed
+///           tool is only slowed down.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function refusalFor(invocation: Invocation): string | undefined { ... }
+/// ```
+pub fn refusal_for(invocation: &Invocation) -> Option<String> {
+    let name: &str = invocation.name.as_str();
+
+    if name == "rg" {
+        let in_repository_root: bool = invocation.working_directory.join(".git").exists();
+        let directory_text: String = invocation.working_directory.to_string_lossy().to_string();
+        return rg_refusal(
+            name,
+            &invocation.arguments,
+            invocation.allow_wide,
+            in_repository_root,
+            invocation.stdin_has_data,
+            &directory_text,
+        );
+    }
+    if name == "grep" || name == "egrep" || name == "fgrep" {
+        return grep_refusal(
+            name,
+            &invocation.arguments,
+            invocation.allow_wide,
+            &invocation.working_directory,
+            &invocation.home,
+        );
+    }
+    if name == "find" || name == "bfs" {
+        return find_refusal(
+            name,
+            &invocation.arguments,
+            invocation.allow_wide,
+            &invocation.working_directory,
+            &invocation.home,
+        );
+    }
+    return None;
 }

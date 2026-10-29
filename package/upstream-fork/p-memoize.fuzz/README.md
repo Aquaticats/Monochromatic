@@ -47,9 +47,11 @@ messages,
  and in-flight sharing of a synchronous throw,
  are compared
 directly as well.
- The workloads reach only the behaviors the generator covers:
- the 9.0.0 changes listed in the fork README under
-"9.0.0 changes not yet ported" lie outside them.
+ The workloads reach what the generator covers;
+ the fork's own unit tests pin the rest of the 9.0.0 behavior
+(re-entrant calls,
+ failing cache methods,
+ decorator stand-down).
 
 ### Running
 

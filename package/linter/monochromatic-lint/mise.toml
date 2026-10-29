@@ -42,6 +42,10 @@ run = "cargo fetch --locked"
 description = "Regenerate the owning Cargo lockfile without fetching dependencies"
 run = "cargo generate-lockfile --offline"
 
+[tasks."lock:version"]
+description = "Refresh only this crate's own lockfile entry after a version bump, without re-resolving any dependency"
+run = "cargo update --offline --package monochromatic-lint"
+
 [tasks."lint:container"]
 description = "Run Clippy against the tested source snapshot with a read-only bounded compiler"
 depends = ["test:container"]

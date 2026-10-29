@@ -15,9 +15,9 @@
 //! function scan(text: string, fish: boolean): Hit[];
 //! ```
 
-/// Import the hit record,
-///  the GitHub expression skipper and the construct names.
+/// Import the construct names.
 use crate::shell_dialect::Construct;
+/// Import the hit record and the GitHub expression skipper.
 use crate::shell_scan::{Hit, expression_end};
 
 /// A here-document whose body starts on the line after the command line.
@@ -173,9 +173,10 @@ impl Scan<'_> {
                 if position >= self.bytes.len() {
                     break;
                 }
-                let line_end: usize = self.text[position..]
-                    .find('\n')
-                    .map_or(self.bytes.len(), |found| position + found);
+                let line_end: usize = match self.text[position..].find('\n') {
+                    Some(found) => position + found,
+                    None => self.bytes.len(),
+                };
                 let line: &str = self.text[position..line_end].trim_end_matches('\r');
                 let compared: &str = if heredoc.strip_tabs {
                     line.trim_start_matches('\t')

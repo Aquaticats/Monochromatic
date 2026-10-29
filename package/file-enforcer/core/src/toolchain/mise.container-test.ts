@@ -17,18 +17,15 @@
  ```
  */
 
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
   type Combination,
   type UserContext,
 } from '@monochromatic-dev/test-harness-core-matrix/ts';
-import spawn from 'nano-spawn';
 import {
+  healReadableDirs,
   MAX_CAPTURED_OUTPUT_BYTES,
   PODMAN_BOUNDS,
   runContainerCell,
@@ -77,36 +74,22 @@ const CELLS: readonly {
 
 //region Run
 
-/**
- Directories the matrix test reads inside the container.
- */
-const READ_DIRS: readonly string[] = [
-  'package/module',
-  'package/file-enforcer/core/src/toolchain',
-];
-
-// Rootless podman shows the mounted worktree as container-root-owned, so the
-// non-root cell can only read world-readable files. Agent tooling in this
-// worktree creates sources with mode 600; heal readability (read and traverse
-// bits only, never content) for the directories the test reads.
-for (const dir of READ_DIRS) {
-  await spawn(
-    'chmod',
-    [
-      '-R',
-      'a+rX',
-      join(
-        MONOREPO_ROOT,
-        dir
-      ),
-    ],
-  );
-}
+// The non-root cell reads only world-readable files: heal this package's
+// toolchain sources and every workspace package it reaches.
+await healReadableDirs({
+  monorepoRoot: MONOREPO_ROOT,
+  packageDir: resolve(
+    import.meta.dirname,
+    '..',
+    '..',
+  ),
+  ownDirs: ['package/file-enforcer/core/src/toolchain',],
+},);
 
 /**
- Number of cells that failed.
+ Labels of the cells that failed.
  */
-let failures = 0;
+const failedCells: string[] = [];
 
 for (const cell of CELLS) {
   /**
@@ -145,6 +128,7 @@ for (const cell of CELLS) {
   /**
    Bounded cell run: capped capture, capped wall clock, capped container.
    */
+  // oxlint-disable-next-line no-await-in-loop -- one cell at a time bounds the host load (AGENTS.md RXI)
   const result = await runContainerCell({
     image,
     command,
@@ -157,7 +141,7 @@ for (const cell of CELLS) {
     }\n`,);
     continue;
   }
-  failures += 1;
+  failedCells.push(`${cell.os} user=${cell.user}`,);
   console.error(
     `[toolchain-matrix] ${cell.os} user=${cell.user} failed (exit ${
       String(result.code,)
@@ -175,15 +159,15 @@ for (const cell of CELLS) {
 
 process.stdout
   .write(
-  failures === 0
+  failedCells.length === 0
     ? `[toolchain-matrix] ${
       CELLS.length
     } cells passed\n`
-    : `[toolchain-matrix] ${failures} of ${
+    : `[toolchain-matrix] ${failedCells.length} of ${
       CELLS.length
     } cells failed\n`,
   );
-if (failures > 0)
+if (failedCells.length > 0)
   process.exitCode = 1;
 
 //endregion Run

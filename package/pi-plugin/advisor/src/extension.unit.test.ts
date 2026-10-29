@@ -42,8 +42,8 @@ const ADVISOR_OUTPUT_TOKENS = 32;
 /** Fixture max output tokens. */
 const MAX_TOKENS = 100;
 
-/** Advertised output capacity below Advisor requirement. */
-const INSUFFICIENT_MAX_TOKENS = ADVISOR_OUTPUT_TOKENS - 1;
+/** Advertised output capacity below the request budget, so requests clamp. */
+const CAPACITY_LIMITED_MAX_TOKENS = ADVISOR_OUTPUT_TOKENS - 1;
 
 /** Fixture model used by registration status helpers. */
 const fixtureModel: Model<'faux'> = {
@@ -64,13 +64,13 @@ const fixtureModel: Model<'faux'> = {
   maxTokens: MAX_TOKENS,
 };
 
-/** Scoped fixture excluded by Advisor output requirement. */
-const insufficientOutputFixtureModel: Model<'faux'> = {
+/** Scoped fixture advertising less output capacity than the request budget. */
+const capacityLimitedFixtureModel: Model<'faux'> = {
   ...fixtureModel,
   id: 'limited-reviewer',
   name: 'Limited Reviewer',
   provider: 'limited-provider',
-  maxTokens: INSUFFICIENT_MAX_TOKENS,
+  maxTokens: CAPACITY_LIMITED_MAX_TOKENS,
 };
 
 /** Expensive current-main fixture used by default-avoidance tests. */
@@ -175,20 +175,20 @@ function extensionContextWithCurrentMainModel(): ExtensionContext {
 }
 
 /**
- Build a minimal extension context containing one output-ineligible model.
- 
+ Build a minimal extension context containing one capacity-limited model.
+
  @returns extension context mock
  */
-function extensionContextWithInsufficientOutputModel(): ExtensionContext {
+function extensionContextWithCapacityLimitedModel(): ExtensionContext {
   return {
     cwd: '/repo',
     modelRegistry: modelRegistryWith([
       fixtureModel,
-      insufficientOutputFixtureModel,
+      capacityLimitedFixtureModel,
     ],),
     scopedModels: [
       fixtureModel,
-      insufficientOutputFixtureModel,
+      capacityLimitedFixtureModel,
     ],
   } as unknown as ExtensionContext;
 }
@@ -212,12 +212,12 @@ function commandContextWithCurrentMainModel(): ExtensionCommandContext {
 }
 
 /**
- Build a command context containing one output-ineligible model.
- 
+ Build a command context containing one capacity-limited model.
+
  @returns command context mock
  */
-function commandContextWithInsufficientOutputModel(): ExtensionCommandContext {
-  return extensionContextWithInsufficientOutputModel() as unknown as ExtensionCommandContext;
+function commandContextWithCapacityLimitedModel(): ExtensionCommandContext {
+  return extensionContextWithCapacityLimitedModel() as unknown as ExtensionCommandContext;
 }
 
 /**
@@ -470,14 +470,15 @@ await describe({
       },
     },),
     it({
-      name: 'omits output-ineligible model from allowed slugs',
+      name: 'lists every scoped model in allowed slugs',
       fn: async () => {
         const guidance = await buildMainModelGuidance({
-          ctx: extensionContextWithInsufficientOutputModel(),
+          ctx: extensionContextWithCapacityLimitedModel(),
           config: advisorConfig,
         },);
-        expect(guidance,).toContain('Allowed Advisor model slugs: faux-provider/reviewer',);
-        expect(guidance,).not.toContain('limited-provider/limited-reviewer',);
+        expect(guidance,).toContain(
+          'Allowed Advisor model slugs: faux-provider/reviewer, limited-provider/limited-reviewer',
+        );
       },
     },),
   ],
@@ -506,22 +507,24 @@ await describe({
           config: advisorConfig,
           enabled: true,
         },);
-        expect(status,).toContain('Scoped models: faux-provider/reviewer, expensive-provider/reviewer',);
+        expect(status,).toContain('Scoped models: 2',);
+        expect(status,).not.toContain('faux-provider/reviewer, expensive-provider/reviewer',);
         expect(status,).toContain('Default model: faux-provider/reviewer',);
       },
     },),
     it({
-      name: 'reports output-eligible scoped models separately',
+      name: 'reports request budget and scoped count',
       fn: async () => {
         const status = await buildAdvisorStatus({
-          ctx: commandContextWithInsufficientOutputModel(),
+          ctx: commandContextWithCapacityLimitedModel(),
           config: advisorConfig,
           enabled: true,
         },);
         expect(status,).toContain(
-          `Eligible Advisor models (>=${String(ADVISOR_OUTPUT_TOKENS,)} output tokens): faux-provider/reviewer`,
+          `Advisor request budget: ${String(ADVISOR_OUTPUT_TOKENS,)} output tokens, clamped to each route's advertised maximum`,
         );
-        expect(status,).toContain('Scoped models: faux-provider/reviewer, limited-provider/limited-reviewer',);
+        expect(status,).toContain('Scoped models: 2',);
+        expect(status,).not.toContain('faux-provider/reviewer, limited-provider/limited-reviewer',);
       },
     },),
   ],

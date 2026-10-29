@@ -30,10 +30,16 @@ fn kinds(text: &str, fish: bool) -> Vec<Construct> {
 #[test]
 fn operators_are_found() {
     assert_eq!(kinds("a | b", false), [Construct::Pipe]);
-    assert_eq!(kinds("a && b || c", false), [Construct::AndChain, Construct::OrChain]);
+    assert_eq!(
+        kinds("a && b || c", false),
+        [Construct::AndChain, Construct::OrChain]
+    );
     assert_eq!(kinds("a |& b", false), [Construct::PipeStderr]);
     assert_eq!(kinds("a; b", false), [Construct::Semicolon]);
-    assert_eq!(kinds("case x in a) b;; esac", false), [Construct::Semicolon]);
+    assert_eq!(
+        kinds("case x in a) b;; esac", false),
+        [Construct::Semicolon]
+    );
     assert_eq!(kinds("a &", false), [Construct::Ampersand]);
     assert_eq!(kinds("echo $(date)", false), [Construct::DollarParen]);
     assert_eq!(kinds("echo `date`", false), [Construct::Backtick]);
@@ -52,7 +58,14 @@ fn hit_ranges_are_exact() {
 ///  and arithmetic is not a command substitution.
 #[test]
 fn redirections_and_arithmetic_are_not_operators() {
-    for text in ["cmd 2>&1", "cmd &> out", "cmd &>> out", "cmd >| out", "cmd <&3", "echo $((1 + 2))"] {
+    for text in [
+        "cmd 2>&1",
+        "cmd &> out",
+        "cmd &>> out",
+        "cmd >| out",
+        "cmd <&3",
+        "echo $((1 + 2))",
+    ] {
         assert_eq!(kinds(text, false), [], "{text}");
     }
 }
@@ -106,7 +119,10 @@ fn escapes_and_continuations() {
 /// GitHub expressions are not shell.
 #[test]
 fn expressions_are_skipped() {
-    assert_eq!(kinds("echo ${{ a && b || c }} | x", false), [Construct::Pipe]);
+    assert_eq!(
+        kinds("echo ${{ a && b || c }} | x", false),
+        [Construct::Pipe]
+    );
     assert_eq!(kinds("echo ${{ unterminated | x", false), []);
     assert_eq!(kinds("echo \"${{ a && b }}\"", false), []);
 }
@@ -114,10 +130,16 @@ fn expressions_are_skipped() {
 /// A here-document body is data up to its end word.
 #[test]
 fn heredoc_bodies_are_skipped() {
-    assert_eq!(kinds("cat <<EOF\na | b; c\nEOF\necho x | y", false), [Construct::Pipe]);
+    assert_eq!(
+        kinds("cat <<EOF\na | b; c\nEOF\necho x | y", false),
+        [Construct::Pipe]
+    );
     assert_eq!(kinds("cat <<-'EOF'\n\tx | y\n\tEOF\n", false), []);
     assert_eq!(kinds("cat <<\"EOF\"\nx | y\nEOF\n", false), []);
-    assert_eq!(kinds("cat <<EOF | tr a b\nx; y\nEOF\n", false), [Construct::Pipe]);
+    assert_eq!(
+        kinds("cat <<EOF | tr a b\nx; y\nEOF\n", false),
+        [Construct::Pipe]
+    );
     assert_eq!(kinds("cat <<A <<B\nx | y\nA\np | q\nB\n", false), []);
     assert_eq!(kinds("cat <<EOF\r\nx | y\r\nEOF\r\n", false), []);
     assert_eq!(kinds("cat <<< $x | y", false), [Construct::Pipe]);

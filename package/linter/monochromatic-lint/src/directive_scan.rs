@@ -241,6 +241,8 @@ pub fn scan_comments(language: Language, filename: &str, source: &str) -> Option
         Language::Rust => return Some(scan_rust(filename, source)),
         Language::Markdown => return scan_markdown(filename, source),
         Language::Mdx => return None,
+        // The `shell/` rules are unsuppressible, so a workflow has no directive form either.
+        Language::Yaml => return None,
     }
 }
 

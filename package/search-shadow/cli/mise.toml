@@ -33,3 +33,76 @@ run = "cargo publish --dry-run"
 [tasks.publish]
 description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing); the very first version of a crate must be published once with a personal API token (doc/runbook/publish-crate-first-time.md)."
 run = "cargo publish"
+
+[tasks."test:container"]
+description = "Install the tools the host lacks in a bounded podman container and check every shadow against its real tool"
+depends = ["build"]
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync, spawnSync } = await import('node:child_process')
+const { copyFileSync, mkdtempSync, rmSync } = await import('node:fs')
+const { tmpdir } = await import('node:os')
+const { join, basename } = await import('node:path')
+
+const IMAGE = 'localhost/monochromatic/search-shadow-test:latest'
+const packageDirectory = process.cwd()
+// The release binary lives in cargo's target directory, which may be relocated, so ask cargo where.
+const targetDirectory = JSON.parse(execFileSync('cargo', ['metadata', '--format-version', '1', '--no-deps'], { encoding: 'utf8' })).target_directory
+const context = mkdtempSync(join(tmpdir(), 'search-shadow-context-'))
+copyFileSync(join(targetDirectory, 'release', 'search-shadow'), join(context, 'search-shadow'))
+// The build needs the network for dnf; resources are bounded like the repository's other container builds.
+execFileSync('podman', ['build', '--pull=never', '--memory=2g', '--cpu-period=100000', '--cpu-quota=200000', '--tag', IMAGE, '--file', join(packageDirectory, 'Containerfile'), context], { stdio: 'inherit' })
+rmSync(context, { recursive: true, force: true })
+
+// Runs one shell snippet in a fresh container with no network, bounded memory, CPU and processes.
+const runRaw = (script) => spawnSync('podman', ['run', '--rm', '--pull=never', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=256', IMAGE, 'sh', '-c', script], { encoding: 'utf8' })
+// Every container starts empty, so each check links the shadows into /shadow-bin first.
+const inContainer = (script) => runRaw(`search-shadow link /shadow-bin > /dev/null; ${script}`)
+
+const failures = []
+const check = (label, ok, detail) => {
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${label}`)
+  if (!ok) { failures.push(`${label}: ${detail}`) }
+}
+
+// Every name the crate shadows except fdfind (the Debian name of fd) must be linked, because its real tool is installed here.
+const expectLinked = ['rg', 'grep', 'egrep', 'fgrep', 'ugrep', 'ug', 'ag', 'ack', 'find', 'fd', 'bfs', 'tree', 'du', 'ncdu', 'tokei', 'cloc']
+const linkRun = runRaw('search-shadow link /shadow-bin')
+const linkedNames = linkRun.stdout.split('\\n').filter((line) => line.startsWith('linked ')).map((line) => basename(line.split(' ')[1]))
+for (const name of expectLinked) {
+  check(`link: ${name} is linked`, linkedNames.includes(name), `linked: ${linkedNames.join(',')} skipped: ${linkRun.stdout}`)
+}
+check('link: fdfind (absent) is skipped', !linkedNames.includes('fdfind'), linkRun.stdout)
+
+// Each shadow must run the right real tool with its arguments untouched: its --version output and exit code equal the real tool's.
+const same = 'PATH=/shadow-bin:$PATH NAME --version > /tmp/shadow.out 2>&1; echo "exit $?" >> /tmp/shadow.out; real=$(PATH=/usr/local/bin:/usr/bin:/bin:/root/.cargo/bin command -v NAME); "$real" --version > /tmp/real.out 2>&1; echo "exit $?" >> /tmp/real.out; cmp /tmp/shadow.out /tmp/real.out'
+for (const name of linkedNames) {
+  const result = inContainer(same.replaceAll('NAME', name))
+  check(`passthrough: ${name} --version equals the real tool's`, result.status === 0, result.stdout + result.stderr)
+}
+
+// The disk priority reaches the real process: a grep blocked on a FIFO and a find blocked in -exec both report best-effort level 7.
+// The FIFO is opened read-write on descriptor 3 first, so the shell does not block on the redirection before grep starts;
+// grep then waits for input on it, is inspected, and is killed.
+const grepPriority = inContainer('mkfifo /tmp/in; exec 3<>/tmp/in; (PATH=/shadow-bin:$PATH grep foo <&3 > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact grep); kill $(pgrep --newest --exact grep); wait')
+check('priority: a shadowed grep runs at best-effort level 7', grepPriority.stdout.includes('best-effort: prio 7'), grepPriority.stdout + grepPriority.stderr)
+const findPriority = inContainer('mkdir /tmp/d && touch /tmp/d/f; (PATH=/shadow-bin:$PATH find /tmp/d -type f -exec sleep 2 \\\\; > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact find); wait')
+check('priority: a shadowed find runs at best-effort level 7', findPriority.stdout.includes('best-effort: prio 7'), findPriority.stdout + findPriority.stderr)
+
+// Refusals at a repository root: rg -r, rg --hidden, grep -r, find; and the tools that are only throttled are never refused.
+const atRoot = (command) => inContainer(`mkdir -p /repo/.git /repo/package && cd /repo && PATH=/shadow-bin:$PATH ${command}`)
+check('refusal: rg -rl', atRoot('rg -rl x package').status === 2, 'expected exit 2')
+check('refusal: rg --hidden with no path', atRoot('rg --hidden x').status === 2, 'expected exit 2')
+check('refusal: grep -rn with no path', atRoot('grep -rn x').status === 2, 'expected exit 2')
+check('refusal: egrep -r with no path', atRoot('egrep -r x').status === 2, 'expected exit 2')
+check('refusal: find . without a depth limit', atRoot('find . -name x').status === 2, 'expected exit 2')
+check('refusal: bfs without a depth limit', atRoot('bfs . -name x').status === 2, 'expected exit 2')
+check('allowed: grep -rn in a subdirectory', atRoot('grep -rn x package').status === 1, 'expected exit 1 (no match)')
+check('allowed: find with -maxdepth 2', atRoot('find . -maxdepth 2 -name x').status === 0, 'expected exit 0')
+check('allowed: tree, du and ag are only throttled', ['tree .', 'du -s .', 'ag -r x'].every((command) => atRoot(command).status !== 2), 'a throttle-only tool was refused')
+
+if (failures.length > 0) {
+  console.error(`\\n${failures.length} container checks failed:\\n${failures.join('\\n')}`)
+  process.exit(1)
+}
+"""

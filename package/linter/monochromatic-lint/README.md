@@ -8,6 +8,9 @@ In the Monochromatic repository it replaces `package/linter/rust` and `package/c
 the switch of every repository task and the Git wrapper's Markdown policy is recorded in
 `doc/handover/unified-linter-cutover.md`.
 
+It also lints the shell scripts in the steps of GitHub Actions workflows and composite actions;
+see "Workflow shell rules".
+
 The crate's Rust visibility supports its executable and verification drivers.
 There is no supported public linter library interface.
 
@@ -633,6 +636,115 @@ and a path without dot segments.
 Any other endpoint is rejected with a named reason that never echoes the endpoint,
 because it may hold credentials.
 One rejected declaration fails the whole read.
+
+## Workflow shell rules
+
+A GitHub Actions workflow is a host for shell scripts.
+A path is a host only when it is a `.yml` or `.yaml` file directly in `.github/workflows`,
+or an `action.yml` or `action.yaml` anywhere under `.github/actions`;
+other YAML is never read,
+so a stray `run:` key elsewhere cannot fail a run.
+Every step with a `run:` script is linted as a virtual file named `<workflow>/<n>.<suffix>`,
+where `n` counts the extracted steps in file order
+and the suffix names the dialect:
+`.sh` for bash,
+sh,
+dash,
+ash,
+ksh and zsh,
+`.fish`,
+`.ps1` for PowerShell,
+and `.cmd`.
+Configuration selects steps by those names,
+for example `.github/workflows/*.yml/*.sh`.
+Findings are reported at the workflow's own lines and columns.
+
+The nine rules are all unsuppressible,
+so a directive comment suppresses nothing,
+and each takes only `max`:
+
+- `shell/max-lines` counts the non-blank,
+  non-comment physical lines of a step's script,
+  including backslash continuations and heredoc content.
+  `max` defaults to 2.
+- `shell/no-pipe`,
+  `shell/no-and-chain`,
+  `shell/no-or-chain`,
+  `shell/no-pipe-stderr`,
+  `shell/no-semicolon`,
+  `shell/no-dollar-paren`,
+  `shell/no-backtick`
+  and `shell/no-ampersand`
+  ban `|`,
+  `&&`,
+  `||`,
+  `|&`,
+  `;`,
+  `$(...)`,
+  a backtick substitution
+  and a single `&`.
+  `max` is the occurrences allowed in one step and defaults to 0.
+  An occurrence over `max` is reported at its own range.
+
+The scan reads each dialect's own grammar.
+It skips GitHub `${{ ... }}` expressions,
+comments,
+single-quoted text,
+and double-quoted text apart from `$(` and a POSIX backtick,
+which still run there.
+Redirections such as `2>&1`,
+`&>` and `>|`,
+arithmetic `$((...))`,
+and here-document bodies are not operators.
+The dialect table follows the fish language manual,
+the PowerShell `about_Operators` and `about_Pipeline_Chain_Operators` pages,
+and the `cmd` command reference:
+fish has no backtick substitution,
+PowerShell has neither a backtick substitution nor `|&`
+and uses a leading `&` as the call operator,
+and `cmd` has only `|`,
+`||`,
+`&&` and `&`.
+
+The dialect comes from the step's `shell:`,
+then the job's `defaults.run.shell`,
+then the workflow's.
+The word after any leading `env` names the interpreter,
+so `env bash {0}` is bash.
+`node`,
+`python` and the other listed non-shell interpreters are out of scope.
+With no `shell:`,
+a job whose `runs-on` text contains `windows` is PowerShell and every other job is a POSIX shell.
+
+Only two `run:` forms are read:
+a block literal (`run: |`)
+and a plain one-line command.
+A folded,
+quoted,
+anchored,
+aliased,
+tagged or flow `run:`,
+a `shell:` that is an expression or an unlisted interpreter,
+a step that is not a block mapping,
+a second document,
+and tab indentation are each a `core/processing-failure`
+at the offending byte,
+because a skipped step would hide a long script from the rules.
+
+A ratchet holds a workflow at its current worst step by giving it a configuration block
+with the workflow's own `max` values:
+
+```jsonc
+// monochromatic-lint.config.jsonc
+{
+  "name": "shell-ratchet-old-workflow",
+  "files": [".github/workflows/old.yml/*.sh"],
+  "rules": {
+    "shell/max-lines": { "severity": "error", "max": 40 },
+    "shell/no-pipe": { "severity": "error", "max": 3 },
+  },
+},
+```
 
 ## Verification
 

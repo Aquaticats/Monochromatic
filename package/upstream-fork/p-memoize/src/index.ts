@@ -3,10 +3,9 @@
  Sindre Sorhus (MIT): memoize promise-returning and async functions.
  
  Rewritten to this repository's TypeScript standards with the upstream
- `p-memoize` 8.0.0 memoization semantics preserved (plus the 9.0.0 fix for
- synchronously throwing functions with caching disabled; see the package
- README for the 9.0.0 changes not yet ported): cache keys derive from
- the argument tuple, the cache holds only fulfilled values, concurrent
+ `p-memoize` 9.0.0 memoization semantics preserved (see the package README
+ for what changed since 8.0.0, which the fork was first derived from): cache
+ keys derive from the argument tuple, the cache holds only fulfilled values, concurrent
  calls on one key share one promise, `shouldCache` gates writes after
  fulfillment, and rejections are never cached. The only API-shape
  deviation is lint-mandated: a memoized call passes an `args` tuple instead

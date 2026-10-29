@@ -159,13 +159,20 @@ impl Reporter<'_> {
             "Use a full identifier as listed by \"monochromatic-lint --rules\", such as \"rust/tests-in-sidecars\", or remove the entry.",
         );
         let suffix: String = format!("/{}", token.text);
+        // Several namespaces can end alike, as `rust/max-lines` and `shell/max-lines` do, so name every candidate.
+        let mut candidates: Vec<String> = Vec::<String>::new();
         for rule in RULES {
             if rule.id.ends_with(suffix.as_str()) {
-                help = format!(
-                    "Did you mean \"{}\"? Directives need the full identifier.",
-                    rule.id
-                );
+                candidates.push(format!("\"{}\"", rule.id));
             }
+        }
+        if let Some(last) = candidates.pop() {
+            let named: String = if candidates.is_empty() {
+                last
+            } else {
+                format!("{} or {last}", candidates.join(", "))
+            };
+            help = format!("Did you mean {named}? Directives need the full identifier.");
         }
         return self.report(
             UNKNOWN_RULE,

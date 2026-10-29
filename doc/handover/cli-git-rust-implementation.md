@@ -3201,3 +3201,90 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   to avoid recursing into its own entries. After removal the inner run needs an empty directory instead, so only
   config-based hooks run; `post-commit` in the real worktree needs the same override. The warning is non-blocking and
   needs a rendering path that is not a blocking `CoreFinding` (those block).
+
+## Update at 2026-10-29 (slices merged for verification; hooks decisions)
+
+- All four slice branches are merged into branch `integrate-slices`, checked out at `~/temp/agent/merge-slices`
+  (merge order S2, J, S4, S1/S3; conflicts in `filesystem_identity.rs`, `binary_tests.rs`, `capture_invocation.rs`,
+  `post_commit_hook.rs` and the planning doc, all resolved by keeping both sides). One merge commit (`1240234269`) carried
+  conflict markers by my mistake; `e66495826a` removes them. Verification (clippy, host, binary, gate) of that tree is next;
+  main is untouched until it passes. Then fast-forward main to it, release (read the current crate version first), and remove
+  the worktree, the branches and the agent worktrees.
+- S1/S3 report (agent aac40a929f1822d77): config starts 4 to 1, a no-hook commit goes 52 to 43 Git starts and 42 to 38 syncs.
+  Deviations to veto: (1) the config snapshot is taken at invocation start, so a hook that changes `maintenance.auto` during
+  the commit no longer affects that commit; (2) dispatcher entries are decided at plan time; (3) named hooks are found from
+  the real repository config while the dispatcher sees the shadow config. Pre-existing gap pinned: Git 2.56.0 runs
+  traditional hooks even when `hook.<event>.enabled=false`.
+- User decisions, not started: (a) remove the `core.hooksPath` handling. The agent listed it: `hook_dispatch_plan.rs`
+  (`compute_hook_dispatch_plan`, `default_hooks_directory`, `resolve_hooks_path`, `plan.json` `hooksPath`),
+  `commit_preparation.rs` (`native_commit_arguments`), `commit_revalidation.rs` (`rerun_pre_commit`), `hook_dispatch.rs`
+  (`run_git_hook`), `shadow_git.rs:87`, `manual_push_probe.rs:197`, `shadow_config.rs`, and `hook_presence.rs`
+  (`hook_entry_may_exist`; `event_may_have_user_hook` reduces to `named_hooks_possible`). Dead tests are in
+  `binary_hook_shim_tests.rs` (the traditional-hook shapes). (b) Warn when traditional hooks are detected, adding no extra
+  syscalls to the common path: the user said to add a `doctor` subcommand if needed. Plan: the commit path warns only on
+  a signal it already holds (a configured `core.hooksPath` from the config snapshot); a new `doctor` management
+  subcommand scans `<git-common-dir>/hooks` and the configured path and reports every traditional hook. Do this after the
+  merge verifies, on the merged tree.
+
+## Update at 2026-10-29 (parallel work in flight)
+
+- Merged tree `integrate-slices` (`~/temp/agent/merge-slices`, tip `11b79d7d5a`): clippy clean; host 2124 of 2125 and
+  binary 191 of 192 (only the two known linter failures). Container gate running in unit `cli-git-gate-merge`
+  (log `~/temp/agent/gate-merge.log`, image tag `mmerge`). On a pass: merge `integrate-slices` into main, release
+  (read the current crate version first), remove worktrees and branches.
+- Mutation wave 1 on the merged tree, units `cli-git-mutpar-w1-*` (`start_retry`, `commit_staged_additions`,
+  `filesystem_identity_mount`, `config_snapshot`, `transaction_git`), logs `~/temp/agent/mutpar-w1-*.log.N`, started with
+  `MUT_ROOT=~/temp/agent/merge-slices node ~/temp/agent/mutation-parallel.ts w1 <files>`. Wave 2 still to run on the
+  final tree: `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`,
+  `hook_presence`, `hook_dispatch_plan`, `rule_require_root`, and the 1804 files (task 65).
+- Three agents started from `integrate-slices`, each in its own worktree: (1) remove `core.hooksPath` handling, warn on
+  traditional hooks without extra syscalls, add `git cli-git doctor` (agent a8b31ddd4ffbe9b0d); (2) spawn and sync budget
+  ratchet tests (a25fe20d930cb8679); (3) recovery: torn index snapshots, the two silent-inconsistency cases, and sticking
+  messages that name the file (a49eb138569c35a3c). Merge each after reading its diff; agent 1 and 3 avoid each other's
+  files by brief.
+
+## Update at 2026-10-29 (merged-tree gate failed; resumed the J agent)
+
+- Container gate on `integrate-slices`: 2294 of 2296 run passed; `recovery_tearing::damage_at_index_installed` and
+  `damage_at_landing_locked` fail deterministically (reproduced twice) at `binary_recovery_tearing_tests.rs:379`: no file
+  `cli-git-transactions/<id>/cli-git-add-policy-<pid>-<n>-0/index` at those phases under Git 2.56.0. They pass on the host
+  (Git 2.55.0). The container task ignores a `-- <filter>` argument (it ran all 2296). Main stays unmerged until fixed.
+- Agent a4bd69a2e240509bc (slice J) was resumed to find the cause (harness assumption or a real change from one of the other
+  slices) and fix it on its own worktree after merging `integrate-slices`; then merge its branch into `integrate-slices`
+  again and rerun the gate.
+
+## Update at 2026-10-29 (J fix, budget agent report, /tmp pressure)
+
+- The two tearing failures were a harness bug: its number normalizer assumed 7-digit pids and the container (`--init`) has
+  short ones, so the `cli-git-add-policy-<pid>-...` key differed between listing and case runs. Fixed in `019d433cc9`
+  (15 keys renamed, no outcome changed) and fast-forwarded onto `integrate-slices`. Gate run 2 ended after two container
+  stages with no verdict and no error in the log; the rerun is unit `cli-git-gate-merge4`
+  (log `~/temp/agent/gate-merge4.log`, ends with an `exit=` line).
+- Budget agent (a25fe20d930cb8679) finished on branch `worktree-agent-a25fe20d930cb8679` (`e6aabdf36c`, `83330e8c99`,
+  `182acb78f6`; merged `integrate-slices` first). Exact per-subcommand start and sync budgets for no hooks, one config
+  hook and amend in `binary_budget_tests.rs`; no-hook commit: 33 wrapper syncs plus 3 from `index-pack`, `stat` 3 on
+  tmpfs, 0 on a UUID filesystem. Shown failing by lowering budgets. Its full binary run showed 7 unexplained failures,
+  suspected to come from /tmp running out of space; verify on a clean merge before trusting it.
+- /tmp is a 16 GB tmpfs holding 13 GB, including 160 leaked `/tmp/native-binary-<pid>-*` fixtures (about 99 to 280 MB each)
+  from killed or failing test runs. Concurrent suites hit EDQUOT, which also empties task output files. The auto-mode
+  classifier denied cleaning them ("Shared Scratch Sweep") for both the agent and me. A user decision is needed: allow a
+  sweep of dead-pid fixtures older than 30 minutes, or clear `/tmp` by hand. Longer term, the binary test fixtures
+  should remove themselves on failure.
+
+## Update at 2026-10-29 (issue 1809: fixtures leave /tmp)
+
+- Cause of the quota failures: `/tmp` is a tmpfs with a per-user quota (13108M); 160 leaked `native-binary-<pid>-*` fixtures
+  (8.9 GB) from panicking tests filled it, and every command writing under `/tmp` failed with EDQUOT. A peer session
+  (monochromatic-fb) removed the dead-pid fixtures with the user's approval.
+- Fix: binary fixtures live in `CARGO_TARGET_TMPDIR` with an `impl Drop for Fixture`; unit fixtures live in
+  `<target>/test-fixtures` and a thread-exit guard removes them; `CLI_GIT_KEEP_FIXTURES=1` keeps them for debugging and
+  `CLI_GIT_TEST_ROOT` moves the root (for example onto a tmpfs for speed). Controls: `test_support_tests.rs` and
+  `binary_fixture_tests.rs`, shown failing with the guards disabled (3 of the removal tests fail).
+- Consequence of the longer fixture path: a Unix socket path is limited to about 108 bytes, so
+  `a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened` now binds through `/proc/self/fd/<dir>/` on Linux.
+- Verified: clippy clean; host 2024 of 2026 before the socket fix (the socket test now passes); binary 170 of 171 (only the
+  known linter failure); no entries left in the fixture directories after the runs.
+- New rule `XTD` in AGENTS.md (commit `6232630542`): never use `/tmp`; the device behind it is unknowable.
+- Open: three production uses of `std::env::temp_dir()` remain: `markdown_linter.rs` (temporary linter config),
+  `transaction_git.rs` (`cli-git-input-*` file), `manual_push_probe.rs` (scratch). They break the new rule. Decide where
+  production scratch goes (the transaction directory under `.git/cli-git`, or `$XDG_RUNTIME_DIR`).

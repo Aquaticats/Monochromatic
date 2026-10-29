@@ -111,7 +111,8 @@ pub fn shell_rule_settings(rules: &JsoncValue) -> Result<ShellRuleSettings, Conf
         if !id.starts_with("shell/") {
             continue;
         }
-        let (severity, max): (Option<Severity>, Option<usize>) = options(id.as_str(), &entry.value)?;
+        let (severity, max): (Option<Severity>, Option<usize>) =
+            options(id.as_str(), &entry.value)?;
         let Some(selected): Option<Severity> = severity else {
             continue;
         };

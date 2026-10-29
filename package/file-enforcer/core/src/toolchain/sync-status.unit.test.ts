@@ -18,6 +18,7 @@ import {
 import {
   parseBinList,
   parseCargoBinstallList,
+  ReleaseTagUrlError,
   releaseTagUrl,
   seedBinConfig,
 } from './providers.ts';
@@ -35,7 +36,7 @@ await describe({
   name: 'sync and status helpers',
   children: [
     describe({
-      name: 'syncOrder',
+      name: syncOrder.name,
       children: [
         it({
           name: 'stages bin, uv, mpm, rust, cargo-binstall, node and pnpm first',
@@ -92,7 +93,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'appliesToHost',
+      name: appliesToHost.name,
       children: [
         it({
           name: 'admits unfiltered tools on any platform',
@@ -156,7 +157,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'releaseTagUrl',
+      name: releaseTagUrl.name,
       children: [
         it({
           name: 'derives the release-tag URL from an artifact URL',
@@ -182,8 +183,14 @@ await describe({
               .toBe(
               'https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12+8',
               );
-            expect(releaseTagUrl('https://nodejs.org/dist/v26.12.0/node.tar.gz',),)
-              .toBe(null,);
+            expect(function nonRelease(): void {
+              releaseTagUrl('https://nodejs.org/dist/v26.12.0/node.tar.gz',);
+            },)
+              .toThrow(ReleaseTagUrlError,);
+            expect(function missingTag(): void {
+              releaseTagUrl('https://github.com/o/r/releases/download//asset.tar.gz',);
+            },)
+              .toThrow(ReleaseTagUrlError,);
           },
         },),
       ],
@@ -240,7 +247,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'seedBinConfig',
+      name: seedBinConfig.name,
       children: [
         it({
           name: 'converges default_path in the scope config',
@@ -262,7 +269,7 @@ await describe({
             /**
              Config path seeded by the first call.
              */
-            const seeded = seedBinConfig({
+            const seeded = await seedBinConfig({
               downloadDir: '/fixture/toolchain/bin',
               configPath,
             },);
@@ -281,7 +288,7 @@ await describe({
                 bins: {},
               },);
             // A second run with the same toolchain bin dir is idempotent.
-            expect(seedBinConfig({
+            expect(await seedBinConfig({
               downloadDir: '/fixture/toolchain/bin',
               configPath,
             },),)
@@ -295,7 +302,7 @@ await describe({
               },),
               'utf8',
             );
-            seedBinConfig({
+            await seedBinConfig({
               downloadDir: '/fixture/toolchain/bin',
               configPath,
             },);
@@ -338,7 +345,7 @@ await describe({
               }\n`,
               'utf8',
             );
-            expect(seedBinConfig({
+            expect(await seedBinConfig({
               downloadDir: '/fixture/toolchain/bin',
               configPath: explicit,
             },),)

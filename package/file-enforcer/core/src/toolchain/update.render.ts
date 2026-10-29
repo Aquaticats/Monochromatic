@@ -46,10 +46,15 @@ export type ToolArtifacts = Readonly<Record<string, ArtifactRow>>;
 
 /**
  Renders `plan.artifacts.data.ts` from one artifact map.
- 
- @param options - Artifact tables keyed by tool id
- 
- @returns Complete file text, byte-stable for the same map
+
+ @param artifacts - artifact tables keyed by tool id
+
+ @returns complete file text, byte-stable for the same map
+
+ @example
+ ```ts
+ renderPlanArtifactsTs({ artifacts: { age: { 'linux-x64': { url: 'https://example/age.tgz', sha256: 'a'.repeat(64,), }, }, }, },);
+ ```
  */
 export function renderPlanArtifactsTs(
   {
@@ -62,7 +67,7 @@ export function renderPlanArtifactsTs(
    Tool ids in ascending order.
    */
   const ids = Object.keys(artifacts,)
-    .sort();
+    .toSorted();
   /**
    Rendered tool blocks.
    */
@@ -72,7 +77,7 @@ export function renderPlanArtifactsTs(
      Platform ids in ascending order.
      */
     const platforms = Object.keys(artifacts[id] ?? {},)
-      .sort();
+      .toSorted();
     /**
      Rendered rows.
      */
@@ -142,14 +147,229 @@ export function artifacts(id: string,): ToolArtifacts {
 //region plan.tools.data.ts
 
 /**
+ Marker that closes one plan entry object literal at entry depth (nested
+ blocks close deeper indented).
+ */
+const ENTRY_CLOSE = '\n  },';
+
+/**
+ Marker that opens the resolved version literal inside one plan entry.
+ */
+const VERSION_OPEN = `version: '`;
+
+/**
+ Reads the version a plan entry pins before an update.
+
+ @param entryText - entry object literal text
+
+ @param id - tool id for error messages
+
+ @returns version literal content
+
+ @throws Error when the entry carries no non-empty `version: '...'` field
+ */
+function recordedVersion(
+  {
+    entryText,
+    id,
+  }: {
+    readonly entryText: string;
+    readonly id: string;
+  },
+): string {
+  /**
+   Index of the version field marker, or -1 when the entry has none.
+   */
+  const markerAt = entryText.indexOf(VERSION_OPEN,);
+  /**
+   Index of the version literal's first character.
+   */
+  const openAt = markerAt + VERSION_OPEN.length;
+  /**
+   Index of the closing quote, or -1 when the field is absent or unterminated.
+   */
+  const closeAt = markerAt === (-1)
+    ? -1
+    : entryText.indexOf(
+      `'`,
+      openAt,
+    );
+  if ((closeAt === (-1)) || (closeAt === openAt)) {
+    throw new Error(`no version field found for plan entry ${id}`,);
+  }
+  return entryText.slice(
+    openAt,
+    closeAt,
+  );
+}
+
+/**
+ Text that opens the id field of a plan entry, up to the id's opening quote.
+ */
+const ID_OPEN = `id: '`;
+
+/**
+ Start index of the first `id: '<id>',` field for every id the source declares,
+ found in one left-to-right pass.
+
+ @param source - plan source text
+
+ @returns first start index keyed by id
+ */
+function firstIdStarts(
+  { source, }: { readonly source: string; },
+): ReadonlyMap<string, number> {
+  /**
+   First start index keyed by id.
+   */
+  const starts = new Map<string, number>();
+  for (let at = source.indexOf(ID_OPEN,); at !== (-1); at = source.indexOf(
+    ID_OPEN,
+    at + 1,
+  )) {
+    /**
+     Index of the closing quote of the id literal; the next search starts past it.
+     */
+    const quoteAt = source.indexOf(
+      `'`,
+      at + ID_OPEN.length,
+    );
+    if (quoteAt === (-1))
+      break;
+    /**
+     Id literal, kept only when a comma follows the closing quote.
+     */
+    const id = source.slice(
+      at + ID_OPEN.length,
+      quoteAt,
+    );
+    if ((source.charAt(quoteAt + 1,) === ',') && (!starts.has(id,)))
+      starts.set(
+        id,
+        at,
+      );
+  }
+  return starts;
+}
+
+/**
+ One entry to rewrite: its id, new version, and where its object literal starts.
+ */
+type EntryEdit = {
+  readonly id: string;
+  readonly version: string;
+  readonly start: number;
+};
+
+/**
+ Tool id with its new version, as iterating a version map lists them.
+ */
+type VersionPair = readonly [
+  string,
+  string,
+];
+
+/**
+ One rewritten entry: the source range it replaces and its new text.
+ */
+type EntryPatch = {
+  readonly start: number;
+  readonly end: number;
+  readonly moved: string;
+};
+
+/**
+ Rewrites one entry's text so the literals ending in its old version end in the new one.
+
+ @param source - plan source text
+
+ @param edit - entry to rewrite
+
+ @returns source range of the entry and its rewritten text
+
+ @throws Error when the entry has no closing brace or no version field
+ */
+function patchEntry(
+  {
+    source,
+    edit,
+  }: {
+    readonly source: string;
+    readonly edit: EntryEdit;
+  },
+): EntryPatch {
+  /**
+   Index of the closing brace at entry depth, or -1 when the entry never closes.
+   */
+  const closeAt = source.indexOf(
+    ENTRY_CLOSE,
+    edit.start,
+  );
+  if (closeAt === (-1)) {
+    throw new Error(`no entry found for plan entry ${edit.id}`,);
+  }
+  /**
+   Index just past the entry's closing brace.
+   */
+  const end = closeAt + ENTRY_CLOSE.length;
+  /**
+   Entry text carrying the resolution: its id field through the closing brace.
+   */
+  const entryText = source.slice(
+    edit.start,
+    end,
+  );
+  /**
+   Resolved version the entry pins before this update.
+   */
+  const oldVersion = recordedVersion({
+    entryText,
+    id: edit.id,
+  },);
+  /**
+   Entry text with the string literals ending in the old version moved to
+   the new one: `version`, `packageId`, and env values like `java/<version>`.
+   Comment lines keep their prose, so a comment citing the superseded
+   version stays a historical note.
+   */
+  const moved = entryText
+    .split('\n',)
+    .map(function moveLine(line,): string {
+      return line.trimStart()
+        .startsWith('//',)
+        ? line
+        : line.replaceAll(
+          `${oldVersion}'`,
+          `${edit.version}'`,
+        );
+    },)
+    .join('\n',);
+  return {
+    start: edit.start,
+    end,
+    moved,
+  };
+}
+
+/**
  Rewrites each named entry's resolution in `plan.tools.data.ts`, carrying the
  literals that pin it.
- 
- @param options - File text and the new versions keyed by tool id
- 
- @returns File text with each resolution and its pin literals updated
- 
- @throws Error when an entry's version field cannot be found
+
+ Every entry is located in one scan and rewritten in one ordered pass, so the
+ work is linear in the source length plus a sort of the edited entries.
+
+ @param source - file text
+
+ @param versions - new versions keyed by tool id
+
+ @returns file text with each resolution and its pin literals updated
+
+ @throws Error when an entry or its version field cannot be found, or when two edited entries overlap
+
+ @example
+ ```ts
+ patchPlanVersions({ source: "  {\n    id: 'age',\n    version: '1.0.0',\n  },", versions: new Map([['age', '1.1.0',],],), },);
+ ```
  */
 export function patchPlanVersions(
   {
@@ -161,67 +381,84 @@ export function patchPlanVersions(
   },
 ): string {
   /**
-   Text with each entry's resolution and pins replaced.
+   First start index of every id the source declares.
    */
-  let patched = source;
-  for (const [id, version,] of versions) {
+  const starts = firstIdStarts({ source, },);
+  /**
+   Entries to rewrite, in source order.
+   */
+  const edits = [...versions,].map(function toEdit(pair: VersionPair,): EntryEdit {
     /**
-     Pattern spanning one entry's object literal: its id field through the
-     closing brace at entry depth (nested blocks close deeper indented).
+     Tool id and its new version.
      */
-    const pattern = new RegExp(
-      `(id: '${
-        id.replaceAll(
-          /[.*+?^${}()|[\]\\]/gu,
-          String.raw`\\$&`,
-        )
-      }',[\\s\\S]*?\\n  \\},)`,
-      'u',
-    );
+    const [id, version,] = pair;
     /**
-     Entry text carrying the resolution.
+     Start index of this entry, absent when the source never declares the id.
      */
-    const match = patched.match(pattern,);
-    if (match === null) {
+    const start = starts.get(id,);
+    if (start === undefined) {
       throw new Error(`no entry found for plan entry ${id}`,);
     }
+    return {
+      id,
+      version,
+      start,
+    };
+  },)
+    .toSorted(function bySourceOrder(
+      left,
+      right,
+    ): number {
+      return left.start - right.start;
+    },);
+  /**
+   Rewritten entries in source order, each searched only past the previous one.
+   */
+  const patches: EntryPatch[] = [];
+  for (const edit of edits) {
     /**
-     Resolved version the entry pins before this update.
+     Previous rewritten entry.
      */
-    const versionMatch = /version: '([^']*)'/u.exec(match[0]);
-    if (versionMatch === null) {
-      throw new Error(`no version field found for plan entry ${id}`,);
+    const previous = patches.at(-1,);
+    if ((previous !== undefined) && (edit.start < previous.end)) {
+      throw new Error(`plan entry ${edit.id} starts inside the previous edited entry`,);
     }
-    const oldVersion = versionMatch[1];
-    if ((oldVersion === undefined) || (oldVersion === '')) {
-      throw new Error(`no version field found for plan entry ${id}`,);
-    }
-    /**
-     Entry text with the string literals ending in the old version moved to
-     the new one: `version`, `packageId`, and env values like `java/<version>`.
-     Comment lines keep their prose, so a comment citing the superseded
-     version stays a historical note.
-     */
-    const moved = match[0]
-      .split('\n',)
-      .map((line,) => line.trimStart()
-        .startsWith('//',)
-        ? line
-        : line.replaceAll(
-          `${
-          oldVersion
-        }'`,
-          `${
-          version
-        }'`,
-        ),)
-      .join('\n',);
-    patched = patched.replace(
-      pattern,
-      () => moved,
-    );
+    patches.push(patchEntry({
+      source,
+      edit,
+    },),);
   }
-  return patched;
+  /**
+   Source text between the entries, each gap followed by the entry that ends it.
+   */
+  const pieces = patches.map(function gapThenEntry(
+    patch,
+    at,
+  ): string {
+    /**
+     Entry before this one, absent for the first.
+     */
+    const before = patches[at - 1];
+    return `${
+      source.slice(
+        before === undefined
+          ? 0
+          : before.end,
+        patch.start,
+      )
+    }${patch.moved}`;
+  },);
+  /**
+   Last rewritten entry, absent when nothing was edited.
+   */
+  const last = patches.at(-1,);
+  return `${
+    pieces.join('',)
+  }${
+    source.slice(last === undefined
+      ? 0
+      : last.end,)
+  }`;
 }
 
 //endregion plan.tools.data.ts

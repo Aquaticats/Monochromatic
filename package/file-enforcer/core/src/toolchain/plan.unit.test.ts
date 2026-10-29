@@ -19,6 +19,45 @@ import {
 } from './plan.ts';
 import { TOOL_ROUTES, } from './types.ts';
 
+/**
+ Hex digits in a SHA-256 digest.
+ */
+const SHA256_HEX_LENGTH = 64;
+
+/**
+ Whether text is an `https://` URL with something after the scheme and no whitespace anywhere.
+
+ @param url - Artifact URL to test
+
+ @returns `true` when the URL is a non-empty `https://` reference without whitespace
+ */
+function isHttpsUrlWithoutWhitespace(url: string,): boolean {
+  if ((!url.startsWith('https://',)) || (url.length <= 'https://'.length))
+    return false;
+  for (const ch of url) {
+    if (ch.trim() === '')
+      return false;
+  }
+  return true;
+}
+
+/**
+ Whether text is a lowercase hexadecimal SHA-256 digest.
+
+ @param digest - Digest text to test
+
+ @returns `true` for exactly 64 lowercase hex digits
+ */
+function isSha256Hex(digest: string,): boolean {
+  if (digest.length !== SHA256_HEX_LENGTH)
+    return false;
+  for (const ch of digest) {
+    if (!'0123456789abcdef'.includes(ch,))
+      return false;
+  }
+  return true;
+}
+
 await describe({
   name: 'toolchain plan',
   children: [
@@ -128,12 +167,12 @@ await describe({
              */
             const filtered = TOOLS
               .filter(
-              (entry,) => entry.os !== null,
+              (entry,) => entry.os !== undefined,
               )
               .map(
               (entry,) => entry.id,
               )
-              .sort();
+              .toSorted();
             expect(filtered,)
               .toEqual(
               [
@@ -179,10 +218,9 @@ await describe({
               .options.postinstall,)
               .toEqual({
                 when: 'always',
-                link: {
+                run: {
                   sourceBin: 'search-shadow',
-                  linkName: 'rg',
-                  linkDir: '.cache/search-shadow-bin',
+                  args: ['link', '.cache/search-shadow-bin',],
                 },
               },);
           },
@@ -223,9 +261,9 @@ await describe({
           fn: async () => {
             for (const entry of ALL_TOOLS) {
               for (const row of Object.values(entry.artifacts,)) {
-                expect(/^https:\/\/\S+$/u.test(row.url,),)
+                expect(isHttpsUrlWithoutWhitespace(row.url,),)
                   .toBe(true,);
-                expect(/^[0-9a-f]{64}$/u.test(row.sha256,),)
+                expect(isSha256Hex(row.sha256,),)
                   .toBe(true,);
               }
             }
@@ -253,7 +291,6 @@ await describe({
               .toBe('bin',);
             expect(BIN_BOOTSTRAP.options.bootstrap,)
               .toEqual({
-                requiresTool: null,
                 distribution: 'standalone-binary',
               },);
             expect(BIN_BOOTSTRAP.artifacts['linux-x64']?.sha256,)

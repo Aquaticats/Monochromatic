@@ -126,10 +126,18 @@ fn link_into(directory: &str) -> i32 {
     // try { const created = linkShadows(...); for (const link of created) console.log(...); return 0; }
     // catch (error) { console.error(...); return 1; }
     // ```
-    match link_shadows(Path::new(directory), &executable) {
-        Ok(created) => {
-            for link in created {
-                println!("{} -> {}", link.display(), executable.display());
+    // `env::var("PATH").unwrap_or_default()` reads PATH, or an empty text when it is unset (then nothing is found, so nothing is linked).
+    let path_variable: String = env::var("PATH").unwrap_or_default();
+    match link_shadows(Path::new(directory), &executable, &path_variable) {
+        Ok(report) => {
+            for link in &report.linked {
+                println!("linked {} -> {}", link.display(), executable.display());
+            }
+            for link in &report.removed {
+                println!("removed stale {} (its real tool is gone)", link.display());
+            }
+            if !report.skipped.is_empty() {
+                println!("skipped, no real tool on PATH: {}", report.skipped.join(", "));
             }
             return 0;
         }

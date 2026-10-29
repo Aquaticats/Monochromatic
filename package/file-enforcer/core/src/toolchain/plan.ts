@@ -120,7 +120,7 @@ export function toolPlanInstallableNames(): ReadonlySet<string> {
       const repo = bare.slice(bare.lastIndexOf('/',) + 1,);
       names.add(repo.toLowerCase(),);
     }
-    if (entry.packageId !== null)
+    if (entry.packageId !== undefined)
       names.add(entry.packageId
         .toLowerCase(),);
   }

@@ -20,7 +20,10 @@ use monochromatic_jsonc_edit::{JsoncValue, parse_jsonc};
 /// Convert one owned fixture without replacing configuration validation.
 fn settings(source: &str) -> Result<ShellRuleSettings, String> {
     let value: JsoncValue = parse_jsonc(source).expect("JSONC fixture");
-    return shell_rule_settings(&value).map_err(|error| error.to_string());
+    match shell_rule_settings(&value) {
+        Ok(typed) => return Ok(typed),
+        Err(error) => return Err(error.to_string()),
+    }
 }
 
 /// Absent and explicitly disabled rules stay disabled.
@@ -28,9 +31,8 @@ fn settings(source: &str) -> Result<ShellRuleSettings, String> {
 fn disabled_and_missing_rules_remain_disabled() {
     assert_eq!(settings("{}"), Ok(ShellRuleSettings::default()));
     assert!(settings("{}").expect("settings").is_empty());
-    let off: Result<ShellRuleSettings, String> = settings(
-        r#"{"shell/max-lines":{"severity":"off"},"shell/no-pipe":{"severity":"off"}}"#,
-    );
+    let off: Result<ShellRuleSettings, String> =
+        settings(r#"{"shell/max-lines":{"severity":"off"},"shell/no-pipe":{"severity":"off"}}"#);
     assert_eq!(off, Ok(ShellRuleSettings::default()));
 }
 
@@ -88,7 +90,8 @@ fn every_construct_rule_is_selectable() {
 ///  bad numbers and unknown options are configuration errors that name the rule.
 #[test]
 fn invalid_settings_are_errors() {
-    let unknown: String = settings(r#"{"shell/no-such":{"severity":"error"}}"#).expect_err("unknown");
+    let unknown: String =
+        settings(r#"{"shell/no-such":{"severity":"error"}}"#).expect_err("unknown");
     assert!(unknown.contains("shell/no-such"), "{unknown}");
     let text: String =
         settings(r#"{"shell/no-pipe":{"severity":"error","max":"1"}}"#).expect_err("string");

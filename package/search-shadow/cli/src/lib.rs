@@ -32,8 +32,17 @@ pub mod link;
 /// The rules that refuse `rg -r` and repository-wide unrestricted ripgrep walks.
 pub mod policy;
 
+/// The refusal rule for a recursive `grep` from a repository root, the home directory or `/`.
+pub mod policy_grep;
+
+/// The refusal rule for a `find` or `bfs` walk from those places without a small `-maxdepth`.
+pub mod policy_find;
+
 /// The one `unsafe` call: lowering the process's disk priority.
 pub mod priority;
+
+/// Where a tree walk would start: a repository root, the home directory, `/`, or something bounded.
+pub mod walk_target;
 
 /// The PATH lookup that finds the real tool while skipping the shadow itself.
 pub mod real_binary;
@@ -60,3 +69,11 @@ mod policy_tests;
 /// The unit tests of the link module.
 #[cfg(test)]
 mod link_tests;
+
+/// The unit tests of the walk-target classifier.
+#[cfg(test)]
+mod walk_target_tests;
+
+/// The unit tests of the grep and find refusal rules.
+#[cfg(test)]
+mod policy_walk_tests;

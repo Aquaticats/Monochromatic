@@ -9,7 +9,10 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
-import { pMapSkip, } from '@monochromatic-dev/upstream-fork-p-map/ts';
+import {
+  pMapSkip,
+  pMapStop,
+} from '@monochromatic-dev/upstream-fork-p-map/ts';
 
 //region Mappers
 
@@ -63,6 +66,24 @@ export function identityMapper(value: number,): number {
 export function droppingMapper(value: number,): number | typeof pMapSkip {
   return (value === 1)
     ? pMapSkip
+    : value;
+}
+
+/**
+ Mapper ending the iteration at the middle input with {@link pMapStop}.
+
+ @param value - Input under test.
+
+ @returns The input, or {@link pMapStop} for the middle one.
+
+ @example
+ ```ts
+ stoppingMapper(1,); // => pMapStop
+ ```
+ */
+export function stoppingMapper(value: number,): number | typeof pMapStop {
+  return (value === 1)
+    ? pMapStop
     : value;
 }
 

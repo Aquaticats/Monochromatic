@@ -6,73 +6,77 @@
  The machine-global scope keeps those files outside the repository
  (`doc/planning/mpm-global-toolchain-migration.md`), as import-free data
  modules; this loader is where they become the typed `ToolPlanEntry[]` the
- sync, status and update flows consume.
+ sync, status and update flows consume. Field validation lives in
+ `plan.load.guards.ts`.
 
  Node builtins only, so the entry points stay dependency-free.
  */
 
-import { pathToFileURL, } from 'node:url';
 import { join, } from 'node:path';
+import { pathToFileURL, } from 'node:url';
+
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import {
-  TOOL_ROUTES,
-  type ToolPlanEntry,
-} from './types.ts';
-
-//region Raw shapes
-
-/**
- Raw declaration record as the data module writes it (unvalidated).
- */
-type RawEntry = Record<string, unknown>;
-
-/**
- Raw `plan.artifacts.data.ts` payload.
- */
-type RawArtifacts = Readonly<Record<string, Readonly<Record<string, {
-  readonly url: string;
-  readonly sha256: string;
-}>>>>;
-
-//endregion Raw shapes
+  type Fail,
+  isRecord,
+  optionalName,
+  parseArtifacts,
+  parseBins,
+  parseEnv,
+  parseOptions,
+  parseOs,
+  parseRequest,
+  parseRoute,
+} from './plan.load.guards.ts';
+import type { ToolPlanEntry, } from './types.ts';
 
 //region Validation
 
 /**
- Throws a plan validation error naming the input it failed on.
- 
- @param options - Plan file path, tool id and the defect to report
- 
- @throws Always
+ Builds the error reporter for one plan file, optionally scoped to one tool.
+
+ @param file - plan file path
+
+ @param id - tool id the defects belong to; absent for file-level defects
+
+ @returns reporter that throws an error naming the file, the tool, and the defect
+
+ @example
+ ```ts
+ planFailure({ file: 'plan.tools.data.ts', id: 'age', })('version is missing');
+ ```
  */
-function planError(
+function planFailure(
   {
     file,
     id,
-    problem,
   }: {
     readonly file: string;
-    readonly id: string | null;
-    readonly problem: string;
+    readonly id?: string;
   },
-): never {
-  throw new Error(
-    `${file}: ${
-      id === null
-        ? ''
-        : `tool ${JSON.stringify(id,)}: `
-    }${problem}`,
-  );
+): Fail {
+  return function fail(problem: string,): never {
+    throw new Error(`${file}: ${id === undefined ? '' : `tool ${JSON.stringify(id,)}: `}${problem}`,);
+  };
 }
 
 /**
  Validates one raw declaration into a typed plan entry.
- 
- @param options - Raw record, tool id, artifact rows and the file name to
- report against
- 
- @returns Typed plan entry
- 
+
+ @param raw - raw record as the data module writes it
+
+ @param artifacts - artifact rows keyed by tool id
+
+ @param file - plan file to name in errors
+
+ @returns typed plan entry
+
  @throws Error when a field is missing or malformed
+
+ @example
+ ```ts
+ parseEntry({ raw, artifacts, file: 'plan.tools.data.ts', });
+ ```
  */
 function parseEntry(
   {
@@ -80,154 +84,81 @@ function parseEntry(
     artifacts,
     file,
   }: {
-    readonly raw: RawEntry;
-    readonly artifacts: RawArtifacts;
+    readonly raw: unknown;
+    readonly artifacts: Readonly<Record<string, ToolArtifacts>>;
     readonly file: string;
   },
 ): ToolPlanEntry {
+  if (!isRecord(raw,))
+    return planFailure({ file, },)('entry is not an object',);
   /**
    Declared tool id.
    */
-  const {id} = raw;
-  if (((typeof id) !== 'string') || (id === '')) {
-    planError({
-      file,
-      id: null,
-      problem: 'entry carries no string id',
-    },);
-  }
+  const { id, } = raw;
+  if (((typeof id) !== 'string') || (id === ''))
+    return planFailure({ file, },)('entry carries no string id',);
   /**
-   Request intent of the entry.
+   Reporter for this tool's defects.
    */
-  const {request} = raw;
-  if ((request === null) || ((typeof request) !== 'object')) {
-    planError({
-      file,
-      id,
-      problem: 'request is missing',
-    },);
-  }
-  /**
-   Request record with exactly one intent key.
-   */
-  const requestRecord = request as Record<string, unknown>;
-  const intentKeys = [
-    'track',
-    'pinned',
-    'channel',
-  ]
-    .filter(
-    function present(key,): boolean {
-      return requestRecord[key] !== undefined;
-    },
-    );
-  if ((intentKeys.length !== 1)
-    || ((typeof requestRecord[intentKeys[0] ?? '']) !== 'string')) {
-    planError({
-      file,
-      id,
-      problem: 'request needs exactly one string intent (track, pinned or channel)',
-    },);
-  }
+  const fail = planFailure({
+    file,
+    id,
+  },);
   /**
    Resolved version literal.
    */
-  const {version} = raw;
-  if (((typeof version) !== 'string') || (version === '')) {
-    planError({
-      file,
-      id,
-      problem: 'version is missing',
-    },);
-  }
+  const { version, } = raw;
+  if (((typeof version) !== 'string') || (version === ''))
+    return fail('version is missing',);
   /**
-   Install route.
+   MPM manager, when one declares the tool.
    */
-  const {route} = raw;
-  if (((typeof route) !== 'string')
-    || (!TOOL_ROUTES.includes(route as (typeof TOOL_ROUTES)[number],))) {
-    planError({
-      file,
-      id,
-      problem: `route ${JSON.stringify(route,)} is not one of ${
-        TOOL_ROUTES.join(', ',)
-      }`,
-    },);
-  }
+  const [manager,] = optionalName({
+    key: 'manager',
+    value: raw.manager,
+    fail,
+  },);
   /**
-   Declared binary names.
+   Package id under the manager, when one declares the tool.
    */
-  const {bins} = raw;
-  if ((!Array.isArray(bins,))
-    || (bins.length === 0)
-    || bins.some(
-      function notName(name,): boolean {
-        return ((typeof name) !== 'string') || (name === '');
-      },
-    )) {
-    planError({
-      file,
-      id,
-      problem: 'bins must be a non-empty list of names',
-    },);
-  }
+  const [packageId,] = optionalName({
+    key: 'packageId',
+    value: raw.packageId,
+    fail,
+  },);
   /**
-   Optional alias map.
+   OS filter, when the tool is not for every OS.
    */
-  const options = raw.options === undefined
-    ? {}
-    : raw.options;
-  if ((options === null) || ((typeof options) !== 'object')) {
-    planError({
-      file,
-      id,
-      problem: 'options must be an object',
-    },);
-  }
-  /**
-   Optional OS filter.
-   */
-  const os = raw.os ?? null;
-  if ((os !== null)
-    && ((!Array.isArray(os,))
-      || os.some(
-        function notFamily(name,): boolean {
-          return (name !== 'linux') && (name !== 'macos')
-            && (name !== 'windows');
-        },
-      ))) {
-    planError({
-      file,
-      id,
-      problem: 'os must be null or a list of linux, macos and windows',
-    },);
-  }
-  /**
-   Optional environment exports.
-   */
-  const env = raw.env ?? {};
-  if ((env === null) || ((typeof env) !== 'object')) {
-    planError({
-      file,
-      id,
-      problem: 'env must be an object',
-    },);
-  }
+  const [os,] = parseOs({
+    value: raw.os,
+    fail,
+  },);
   return {
     id,
-    request: requestRecord as ToolPlanEntry['request'],
+    request: parseRequest({
+      value: raw.request,
+      fail,
+    },),
     version,
-    route: route as ToolPlanEntry['route'],
-    manager: (typeof raw.manager) === 'string'
-      ? raw.manager
-      : null,
-    packageId: (typeof raw.packageId) === 'string'
-      ? raw.packageId
-      : null,
-    bins: bins as string[],
-    os: os as ToolPlanEntry['os'],
-    options: options as ToolPlanEntry['options'],
-    env: env as ToolPlanEntry['env'],
+    route: parseRoute({
+      value: raw.route,
+      fail,
+    },),
+    ...(manager === undefined ? {} : { manager, }),
+    ...(packageId === undefined ? {} : { packageId, }),
+    bins: parseBins({
+      value: raw.bins,
+      fail,
+    },),
+    ...(os === undefined ? {} : { os, }),
+    options: parseOptions({
+      value: raw.options,
+      fail,
+    },),
+    env: parseEnv({
+      value: raw.env,
+      fail,
+    },),
     artifacts: artifacts[id] ?? {},
   };
 }
@@ -237,13 +168,49 @@ function parseEntry(
 //region Loading
 
 /**
+ One named export of a dynamically imported module.
+
+ @param path - module file
+
+ @param name - export name
+
+ @returns the export's value, `undefined` when the module lacks it
+
+ @example
+ ```ts
+ await moduleExport({ path: '/x/plan.tools.data.ts', name: 'TOOLS', });
+ ```
+ */
+async function moduleExport(
+  {
+    path,
+    name,
+  }: {
+    readonly path: string;
+    readonly name: string;
+  },
+): Promise<unknown> {
+  /**
+   Imported module namespace.
+   */
+  const namespace: unknown = await import(pathToFileURL(path,)
+    .href);
+  return isRecord(namespace,) ? namespace[name] : undefined;
+}
+
+/**
  Loads, validates and merges one scope's plan data modules.
- 
- @param options - Directory holding `plan.tools.data.ts` and `plan.artifacts.data.ts`
- 
- @returns Typed plan entries in declaration order
- 
+
+ @param dir - directory holding `plan.tools.data.ts` and `plan.artifacts.data.ts`
+
+ @returns typed plan entries in declaration order
+
  @throws Error when a module is missing, malformed or inconsistent
+
+ @example
+ ```ts
+ await loadPlanFromDir({ dir: globalToolchainPaths().worktreeRoot, });
+ ```
  */
 export async function loadPlanFromDir(
   {
@@ -255,45 +222,36 @@ export async function loadPlanFromDir(
   /**
    Declarations module of this scope.
    */
-  const toolsModule = await import(pathToFileURL(join(
+  const toolsFile = join(
     dir,
     'plan.tools.data.ts',
-  ),)
-    .href,) as { TOOLS?: unknown; };
-  if (!Array.isArray(toolsModule.TOOLS,)) {
-    throw new Error(
-      `${join(
-        dir,
-        'plan.tools.data.ts',
-      )}: expected a TOOLS array export`,
-    );
-  }
+  );
   /**
-   Generated artifact rows of this scope.
+   Generated artifact module of this scope.
    */
-  const artifactsModule = await import(pathToFileURL(join(
+  const artifactsFile = join(
     dir,
     'plan.artifacts.data.ts',
-  ),)
-    .href,) as { ARTIFACTS?: unknown; };
-  if ((artifactsModule.ARTIFACTS === undefined)
-    || (artifactsModule.ARTIFACTS === null)
-    || ((typeof artifactsModule.ARTIFACTS) !== 'object')) {
-    throw new Error(
-      `${join(
-        dir,
-        'plan.artifacts.data.ts',
-      )}: expected an ARTIFACTS object export`,
-    );
-  }
+  );
+  /**
+   Raw declarations.
+   */
+  const tools = await moduleExport({
+    path: toolsFile,
+    name: 'TOOLS',
+  },);
+  if (!Array.isArray(tools,))
+    return planFailure({ file: toolsFile, },)('expected a TOOLS array export',);
   /**
    Artifact rows keyed by tool id.
    */
-  const artifacts = artifactsModule.ARTIFACTS as RawArtifacts;
-  /**
-   Parsed entries in declaration order.
-   */
-  const entries: ToolPlanEntry[] = [];
+  const artifacts = parseArtifacts({
+    value: await moduleExport({
+      path: artifactsFile,
+      name: 'ARTIFACTS',
+    },),
+    fail: planFailure({ file: artifactsFile, },),
+  },);
   /**
    Ids already seen, for the uniqueness check.
    */
@@ -303,61 +261,44 @@ export async function loadPlanFromDir(
    as an alias of one entry, but never under two entries).
    */
   const seenNames = new Map<string, string>();
-  for (const raw of toolsModule.TOOLS as RawEntry[]) {
+  return tools.map(function validate(raw: unknown,): ToolPlanEntry {
     /**
      Validated entry for this record.
      */
     const entry = parseEntry({
       raw,
       artifacts,
-      file: join(
-        dir,
-        'plan.tools.data.ts',
-      ),
+      file: toolsFile,
     },);
-    if (seenIds.has(entry.id,)) {
-      planError({
-        file: join(
-          dir,
-          'plan.tools.data.ts',
-        ),
-        id: entry.id,
-        problem: 'declared twice',
-      },);
-    }
+    /**
+     Reporter for this entry's cross-entry defects.
+     */
+    const fail = planFailure({
+      file: toolsFile,
+      id: entry.id,
+    },);
+    if (seenIds.has(entry.id,))
+      return fail('declared twice',);
     seenIds.add(entry.id,);
     for (const name of new Set([
       ...entry.bins,
       ...Object.keys(entry.options
         .binAliases
         ?? {},),
-    ])) {
+    ],)) {
       /**
        Entry already claiming this exposure name, when any.
        */
       const owner = seenNames.get(name,);
-      if ((owner !== undefined) && (owner !== entry.id)) {
-        planError({
-          file: join(
-            dir,
-            'plan.tools.data.ts',
-          ),
-          id: entry.id,
-          problem: `exposure name ${
-            JSON.stringify(name,)
-          } is already declared by ${
-            JSON.stringify(owner,)
-          }`,
-        },);
-      }
+      if ((owner !== undefined) && (owner !== entry.id))
+        return fail(`exposure name ${JSON.stringify(name,)} is already declared by ${JSON.stringify(owner,)}`,);
       seenNames.set(
         name,
         entry.id,
       );
     }
-    entries.push(entry,);
-  }
-  return entries;
+    return entry;
+  },);
 }
 
 //endregion Loading

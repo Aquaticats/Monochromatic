@@ -6,7 +6,7 @@
  attribution. Scheduling semantics match `p-map` 7.1.1: up to `concurrency`
  mapper calls run at once over a synchronous or asynchronous input, results
  collect in input order, and `stopOnError`, the abort `signal`, and
- `pMapSkip` behave as upstream defines them.
+ `pMapSkip`, `pMapStop`, and the settled variant behave as upstream defines them.
  
  @module
  */
@@ -21,14 +21,17 @@ import {
 import {
   type MapOptions,
   resolveMapOptions,
+  type SettledMapOptions,
   validateConcurrency,
 } from './map-options.ts';
 import {
+  type MapControl,
   type MapInput,
   type Mapper,
   validateMapper,
 } from './mapper.ts';
 import { pMapSkip, } from './p-map-skip.ts';
+import { pMapStop, } from './p-map-stop.ts';
 
 //region Types
 
@@ -79,6 +82,72 @@ export type MapRun<Element, NewElement> = {
   readonly options?: MapOptions;
 };
 
+/**
+ One settled-map run: the same shape as {@link MapRun}, without
+ `stopOnError`, since a mapper failure becomes a rejected result instead of
+ rejecting the run.
+
+ @typeParam Element - element type after awaiting an iterated item
+
+ @typeParam NewElement - mapper result type, awaited when thenable
+
+ @example
+ ```ts
+ const run: SettledMapRun<number, number> = {
+   iterable: [1, 2, 3,],
+   mapper: async function double(value: number,): Promise<number> {
+     return value * 2;
+   },
+   options: { concurrency: 2, },
+ };
+ ```
+ */
+export type SettledMapRun<Element, NewElement> = {
+  /**
+   Inputs walked once in iteration order, each element awaited before its
+   mapper call.
+   */
+  readonly iterable: MapInput<Element>;
+  /**
+   Function run per element with its position in the input.
+   */
+  readonly mapper: Mapper<Element, NewElement>;
+  /**
+   Concurrency bound and optional abort signal.
+   */
+  readonly options?: SettledMapOptions;
+};
+
+/**
+ What the shared engine runs: a run exactly as the caller supplied it, plus
+ whether failures become settled results.
+
+ @typeParam Element - element type after awaiting an iterated item
+
+ @typeParam NewElement - mapper result type, awaited when thenable
+
+ @example
+ ```ts
+ const engineRun: ConcurrentRun<number, number> = {
+   run: { iterable: [1,], mapper: identity, },
+   isSettled: false,
+ };
+ ```
+ */
+export type ConcurrentRun<Element, NewElement> = {
+  /**
+   The caller's run, destructured inside the engine so a destructuring
+   failure rejects the returned promise like upstream's `async` signature.
+   */
+  readonly run: MapRun<Element, NewElement>;
+  /**
+   With `true`, a rejected element or mapper gives a
+   `{ status: 'rejected', reason }` result instead of an error, like
+   `Promise.allSettled()`, so `stopOnError` does not apply.
+   */
+  readonly isSettled: boolean;
+};
+
 //endregion Types
 
 //region Run
@@ -100,71 +169,101 @@ function isNotSkip(value: unknown,): boolean {
   return value !== pMapSkip;
 }
 
-/* oxlint-disable eslint/require-await -- `pMap` stays `async` so a destructuring failure rejects the caller's promise like upstream `p-map`'s `async` signature, and returning the deferred promise without awaiting it preserves upstream's promise-adoption tick (measured: an `await` here settles the caller one microtask early) */
+/* oxlint-disable eslint/require-await -- `mapConcurrently` stays `async` so a destructuring failure rejects the caller's promise like upstream `p-map`'s `async` signature, and returning the deferred promise without awaiting it preserves upstream's promise-adoption tick (measured: an `await` here settles the caller one microtask early) */
 /**
- Runs one concurrent map over upstream `p-map`'s run structure: option
+ Runs one concurrent map over upstream `p-map`'s run structure, the engine
+ behind `pMap`, `pMapSettled`, `pMapKeyed`, and `pMapSettledKeyed`: option
  destructuring first, then the input, mapper, and concurrency checks in
  upstream's order, then detached per-element runners pulling the source
  under the concurrency bound.
- 
+
  The run body sits in one `try` that funnels synchronous failures into the
  returned promise, mirroring upstream's `new Promise(executor)`: a hostile
  input, mapper, or iterator becomes a rejection at the same point in the
  run's lifetime.
- 
+
  @typeParam Element - element type after awaiting an iterated item
- 
+
  @typeParam NewElement - mapper result type, awaited when thenable
- 
- @param iterable - Inputs walked once in iteration order.
- 
- @param mapper - Function run per element with its position in the input.
- 
- @param options - Concurrency bound, `stopOnError` policy, and optional
- abort signal.
- 
- @returns Promise settling with every non-skip mapper result in input order,
- or rejecting with the first mapper failure (`stopOnError`) or an
- `AggregateError` of every failure.
- 
+
+ @typeParam Result - element type of the resolved array: the mapper results,
+ or their settled forms
+
+ @param run - The caller's inputs, mapper, and options, destructured here so
+ a failure rejects the returned promise.
+
+ @param isSettled - Whether failures become rejected results.
+
+ @returns Promise settling with every result in input order, or rejecting
+ with the first failure (`stopOnError`) or an `AggregateError` of every
+ failure; with `isSettled`, only the source, the signal, or the checks reject.
+
  @throws InvalidInputError when the input is neither an `Iterable` nor an
  `AsyncIterable`; rejected through the returned promise like upstream.
- 
+
  @throws MapperRequiredError when the mapper is not a function; rejected
  through the returned promise like upstream.
- 
+
  @throws InvalidConcurrencyError when `concurrency` is not a safe integer
  from 1 and up and not `Number.POSITIVE_INFINITY`; rejected through the
  returned promise like upstream.
- 
+
  @example
  ```ts
- import { pMap, } from '\@monochromatic-dev/upstream-fork-p-map';
- 
- const results = await pMap({
-   iterable: [
-     'a',
-     'b',
-   ],
-   mapper: async function fetchUser(id: string): Promise<string> {
-     return `user-${id}`;
-   },
-   options: { concurrency: 2, },
- });
+ const results = await mapConcurrently({
+   run: { iterable: ['a',], mapper: identity, },
+   isSettled: false,
+ },);
  ```
  */
-export async function pMap<Element, NewElement>(
+export async function mapConcurrently<Element, NewElement, Result>(
   {
+    run,
+    isSettled,
+  }: ConcurrentRun<Element, NewElement>,
+): Promise<Result[]> {
+  /**
+   The caller's run destructured inside the async body, so a non-object run
+   rejects the returned promise.
+   */
+  const {
     iterable,
     mapper,
     options,
-  }: MapRun<Element, NewElement>,
-): Promise<(Exclude<NewElement, typeof pMapSkip>)[]> {
+  } = run;
+
   /**
    Deferred settlement of the run's promise, funneling upstream
    `p-map`'s executor-style synchronous failures into it.
    */
-  const settlement = Promise.withResolvers<(Exclude<NewElement, typeof pMapSkip>)[]>();
+  const settlement = Promise.withResolvers<Result[]>();
+
+  /* oxlint-disable promise/prefer-await-to-then -- the link must be a promise reaction whose handler is the run promise's own resolve function: V8 follows such a reaction when it walks the async stack, and an `await` in a helper async function ends the walk at that helper */
+  /**
+   Links one detached runner to the run's promise, so the async stack trace
+   of a mapper error reaches the caller.
+
+   Nothing awaits the runner, so the trace would stop there, but V8 follows a
+   reaction that resolves another promise. The link never settles, so it
+   never resolves the returned promise. It is a new promise for each runner,
+   as a shared one would keep a reaction for every element.
+
+   @param runner - The detached continuation of one element.
+   */
+  function linkRunnerToRun(runner: Promise<void>,): void {
+    /**
+     The link's reaction, handing back a promise that never settles.
+     */
+    const link = runner.then(function neverSettles(): Promise<never> {
+      /**
+       Deferred pair of which only the promise is used, and never settled.
+       */
+      const pending = Promise.withResolvers<never>();
+      return pending.promise;
+    },);
+    void link.then(settlement.resolve,);
+  }
+  /* oxlint-enable promise/prefer-await-to-then */
 
   /**
    Runs the whole map synchronously up to its detached continuations, so any
@@ -189,10 +288,10 @@ export async function pMap<Element, NewElement>(
     validateConcurrency(concurrency,);
 
     /**
-     Mapper results by input position, including `pMapSkip` entries staged
-     for removal.
+     Results by input position, including `pMapSkip` entries staged for
+     removal.
      */
-    const result: (NewElement | typeof pMapSkip)[] = [];
+    const result: unknown[] = [];
     /**
      Failures staged by input position like `result`, so the
      `stopOnError: false` `AggregateError` reports them in input order.
@@ -222,8 +321,9 @@ export async function pMap<Element, NewElement>(
        */
       isIterableDone: false,
       /**
-       Lowest position whose pull reported `done`, or infinity while none has.
-       Pulls and mapper results at or past it do not affect the result.
+       Lowest position whose pull reported `done` or whose mapper returned
+       `pMapStop`, or infinity while none has. Pulls and mapper results at or
+       past it do not affect the result.
        */
       doneIndex: Number.POSITIVE_INFINITY,
       /**
@@ -254,9 +354,9 @@ export async function pMap<Element, NewElement>(
 
      @param value - Results handed to the caller's promise.
      */
-    function resolve(value: (NewElement | typeof pMapSkip)[],): void {
+    function resolve(value: unknown[],): void {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every value reaching this resolver is proven a non-skip mapper result: either no result equals the skip sentinel, or the caller built the value list excluding every one
-      settlement.resolve(value as (Exclude<NewElement, typeof pMapSkip>)[],);
+      settlement.resolve(value as Result[],);
       cleanup();
     }
 
@@ -361,6 +461,14 @@ export async function pMap<Element, NewElement>(
       }
 
       state.isResolved = true;
+
+      // A stop ended the result before the source did, so close it, like
+      // `for await` does on a `break`. Not at the stop itself, as a source
+      // that settles its `next()` calls out of call order may still owe an
+      // earlier element, and closing could drop it.
+// mutation-test-disable-next-line conditional, block -- close bookkeeping only: closing an already-ended source is a no-op the source cannot observe through results
+      if (!state.isIterableDone)
+        void closeIterator(iterator,);
 
       /**
        Results before the `done`: it is final, like `for await`, so a `done`
@@ -523,15 +631,26 @@ export async function pMap<Element, NewElement>(
             );
 
             // Ignore an element produced after an earlier pull reported
-            // `done`.
+            // `done` or an earlier mapper returned `pMapStop`.
 // mutation-test-disable-next-line conditional, equality -- post-done continuation only: the result is cut at `doneIndex` when it settles, so a stored value past it is never observed
             if (position >= state.doneIndex)
               flow.pullsOnward = false;
+            else if (value === pMapStop) {
+              // A stop ends the result here, like a `done` from the source,
+              // so settling waits only for the earlier elements.
+              state.doneIndex = position;
+              flow.pullsOnward = false;
+            }
             else {
               if (value === pMapSkip)
                 state.skippedCount += 1;
 
-              result[position] = value;
+              result[position] = (isSettled && (value !== pMapSkip))
+                ? {
+                  status: 'fulfilled',
+                  value,
+                }
+                : value;
             }
           }
         }
@@ -540,6 +659,11 @@ export async function pMap<Element, NewElement>(
           // final.
           if (position >= state.doneIndex)
             flow.pullsOnward = false;
+          else if (isSettled)
+            result[position] = {
+              status: 'rejected',
+              reason: error,
+            };
           else if (stopOnError) {
             reject(error,);
             flow.pullsOnward = false;
@@ -565,10 +689,10 @@ export async function pMap<Element, NewElement>(
         }
       }
 
-      void runElement({
+      linkRunnerToRun(runElement({
         item: elementItem,
         position: index,
-      },);
+      },),);
     }
 
     /**
@@ -617,5 +741,111 @@ export async function pMap<Element, NewElement>(
   return settlement.promise;
 }
 /* oxlint-enable eslint/require-await */
+
+/**
+ Runs one concurrent map: walks a synchronous or asynchronous input, awaits
+ each iterated element, and runs the mapper under the `concurrency` bound.
+
+ @typeParam Element - element type after awaiting an iterated item
+
+ @typeParam NewElement - mapper result type, awaited when thenable
+
+ @param run - Inputs walked once in iteration order, the mapper run per
+ element with its position, and the options: concurrency bound,
+ `stopOnError` policy, and optional abort signal.
+
+ @returns Promise settling with every non-skip mapper result in input order,
+ or rejecting with the first mapper failure (`stopOnError`) or an
+ `AggregateError` of every failure in input order. A mapper returning
+ `pMapStop` ends the result before that element, without waiting for the
+ elements after it.
+
+ @throws InvalidInputError when the input is neither an `Iterable` nor an
+ `AsyncIterable`, `null` and `undefined` included; rejected through the
+ returned promise like upstream.
+
+ @throws MapperRequiredError when the mapper is not a function; rejected
+ through the returned promise like upstream.
+
+ @throws InvalidConcurrencyError when `concurrency` is not a safe integer
+ from 1 and up and not `Number.POSITIVE_INFINITY`; rejected through the
+ returned promise like upstream.
+
+ @example
+ ```ts
+ import { pMap, } from '\@monochromatic-dev/upstream-fork-p-map';
+
+ const results = await pMap({
+   iterable: [
+     'a',
+     'b',
+   ],
+   mapper: async function fetchUser(id: string): Promise<string> {
+     return `user-${id}`;
+   },
+   options: { concurrency: 2, },
+ });
+ ```
+ */
+export function pMap<Element, NewElement>(
+  run: MapRun<Element, NewElement>,
+): Promise<Exclude<NewElement, MapControl>[]> {
+  return mapConcurrently<Element, NewElement, Exclude<NewElement, MapControl>>({
+    run,
+    isSettled: false,
+  },);
+}
+
+/**
+ Runs one concurrent map like {@link pMap}, for
+ `Promise.allSettled()`: an error from the mapper, or an element of the input
+ that rejects, does not reject the run.
+
+ An element that rejects gets a `{ status: 'rejected', reason }` result and the
+ mapper is not called for it. A `pMapSkip` result is left out, and `pMapStop`
+ stops like in {@link pMap}. The run still rejects when iterating the input
+ throws, and when the `signal` aborts.
+
+ @typeParam Element - element type after awaiting an iterated item
+
+ @typeParam NewElement - mapper result type, awaited when thenable
+
+ @param run - Inputs walked once in iteration order, the mapper run per
+ element with its position, and the options: concurrency bound and optional
+ abort signal.
+
+ @returns Promise settling with one `PromiseSettledResult` per non-skip
+ element, in input order.
+
+ @throws InvalidInputError when the input is neither an `Iterable` nor an
+ `AsyncIterable`; rejected through the returned promise.
+
+ @throws MapperRequiredError when the mapper is not a function; rejected
+ through the returned promise.
+
+ @throws InvalidConcurrencyError when `concurrency` is invalid; rejected
+ through the returned promise.
+
+ @example
+ ```ts
+ import { pMapSettled, } from '\@monochromatic-dev/upstream-fork-p-map';
+
+ const results = await pMapSettled({
+   iterable: urls,
+   mapper: async function readJson(url: string): Promise<unknown> {
+     return (await fetch(url,)).json();
+   },
+   options: { concurrency: 4, },
+ });
+ ```
+ */
+export function pMapSettled<Element, NewElement>(
+  run: SettledMapRun<Element, NewElement>,
+): Promise<PromiseSettledResult<Exclude<NewElement, MapControl>>[]> {
+  return mapConcurrently<Element, NewElement, PromiseSettledResult<Exclude<NewElement, MapControl>>>({
+    run,
+    isSettled: true,
+  },);
+}
 
 //endregion Run

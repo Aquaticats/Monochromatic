@@ -15,6 +15,7 @@ import {
   createGate,
   createSpyCache,
   promiseState,
+  rejectionOf,
   yieldTurn,
 } from './test-support.ts';
 
@@ -198,6 +199,43 @@ await describe({
             const spy = createSpyCache<string, number>();
             expect(await spy.cache.has('missing',),).toBe(false,);
             expect(await spy.cache.get('missing',),).toBeUndefined();
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: rejectionOf.name,
+      children: [
+        it({
+          name: 'hands back the rejection reason',
+          fn: async () => {
+            /**
+             Reason the promise rejects with.
+             */
+            const reason = new Error('boom',);
+            /**
+             Rejecting promise handed to the helper.
+             */
+            const rejecting = Promise.reject(reason,);
+            expect(await rejectionOf(rejecting,),).toBe(reason,);
+          },
+        },),
+
+        it({
+          name: 'throws when the promise fulfills',
+          fn: async () => {
+            /**
+             Failure raised for a fulfilled promise.
+             */
+            let caught: unknown;
+            try {
+              await rejectionOf(Promise.resolve(1,),);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).message,).toBe('expected the promise to reject, but it fulfilled',);
           },
         },),
       ],

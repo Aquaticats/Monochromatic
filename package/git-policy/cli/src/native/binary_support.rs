@@ -57,11 +57,51 @@ pub struct Fixture {
     pub wrapper: PathBuf,
 }
 
+/// Environment variable that keeps every fixture on disk after its test ends, for looking at a failure.
+pub const KEEP_FIXTURES_VARIABLE: &str = "CLI_GIT_KEEP_FIXTURES";
+
+/// Environment variable that moves the fixture root, for example onto a tmpfs for speed.
+pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
+
+/// The directory fixtures are created in.
+///  Cargo's per-target scratch directory, never `/tmp`: a shared tmpfs with a per-user quota fills up
+///  when failing tests leave fixtures behind (issue 1809), and then every command of every session fails.
+fn fixture_root() -> PathBuf {
+    let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE)
+        .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
+    std::fs::create_dir_all(&root).expect("fixture root");
+    return root;
+}
+
+/// What:
+///  Remove a fixture tree unless the person asked to keep it, trying again for up to five seconds.
+/// Why:
+///   A landed commit may leave a maintenance child finishing for a moment, and removing a directory that still gains
+///  entries fails; a tree already gone is the explicit `remove` having run first, not a failure.
+pub fn settle_fixture(root: &Path, keep: bool) {
+    if keep {
+        return;
+    }
+    for _ in 0..50 {
+        match std::fs::remove_dir_all(root) {
+            Ok(()) => return,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+        }
+    }
+}
+
+/// A fixture goes away however its test ends: a panic unwinds through this too.
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+    }
+}
+
 /// Create a fixture:
 ///  `<root>/wrapper/cli-git-native` (copy) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
-    let created: PathBuf =
-        std::env::temp_dir().join(format!("native-binary-{}-{name}", std::process::id()));
+    let created: PathBuf = fixture_root().join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }

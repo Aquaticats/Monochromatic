@@ -9,61 +9,116 @@
  */
 
 import {
-  existsSync,
-  readdirSync,
-} from 'node:fs';
-import { join, } from 'node:path';
-import { run, } from './exec.ts';
-import { findToolBin, } from './layout.ts';
-import {
-  binCliPath,
-  parseBinList,
-  parseCargoBinstallList,
-  planTool,
-  toolchainPathEnv,
-} from './providers.ts';
-import {
   globalToolchainPaths,
-  homeDirFromEnv,
   resolveToolchainPaths,
-  toolchainRootFromEnv,
   type PathEnv,
   type ToolchainPaths,
   isMainModule,
-  toolInstallDir
 } from './paths.ts';
 import {
   ALL_TOOLS,
 } from './plan.ts';
 import { loadPlanFromDir, } from './plan.load.ts';
+import {
+  NOT_INSTALLED,
+  ROUTE_OBSERVERS,
+} from './status.observe.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Version comparison
 
 /**
- Normalizes a version string for comparison: drops one leading `v`.
- 
+ Letters and digits a release-tag prefix (`bun-v1.3.14`) may contain besides its separators.
+ */
+const TAG_PREFIX_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-';
+
+/**
+ ASCII letters, which a release-tag prefix must start with.
+ */
+const ASCII_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
+/**
+ ASCII digits.
+ */
+const ASCII_DIGITS = '0123456789';
+
+/**
+ Whether text is exactly one ASCII digit.
+
+ @param ch - Text to test
+
+ @returns `true` for `0` to `9`
+ */
+function isAsciiDigit(ch: string,): boolean {
+  return (ch.length === 1) && ASCII_DIGITS.includes(ch,);
+}
+
+/**
+ Index of the character that ends the leading release-tag prefix run: a letter followed by letters, digits,
+ `.`, `_` and `-`.
+
  @param version - Raw version text
- 
+
+ @returns Length of the prefix run; zero when the text does not start with a letter
+ */
+function tagPrefixRunLength(version: string,): number {
+  if ((version.length === 0) || (!ASCII_LETTERS.includes(version.charAt(0,),)))
+    return 0;
+  for (let index = 1; index < version.length; index += 1) {
+    if (!TAG_PREFIX_CHARACTERS.includes(version.charAt(index,),))
+      return index;
+  }
+  return version.length;
+}
+
+/**
+ Normalizes a version string for comparison: drops one leading `v`, and the
+ release-tag prefix before it (`bun-v1.3.14` becomes `1.3.14`).
+
+ Release tags carry prefixes (`v1.9.0`, `bun-v1.3.14`); the lock holds the bare version. Anything without a
+ v-before-digit stays as written. When several `-v<digit>` boundaries could end the prefix, the last one wins.
+
+ @param version - Raw version text
+
  @returns Normalized version text
+
+ @example
+ ```ts
+ normalizeVersion('bun-v1.3.14',); // '1.3.14'
+ ```
  */
 export function normalizeVersion(version: string,): string {
-  // Release tags carry prefixes (`v1.9.0`, `bun-v1.3.14`); the lock holds
-  // the bare version. Anything without a v-before-digit stays as written.
-  return version.replace(
-    /^(?:[A-Za-z][A-Za-z0-9._-]*-)?v(?=\d)/u,
-    '',
-  );
+  /**
+   Length of the leading run that may form a tag prefix.
+   */
+  const runLength = tagPrefixRunLength(version,);
+  // A prefix is a letter, more prefix characters, then a `-` right before `v<digit>`.
+  for (let dash = runLength - 1; dash >= 1; dash -= 1) {
+    if ((version.charAt(dash,) === '-')
+      && (version.charAt(dash + 1,) === 'v')
+      && isAsciiDigit(version.charAt(dash + 2,),))
+      return version.slice(dash + 2,);
+  }
+  return (version.startsWith('v',) && isAsciiDigit(version.charAt(1,),))
+    ? version.slice(1,)
+    : version;
 }
 
 /**
  Whether an observed version satisfies a locked version:
  equal after normalization, or the observed value extends the lock with a
  platform suffix (`nightly-2026-10-21-x86_64-unknown-linux-gnu`).
- 
- @param options - Observed and locked versions
- 
+
+ @param observed - Version text the machine reports
+
+ @param locked - Version text the lock records
+
  @returns `true` when the observed version matches the lock
+
+ @example
+ ```ts
+ versionMatches({ observed: 'v1.9.0', locked: '1.9.0', },); // true
+ ```
  */
 export function versionMatches(
   {
@@ -97,9 +152,9 @@ export type ToolObservation = {
   readonly id: string;
   readonly locked: string;
   /**
-   Observed version text, or `null` when nothing is installed.
+   Observed version text; absent when nothing is installed.
    */
-  readonly observed: string | null;
+  readonly observed?: string;
   /**
    Whether the observed version matches the lock.
    */
@@ -108,12 +163,63 @@ export type ToolObservation = {
 
 /**
  Probes the observed version of one plan entry on this machine.
- 
- @param options - Plan entry, paths and environment
- 
+
+ @param entry - Plan entry to probe
+
+ @param paths - Resolved toolchain paths of the scope being observed
+
+ @param env - Environment the probe resolves manager homes from
+
+ @param tools - Plan of the scope being observed; absent means the repository plan
+
  @returns Observed version text, or `null` when the tool is absent
+
+ @example
+ ```ts
+ await observeTool({ entry: toolById('node',), paths: resolveToolchainPaths(), env: process.env, },); // '26.12.0'
+ ```
  */
 export async function observeTool(
+  {
+    entry,
+    paths,
+    env,
+    tools = ALL_TOOLS,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly paths: ToolchainPaths;
+    readonly env: PathEnv;
+    readonly tools?: readonly ToolPlanEntry[];
+  },
+): Promise<string | null> {
+  /**
+   Version the entry's route reports, or the not-installed marker.
+   */
+  const observed = await ROUTE_OBSERVERS[entry.route]({
+    entry,
+    paths,
+    env,
+    tools,
+  },);
+  return observed === NOT_INSTALLED
+    ? null
+    : observed;
+}
+
+/**
+ Observes one plan entry against its locked version.
+
+ @param entry - Plan entry to observe
+
+ @param paths - Resolved toolchain paths of the scope being observed
+
+ @param env - Environment the probe resolves manager homes from
+
+ @param tools - Plan sibling lookups resolve against
+
+ @returns The entry's observation
+ */
+async function observeEntry(
   {
     entry,
     paths,
@@ -123,280 +229,50 @@ export async function observeTool(
     readonly entry: ToolPlanEntry;
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
-    /**
-     Plan of the scope being observed; absent means the repository plan.
-     */
-    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly tools: readonly ToolPlanEntry[];
   },
-): Promise<string | null> {
+): Promise<ToolObservation> {
   /**
-   Home directory for manager-native probes.
+   Observed version for this entry.
    */
-  const home = homeDirFromEnv({ env, });
-  switch (entry.route) {
-    case 'bin-sourced': {
-      /**
-       `bin list` output from the scope's own install database.
-       */
-      /**
-       Bootstrap CLI, absent on a fresh machine before the `bin` stage runs;
-       an unprobeable database reads as an absent tool, not a crash.
-       */
-      let cli: string;
-      try {
-        cli = binCliPath({
-          paths,
-          env,
-          tools,
-        },);
-      } catch {
-        return null;
-      }
-      const listed = await run({
-        command: cli,
-        args: ['list'],
-        env: {
-          ...process.env,
-          HOME: home,
-          BIN_CONFIG: paths.binConfigFile,
-        },
-      },);
-      /**
-       Name to version pairs from the `bin` database.
-       */
-      const versions = parseBinList(listed.stdout + listed.stderr);
-      for (const name of entry.bins) {
-        /**
-         Version recorded for this binary name.
-         */
-        const version = versions.get(name,);
-        if (version !== undefined)
-          return version;
-      }
-      return null;
-    }
-    case 'cargo-binstall': {
-      /**
-       `cargo binstall --list` output.
-       */
-      const listed = await run({
-        command: 'cargo',
-        args: [
-          'binstall',
-          '--list',
-        ],
-        env: toolchainPathEnv({
-          paths,
-          env,
-        },),
-      },);
-      return parseCargoBinstallList(listed.stdout,)
-        .get(entry.packageId ?? entry.id,)
-        ?? null;
-    }
-    case 'mpm-pnpm': {
-      /**
-       `pnpm list --global --depth=0 --json` output.
-       */
-      /**
-       Toolchain `pnpm` that owns the global package list.
-       */
-      const pnpmBin = findToolBin({
-        entry: planTool({
-          tools,
-          id: 'pnpm',
-        },),
-        name: 'pnpm',
-        paths,
-        env,
-      },);
-      if (pnpmBin === null)
-        return null;
-      const listed = await run({
-        command: pnpmBin,
-        args: [
-          'list',
-          '--global',
-          '--depth=0',
-          '--json',
-        ],
-        env: toolchainPathEnv({
-          paths,
-          env,
-        },),
-      },);
-      try {
-        /**
-         Parsed global package map; pnpm emits one root object per entry in
-         an array, older versions emitted the object directly.
-         */
-        const parsed = JSON.parse(listed.stdout,) as {
-          dependencies?: Record<string, { version?: string; }>;
-        } | readonly {
-          dependencies?: Record<string, { version?: string; }>;
-        }[];
-        /**
-         Dependency map of the global root.
-         */
-        const roots: readonly { dependencies?: Record<string, { version?: string; }>; }[] = Array.isArray(parsed,)
-          ? parsed
-          : [parsed,];
-        const dependencies: Record<string, { version?: string; }> = {};
-        for (const root of roots)
-          Object.assign(
-            dependencies,
-            root.dependencies ?? {},
-          );
-        return dependencies[entry.packageId ?? entry.id]
-          ?.version
-          ?? null;
-      } catch {
-        return null;
-      }
-    }
-    case 'mpm-uvx': {
-      /**
-       `uv tool list` output.
-       */
-      /**
-       Toolchain `uv` that owns the tool list.
-       */
-      const uvBin = findToolBin({
-        entry: planTool({
-          tools,
-          id: 'uv',
-        },),
-        name: 'uv',
-        paths,
-        env,
-      },);
-      if (uvBin === null)
-        return null;
-      const listed = await run({
-        command: uvBin,
-        args: [
-          'tool',
-          'list'
-        ],
-        env: toolchainPathEnv({
-          paths,
-          env,
-        },),
-      },);
-      for (const line of listed.stdout
-        .split('\n',)) {
-        /**
-         One `name v<version>` row.
-         */
-        const match = /^(\S+)\s+v?(\S+)/u.exec(line);
-        // `uv tool list` prints registry-normalized names (`huggingface-hub`)
-        // where the plan may spell the PyPI form with underscores.
-        if ((match !== null)
-          && (match[1]
-            ?.replaceAll(
-            '-',
-            '_'
-            )
-            === (entry.packageId ?? entry.id)
-              .replaceAll(
-              '-',
-              '_'
-              )))
-          return match[2] ?? null;
-      }
-      return null;
-    }
-    case 'rustup-toolchain': {
-      /**
-       `rustup toolchain list` output.
-       */
-      const listed = await run({
-        command: 'rustup',
-        args: [
-          'toolchain',
-          'list'
-        ],
-      },);
-      for (const line of listed.stdout
-        .split('\n',)) {
-        /**
-         Toolchain id from one listing line.
-         */
-        const id = line.split(/\s/u)[0] ?? '';
-        if (id.startsWith(entry.version,))
-          return id;
-      }
-      return null;
-    }
-    case 'android-sdk': {
-      /**
-       cmdline-tools directory for the locked version.
-       */
-      const cmdlineTools = join(
-        toolInstallDir({
-          toolchainRoot: paths.toolchainRoot,
-          id: entry.id,
-          version: entry.version,
-        }),
-        'cmdline-tools',
-        entry.version,
-      );
-      return existsSync(cmdlineTools,)
-        ? entry.version
-        : null;
-    }
-    case 'archive':
-    case 'cargo-git':
-    case 'go-install':
-    case 'rustup-components': {
-      /**
-       Version directories present for this tool.
-       */
-      // The scoped install routes (`cargo-git`, `go-install`) observe the
-      // same way: the pinned ref or module version keys the install
-      // directory, so presence at that key is the locked version.
-      const toolRoot = join(
-        paths.toolchainRoot,
-        entry.id
-          .replaceAll(
-          /[^A-Za-z0-9._-]+/g,
-          '-',
-          ),
-      );
-      if (!existsSync(toolRoot,))
-        return null;
-      /**
-       Installed version directory names.
-       */
-      const dirs = readdirSync(
-        toolRoot,
-        { withFileTypes: true, },
-      )
-        .filter(
-        function isVersionDir(entryDir,): boolean {
-          return entryDir.isDirectory()
-            && (!entryDir.name
-              .startsWith('.',));
-        },
-        )
-        .map(
-        function dirName(entryDir,): string {
-          return entryDir.name;
-        },
-        );
-      return dirs.includes(entry.version,)
-        ? entry.version
-        : (dirs[0] ?? null);
-    }
-  }
+  const observed = await observeTool({
+    entry,
+    paths,
+    env,
+    tools,
+  },);
+  return {
+    id: entry.id,
+    locked: entry.version,
+    ...(observed === null
+      ? {}
+      : { observed, }),
+    inSync: (observed !== null)
+      && versionMatches({
+        observed,
+        locked: entry.version,
+      }),
+  };
 }
 
 /**
  Observes every plan entry against its locked version.
- 
- @param options - Plan entries, paths and environment
- 
+
+ @param entries - Plan entries to observe; the repository plan when absent
+
+ @param tools - Plan sibling lookups resolve against; defaults to `entries`
+
+ @param paths - Resolved toolchain paths of the scope being observed
+
+ @param env - Environment the probes resolve manager homes from
+
  @returns One observation per plan entry, in plan order
+
+ @example
+ ```ts
+ const observations = await observeTools({ paths: resolveToolchainPaths(), env: process.env, },);
+ observations.every((observation,) => observation.inSync,);
+ ```
  */
 export async function observeTools(
   {
@@ -406,10 +282,7 @@ export async function observeTools(
     env,
   }: {
     readonly entries?: readonly ToolPlanEntry[];
-    /**
-     Plan sibling lookups resolve against; defaults to `entries`.
-     */
-    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly tools?: readonly ToolPlanEntry[];
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
   },
@@ -419,25 +292,13 @@ export async function observeTools(
    */
   const observations: ToolObservation[] = [];
   for (const entry of entries) {
-    /**
-     Observed version for this entry.
-     */
-    const observed = await observeTool({
+    // oxlint-disable-next-line no-await-in-loop -- each probe runs a manager CLI, so one at a time keeps process fan-out at one
+    observations.push(await observeEntry({
       entry,
       paths,
       env,
       tools,
-    },);
-    observations.push({
-      id: entry.id,
-      locked: entry.version,
-      observed,
-      inSync: (observed !== null)
-        && versionMatches({
-          observed,
-          locked: entry.version,
-        }),
-    },);
+    },),);
   }
   return observations;
 }
@@ -448,11 +309,14 @@ export async function observeTools(
 
 /**
  Entry point: prints the drift report on stdout.
- 
+
  `--global` observes the machine-global scope
  (`doc/planning/mpm-global-toolchain-migration.md`).
- 
- @returns Promise resolved after the report is written
+
+ @example
+ ```ts
+ await main();
+ ```
  */
 export async function main(): Promise<void> {
   /**
@@ -476,17 +340,12 @@ export async function main(): Promise<void> {
     paths,
     env: process.env,
   },);
-  /**
-   Number of drifted entries.
-   */
-  let drift = 0;
   for (const observation of observations) {
     if (observation.inSync) {
       process.stdout
         .write(`ok      ${observation.id}  ${observation.locked}\n`,);
       continue;
     }
-    drift += 1;
     process.stdout
       .write(
       `drift   ${observation.id}  locked=${observation.locked}  observed=${
@@ -494,6 +353,15 @@ export async function main(): Promise<void> {
       }\n`,
       );
   }
+  /**
+   Number of drifted entries.
+   */
+  const drift = observations.filter(
+    function hasDrifted(observation,): boolean {
+      return !observation.inSync;
+    },
+  )
+    .length;
   process.stdout
     .write(
     drift === 0

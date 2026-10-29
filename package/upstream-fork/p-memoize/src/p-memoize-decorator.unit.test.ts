@@ -64,7 +64,8 @@ type FakeDecoration = {
 /**
  Builds one synthetic method-decoration context capturing its initializer.
  
- @param contextFields - `kind` and `private` flags the decorator validates.
+ @param contextFields - `kind` and `private` flags the decorator validates,
+ plus the optional method name and static flag.
  
  @returns Context and a runner that applies the captured initializer to one
  instance.
@@ -80,9 +81,13 @@ type FakeDecoration = {
 function createFakeDecoration({
   kind,
   isPrivate,
+  name = 'counter',
+  isStatic = false,
 }: {
   readonly kind: string;
   readonly isPrivate: boolean;
+  readonly name?: string | symbol;
+  readonly isStatic?: boolean;
 },): FakeDecoration {
   /**
    Initializers registered by the decorator under test.
@@ -94,7 +99,8 @@ function createFakeDecoration({
   const context = {
     kind,
     private: isPrivate,
-    name: 'counter',
+    static: isStatic,
+    name,
     addInitializer: function addInitializer(initializer: (this: CounterInstance,) => void,): void {
       initializers.push(initializer,);
     },
@@ -116,6 +122,36 @@ function createFakeDecoration({
   };
 }
 
+/**
+ Prototype the instances inherit the decorated method from, as a class's
+ prototype would hold it.
+ */
+const counterPrototype = {
+  counter: counterMethod,
+};
+
+/**
+ Builds one instance whose prototype defines the decorated method, which is
+ where the decorator looks for it.
+
+ @param index - Starting counter value of the instance.
+
+ @returns Instance inheriting `counterPrototype`.
+
+ @example
+ ```ts
+ const instance = createInstance(0,);
+ ```
+ */
+function createInstance(index: number,): CounterInstance {
+  return Object.assign(
+    Object.create(counterPrototype,) as CounterInstance,
+    {
+      index,
+    },
+  );
+}
+
 await describe({
   name: pMemoizeDecorator.name,
   children: [
@@ -130,15 +166,11 @@ await describe({
         /**
          First instance getting its own memoized method.
          */
-        const alpha = {
-          index: 0,
-        } as CounterInstance;
+        const alpha = createInstance(0,);
         /**
          Second instance that must not share the first one's cache.
          */
-        const beta = {
-          index: 100,
-        } as CounterInstance;
+        const beta = createInstance(100,);
         decoration.initialize(alpha,);
         decoration.initialize(beta,);
 
@@ -168,9 +200,7 @@ await describe({
         /**
          Instance whose own property shape is inspected.
          */
-        const instance = {
-          index: 0,
-        } as CounterInstance;
+        const instance = createInstance(0,);
         decoration.initialize(instance,);
 
         /**
@@ -198,15 +228,11 @@ await describe({
         /**
          Instance whose cache the test clears.
          */
-        const alpha = {
-          index: 0,
-        } as CounterInstance;
+        const alpha = createInstance(0,);
         /**
          Instance whose cache must stay intact.
          */
-        const beta = {
-          index: 100,
-        } as CounterInstance;
+        const beta = createInstance(100,);
         decoration.initialize(alpha,);
         decoration.initialize(beta,);
 
@@ -292,15 +318,224 @@ await describe({
         /**
          Instance whose method runs with the forwarded options.
          */
-        const instance = {
-          index: 0,
-        } as CounterInstance;
+        const instance = createInstance(0,);
         decoration.initialize(instance,);
 
         await instance.counter({
           args: [],
         },);
         expect(state.calls,).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'stands down when a subclass overrides the method',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Subclass prototype whose override replaces the decorated method.
+         */
+        const subclassPrototype = Object.create(counterPrototype,) as object;
+        Object.defineProperty(subclassPrototype, 'counter', {
+          value: async function override(): Promise<number> {
+            return -1;
+          },
+        },);
+        /**
+         Instance of the overriding subclass.
+         */
+        const instance = Object.create(subclassPrototype,) as CounterInstance;
+        decoration.initialize(instance,);
+
+        expect(Object.hasOwn(instance, 'counter',),).toBe(false,);
+        expect(await (instance.counter as unknown as () => Promise<number>)(),).toBe(-1,);
+      },
+    },),
+
+    it({
+      name: 'stands down when the method is deleted from the prototype',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Instance whose chain no longer defines the method.
+         */
+        const instance = Object.create(Object.create(null,) as object,) as CounterInstance;
+        decoration.initialize(instance,);
+
+        expect(Object.hasOwn(instance, 'counter',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'does not invoke a subclass accessor while checking for an override',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Counter proving whether the accessor ran.
+         */
+        const state = {
+          reads: 0,
+        };
+        /**
+         Subclass prototype that replaced the method with a throwing getter.
+         */
+        const subclassPrototype = Object.create(counterPrototype,) as object;
+        Object.defineProperty(subclassPrototype, 'counter', {
+          get: function readCounter(): never {
+            state.reads += 1;
+            throw new Error('getter exploded',);
+          },
+        },);
+        /**
+         Instance of the subclass with the accessor.
+         */
+        const instance = Object.create(subclassPrototype,) as CounterInstance;
+        decoration.initialize(instance,);
+
+        expect(state.reads,).toBe(0,);
+        expect(Object.hasOwn(instance, 'counter',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'memoizes a method that a subclass inherits without overriding',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Instance three levels down a chain that never overrides the method.
+         */
+        const grandparent = Object.create(counterPrototype,) as object;
+        const parent = Object.create(grandparent,) as object;
+        const instance = Object.assign(
+          Object.create(parent,) as CounterInstance,
+          {
+            index: 0,
+          },
+        );
+        decoration.initialize(instance,);
+
+        expect(Object.hasOwn(instance, 'counter',),).toBe(true,);
+        expect(await instance.counter({
+          args: [],
+        },),).toBe(0,);
+        expect(await instance.counter({
+          args: [],
+        },),).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'stands down three levels down a chain that overrides the method',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Middle prototype holding the override.
+         */
+        const middle = Object.create(counterPrototype,) as object;
+        Object.defineProperty(middle, 'counter', {
+          value: async function override(): Promise<number> {
+            return -1;
+          },
+        },);
+        /**
+         Instance below the overriding link.
+         */
+        const instance = Object.create(Object.create(middle,) as object,) as CounterInstance;
+        decoration.initialize(instance,);
+
+        expect(Object.hasOwn(instance, 'counter',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'memoizes a static method on the class itself and stands down for a static override',
+      fn: async () => {
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+          isStatic: true,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Class-like function holding the decorated method as a static.
+         */
+        const base = Object.assign(function Base(): void {}, {
+          index: 0,
+          counter: counterMethod,
+        },) as unknown as CounterInstance;
+        decoration.initialize(base,);
+
+        expect(Object.hasOwn(base, 'counter',),).toBe(true,);
+        expect(await base.counter({
+          args: [],
+        },),).toBe(0,);
+        expect(await base.counter({
+          args: [],
+        },),).toBe(0,);
+
+        /**
+         Subclass-like function that overrides the static method.
+         */
+        const derived = Object.assign(function Derived(): void {}, {
+          index: 0,
+          counter: async function override(): Promise<number> {
+            return -1;
+          },
+        },) as unknown as CounterInstance;
+        decoration.initialize(derived,);
+
+        expect(derived.counter,).not.toBe(base.counter,);
+        expect(await (derived.counter as unknown as () => Promise<number>)(),).toBe(-1,);
+      },
+    },),
+
+    it({
+      name: 'memoizes a method named by a symbol',
+      fn: async () => {
+        /**
+         Symbol naming the decorated method.
+         */
+        const name = Symbol('decorated counter method name',);
+        const decoration = createFakeDecoration({
+          kind: 'method',
+          isPrivate: false,
+          name,
+        },);
+        pMemoizeDecorator()(counterMethod, decoration.context,);
+        /**
+         Instance whose prototype holds the method under the symbol.
+         */
+        const instance = Object.assign(
+          Object.create({
+            [name]: counterMethod,
+          },) as CounterInstance,
+          {
+            index: 0,
+          },
+        );
+        decoration.initialize(instance,);
+
+        expect(Object.hasOwn(instance, name,),).toBe(true,);
       },
     },),
   ],

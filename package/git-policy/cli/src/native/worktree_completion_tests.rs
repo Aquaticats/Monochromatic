@@ -292,13 +292,30 @@ fn identity_reads_times_as_nanoseconds_since_the_epoch() {
     remove(root.as_path());
 }
 
+/// Binds a socket named `name` inside `directory` through a short path.
+///  A socket path is limited to about a hundred bytes and a fixture under the build directory is longer than that,
+///  so on Linux the bind goes through the open directory's descriptor.
+#[cfg(target_os = "linux")]
+fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+    use std::os::fd::AsRawFd;
+    let handle: std::fs::File = std::fs::File::open(directory).expect("directory handle");
+    let short: PathBuf = PathBuf::from(format!("/proc/self/fd/{}/{name}", handle.as_raw_fd()));
+    return std::os::unix::net::UnixListener::bind(short).expect("socket");
+}
+
+/// Binds a socket named `name` inside `directory` by its plain path.
+#[cfg(all(unix, not(target_os = "linux")))]
+fn bind_socket_in(directory: &Path, name: &str) -> std::os::unix::net::UnixListener {
+    return std::os::unix::net::UnixListener::bind(directory.join(name)).expect("socket");
+}
+
 /// A socket where a file is expected is a conflict, not a failure, and a symbolic link cannot be opened.
 #[cfg(unix)]
 #[test]
 fn a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened() {
     let root: PathBuf = fixture("worktree-completion-socket");
     let socket: PathBuf = root.join("listening");
-    let _listener = std::os::unix::net::UnixListener::bind(&socket).expect("socket");
+    let _listener = bind_socket_in(root.as_path(), "listening");
     assert_eq!(
         inspect_worktree_file(socket.as_path(), "100644", b"a", b"b").expect("inspect"),
         WorktreeFileState::Conflict

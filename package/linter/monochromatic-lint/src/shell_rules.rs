@@ -12,9 +12,11 @@
 
 /// Import the finding model.
 use crate::diagnostic::{Diagnostic, Span};
-/// Import the dialect and the scan.
+/// Import the dialect and construct names.
 use crate::shell_dialect::{Construct, ShellDialect};
+/// Import the typed settings the checks read.
 use crate::shell_rule_settings::{ShellBudget, ShellRuleSettings};
+/// Import the scan.
 use crate::shell_scan::{Hit, scan};
 
 /// A zero-based line start and end of one code line,
@@ -71,7 +73,13 @@ fn code_lines(source: &str, dialect: ShellDialect) -> Vec<CodeLine> {
 
 /// Build a finding in the run body's coordinates;
 ///  the processor recomputes the line and column in the workflow file.
-fn finding(code: &str, budget: &ShellBudget, message: String, filename: &str, range: (usize, usize)) -> Diagnostic {
+fn finding(
+    code: &str,
+    budget: &ShellBudget,
+    message: String,
+    filename: &str,
+    range: (usize, usize),
+) -> Diagnostic {
     return Diagnostic::new(
         code,
         budget.severity,

@@ -34,7 +34,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { run, sha256File, } from './exec.ts';
-import { rebuildExposure, runPostinstallLinks, } from './exposure.ts';
+import {
+  rebuildExposure,
+  runPostinstallCommands,
+  runPostinstallLinks,
+} from './exposure.ts';
 import { hostPlatformId, } from './layout.ts';
 import {
   resolveToolchainPaths,
@@ -122,7 +126,7 @@ function writeFakeCli(
     readonly fixture: Fixture;
     readonly name: string;
     readonly body: string;
-    readonly dir?: string | undefined;
+    readonly dir?: string;
   },
 ): string {
   /**
@@ -179,6 +183,19 @@ function readCliLog(fixture: Fixture,): readonly (readonly string[])[] {
 }
 
 /**
+ Plan entry fields a fixture case overrides.
+ */
+type FixtureEntryOverrides = {
+  readonly id?: ToolPlanEntry['id'];
+  readonly version?: ToolPlanEntry['version'];
+  readonly route?: ToolPlanEntry['route'];
+  readonly packageId?: string;
+  readonly bins?: ToolPlanEntry['bins'];
+  readonly options?: ToolPlanEntry['options'];
+  readonly artifacts?: ToolPlanEntry['artifacts'];
+};
+
+/**
  Builds a plan entry for one fixture case.
  
  @param overrides - Fields to set over the base entry
@@ -186,21 +203,38 @@ function readCliLog(fixture: Fixture,): readonly (readonly string[])[] {
  @returns A plan entry shaped like the real plan
  */
 function fixtureEntry(
-  overrides: Partial<ToolPlanEntry>,
+  overrides: FixtureEntryOverrides,
 ): ToolPlanEntry {
   return {
     id: 'fixture-tool',
     request: { track: 'latest' },
     version: '1.2.3',
     route: 'archive',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},
     ...overrides,
+  };
+}
+
+/**
+ Replaces the process `PATH` until the returned handle is disposed.
+ 
+ @param path - `PATH` value to install
+ 
+ @returns Handle that restores the earlier `PATH` when disposed
+ */
+function overridePath(path: string,): Disposable {
+  /**
+   `PATH` before the override.
+   */
+  const previousPath = process.env.PATH;
+  process.env.PATH = path;
+  return {
+    [Symbol.dispose](): void {
+      process.env.PATH = previousPath;
+    },
   };
 }
 
@@ -212,7 +246,7 @@ await describe({
     //region bin-sourced
 
     describe({
-      name: 'installBinSourced',
+      name: installBinSourced.name,
       children: [
         it({
           name: 'installs each primary binary through the nested-file pattern',
@@ -393,7 +427,7 @@ await describe({
     //region Archive
 
     describe({
-      name: 'installArchive',
+      name: installArchive.name,
       children: [
         it({
           name: 'downloads, verifies SHA-256, and extracts the payload',
@@ -452,47 +486,43 @@ await describe({
             /**
              Loopback server exposing the fixture archive.
              */
-            const server = await createArchiveServer({
+            await using server = await createArchiveServer({
               archivePath: join(
                 fixture.root,
                 'demo.tar.gz',
               ),
             },);
-            try {
-              /**
-               Entry pinned to the served artifact and its real digest.
-               */
-              const entry = fixtureEntry({
-                id: 'fixture-archive',
-                route: 'archive',
-                bins: ['demo-tool'],
-                artifacts: {
-                  [hostPlatformId()]: {
-                    url: `${server.url}/demo.tar.gz`,
-                    sha256: digest,
-                  },
+            /**
+             Entry pinned to the served artifact and its real digest.
+             */
+            const entry = fixtureEntry({
+              id: 'fixture-archive',
+              route: 'archive',
+              bins: ['demo-tool'],
+              artifacts: {
+                [hostPlatformId()]: {
+                  url: `${server.url}/demo.tar.gz`,
+                  sha256: digest,
                 },
-              },);
-              /**
-               Install directory the provider extracts into.
-               */
-              const installDir = await installArchive({
-                entry,
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [],
-              },);
-              expect(
-                existsSync(join(
-                  installDir,
-                  'demo-1.2.3',
-                  'demo-tool',
-                ),),
-              )
-                .toBe(true,);
-            } finally {
-              await server.close();
-            }
+              },
+            },);
+            /**
+             Install directory the provider extracts into.
+             */
+            const installDir = await installArchive({
+              entry,
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [],
+            },);
+            expect(
+              existsSync(join(
+                installDir,
+                'demo-1.2.3',
+                'demo-tool',
+              ),),
+            )
+              .toBe(true,);
           },
         },),
         it({
@@ -513,70 +543,64 @@ await describe({
             /**
              Loopback server exposing the mismatching artifact.
              */
-            const server = await createArchiveServer({
+            await using server = await createArchiveServer({
               archivePath: join(
                 fixture.root,
                 'demo.tar.gz',
               ),
             },);
-            try {
-              /**
-               Entry whose recorded digest is deliberately wrong.
-               */
-              const entry = fixtureEntry({
-                id: 'fixture-bad',
-                route: 'archive',
-                bins: ['demo-tool'],
-                artifacts: {
-                  [hostPlatformId()]: {
-                    url: `${server.url}/demo.tar.gz`,
-                    sha256: 'a'.repeat(64,),
-                  },
+            /**
+             Entry whose recorded digest is deliberately wrong.
+             */
+            const entry = fixtureEntry({
+              id: 'fixture-bad',
+              route: 'archive',
+              bins: ['demo-tool'],
+              artifacts: {
+                [hostPlatformId()]: {
+                  url: `${server.url}/demo.tar.gz`,
+                  sha256: 'a'.repeat(64,),
                 },
-              },);
-              /**
-               Rejected download: the digest check must refuse.
-               */
-              const outcome = installArchive({
+              },
+            },);
+            /**
+             Rejected download: the digest check must refuse.
+             */
+            let caught: unknown;
+            try {
+              await installArchive({
                 entry,
                 paths: fixture.paths,
                 env: fixture.env,
                 extraDirs: [],
               },);
-              await expect(outcome,)
-                .rejects
-                .toBeInstanceOf(Error,);
-              /**
-               Refusal wording from the download verifier.
-               */
-              const message = await outcome
-                .catch(
-                (error: unknown,) => (error as Error)
-                  .message,
-                );
-              expect(message,)
-                .toContain('SHA-256 mismatch',);
-              /**
-               The rejected bytes must not have been left as the target.
-               */
-              expect(
-                existsSync(join(
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            // Refusal wording from the download verifier.
+            expect((caught as Error).message,)
+              .toContain('SHA-256 mismatch',);
+            /**
+             The rejected bytes must not have been left as the target.
+             */
+            expect(
+              existsSync(join(
+                fixture.paths.toolchainRoot,
+                'downloads',
+              ),)
+                && (readdirSync(join(
                   fixture.paths.toolchainRoot,
                   'downloads',
                 ),)
-                  && (readdirSync(join(
-                    fixture.paths.toolchainRoot,
-                    'downloads',
-                  ),)
-                    .filter(
-                    (name,) => name.endsWith('.download',),
-                    )
-                    .length === 0),
-              )
-                .toBe(true,);
-            } finally {
-              await server.close();
-            }
+                  .filter(
+                  (name,) => name.endsWith('.download',),
+                  )
+                  .length === 0),
+            )
+              .toBe(true,);
           },
         },),
       ],
@@ -587,7 +611,7 @@ await describe({
     //region cargo-binstall
 
     describe({
-      name: 'installCargoBinstall',
+      name: installCargoBinstall.name,
       children: [
         it({
           name: 'drives cargo binstall with the locked version and features',
@@ -615,18 +639,13 @@ await describe({
             },);
             // The provider resolves the cargo binary from PATH, so the
             // fixture prepends its fake cargo home the way a real machine would.
-            const previousPath = process.env.PATH;
-            process.env.PATH = `${fixture.paths.toolchainBinDir}:${previousPath ?? ''}`;
-            try {
-              await installCargoBinstall({
-                entry,
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [fixture.paths.toolchainBinDir],
-              },);
-            } finally {
-              process.env.PATH = previousPath;
-            }
+            using pathOverride = overridePath(`${fixture.paths.toolchainBinDir}:${process.env.PATH ?? ''}`,);
+            await installCargoBinstall({
+              entry,
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
             expect(readCliLog(fixture,),)
               .toEqual(
               [
@@ -693,7 +712,7 @@ await describe({
               entries: [entry],
               extraDirs: [fixture.paths.toolchainBinDir],
             },);
-            expect([...report.linked].sort(),)
+            expect(report.linked.toSorted(),)
               .toEqual(['demo', 'demo-tool'],);
             expect(report.missing,)
               .toEqual([],);
@@ -835,6 +854,147 @@ await describe({
       ],
     },),
 
+    describe({
+      name: 'postinstall command',
+      children: [
+        it({
+          name: 'runs the bin from the worktree root with the exposure directory first on PATH, and skips link steps',
+          fn: async () => {
+            /**
+             Fixture with a recording bin installed.
+             */
+            const fixture = makeFixture();
+            /**
+             File the recording bin writes its arguments, working directory and PATH to.
+             */
+            const record = join(fixture.root, 'record.txt',);
+            const source = join(
+              fixture.paths.toolchainBinDir,
+              'recorder',
+            );
+            writeFileSync(
+              source,
+              `#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' "$*" "$PWD" "$PATH" > '${record}'\n`,
+              'utf8',
+            );
+            chmodSync(
+              source,
+              0o755,
+            );
+            /**
+             Entry carrying a command step.
+             */
+            const entry = fixtureEntry({
+              id: 'cargo:recorder',
+              route: 'bin-sourced',
+              bins: ['recorder'],
+              options: {
+                postinstall: {
+                  when: 'always',
+                  run: {
+                    sourceBin: 'recorder',
+                    args: ['link', '.cache/dir'],
+                  },
+                },
+              },
+            },);
+            /**
+             Entry carrying a link step, which the command pass must leave alone.
+             */
+            const linkEntry = fixtureEntry({
+              id: 'cargo:linker',
+              route: 'bin-sourced',
+              bins: ['recorder'],
+              options: {
+                postinstall: {
+                  when: 'always',
+                  link: {
+                    sourceBin: 'recorder',
+                    linkName: 'unused',
+                  },
+                },
+              },
+            },);
+            /**
+             Result of the command pass.
+             */
+            const result = await runPostinstallCommands({
+              paths: fixture.paths,
+              env: { ...fixture.env, PATH: '/usr/bin', },
+              entries: [linkEntry, entry],
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
+            expect(result,)
+              .toEqual({
+                succeeded: ['cargo:recorder'],
+                failed: {},
+              },);
+            /**
+             Lines the bin recorded: arguments, working directory, PATH.
+             */
+            const [argumentsLine, workingDirectory, pathLine,] = readFileSync(
+              record,
+              'utf8',
+            )
+              .split('\n',);
+            expect(argumentsLine,)
+              .toBe('link .cache/dir',);
+            expect(workingDirectory,)
+              .toBe(fixture.paths.worktreeRoot,);
+            expect(pathLine?.startsWith(`${fixture.paths.exposureDir}:${fixture.paths.toolchainBinDir}:/usr/bin`,),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'reports a failing command with its exit code and output instead of throwing',
+          fn: async () => {
+            /**
+             Fixture with a failing bin installed.
+             */
+            const fixture = makeFixture();
+            const source = join(
+              fixture.paths.toolchainBinDir,
+              'failing',
+            );
+            writeFileSync(
+              source,
+              '#!/bin/sh\necho broken >&2\nexit 3\n',
+              'utf8',
+            );
+            chmodSync(
+              source,
+              0o755,
+            );
+            const result = await runPostinstallCommands({
+              paths: fixture.paths,
+              env: fixture.env,
+              entries: [fixtureEntry({
+                id: 'cargo:failing',
+                route: 'bin-sourced',
+                bins: ['failing'],
+                options: {
+                  postinstall: {
+                    when: 'always',
+                    run: {
+                      sourceBin: 'failing',
+                      args: ['go'],
+                    },
+                  },
+                },
+              },)],
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
+            expect(result.succeeded,)
+              .toEqual([],);
+            expect(result.failed['cargo:failing'],)
+              .toContain('exit code 3',);
+            expect(result.failed['cargo:failing'],)
+              .toContain('broken',);
+          },
+        },),
+      ],
+    },),
+
     //endregion Exposure and postinstall
   ],
 },);
@@ -847,8 +1007,8 @@ await describe({
 type ArchiveServer = {
   /** Base URL of the server. */
   readonly url: string;
-  /** Closes the server and waits for it to stop. */
-  readonly close: () => Promise<void>;
+  /** Closes the server and waits for it to stop when the handle is disposed. */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
@@ -878,10 +1038,10 @@ async function createArchiveServer(
     '127.0.0.1',
   );
   await new Promise<void>(
-    (resolveListen,) => {
+    (resolve,) => {
       server.once(
         'listening',
-        () => resolveListen(),
+        () => resolve(),
       );
     },
   );
@@ -895,11 +1055,11 @@ async function createArchiveServer(
     url: `http://127.0.0.1:${
       address.port
     }`,
-    async close() {
+    async [Symbol.asyncDispose]() {
       await new Promise<void>(
-        (resolveClose,) => {
+        (resolve,) => {
           server.close(
-            () => resolveClose(),
+            () => resolve(),
           );
         },
       );

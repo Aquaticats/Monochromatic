@@ -61,22 +61,33 @@ function fixtureFetch(
 }
 
 /**
+ Plan entry fields a fixture case sets over the base entry.
+ */
+type FixtureOverrides = {
+  readonly id?: ToolPlanEntry['id'];
+  readonly request?: ToolPlanEntry['request'];
+  readonly version?: ToolPlanEntry['version'];
+  readonly route?: ToolPlanEntry['route'];
+  readonly packageId?: string;
+  readonly bins?: ToolPlanEntry['bins'];
+  readonly env?: ToolPlanEntry['env'];
+  readonly artifacts?: ToolPlanEntry['artifacts'];
+};
+
+/**
  Builds a plan entry for one fixture case.
  
  @param overrides - Fields to set over the base entry
  
  @returns A plan entry shaped like the real plan
  */
-function fixtureEntry(overrides: Partial<ToolPlanEntry>,): ToolPlanEntry {
+function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
   return {
     id: 'fixture-tool',
     request: { track: 'latest' },
     version: '1.0.0',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},
@@ -125,12 +136,21 @@ await describe({
         it({
           name: 'refuses tags that do not carry the old version',
           fn: async () => {
-            expect(versionFromTag({
-              oldTag: 'jdk-21.0.12%2B8',
-              oldVersion: 'temurin-21.0.12+8.0.LTS',
-              newTag: 'jdk-21.0.13%2B9',
-            },),)
-              .toBeNull();
+            let caught: unknown;
+            try {
+              versionFromTag({
+                oldTag: 'jdk-21.0.12%2B8',
+                oldVersion: 'temurin-21.0.12+8.0.LTS',
+                newTag: 'jdk-21.0.13%2B9',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message,)
+              .toContain('cannot derive a version from tag jdk-21.0.13%2B9',);
           },
         },),
       ],
@@ -860,8 +880,8 @@ await describe({
               .toBe('nightly-2026-10-28',);
             expect(applied[1]?.env.JAVA_HOME,)
               .toBe('java/temurin-21.0.13+9.0.LTS',);
-            expect(applied[1]?.packageId,)
-              .toBe(null,);
+            expect((applied[1] !== undefined) && Object.hasOwn(applied[1], 'packageId',),)
+              .toBe(false,);
           },
         },),
       ],
@@ -994,6 +1014,81 @@ await describe({
               .toContain("env: { TOOLCHAIN_HOME: 'toolchains/2.0.0' },",);
             expect(patched,)
               .toContain("// resolved to '1.0.0' from the channel manifest",);
+          },
+        },),
+
+        it({
+          name: 'rewrites several entries in one pass and refuses overlapping entries',
+          fn: async () => {
+            /**
+             Patched text for three entries where the edits arrive out of source order.
+             */
+            const patched = patchPlanVersions({
+              source: [
+                '  {', "    id: 'a',", "    version: '1.0.0',", '  },',
+                '  {', "    id: 'b',", "    version: '2.0.0',", '  },',
+                '  {', "    id: 'c',", "    version: '3.0.0',", '  },',
+              ].join('\n',),
+              versions: new Map([
+                ['c', '3.1.0',],
+                ['a', '1.1.0',],
+              ],),
+            },);
+            expect(patched,)
+              .toContain("version: '1.1.0',",);
+            expect(patched,)
+              .toContain("version: '2.0.0',",);
+            expect(patched,)
+              .toContain("version: '3.1.0',",);
+            let caught: unknown;
+            try {
+              patchPlanVersions({
+                source: "  {\n    id: 'outer',\n    note: { id: 'inner', },\n    version: '1.0.0',\n  },",
+                versions: new Map([
+                  ['outer', '2.0.0',],
+                  ['inner', '2.0.0',],
+                ],),
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect((caught as Error).message,)
+              .toContain('starts inside the previous edited entry',);
+          },
+        },),
+
+        it({
+          name: 'throws naming the entry when it or its version field is missing',
+          fn: async () => {
+            let missingEntry: unknown;
+            try {
+              patchPlanVersions({
+                source: "  {\n    id: 'alpha',\n    version: '1.0.0',\n  },",
+                versions: new Map([
+                  ['beta', '2.0.0',],
+                ],),
+              },);
+            }
+            catch (error) {
+              missingEntry = error;
+            }
+            let missingVersion: unknown;
+            try {
+              patchPlanVersions({
+                source: "  {\n    id: 'alpha',\n    request: { track: 'latest' },\n  },",
+                versions: new Map([
+                  ['alpha', '2.0.0',],
+                ],),
+              },);
+            }
+            catch (error) {
+              missingVersion = error;
+            }
+            expect((missingEntry as Error).message,)
+              .toContain('no entry found for plan entry beta',);
+            expect((missingVersion as Error).message,)
+              .toContain('no version field found for plan entry alpha',);
           },
         },),
       ],

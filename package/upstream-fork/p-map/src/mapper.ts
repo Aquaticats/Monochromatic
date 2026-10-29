@@ -11,6 +11,7 @@
 
 import { MapperRequiredError, } from './errors.ts';
 import type { pMapSkip, } from './p-map-skip.ts';
+import type { pMapStop, } from './p-map-stop.ts';
 
 //region Types
 
@@ -45,10 +46,21 @@ type IteratorProbe<Element> = {
 };
 
 /**
+ The two sentinels a mapper may return instead of a result: {@link pMapSkip}
+ drops the slot, {@link pMapStop} ends the iteration.
+
+ @example
+ ```ts
+ const control: MapControl = pMapSkip;
+ ```
+ */
+export type MapControl = typeof pMapSkip | typeof pMapStop;
+
+/**
  Function called for every input element with its position in the input.
  
  May return {@link pMapSkip} to drop that input's slot from the collected
- results.
+ results, or {@link pMapStop} to stop iterating.
  
  @typeParam Element - element type after awaiting an iterated item
  
@@ -64,7 +76,7 @@ type IteratorProbe<Element> = {
 export type Mapper<Element, NewElement> = (
   element: Element,
   index: number,
-) => NewElement | typeof pMapSkip | PromiseLike<NewElement | typeof pMapSkip>;
+) => NewElement | MapControl | PromiseLike<NewElement | MapControl>;
 
 //endregion Types
 

@@ -20,11 +20,61 @@ import {
 import { renderArtifacts, } from './generate.ts';
 import { ALL_TOOLS, TOOLS, toolById, } from './plan.ts';
 
+/**
+ Whether a declaration key carries `@version` pin syntax: an `@` right before an optional `v` and a digit.
+
+ @param key - Declaration key text
+
+ @returns `true` when some `@` starts a version
+ */
+function hasVersionPin(key: string,): boolean {
+  return key.split('@',)
+    .slice(1,)
+    .some(
+    function startsWithVersion(afterAt,): boolean {
+      /**
+       Text after an optional `v`.
+       */
+      const digits = afterAt.startsWith('v',)
+        ? afterAt.slice(1,)
+        : afterAt;
+      return (digits.length > 0) && '0123456789'.includes(digits.charAt(0,),);
+    },
+    );
+}
+
+/**
+ Removes every backslash escape pair from a TOML string literal body.
+
+ @param body - Literal text between the quotes
+
+ @returns Text with each backslash and the character it escapes dropped
+ */
+function withoutEscapes(body: string,): string {
+  /**
+   Code points of the body.
+   */
+  const chars = body.split('',);
+  /**
+   Characters outside any escape pair.
+   */
+  const kept: string[] = [];
+  for (let index = 0; index < chars.length; index += 1) {
+    if (chars[index] === '\\') {
+      // The escaped character is part of the escape, so it is dropped too.
+      index += 1;
+      continue;
+    }
+    kept.push(chars[index] ?? '',);
+  }
+  return kept.join('',);
+}
+
 await describe({
   name: 'toolchain artifact generators',
   children: [
     describe({
-      name: 'renderArtifacts',
+      name: renderArtifacts.name,
       children: [
         it({
           name: 'renders byte-identical output across runs',
@@ -44,7 +94,7 @@ await describe({
           fn: async () => {
             expect(
               Object.keys(renderArtifacts({ tools: ALL_TOOLS, },),)
-                .sort(),
+                .toSorted(),
             )
               .toEqual(
               [
@@ -88,22 +138,49 @@ await describe({
             ) as {
               tools: Record<string, Record<string, unknown>>;
             };
+            /**
+             Every lock key in its fixed order; `manager`, `packageId` and `os` are omitted when absent.
+             */
+            const keyOrder = [
+              'request',
+              'version',
+              'route',
+              'manager',
+              'packageId',
+              'bins',
+              'os',
+              'env',
+              'options',
+              'artifacts',
+            ];
+            /**
+             Keys every tool record carries.
+             */
+            const required = new Set([
+              'request',
+              'version',
+              'route',
+              'bins',
+              'env',
+              'options',
+              'artifacts',
+            ],);
             for (const tool of Object.values(parsed.tools,)) {
-              expect(Object.keys(tool,),)
-                .toEqual(
-                [
-                  'request',
-                  'version',
-                  'route',
-                  'manager',
-                  'packageId',
-                  'bins',
-                  'os',
-                  'env',
-                  'options',
-                  'artifacts',
-                ],
-                );
+              /**
+               Keys this record carries, in file order.
+               */
+              const keys = new Set(Object.keys(tool,),);
+              expect([...keys,],)
+                .toEqual(keyOrder.filter(function present(key,): boolean {
+                  return keys.has(key,);
+                },),);
+              expect([...required,].every(function carried(key,): boolean {
+                return keys.has(key,);
+              },),)
+                .toBe(true,);
+              expect(Object.values(tool,)
+                .includes(null,),)
+                .toBe(false,);
             }
             expect(Object.keys(parsed.tools,)
               .length,)
@@ -207,7 +284,7 @@ await describe({
                Declaration key of the line.
                */
               const key = line.split(' = ', 1)[0] ?? '';
-              expect(/@v?\d/u.test(key,),)
+              expect(hasVersionPin(key,),)
                 .toBe(false,);
             }
           },
@@ -319,7 +396,8 @@ await describe({
                 '\n[evil]\n',
                 String.raw`\u0022, x = "`,
                 'a] = 1\nb',
-                '${name}',
+                // A template literal with an escaped dollar holds the placeholder text without interpolating it.
+                `\${name}`,
                 '`rm -rf /`',
               ]
             ) {
@@ -334,14 +412,10 @@ await describe({
               /**
                Literal body with every escape sequence removed.
                */
-              const unescaped = literal.slice(
+              const unescaped = withoutEscapes(literal.slice(
                 1,
                 -1,
-              )
-                .replaceAll(
-                /\\./gu,
-                '',
-                );
+              ),);
               expect(unescaped.includes('"',),)
                 .toBe(false,);
               expect(unescaped.includes('\n',),)

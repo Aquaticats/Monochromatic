@@ -8,21 +8,60 @@
  */
 
 import { execFile, } from 'node:child_process';
+import {
+  readFile,
+  realpath,
+} from 'node:fs/promises';
+import {
+  join,
+  relative,
+} from 'node:path';
+import { promisify, } from 'node:util';
 
 //region Bounds
+
+/**
+ Bytes in one kibibyte.
+ */
+const BYTES_PER_KIBIBYTE = 1_024;
+
+/**
+ Bytes in one mebibyte.
+ */
+const BYTES_PER_MEBIBYTE: number = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE;
+
+/**
+ Capture cap for one cell's combined output, in mebibytes.
+ */
+const CAPTURE_CAP_MEBIBYTES = 32;
+
+/**
+ Wall-clock cap for one cell, in minutes.
+ */
+const CELL_TIMEOUT_MINUTES = 20;
+
+/**
+ Seconds in one minute.
+ */
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ Milliseconds in one second.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  Explicit capture cap for one cell's combined output.
  Overflow fails the cell loudly instead of growing the driver's heap.
  */
-export const MAX_CAPTURED_OUTPUT_BYTES: number = 32 * 1_024
-  * 1_024;
+export const MAX_CAPTURED_OUTPUT_BYTES: number = CAPTURE_CAP_MEBIBYTES * BYTES_PER_MEBIBYTE;
 
 /**
  Wall-clock cap for one cell, in milliseconds.
  */
-export const CELL_TIMEOUT_MS: number = 20 * 60
-  * 1_000;
+export const CELL_TIMEOUT_MS: number = CELL_TIMEOUT_MINUTES
+  * SECONDS_PER_MINUTE
+  * MILLISECONDS_PER_SECOND;
 
 /**
  Podman resource flags applied to every container cell.
@@ -46,12 +85,88 @@ export type BoundedRun = {
 };
 
 /**
+ Exit code reported when the capture cap, the timeout, or a failed start
+ stopped a command without a numeric exit code of its own.
+ */
+const STOPPED_COMMAND_EXIT_CODE = 1;
+
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+
+ The generic `promisify(execFile)` form trips `strict-void-return`, because
+ Node's overload set includes void-returning callbacks.
+ See `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ `execFile` with a promise result instead of a callback.
+ */
+const execFileAsync = promisifyExecFile(execFile,);
+
+/**
+ Reads one `execFile` rejection into the outcome shape.
+
+ @param error - Rejection of the promisified `execFile`
+
+ @returns Captured output and exit code; `code` is `1` when the error carries
+ no numeric exit code
+
+ @example
+ ```ts
+ const outcome = readExecFailure(new Error('spawn failed',),);
+ ```
+ */
+function readExecFailure(error: unknown,): BoundedRun {
+  if (!Error.isError(error,)) {
+    return {
+      stdout: '',
+      stderr: String(error,),
+      code: STOPPED_COMMAND_EXIT_CODE,
+    };
+  }
+  /**
+   Captured stdout the failed command produced before it stopped.
+   */
+  const stdout = ('stdout' in error) && ((typeof error.stdout) === 'string')
+    ? error.stdout
+    : '';
+  /**
+   Captured stderr the failed command produced before it stopped.
+   */
+  const stderr = ('stderr' in error) && ((typeof error.stderr) === 'string')
+    ? error.stderr
+    : '';
+  /**
+   Exit code from the error object, or the generic stop code.
+   */
+  const code = ('code' in error) && ((typeof error.code) === 'number')
+    ? error.code
+    : STOPPED_COMMAND_EXIT_CODE;
+  return {
+    stdout,
+    stderr: `${stderr}\n${error.message}`,
+    code,
+  };
+}
+
+/**
  Runs one command with an explicit output cap and timeout.
- 
- @param options - Command, arguments, and optional timeout override
- 
+
+ @param command - Executable to start
+
+ @param args - Arguments passed to the executable
+
+ @param timeoutMs - Wall-clock cap in milliseconds; absent means
+ {@link CELL_TIMEOUT_MS}
+
  @returns Captured output and exit code; `code` is `1` when the capture cap
  or the timeout stopped the command
+
+ @example
+ ```ts
+ const outcome = await runBounded({ command: 'echo', args: ['hello',], },);
+ ```
  */
 export async function runBounded(
   {
@@ -61,64 +176,53 @@ export async function runBounded(
   }: {
     readonly command: string;
     readonly args: readonly string[];
-    readonly timeoutMs?: number | undefined;
+    readonly timeoutMs?: number;
   },
 ): Promise<BoundedRun> {
-  return new Promise<BoundedRun>(
-    (resolveRun,) => {
-      execFile(
-        command,
-        [...args],
-        {
-          timeout: timeoutMs,
-          maxBuffer: MAX_CAPTURED_OUTPUT_BYTES,
-          encoding: 'utf8',
-          killSignal: 'SIGKILL',
-        },
-        (
-          error,
-          stdout,
-          stderr,
-        ) => {
-          /**
-           Exit code from the error object, or 0 when the command succeeded.
-           */
-          const code = error === null
-            ? 0
-            : (typeof (error as { code?: unknown; })
-              .code) === 'number'
-              ? (error as { code: number; })
-                .code
-              : 1;
-          resolveRun({
-            stdout,
-            stderr: error === null
-              ? stderr
-              : `${
-                stderr
-              }\n${
-                (error as Error)
-                  .message
-              }`,
-            code,
-          });
-        },
-      );
-    },
-  );
+  try {
+    /**
+     Captured output of a command that exited with code 0.
+     */
+    const completed = await execFileAsync(
+      command,
+      [...args],
+      {
+        timeout: timeoutMs,
+        maxBuffer: MAX_CAPTURED_OUTPUT_BYTES,
+        encoding: 'utf8',
+        killSignal: 'SIGKILL',
+      },
+    );
+    return {
+      stdout: completed.stdout,
+      stderr: completed.stderr,
+      code: 0,
+    };
+  } catch (error) {
+    return readExecFailure(error,);
+  }
 }
 
 /**
  Runs one bounded podman container cell:
  `podman run --memory=2g --cpus=2 --rm` over the mounted worktree.
- 
+
  The mount skips a SELinux `:Z` relabel (the repository's volume refuses
  label xattrs, `lsetxattr: operation not permitted`) and passes
  `--security-opt label=disable` instead.
- 
- @param options - Image, in-container command, and worktree root to mount
- 
+
+ @param image - Fully tagged image reference to run
+
+ @param command - Shell command executed inside the container
+
+ @param monorepoRoot - Worktree root mounted at `/workspace`
+
  @returns Captured output and exit code of the cell
+
+ @example
+ ```ts
+ const outcome = await runContainerCell({ image: 'ubuntu:latest', command: 'true', monorepoRoot: '/repo', },);
+ ```
  */
 export async function runContainerCell(
   {
@@ -131,7 +235,7 @@ export async function runContainerCell(
     readonly monorepoRoot: string;
   },
 ): Promise<BoundedRun> {
-  return runBounded({
+  return await runBounded({
     command: 'podman',
     args: [
       'run',
@@ -153,3 +257,323 @@ export async function runContainerCell(
 }
 
 //endregion Cell execution
+
+//region Readable workspace
+
+/**
+ Prefix of a pnpm workspace protocol dependency specifier.
+ */
+const WORKSPACE_PROTOCOL = 'workspace:';
+
+/**
+ Raised when `chmod` cannot make a directory the container reads world-readable.
+ */
+export class ReadabilityHealError extends Error {
+  /**
+   @param dir - Directory `chmod` failed on
+
+   @param stderr - Diagnostic `chmod` printed
+   */
+  constructor(
+    {
+      dir,
+      stderr,
+    }: {
+      readonly dir: string;
+      readonly stderr: string;
+    },
+  ) {
+    super(`chmod could not make ${dir} world-readable for the container cells: ${stderr}`,);
+    this.name = 'ReadabilityHealError';
+  }
+}
+
+/**
+ Reads the workspace-protocol dependency names one manifest declares.
+
+ @param manifest - Parsed `package.json`
+
+ @param fields - Dependency tables to read; the tested package needs its dev
+ dependencies (test harnesses), its dependencies need only what they import
+
+ @returns Package names whose specifier uses `workspace:`
+
+ @example
+ ```ts
+ workspaceNames({ manifest: { dependencies: { a: 'workspace:*', b: '^1.0.0', }, }, fields: ['dependencies',], },); // ['a']
+ ```
+ */
+function workspaceNames(
+  {
+    manifest,
+    fields,
+  }: {
+    readonly manifest: unknown;
+    readonly fields: readonly string[];
+  },
+): readonly string[] {
+  if (((typeof manifest) !== 'object') || (manifest === null))
+    return [];
+  return fields.flatMap(function namesIn(field,) {
+    /**
+     Dependency table under this field, when the manifest has one.
+     */
+    const table: unknown = Reflect.get(
+      manifest,
+      field,
+    );
+    if (((typeof table) !== 'object') || (table === null))
+      return [];
+    return Object.entries(table,)
+      .filter(function isWorkspace([, specifier,],) {
+        return ((typeof specifier) === 'string') && specifier.startsWith(WORKSPACE_PROTOCOL,);
+      },)
+      .map(function nameOf([name,],) {
+        return name;
+      },);
+  },);
+}
+
+/**
+ Narrows a caught value to the filesystem error for a path that does not exist.
+
+ @param error - Value a filesystem call rejected with
+
+ @returns Whether the value is an `ENOENT` error
+
+ @example
+ ```ts
+ isMissingPathError(Object.assign(new Error('gone',), { code: 'ENOENT', },),); // true
+ ```
+ */
+function isMissingPathError(error: unknown,): error is Error & { readonly code: 'ENOENT'; } {
+  if (!Error.isError(error,))
+    return false;
+  return Reflect.get(
+    error,
+    'code',
+  ) === 'ENOENT';
+}
+
+/**
+ Resolves one package's workspace dependencies to their real directories.
+
+ @param dir - Package directory holding `package.json` and `node_modules`
+
+ @param fields - Dependency tables to follow
+
+ @returns Real directories of the linked workspace packages. A declared
+ dependency with no link under `node_modules` (an install older than the
+ manifest) is skipped with a warning: the cell resolves imports through the
+ same links, so it cannot read that package either.
+
+ @example
+ ```ts
+ await linkedWorkspaceDirs({ dir: '/repo/package/file-enforcer/core', fields: ['dependencies',], },);
+ ```
+ */
+async function linkedWorkspaceDirs(
+  {
+    dir,
+    fields,
+  }: {
+    readonly dir: string;
+    readonly fields: readonly string[];
+  },
+): Promise<readonly string[]> {
+  /**
+   Parsed manifest of the package.
+   */
+  const manifest: unknown = JSON.parse(await readFile(
+    join(
+      dir,
+      'package.json',
+    ),
+    'utf8',
+  ),);
+  /**
+   Real directory of each declared link, or an empty list for a missing one.
+   */
+  const resolved = await Promise.all(
+    workspaceNames({
+      manifest,
+      fields,
+    },)
+      .map(async function resolveLink(name,): Promise<readonly string[]> {
+        /**
+         Link pnpm creates for the dependency.
+         */
+        const link = join(
+          dir,
+          'node_modules',
+          name,
+        );
+        try {
+          return [await realpath(link,),];
+        } catch (error) {
+          if (!isMissingPathError(error,))
+            throw error;
+          console.warn(
+            `[container-readability] ${name} is declared in ${dir}/package.json but ${link} does not exist; run pnpm install to link it (skipped: ${error.message})`,
+          );
+          return [];
+        }
+      },),
+  );
+  return resolved.flat();
+}
+
+/**
+ Lists the workspace packages one package reaches through `workspace:`
+ dependencies, transitively, as monorepo-relative directories.
+
+ The tested package's dev dependencies count (test harnesses run in the
+ cell); deeper packages contribute only their runtime dependencies.
+
+ @param monorepoRoot - Worktree root the relative paths start from
+
+ @param packageDir - Absolute directory of the tested package
+
+ @returns Monorepo-relative directories, each listed once
+
+ @example
+ ```ts
+ await workspaceDependencyDirs({ monorepoRoot: '/repo', packageDir: '/repo/package/file-enforcer/core', },);
+ // ['package/logger/core', 'package/test-harness/core', ...]
+ ```
+ */
+export async function workspaceDependencyDirs(
+  {
+    monorepoRoot,
+    packageDir,
+  }: {
+    readonly monorepoRoot: string;
+    readonly packageDir: string;
+  },
+): Promise<readonly string[]> {
+  /**
+   Real directory of the tested package.
+   */
+  const self = await realpath(packageDir,);
+  /**
+   Real directories already reached, the tested package included.
+   */
+  const reached = new Set<string>([self,],);
+  /**
+   Marks a level's first-time directories as reached and reads their
+   runtime dependencies in parallel.
+
+   @param frontier - Directories found at this level, possibly repeated
+
+   @returns Directories the next level holds
+   */
+  async function nextLevel(frontier: readonly string[],): Promise<readonly string[]> {
+    /**
+     Frontier entries reached for the first time.
+     */
+    const fresh = [...new Set(frontier,),].filter(function isNew(dir,) {
+      return !reached.has(dir,);
+    },);
+    for (const dir of fresh)
+      reached.add(dir,);
+    /**
+     Dependencies of every fresh directory.
+     */
+    const next = await Promise.all(fresh.map(function dependenciesOf(dir,) {
+      return linkedWorkspaceDirs({
+        dir,
+        fields: ['dependencies',],
+      },);
+    },),);
+    return next.flat();
+  }
+  for (
+    let frontier = await linkedWorkspaceDirs({
+      dir: packageDir,
+      fields: [
+        'dependencies',
+        'devDependencies',
+      ],
+    },);
+    frontier.length > 0;
+    // oxlint-disable-next-line no-await-in-loop -- each level's manifests name the next level, so levels run in sequence while each level reads in parallel
+    frontier = await nextLevel(frontier,)
+  );
+  reached.delete(self,);
+  return [...reached,].map(function toRelative(dir,) {
+    return relative(
+      monorepoRoot,
+      dir,
+    );
+  },);
+}
+
+/**
+ Makes the directories a container cell reads world-readable (read and
+ traverse bits only, never content). Rootless podman shows the mounted
+ worktree as container-root-owned, so a non-root cell reads only
+ world-readable files, and agent tooling here creates sources with mode 600.
+
+ @param monorepoRoot - Worktree root the cells mount
+
+ @param packageDir - Absolute directory of the tested package; its transitive
+ workspace dependencies are healed whole
+
+ @param ownDirs - Monorepo-relative directories of the tested package the
+ cells read
+
+ @returns Monorepo-relative directories that were healed
+
+ @throws ReadabilityHealError when `chmod` fails on a directory
+
+ @example
+ ```ts
+ await healReadableDirs({ monorepoRoot: '/repo', packageDir: '/repo/package/file-enforcer/core', ownDirs: ['package/file-enforcer/core/src',], },);
+ ```
+ */
+export async function healReadableDirs(
+  {
+    monorepoRoot,
+    packageDir,
+    ownDirs,
+  }: {
+    readonly monorepoRoot: string;
+    readonly packageDir: string;
+    readonly ownDirs: readonly string[];
+  },
+): Promise<readonly string[]> {
+  /**
+   Every directory the cells read.
+   */
+  const dirs = [
+    ...ownDirs,
+    ...await workspaceDependencyDirs({
+      monorepoRoot,
+      packageDir,
+    },),
+  ];
+  await Promise.all(dirs.map(async function heal(dir,) {
+    /**
+     Outcome of the recursive chmod; symlinks are not followed.
+     */
+    const outcome = await runBounded({
+      command: 'chmod',
+      args: [
+        '--recursive',
+        'a+rX',
+        join(
+          monorepoRoot,
+          dir,
+        ),
+      ],
+    },);
+    if (outcome.code !== 0)
+      throw new ReadabilityHealError({
+        dir,
+        stderr: outcome.stderr,
+      },);
+  },),);
+  return dirs;
+}
+
+//endregion Readable workspace

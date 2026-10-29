@@ -13,7 +13,10 @@ import {
   pMap,
   pMapIterable,
   pMapSkip,
+  pMapStop,
 } from '@monochromatic-dev/upstream-fork-p-map/ts';
+
+import { exerciseControls, } from './coverage-driver-controls.ts';
 
 import {
   bothSlots,
@@ -379,11 +382,18 @@ async function exercise(): Promise<void> {
 
   //endregion Streaming map
 
+  await exerciseControls();
+
   /**
-   Sentinel identity check keeping {@link pMapSkip} referenced.
+   Sentinel identity check keeping {@link pMapSkip} and {@link pMapStop}
+   referenced.
    */
   const skipHeld = pMapSkip;
-  if ((typeof skipHeld) !== 'symbol')
+  /**
+   Stop sentinel held alongside the skip sentinel.
+   */
+  const stopHeld = pMapStop;
+  if (((typeof skipHeld) !== 'symbol') || ((typeof stopHeld) !== 'symbol'))
     throw new Error('coverage driver skip sentinel diverged; driver inputs are stale',);
 }
 

@@ -3,20 +3,23 @@
  downloads, archive extraction, and atomic links.
  */
 
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { createHash, } from 'node:crypto';
 import {
-  chmodSync,
   createWriteStream,
   linkSync,
   mkdirSync,
   renameSync,
-  rmSync,
   symlinkSync,
   unlinkSync,
 } from 'node:fs';
 import {
+  chmod,
+  mkdir,
   readFile,
   rename,
+  rm,
 } from 'node:fs/promises';
 import {
   basename,
@@ -24,7 +27,8 @@ import {
   join,
 } from 'node:path';
 import { pipeline, } from 'node:stream/promises';
-import spawn from 'nano-spawn';
+import spawn, { SubprocessError, } from 'nano-spawn';
+import { l, } from '../logger.ts';
 
 //region Subprocess
 
@@ -38,12 +42,29 @@ export type RunResult = {
 };
 
 /**
+ Exit code reported when a failure carries no numeric exit code of its own
+ (a command that could not start, or one killed by a signal).
+ */
+const GENERIC_FAILURE_EXIT_CODE = 1;
+
+/**
  Runs one command, capturing output and exit code without throwing on
  non-zero exits.
- 
- @param options - Command, arguments, environment and working directory
- 
+
+ @param command - Executable to start
+
+ @param args - Arguments passed to the executable
+
+ @param env - Environment of the subprocess; absent means the parent's
+
+ @param cwd - Working directory of the subprocess; absent means the parent's
+
  @returns Captured result
+
+ @example
+ ```ts
+ const result = await run({ command: 'git', args: ['--version',], },);
+ ```
  */
 export async function run(
   {
@@ -80,20 +101,17 @@ export async function run(
       code: 0,
     };
   } catch (error) {
-    /**
-     Spawn error carrying the captured output and exit code.
-     */
-    const failure = error as {
-      readonly exitCode?: number;
-      readonly stdout?: string;
-      readonly stderr?: string;
-      readonly message?: string;
-    };
+    if (error instanceof SubprocessError) {
+      return {
+        stdout: error.stdout,
+        stderr: error.stderr,
+        code: error.exitCode ?? GENERIC_FAILURE_EXIT_CODE,
+      };
+    }
     return {
-      stdout: failure.stdout ?? '',
-      stderr: failure.stderr ?? failure.message
-        ?? String(error,),
-      code: failure.exitCode ?? 1,
+      stdout: '',
+      stderr: caughtValueText(error,),
+      code: GENERIC_FAILURE_EXIT_CODE,
     };
   }
 }
@@ -104,10 +122,15 @@ export async function run(
 
 /**
  Computes the SHA-256 hex digest of one file.
- 
+
  @param path - Absolute file path
- 
+
  @returns Lowercase hex digest
+
+ @example
+ ```ts
+ const digest = await sha256File('/tmp/archive.tar.gz',);
+ ```
  */
 export async function sha256File(path: string,): Promise<string> {
   return createHash('sha256',)
@@ -118,12 +141,21 @@ export async function sha256File(path: string,): Promise<string> {
 /**
  Downloads one URL to a target file, verifying its SHA-256 before the file
  is left in place.
- 
- @param options - URL, target path, and expected hex digest
- 
+
+ @param url - Address to download
+
+ @param target - Absolute path the verified file is moved to
+
+ @param sha256 - Expected lowercase hex digest of the downloaded bytes
+
  @returns The verified target path
- 
- @throws {Error} when the download fails or the digest does not match
+
+ @throws Error when the download fails or the digest does not match
+
+ @example
+ ```ts
+ await downloadVerified({ url: 'https://example.test/tool.tar.gz', target: '/tmp/tool.tar.gz', sha256: 'abc123', },);
+ ```
  */
 export async function downloadVerified(
   {
@@ -136,7 +168,7 @@ export async function downloadVerified(
     readonly sha256: string;
   },
 ): Promise<string> {
-  mkdirSync(
+  await mkdir(
     dirname(target,),
     { recursive: true },
   );
@@ -160,7 +192,7 @@ export async function downloadVerified(
    */
   const observed = await sha256File(temp,);
   if (observed !== sha256) {
-    rmSync(
+    await rm(
       temp,
       { force: true },
     );
@@ -178,12 +210,19 @@ export async function downloadVerified(
 /**
  Extracts one archive into a directory, using `tar` for tar families and
  `unzip` for zip payloads.
- 
- @param options - Archive path and destination directory
- 
+
+ @param archive - Absolute path of the archive to extract
+
+ @param into - Destination directory, created when absent
+
  @returns The destination directory
- 
- @throws {Error} when neither extractor succeeds
+
+ @throws Error when neither extractor succeeds
+
+ @example
+ ```ts
+ await extractArchive({ archive: '/tmp/tool.tar.gz', into: '/tmp/tool', },);
+ ```
  */
 export async function extractArchive(
   {
@@ -194,7 +233,7 @@ export async function extractArchive(
     readonly into: string;
   },
 ): Promise<string> {
-  mkdirSync(
+  await mkdir(
     into,
     { recursive: true },
   );
@@ -242,10 +281,17 @@ export async function extractArchive(
  Creates or replaces one symlink atomically:
  a temporary name plus a rename over the final name, so a concurrent reader
  never sees a missing file (the `cli-git-bin` postinstall pattern).
- 
- @param options - Link location and link target
- 
+
+ @param linkPath - Final link location
+
+ @param target - Path the link resolves to
+
  @returns The link path
+
+ @example
+ ```ts
+ atomicSymlink({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
+ ```
  */
 export function atomicSymlink(
   {
@@ -256,6 +302,13 @@ export function atomicSymlink(
     readonly target: string;
   },
 ): string {
+  /**
+   Logger tagged for this link replacement.
+   */
+  const log = tagged({
+    tag: atomicSymlink.name,
+    l,
+  },);
   mkdirSync(
     dirname(linkPath,),
     { recursive: true },
@@ -273,8 +326,8 @@ export function atomicSymlink(
   );
   try {
     unlinkSync(temp);
-  } catch {
-    // No stale temporary link to clear.
+  } catch (error) {
+    log.debug(`no stale temporary link at ${temp} to clear: ${caughtValueText(error,)}`,);
   }
   symlinkOrCopy(
     {
@@ -292,8 +345,15 @@ export function atomicSymlink(
 /**
  Creates a symlink, falling back to a hard link when symlinks are
  unavailable.
- 
- @param options - Link location and link target
+
+ @param linkPath - Location of the new link
+
+ @param target - Path the link resolves to
+
+ @example
+ ```ts
+ symlinkOrCopy({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
+ ```
  */
 export function symlinkOrCopy(
   {
@@ -304,12 +364,20 @@ export function symlinkOrCopy(
     readonly target: string;
   },
 ): void {
+  /**
+   Logger tagged for this link creation.
+   */
+  const log = tagged({
+    tag: symlinkOrCopy.name,
+    l,
+  },);
   try {
     symlinkSync(
       target,
       linkPath,
     );
-  } catch {
+  } catch (error) {
+    log.debug(`symlink to ${target} unavailable, using a hard link: ${caughtValueText(error,)}`,);
     linkSync(
       target,
       linkPath,
@@ -318,14 +386,25 @@ export function symlinkOrCopy(
 }
 
 /**
- Marks one file executable.
- 
- @param path - Absolute file path
+ Permission bits of an executable file: owner read, write, execute; group
+ and others read and execute.
  */
-export function makeExecutable(path: string,): void {
-  chmodSync(
+const EXECUTABLE_FILE_MODE = 0o755;
+
+/**
+ Marks one file executable.
+
+ @param path - Absolute file path
+
+ @example
+ ```ts
+ await makeExecutable('/tmp/tools/git',);
+ ```
+ */
+export async function makeExecutable(path: string,): Promise<void> {
+  await chmod(
     path,
-    0o755,
+    EXECUTABLE_FILE_MODE,
   );
 }
 

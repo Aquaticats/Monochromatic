@@ -12,9 +12,9 @@
 //! function scan(text: string): Hit[];
 //! ```
 
-/// Import the hit record,
-///  the GitHub expression skipper and the construct names.
+/// Import the construct names.
 use crate::shell_dialect::Construct;
+/// Import the hit record and the GitHub expression skipper.
 use crate::shell_scan::{Hit, expression_end};
 
 /// Where the scanner is nested.
@@ -135,7 +135,10 @@ impl Scan<'_> {
             return false;
         }
         let mut cursor: usize = self.index + 2;
-        while matches!(self.bytes.get(cursor), Some(b' ') | Some(b'\t') | Some(b'\r')) {
+        while matches!(
+            self.bytes.get(cursor),
+            Some(b' ') | Some(b'\t') | Some(b'\r')
+        ) {
             cursor += 1;
         }
         return self.bytes.get(cursor) == Some(&b'\n');
@@ -149,9 +152,8 @@ impl Scan<'_> {
     ///  where only `$(` still runs commands.
     fn in_double(&mut self) {
         let byte: u8 = self.bytes[self.index];
-        if byte == b'`' {
-            self.index += 2;
-        } else if byte == b'"' && self.ahead(1) == b'"' {
+        // A backtick escapes the next byte, and a doubled quote is one literal quote.
+        if byte == b'`' || (byte == b'"' && self.ahead(1) == b'"') {
             self.index += 2;
         } else if byte == b'"' {
             self.frames.pop();
@@ -174,9 +176,11 @@ impl Scan<'_> {
         if self.ahead(1) == b'&' {
             self.record(Construct::AndChain, 2);
             self.index += 2;
-        } else if self.index > 0 && self.bytes[self.index - 1] == b'>' {
-            self.index += 1;
-        } else if before == 0 || b"\n;|({".contains(&before) {
+        } else if (self.index > 0 && self.bytes[self.index - 1] == b'>')
+            || before == 0
+            || b"\n;|({".contains(&before)
+        {
+            // A redirection like `2>&1`, or the call operator at the start of a statement.
             self.index += 1;
         } else {
             self.record(Construct::Ampersand, 1);

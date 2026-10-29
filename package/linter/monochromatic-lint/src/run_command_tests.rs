@@ -295,7 +295,7 @@ fn rules_init_and_print_config_run_without_linting() {
     write(&fixture.path, "a.md", "# Title.\n");
     let rules: RunOutput = run(&fixture.path, &["--rules"], "");
     assert_eq!(rules.exit_code, 0);
-    assert_eq!(records(rules.stdout.as_str()).len(), 18);
+    assert_eq!(records(rules.stdout.as_str()).len(), 27);
     assert_eq!(rules.stderr, "");
     let init: RunOutput = run(&fixture.path, &["--init"], "");
     assert_eq!(init.exit_code, 0);

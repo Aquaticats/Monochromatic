@@ -19,7 +19,8 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
  One generated call: its stable id and what its mapper call does.
  
  `throwSync` throws from a synchronous function body on entry (never waiting
- for its gate); the other behaviors block on the call's gate first.
+ for its gate); the other behaviors block on the call's gate first. `stop`
+ resolves with the adapter's stop sentinel.
  */
 export type CallSpec = {
   /**
@@ -29,7 +30,7 @@ export type CallSpec = {
   /**
    Outcome the mapper call produces.
    */
-  readonly behavior: 'resolve' | 'reject' | 'throwSync' | 'skip';
+  readonly behavior: 'resolve' | 'reject' | 'throwSync' | 'skip' | 'stop';
 };
 
 /**
@@ -49,6 +50,14 @@ export type MapWorkload = {
    Backpressure bound for the streaming variant.
    */
   readonly backpressure: number;
+  /**
+   Whether the streaming variant yields results in input order.
+   */
+  readonly preserveOrder: boolean;
+  /**
+   Whether the keyed variants map a plain object or a `Map`.
+   */
+  readonly inputShape: 'object' | 'map';
   /**
    Whether iterated elements are plain values or already-resolved promises.
    */
@@ -100,10 +109,23 @@ export type MapAdapter = {
    */
   readonly skip: symbol;
   /**
+   The implementation's `pMapStop` sentinel, returned by stop calls.
+   */
+  readonly stop: symbol;
+  /**
    Runs one concurrent map over the instrumented source and normalizes its
    settlement.
    */
   readonly run: (call: MapAdapterCall,) => Promise<MapAdapterOutcome>;
+  /**
+   Runs one settled map over the instrumented source and normalizes its
+   settlement.
+   */
+  readonly runSettled: (call: MapAdapterCall,) => Promise<MapAdapterOutcome>;
+  /**
+   Runs one keyed map, settled or not, and normalizes its settlement.
+   */
+  readonly runKeyed: (call: KeyedAdapterCall,) => Promise<MapAdapterOutcome>;
   /**
    Runs one streaming map over the instrumented source.
    */
@@ -134,6 +156,39 @@ export type MapAdapterCall = {
    Backpressure bound for the streaming variant.
    */
   readonly backpressure: number;
+  /**
+   Whether the streaming variant yields results in input order.
+   */
+  readonly preserveOrder: boolean;
+};
+
+/**
+ One adapter-driven keyed map: input, mapper, and bounds.
+ */
+export type KeyedAdapterCall = {
+  /**
+   Object or `Map` whose values are mapped, keyed by call id.
+   */
+  readonly input: Record<string, string | Promise<string>> | Map<string, string | Promise<string>>;
+  /**
+   Workload mapper called with each value and its key.
+   */
+  readonly mapper: (
+    value: string,
+    key: string,
+  ) => string | symbol | PromiseLike<string | symbol>;
+  /**
+   Concurrency bound for the run.
+   */
+  readonly concurrency: number;
+  /**
+   Whether the run rejects on the first mapper failure.
+   */
+  readonly stopOnError: boolean;
+  /**
+   Whether failures become settled results instead of rejecting the run.
+   */
+  readonly settled: boolean;
 };
 
 /**
@@ -145,7 +200,8 @@ export type MapAdapterOutcome = {
    */
   readonly status: 'resolved' | 'rejected';
   /**
-   Result ids in result order; empty for a rejected run.
+   Result ids in result order, rendered as `key=id` for keyed results and
+   `status:id` for settled ones; empty for a rejected run.
    */
   readonly values: readonly string[];
   /**

@@ -20,18 +20,15 @@
  ```
  */
 
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
   type Combination,
   type UserContext,
 } from '@monochromatic-dev/test-harness-core-matrix/ts';
-import spawn from 'nano-spawn';
 import {
+  healReadableDirs,
   MAX_CAPTURED_OUTPUT_BYTES,
   PODMAN_BOUNDS,
   runContainerCell,
@@ -88,37 +85,26 @@ const CELLS: readonly {
 
 //region Run
 
-/**
- Directories the matrix test reads inside the container.
- */
-const READ_DIRS: readonly string[] = [
-  'package/module',
-  'package/file-enforcer/core/src',
-];
-
-// Rootless podman shows the mounted worktree as container-root-owned, so the
-// non-root cells can only read world-readable files; heal readability (read
-// and traverse bits only) for the directories the tests read.
-for (const dir of READ_DIRS) {
-  await spawn(
-    'chmod',
-    [
-      '-R',
-      'a+rX',
-      join(
-        MONOREPO_ROOT,
-        dir
-      ),
-    ],
-  );
-}
+// The non-root cells read only world-readable files: heal this package's
+// sources and every workspace package it reaches.
+await healReadableDirs({
+  monorepoRoot: MONOREPO_ROOT,
+  packageDir: resolve(
+    import.meta.dirname,
+    '..',
+    '..',
+  ),
+  ownDirs: ['package/file-enforcer/core/src',],
+},);
 
 /**
- Number of cells that failed.
- */
-let failures = 0;
+ Runs one matrix cell in a bounded container and reports its output.
 
-for (const cell of CELLS) {
+ @param cell - Matrix cell to run
+
+ @returns `true` when the cell's test run exited zero
+ */
+async function runCell(cell: (typeof CELLS)[number],): Promise<boolean> {
   /**
    Combination the matrix runner would have built for this cell.
    */
@@ -165,9 +151,8 @@ for (const cell of CELLS) {
       .write(`${
       result.stdout
     }\n`,);
-    continue;
+    return true;
   }
-  failures += 1;
   console.error(
     `[ensure-package-matrix] ${cell.os} user=${cell.user} failed (exit ${
       String(result.code,)
@@ -181,19 +166,31 @@ for (const cell of CELLS) {
     .write(`${
     result.stdout
   }\n`,);
+  return false;
+}
+
+/**
+ Cells that failed, as `os/user` labels.
+ */
+const failedCells: string[] = [];
+
+for (const cell of CELLS) {
+  // oxlint-disable-next-line no-await-in-loop -- one cell at a time keeps podman memory and CPU use bounded
+  if (!(await runCell(cell,)))
+    failedCells.push(`${cell.os}/${cell.user}`,);
 }
 
 process.stdout
   .write(
-  failures === 0
+  failedCells.length === 0
     ? `[ensure-package-matrix] ${
       CELLS.length
     } cells passed\n`
-    : `[ensure-package-matrix] ${failures} of ${
+    : `[ensure-package-matrix] ${failedCells.length} of ${
       CELLS.length
     } cells failed\n`,
   );
-if (failures > 0)
+if (failedCells.length > 0)
   process.exitCode = 1;
 
 //endregion Run

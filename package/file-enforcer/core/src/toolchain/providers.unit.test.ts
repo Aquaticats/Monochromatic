@@ -162,22 +162,34 @@ function readCliLog(fixture: Fixture,): readonly (readonly string[])[] {
 }
 
 /**
+ Plan entry fields a fixture case overrides.
+ */
+type FixtureEntryOverrides = {
+  readonly id?: ToolPlanEntry['id'];
+  readonly request?: ToolPlanEntry['request'];
+  readonly version?: ToolPlanEntry['version'];
+  readonly route?: ToolPlanEntry['route'];
+  readonly manager?: string;
+  readonly packageId?: string;
+  readonly bins?: ToolPlanEntry['bins'];
+  readonly options?: ToolPlanEntry['options'];
+  readonly artifacts?: ToolPlanEntry['artifacts'];
+};
+
+/**
  Builds a plan entry for one fixture case.
  
  @param overrides - Fields to set over the base entry
  
  @returns A plan entry shaped like the real plan
  */
-function fixtureEntry(overrides: Partial<ToolPlanEntry>,): ToolPlanEntry {
+function fixtureEntry(overrides: FixtureEntryOverrides,): ToolPlanEntry {
   return {
     id: 'fixture-tool',
     request: { track: 'latest' },
     version: '1.2.3',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},
@@ -185,7 +197,39 @@ function fixtureEntry(overrides: Partial<ToolPlanEntry>,): ToolPlanEntry {
   };
 }
 
+/**
+ Replaces the process `PATH` until the returned handle is disposed.
+ 
+ @param path - `PATH` value to install
+ 
+ @returns Handle that restores the earlier `PATH` when disposed
+ */
+function overridePath(path: string,): Disposable {
+  /**
+   `PATH` before the override.
+   */
+  const previousPath = process.env.PATH;
+  process.env.PATH = path;
+  return {
+    [Symbol.dispose](): void {
+      process.env.PATH = previousPath;
+    },
+  };
+}
+
 //endregion Fixtures
+
+/**
+ File name suffixes of archive payloads the archive route extracts.
+ */
+const ARCHIVE_SUFFIXES: readonly string[] = [
+  '.tar.gz',
+  '.tgz',
+  '.tar.xz',
+  '.tar.bz2',
+  '.tar',
+  '.zip',
+];
 
 await describe({
   name: 'toolchain provider convergence',
@@ -194,7 +238,7 @@ await describe({
     //region bin CLI location
 
     describe({
-      name: 'installBinSourced',
+      name: installBinSourced.name,
       children: [
         it({
           name: 'installs through the bin CLI at its bootstrap install directory',
@@ -344,7 +388,7 @@ await describe({
     //region Status probe
 
     describe({
-      name: 'observeTool',
+      name: observeTool.name,
       children: [
         it({
           name: 'observes bin-sourced versions through the bootstrap CLI install directory',
@@ -471,23 +515,18 @@ await describe({
             /**
              PATH whose first entries are the decoy shims.
              */
-            const previousPath = process.env.PATH;
-            process.env.PATH = `${decoyDir}:${previousPath ?? ''}`;
-            try {
-              await installMpmPnpm({
-                entry: fixtureEntry({
-                  id: 'npm:fixture',
-                  route: 'mpm-pnpm',
-                  packageId: 'fixture-pkg',
-                  bins: ['fixture-pkg'],
-                },),
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [fixture.paths.toolchainBinDir],
-              },);
-            } finally {
-              process.env.PATH = previousPath;
-            }
+            using pathOverride = overridePath(`${decoyDir}:${process.env.PATH ?? ''}`,);
+            await installMpmPnpm({
+              entry: fixtureEntry({
+                id: 'npm:fixture',
+                route: 'mpm-pnpm',
+                packageId: 'fixture-pkg',
+                bins: ['fixture-pkg'],
+              },),
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
             expect(readCliLog(fixture,)
               .length,)
               .toBeGreaterThan(0,);
@@ -519,8 +558,7 @@ await describe({
             /**
              PATH restricted to the fixture so no real cargo resolves.
              */
-            const previousPath = process.env.PATH;
-            process.env.PATH = fixture.paths.toolchainBinDir;
+            using pathOverride = overridePath(fixture.paths.toolchainBinDir,);
             let caught: unknown;
             try {
               await installCargoBinstall({
@@ -538,9 +576,6 @@ await describe({
             catch (error) {
               caught = error;
             }
-            finally {
-              process.env.PATH = previousPath;
-            }
             expect(caught,)
               .toBeInstanceOf(Error,);
           },
@@ -553,7 +588,7 @@ await describe({
     //region Scoped installs
 
     describe({
-      name: 'installCargoGit',
+      name: installCargoGit.name,
       children: [
         it({
           name: 'installs the pinned git revision into the tool install directory',
@@ -578,32 +613,26 @@ await describe({
               id: 'cargo:example/demo',
               version: 'ref:85e3eb7',
             },);
-            const previousPath = process.env.PATH;
-            process.env.PATH = fixture.paths.toolchainBinDir;
-            try {
-              await installCargoGit({
-                entry: fixtureEntry({
-                  id: 'cargo:example/demo',
-                  request: { pinned: 'ref:85e3eb7', },
-                  version: 'ref:85e3eb7',
-                  route: 'cargo-git',
-                  manager: 'cargo',
-                  packageId: 'demo-lsp',
-                  bins: ['demo-lsp'],
-                  options: {
-                    cargoGit: {
-                      url: 'https://github.com/example/demo',
-                    },
+            using pathOverride = overridePath(fixture.paths.toolchainBinDir,);
+            await installCargoGit({
+              entry: fixtureEntry({
+                id: 'cargo:example/demo',
+                request: { pinned: 'ref:85e3eb7', },
+                version: 'ref:85e3eb7',
+                route: 'cargo-git',
+                manager: 'cargo',
+                packageId: 'demo-lsp',
+                bins: ['demo-lsp'],
+                options: {
+                  cargoGit: {
+                    url: 'https://github.com/example/demo',
                   },
-                },),
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [fixture.paths.toolchainBinDir],
-              },);
-            }
-            finally {
-              process.env.PATH = previousPath;
-            }
+                },
+              },),
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
             /**
              Recorded invocations.
              */
@@ -638,8 +667,7 @@ await describe({
               logFile: fixture.logFile,
               body: "process.stderr.write('build failed\\n');\nprocess.exit(1);",
             },);
-            const previousPath = process.env.PATH;
-            process.env.PATH = fixture.paths.toolchainBinDir;
+            using pathOverride = overridePath(fixture.paths.toolchainBinDir,);
             /**
              Provider rejection.
              */
@@ -666,9 +694,6 @@ await describe({
             }
             catch (error) {
               caught = error;
-            }
-            finally {
-              process.env.PATH = previousPath;
             }
             expect(caught,)
               .toBeInstanceOf(Error,);
@@ -715,7 +740,7 @@ await describe({
     },),
 
     describe({
-      name: 'installGoInstall',
+      name: installGoInstall.name,
       children: [
         it({
           name: 'builds the module at its locked version into a scoped GOBIN',
@@ -756,20 +781,14 @@ await describe({
               packageId: 'github.com/example/demo',
               bins: ['demo'],
             },);
-            const previousPath = process.env.PATH;
-            process.env.PATH = fixture.paths.toolchainBinDir;
-            try {
-              await installGoInstall({
-                entry,
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [fixture.paths.toolchainBinDir],
-                tools: [goEntry, entry,],
-              },);
-            }
-            finally {
-              process.env.PATH = previousPath;
-            }
+            using pathOverride = overridePath(fixture.paths.toolchainBinDir,);
+            await installGoInstall({
+              entry,
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [fixture.paths.toolchainBinDir],
+              tools: [goEntry, entry,],
+            },);
             /**
              Recorded invocations.
              */
@@ -863,7 +882,7 @@ await describe({
               '',
               'utf8',
             );
-            seedBinConfig({
+            await seedBinConfig({
               downloadDir: fixture.paths.toolchainBinDir,
               configPath,
             },);
@@ -930,50 +949,46 @@ await describe({
             /**
              Loopback server exposing the gzip artifact.
              */
-            const server = await serveDir(stage,);
-            try {
-              /**
-               Entry whose artifact is a gzip single-file payload.
-               */
-              const entry = fixtureEntry({
-                id: 'taplo',
-                route: 'archive',
-                version: '0.10.0',
-                bins: ['taplo', 'taplo-linux-x86_64'],
-                options: {
-                  binAliases: { 'taplo-linux-x86_64': 'taplo' },
+            await using server = await serveDir(stage,);
+            /**
+             Entry whose artifact is a gzip single-file payload.
+             */
+            const entry = fixtureEntry({
+              id: 'taplo',
+              route: 'archive',
+              version: '0.10.0',
+              bins: ['taplo', 'taplo-linux-x86_64'],
+              options: {
+                binAliases: { 'taplo-linux-x86_64': 'taplo' },
+              },
+              artifacts: {
+                [hostPlatformId()]: {
+                  url: `${server.url}/${asset}`,
+                  sha256: sha256Bytes(compressed,),
                 },
-                artifacts: {
-                  [hostPlatformId()]: {
-                    url: `${server.url}/${asset}`,
-                    sha256: sha256Bytes(compressed,),
-                  },
-                },
-              },);
-              /**
-               Install directory the provider stages into.
-               */
-              const installDir = await installArchive({
-                entry,
-                paths: fixture.paths,
-                env: fixture.env,
-                extraDirs: [],
-              },);
-              /**
-               Installed payload bytes.
-               */
-              const installed = readFileSync(join(
-                installDir,
-                'taplo',
-              ),);
-              expect(Buffer.compare(
-                installed,
-                payload,
-              ),)
-                .toBe(0,);
-            } finally {
-              await server.close();
-            }
+              },
+            },);
+            /**
+             Install directory the provider stages into.
+             */
+            const installDir = await installArchive({
+              entry,
+              paths: fixture.paths,
+              env: fixture.env,
+              extraDirs: [],
+            },);
+            /**
+             Installed payload bytes.
+             */
+            const installed = readFileSync(join(
+              installDir,
+              'taplo',
+            ),);
+            expect(Buffer.compare(
+              installed,
+              payload,
+            ),)
+              .toBe(0,);
           },
         },),
       ],
@@ -1000,7 +1015,12 @@ await describe({
               const singleFileRows = Object.values(entry.artifacts,)
                 .filter(
                 function isSingleFile(row,): boolean {
-                  return !/\.(tar\.gz|tgz|tar\.xz|tar\.bz2|tar|zip)$/u.test(row.url,);
+                  return !ARCHIVE_SUFFIXES.some(
+                    function endsTheUrl(suffix,): boolean {
+                      return row.url
+                        .endsWith(suffix,);
+                    },
+                  );
                 },
                 );
               if (singleFileRows.length === 0)
@@ -1008,7 +1028,7 @@ await describe({
               /**
                Names the single-file copy creates: the primary plus aliases.
                */
-              const copyName = entry.bins[0];
+              const [copyName,] = entry.bins;
               /**
                Alias targets declared for this entry.
                */
@@ -1042,8 +1062,8 @@ await describe({
 type FileServer = {
   /** Base URL of the server. */
   readonly url: string;
-  /** Closes the server. */
-  readonly close: () => Promise<void>;
+  /** Closes the server when the handle is disposed. */
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
@@ -1082,10 +1102,10 @@ async function serveDir(dir: string,): Promise<FileServer> {
     '127.0.0.1',
   );
   await new Promise<void>(
-    (resolveListen,) => {
+    (resolve,) => {
       server.once(
         'listening',
-        () => resolveListen(),
+        () => resolve(),
       );
     },
   );
@@ -1099,11 +1119,11 @@ async function serveDir(dir: string,): Promise<FileServer> {
     url: `http://127.0.0.1:${
       address.port
     }`,
-    async close() {
+    async [Symbol.asyncDispose]() {
       await new Promise<void>(
-        (resolveClose,) => {
+        (resolve,) => {
           server.close(
-            () => resolveClose(),
+            () => resolve(),
           );
         },
       );

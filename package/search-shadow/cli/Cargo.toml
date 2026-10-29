@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-search-shadow"
-version = "0.1.1"
+version = "0.2.0"
 categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/search-shadow/cli"
@@ -15,7 +15,7 @@ keywords = ["ripgrep", "ioprio", "bfq", "shim"]
 license = "LGPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/Aquaticats/Monochromatic.git"
-description = "Shadows rg, grep and find: runs the real tool at the lowest best-effort disk priority and refuses repository-wide unrestricted ripgrep walks that stall the NVMe."
+description = "Shadows rg, the grep family, find, fd, du and similar tools: runs the real tool at the lowest best-effort disk priority and refuses repository-wide unbounded walks that stall the NVMe."
 
 # cargo-binstall's default URL is {repo}/releases/download/v{version}/{name}-{target}-v{version}, but this
 # repository tags each crate's release monochromatic-search-shadow-v<version> and names the archive

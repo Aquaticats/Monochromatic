@@ -96,6 +96,28 @@ pub struct RuleInfo {
 }
 
 /// What:
+///  The listing entry of a `shell/` rule.
+/// Why:
+///  All nine take only `max`,
+///  have no fix,
+///  and refuse inline directives:
+///  their exemptions are configuration ratchets,
+///  so one constructor keeps the nine entries identical.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shellRule = (id: string): RuleInfo => ({ id, fixable: false, options: ['max'], suppressible: false });
+/// ```
+const fn shell_rule(id: &'static str) -> RuleInfo {
+    return RuleInfo {
+        id,
+        fixable: false,
+        options: &["max"],
+        suppressible: false,
+    };
+}
+
+/// What:
 ///  Capabilities of every shipped rule,
 ///  in registry order.
 /// Why:
@@ -217,60 +239,15 @@ pub const RULES: &[RuleInfo] = &[
         options: &["exclude"],
         suppressible: true,
     },
-    RuleInfo {
-        id: "shell/max-lines",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-pipe",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-and-chain",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-or-chain",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-pipe-stderr",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-semicolon",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-dollar-paren",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-backtick",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
-    RuleInfo {
-        id: "shell/no-ampersand",
-        fixable: false,
-        options: &["max"],
-        suppressible: false,
-    },
+    shell_rule("shell/max-lines"),
+    shell_rule("shell/no-pipe"),
+    shell_rule("shell/no-and-chain"),
+    shell_rule("shell/no-or-chain"),
+    shell_rule("shell/no-pipe-stderr"),
+    shell_rule("shell/no-semicolon"),
+    shell_rule("shell/no-dollar-paren"),
+    shell_rule("shell/no-backtick"),
+    shell_rule("shell/no-ampersand"),
 ];
 
 /// What:
