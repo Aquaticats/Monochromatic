@@ -15,12 +15,14 @@ import { execFile, } from 'node:child_process';
  Explicit capture cap for one cell's combined output.
  Overflow fails the cell loudly instead of growing the driver's heap.
  */
-export const MAX_CAPTURED_OUTPUT_BYTES: number = 32 * 1024 * 1024;
+export const MAX_CAPTURED_OUTPUT_BYTES: number = 32 * 1_024
+  * 1_024;
 
 /**
  Wall-clock cap for one cell, in milliseconds.
  */
-export const CELL_TIMEOUT_MS: number = 20 * 60 * 1000;
+export const CELL_TIMEOUT_MS: number = 20 * 60
+  * 1_000;
 
 /**
  Podman resource flags applied to every container cell.
@@ -73,14 +75,18 @@ export async function runBounded(
           encoding: 'utf8',
           killSignal: 'SIGKILL',
         },
-        (error, stdout, stderr,) => {
+        (
+          error,
+          stdout,
+          stderr,
+        ) => {
           /**
            Exit code from the error object, or 0 when the command succeeded.
            */
           const code = error === null
             ? 0
-            : typeof (error as { code?: unknown; })
-              .code === 'number'
+            : (typeof (error as { code?: unknown; })
+              .code) === 'number'
               ? (error as { code: number; })
                 .code
               : 1;

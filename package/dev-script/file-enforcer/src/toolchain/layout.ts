@@ -6,7 +6,12 @@
  Node builtins only.
  */
 
-import { accessSync, constants, readdirSync, statSync, } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  readdirSync,
+  statSync,
+} from 'node:fs';
 import { join, } from 'node:path';
 import type { ToolPlanEntry, } from './types.ts';
 import {
@@ -37,14 +42,17 @@ export function hostPlatformId(): string {
     /**
      glibc runtime marker from the diagnostic report; absent on musl builds.
      */
-    const report = process.report?.getReport() as
+    const report = process.report
+      ?.getReport() as
       | { readonly header?: { readonly glibcVersionRuntime?: string; }; }
-      | string;
+        | string;
     /**
      Whether the host libc is musl rather than glibc.
      */
-    const musl = typeof report === 'object'
-      && report.header?.glibcVersionRuntime === undefined;
+    const musl = ((typeof report) === 'object')
+      && (report.header
+        ?.glibcVersionRuntime
+        === undefined);
     return `linux-${arch}${musl
       ? '-musl'
       : ''}`;
@@ -100,7 +108,13 @@ export function findBinUnder(
   /**
    Pending directories, as `[dir, depth]` pairs.
    */
-  const pending: { dir: string; depth: number; }[] = [{ dir: root, depth: 0 }];
+  const pending: {
+    dir: string;
+    depth: number
+  }[] = [{
+    dir: root,
+    depth: 0
+  }];
   while (pending.length > 0) {
     /**
      Next directory to inspect.
@@ -203,9 +217,12 @@ export function binSearchDirs(
     case 'cargo-binstall':
       return [
         join(
-          e.CARGO_HOME !== undefined && e.CARGO_HOME !== ''
+          (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
             ? e.CARGO_HOME
-            : join(home, '.cargo',),
+            : join(
+              home,
+              '.cargo',
+            ),
           'bin',
         ),
       ];
@@ -224,9 +241,14 @@ export function binSearchDirs(
     case 'mpm-pnpm':
       return [
         ...(extraDirs ?? []),
-        e.PNPM_HOME !== undefined && e.PNPM_HOME !== ''
+        (e.PNPM_HOME !== undefined) && (e.PNPM_HOME !== '')
           ? e.PNPM_HOME
-          : join(home, '.local', 'share', 'pnpm',),
+          : join(
+            home,
+            '.local',
+            'share',
+            'pnpm',
+          ),
         join(
           paths.toolchainRoot,
           'node',
@@ -234,9 +256,13 @@ export function binSearchDirs(
       ];
     case 'mpm-uvx':
       return [
-        e.UV_TOOL_BIN_DIR !== undefined && e.UV_TOOL_BIN_DIR !== ''
+        (e.UV_TOOL_BIN_DIR !== undefined) && (e.UV_TOOL_BIN_DIR !== '')
           ? e.UV_TOOL_BIN_DIR
-          : join(home, '.local', 'bin',),
+          : join(
+            home,
+            '.local',
+            'bin',
+          ),
         ...(extraDirs ?? []),
       ];
     case 'cargo-git':
@@ -250,15 +276,21 @@ export function binSearchDirs(
     case 'rustup-toolchain':
       return [
         join(
-          e.CARGO_HOME !== undefined && e.CARGO_HOME !== ''
+          (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
             ? e.CARGO_HOME
-            : join(home, '.cargo',),
+            : join(
+              home,
+              '.cargo',
+            ),
           'bin',
         ),
         join(
-          e.RUSTUP_HOME !== undefined && e.RUSTUP_HOME !== ''
+          (e.RUSTUP_HOME !== undefined) && (e.RUSTUP_HOME !== '')
             ? e.RUSTUP_HOME
-            : join(home, '.rustup',),
+            : join(
+              home,
+              '.rustup',
+            ),
           'toolchains',
         ),
       ];
@@ -277,9 +309,13 @@ export function binSearchDirs(
         join(
           installDir,
           'build-tools',
-          entry.options.androidPackages?.find(
+          entry.options
+            .androidPackages
+            ?.find(
             (component,) => component.startsWith('build-tools;',),
-          )?.slice('build-tools;'.length,) ?? entry.version,
+            )
+            ?.slice('build-tools;'.length,)
+            ?? entry.version,
         ),
       ];
     case 'archive':

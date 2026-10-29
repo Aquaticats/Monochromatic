@@ -130,7 +130,8 @@ export function appliesToHost(entry: ToolPlanEntry,): boolean {
       : process.platform === 'win32'
         ? 'windows'
         : process.platform;
-  return entry.os.includes(family as 'linux' | 'macos' | 'windows');
+  return entry.os
+    .includes(family as 'linux' | 'macos' | 'windows');
 }
 
 //endregion Platform filter
@@ -141,13 +142,21 @@ export function appliesToHost(entry: ToolPlanEntry,): boolean {
  Outcome of one `toolchain:sync` run.
  */
 export type SyncReport = {
-  /** Tool ids that were already at their locked version. */
+  /**
+   Tool ids that were already at their locked version.
+   */
   readonly unchanged: readonly string[];
-  /** Tool ids installed or converged in this run. */
+  /**
+   Tool ids installed or converged in this run.
+   */
   readonly installed: readonly string[];
-  /** Tool ids whose install failed, with the failing output. */
+  /**
+   Tool ids whose install failed, with the failing output.
+   */
   readonly failed: Readonly<Record<string, string>>;
-  /** Declared bin names that do not resolve in the exposure directory. */
+  /**
+   Declared bin names that do not resolve in the exposure directory.
+   */
   readonly missingBins: readonly string[];
 };
 
@@ -208,7 +217,7 @@ export async function syncToolchain(
     } catch {
       observed = null;
     }
-    if (observed !== null
+    if ((observed !== null)
       && versionMatches({
         observed,
         locked: entry.version,
@@ -259,12 +268,16 @@ export async function syncToolchain(
           await installAndroidSdk(context,);
           break;
       }
-      if (entry.options.rustComponents !== undefined
-        || entry.options.rustTargets !== undefined)
+      if ((entry.options
+        .rustComponents
+        !== undefined)
+        || (entry.options
+          .rustTargets
+          !== undefined))
         await installRustComponents(context,);
       installed.push(entry.id,);
     } catch (error) {
-      failed[entry.id] = error instanceof Error
+      failed[entry.id] = Error.isError(error,)
         ? error.message
         : String(error,);
     }
@@ -317,7 +330,8 @@ export async function main(): Promise<void> {
   /**
    Whether this run targets the machine-global scope.
    */
-  const global = process.argv.includes('--global',);
+  const global = process.argv
+    .includes('--global',);
   /**
    Resolved scope paths.
    */
@@ -330,7 +344,8 @@ export async function main(): Promise<void> {
   const tools = global
     ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
     : ALL_TOOLS;
-  process.stdout.write(
+  process.stdout
+    .write(
     `toolchain sync: platform ${
       hostPlatformId()
     }, root ${
@@ -338,7 +353,7 @@ export async function main(): Promise<void> {
     }, exposure ${
       paths.exposureDir
     }\n`,
-  );
+    );
   /**
    Sync report for this run.
    */
@@ -347,26 +362,35 @@ export async function main(): Promise<void> {
     paths,
     env: process.env,
   },);
-  process.stdout.write(
+  process.stdout
+    .write(
     `toolchain sync: ${
-      report.installed.length
+      report.installed
+        .length
     } installed, ${
-      report.unchanged.length
+      report.unchanged
+        .length
     } unchanged, ${
       Object.keys(report.failed,)
         .length
     } failed\n`,
-  );
-  for (const [id, message,] of Object.entries(report.failed,))
-    process.stderr.write(`toolchain sync: ${id} failed: ${message}\n`,);
-  if (report.missingBins.length > 0)
-    process.stderr.write(
-      `toolchain sync: unresolved bins: ${
-        report.missingBins.join(', ',)
-      }\n`,
     );
+  for (const [id, message,] of Object.entries(report.failed,))
+    process.stderr
+      .write(`toolchain sync: ${id} failed: ${message}\n`,);
+  if (report.missingBins
+    .length
+    > 0)
+    process.stderr
+      .write(
+      `toolchain sync: unresolved bins: ${
+        report.missingBins
+          .join(', ',)
+      }\n`,
+      );
   if (Object.keys(report.failed,)
-    .length > 0)
+    .length
+    > 0)
     process.exitCode = 1;
 }
 

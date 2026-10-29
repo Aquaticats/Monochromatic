@@ -12,8 +12,8 @@ import type { ToolArtifacts, } from './plan.artifacts.ts';
  */
 export type ToolRequest =
   | { readonly track: 'latest'; }
-  | { readonly pinned: string; }
-  | { readonly channel: string; };
+    | { readonly pinned: string; }
+    | { readonly channel: string; };
 
 //endregion Request intent
 
@@ -35,15 +35,15 @@ export type ToolRequest =
  */
 export type ToolRoute =
   | 'bin-sourced'
-  | 'archive'
-  | 'cargo-binstall'
-  | 'cargo-git'
-  | 'mpm-pnpm'
-  | 'mpm-uvx'
-  | 'go-install'
-  | 'rustup-toolchain'
-  | 'rustup-components'
-  | 'android-sdk';
+    | 'archive'
+    | 'cargo-binstall'
+    | 'cargo-git'
+    | 'mpm-pnpm'
+    | 'mpm-uvx'
+    | 'go-install'
+    | 'rustup-toolchain'
+    | 'rustup-components'
+    | 'android-sdk';
 
 /**
  Every route value, in declaration order, for exhaustiveness checks and tests.
@@ -76,8 +76,8 @@ export type PostinstallLink = {
     readonly sourceBin: string;
     readonly linkName: string;
     /**
-     * Worktree-relative or absolute directory holding the link; absent means
-     * the scope's own link directory (`paths.cliGitBinDir`).
+     Worktree-relative or absolute directory holding the link; absent means
+     the scope's own link directory (`paths.cliGitBinDir`).
      */
     readonly linkDir?: string;
   };
@@ -88,47 +88,63 @@ export type PostinstallLink = {
  (the decision doc's `provider options` column of `toolchain.lock.json`).
  */
 export type ToolOptions = {
-  /** `rustup component add` names applied after the Rust toolchain lands. */
+  /**
+   `rustup component add` names applied after the Rust toolchain lands.
+   */
   readonly rustComponents?: readonly string[];
-  /** `rustup target add` triples applied after the Rust toolchain lands. */
+  /**
+   `rustup target add` triples applied after the Rust toolchain lands.
+   */
   readonly rustTargets?: readonly string[];
-  /** `cargo binstall --features` values (source-build fallback only). */
+  /**
+   `cargo binstall --features` values (source-build fallback only).
+   */
   readonly cargoFeatures?: readonly string[];
   /**
-   * Git source of a `cargo-git` tool (`cargo install --git <url>`), with the
-   * pinned revision riding in `request.pinned` as `ref:<rev>` and the package
-   * name in `packageId`.
+   Git source of a `cargo-git` tool (`cargo install --git <url>`), with the
+   pinned revision riding in `request.pinned` as `ref:<rev>` and the package
+   name in `packageId`.
    */
   readonly cargoGit?: {
     readonly url: string;
   };
   /**
-   * Release-asset glob the GitHub resolver matches when it records artifact
-   * rows (`asset_pattern` / `matching` in the retired Mise config), for
-   * releases whose asset names carry no platform marker.
+   Release-asset glob the GitHub resolver matches when it records artifact
+   rows (`asset_pattern` / `matching` in the retired Mise config), for
+   releases whose asset names carry no platform marker.
    */
   readonly assetPattern?: string;
   /**
-   * Packages whose install scripts the `mpm-pnpm` provider allows
-   * (`allow_builds` in the retired Mise config).
+   Packages whose install scripts the `mpm-pnpm` provider allows
+   (`allow_builds` in the retired Mise config).
    */
   readonly allowBuilds?: readonly string[];
-  /** `sdkmanager` component pins installed after cmdline-tools. */
+  /**
+   `sdkmanager` component pins installed after cmdline-tools.
+   */
   readonly androidPackages?: readonly string[];
-  /** Postinstall atomic link step. */
+  /**
+   Postinstall atomic link step.
+   */
   readonly postinstall?: PostinstallLink;
   /**
-   * Extra exposure names that link the same target as another declared bin
-   * (`bunx` for `bun`, `pn`/`pnpx`/`pnx` for `pnpm`): alias name to primary
-   * bin name. `bin install` copies one file per invocation, so aliases are
-   * linked instead of re-downloaded.
+   Extra exposure names that link the same target as another declared bin
+   (`bunx` for `bun`, `pn`/`pnpx`/`pnx` for `pnpm`): alias name to primary
+   bin name. `bin install` copies one file per invocation, so aliases are
+   linked instead of re-downloaded.
    */
   readonly binAliases?: Readonly<Record<string, string>>;
-  /** Bootstrap metadata for the pinned `mpm` and `bin` prerequisites. */
+  /**
+   Bootstrap metadata for the pinned `mpm` and `bin` prerequisites.
+   */
   readonly bootstrap?: {
-    /** Tool that must exist before this one installs, or `null`. */
+    /**
+     Tool that must exist before this one installs, or `null`.
+     */
     readonly requiresTool: string | null;
-    /** Distribution kind the provider installs. */
+    /**
+     Distribution kind the provider installs.
+     */
     readonly distribution: 'wheel' | 'standalone-binary';
   };
 };
@@ -152,19 +168,31 @@ export type ToolEnv = Readonly<Record<string, string>>;
  tool environment exports, and per-platform artifact provenance.
  */
 export type ToolPlanEntry = {
-  /** Stable tool id, the `mise.no-env.toml` key (plus `mpm` for the bootstrap). */
+  /**
+   Stable tool id, the `mise.no-env.toml` key (plus `mpm` for the bootstrap).
+   */
   readonly id: string;
   readonly request: ToolRequest;
-  /** Resolved version locked from `mise.lock` (or the mpm release). */
+  /**
+   Resolved version locked from `mise.lock` (or the mpm release).
+   */
   readonly version: string;
   readonly route: ToolRoute;
-  /** MPM manager id declaring this tool in `mpm.packages.toml`, or `null`. */
+  /**
+   MPM manager id declaring this tool in `mpm.packages.toml`, or `null`.
+   */
   readonly manager: string | null;
-  /** Package id under `manager`, or `null` when no MPM manager applies. */
+  /**
+   Package id under `manager`, or `null` when no MPM manager applies.
+   */
   readonly packageId: string | null;
-  /** Binary names the per-worktree exposure directory links. */
+  /**
+   Binary names the per-worktree exposure directory links.
+   */
   readonly bins: readonly string[];
-  /** OS filter carried over from the tool's `os` option, or `null`. */
+  /**
+   OS filter carried over from the tool's `os` option, or `null`.
+   */
   readonly os: readonly ('linux' | 'macos' | 'windows')[] | null;
   readonly options: ToolOptions;
   readonly env: ToolEnv;

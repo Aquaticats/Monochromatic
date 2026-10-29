@@ -166,7 +166,8 @@ async function resolveEntry(
       fetcher,
     },);
   }
-  if (entry.id.startsWith('conda:',)) {
+  if (entry.id
+    .startsWith('conda:',)) {
     return resolveConda({
       entry,
       fetcher,
@@ -224,7 +225,7 @@ export async function resolveAll(
         },);
         continue;
       }
-      if (resolution.version === entry.version
+      if ((resolution.version === entry.version)
         && sameArtifacts(
           resolution.artifacts,
           entry.artifacts,
@@ -250,7 +251,7 @@ export async function resolveAll(
       /**
        Failure text for the report line.
        */
-      const message = error instanceof Error
+      const message = Error.isError(error,)
         ? error.message
         : String(error,);
       if ('pinned' in entry.request) {
@@ -271,7 +272,7 @@ export async function resolveAll(
         oldVersion: entry.version,
         newVersion: entry.version,
         artifacts: entry.artifacts,
-        note: error instanceof Error
+        note: Error.isError(error,)
           ? error.message
           : String(error,),
       },);
@@ -299,8 +300,14 @@ function sameArtifacts(
     ...Object.keys(b,),
   ]);
   for (const platform of platforms) {
-    if (a[platform]?.url !== b[platform]?.url
-      || a[platform]?.sha256 !== b[platform]?.sha256)
+    if ((a[platform]
+      ?.url
+      !== b[platform]
+        ?.url)
+      || (a[platform]
+        ?.sha256
+        !== b[platform]
+          ?.sha256))
       return false;
   }
   return true;
@@ -360,11 +367,11 @@ export function formatReport(
   /**
    Counts per kind.
    */
-  const count = (kind: UpdateOutcome['kind'],): number => outcomes
+  function count(kind: UpdateOutcome['kind'],): number { return outcomes
     .filter(
-      (outcome,) => outcome.kind === kind,
+    (outcome,) => outcome.kind === kind,
     )
-    .length;
+    .length; }
   lines.push(
     `toolchain update: ${
       String(count('updated',),)
@@ -417,7 +424,10 @@ function moveVersionPins(
    */
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(entry.env,))
-    env[key] = value.replaceAll(oldVersion, newVersion,);
+    env[key] = value.replaceAll(
+      oldVersion,
+      newVersion,
+    );
   return {
     ...entry,
     version: newVersion,
@@ -487,7 +497,10 @@ export function writeResolutions(
   {
     tools,
     outcomes,
-    planDir = new URL('.', import.meta.url,)
+    planDir = new URL(
+      '.',
+      import.meta.url,
+    )
       .pathname,
     paths = resolveToolchainPaths(),
   }: {
@@ -515,7 +528,10 @@ export function writeResolutions(
     planDir,
     'plan.artifacts.ts',
   );
-  if (readFileSync(artifactsPath, 'utf8',) !== artifactsText) {
+  if (readFileSync(
+    artifactsPath,
+    'utf8',
+  ) !== artifactsText) {
     writeFileSync(
       artifactsPath,
       artifactsText,
@@ -543,10 +559,16 @@ export function writeResolutions(
       'plan.tools.ts',
     );
     const patched = patchPlanVersions({
-      source: readFileSync(toolsPath, 'utf8',),
+      source: readFileSync(
+        toolsPath,
+        'utf8',
+      ),
       versions,
     },);
-    if (patched !== readFileSync(toolsPath, 'utf8',)) {
+    if (patched !== readFileSync(
+      toolsPath,
+      'utf8',
+    )) {
       writeFileSync(
         toolsPath,
         patched,
@@ -580,11 +602,13 @@ export async function main(): Promise<void> {
   /**
    Dry-run flag: report only, never write.
    */
-  const check = process.argv.includes('--check',);
+  const check = process.argv
+    .includes('--check',);
   /**
    Whether this run targets the machine-global scope.
    */
-  const global = process.argv.includes('--global',);
+  const global = process.argv
+    .includes('--global',);
   /**
    Resolved scope paths.
    */
@@ -604,7 +628,10 @@ export async function main(): Promise<void> {
   /**
    Network fetcher with GitHub authentication bound in.
    */
-  const fetcher: Fetcher = async (url, init,) => {
+  async function fetcher(
+    url,
+    init,
+  ) {
     /**
      Request headers with GitHub authentication when the URL needs it.
      */
@@ -612,7 +639,7 @@ export async function main(): Promise<void> {
       ...init?.headers,
       'user-agent': 'monochromatic-toolchain-update',
     };
-    if (token !== null && url.startsWith('https://api.github.com/'))
+    if ((token !== null) && url.startsWith('https://api.github.com/'))
       headers.authorization = `Bearer ${token}`;
     /**
      Response from the upstream source.
@@ -632,7 +659,7 @@ export async function main(): Promise<void> {
         .decode(bytes),
       bytes,
     };
-  };
+  }
   /**
    Outcomes for every plan entry.
    */
@@ -640,7 +667,8 @@ export async function main(): Promise<void> {
     tools,
     fetcher,
   },);
-  process.stdout.write(`${
+  process.stdout
+    .write(`${
     formatReport({ outcomes, })
   }\n`,);
   /**
@@ -679,7 +707,8 @@ export async function main(): Promise<void> {
       ? paths
       : undefined,
   },);
-  process.stdout.write(`toolchain update: wrote ${
+  process.stdout
+    .write(`toolchain update: wrote ${
     written.join(', ',)
   }\n`,);
 }

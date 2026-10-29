@@ -20,7 +20,10 @@
  ```
  */
 
-import { join, resolve, } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
@@ -102,7 +105,10 @@ for (const dir of READ_DIRS) {
     [
       '-R',
       'a+rX',
-      join(MONOREPO_ROOT, dir),
+      join(
+        MONOREPO_ROOT,
+        dir
+      ),
     ],
   );
 }
@@ -132,8 +138,7 @@ for (const cell of CELLS) {
   /**
    Distro half of the cell's `os` spec, tagged for `podman run`.
    */
-  const distro = parseOs(cell.os,)
-    .distro;
+  const {distro} = parseOs(cell.os,);
   /**
    Fully tagged image reference.
    */
@@ -156,7 +161,8 @@ for (const cell of CELLS) {
     monorepoRoot: MONOREPO_ROOT,
   },);
   if (result.code === 0) {
-    process.stdout.write(`${
+    process.stdout
+      .write(`${
       result.stdout
     }\n`,);
     continue;
@@ -167,15 +173,18 @@ for (const cell of CELLS) {
       String(result.code,)
     }):`,
   );
-  process.stderr.write(`${
+  process.stderr
+    .write(`${
     result.stderr
   }\n`,);
-  process.stdout.write(`${
+  process.stdout
+    .write(`${
     result.stdout
   }\n`,);
 }
 
-process.stdout.write(
+process.stdout
+  .write(
   failures === 0
     ? `[ensure-package-matrix] ${
       CELLS.length
@@ -183,7 +192,7 @@ process.stdout.write(
     : `[ensure-package-matrix] ${failures} of ${
       CELLS.length
     } cells failed\n`,
-);
+  );
 if (failures > 0)
   process.exitCode = 1;
 

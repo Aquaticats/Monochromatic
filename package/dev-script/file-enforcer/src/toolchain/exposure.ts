@@ -17,7 +17,10 @@ import {
 } from 'node:path';
 import { atomicSymlink, } from './exec.ts';
 import { findToolBin, } from './layout.ts';
-import type { PathEnv, ToolchainPaths, } from './paths.ts';
+import type {
+  PathEnv,
+  ToolchainPaths,
+} from './paths.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Exposure directory
@@ -26,9 +29,13 @@ import type { ToolPlanEntry, } from './types.ts';
  Outcome of one exposure rebuild.
  */
 export type ExposureReport = {
-  /** Declared binary names whose exposure link resolves. */
+  /**
+   Declared binary names whose exposure link resolves.
+   */
   readonly linked: readonly string[];
-  /** Declared binary names with no resolvable target. */
+  /**
+   Declared binary names with no resolvable target.
+   */
   readonly missing: readonly string[];
 };
 
@@ -70,7 +77,9 @@ export function rebuildExposure(
     /**
      Alias map of this entry.
      */
-    const aliases = entry.options.binAliases ?? {};
+    const aliases = entry.options
+      .binAliases
+      ?? {};
     for (const name of entry.bins) {
       /**
        Primary binary this name resolves through.
@@ -204,7 +213,7 @@ export function runPostinstallLinks(
     /**
      Postinstall link step of this entry, if any.
      */
-    const postinstall = entry.options.postinstall;
+    const {postinstall} = entry.options;
     if (postinstall === undefined)
       continue;
     /**
@@ -212,7 +221,8 @@ export function runPostinstallLinks(
      */
     const target = findToolBin({
       entry,
-      name: postinstall.link.sourceBin,
+      name: postinstall.link
+        .sourceBin,
       paths,
       env,
       extraDirs,
@@ -224,22 +234,29 @@ export function runPostinstallLinks(
      worktree-relative `linkDir` under the worktree root, else the scope's own
      link directory (`paths.cliGitBinDir`).
      */
-    const linkDir = postinstall.link.linkDir === undefined
+    const linkDir = postinstall.link
+      .linkDir
+      === undefined
       ? paths.cliGitBinDir
-      : isAbsolute(postinstall.link.linkDir,)
-        ? postinstall.link.linkDir
+      : isAbsolute(postinstall.link
+        .linkDir,)
+        ? postinstall.link
+          .linkDir
         : join(
           paths.worktreeRoot,
-          postinstall.link.linkDir,
+          postinstall.link
+            .linkDir,
         );
     atomicSymlink({
       linkPath: join(
         linkDir,
-        postinstall.link.linkName,
+        postinstall.link
+          .linkName,
       ),
       target,
     },);
-    created.push(postinstall.link.linkName,);
+    created.push(postinstall.link
+      .linkName,);
   }
   return created;
 }

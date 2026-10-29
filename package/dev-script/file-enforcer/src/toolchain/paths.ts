@@ -8,7 +8,11 @@
 
 import { realpathSync, } from 'node:fs';
 import { homedir, } from 'node:os';
-import { isAbsolute, join, resolve, } from 'node:path';
+import {
+  isAbsolute,
+  join,
+  resolve,
+} from 'node:path';
 
 //region Roots
 
@@ -26,29 +30,49 @@ export type PathEnv = Readonly<Record<string, string | undefined>>;
  (`doc/planning/mpm-global-toolchain-migration.md`).
  */
 export type ToolchainPaths = {
-  /** Root of the scope's own files (worktree, or the global config stack). */
+  /**
+   Root of the scope's own files (worktree, or the global config stack).
+   */
   readonly worktreeRoot: string;
-  /** Machine-level install root (`.../monochromatic-dev/toolchain[-global]`). */
+  /**
+   Machine-level install root (`.../monochromatic-dev/toolchain[-global]`).
+   */
   readonly toolchainRoot: string;
-  /** Absolute exposure directory holding one link per declared bin. */
+  /**
+   Absolute exposure directory holding one link per declared bin.
+   */
   readonly exposureDir: string;
-  /** Canonical root-relative spelling of {@link ToolchainPaths.exposureDir}. */
+  /**
+   Canonical root-relative spelling of {@link ToolchainPaths.exposureDir}.
+   */
   readonly exposureDirRelative: string;
-  /** Absolute tool environment file (gitignored, machine-absolute). */
+  /**
+   Absolute tool environment file (gitignored, machine-absolute).
+   */
   readonly envFile: string;
-  /** Absolute directory the postinstall `git` link lands in. */
+  /**
+   Absolute directory the postinstall `git` link lands in.
+   */
   readonly cliGitBinDir: string;
-  /** Absolute `toolchain.lock.json` of this scope. */
+  /**
+   Absolute `toolchain.lock.json` of this scope.
+   */
   readonly lockFile: string;
-  /** Absolute `mpm.packages.toml` of this scope. */
+  /**
+   Absolute `mpm.packages.toml` of this scope.
+   */
   readonly mpmPackagesFile: string;
-  /** Absolute `mpm.managers.toml` of this scope. */
+  /**
+   Absolute `mpm.managers.toml` of this scope.
+   */
   readonly mpmManagersFile: string;
-  /** Absolute `bin/` directory inside the machine toolchain root. */
+  /**
+   Absolute `bin/` directory inside the machine toolchain root.
+   */
   readonly toolchainBinDir: string;
   /**
-   * Absolute `bin` CLI configuration of this scope (`BIN_CONFIG`), so two
-   * scopes never share one `default_path` and install database.
+   Absolute `bin` CLI configuration of this scope (`BIN_CONFIG`), so two
+   scopes never share one `default_path` and install database.
    */
   readonly binConfigFile: string;
 };
@@ -75,7 +99,7 @@ export function worktreeRootFromModule(
    Explicit override, used by tests and disposable fixtures.
    */
   const override = env?.MONOCHROMATIC_WORKTREE_ROOT;
-  if (override !== undefined && override !== '')
+  if ((override !== undefined) && (override !== ''))
     return resolve(override,);
   return resolve(
     import.meta.dirname,
@@ -107,9 +131,13 @@ export function toolchainRootFromEnv(
    Data home: `XDG_DATA_HOME`, else `$HOME/.local/share`, else the runtime
    homedir's `.local/share`.
    */
-  const dataHome = e.XDG_DATA_HOME !== undefined && e.XDG_DATA_HOME !== ''
+  const dataHome = (e.XDG_DATA_HOME !== undefined) && (e.XDG_DATA_HOME !== '')
     ? e.XDG_DATA_HOME
-    : join(homeDirFromEnv({ env: e, }), '.local', 'share',);
+    : join(
+      homeDirFromEnv({ env: e, }),
+      '.local',
+      'share',
+    );
   return join(
     resolve(dataHome,),
     'monochromatic-dev',
@@ -132,7 +160,7 @@ export function homeDirFromEnv(
    Effective environment (defaults to the process environment).
    */
   const e = env ?? process.env;
-  return e.HOME !== undefined && e.HOME !== ''
+  return (e.HOME !== undefined) && (e.HOME !== '')
     ? resolve(e.HOME,)
     : homedir();
 }
@@ -241,9 +269,12 @@ export function globalToolchainPaths(
    Config stack directory (declarations, lock, manifests).
    */
   const configDir = join(
-    e.XDG_CONFIG_HOME !== undefined && e.XDG_CONFIG_HOME !== ''
+    (e.XDG_CONFIG_HOME !== undefined) && (e.XDG_CONFIG_HOME !== '')
       ? resolve(e.XDG_CONFIG_HOME,)
-      : join(home, '.config',),
+      : join(
+        home,
+        '.config',
+      ),
     'monochromatic-dev',
     'toolchain',
   );
@@ -251,9 +282,13 @@ export function globalToolchainPaths(
    Machine payload root of the global scope.
    */
   const toolchainRoot = join(
-    e.XDG_DATA_HOME !== undefined && e.XDG_DATA_HOME !== ''
+    (e.XDG_DATA_HOME !== undefined) && (e.XDG_DATA_HOME !== '')
       ? resolve(e.XDG_DATA_HOME,)
-      : join(home, '.local', 'share',),
+      : join(
+        home,
+        '.local',
+        'share',
+      ),
     'monochromatic-dev',
     'toolchain-global',
   );
@@ -361,29 +396,39 @@ export function managerNativeBinDirs(
    Cargo home bin directory (`cargo binstall` installs here).
    */
   const cargoBin = join(
-    e.CARGO_HOME !== undefined && e.CARGO_HOME !== ''
+    (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
       ? resolve(e.CARGO_HOME,)
-      : join(home, '.cargo',),
+      : join(
+        home,
+        '.cargo',
+      ),
     'bin',
   );
   /**
    uv tool executable directory (`uv tool install` links here).
    */
-  const uvToolBin = e.UV_TOOL_BIN_DIR !== undefined && e.UV_TOOL_BIN_DIR !== ''
+  const uvToolBin = (e.UV_TOOL_BIN_DIR !== undefined) && (e.UV_TOOL_BIN_DIR !== '')
     ? resolve(e.UV_TOOL_BIN_DIR,)
-    : join(home, '.local', 'bin',);
+    : join(
+      home,
+      '.local',
+      'bin',
+    );
   /**
    npm global prefix bin directory, when the environment pins one.
    */
-  const npmPrefixBin = e.npm_config_prefix !== undefined && e.npm_config_prefix !== ''
-    ? join(resolve(e.npm_config_prefix,), 'bin',)
+  const npmPrefixBin = (e.npm_config_prefix !== undefined) && (e.npm_config_prefix !== '')
+    ? join(
+      resolve(e.npm_config_prefix,),
+      'bin',
+    )
     : undefined;
   /**
    pnpm global bin directory (`pnpm add --global` refuses to install
    unless it is on `PATH`).
    */
   const pnpmGlobalBin = join(
-    e.PNPM_HOME !== undefined && e.PNPM_HOME !== ''
+    (e.PNPM_HOME !== undefined) && (e.PNPM_HOME !== '')
       ? resolve(e.PNPM_HOME,)
       : join(
         home,

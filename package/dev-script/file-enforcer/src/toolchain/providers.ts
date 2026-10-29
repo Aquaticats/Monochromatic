@@ -15,7 +15,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir, } from 'node:os';
-import { basename, dirname, join, } from 'node:path';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import { gunzipSync, } from 'node:zlib';
 import {
   downloadVerified,
@@ -49,11 +53,13 @@ export type ProviderContext = {
   readonly entry: ToolPlanEntry;
   readonly paths: ToolchainPaths;
   readonly env: PathEnv;
-  /** Extra bin search directories a staged tool contributes. */
+  /**
+   Extra bin search directories a staged tool contributes.
+   */
   readonly extraDirs: readonly string[];
   /**
-   * Plan of the scope being synced (sibling lookups for `pnpm`, `uv`, `go`,
-   * `bin` and `mpm`); absent means the repository plan.
+   Plan of the scope being synced (sibling lookups for `pnpm`, `uv`, `go`,
+   `bin` and `mpm`); absent means the repository plan.
    */
   readonly tools?: readonly ToolPlanEntry[] | undefined;
 };
@@ -153,8 +159,10 @@ export async function resolveGithubToken(
   /**
    Token from the environment, which CI and interactive shells set.
    */
-  const fromEnv = env.GITHUB_TOKEN ?? process.env.GITHUB_TOKEN;
-  if (fromEnv !== undefined && fromEnv !== '') {
+  const fromEnv = env.GITHUB_TOKEN
+    ?? process.env
+      .GITHUB_TOKEN;
+  if ((fromEnv !== undefined) && (fromEnv !== '')) {
     githubToken = fromEnv;
     return fromEnv;
   }
@@ -163,10 +171,16 @@ export async function resolveGithubToken(
    */
   const viaGh = await run({
     command: 'gh',
-    args: ['auth', 'token'],
+    args: [
+      'auth',
+      'token'
+    ],
   },);
-  githubToken = viaGh.code === 0 && viaGh.stdout.trim() !== ''
-    ? viaGh.stdout.trim()
+  githubToken = (viaGh.code === 0) && (viaGh.stdout
+    .trim()
+    !== '')
+    ? viaGh.stdout
+      .trim()
     : null;
   return githubToken;
 }
@@ -284,7 +298,11 @@ export function toolchainPathEnv(
 export async function installArchive(
   context: ProviderContext,
 ): Promise<string> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+  } = context;
   /**
    Verified artifact for the host platform.
    */
@@ -295,7 +313,8 @@ export async function installArchive(
   const downloadPath = join(
     paths.toolchainRoot,
     'downloads',
-    `${entry.id.replaceAll(
+    `${entry.id
+      .replaceAll(
       /[^A-Za-z0-9._-]+/g,
       '-',
     )}-${
@@ -333,7 +352,9 @@ export async function installArchive(
       root: installDir,
       names: [
         ...entry.bins,
-        ...Object.keys(entry.options.binAliases ?? {}),
+        ...Object.keys(entry.options
+          .binAliases
+          ?? {}),
       ],
     },);
     return installDir;
@@ -350,7 +371,8 @@ export async function installArchive(
     installDir,
     name,
   );
-  if (artifact.url.endsWith('.gz',)) {
+  if (artifact.url
+    .endsWith('.gz',)) {
     // Gzip single-file payloads (taplo ships a .gz binary) must be
     // decompressed before the file can run.
     writeFileSync(
@@ -398,7 +420,10 @@ export function restoreExecBits(
    Pending directories, as `[dir, depth]` pairs (bounded like
    `findBinUnder`).
    */
-  const pending: { dir: string; depth: number; }[] = [{
+  const pending: {
+    dir: string;
+    depth: number
+  }[] = [{
     dir: root,
     depth: 0,
   }];
@@ -470,9 +495,7 @@ export function releaseTagUrl(artifactUrl: string,): string | null {
   /**
    Parsed GitHub release-download components.
    */
-  const match = artifactUrl.match(
-    /^(https:\/\/github\.com\/[^/]+\/[^/]+)\/releases\/download\/([^/]+)\//u,
-  );
+  const match = /^(https:\/\/github\.com\/[^/]+\/[^/]+)\/releases\/download\/([^/]+)\//u.exec(artifactUrl);
   if (match === null)
     return null;
   /**
@@ -483,7 +506,7 @@ export function releaseTagUrl(artifactUrl: string,): string | null {
    URL-encoded release tag of the artifact.
    */
   const tag = match[2];
-  if (repo === undefined || tag === undefined)
+  if ((repo === undefined) || (tag === undefined))
     return null;
   return `${repo}/releases/tag/${decodeURIComponent(tag,)}`;
 }
@@ -589,15 +612,18 @@ export async function installBinSourced(
   /**
    Alias map: extra exposure names sharing one installed file.
    */
-  const aliases = entry.options.binAliases ?? {};
+  const aliases = entry.options
+    .binAliases
+    ?? {};
   /**
    Primary binary names `bin install` copies (aliases link to these).
    */
-  const primaries = entry.bins.filter(
+  const primaries = entry.bins
+    .filter(
     function isPrimary(name,): boolean {
       return aliases[name] === undefined;
     },
-  );
+    );
   seedBinConfig({
     downloadDir: paths.toolchainBinDir,
     configPath: paths.binConfigFile,
@@ -694,7 +720,7 @@ export async function installBinSourced(
     paths.toolchainBinDir,
     { throwIfNoEntry: false },
   );
-  if (downloadDir === undefined || !downloadDir.isDirectory()) {
+  if ((downloadDir === undefined) || (!downloadDir.isDirectory())) {
     throw new Error(
       `bin install for ${
         entry.id
@@ -735,7 +761,9 @@ export async function installCargoBinstall(
     '--version',
     entry.version,
   ];
-  for (const feature of entry.options.cargoFeatures ?? []) {
+  for (const feature of entry.options
+    .cargoFeatures
+    ?? []) {
     // The equals form keeps the crate positional from being consumed as
     // another `--features` value (clap multi-value parsing).
     args.push(`--features=${feature}`);
@@ -782,11 +810,17 @@ export async function installCargoBinstall(
 export async function installCargoGit(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+  } = context;
   /**
    Git source recorded for this entry.
    */
-  const url = entry.options.cargoGit?.url;
+  const url = entry.options
+    .cargoGit
+    ?.url;
   if (url === undefined) {
     throw new Error(
       `toolchain plan entry ${
@@ -798,7 +832,8 @@ export async function installCargoGit(
    Pinned revision from the request (`ref:<rev>`) or the version literal.
    */
   const pinned = 'pinned' in entry.request
-    ? entry.request.pinned
+    ? entry.request
+      .pinned
     : entry.version;
   /**
    Bare revision the `--rev` argument takes.
@@ -918,7 +953,8 @@ export async function installGoInstall(
   /**
    Module version the `go install` argument takes (`@v<version>`).
    */
-  const moduleVersion = entry.version.startsWith('v',)
+  const moduleVersion = entry.version
+    .startsWith('v',)
     ? entry.version
     : `v${entry.version}`;
   /**
@@ -1000,7 +1036,9 @@ export async function installMpmPnpm(
     'add',
     '--global',
   ];
-  for (const allowed of entry.options.allowBuilds ?? []) {
+  for (const allowed of entry.options
+    .allowBuilds
+    ?? []) {
     args.push(
       '--allow-build',
       allowed,
@@ -1067,7 +1105,10 @@ export async function installMpmUvx(
       'uv is not installed in the toolchain; the uv stage must run first',
     );
   }
-  if (entry.options.bootstrap?.distribution === 'wheel') {
+  if (entry.options
+    .bootstrap
+    ?.distribution
+    === 'wheel') {
     // The pinned `mpm` wheel is downloaded and SHA-256 checked first.
     /**
      Verified wheel for the host platform.
@@ -1247,7 +1288,9 @@ export async function installRustComponents(
     stderr: '',
     code: 0,
   };
-  for (const component of entry.options.rustComponents ?? []) {
+  for (const component of entry.options
+    .rustComponents
+    ?? []) {
     result = await run({
       command: 'rustup',
       args: [
@@ -1274,7 +1317,9 @@ export async function installRustComponents(
       );
     }
   }
-  for (const target of entry.options.rustTargets ?? []) {
+  for (const target of entry.options
+    .rustTargets
+    ?? []) {
     result = await run({
       command: 'rustup',
       args: [
@@ -1316,7 +1361,11 @@ export async function installRustComponents(
 export async function installAndroidSdk(
   context: ProviderContext,
 ): Promise<RunResult> {
-  const { entry, paths, env, } = context;
+  const {
+    entry,
+    paths,
+    env,
+  } = context;
   /**
    Verified cmdline-tools archive for the host platform.
    */
@@ -1404,7 +1453,9 @@ export async function installAndroidSdk(
     args: [
       'sdk',
       'install',
-      ...(entry.options.androidPackages ?? []),
+      ...(entry.options
+        .androidPackages
+        ?? []),
     ],
     env: {
       ...toolchainPathEnv({
@@ -1447,14 +1498,14 @@ export function parseBinList(output: string,): ReadonlyMap<string, string> {
     /**
      One `Path  Version  URL  Status` row.
      */
-    const match = line.match(/^(\S.*?)\s{2,}\*?v?(\S+)\s{2,}/u);
+    const match = /^(\S.*?)\s{2,}\*?v?(\S+)\s{2,}/u.exec(line);
     if (match === null)
       continue;
     /**
      Path and version captured from the row.
      */
     const [, rowPath, rowVersion,] = match;
-    if (rowPath === undefined || rowVersion === undefined)
+    if ((rowPath === undefined) || (rowVersion === undefined))
       continue;
     versions.set(
       basename(rowPath,),
@@ -1482,14 +1533,16 @@ export function parseCargoBinstallList(
     /**
      One `Package  Cargo Ver  Binstall Ver  Method` row.
      */
-    const match = line.match(/^(\S+)\s+v?(\S+)\s+(\S+)\s+\S/u);
-    if (match === null || match[1] === 'Package' || match[1] === 'Total:')
+    const match = /^(\S+)\s+v?(\S+)\s+(\S+)\s+\S/u.exec(line);
+    if ((match === null) || (match[1] === 'Package')
+      || (match[1] === 'Total:'))
       continue;
     /**
      Crate name and version columns of the row.
      */
     const [, crate, cargoVer, binstallVer,] = match;
-    if (crate === undefined || cargoVer === undefined || binstallVer === undefined)
+    if ((crate === undefined) || (cargoVer === undefined)
+      || (binstallVer === undefined))
       continue;
     versions.set(
       crate,
