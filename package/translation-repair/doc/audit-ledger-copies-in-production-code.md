@@ -808,9 +808,15 @@ verbatim:
 This is the move of the constant that follows the two of B700 (0.1.2 to 0.2.0 and 0.2.0 to 0.3.0),
 and the same fact in two writings.
 With the lock at 0.4.0 and the constant at 0.3.0,
-15 cases of the typography unit tests that wrap through the real program threw
-`LintBinaryVersionError: monochromatic-lint is version 0.4.0, but shipped text is wrapped by version 0.3.0 only`,
-and a corpus pass would have stopped at its first wrap.
+the lead's gate g230 on the typography unit tests passed 3271 and failed 15,
+and the lead's count is the source of the 15 here;
+the log (`gate-g230/typography.test-unit.log`,
+lines 34 to 37) shows the refusal
+`LintBinaryVersionError: monochromatic-lint is version 0.4.0, but shipped text is wrapped by version 0.3.0 only`
+from the cases that wrap through the real program,
+and it carries no totals line,
+so this entry did not count the 15 itself.
+A corpus pass would have stopped at its first wrap.
 The agreement case that B980 moved onto `toolchain.lock.json` would have failed too,
 and it is a unit test of typography,
 which the commit that moved the lock did not touch,
@@ -899,13 +905,34 @@ They now advise `mise run toolchain:sync` (the tool is `"cargo:monochromatic-lin
 the `cargo binstall monochromatic-lint@0.4.0` line,
 and a start under `mise run` or with the tree's `.cache/toolchain-bin` directory first on the `PATH`,
 which is the form the root `mise.toml` and the gate trees of B980 use.
-The cases in `semantic-wrap-binary-error.unit.test.ts` and `semantic-wrap-binary.unit.test.ts` pin the new words
-and,
-in the error cases,
-that `mise install`,
-`mise.toml` and `mise exec` no longer appear.
-`mise exec --` is not named as a remedy any more,
-since nothing in this repository shows what it adds to the `PATH`.
+The cases in `semantic-wrap-binary-error.unit.test.ts` pin the new words
+and that `mise install`,
+`mise.toml` and `mise exec` no longer appear,
+in the case of `LintBinaryMissingError` and,
+after `8c6de0fbcc`,
+in the case of `LintBinaryVersionError` too;
+`6253eb52b` had pinned only the absence of `mise install` for the second.
+`semantic-wrap-binary.unit.test.ts` pins `mise run toolchain:sync` and the `cargo binstall` line
+in the missing-program case and `mise run toolchain:sync` in the wrong-version case.
+
+`mise exec --` is not named as a remedy any more.
+The first reason given for that in this entry's fix,
+that nothing in the repository shows what it adds to the `PATH`,
+was weak:
+the root `mise.toml` `[env]` section does set the `PATH` for mise,
+and the family's docs record probes run under `mise exec -- node`.
+The reason that holds is in the file.
+Its `_.path` list reads `".cache/search-shadow-bin"` and then `".cache/toolchain-bin"`,
+so the tree's tool directory is second,
+not first,
+and the comment on the list says the second entry is there
+"so tasks resolve the locked tools before any ambient or global one".
+It speaks of tasks,
+and no file read here says that `mise exec` applies the list,
+so the advice names `mise run` and the directory on the `PATH`,
+which the gate trees of B980 set directly.
+A probe of the `PATH` under `mise exec --` would settle it and was not run,
+since the task for this reading allowed a file read only.
 
 Not verified here:
 the release binaries were not rebuilt from the tags,
@@ -913,6 +940,11 @@ so that the released binary was built from the `Cargo.lock` read here rests on t
 The inputs are the paragraphs and whole files of the pinned pages,
 not the slices a lane produces,
 and the hand-copied test passages stand for the inline literals as they stood on 2026-10-29.
+
+Prevention:
+`mistake-prevention-shared-code-loops-and-keyed-tables.md`,
+"Copies of shared code",
+whose rule on a tool version written in source names this entry beside B700.
 
 Recurrence:
 B700 and B980,
