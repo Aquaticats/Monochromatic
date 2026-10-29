@@ -1098,10 +1098,24 @@ Remaining:
       absence and sync-API cascade (`paths.ts` including `isMainModule`, `layout.ts` `findToolBin`, `exec.ts`,
       `exposure.ts`, `providers.context.ts`, `providers.environment.ts`, `status.ts`, and their callers);
       it edits tests only for forced call-site changes.
-     Queued after that agent reports: message `monochromatic-71` the commit to build on (it waits to add an owner-approved
-      `toolchain:sync` warning in `sync.ts` `isAtLockedVersion` when an installed version differs from the lock);
-      then the toolchain tests' `require-eventual-artifact` imports (35 findings in 10 test
-      files) through `src/index.ts`, then a full toolchain test pass and a final lint count.
+     Landed after that (2026-10-29): the cascade (`8f56c31d0d`, `11d5330ea9`; `observeTool` returns `NOT_INSTALLED`,
+      `findToolBin` returns `BIN_NOT_FOUND`, `isMainModule` async, `PathEnv` is `Readonly<NodeJS.ProcessEnv>`);
+      `monochromatic-71`'s replacement warning (`75dcb0dd7b`); the test-import migration (`4f8573c5bb`, toolchain names
+      re-exported `@internal` from `src/index.ts`); the `sync.order.ts` split (`703a69cd12`); the container-test
+      resolver walking up to the root link (`dedupeDirectDeps`) instead of a wrong "run pnpm install" warning.
+      Test isolation: four suites contended on the real staleness lock; owner chose per-call `manifestPath`
+      (`35386af393`, `9ae7e793e3`, `b844b29921`) and an options object for `manageLsp4ijServerSettings` (`5a0d1d1d5d`).
+      Remaining package lint after `703a69cd12`: 29 findings, all in other sessions' active work
+      (`prune.ts` and `prune.unit.test.ts` from the prune commits `2565250e26`/`71a5a49845`, and one in the
+      CachyOS cells being added to `src/package/mise.container-test.ts`).
+     Queued (2026-10-29):
+      the owner approved `pnpm prune` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*` links
+      (166 dead into the removed `package/module/`, 15 live but undeclared;
+      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); it runs once no pnpm process
+      and no container matrix run is active, then the dead-link count must read 0;
+      a helper agent is fixing the staleness manifest's orphan `.tmp` files (a writer that dies before its rename
+      leaves a 1.5 MB temp file; three orphans exist in `package/file-enforcer/core/node_modules/.cache/file-enforcer/`);
+      the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) must finish green.
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
       stale `module-*` links into the removed `package/module`; its write-up goes to `doc/troubleshooting/`.
