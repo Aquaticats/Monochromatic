@@ -223,9 +223,74 @@ Gradle's `[versions]` section shares one version across several libraries,
 
 ## Decisions
 
-Pending;
- see the open questions.
+Owner answers of 2026-10-29.
+An earlier round of answers was voided by the owner because the questions did not state why each option ranked where
+ it did;
+ only answers given with stated rankings count.
+
+### Owner of the sync and the check
+
+Extend `file-enforcer`'s existing Cargo engine
+ (`package/dev-script/file-enforcer/src/cargo/`) with the catalog and a check-only mode.
+Why:
+ `Cargo.toml` keeps one owner (edition, lints, `[workspace]`, profiles, and dependencies);
+ a new Rust CLI built on `toml_edit` (the crate Cargo itself depends on) would split ownership for a lighter CI setup;
+ contributing upstream (for example to `cargo-rail`, which unifies each workspace separately) waits on another roadmap.
+Consequence:
+ the CI check needs Node and a pnpm install.
+
+### Manifest shape
+
+Each crate's own root manifest gets a generated `[workspace.dependencies]` table holding only the catalog entries it
+ uses,
+ and its use sites reference them with `workspace = true` plus crate-local `features`,
+`optional`,
+and `default-features`.
+This is not a root workspace:
+ every crate stays its own workspace root.
+Why:
+ use sites become a catalog reference instead of a literal requirement (the issue's own complaint),
+ and Cargo rejects a hand-written `version` beside `workspace = true` between check runs.
+Consequence:
+ features are additive under `workspace = true`,
+ so catalog entries carry versions and no features.
+
+### Membership
+
+Strict:
+ every registry and git dependency references the catalog;
+ a literal requirement fails the check unless it is a documented exception.
+Path dependencies stay out of the catalog.
+Why:
+ one place then covers every version,
+ matching the JS rule that every external dependency uses `catalog:`.
+
+## Rejected
+
+- Repository-root Cargo workspace:
+   out of scope (`.out-of-scope/cargo-workspace.md`).
+- Catalog as a real `Cargo.toml` virtual manifest:
+   every cargo command errors on a workspace with no members,
+   and `file-enforcer` discovery would treat it as a crate.
+- Version-only inline rewrite:
+   leaves literal requirements in every manifest.
+- Opt-in and shared-only membership:
+   opt-in never catches drift outside the catalog;
+   shared-only leaves single-use versions unaudited.
 
 ## Open questions
 
-Recorded once the precedent research returns and the owner answers.
+- Catalog format (standalone TOML,
+   standalone TypeScript data module,
+   or inline in `file-enforcer.config.ts`):
+   re-asked,
+   the first answer was voided.
+- Lockfile alignment:
+   filed as [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801) before the owner voided the answer
+   that prompted it;
+   keep, fold in, or close.
+- Exception syntax,
+   version groups (Slint, rust-analyzer, Helix rev, CXX-Qt),
+   path-dependency `version` derivation,
+   catalog name and location,
+   and where the CI check runs.
