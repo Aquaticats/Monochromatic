@@ -280,7 +280,25 @@ The uncommitted toolchain refactor in main
 belongs to the user,
 who allowed committing it as-is so the batch can regenerate the lockfile.
 
+Correction:
+ commit `56178d85ed` says it holds the user's toolchain refactor,
+ but only `src/toolchain/plan.artifacts.ts` and `plan.tools.ts` do;
+ the other 25 files are an accidental oxlint autofix from the `monochromatic-fb` session
+ (a corrective GitHub commit comment is posted).
+Known break the user chose to fix later:
+ `package/dev-script/file-enforcer/src/toolchain/update.ts:632-633` TS7006
+ fails that package's `lint:types`;
+ batch verification treats this as preexisting.
+
 `monochromatic-fb` released Rust crate moves after `fd0bd03540`.
+It also approved path-only edits in `check-mode.ts`,
+ `cargo/catalog/*.ts`,
+ `file-enforcer.config.ts`,
+ `package/dev-script/file-enforcer/mise.toml`,
+ `mise.no-env.toml`,
+ `.github/workflows/advisory-core.yml`,
+ and `rust-catalog.toml` comments,
+and wants a message when the move commit lands.
 Its notes for crate moves:
  `file-enforcer.config.ts` discovers crates via `package/*/*/Cargo.toml` and `package/*/*/*/Cargo.toml`;
  rewrite relative `path` dependencies and let the catalog sync re-derive versions;
