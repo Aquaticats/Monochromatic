@@ -1,43 +1,45 @@
 # Build environment for the `nested-wayland-session` compositor.
 # The host is an immutable-style Fedora without the dev headers Smithay's build
 # links against, so all cargo work happens inside this container (see mise.toml).
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md); CACHYOS_IMAGE lets the caller pick the
+# x86-64-v3 or x86-64-v4 build of CachyOS that the host CPU supports.
 # This image is BUILD-ONLY: the resulting binary runs on the HOST Wayland session
 # (it is itself a nested winit client of the host compositor and needs the host
 # GPU), so the image carries no GUI/GL runtime, only the build toolchain and the
 # development libraries the crate graph links at build time.
-FROM registry.fedoraproject.org/fedora:41
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
-# Build toolchain + link-time development libraries:
+# Build toolchain + link-time development libraries (Arch ships headers in the main package, so there are no -devel names):
 #   gcc                    cc for the -sys crates' small C shims
-#   pkgconf-pkg-config     pkg-config, used by wayland-sys / drm-sys to locate libs
-#   clang, clang-devel     libclang for any bindgen in the drm-sys / wayland-sys graph
-#   wayland-devel          libwayland-server, linked by wayland-backend's
+#   pkgconf                pkg-config, used by wayland-sys / drm-sys to locate libs
+#   clang                  libclang for any bindgen in the drm-sys / wayland-sys graph
+#   wayland                libwayland-server, linked by wayland-backend's
 #                          server_system backend (smithay's `use_system_lib`, which
 #                          enables the EGL bind_wl_display / wl_drm accel path)
-#   libxkbcommon-devel     the `xkbcommon` crate links libxkbcommon at build time
+#   libxkbcommon           the `xkbcommon` crate links libxkbcommon at build time
 #                          (it is NOT dlopened, unlike winit's wayland-client), so
 #                          the header + .so must be present to link
-#   libdrm-devel           drm-ffi / drm-sys (Smithay `backend_drm`) need libdrm to
+#   libdrm                 drm-ffi / drm-sys (Smithay `backend_drm`) need libdrm to
 #                          resolve the render node for dmabuf v4 feedback
-#   mesa-libEGL-devel      EGL headers, defensive: renderer_gl dlopens libEGL at
+#   libglvnd               EGL headers, defensive: renderer_gl dlopens libEGL at
 #                          runtime, but this keeps any build-time probe satisfied
-#   dbus-daemon            private session bus used by --color-scheme integration tests
+#   dbus                   dbus-daemon, the private session bus used by --color-scheme integration tests
 # libEGL / libGLESv2 / libwayland-client themselves are dlopened by the binary at
 # RUNTIME on the host, so they are not part of this build image.
-RUN dnf install -y \
+RUN pacman --sync --refresh --sysupgrade --noconfirm --needed \
       gcc \
-      pkgconf-pkg-config \
-      clang clang-devel \
-      wayland-devel \
-      libxkbcommon-devel \
-      libdrm-devel \
-      mesa-libEGL-devel \
-      dbus-daemon \
-    && dnf clean all
+      pkgconf \
+      clang \
+      wayland \
+      libxkbcommon \
+      libdrm \
+      libglvnd \
+      dbus \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
-# Rust toolchain via rustup stable, not Fedora's `rust` package, matching the
-# sibling desktop-app images (Fedora 41 ships an older stable than Smithay 0.7.0
-# and its deps may require). RUSTUP_HOME persists in the image; the install uses a
+# Rust toolchain via rustup, not the distro `rust` package, matching the
+# sibling desktop-app images and giving the exact nightly that toolchain.lock.json pins. RUSTUP_HOME persists in the image; the install uses a
 # throwaway CARGO_HOME=/usr/local so the cargo/rustc/clippy proxy shims land on the
 # already-persistent PATH, while the real CARGO_HOME is the /cargo named volume set
 # below (mounted at run time, holding only the registry/git cache).

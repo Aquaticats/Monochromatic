@@ -2,7 +2,7 @@
 # binary: without the dependency a task passes against a binary built from older sources, as inspect:resize-callbacks
 # did with its fix removed.
 # Cargo work runs on the HOST when the native dev libraries are present, and falls
-# back to the Fedora build container otherwise (see Containerfile and
+# back to the CachyOS build container otherwise (see Containerfile and
 # doc/decision/desktop-app-podman-build.md). Unlike the desktop apps this package
 # is Linux-only: it is a Wayland compositor, so there is no macOS/Windows branch.
 #
@@ -245,7 +245,7 @@ const runInDecoy = async ({ prefix, sessionOptions, client, clientArguments = []
 '''
 
 [tasks.image]
-description = "Build the Fedora build container image"
+description = "Build the CachyOS build container image"
 run = "podman build -t localhost/monochromatic/nested-wayland-session -f Containerfile ."
 
 [tasks.build]
