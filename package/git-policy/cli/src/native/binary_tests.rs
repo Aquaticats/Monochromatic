@@ -87,6 +87,10 @@ mod landing_crash;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// A commit killed at a phase marker whose transaction files are then torn, dropped or emptied: what recovery does.
+#[path = "binary_recovery_tearing_tests.rs"]
+mod recovery_tearing;
+
 /// A process start that fails anywhere in a commit never strands the repository.
 #[path = "binary_fork_failure_tests.rs"]
 mod fork_failure;
