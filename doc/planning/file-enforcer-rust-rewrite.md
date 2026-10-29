@@ -570,6 +570,56 @@ the user chose "Mirror owns the targets".
   which `check` lists and `write` removes.
 - The manifest files go away.
 
+### Root round (2026-10-29)
+
+Research:
+[`doc/research/file-enforcer-rust-rewrite-replacements.md`](../research/file-enforcer-rust-rewrite-replacements.md).
+
+#### CLAUDE.md stays generated
+
+The user chose "Keep generating it",
+noting:
+"With closed source software,
+you just can't assert anything."
+The research's passing `@AGENTS.md` import probe on Claude Code 2.1.312 is not a contract
+for a closed-source tool that updates itself,
+so the generated preamble plus `AGENTS.md` stays.
+
+#### Skill mirrors stay copies
+
+The user chose "Keep the copy mirror",
+noting:
+"Once again,
+closed source software."
+Symlink loading in Claude Code and Factory's `.agents/skills` compatibility path are observed or documented behavior
+of closed-source tools,
+so the copies stay,
+with the earlier "Mirror owns the targets" semantics.
+
+#### Rules file: the scanner reads several files
+
+The user answered:
+"Teach it to read >1 files,
+but make the syntax forbidden-strings.append.txt,forbidden-strings.append.local.txt to avoid repeating the --rules flag."
+
+- `forbidden-strings --rules` takes one comma-separated list,
+  and the `FORBIDDEN_STRINGS_RULES` variable takes the same form;
+  cli-git's config names the files as a JSONC array.
+- The local file is optional;
+  the scanner joins the texts in memory before compiling.
+- file-enforcer stops writing `.cache/forbidden-strings.rules.txt` and the seed.
+- Tradeoff of the delimited form:
+  a path containing a comma cannot be named.
+
+#### JetBrains policy: keep user write
+
+The user chose "Keep 'file-enforcer user write'",
+noting:
+"The problem is humans can't remember.
+Especially with auto update."
+The per-user config and its subcommand stay,
+so IDE auto-updates get the policy reapplied by a command rather than a remembered manual import.
+
 ### Adopted defaults put to the user for confirmation
 
 Listed 2026-10-29 in the confirmation question;
