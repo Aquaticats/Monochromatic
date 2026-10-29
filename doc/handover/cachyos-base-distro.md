@@ -153,7 +153,15 @@ Owner follow-ups the same day:
   Owner chose "Filter by replacement" (2026-10-29): the directive gains an optional exact replacement per family
    (`equality:>=`), then p-map's directives narrow to it and one full run follows (target: ignored 61, all proven).
   Precedent: cargo-mutants `exclude_re` matches the full mutant name, which includes the change
-   (`https://mutants.rs/filter_mutants.html`). In progress: subagent `a2a9f845fd4239c6f` resumed.
+   (`https://mutants.rs/filter_mutants.html`).
+  Done: `8667f7ac7c` adds `family:replacement` (bare, or a JSON string literal for text holding commas,
+   colons, spaces or newlines; malformed entries rejected with a diagnostic; 26 tests in
+   `enumerate.suppression.unit.test.ts`); `c46c066470` narrows 16 p-map directives to the proven replacement.
+  p-map final (unit `pmap-survivors-final4`): killed 301, survived 0, timeout 12, compileError 249, ignored 61,
+   no infrastructure errors; p-map lint, `lint:types`, `buildAndTest` and `p-map.fuzz` parity pass.
+  Independent cross-check (`verify-final4.log`): no ignored entry was killed in the no-directive run.
+  `mutation-test/cli` `lint` still fails on the pre-existing `selection.ts`, `shards.ts` findings;
+   its `lint:types` and `buildAndTest` pass. Survivor triage for both packages is finished.
   Timeouts (12) are not suppressed: 8 runaway loops, 4 drop-path and spawn-loop conditionals.
 
 ## music-player `run`: zigbuild adopted for now
