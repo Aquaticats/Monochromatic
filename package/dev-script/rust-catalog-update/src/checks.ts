@@ -109,7 +109,10 @@ export async function checkReleaseAge(
   /**
    Findings across every crate.
    */
-  const findings = (await Promise.all([...groupByName(versions,),].map(async function checkName([name, nameVersions,]: readonly [string, readonly string[],],): Promise<readonly string[]> {
+  const findings = (await Promise.all([...groupByName(versions,),].map(async function checkName([name, nameVersions,]: readonly [
+    string,
+    readonly string[],
+  ],): Promise<readonly string[]> {
     /**
      Publish time per version of this crate.
      */

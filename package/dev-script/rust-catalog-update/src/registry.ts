@@ -262,7 +262,13 @@ function isObject(value: unknown,): value is Readonly<Record<string, unknown>> {
  stringField({ object: { num: '1.0.0', }, key: 'num', }); // '1.0.0'
  ```
  */
-function stringField({ object, key, }: { readonly object: Readonly<Record<string, unknown>>; readonly key: string; },): string {
+function stringField({
+  object,
+  key,
+}: {
+  readonly object: Readonly<Record<string, unknown>>;
+  readonly key: string
+},): string {
   /**
    Field value.
    */
@@ -284,7 +290,13 @@ function stringField({ object, key, }: { readonly object: Readonly<Record<string
  idField({ object: { id: 3618, }, key: 'id', }); // '3618'
  ```
  */
-function idField({ object, key, }: { readonly object: Readonly<Record<string, unknown>>; readonly key: string; },): string {
+function idField({
+  object,
+  key,
+}: {
+  readonly object: Readonly<Record<string, unknown>>;
+  readonly key: string
+},): string {
   /**
    Field value.
    */
@@ -322,8 +334,14 @@ export function parseIndexPubtimes(text: string,): ReadonlyMap<string, string> {
     const record: unknown = JSON.parse(line,);
     if (isObject(record,) && ((typeof record.vers) === 'string')) {
       times.set(
-        stringField({ object: record, key: 'vers', },),
-        stringField({ object: record, key: 'pubtime', },),
+        stringField({
+          object: record,
+          key: 'vers',
+        },),
+        stringField({
+          object: record,
+          key: 'pubtime',
+        },),
       );
     }
   }
@@ -366,11 +384,26 @@ export function parseVersionHistory(text: string,): readonly VersionRecord[] {
        */
       const trustpub = isObject(version.trustpub_data,) ? version.trustpub_data : {};
       return {
-        num: stringField({ object: version, key: 'num', },),
-        createdAt: stringField({ object: version, key: 'created_at', },),
-        publisherId: idField({ object: publisher, key: 'id', },),
-        trustpubRepository: stringField({ object: trustpub, key: 'repository', },),
-        repository: stringField({ object: version, key: 'repository', },),
+        num: stringField({
+          object: version,
+          key: 'num',
+        },),
+        createdAt: stringField({
+          object: version,
+          key: 'created_at',
+        },),
+        publisherId: idField({
+          object: publisher,
+          key: 'id',
+        },),
+        trustpubRepository: stringField({
+          object: trustpub,
+          key: 'repository',
+        },),
+        repository: stringField({
+          object: version,
+          key: 'repository',
+        },),
       };
     },);
 }
@@ -436,11 +469,26 @@ async function readCachedHistory(path: string,): Promise<readonly VersionRecord[
     },)
       .map(function toRecord(entry: Readonly<Record<string, unknown>>,): VersionRecord {
         return {
-          num: stringField({ object: entry, key: 'num', },),
-          createdAt: stringField({ object: entry, key: 'createdAt', },),
-          publisherId: stringField({ object: entry, key: 'publisherId', },),
-          trustpubRepository: stringField({ object: entry, key: 'trustpubRepository', },),
-          repository: stringField({ object: entry, key: 'repository', },),
+          num: stringField({
+            object: entry,
+            key: 'num',
+          },),
+          createdAt: stringField({
+            object: entry,
+            key: 'createdAt',
+          },),
+          publisherId: stringField({
+            object: entry,
+            key: 'publisherId',
+          },),
+          trustpubRepository: stringField({
+            object: entry,
+            key: 'trustpubRepository',
+          },),
+          repository: stringField({
+            object: entry,
+            key: 'repository',
+          },),
         };
       },);
   } catch (error) {
