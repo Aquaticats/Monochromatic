@@ -66,3 +66,10 @@ export {
 export {
   mimicFunction,
 } from './mimic-function.ts';
+
+// Exported for built-artifact tests: the marker a caching-disabled memoized
+// function is registered under carries a description that consumers reaching
+// it through the `./ts/*` subpath can read.
+export {
+  CACHE_DISABLED,
+} from './memoized-cache-store.ts';
