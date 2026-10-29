@@ -894,3 +894,40 @@ The `ARG` defaults are synced by hand,
    `cargo generate-lockfile --help` lists `--publish-time` and `cargo update --help` does not,
    with or without `-Zunstable-options`,
    so the update keeps full re-resolution through `generate-lockfile`.
+
+## Status and next actions (2026-10-29)
+
+Landed:
+ `module-rust-catalog` (catalog parser and the shared `Cargo.lock` reader),
+ the `file-enforcer` sync and `--check` mode with the per-crate `default-features` rendering,
+ the migration of all 24 manifests,
+ the Cargo source of `catalog-tighten`,
+ `package/dev-script/rust-catalog-update` (update, dry run, CI `--verify`, exclude pruning, tests, README),
+ the pinned-nightly build images (`8652ba7d7f`),
+ and the contributor runbook `doc/runbook/rust-dependencies.md`.
+
+The first real dry run (systemd unit, throwaway worktree) failed in its first crate:
+ outside a mise shell nothing sets `RUSTUP_TOOLCHAIN`,
+ so rustup ran its default stable cargo,
+ which rejects `-Zunstable-options`.
+Commit `8620661b05` makes the update run cargo under `RUSTUP_TOOLCHAIN` when set,
+ else the nightly `toolchain.lock.json` pins;
+ the failure restored every lockfile, as designed.
+
+Queued, waiting for another session's uncommitted package-rename batch,
+ which holds edits to the files these steps touch
+ (root `mise.toml`, `.github/workflows/advisory-core.yml`, `pnpm-lock.yaml`, and parts of `package/dev-script/file-enforcer`):
+
+1.  Add a thin `rust:update` mise task in `mise.no-env.toml` running the update bin, then `mise run sync:files`.
+2.  Add the CI steps to `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`:
+     `file-enforcer --check`,
+     then `rust-catalog-update --verify` between pinned `actions/cache/restore` and `actions/cache/save` steps
+     for `.cache/rust-catalog-update/`,
+     keyed on a hash of every `Cargo.lock`.
+3.  Fix every pre-existing `file-enforcer` lint and type error
+     (including `src/toolchain/update.ts:632` and `:633` TS7006,
+     and the toolchain tests that still expect `nightly-2026-10-28` and node `26.12.1`),
+     committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
+4.  Commit `pnpm-lock.yaml` with the `rust-catalog-update` importer:
+     the other session includes it in its batch commit.
+5.  Close #1800 with the final commit.
