@@ -178,7 +178,7 @@ function placeRead(
 
  @param generation - generation the section was written under
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

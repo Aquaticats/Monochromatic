@@ -29,7 +29,7 @@ import {
 
  @param subjectNames - names the translation declares for its subject, read as named subjects
 
- @returns The record, with its finding where the shipped wording has a candidate
+ @returns Record, with its finding where the shipped wording has a candidate
 
  @throws Whatever the detector raises other than the shared slice grammar's refusal, which lists none for that text
 

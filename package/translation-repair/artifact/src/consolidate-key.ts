@@ -831,10 +831,10 @@ export function consolidateRunShape(
  absent or empty where the standing was an endorsed eligible lane (class
  forty, 2026-09-17)
 
- @param archiveDisputeNote - the dispute note a disputed slice is settled
+ @param archiveDisputeNote - dispute note a disputed slice is settled
  under, absent on an undisputed one
 
- @param acceptedRepairClaimsNote - the claims the repair panel accepted for
+ @param acceptedRepairClaimsNote - claims the repair panel accepted for
  the slice, which the final polish gate, its writers and the judges of their
  rewrites read, absent where it accepted none
 

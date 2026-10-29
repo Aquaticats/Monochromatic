@@ -265,7 +265,7 @@ export async function commitEntry(
 
  @param infoYml - content of the entry's `info.yml`, none written when absent
 
- @returns The clone directory and the commit the pair landed in
+ @returns Clone directory and commit the pair landed in
 
  @example
  ```ts

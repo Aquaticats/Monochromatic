@@ -839,7 +839,7 @@ export type ConsistencyOverride =
 
  @param sliceIndex - slice asked about
 
- @returns The override, or that there is none
+ @returns Override, or that there is none
 
  @example
  ```ts

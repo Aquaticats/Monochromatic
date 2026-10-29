@@ -34,7 +34,7 @@ import type {
  Whether a place was replaced or refused by the floors, or has a located
  rendering: the three things a place can be that another place gave way to.
 
- @param place - the place an overlapped place names
+ @param place - place an overlapped place names
 
  @returns Whether an overlapped place can have given way to it
 
@@ -95,7 +95,7 @@ type PlaceEntry = {
 
  @param groupPosition - position of the overlapped place's group, from zero
 
- @param place - the place that ended overlapped
+ @param place - place that ended overlapped
 
  @param path - where the slices sit, for the parse error
 
@@ -246,7 +246,7 @@ function assertSliceFates(
 
    @param sliceIndex - slice asked about
 
-   @param place - the place that ended overlapped
+   @param place - place that ended overlapped
 
    @returns Whether another group located words in the slice
    */
@@ -341,7 +341,7 @@ function assertSliceFates(
 
  @param groups - every recorded group
 
- @param slices - the recorded changed slices
+ @param slices - recorded changed slices
 
  @param path - where the slices sit, for the parse error
 

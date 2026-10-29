@@ -26,9 +26,9 @@ import { refusalTextOf, } from './consistency-refusal.test-fixture.ts';
 /**
  A group the bench was asked about, with the winner a case gives.
 
- @param winner - the winner recorded
+ @param winner - winner recorded
 
- @returns The group
+ @returns Group
 
  @example
  ```ts

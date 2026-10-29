@@ -65,9 +65,9 @@ const FRAME_QUOTES: ArtifactConsistencyBallot['quotes'] = [
 
  @param seat - seat that answered
 
- @param quotes - the quotes the judge gave
+ @param quotes - quotes the judge gave
 
- @returns The recorded ballot
+ @returns Recorded ballot
 
  @example
  ```ts
@@ -95,7 +95,7 @@ export function firstPlaceBallot(
 /**
  The verdict of a group three judges answered alike, the first place winning.
 
- @param quotes - the quotes every judge gave
+ @param quotes - quotes every judge gave
 
  @returns Verdict with three usable ballots against a quorum of two
 
@@ -134,7 +134,7 @@ function threeAlikeVerdict({ quotes, }: { readonly quotes: ArtifactConsistencyBa
 
  @param outcome - what became of the place
 
- @returns The recorded place, its rendering the quote the judges gave for it
+ @returns Recorded place, its rendering the quote the judges gave for it
 
  @example
  ```ts
@@ -172,7 +172,7 @@ function napsPlace(
  The repeated sentence in three places: the first chosen, the second replaced
  by its words, the third already carrying them.
 
- @returns The recorded group
+ @returns Recorded group
 
  @example
  ```ts
@@ -208,7 +208,7 @@ export function napsGroup(): ArtifactConsistencyGroup {
  The refrain in two places with a slot each: the first chosen, the second
  replaced by its pattern.
 
- @returns The recorded group
+ @returns Recorded group
 
  @example
  ```ts
@@ -262,13 +262,13 @@ export function frameGroup(): ArtifactConsistencyGroup {
 /**
  A group with one place changed.
 
- @param group - the valid group
+ @param group - valid group
 
  @param position - position of the place to change
 
  @param over - fields of the place that take other values
 
- @returns The group with that place changed
+ @returns Group with that place changed
 
  @example
  ```ts
@@ -318,13 +318,13 @@ export function withPlace(
  A group with one place replaced whole, for a place that must lack a key the
  other places carry.
 
- @param group - the valid group
+ @param group - valid group
 
  @param position - position of the place to replace
 
- @param place - the place that stands there
+ @param place - place that stands there
 
- @returns The group with that place replaced
+ @returns Group with that place replaced
 
  @example
  ```ts
@@ -357,9 +357,9 @@ export function withPlaceReplaced(
 /**
  A group the bench was asked about, read as the recount reads it.
 
- @param group - a group whose verdict is the bench's answer
+ @param group - group whose verdict is the bench's answer
 
- @returns The group, typed as asked
+ @returns Group, typed as asked
 
  @throws {@link Error} when the group's verdict is not the bench's answer
 

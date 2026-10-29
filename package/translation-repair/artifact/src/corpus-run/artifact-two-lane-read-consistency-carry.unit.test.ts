@@ -67,7 +67,7 @@ const CARRY = {
 
  @param value - recorded run-off
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -90,7 +90,7 @@ function runOffRefusal({ value, }: { readonly value: unknown; },): string {
 
  @param value - recorded carry
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

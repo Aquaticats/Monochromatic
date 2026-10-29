@@ -136,7 +136,7 @@ export function probedRecord(
 
  @param findings - what the lane's stages reported
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts

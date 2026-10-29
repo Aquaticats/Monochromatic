@@ -113,7 +113,7 @@ export async function writeSettledV2(
 
  @param key - field naming the part
 
- @returns The part
+ @returns Part
 
  @throws Error when the part is not an object, which means the builder wrote an artifact this fixture does not know
 
@@ -145,7 +145,7 @@ function partOf(
  derived from the ledgers into the artifact as the builder wrote it, leaving
  every other field as written.
 
- @param written - the artifact as parsed from the builder's text
+ @param written - artifact as parsed from the builder's text
 
  @param repair - repair lane's ledger to record
 
@@ -153,7 +153,7 @@ function partOf(
 
  @param shipped - ledger rows that shipped a replacement, which the raw result must say changed
 
- @returns The artifact with those parts replaced
+ @returns Artifact with those parts replaced
 
  @throws Error when the artifact is not shaped as the builder writes one
 

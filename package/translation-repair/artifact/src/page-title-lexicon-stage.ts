@@ -134,15 +134,15 @@ type ResolvedVoice = {
 
  @param modelIds - bench asked, in roster order
 
- @param sourceText - the original document
+ @param sourceText - original document
 
  @param spans - titles the page repeats and the archive leaves unpaired
 
- @param identityContext - the page's declared identity without the lexicon's
+ @param identityContext - page's declared identity without the lexicon's
  own lines, so a work's official English title a web lookup or a note
  establishes is on the sheet (ledger B28)
 
- @param signal - the entry's abort
+ @param signal - entry's abort
 
  @param exchangeTimeoutMs - per-call timeout
 

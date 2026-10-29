@@ -105,7 +105,7 @@ const ADDITION: AdjudicatedIssue = {
 
  @param withdrawn - whether the lane withdrew the slice
 
- @returns The dispute over slice 3, if any
+ @returns Dispute over slice 3, if any
 
  @example
  ```ts

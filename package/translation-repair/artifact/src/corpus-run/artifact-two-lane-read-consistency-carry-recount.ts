@@ -32,7 +32,7 @@ import { assertSeatsHeardOnce, } from './artifact-two-lane-read-consistency-tall
  Checks the candidates of a carry: labelled in order, the current English once,
  the splice at most once, and each writer's seat at most once.
 
- @param carry - the carry
+ @param carry - carry
 
  @param path - where it sits, for the parse error
 
@@ -118,7 +118,7 @@ function assertCandidatesFit(
  Checks a carry against its own ballots: no ballots and no run-off where the bench was not
  asked, and where it was asked the usable count and the decision recounted.
 
- @param carry - the carry
+ @param carry - carry
 
  @param path - where it sits, for the parse error
 
@@ -341,7 +341,7 @@ function assertCarryRecounts(
 /**
  Checks every carry of a group against its own ballots.
 
- @param carries - the group's carries
+ @param carries - group's carries
 
  @param path - where they sit, for the parse error
 
@@ -381,7 +381,7 @@ export function assertCarriesRecount(
  The outcomes a carry's decision allows its place to end in, before the floors
  and the other groups' replacements have spoken.
 
- @param carry - the carry
+ @param carry - carry
 
  @param spliceMovesIt - whether code can move the chosen words into the place,
  which a reader of a section that records a unit carried in part answers from the

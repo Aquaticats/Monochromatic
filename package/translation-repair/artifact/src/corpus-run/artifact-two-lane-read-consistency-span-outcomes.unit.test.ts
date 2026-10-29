@@ -82,11 +82,11 @@ function ballotOf({ seat, }: { readonly seat: string; },): ArtifactConsistencyBa
 
  @param outcomes - what became of the first and the second place
 
- @param carries - the carries recorded
+ @param carries - carries recorded
 
  @param winner - how the count ended
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -143,9 +143,9 @@ function groupOf(
 /**
  What the recount of the outcomes of a group says: `holds` where it holds, the refusal as text where it does not.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @returns The refusal as text, or `holds`
+ @returns Refusal as text, or `holds`
 
  @throws {@link Error} when the recount threw something other than an artifact parse refusal
 

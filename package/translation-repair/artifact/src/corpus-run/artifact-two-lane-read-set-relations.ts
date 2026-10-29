@@ -145,7 +145,7 @@ function assertListMatches(
 /**
  Refuses a lane whose index sets disagree with its own ledger.
 
- @param evidence - the lane's recorded lists
+ @param evidence - lane's recorded lists
 
  @param ledger - rows those lists describe
 
@@ -202,7 +202,7 @@ export function assertIndexSetsMatchLedger(
  than a recomputation: a blocked run whose slices all agreed with the archive
  produces no blocked withdrawal at all, and is a perfectly ordinary artifact.
 
- @param evidence - the lane's recorded status
+ @param evidence - lane's recorded status
 
  @param ledger - rows that status describes
 
@@ -273,7 +273,7 @@ export function assertBlockedCompatible(
  Refuses a translate lane whose counts or status disagree with what it
  recorded per slice.
 
- @param evidence - the lane's counts, status and lists
+ @param evidence - lane's counts, status and lists
 
  @param path - dotted path of the lane's raw result
 

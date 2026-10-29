@@ -106,7 +106,7 @@ const LOCATED_KEYS_OF_EIGHTEEN: readonly string[] = [
 
  @param generation - generation the section was written under
 
- @returns The keys, which a reader refuses any other than
+ @returns Keys, which a reader refuses any other than
 
  @example
  ```ts
@@ -128,7 +128,7 @@ function locatedKeysOf({ generation, }: { readonly generation: TwoLaneArtifactGe
 
  @param path - where they sit, for the parse error
 
- @returns The definitions, which are at least one and read back, as the page's definitions are read, to themselves
+ @returns Definitions, which are at least one and read back, as the page's definitions are read, to themselves
 
  @throws {@link ArtifactParseError} when they are not text, are empty, or hold anything but definitions in the form a page's
  definitions are read in
@@ -170,7 +170,7 @@ function requireDefinitions(
 
  @param path - where it sits, for the parse error
 
- @returns The mark, which is one apostrophe or single quotation mark
+ @returns Mark, which is one apostrophe or single quotation mark
 
  @throws {@link ArtifactParseError} when it is not text, or is not exactly one of the eight single marks the pass counts
 
@@ -215,7 +215,7 @@ function requireSingleMark(
  whether a located place carries its offset and the marks beside its span, and
  which reasons exist
 
- @returns The rendering
+ @returns Rendering
 
  @throws {@link ArtifactParseError} when it is the wrong shape or kind, or a
  key, an offset, a mark or a reason belongs to the other generation, or a mark

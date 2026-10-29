@@ -45,7 +45,7 @@ export type CarriedPlace = {
 /**
  Whether a carry holds a splice among its candidates.
 
- @param carry - the carry
+ @param carry - carry
 
  @returns Whether a candidate is the chosen words moved in by code
 
@@ -64,9 +64,9 @@ export function carriesSplice({ carry, }: { readonly carry: ArtifactConsistencyC
 /**
  The part of a carry that is one bench record: everything but the label of the place it is recorded under.
 
- @param carry - the carry
+ @param carry - carry
 
- @returns The record as text, equal for two carries exactly when they are the same record
+ @returns Record as text, equal for two carries exactly when they are the same record
 
  @example
  ```ts
@@ -86,7 +86,7 @@ function recordOf({ carry, }: { readonly carry: ArtifactConsistencyCarry; },): s
 /**
  Whether a place that code can move the chosen words into stands under the same bench record as a carry.
 
- @param carry - the carry of a place whose plan is `unavailable` and that holds a splice candidate
+ @param carry - carry of a place whose plan is `unavailable` and that holds a splice candidate
 
  @param carriedTo - every place of the group that was carried to, with its plan and its carry
 
@@ -119,12 +119,12 @@ export function spliceBuiltForSomePlace(
 /**
  What a refusal of a splice candidate says kept code from moving the words.
 
- @param label - the receiving place's label
+ @param label - receiving place's label
 
  @param marks - whether the section recorded the marks beside the words, which
  adds two causes code could not move them for
 
- @returns The reason, for the parse error
+ @returns Reason, for the parse error
 
  @example
  ```ts
@@ -152,7 +152,7 @@ function noSpliceReasonFor(
 /**
  Whether the decision of a carry chose the splice among its candidates.
 
- @param carry - the carry
+ @param carry - carry
 
  @returns Whether the carry chose a candidate that is the chosen words moved in by code
 
@@ -188,9 +188,9 @@ function choosesSplice({ carry, }: { readonly carry: ArtifactConsistencyCarry; }
  of a closed set), so a place left alone with no stated reason is refused. A section that recorded no marks beside the
  words predates all four decisions, so there `kept-current` stays an outcome only the other cases allow.
 
- @param plan - the plan recomputed for the place
+ @param plan - plan recomputed for the place
 
- @param carry - the carry recorded under the place
+ @param carry - carry recorded under the place
 
  @param marks - whether the section recorded the marks beside the words
 
@@ -231,7 +231,7 @@ function mayBeLeftAsItWas(
  the place was left alone. It requires the place to record the reason (`keptBecause`) whenever `kept-current` is allowed
  only through that rule, since a place the carry itself leaves as it was needs none.
 
- @param carriedTo - the places the chosen words are carried to, in the order of the group
+ @param carriedTo - places the chosen words are carried to, in the order of the group
 
  @param path - where the group sits, for the parse error
 

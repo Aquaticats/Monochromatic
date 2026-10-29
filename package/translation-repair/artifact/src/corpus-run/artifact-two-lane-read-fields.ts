@@ -73,7 +73,7 @@ export function requireDigest(
 
  @param path - dotted path for error messages
 
- @returns The one authority a record carries
+ @returns One authority a record carries
 
  @throws {@link ArtifactParseError} when the record carries anything else
 

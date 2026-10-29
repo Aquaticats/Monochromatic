@@ -84,7 +84,7 @@ const BALLOT = {
 
  @param value - recorded repeat
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -107,7 +107,7 @@ function repeatRefusal({ value, }: { readonly value: unknown; },): string {
 
  @param value - recorded place
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -130,7 +130,7 @@ function strayRefusal({ value, }: { readonly value: unknown; },): string {
 
  @param value - recorded ballot
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

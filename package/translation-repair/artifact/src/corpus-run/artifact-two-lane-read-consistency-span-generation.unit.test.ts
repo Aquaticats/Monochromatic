@@ -65,13 +65,13 @@ const PADDED_CODE = 'The kit`\ntens\n` ate';
 
  @param quotes - what each ballot quoted for the first and the second place, and the slot it gave for the first
 
- @param first - the first place's recorded rendering
+ @param first - first place's recorded rendering
 
- @param second - the second place's recorded rendering
+ @param second - second place's recorded rendering
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @returns The group, the second place consistent with the first and no carry
+ @returns Group, second place consistent with the first and no carry
 
  @example
  ```ts
@@ -146,11 +146,11 @@ function groupOf(
 /**
  The text of the refusal the recount raises for a group, or the word `accepted` where it raises none.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param generation - generation the section is read as written under
 
- @returns The refusal as text, or `accepted`
+ @returns Refusal as text, or `accepted`
 
  @example
  ```ts

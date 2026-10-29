@@ -32,10 +32,10 @@ import {
 /**
  Lane texts a consolidation slate offers beside the writers' proposals.
 
- @param sourceText - the original passage, which the rule reads each lane
+ @param sourceText - original passage, which the rule reads each lane
  text against
 
- @param incumbentText - the archive's rendering, which the rule reads as the
+ @param incumbentText - archive's rendering, which the rule reads as the
  page shape
 
  @param repairText - what the repair lane would ship

@@ -216,7 +216,7 @@ function roundOf(
  Builds an adopted round as the lane writes it: a slate of one, the index of
  that one, a reason, and nothing a vote would have produced.
 
- @param slate - the one entry
+ @param slate - one entry
 
  @returns Round as its JSON would parse
 

@@ -10,7 +10,7 @@ import type { ArtifactConsistencyGroup, } from './artifact-two-lane-consistency.
 /**
  Checks that no seat spoke twice in a gather.
 
- @param seats - the seat of each ballot, in the order the ballots are recorded
+ @param seats - seat of each ballot, in the order the ballots are recorded
 
  @param path - where the ballots sit, for the parse error
 
@@ -46,9 +46,9 @@ export function assertSeatsHeardOnce(
 /**
  The position of the place a group's recorded winner names.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @returns The position, minus one where no place won or the label names no place
+ @returns Position, minus one where no place won or the label names no place
 
  @example
  ```ts

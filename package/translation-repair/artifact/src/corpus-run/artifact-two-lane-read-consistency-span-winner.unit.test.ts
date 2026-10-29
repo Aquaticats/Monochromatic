@@ -60,7 +60,7 @@ const THREE_RENDERINGS: readonly ConsistencyRendering[] = [
 
  @param choice - label of the place chosen
 
- @returns The ballot
+ @returns Ballot
 
  @example
  ```ts
@@ -87,7 +87,7 @@ function ballotOf({ seat, choice, }: { readonly seat: string; readonly choice: s
 
  @param runOff - run-off recorded, if any
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -146,7 +146,7 @@ function groupOf(
 
  @param runOff - run-off recorded, if any
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -185,7 +185,7 @@ function threePlaceGroupOf(
 
  @param choices - label each seat chose, in order
 
- @returns The run-off, with a quorum of the number of seats
+ @returns Run-off, with a quorum of the number of seats
 
  @example
  ```ts
@@ -201,7 +201,7 @@ function threeFinalistRunOffOf({ choices, }: { readonly choices: readonly string
 
  @param choices - label each seat chose, in order
 
- @returns The run-off, with a quorum of the number of seats
+ @returns Run-off, with a quorum of the number of seats
 
  @example
  ```ts
@@ -222,9 +222,9 @@ function runOffOf({ choices, }: { readonly choices: readonly string[]; },): Arti
 /**
  The text of the refusal the expected winner raises for a group.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

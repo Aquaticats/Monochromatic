@@ -54,7 +54,7 @@ const ASKED = {
 
  @param value - recorded verdict
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

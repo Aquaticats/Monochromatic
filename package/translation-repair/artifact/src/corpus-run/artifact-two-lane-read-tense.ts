@@ -40,7 +40,7 @@ const RECORDED_RULES: readonly PresentTenseRule[] = [
 
  @param path - artifact path of the value, for the refusal
 
- @returns The rule name
+ @returns Rule name
 
  @throws {@link ArtifactParseError} when the name is not a rule the detector writes
 
@@ -82,7 +82,7 @@ function parseRecordedRule(
 
  @param path - artifact path of the value, for refusals
 
- @returns The candidate
+ @returns Candidate
 
  @throws {@link ArtifactParseError} when a field is missing or of the wrong shape
 
@@ -144,7 +144,7 @@ function parseRecordedCandidate(
 
  @param after - position in `labels` of the group read before this one, minus one for the first group
 
- @returns The group
+ @returns Group
 
  @throws {@link ArtifactParseError} when the group is not an object of exactly a label and a list of candidates, when
  its label is not one of `labels` later than the group before it, or when it holds no candidate

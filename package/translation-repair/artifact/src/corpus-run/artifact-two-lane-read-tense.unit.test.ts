@@ -85,7 +85,7 @@ function refusalOf(
 
  @param labels - labels the slice offers, the contest's unless a case says otherwise
 
- @returns The refusal as text, class name first
+ @returns Refusal as text, class name first
 
  @example
  ```ts

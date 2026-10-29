@@ -30,11 +30,11 @@ import type {
 /**
  Parses one span, requiring a known side and a quoted-text string.
 
- @param value - the span JSON
+ @param value - span JSON
 
  @param path - dotted path for the error message
 
- @returns The gradable span
+ @returns Gradable span
  */
 function parseSpan(
   {
@@ -75,11 +75,11 @@ function parseSpan(
 /**
  Parses one member claim wrapper into its gradable claim.
 
- @param value - the member (aggregated-claim) JSON
+ @param value - member (aggregated-claim) JSON
 
  @param path - dotted path for the error message
 
- @returns The wrapped gradable claim
+ @returns Wrapped gradable claim
  */
 function parseMember(
   {
@@ -141,11 +141,11 @@ function parseMember(
 /**
  Parses one accepted issue into its gradable shape.
 
- @param issue - the issue record (already confirmed accepted)
+ @param issue - issue record (already confirmed accepted)
 
  @param path - dotted path for the error message
 
- @returns The gradable issue
+ @returns Gradable issue
  */
 function parseAcceptedIssue(
   {
@@ -262,7 +262,7 @@ export type ParsedArtifact = {
  skipped, so the accepted population is never silently short. Non-accepted
  issues are excluded because they are not part of the precision denominator.
 
- @param value - the artifact JSON, freshly parsed and still untyped
+ @param value - artifact JSON, freshly parsed and still untyped
 
  @returns Entry id, status, accepted issues, and which slices the document
  changed

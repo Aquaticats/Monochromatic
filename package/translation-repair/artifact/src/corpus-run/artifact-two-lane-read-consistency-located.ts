@@ -25,7 +25,7 @@ import type { ArtifactConsistencyRendering, } from './artifact-two-lane-consiste
 
  @param path - where the rendering sits, for the parse error
 
- @returns The counter's form, its offset in the English left at zero since the
+ @returns Counter's form, its offset in the English left at zero since the
  recount compares words only
 
  @throws {@link ArtifactParseError} when a frame's slot does not stand once in
@@ -86,11 +86,11 @@ export function asLocated(
  also when it could not have been reached: a quote reason beside no agreed
  quote, a slot reason in a repeated run or beside no agreed slot.
 
- @param reason - the recorded reason
+ @param reason - recorded reason
 
- @param quotes - the quote a strict majority gave, none when no text had a majority
+ @param quotes - quote a strict majority gave, none when no text had a majority
 
- @param slots - the slot a strict majority gave beside that quote, none when no text had a majority
+ @param slots - slot a strict majority gave beside that quote, none when no text had a majority
 
  @param framed - whether the group is a frame with a slot
 

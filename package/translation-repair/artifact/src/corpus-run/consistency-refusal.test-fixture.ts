@@ -24,7 +24,7 @@ import {
 
  @param read - read that must refuse
 
- @returns The refusal as text, class name first
+ @returns Refusal as text, class name first
 
  @throws {@link Error} when the read threw something other than an artifact parse refusal
 
@@ -55,7 +55,7 @@ export function refusalTextOf({ read, }: { readonly read: () => unknown; },): st
 
  @param generation - generation the section was written under, the one the pass writes by default
 
- @returns The refusal as text, class name first
+ @returns Refusal as text, class name first
 
  @throws {@link Error} when the recount threw something other than an artifact parse refusal, or nothing
 

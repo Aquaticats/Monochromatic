@@ -28,7 +28,7 @@ const LABELS_MARKER = ' are exactly: ';
 /**
  The sheets that end by asking for a label in a reply of JSON.
 
- @returns The consistency sheets whose reply shape names a choice
+ @returns Consistency sheets whose reply shape names a choice
 
  @example
  ```ts
@@ -71,9 +71,9 @@ function isLabelShape({ label, }: { readonly label: string; },): boolean {
 /**
  The labels a sheet names as the ones its reply may use.
 
- @param text - the sheet
+ @param text - sheet
 
- @returns The labels, in the order the sentence lists them
+ @returns Labels, in the order the sentence lists them
 
  @example
  ```ts

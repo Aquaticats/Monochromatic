@@ -37,7 +37,7 @@ import { parseConsistencyRendering, } from './artifact-two-lane-read-consistency
 
  @param generation - generation the section was written under
 
- @returns The outcome
+ @returns Outcome
 
  @throws {@link ArtifactParseError} when it is not an outcome, or is `kept-current`
  in a generation that gives no such outcome
@@ -87,7 +87,7 @@ function requireOutcome(
  @param generation - generation the section was written under, which says whether
  an overlapped place names the place it gave way to
 
- @returns The record's `gaveWayTo` entry for the place, empty when the place gave way to none
+ @returns Record's `gaveWayTo` entry for the place, empty when the place gave way to none
 
  @throws {@link ArtifactParseError} when an overlapped place of a generation that
  records the name has none, a place that is not overlapped has one, or the name is
@@ -160,7 +160,7 @@ function parseGaveWayTo(
 /**
  Whether a text is one of the closed set of reasons a place is left as it was for.
 
- @param candidate - the text a record holds
+ @param candidate - text a record holds
 
  @returns Whether it is a reason, by own key so an inherited property never answers for a name the record carries
 
@@ -179,11 +179,11 @@ function isKeptReason(candidate: string,): candidate is ConsistencyKeptReason {
 /**
  What a reader expects of the reason a place was left as it was for.
 
- @param label - the place's label
+ @param label - place's label
 
  @param read - what the record holds there, text for a reason outside the set; absent where nothing is recorded
 
- @returns The expectation, which names the place, the closed set of reasons and what the record holds
+ @returns Expectation, which names the place, the closed set of reasons and what the record holds
 
  @example
  ```ts
@@ -212,13 +212,13 @@ export function keptReasonExpected(
 
  @param outcome - what became of the place that records it
 
- @param label - the place's label, which the refusal names
+ @param label - place's label, which the refusal names
 
  @param path - where the reason sits, for the parse error
 
  @param generation - generation the section was written under, which says whether a place records a reason
 
- @returns The record's `keptBecause` entry for the place, empty where the place records none
+ @returns Record's `keptBecause` entry for the place, empty where the place records none
 
  @throws {@link ArtifactParseError} when a place that is not kept-current records one, or the reason is not text or is not
  one of the closed set
@@ -279,7 +279,7 @@ function parseKeptBecause(
 
  @param generation - generation the section was written under
 
- @returns The place
+ @returns Place
 
  @throws {@link ArtifactParseError} when it is the wrong shape, its offsets run
  backward, its line is zero, its rendering or outcome belongs to the other

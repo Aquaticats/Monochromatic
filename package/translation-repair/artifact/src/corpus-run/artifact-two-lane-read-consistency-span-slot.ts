@@ -35,22 +35,22 @@ type SlotReading = ReturnType<typeof slotInSpan>;
 
  @param voices - usable ballots of the group
 
- @param label - the place's label
+ @param label - place's label
 
- @param agreed - the folded words the place was located by
+ @param agreed - folded words the place was located by
 
- @param span - the English's own words of the span, as the place records them
+ @param span - English's own words of the span, as the place records them
 
  @param refrain - whether the group repeats a refrain, the only repeat that has a slot
 
- @param definitions - the page definitions the place records, absent where it records none
+ @param definitions - page definitions the place records, absent where it records none
 
  @param generation - generation the section was written under, which says how a slot is counted, whether definitions are read, whether a
  joint of a longer word bars a quote from containing the words, and whether line endings pad the inline code of the span
 
  @param path - where the place's rendering sits, for the parse error
 
- @returns The slot as the span holds it and its offset in the span, as a list of zero or one
+ @returns Slot as the span holds it and its offset in the span, as a list of zero or one
 
  @throws {@link ArtifactParseError} when the place records definitions that change nothing about the slot the ballots give
 
@@ -83,9 +83,9 @@ export function expectedSlotOf(
   /**
    The slot read inside the span with the given definitions, or none of the page's.
 
-   @param reading - the definitions to read with, none for the span alone
+   @param reading - definitions to read with, none for the span alone
 
-   @returns The slot as a list of zero or one
+   @returns Slot as a list of zero or one
    */
   function slotRead({ reading, }: { readonly reading: { readonly definitions?: string; }; },): SlotReading {
     if (!refrain)

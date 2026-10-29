@@ -94,15 +94,15 @@ type AskedGroup = ArtifactConsistencyGroup & { readonly verdict: { readonly kind
 /**
  Checks one place's rendering against the words its ballots agreed on.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @param occurrence - the place
+ @param occurrence - place
 
  @param path - where the place sits, for the parse error
 
  @param generation - generation the section was written under, which says whether the edges of a located place's words may hold a proven apostrophe and are checked for one
 
- @returns The place's rendering in the counter's form
+ @returns Place's rendering in the counter's form
 
  @throws {@link ArtifactParseError} when a located rendering is not the agreed
  words or slot, holds at an edge a single mark the pass could not have put
@@ -240,7 +240,7 @@ function assertSpanRenderingAgrees(
  Checks a group of the sixteenth shape, asked of the bench, against its own
  ballots.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param path - where the group sits, for the parse error
 

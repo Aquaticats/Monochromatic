@@ -38,13 +38,13 @@ const VOICES: readonly ConsistencyVoice[] = ['a', 'b', 'c',].map(function ballot
 /**
  The slot expected for the span `a[b]c` under the given definitions and generation.
 
- @param definitions - the definitions the place records, none where it records none
+ @param definitions - definitions the place records, none where it records none
 
  @param refrain - whether the group repeats a refrain
 
  @param generation - generation the section was written under
 
- @returns The expected slot as a list of zero or one
+ @returns Expected slot as a list of zero or one
 
  @example
  ```ts

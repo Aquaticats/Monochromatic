@@ -288,7 +288,7 @@ export function recipeOf(
 
  @param refusal - why the recorded pairing does not fit the text carved
 
- @returns The sentence a `moved` rebuild and a `settled-moved` census row carry
+ @returns Sentence a `moved` rebuild and a `settled-moved` census row carry
 
  @example
  ```ts
@@ -483,7 +483,7 @@ export function rebuildPreparation(
 
  @param l - logger the absence and a file that refuses to parse are named on, left out by a command whose terminal output is pinned, which then records both in silence
 
- @returns The parsed record, or the absence for an entry with no `info.yml` and for an earlier generation, which is not read at all, or the unreadable record for a file that refuses to parse; the last two record no death, as the run that settled the artifact recorded none for a file it could not read
+ @returns Parsed record, or the absence for an entry with no `info.yml` and for an earlier generation, which is not read at all, or the unreadable record for a file that refuses to parse; the last two record no death, as the run that settled the artifact recorded none for a file it could not read
 
  @throws {@link Error} when the file exists but cannot be read, for a generation that reads it
 

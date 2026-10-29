@@ -58,7 +58,7 @@ type AskedGroup = ArtifactConsistencyGroup & { readonly verdict: { readonly kind
 
  @param over - fields this case replaces
 
- @returns The ballot
+ @returns Ballot
 
  @example
  ```ts
@@ -116,7 +116,7 @@ const CARRY: ArtifactConsistencyCarry = {
 
  @param over - fields this case replaces
 
- @returns The place
+ @returns Place
 
  @example
  ```ts
@@ -162,7 +162,7 @@ function placeOf(
  What the bench was asked and answered, with the fields a case replaces: three
  ballots that choose the first place, a quorum of two and the first place the winner.
 
- @param ballots - the ballots heard
+ @param ballots - ballots heard
 
  @param usable - how many of them can be counted
 
@@ -170,7 +170,7 @@ function placeOf(
 
  @param winner - how the count ended
 
- @returns The verdict
+ @returns Verdict
 
  @example
  ```ts
@@ -204,7 +204,7 @@ function verdictWith(
 
  @param quotes - what each seat quotes of the second place, in seat order
 
- @returns The ballots
+ @returns Ballots
 
  @example
  ```ts
@@ -230,7 +230,7 @@ function ballotsQuotingSecond({ quotes, }: { readonly quotes: readonly string[];
 
  @param over - fields of the group this case replaces
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -262,7 +262,7 @@ function groupOf(
 
  @param over - fields of the verdict this case replaces
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -278,11 +278,11 @@ function withVerdict(
 /**
  The text of the refusal the recount raises for a group.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param generation - generation the section was written under, which says whether the marks beside the words were recorded
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -315,7 +315,7 @@ function coherenceRefusal(
 
  @param outcomes - what became of the second and the third place
 
- @returns The group, the carries one for each of the two places and both the same record
+ @returns Group, the carries one for each of the two places and both the same record
 
  @example
  ```ts
@@ -372,7 +372,7 @@ function partlyCarriedGroup(
 
  @param expected - what the outcome should be
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -399,15 +399,15 @@ const SPLIT_LABELS = ['OCCURRENCE 1', 'OCCURRENCE 2', 'OCCURRENCE 3',] as const;
  A group of three places whose four usable ballots choose two, one and one, with the first place's quotes and slots as given: no
  place has a strict majority, so the group ends with no winner and every place untouched.
 
- @param first - the quote and the slot each of the four ballots gave for the first place
+ @param first - quote and slot each of the four ballots gave for the first place
 
- @param repeat - the repeated wording or frame
+ @param repeat - repeated wording or frame
 
- @param recorded - the first place's recorded rendering
+ @param recorded - first place's recorded rendering
 
- @param runOff - the run-off recorded, none by default
+ @param runOff - run-off recorded, none by default
 
- @returns The group
+ @returns Group
 
  @example
  ```ts
@@ -526,11 +526,11 @@ const DEFINITION_OF_B = '[b]: https://x.example/b';
 /**
  A frame group whose four ballots all quoted the span `a[b]c` with the slot `b`, and whose first place records the given rendering.
 
- @param recorded - the rendering the first place records
+ @param recorded - rendering the first place records
 
- @param runOff - the run-off the generation requires for the split, none by default
+ @param runOff - run-off the generation requires for the split, none by default
 
- @returns The group
+ @returns Group
 
  @example
  ```ts

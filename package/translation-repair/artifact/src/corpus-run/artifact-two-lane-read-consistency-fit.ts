@@ -16,7 +16,7 @@ import type { ArtifactConsistencyGroup, } from './artifact-two-lane-consistency.
 /**
  Checks the places of a group the bench was not asked about.
 
- @param group - the group read
+ @param group - group read
 
  @param path - where it sits, for the parse error
 
@@ -105,7 +105,7 @@ function assertNotAskedFits(
  Checks the places of a group against the kind of repeat and the slices the
  comparison names, and what each outcome claims of the verdict.
 
- @param group - the group read
+ @param group - group read
 
  @param path - where it sits, for the parse error
 

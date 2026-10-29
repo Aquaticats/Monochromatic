@@ -61,11 +61,11 @@ const TWO_PLACES_REFUSAL = 'ArtifactParseError: artifact parse failed at cat.gro
 /**
  The text of the refusal the fit check raises for a group.
 
- @param group - the group read
+ @param group - group read
 
  @param sliceIndexes - slices the comparison names
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -98,7 +98,7 @@ function fitRefusal(
 /**
  What the fit check makes of a group it accepts.
 
- @param group - the group read
+ @param group - group read
 
  @returns Nothing, since the check only refuses
 
@@ -127,9 +127,9 @@ function fitRead(
 /**
  A place without its slot offsets, as a maximal repeat's place is written.
 
- @param place - the place
+ @param place - place
 
- @returns The place with no slot offset
+ @returns Place with no slot offset
 
  @example
  ```ts
@@ -155,11 +155,11 @@ function withoutSlotOffsets(
 
  @param reason - why the bench was not asked
 
- @param outcome - the outcome every place carries
+ @param outcome - outcome every place carries
 
  @param places - how many places the group has
 
- @returns The recorded group
+ @returns Recorded group
 
  @example
  ```ts

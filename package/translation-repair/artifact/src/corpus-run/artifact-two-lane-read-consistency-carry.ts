@@ -38,7 +38,7 @@ import { parseConsistencyChoiceBallot, } from './artifact-two-lane-read-consiste
 
  @param path - where they sit, for the parse error
 
- @returns The ballots, in the order recorded
+ @returns Ballots, in the order recorded
 
  @throws {@link ArtifactParseError} when they are not a list of choices
 
@@ -78,7 +78,7 @@ function parseChoiceBallots(
 
  @param path - where it sits, for the parse error
 
- @returns The run-off
+ @returns Run-off
 
  @throws {@link ArtifactParseError} when it is the wrong shape
 
@@ -140,7 +140,7 @@ export function parseConsistencyRunOff(
 
  @param path - where it sits, for the parse error
 
- @returns The candidate
+ @returns Candidate
 
  @throws {@link ArtifactParseError} when it is the wrong shape
 
@@ -203,7 +203,7 @@ function parseCandidate(
 
  @param path - where it sits, for the parse error
 
- @returns The decision
+ @returns Decision
 
  @throws {@link ArtifactParseError} when it is the wrong shape or kind
 
@@ -295,7 +295,7 @@ function parseDecision(
 
  @param path - where it sits, for the parse error
 
- @returns The carry
+ @returns Carry
 
  @throws {@link ArtifactParseError} when it is the wrong shape
 

@@ -44,9 +44,9 @@ import {
 /**
  Checks one place's rendering against the quotes its ballots agreed on.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @param occurrence - the place
+ @param occurrence - place
 
  @param path - where the place sits, for the parse error
 
@@ -148,7 +148,7 @@ function assertRenderingAgrees(
 /**
  Checks what became of each place of a group the bench decided.
 
- @param group - the group, asked of the bench, with a winner
+ @param group - group, asked of the bench, with a winner
 
  @param path - where the group sits, for the parse error
 
@@ -274,7 +274,7 @@ function assertOutcomesFollow(
 /**
  Checks a group asked of the bench against its own ballots.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param path - where the group sits, for the parse error
 

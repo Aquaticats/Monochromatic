@@ -65,11 +65,11 @@ export const PAGE_TITLE_IDENTITY_RULE: string = '- A title a web lookup line or 
 /**
  Builds the lexicon request over one page.
 
- @param sourceText - the original document, so each title is read in its place
+ @param sourceText - original document, so each title is read in its place
 
  @param titles - titles the page repeats, in order of first appearance
 
- @param identityContext - the page's declared identity without the lexicon's
+ @param identityContext - page's declared identity without the lexicon's
  own lines: the web lookups of the works the original names and the notes
  that establish vocabulary among them, since the sheet asks for a work's
  official English title (ledger B28)

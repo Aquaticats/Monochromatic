@@ -58,17 +58,17 @@ const ALONE: ArtifactConsistencyCarry = {
 /**
  A place the chosen words are carried to.
 
- @param label - the place's label
+ @param label - place's label
 
- @param plan - the plan recomputed for it
+ @param plan - plan recomputed for it
 
- @param carry - the carry recorded under it
+ @param carry - carry recorded under it
 
  @param outcome - what became of it, replaced by default
 
  @param keptBecause - why the pass left it as it was, none by default
 
- @returns The place
+ @returns Place
 
  @example
  ```ts
@@ -110,11 +110,11 @@ function carriedAs(
 /**
  The refusal text of checking the places.
 
- @param carriedTo - the places
+ @param carriedTo - places
 
  @param partialUnits - whether the section records a unit carried in part
 
- @returns The refusal as text, or a note that nothing was refused
+ @returns Refusal as text, or a note that nothing was refused
 
  @example
  ```ts

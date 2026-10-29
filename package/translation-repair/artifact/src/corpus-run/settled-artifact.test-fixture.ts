@@ -263,7 +263,7 @@ function lanesOver(
 
  @param consolidation - consolidation record, stated for the same reason
 
- @returns The artifact object, unserialized
+ @returns Artifact object, unserialized
 
  @example
  ```ts
@@ -309,7 +309,7 @@ export function settledArtifactOver(
 
  @param entryId - entry the artifact settles
 
- @returns The artifact's JSON text
+ @returns Artifact's JSON text
 
  @example
  ```ts
@@ -350,7 +350,7 @@ export function settledArtifactText(
 
  @param rows - rows both lanes report
 
- @returns The artifact object, unserialized
+ @returns Artifact object, unserialized
 
  @example
  ```ts

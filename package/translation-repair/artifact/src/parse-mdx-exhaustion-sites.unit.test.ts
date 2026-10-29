@@ -92,7 +92,7 @@ function isRawExhaustion({ value, }: { readonly value: unknown; }): boolean {
 
  @param receiver - what a built-in method is called on
 
- @param property - a property every member of the list the test names has
+ @param property - property every member of the list the test names has
 
  @returns Whether the receiver is such a list
 
@@ -124,7 +124,7 @@ function holdsOnly(
  @param afterParses - how many parses go to the real parser first, so 0 fails the paragraph alone and 1 fails the one
  with the definitions appended
 
- @returns The inspection
+ @returns Inspection
 
  @example
  ```ts

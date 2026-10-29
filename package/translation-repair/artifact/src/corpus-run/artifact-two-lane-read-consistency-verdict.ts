@@ -61,7 +61,7 @@ const RUN_OFF_REASONS: ReadonlySet<NoWinnerReason> = new Set<NoWinnerReason>([
  @param generation - generation the section was written under, which says
  whether a run-off reason exists
 
- @returns The winner
+ @returns Winner
 
  @throws {@link ArtifactParseError} when it is the wrong shape or kind, or gives
  a run-off reason in a generation with no run-off
@@ -155,7 +155,7 @@ function parseConsistencyWinner(
  @param generation - generation the section was written under, which says
  whether a verdict may carry a run-off
 
- @returns The verdict
+ @returns Verdict
 
  @throws {@link ArtifactParseError} when it is the wrong shape or kind, or
  carries a key or a reason of the other generation

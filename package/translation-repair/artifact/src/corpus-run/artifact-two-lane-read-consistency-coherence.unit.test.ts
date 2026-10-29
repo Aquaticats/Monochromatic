@@ -59,7 +59,7 @@ const NOT_REPLACING = `ArtifactParseError: artifact parse failed at ${GROUP}.occ
 
  @param place - position of the place in the group
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -74,7 +74,7 @@ function notConsistent({ place, }: { readonly place: number; },): string {
 /**
  The recount of a group.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @returns What the recount makes of a group it accepts
 
@@ -94,9 +94,9 @@ function coherent({ group, }: { readonly group: ArtifactConsistencyGroup; },): u
 /**
  The text of the refusal the recount raises for a group.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts
@@ -114,11 +114,11 @@ function coherenceRefusal({ group, }: { readonly group: ArtifactConsistencyGroup
 /**
  A group whose verdict takes other values.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param over - fields of the asked verdict that take other values
 
- @returns The group with that verdict
+ @returns Group with that verdict
 
  @example
  ```ts
@@ -155,13 +155,13 @@ function withVerdict(
 /**
  A group heard from other ballots, with the usable count they come to.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
- @param ballots - the ballots heard
+ @param ballots - ballots heard
 
  @param usable - how many of them can be counted
 
- @returns The group with those ballots
+ @returns Group with those ballots
 
  @example
  ```ts
@@ -191,11 +191,11 @@ function withBallots(
 /**
  The ballots of a group, each changed alike.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param change - how each ballot changes
 
- @returns The changed ballots
+ @returns Changed ballots
 
  @example
  ```ts
@@ -222,9 +222,9 @@ function ballotsOf(
 
  @param groups - every recorded group
 
- @param slices - the recorded changed slices
+ @param slices - recorded changed slices
 
- @returns The refusal as text
+ @returns Refusal as text
 
  @example
  ```ts

@@ -32,7 +32,7 @@ import { recountRefusalOf, } from './consistency-refusal.test-fixture.ts';
  @param seat - seat that answered
  @param choice - label chosen
 
- @returns The recorded choice
+ @returns Recorded choice
 
  @example
  ```ts
@@ -88,7 +88,7 @@ const GENERATION_EIGHTEEN = ARTIFACT_SCHEMA_VERSION_V18;
 
  @param value - value as built
 
- @returns The value read back from its JSON text
+ @returns Value read back from its JSON text
 
  @example
  ```ts

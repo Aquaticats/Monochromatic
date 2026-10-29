@@ -89,7 +89,7 @@ const TRIMMED_KEYS: readonly string[] = [
 
  @param path - where it sits, for the parse error
 
- @returns The replacement
+ @returns Replacement
 
  @example
  ```ts
@@ -139,7 +139,7 @@ function parseTrimmed(
  @param required - whether this generation writes the section, so its
  absence is a broken file rather than an older one
 
- @returns The section, empty on an older artifact
+ @returns Section, empty on an older artifact
 
  @throws {@link ArtifactParseError} when a required section is absent, any
  field is the wrong shape, or two trimmed rows name one slice
@@ -287,7 +287,7 @@ export type PageAssemblyOverride =
 
  @param sliceIndex - slice asked about
 
- @returns The override, or that there is none
+ @returns Override, or that there is none
 
  @example
  ```ts

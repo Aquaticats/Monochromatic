@@ -45,7 +45,7 @@ import { parseConsistencyVerdict, } from './artifact-two-lane-read-consistency-v
 
  @param generation - generation the section was written under
 
- @returns The group
+ @returns Group
 
  @throws {@link ArtifactParseError} when it is malformed or contradicts its own ballots
 
@@ -183,7 +183,7 @@ function parseConsistencyGroup(
 
  @param sliceIndexes - slices the artifact's comparison names
 
- @returns The row
+ @returns Row
 
  @throws {@link ArtifactParseError} when it is malformed or names a slice the
  comparison does not
@@ -256,7 +256,7 @@ function parseConsistencySlice(
 
  @param sliceIndexes - slices the artifact's comparison names
 
- @returns The section, empty on an older artifact
+ @returns Section, empty on an older artifact
 
  @throws {@link ArtifactParseError} when a required section is absent, an older
  generation carries one, any field is the wrong shape, or a group contradicts

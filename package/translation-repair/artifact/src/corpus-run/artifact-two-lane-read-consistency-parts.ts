@@ -40,7 +40,7 @@ const UNPLACED_REASONS: Readonly<Record<UnplacedReason, true>> = {
 
  @param path - where it sits, for the parse error
 
- @returns The repeat
+ @returns Repeat
 
  @throws {@link ArtifactParseError} when it is the wrong shape or kind
 
@@ -165,7 +165,7 @@ export function requirePlaceBounds(
 
  @param path - where it sits, for the parse error
 
- @returns The place
+ @returns Place
 
  @throws {@link ArtifactParseError} when it is the wrong shape, or ends at or
  before its start, or its line is zero
@@ -247,7 +247,7 @@ export function parseConsistencyUnplaced(
 
  @param path - where it sits, for the parse error
 
- @returns The ballot
+ @returns Ballot
 
  @throws {@link ArtifactParseError} when it is the wrong shape
 
@@ -357,7 +357,7 @@ export function parseConsistencyBallot(
 
  @param path - where it sits, for the parse error
 
- @returns The ballot
+ @returns Ballot
 
  @throws {@link ArtifactParseError} when it is the wrong shape
 

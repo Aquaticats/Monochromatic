@@ -85,7 +85,7 @@ function groupOf(
 
  @param generation - generation the section was written under
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @example
  ```ts
@@ -122,10 +122,10 @@ function refusalOf(
 /**
  The words a refusal of an overlapped place begins with.
 
- @param place - the group and label of the overlapped place, counted from one for the group
+ @param place - group and label of the overlapped place, counted from one for the group
  and the slice it stands in
 
- @returns The refusal's message up to what was expected
+ @returns Refusal's message up to what was expected
 
  @example
  ```ts

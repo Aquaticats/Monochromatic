@@ -250,7 +250,7 @@ function parseBenchFloorMark(
 
  @param path - artifact path of the value, for refusals
 
- @returns The finding as a record fragment, empty when the slice carries none
+ @returns Finding as a record fragment, empty when the slice carries none
 
  @throws {@link ArtifactParseError} when a slice that ships no wording of its own carries a finding, or when the finding
  is not a non-empty list of groups under the one label the sheets gave the shipped wording

@@ -59,7 +59,7 @@ type CountedOutcome =
 
  @param left - one outcome
 
- @param right - the other outcome
+ @param right - other outcome
 
  @returns Whether they agree
 
@@ -88,7 +88,7 @@ export function sameWinner(
  The winner the ballots give, after the run-off when the choices had finalists,
  and a refusal where the run-off recorded is not the one the ballots call for.
 
- @param group - the group, asked of the bench
+ @param group - group, asked of the bench
 
  @param renderings - each place's rendering in the counter's form
 
@@ -97,7 +97,7 @@ export function sameWinner(
  @param generation - generation the section was written under, which says whether a lone leader is run off with the labels next
  behind it or only the labels tied for the highest count are
 
- @returns The winner the ballots, the quorum and the run-off give
+ @returns Winner the ballots, the quorum and the run-off give
 
  @throws {@link ArtifactParseError} when a run-off is recorded for choices that had no finalists, is missing for choices that had, names other finalists, or counts otherwise than its ballots give
 

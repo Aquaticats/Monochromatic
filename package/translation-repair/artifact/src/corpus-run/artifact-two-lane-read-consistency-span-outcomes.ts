@@ -27,7 +27,7 @@ type AskedGroup = ArtifactConsistencyGroup & { readonly verdict: { readonly kind
  Checks what became of each place of a group the bench decided, and the carries
  recorded beside them.
 
- @param group - the group, asked of the bench, with a winner
+ @param group - group, asked of the bench, with a winner
 
  @param renderings - each place's rendering in the counter's form
 

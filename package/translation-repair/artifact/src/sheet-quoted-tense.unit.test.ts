@@ -101,7 +101,7 @@ const EXCEPTION_BESIDE_NO_RULE =
  @param text - text of a sheet
  @param marker - words the sentence holds
 
- @returns The sentences, none when the marker stands nowhere
+ @returns Sentences, none when the marker stands nowhere
 
  @example
  ```ts
