@@ -318,7 +318,7 @@ function boundedWord({ word, }: { readonly word: string; },): string {
 
  @param candidateText - rendering under audit
 
- @returns The finding with the texts' own spans, or why it was dropped
+ @returns Finding with the texts' own spans, or why it was dropped
 
  @example
  ```ts

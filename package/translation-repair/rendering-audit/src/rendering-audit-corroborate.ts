@@ -214,7 +214,7 @@ function defectKey({ finding, }: { readonly finding: ScreenedFinding; },): strin
  @param left - one claim's interval on a side, or the named absence where its
  category does not use that side
 
- @param right - the other claim's, on the same side
+ @param right - other claim's, on the same side
 
  @returns Whether both are spans and intersect
 
@@ -250,7 +250,7 @@ function intersects(
 
  @param left - one finding
 
- @param right - the other
+ @param right - other
 
  @returns Whether both sides' intervals match exactly
 
@@ -406,7 +406,7 @@ export type OverlapAgreement = {
 
  @param mine - one claim's interval on this side
 
- @param theirs - the other claim's
+ @param theirs - other claim's
 
  @returns Whether they agree about this side
 
@@ -442,7 +442,7 @@ function sideAgrees(
 
  @param left - one claim
 
- @param right - the other
+ @param right - other
 
  @returns Whether the categories match and every side they both use overlaps
 

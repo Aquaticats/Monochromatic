@@ -104,7 +104,7 @@ export function letterReading({ text, }: { readonly text: string; },): string {
 
  @param text - whole document or slice
 
- @returns The shown text and its prose words with where each stands
+ @returns Shown text and its prose words with where each stands
 
  @example
  ```ts
@@ -201,7 +201,7 @@ function continuesRun(
 
  @param words - prose words of that text, in order
 
- @returns The words of each run
+ @returns Words of each run
 
  @example
  ```ts

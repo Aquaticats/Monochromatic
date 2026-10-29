@@ -30,7 +30,7 @@ import {
 
  @param arguments_ - texts and declared pairs, as `pageNameLines` takes them
 
- @returns The lines before the heading of the sentence-name block
+ @returns Lines before the heading of the sentence-name block
 
  @example
  ```ts

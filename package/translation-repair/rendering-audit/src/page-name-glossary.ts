@@ -289,9 +289,9 @@ function signaturePairs(
  same count of it; a differing count is a section one side never carried, and
  the order is then no alignment.
 
- @param source - the original's headings of that kind, in page order
+ @param source - original's headings of that kind, in page order
 
- @param target - the archive's headings of that kind, in page order
+ @param target - archive's headings of that kind, in page order
 
  @returns Each Han heading the archive renders otherwise, with where the original's stands
 

@@ -85,7 +85,7 @@ export function proseNamePairs(
 
  @param text - candidate document or slice
 
- @param rendering - the archive's spelling of the name
+ @param rendering - archive's spelling of the name
 
  @returns Each other spelling of the same letters, in order; none when the
  text writes the archive's spelling as it stands or does not write the name

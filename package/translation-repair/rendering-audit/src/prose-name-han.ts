@@ -54,7 +54,7 @@ export type ProseNamePair = {
 
  @param at - offset of the character's first UTF-16 unit, inside the text
 
- @returns The character, one or two units long
+ @returns Character, one or two units long
 
  @example
  ```ts
