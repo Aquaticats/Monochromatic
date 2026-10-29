@@ -17,6 +17,8 @@ fn phases_are_named_in_transaction_order() {
             "ref-updated",
             "index-installed",
             "race-lost",
+            "merge-intent",
+            "merge-applied",
         ]
     );
 }

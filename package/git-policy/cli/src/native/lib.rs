@@ -856,6 +856,27 @@ pub mod index_writer_coordination;
 ///  the landing lock held while real Git runs as a child.
 pub mod index_writer_forward;
 
+/// The `git merge` command lines the wrapper completes in isolation, and those it leaves to native Git.
+pub mod merge_options;
+
+/// The durable intent record of an isolated merge.
+pub mod merge_isolation_journal;
+
+/// The raw differences of an isolated merge and the worktree state of each changed path.
+pub mod merge_isolation_changes;
+
+/// Recovery of an isolated merge whose process died.
+pub mod merge_isolation_recovery;
+
+/// The commit message of an isolated merge.
+pub mod merge_isolation_message;
+
+/// The refusal findings of an isolated merge.
+pub mod merge_isolation_report;
+
+/// A true merge completed in isolation while the index holds staged changes.
+pub mod merge_isolation;
+
 /// The real index.lock a landing creates,
 ///  identifies and releases only while it is the same file.
 pub mod real_index_lock;
