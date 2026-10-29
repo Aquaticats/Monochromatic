@@ -256,7 +256,20 @@ and accepted with this record:
   and emitter with no third-party parser),
   preserving comments and formatting outside edited elements
   and rejecting malformed managed XML with a diagnostic.
-  The four halted vet drafts under `doc/audit/tech-file-enforcer-*-vet-2026-10-29.md` are superseded by this.
+  The four halted vet drafts under `doc/audit/tech-file-enforcer-*-vet-2026-10-29.md` are superseded by this
+  and kept whole as knowledge ("Even if work is superseded,
+  it should still become knowledge.",
+  user).
+  Open facts they leave for the implementation:
+  `browserslist-rs` 0.21.2 hard-codes Firefox ESR as `firefox 140` where npm `browserslist` 4.29.5 gives `firefox 153`,
+  and its section selection is private,
+  so file-enforcer parses `.browserslistrc` itself
+  (`oxc-browserslist` 5.0.1 screened as an alternative);
+  `schemars` derive without serde `Deserialize` is unproven,
+  and the golden test's corpus check needs a JSON Schema validator crate not yet named;
+  `monochromatic-jsonc-edit` emits trailing commas,
+  while the JetBrains files hold strict JSON,
+  so the XML crate's JSON leg needs strict output unless LSP4IJ and Harper are shown to accept them.
 - Follow-ups:
   process rules in issue #1817.
 
