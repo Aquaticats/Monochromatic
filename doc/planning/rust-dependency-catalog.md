@@ -309,6 +309,45 @@ Why:
 Renovate's cargo manager matches only files named `Cargo.toml`,
  so it will not misread this file.
 
+### Feature selection
+
+Kept:
+ named catalogs;
+ internal crates referenced by name (pnpm `workspace:` entries);
+ adopt on sync (`pnpm add --save-catalog`);
+ prune unused entries (`catalogPrune`);
+ an update task writing new versions into catalog entries (`pnpm update`);
+ the CI drift check;
+ named diagnostics.
+Omitted:
+ path entries (`file:`, `link:`),
+ because internal crates by name cover every path dependency today;
+ the `catalogs.default` synonym;
+ the `catalogMode` setting,
+ because strict is decided;
+ overrides through the catalog (Cargo has none in manifests; lockfile concerns go to #1801);
+ delegated catalog files;
+ cross-repository catalogs;
+ query and run commands.
+Pending confirmation:
+ the affected-crate list and changesets on update
+ (the question's labels were ambiguous).
+
+### Tightening, after `catalog:tighten`
+
+Owner direction:
+ also look at the repo's `catalog:tighten` task
+ (`package/dev-script/catalog-tighten/`).
+It raises `>=x.y.z` floors in the JS catalog to the installed version,
+ reports every entry as `TIGHT`, `OK`, `SKIP`, `UNDCL`, or `MISS`,
+ and rewrites only the version token.
+Its portability plan (`doc/handover/catalog-tighten-portability.md`) covers JS package managers only.
+For Cargo,
+ the build always uses `Cargo.lock`,
+ so the lockfile is the resolved-version source
+ (the JS tool avoids lockfiles because `node_modules` can be deleted while the lockfile stays).
+Owner and floor rule are open.
+
 ## pnpm feature map
 
 Read from the pnpm docs source (`pnpm/pnpm.io` `docs/catalogs.md`,
