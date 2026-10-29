@@ -48,6 +48,8 @@ use super::rule_commit_sequencer::{
 };
 /// The transaction Git context.
 use super::transaction_git::GitContext;
+/// The common directory of a location's identity.
+use super::worktree_identity::common_directory;
 /// What:
 ///  `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 ///  Sibling
@@ -327,6 +329,11 @@ impl RepositoryFacts for GitFacts {
             real_git: self.real_git.clone(),
             overlay: self.overlay.clone(),
             global_prefix: self.global_prefix.clone(),
+            // The repository is known once its location was asked; a context made before that has none.
+            common_dir: match &self.location {
+                Some(Ok(found)) => common_directory(&found.identity).map(Path::to_path_buf),
+                Some(Err(_)) | None => None,
+            },
         };
     }
 }

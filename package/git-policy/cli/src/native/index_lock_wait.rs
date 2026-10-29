@@ -22,7 +22,12 @@ use super::live_lock::{LIVE_WAIT_VARIABLE, live_wait_limit};
 /// Foreign-lock evidence and its verdicts.
 use super::index_lock_evidence::{
     Evidence, Verdict, classify_index_lock, describe_index_lock_evidence, proven_holder_line,
+    proven_holder_progress_line,
 };
+/// When the notices of a wait are due.
+use super::wait_progress::{Cadence, Ticker};
+/// Time spans.
+use std::time::Duration;
 
 /// Git's `BACKOFF_MAX_MULTIPLIER`:
 ///  the backoff stops growing here.
@@ -187,6 +192,12 @@ pub trait WaitEffects {
     fn now_ms(&mut self) -> f64;
     /// Writes one line of diagnostics to standard error.
     fn report(&mut self, line: &str);
+    /// When this wait repeats its notice:
+    ///  the host reads the environment,
+    ///  and a fake keeps the standard cadence unless a test sets another.
+    fn cadence(&mut self) -> Cadence {
+        return Cadence::standard();
+    }
 }
 
 /// What:
@@ -211,6 +222,10 @@ struct LoopState {
     live_ms: f64,
     /// Whether the holder line was written.
     reported: bool,
+    /// When the next repeat of the holder line is due, counted in `live_ms`.
+    live_ticker: Ticker,
+    /// When the next notice of a wait behind an unproven owner is due, counted in `unproven_ms`.
+    unproven_ticker: Ticker,
 }
 
 /// What:
@@ -250,12 +265,15 @@ pub fn wait_for_index_lock_within(
     live_limit_ms: u64,
     consequence: &str,
 ) -> Result<(), WaitFailure> {
+    let cadence: Cadence = effects.cadence();
     // `mut` lets each iteration advance the loop state.
     let mut state: LoopState = LoopState {
         backoff: INITIAL_BACKOFF,
         unproven_ms: 0.0,
         live_ms: 0.0,
         reported: false,
+        live_ticker: Ticker::announced_at_start(cadence),
+        unproven_ticker: Ticker::new(cadence),
     };
     loop {
         let iteration_started: f64 = effects.now_ms();
@@ -288,6 +306,7 @@ pub fn wait_for_index_lock_within(
                     *by_descriptor,
                     command.as_deref(),
                     evidence.lock_path.as_path(),
+                    live_limit_ms / 1_000,
                 );
                 effects.report(line.as_str());
                 state.reported = true;
@@ -299,6 +318,18 @@ pub fn wait_for_index_lock_within(
             };
             effects.sleep(backoff_ms.min(cap));
             state.live_ms += effects.now_ms() - iteration_started;
+            // A notice that is due goes out before the limit is checked, so a refused wait was announced.
+            if state.live_ticker.due(Duration::from_millis(state.live_ms as u64)) {
+                let repeat: String = proven_holder_progress_line(
+                    *pid,
+                    *by_descriptor,
+                    command.as_deref(),
+                    evidence.lock_path.as_path(),
+                    state.live_ms as u64 / 1_000,
+                    live_limit_ms / 1_000,
+                );
+                effects.report(repeat.as_str());
+            }
             if state.live_ms >= live_limit_ms as f64 {
                 return Err(WaitFailure::LiveHolderTimedOut {
                     lock_path: evidence.lock_path.clone(),
@@ -312,6 +343,16 @@ pub fn wait_for_index_lock_within(
             continue;
         }
         state.unproven_ms += effects.now_ms() - iteration_started;
+        // A notice that is due goes out before the budget is checked, so a refused wait was announced.
+        if state.unproven_ticker.due(Duration::from_millis(state.unproven_ms as u64)) {
+            let notice: String = unproven_progress_line(
+                evidence.lock_path.as_path(),
+                &verdict,
+                state.unproven_ms as u64,
+                timeout_ms,
+            );
+            effects.report(notice.as_str());
+        }
         if state.unproven_ms >= timeout_ms as f64 {
             return Err(WaitFailure::UnprovenOwner {
                 evidence: Box::new(evidence),
@@ -353,6 +394,34 @@ pub fn unproven_owner_message(
         "Another process left {}, {owner}; after {timeout_ms} ms (indexLock.unprovenOwnerTimeoutMs) the lock was still there. cli-git left the lock in place and {consequence}. Evidence: {}. Remove the lock only after confirming no Git process is using this repository.",
         evidence.lock_path.display(),
         describe_index_lock_evidence(evidence),
+    );
+}
+
+/// What:
+///  The notice a wait behind a lock with no proven live owner repeats.
+/// Why:
+///   The wait retries on Git's backoff schedule and is silent otherwise,
+///  so the person learns what is held, why no process is named, how long the wait has lasted and where it gives up.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `cli-git: still waiting for ${lockPath} after ${waitedMs} ms ...`
+/// ```
+pub fn unproven_progress_line(
+    lock_path: &std::path::Path,
+    verdict: &Verdict,
+    waited_ms: u64,
+    timeout_ms: u64,
+) -> String {
+    let owner: String = match verdict {
+        Verdict::Dead(pid) => format!("whose owner PID {pid} no longer runs"),
+        _ => String::from("whose owner cli-git cannot prove alive"),
+    };
+    return format!(
+        "cli-git: still waiting for {}, {owner}, after {} seconds; retrying until {timeout_ms} ms \
+         (indexLock.unprovenOwnerTimeoutMs) have passed, then stopping and leaving the lock in place.\n",
+        lock_path.display(),
+        waited_ms / 1_000
     );
 }
 

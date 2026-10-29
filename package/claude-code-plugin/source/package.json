@@ -14,7 +14,8 @@
     "./handler/claude-spawn": "./src/handler/claude-spawn/index.ts",
     "./handler/prompt-time": "./src/handler/prompt-time.ts",
     "./handler/correction-reminder": "./src/handler/correction-reminder.ts",
-    "./cli/spawn-claude": "./src/cli/spawn-claude.ts"
+    "./cli/spawn-claude": "./src/cli/spawn-claude.ts",
+    "./handler/cost-dismissal": "./src/handler/cost-dismissal/index.ts"
   },
   "bin": {
     "spawn-claude": "./src/cli/spawn-claude.ts"

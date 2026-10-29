@@ -222,25 +222,32 @@ fn a_dead_transaction_holding_only_its_index_lock_waits_for_the_landing_lock() {
     assert!(scene.directory.join("index-lock-1.json").exists());
     let landing_lock: PathBuf = scene.registry.join(LANDING_LOCK_NAME);
     let (ready_sender, ready_receiver) = std::sync::mpsc::channel::<()>();
-    // The live lander holds the landing lock for a while and then releases it.
+    let (start_sender, start_receiver) = std::sync::mpsc::channel::<()>();
+    let recovered: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let recovered_for_lander: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&recovered);
+    // The live lander holds the landing lock until recovery has started, looks once for a recovery that did not wait,
+    // and then releases it. A host so slow that recovery starts late only makes the look vacuous; it cannot fail it.
     let lander = std::thread::spawn(move || {
         let held: crate::owner_lock::OwnerLock = try_acquire_owner_lock(landing_lock.as_path(), None)
             .expect("acquire")
             .expect("free");
         ready_sender.send(()).expect("ready");
-        std::thread::sleep(std::time::Duration::from_millis(600));
+        start_receiver.recv().expect("recovery starts");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let finished_without_waiting: bool = recovered_for_lander.load(std::sync::atomic::Ordering::SeqCst);
         held.release().expect("release");
+        return finished_without_waiting;
     });
     ready_receiver.recv().expect("the lander holds the lock");
-    let started: std::time::Instant = std::time::Instant::now();
+    start_sender.send(()).expect("recovery starts");
     let outcomes: Vec<RecoveryOutcome> =
         recover_registered_transactions(&scene.place(), scene.registry.as_path())
             .expect("recovered");
+    recovered.store(true, std::sync::atomic::Ordering::SeqCst);
     assert!(
-        started.elapsed() >= std::time::Duration::from_millis(400),
+        !lander.join().expect("lander"),
         "recovery of a transaction that holds a real index lock must wait for the landing lock"
     );
-    lander.join().expect("lander");
     assert_eq!(outcomes.len(), 1);
     assert_eq!(outcomes[0].action, RecoveryAction::CommitNotCreated);
     scene.finish();

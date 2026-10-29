@@ -79,10 +79,10 @@ fn injects_only_after_commit_and_nowhere_else() {
         rewritten(&["commit", "-o", "-m", "message", "file.ts"])
     );
     assert_eq!(
-        decide(&["-C", "/tmp/repo", "commit", "-m", "message", "file.ts"]),
+        decide(&["-C", "/fixture/repo", "commit", "-m", "message", "file.ts"]),
         rewritten(&[
             "-C",
-            "/tmp/repo",
+            "/fixture/repo",
             "commit",
             "-o",
             "-m",

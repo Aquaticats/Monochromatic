@@ -198,7 +198,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
     let Some(landed) = result.landed_oid else {
         return CommitEnding { code: result.exit_code };
     };
-    return post_commit(command, &invocation, landed.as_str());
+    return post_commit(command, &invocation, landed.as_str(), result.uses_lfs);
 }
 
 /// What:
@@ -210,7 +210,7 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 /// ```ts
 /// const post = await runPostCommitLifecycle({ ... }); if (post.blocked) throw new PolicyDecisionError(2); await autoPush({ ... });
 /// ```
-fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, landed: &str) -> CommitEnding {
+fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, landed: &str, uses_lfs: bool) -> CommitEnding {
     let request: PostCommitRequest<'_> = PostCommitRequest {
         real_git: command.context.real_git.as_path(),
         landed_oid: landed,
@@ -225,6 +225,7 @@ fn post_commit(command: &CommitCommand<'_>, invocation: &CommitInvocation<'_>, l
         real_git: command.context.real_git.clone(),
         cwd: invocation.cwd.to_path_buf(),
         environment: environment_with_overlay(command.environment, command.context.overlay.as_slice()),
+        lfs_pre_push: if uses_lfs { Some(invocation.executable.to_path_buf()) } else { None },
     };
     let mut stderr = std::io::stderr();
     match run_post_commit(&request, &git, &mut stderr) {

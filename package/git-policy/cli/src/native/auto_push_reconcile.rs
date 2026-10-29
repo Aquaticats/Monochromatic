@@ -15,7 +15,7 @@
 
 /// The coordinator's Git, its command builder, queries and error type.
 use super::auto_push_single_flight::{
-    PushAttempt, PushGit, SingleFlightError, git_command, git_output, run_query,
+    PushAttempt, PushGit, SingleFlightError, git_command, git_output, push_command, run_query,
 };
 /// The deadline-bound runner of network commands and the limits it applies.
 use super::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
@@ -251,7 +251,7 @@ fn fetch_remote_tip(
     ]);
     let mut command = git_command(git, &arguments);
     apply_low_speed_defaults(&mut command, &git.environment);
-    let fetched = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE)?;
+    let fetched = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice())?;
     if fetched.exit_code != 0 {
         return Ok(Err(fetched));
     }
@@ -506,9 +506,9 @@ pub fn reconcile_divergent_push(
             &target.remote,
             &format!("{merge_oid}:{}", target.merge_ref),
         ]);
-        let mut command = git_command(git, &arguments);
+        let mut command = push_command(git, &arguments);
         apply_low_speed_defaults(&mut command, &git.environment);
-        return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE);
+        return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice());
     };
     return Ok(match integrate_and_push(git, &plan, rejected, &mut push_merge)? {
         Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,

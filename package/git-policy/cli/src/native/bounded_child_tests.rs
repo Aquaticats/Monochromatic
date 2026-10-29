@@ -16,9 +16,10 @@
 /// The runner and its pure helpers.
 use super::{
     ChildExit, ChildFailure, ChildLimits, ChildRequest, FinishedChild, deadline_reached, exceeds,
-    next_pause, run_bounded_child, sleep_for,
+    next_pause, run_bounded_child, run_bounded_child_noticing, sleep_for,
 };
-use crate::test_support::{executable, fixture, remove};
+use crate::test_support::{ActionSink, SharedSink, executable, fixture, remove};
+use crate::wait_progress::Cadence;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -60,6 +61,8 @@ fn run(
         input,
         scratch: root,
         limits,
+        waiting_for: "the stand-in program",
+        cadence: Cadence::standard(),
     });
 }
 
@@ -301,6 +304,8 @@ fn a_child_that_cannot_start_reports_why() {
         input: b"",
         scratch: nowhere.as_path(),
         limits: ROOMY,
+        waiting_for: "the stand-in program",
+        cadence: Cadence::standard(),
     }) {
         Err(ChildFailure::Files(reason)) => assert!(reason.contains("No such file"), "{reason}"),
         other => panic!("{other:?}"),
@@ -341,4 +346,104 @@ fn pauses_double_and_never_pass_the_bound() {
         sleep_for(Duration::from_millis(2), Duration::from_millis(3)),
         Duration::from_millis(2)
     );
+}
+
+/// Run `program` with the given cadence and return the result; the notices the wait printed go to `notices`.
+fn run_noticing(
+    root: &Path,
+    program: &Path,
+    limits: ChildLimits,
+    cadence: Cadence,
+    notices: &mut dyn std::io::Write,
+) -> Result<FinishedChild, ChildFailure> {
+    let arguments: Vec<OsString> = Vec::new();
+    return run_bounded_child_noticing(
+        &ChildRequest {
+            executable: program,
+            arguments: arguments.as_slice(),
+            directory: root,
+            environment: path_only().as_slice(),
+            input: b"",
+            scratch: root,
+            limits,
+            waiting_for: "the stand-in program to check a.md",
+            cadence,
+        },
+        notices,
+    );
+}
+
+/// A cadence of a 20 ms grace and a 20 ms interval, so a notice comes fast.
+const QUICK: Cadence = Cadence {
+    grace: Duration::from_millis(20),
+    interval: Duration::from_millis(20),
+};
+
+/// A child that runs long is waited for with a notice that names what the wait is for, the child's process and the
+///  bound, repeated at every interval; the child's output stays untouched.
+///  The child waits for a release file that the third notice creates, so the wait ends on that event and at least
+///  three notices are out, however slowly the host runs the parent.
+#[test]
+fn a_child_that_runs_long_is_waited_for_with_notices() {
+    let root: PathBuf = fixture("bounded-notices");
+    let program: PathBuf = stand_in(root.as_path(), "slow", "while [ ! -e release ]; do sleep 0.02; done\nprintf done");
+    let shared: SharedSink = SharedSink::default();
+    let release: PathBuf = root.join("release");
+    let mut sink: ActionSink = ActionSink::new(&shared, 3, move || {
+        std::fs::write(&release, b"").expect("release the child");
+    });
+    let result = run_noticing(root.as_path(), program.as_path(), ROOMY, QUICK, &mut sink);
+    assert_eq!(result.expect("finished").stdout, b"done".to_vec());
+    let notices: String = shared.text();
+    let lines: Vec<&str> = notices.lines().collect();
+    assert!(lines.len() >= 3, "{notices}");
+    for line in &lines {
+        assert!(
+            line.starts_with("cli-git: still waiting for the stand-in program to check a.md (process "),
+            "{notices}"
+        );
+        assert!(line.contains("stopping it after 60 seconds"), "{notices}");
+    }
+    assert_eq!(notices.matches("Hint:").count(), 1, "{notices}");
+    remove(root.as_path());
+}
+
+/// A child that finishes inside the grace prints nothing.
+///  The grace is an hour, so no host is slow enough to make the first look late.
+#[test]
+fn a_child_that_finishes_inside_the_grace_prints_nothing() {
+    let root: PathBuf = fixture("bounded-quiet");
+    let program: PathBuf = stand_in(root.as_path(), "quick", "printf done");
+    let mut notices: Vec<u8> = Vec::new();
+    let result = run_noticing(
+        root.as_path(),
+        program.as_path(),
+        ROOMY,
+        Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
+        &mut notices,
+    );
+    assert_eq!(result.expect("finished").stdout, b"done".to_vec());
+    assert!(notices.is_empty());
+    remove(root.as_path());
+}
+
+/// A child that outlasts its bound is announced and then stopped:
+///  the notice that is due goes out before the bound is checked, so at least one notice is out however slowly the
+///  host runs the parent.
+#[test]
+fn a_child_that_outlasts_its_bound_is_announced_then_stopped() {
+    let root: PathBuf = fixture("bounded-notices-timeout");
+    let program: PathBuf = stand_in(root.as_path(), "stuck", "sleep 30");
+    let mut notices: Vec<u8> = Vec::new();
+    let result = run_noticing(
+        root.as_path(),
+        program.as_path(),
+        ChildLimits { timeout: Duration::from_millis(450), ..ROOMY },
+        QUICK,
+        &mut notices,
+    );
+    assert_eq!(result.expect_err("stopped"), ChildFailure::TimedOut(Duration::from_millis(450)));
+    let text: String = String::from_utf8(notices).expect("text");
+    assert!(text.lines().count() >= 1, "{text}");
+    remove(root.as_path());
 }

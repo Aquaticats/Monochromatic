@@ -15,6 +15,8 @@ use super::auto_push_single_flight::SingleFlightError;
 /// The deadline runner shared with the push, and its stop causes.
 use super::bounded_push::{MAX_PUSH_OUTPUT, StopCause, push_deadline, stop_push, wait_until_done};
 /// Starts that ride out a short shortage of processes.
+/// The anonymous output files of the query, made in the per-user scratch directory.
+use super::scratch_location::scratch_file;
 use super::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
@@ -93,9 +95,10 @@ pub fn run_bounded_query(
     arguments: &str,
     deadline: Duration,
     grace: Duration,
+    environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    let mut stdout: File = tempfile::tempfile().map_err(SingleFlightError::Start)?;
-    let mut stderr: File = tempfile::tempfile().map_err(SingleFlightError::Start)?;
+    let mut stdout: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
+    let mut stderr: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = stdout.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = stderr.try_clone().map_err(SingleFlightError::Start)?;
     command

@@ -76,10 +76,10 @@ fn injects_the_advice_override_before_status() {
         ArgumentRewrite::Rewritten(os_arguments(&["-c", "advice.statusHints=false", "status"]))
     );
     assert_eq!(
-        decide(&["-C", "/tmp/repo", "status", "--short"]),
+        decide(&["-C", "/fixture/repo", "status", "--short"]),
         ArgumentRewrite::Rewritten(os_arguments(&[
             "-C",
-            "/tmp/repo",
+            "/fixture/repo",
             "-c",
             "advice.statusHints=false",
             "status",

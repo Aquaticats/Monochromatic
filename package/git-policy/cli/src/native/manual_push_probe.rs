@@ -15,6 +15,8 @@
 use super::auto_push_single_flight::{PushGit, git_command};
 /// Unguessable names for the private probe directory.
 use super::random_id::random_uuid;
+/// The per-user scratch directory the probe directory is made in.
+use super::scratch_location::prepare_user_scratch;
 /// Starts that ride out a short shortage of processes.
 use super::start_retry::RetryStart;
 /// Owned OS strings for the probe's Git arguments.
@@ -175,8 +177,8 @@ pub fn parse_update_records(
 }
 
 /// What:
-///  The probe's Git arguments: the invocation's global options, the hook path override,
-///  then `push` with `--dry-run --verify` placed before any `--` terminator.
+///  The probe's Git arguments: the invocation's global options, the hook path override, the switch that turns
+///  configured `pre-push` hooks off, then `push` with `--dry-run --verify` placed before any `--` terminator.
 /// Why:
 ///   The `--` terminator is the user's; the options Git interprets must stay before it.
 ///
@@ -199,6 +201,11 @@ pub fn probe_arguments(
         "core.hooksPath={}",
         hooks_directory.display()
     )));
+    // The probe publishes nothing, so no configured `pre-push` hook may run for it (a configured hook would run once
+    //  more per probe, and the LFS upload hook would upload during a dry run).
+    //  This switch leaves the recording hook in the private directory alone: it disables configured hooks only.
+    arguments.push(OsString::from("-c"));
+    arguments.push(OsString::from("hook.pre-push.enabled=false"));
     arguments.push(OsString::from("push"));
     arguments.extend(post_subcommand[..insertion].iter().cloned());
     arguments.push(OsString::from("--dry-run"));
@@ -481,7 +488,10 @@ pub fn probe_manual_push_updates(
     global_prefix: &[OsString],
     post_subcommand: &[OsString],
 ) -> Result<Vec<PushUpdate>, ManualPushProbeError> {
-    let scratch = std::env::temp_dir().join(format!(
+    // The probe's hook directory lives in the per-user scratch directory of the push's environment, never in the
+    // system temporary directory, and `ScratchGuard` removes it on every path.
+    let parent = prepare_user_scratch(git.environment.as_slice()).map_err(probe_error)?;
+    let scratch = parent.join(format!(
         "cli-git-push-facts-{}",
         random_uuid().map_err(|error| {
             return probe_error(format!("random source failed: {}", error.0));

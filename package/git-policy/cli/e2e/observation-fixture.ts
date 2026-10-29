@@ -20,6 +20,7 @@ import {
 } from './git-read-fixture.ts';
 import type {
   AuxiliaryObservation,
+  ContentState,
   RunObservation,
   StagedDifference,
 } from './invariant-model-fixture.ts';
@@ -395,7 +396,10 @@ export async function observeRun({
   /**
    Final worktree contents of tracked harness paths.
    */
-  const worktree = await Promise.all([...snapshot.worktree,].map(async function compare([path, expected,],) {
+  const worktree = await Promise.all([...snapshot.worktree,].map(async function compare([path, expected,]: readonly [
+    string,
+    ContentState
+  ],) {
     return {
       path,
       expected,

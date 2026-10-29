@@ -128,9 +128,61 @@ TypeScript:
 - Scratch files from this work are in `~/temp/agent` with the `i1810-` prefix (scripts: `i1810-codemod-ts.ts`,
   `i1810-verify-ts.ts`, `i1810-scratch-parent.ts`, `i1810-verify-prod.ts`).
 
-## Next
+## Update, end of the first pass
 
-1. Finish the remaining TypeScript files above, the `.mjs` scripts and `git-policy/cli/bin`, verifying each package.
-2. Add the oxlint restriction, then land the `clippy.toml` ban once `monochromatic-ff` reports.
-3. Handle the config files above.
-4. Commit with `Refs #1810`, and `Closes #1810` on the last commit.
+Landed since the sections above (all `Refs #1810`):
+
+- Both guards are on main as `df9d65a071`, on purpose red: the root `clippy.toml` ban and
+  `no-restricted-syntax/no-system-tmpdir` enabled as an error. The permission check blocked the first attempt; the user
+  allowed the exact command. `cargo clippy` in `git-policy/cli` fails on main until `monochromatic-ff`'s branch lands
+  (it was told).
+- The rule: `oxlint-plugin/no-restricted-syntax/src/rule/no-system-tmpdir.ts` (`166bd64f1a`), with an invalid fixture,
+  an entry in the substantive-rules test and the fixture package's `.oxlintrc.fixture.json`. The plugin test failed
+  without the config entry and passes with it. Exceptions are in `config/oxlint/src/overrides.ts`: the two comparison
+  tests and `upstream-fork`.
+- 21 `.mjs` scripts (including `git-policy/cli/bin`) `7da722af96`; `node --check` only.
+- Fuzz, perf and harness fixtures; `ide/app` scripts (`inspect-bundle.ts` now sweeps `$XDG_RUNTIME_DIR`, where
+  `PrivateBus` puts its directory); `wg/cli-quicker` and `translation-repair/slice-reading` (`c1367ce73b`);
+  the `assertion-source` test (a non-normalized `src/../` path in the fixture made it fail; `path.resolve` fixed it).
+- Codemod hazard: it must skip tests that compare against `tmpdir()` on purpose (now a skip list in
+  `~/temp/agent/i1810-codemod-ts.ts`).
+
+Still red or open:
+
+- Files the rule flags: `ide/app/bin/inspect-cadence.ts` and `inspect-language-toolchain.ts` (and
+  `inspect-language-confinement.ts`, which names the literal `/tmp`) require a project below the system temporary
+  directory as a safety rule; `translation-repair/adjudication/src/corpus-source.unit.test.ts` builds a path that must not
+  exist (kept by `source-scan`'s own allow-list; add it to the override list with that reason);
+  `file-enforcer/core/src/staleness-lock-regression-fixture.ts` (convert and run its tests, expect the #1812 slowness);
+  `package-paused/**` leftovers (`webapp-forge/stress/.../force-push.ts`, `desktop-daemon/editord/.../token-file.ts`).
+- Not seen by the rule (`await import('node:os')` destructuring): `ide/app/task.ts` (five sites, one with an
+  `IDE_NATIVE_PROJECT` below-tmpdir check), `monorepo-task/cli/src/run.ts`, `toml-edit/core.fuzz/task.ts`,
+  `translation-repair/adjudication/.../corpus-commit-probe.unit.test.ts`.
+- Config files with `/tmp`: not touched (`mise.toml` of `music-player/desktop-app`, `linter/monochromatic-lint`,
+  `test-fixture/file-enforcer-perf`, `translation-repair/coverage-census`, `upstream-fork/conf`, and
+  `upstream-fork/deepmerge-ts.fuzz/container/stryker.config.json`). The repository is leaving mise, so edit them only if
+  they survive the migration.
+- Evidence gaps: `pnpr`, `open-code-review-issue`, `ask-user-question`, `mutation-test` and `wg/cli-quicker` have only a
+  type check; the container runners and `inspect-bundle.ts` need a container or compositor.
+- Close #1810 with `Closes #1810` on the last fixing commit once the lists above are empty.
+
+## Final state of this pass
+
+Everything in "Still red or open" above that could be done without another session was done afterwards:
+
+- The rule now also sees `await import('node:os')` destructuring (`5c30c5eb80`), lints clean itself (`86bf2c19fe`), and a
+  repo-wide run over `package` and `package-paused` reports no violations of it.
+- `ide/app` inspection projects live below `${HOME}/temp/agent`; `inspect-language-toolchain.ts` and
+  `inspect-language-confinement.ts` keep `/tmp` because they test the sandbox that replaces it (exception recorded in
+  `config/oxlint/src/overrides.ts`).
+- The task-runner prelude gives inline scripts `scratchBase()` instead of `tmpdir` (`monorepo-task/cli/src/run.ts`); the
+  logger and toml-edit fuzz coverage tasks use it. The logger task runs and then fails its own coverage gate against the
+  frozen baseline (several files marked new), not on the scratch location.
+- `corpus-commit-probe`, the lock regression fixture, the paused leftovers, the IO benchmark and `perf:teardown` are
+  converted. The config audit is finished: container-internal paths stay (listed in the issue comment).
+- Progress comment on #1810: `issuecomment-6500549432`. The issue stays open.
+
+The one open item is not mine: the `git-policy/cli` Rust uses are on `monochromatic-ff`'s branch
+`worktree-agent-ab12997169a0f5b11` (clippy clean with the ban there), and `cargo clippy` for that crate on main stays
+red until the branch is merged. After the merge, close #1810 with a commit carrying `Closes #1810` (or
+`gh issue close 1810 --comment ...`), and decide whether the weak-evidence packages in the issue comment get tests.

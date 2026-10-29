@@ -52,6 +52,7 @@ fn context(fixture: &Fixture) -> GitContext {
         real_git: PathBuf::from(REAL_GIT),
         overlay: hermetic_environment(fixture),
         global_prefix: Vec::new(),
+        common_dir: None,
     };
 }
 

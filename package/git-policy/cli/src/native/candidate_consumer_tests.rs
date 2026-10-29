@@ -180,8 +180,8 @@ fn public_interface_runs_a_policy_pass() {
         policy_pass(Path::new(&directory));
         return;
     }
-    let root: PathBuf =
-        std::env::temp_dir().join(format!("native-consumer-{}", std::process::id()));
+    // Cargo's per-target scratch directory, never the system temporary directory (issue 1809).
+    let root: PathBuf = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("native-consumer-{}", std::process::id()));
     if root.exists() {
         std::fs::remove_dir_all(&root).expect("remove stale fixture");
     }

@@ -1,0 +1,325 @@
+import {
+  describe,
+  expect as verify,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import {
+  mkdtemp,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+
+import {
+  createCostDismissalHandler,
+  findSizeDismissal,
+  costDismissalParser,
+  costDismissalWriter,
+} from './index.ts';
+
+/**
+ Scratch directory for this suite's fixture transcripts and shadow logs.
+ */
+const SCRATCH = await mkdtemp(join(scratchRoot(), 'cost-dismissal-',),);
+
+/**
+ Transcript line with one thinking block.
+
+ @param thinking - Reasoning text of the block
+
+ @returns one JSONL line
+
+ @example
+ ```ts
+ thinkingLine('Quadratic, but the lines are short.');
+ ```
+ */
+function thinkingLine(thinking: string,): string {
+  return JSON.stringify({
+    type: 'assistant',
+    message: {
+      content: [{ type: 'thinking', thinking, },],
+    },
+  },);
+}
+
+/**
+ Runs the handler against a fixture transcript,
+ returning the shadow log contents it produced.
+
+ @param id - Case identifier, so cases never share fixtures
+
+ @param lines - Transcript JSONL lines to write
+
+ @param event - Extra event fields merged into a PreToolUse payload
+
+ @returns the shadow log text after the run
+
+ @example
+ ```ts
+ await runHandler({ id: 'case-1', lines: [thinkingLine('...')], event: { tool_name: 'Edit' } });
+ ```
+ */
+async function runHandler(
+  {
+    id,
+    lines,
+    event = {},
+  }: {
+    readonly id: string;
+    readonly lines: readonly string[];
+    readonly event?: Readonly<Record<string, unknown>>;
+  },
+): Promise<string> {
+  const transcript = join(SCRATCH, `transcript-${id}.jsonl`,);
+  await writeFile(
+    transcript,
+    `${lines.join('\n',)}\n`,
+  );
+  const logPath = join(SCRATCH, `shadow-${id}.jsonl`,);
+  const handler = createCostDismissalHandler({
+    env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
+  },);
+  await handler({
+    hook_event_name: 'PreToolUse',
+    tool_name: 'Edit',
+    tool_input: {},
+    tool_use_id: `tool-${id}`,
+    session_id: `session-${id}`,
+    transcript_path: transcript,
+    cwd: SCRATCH,
+    permission_mode: 'default',
+    ...event,
+  },);
+  return readFile(logPath, 'utf8',);
+}
+
+await describe({
+  name: 'cost-dismissal shadow',
+  children: [
+    it({
+      name: 'flags a sentence that carries cost and a dismissal together',
+      fn: async () => {
+        const hits = findSizeDismissal('The scan is quadratic, but the lines are short.',);
+        verify(hits.length,).toBe(1,);
+        verify(hits[0]?.pattern,).toBe('size-dismissal',);
+        verify(hits[0]?.sentenceIndex,).toBe(0,);
+        verify(hits[0]?.blockHash.length,).toBe(16,);
+      },
+    },),
+    it({
+      name: 'leaves a block that names cost without dismissing it unflagged',
+      fn: async () => {
+        const hits = findSizeDismissal('The scan is quadratic. Rewrite it as one linear pass.',);
+        verify(hits.length,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'records a hit with hashes and indexes and never thinking text',
+      fn: async () => {
+        const raw = await runHandler({
+          id: 'hit',
+          lines: [thinkingLine('Quadratic, but the lines are short.')],
+        },);
+        const record = JSON.parse(raw.trimEnd(),) as {
+          readonly textBlocks: number;
+          readonly hookEvent: string;
+          readonly toolName: string;
+          readonly hits: readonly { readonly pattern: string, }[];
+        };
+        verify(record.textBlocks,).toBe(1,);
+        verify(record.hookEvent,).toBe('PreToolUse',);
+        verify(record.toolName,).toBe('Edit',);
+        verify(record.hits.length,).toBe(1,);
+        verify(raw.includes('lines are short'),).toBe(false,);
+        verify(raw.includes('Quadratic'),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'records the event with zero hits when thinking dismisses nothing',
+      fn: async () => {
+        const raw = await runHandler({
+          id: 'clean',
+          lines: [thinkingLine('One linear pass over the rows.')],
+        },);
+        const record = JSON.parse(raw.trimEnd(),) as {
+          readonly textBlocks: number;
+          readonly hits: readonly unknown[];
+        };
+        verify(record.textBlocks,).toBe(1,);
+        verify(record.hits.length,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'does not re-record a hit within one event type',
+      fn: async () => {
+        const transcript = join(SCRATCH, 'transcript-dedupe.jsonl',);
+        await writeFile(
+          transcript,
+          `${thinkingLine('Quadratic, but the lines are short.')}\n`,
+        );
+        const logPath = join(SCRATCH, 'shadow-dedupe.jsonl',);
+        const handler = createCostDismissalHandler({
+          env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
+        },);
+        await handler({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Edit',
+          tool_input: {},
+          tool_use_id: 'tool-dedupe-1',
+          session_id: 'session-dedupe',
+          transcript_path: transcript,
+          cwd: SCRATCH,
+          permission_mode: 'default',
+        },);
+        await handler({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: {},
+          tool_use_id: 'tool-dedupe-2',
+          session_id: 'session-dedupe',
+          transcript_path: transcript,
+          cwd: SCRATCH,
+          permission_mode: 'default',
+        },);
+        const raw = await readFile(logPath, 'utf8',);
+        const records = raw.trimEnd()
+          .split('\n',)
+          .map(function toRecord(line,) {
+            return JSON.parse(line,) as { readonly hits: readonly unknown[], };
+          },);
+        verify(records.length,).toBe(2,);
+        verify(records[0]?.hits.length,).toBe(1,);
+        verify(records[1]?.hits.length,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'keeps one observation per event type for the same hit',
+      fn: async () => {
+        const transcript = join(SCRATCH, 'transcript-events.jsonl',);
+        await writeFile(
+          transcript,
+          `${thinkingLine('Quadratic, but the lines are short.')}\n`,
+        );
+        const logPath = join(SCRATCH, 'shadow-events.jsonl',);
+        const handler = createCostDismissalHandler({
+          env: { MONOCHROMATIC_COST_DISMISSAL_LOG: logPath, },
+        },);
+        await handler({
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Edit',
+          tool_input: {},
+          tool_use_id: 'tool-events',
+          session_id: 'session-events',
+          transcript_path: transcript,
+          cwd: SCRATCH,
+          permission_mode: 'default',
+        },);
+        await handler({
+          hook_event_name: 'PostToolUse',
+          tool_name: 'Edit',
+          tool_input: {},
+          tool_response: {},
+          tool_use_id: 'tool-events',
+          session_id: 'session-events',
+          transcript_path: transcript,
+          cwd: SCRATCH,
+          permission_mode: 'default',
+        },);
+        await handler({
+          hook_event_name: 'Stop',
+          stop_hook_active: false,
+          session_id: 'session-events',
+          transcript_path: transcript,
+          cwd: SCRATCH,
+          permission_mode: 'default',
+        },);
+        const raw = await readFile(logPath, 'utf8',);
+        const records = raw.trimEnd()
+          .split('\n',)
+          .map(function toRecord(line,) {
+            return JSON.parse(line,) as {
+              readonly hookEvent: string;
+              readonly toolUseId?: string;
+              readonly hits: readonly unknown[];
+            };
+          },);
+        verify(records.length,).toBe(3,);
+        verify(records[0]?.hookEvent,).toBe('PreToolUse',);
+        verify(records[1]?.hookEvent,).toBe('PostToolUse',);
+        verify(records[2]?.hookEvent,).toBe('Stop',);
+        verify(records[0]?.hits.length,).toBe(1,);
+        verify(records[1]?.hits.length,).toBe(1,);
+        verify(records[2]?.hits.length,).toBe(1,);
+        verify(records[0]?.toolUseId,).toBe('tool-events',);
+      },
+    },),
+    it({
+      name: 'reads Codex rollout rows: reasoning summaries and assistant text',
+      fn: async () => {
+        const raw = await runHandler({
+          id: 'codex',
+          lines: [
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'reasoning',
+                summary: [{ type: 'summary_text', text: 'Quadratic, but the rows are short.', },],
+                content: null,
+              },
+            },),
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'message',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: 'One linear pass over the rows.', },],
+              },
+            },),
+            JSON.stringify({
+              type: 'response_item',
+              payload: {
+                type: 'message',
+                role: 'user',
+                content: [{ type: 'input_text', text: 'Quadratic, but the rows are short.', },],
+              },
+            },),
+          ],
+        },);
+        const record = JSON.parse(raw.trimEnd(),) as {
+          readonly textBlocks: number;
+          readonly hits: readonly { readonly blockHash: string, }[];
+        };
+        verify(record.textBlocks,).toBe(2,);
+        verify(record.hits.length,).toBe(1,);
+        verify(raw.includes('rows are short'),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'skips malformed transcript rows and still records the event',
+      fn: async () => {
+        const raw = await runHandler({
+          id: 'malformed',
+          lines: [
+            'not json at all',
+            thinkingLine('Quadratic, but the lines are short.'),
+            '{also broken',
+          ],
+        },);
+        const record = JSON.parse(raw.trimEnd(),) as {
+          readonly hits: readonly unknown[];
+        };
+        verify(record.hits.length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'parses a hook payload and serializes an allowing output',
+      fn: async () => {
+        const event = costDismissalParser('{"hook_event_name":"Stop"}',);
+        verify(event.hook_event_name,).toBe('Stop',);
+        verify(costDismissalWriter({},),).toBe('{}',);
+      },
+    },),
+  ],
+},);

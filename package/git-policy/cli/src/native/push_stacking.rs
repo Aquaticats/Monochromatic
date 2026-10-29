@@ -29,6 +29,8 @@ use super::child_environment::environment_with_overlay;
 use super::command_push::stackable_option_tokens;
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
+/// The Git LFS upload that rides on the push itself.
+use super::lfs_pre_push::with_lfs_hook;
 /// The destination and object names the push would send.
 use super::manual_push_probe::probe_manual_push_updates;
 /// The settled or plain run of the forwarded command.
@@ -187,9 +189,14 @@ pub fn stack_failed_push(
 /// process.exitCode = await runStackedPush(forward);
 /// ```
 pub fn run_stacked_push(forward: &PushForward) -> i32 {
+    // Only the push itself uploads LFS objects; the probe and the merge push below start from the unchanged arguments.
+    let first_arguments: Vec<OsString> = match forward.lfs_pre_push.as_deref() {
+        Some(executable) => with_lfs_hook(forward.arguments.as_slice(), executable),
+        None => forward.arguments.clone(),
+    };
     let code: i32 = match run_forwarded_git(
         forward.real_git.as_path(),
-        forward.arguments.as_slice(),
+        first_arguments.as_slice(),
         forward.overlay.as_slice(),
         forward.copy.as_deref(),
     ) {
@@ -208,6 +215,7 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
         real_git: forward.real_git.clone(),
         cwd,
         environment: environment_with_overlay(forward.environment.as_slice(), forward.overlay.as_slice()),
+        lfs_pre_push: None,
     };
     let Some(prefix) = forward.arguments.get(..forward.subcommand_index) else {
         return code;

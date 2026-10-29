@@ -326,7 +326,10 @@ export async function postCommitRuns(repository: ScenarioRepository,): Promise<R
     function byToken(token,) {
       return token;
     },
-  ),].map(function runCount([token, tokenRuns,],) {
+  ),].map(function runCount([token, tokenRuns,]: readonly [
+    string,
+    readonly string[]
+  ],) {
     return [
       token,
       tokenRuns.length,

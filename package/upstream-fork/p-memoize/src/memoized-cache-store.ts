@@ -25,7 +25,6 @@ import type {
  ```
  */
 export const CACHE_DISABLED: unique symbol = Symbol(
-  // mutation-test-disable-next-line string -- the description is debugging metadata only; consumers narrow by symbol identity
   'memoized function caches nothing',
 );
 

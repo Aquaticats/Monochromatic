@@ -44,10 +44,12 @@ export type TwoSizeMeasurement = {
 };
 
 /**
- Smallest denominator the ratio accepts,
- so a base timing at the clock floor cannot fabricate a huge ratio.
+ Smallest base timing this harness reads reliably.
+ A base below it cannot carry a ratio,
+ so the measurement refuses rather than flooring the denominator
+ and suppressing the growth figure.
  */
-const MIN_BASE_MS = 0.001;
+const MIN_BASE_MS = 0.01;
 
 /**
  Rounds discarded before measurement,
@@ -108,6 +110,40 @@ function largest(values: readonly number[],): number {
 }
 
 /**
+ Thrown when the measurement is asked for something it cannot honestly time
+ or compute.
+ */
+export class TwoSizeRatioInputError extends Error {
+  /**
+   Rejects the measurement request before any timing runs.
+
+   @param message - Why the requested measurement cannot be honest
+   */
+  constructor(message: string,) {
+    super(message,);
+    this.name = 'TwoSizeRatioInputError';
+  }
+}
+
+/**
+ Whether a value behaves like a promise,
+ since a thenable return means the work outlives the timing call.
+
+ @param value - Return value of the work under test
+
+ @returns True when awaiting the value would be required to time it
+ */
+function isThenable(value: unknown,): boolean {
+  if ((value === null) || ((typeof value) !== 'object')) return false;
+  /**
+   Possible then member,
+   read once so the membership test cannot mix operators.
+   */
+  const { then, } = value as { readonly then?: unknown, };
+  return (typeof then) === 'function';
+}
+
+/**
  Times one call of the work under test.
 
  @param run - Work under test whose single call is timed
@@ -127,7 +163,14 @@ function timeOne<Input>({
    Timestamp before the call.
    */
   const started = performance.now();
-  run(input,);
+  /**
+   Return value of the call,
+   inspected only to reject work that finishes after the timing does.
+   */
+  const returned = run(input,);
+  if (isThenable(returned)) {
+    throw new TwoSizeRatioInputError('run returned a thenable, so its work outlives the timing call; time synchronous work, or await it outside this helper.',);
+  }
   /**
    Timestamp after the call.
    */
@@ -182,6 +225,18 @@ export function measureTwoSizeRatio<Input>({
   size?: number;
   repeats?: number;
 },): TwoSizeMeasurement {
+  if (repeats < 1) {
+    throw new TwoSizeRatioInputError(`repeats must be at least one, since zero rounds leave both round lists empty and the ratio NaN, which passes vacuously; got ${String(repeats)}.`,);
+  }
+  if (!Number.isSafeInteger(repeats)) {
+    throw new TwoSizeRatioInputError(`repeats must be a safe integer, since rounds are counted one at a time; got ${String(repeats)}.`,);
+  }
+  if (size < 1) {
+    throw new TwoSizeRatioInputError(`size must be at least one, since the ratio reads two input sizes; got ${String(size)}.`,);
+  }
+  if (!Number.isFinite(size)) {
+    throw new TwoSizeRatioInputError(`size must be finite, since the ratio reads two input sizes; got ${String(size)}.`,);
+  }
   for (let round = 0; round < WARMUP_ROUNDS; round += 1) {
     /**
      Input of one discarded warmup round.
@@ -234,6 +289,9 @@ export function measureTwoSizeRatio<Input>({
     bestMs: smallest(baseRounds,),
     worstMs: largest(baseRounds,),
   };
+  if (base.bestMs < MIN_BASE_MS) {
+    throw new TwoSizeRatioInputError(`base timing ${base.bestMs} ms is below the ${MIN_BASE_MS} ms this harness reads reliably, so no growth figure is readable from it; raise size until the base timing clears that floor.`,);
+  }
   /**
    Best and worst of the doubled-size rounds.
    */
@@ -418,7 +476,46 @@ export function expectLinearTimeGrowth<Input>({
     size,
     repeats,
   },);
-  if (measurement.ratio > maxRatio) {
+  if (maxRatio <= 0) {
+    throw new TwoSizeRatioInputError(`maxRatio must be positive, since a non-positive bound rejects everything; got ${String(maxRatio)}.`,);
+  }
+  if (!Number.isFinite(maxRatio)) {
+    throw new TwoSizeRatioInputError(`maxRatio must be finite, since a NaN comparison is false and would pass anything; got ${String(maxRatio)}.`,);
+  }
+  /**
+   Destructured sizes and timings,
+   each read once for the verdict below.
+   */
+  const {
+    base,
+    doubled,
+  } = measurement;
+  /**
+   Doubled best time,
+   the numerator of the conservative figure.
+   */
+  const doubledBestMs = doubled.bestMs;
+  /**
+   Base worst time,
+   the denominator of the conservative figure.
+   */
+  const baseWorstMs = base.worstMs;
+  /**
+   Floor for the denominator,
+   so a clock-floor base timing cannot fabricate growth.
+   */
+  const denominatorFloor = Math.max(
+    baseWorstMs,
+    MIN_BASE_MS,
+  );
+  /**
+   Conservative growth figure:
+   doubled best time over base worst time,
+   so noise in the base arm can only make the verdict more forgiving
+   and a failure stands above the measured spread.
+   */
+  const conservativeRatio = doubledBestMs / denominatorFloor;
+  if (conservativeRatio > maxRatio) {
     throw new TwoSizeRatioError({
       measurement,
       maxRatio,

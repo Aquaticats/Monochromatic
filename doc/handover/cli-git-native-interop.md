@@ -1,5 +1,9 @@
 # cli-git native interoperability matrix
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 Evidence for the trailing gate "old-and-new wrapper interop matrix" of
 `doc/handover/cli-git-rust-implementation.md`.
 Paths starting with `src/`, `bin/` or `native-interop/` are relative to `package/git-policy/cli/`;

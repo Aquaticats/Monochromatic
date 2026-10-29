@@ -21,13 +21,7 @@ use std::path::{Path, PathBuf};
 
 /// Create one empty fixture directory owned by this test process and test name.
 fn fixture(name: &str) -> PathBuf {
-    let root: PathBuf =
-        std::env::temp_dir().join(format!("native-config-file-{}-{name}", std::process::id()));
-    if root.exists() {
-        std::fs::remove_dir_all(&root).expect("remove stale fixture");
-    }
-    std::fs::create_dir(&root).expect("fresh fixture");
-    return root;
+    return crate::test_support::fixture_with_prefix("native-config-file", name);
 }
 
 /// Remove only the fixture directory this test created.

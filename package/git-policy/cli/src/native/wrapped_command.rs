@@ -566,6 +566,8 @@ fn prepare_manual_push<F: RepositoryFacts>(
         real_git: context.real_git,
         cwd,
         environment: environment_with_overlay(environment, context.overlay.as_slice()),
+        // The scope probe is a dry-run push; an upload during it would run before any policy has decided.
+        lfs_pre_push: None,
     };
     let scope = manual_push_scope(&git, context.global_prefix.as_slice(), post_subcommand)?;
     checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(scope));

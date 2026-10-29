@@ -43,7 +43,7 @@ for (const file of files) {
       run: `
 const root = join(process.env.TASK_REPO_ROOT, 'package', 'logger', 'core.fuzz')
 const mode = (process.env.usage_write === 'true') ? 'write' : 'check'
-const dir = mkdtempSync(join(tmpdir(), 'logger-cov-'))
+const dir = mkdtempSync(join(scratchBase(), 'logger-cov-'))
 try {
   execFileSync(process.execPath, ['--localstorage-file', join(dir, 'localstorage.sqlite'), join(root, 'src', 'coverage-driver.ts')], { stdio: 'inherit', env: { ...process.env, NODE_V8_COVERAGE: join(dir, 'v8') } })
   execFileSync(process.execPath, [join(root, 'src', 'coverage-report.ts'), mode, join(dir, 'v8'), join(root, 'coverage-baseline.json')], { stdio: 'inherit' })

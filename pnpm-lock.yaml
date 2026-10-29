@@ -498,6 +498,9 @@ importers:
       '@monochromatic-dev/claude-code-plugin-correction-reminder':
         specifier: workspace:*
         version: link:package/claude-code-plugin/correction-reminder
+      '@monochromatic-dev/claude-code-plugin-cost-dismissal':
+        specifier: workspace:*
+        version: link:package/claude-code-plugin/cost-dismissal
       '@monochromatic-dev/claude-code-plugin-guardrail':
         specifier: workspace:*
         version: link:package/claude-code-plugin/guardrail
@@ -1042,6 +1045,21 @@ importers:
         version: 26.6.5
 
   package/claude-code-plugin/correction-reminder:
+    devDependencies:
+      '@monochromatic-dev/claude-code-plugin-source':
+        specifier: workspace:*
+        version: link:../source
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/claude-code-plugin/cost-dismissal:
     devDependencies:
       '@monochromatic-dev/claude-code-plugin-source':
         specifier: workspace:*
@@ -1983,6 +2001,16 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+
+  package/dsh-plugin/cost-dismissal:
+    dependencies:
+      zod:
+        specifier: '>=4.6.6'
+        version: 4.6.7
+    devDependencies:
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
 
   package/dsh-plugin/neuralwatt:
     dependencies:
@@ -3745,6 +3773,34 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+
+  package/pi-plugin/cost-dismissal:
+    dependencies:
+      '@monochromatic-dev/logger-core':
+        specifier: workspace:*
+        version: link:../../logger/core
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+    devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 'catalog:'
+        version: 1.4.0(zod@4.6.7)
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.10.0
 
   package/pi-plugin/current-time-context:
     dependencies:

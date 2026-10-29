@@ -74,10 +74,9 @@ fn scenario(name: &str, sleep_seconds: &str) -> Scenario {
     let pre_push = hooks.join("pre-push");
     std::fs::write(&pre_push, pre_push_script(&log, &gate, sleep_seconds)).expect("pre-push");
     std::fs::set_permissions(&pre_push, std::fs::Permissions::from_mode(0o755)).expect("mode");
-    git(
-        &repo,
-        &["config", "core.hooksPath", hooks.to_str().expect("utf-8")],
-    );
+    // A configuration hook: traditional hooks never run through the wrapper's real-Git starts.
+    git(&repo, &["config", "hook.control.event", "pre-push"]);
+    git(&repo, &["config", "hook.control.command", pre_push.to_str().expect("utf-8")]);
     git(
         &repo,
         &["commit", "--quiet", "--allow-empty", "--message=base"],
@@ -217,26 +216,32 @@ fn helper_auto_pushes() {
     let repo = PathBuf::from(std::env::var_os(HELPER_REPO).expect("repo"));
     let landed = std::env::var(HELPER_LANDED).expect("landed");
     let result = PathBuf::from(std::env::var_os(HELPER_RESULT).expect("result"));
+    let mut environment: Vec<(OsString, OsString)> = [
+        ("PATH", "/usr/bin:/bin"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
+        ("GIT_AUTHOR_NAME", "Fixture"),
+        ("GIT_AUTHOR_EMAIL", "fixture@example.invalid"),
+        ("GIT_COMMITTER_NAME", "Fixture"),
+        ("GIT_COMMITTER_EMAIL", "fixture@example.invalid"),
+    ]
+    .iter()
+    .map(|(name, value)| {
+        return (OsString::from(name), OsString::from(value));
+    })
+    .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
     let git_context = PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: repo,
-        environment: [
-            ("PATH", "/usr/bin:/bin"),
-            ("GIT_CONFIG_NOSYSTEM", "1"),
-            ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
-            ("GIT_AUTHOR_NAME", "Fixture"),
-            ("GIT_AUTHOR_EMAIL", "fixture@example.invalid"),
-            ("GIT_COMMITTER_NAME", "Fixture"),
-            ("GIT_COMMITTER_EMAIL", "fixture@example.invalid"),
-        ]
-        .iter()
-        .map(|(name, value)| {
-            return (OsString::from(name), OsString::from(value));
-        })
-        .collect(),
+        environment,
+        lfs_pre_push: None,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
-    let mut err: Vec<u8> = Vec::new();
+    // The terminal text goes to a file as it is written, so a case can see that this helper waits, while it waits.
+    let terminal: PathBuf = result.with_extension("terminal");
+    let mut err: std::fs::File = std::fs::File::create(&terminal).expect("terminal file");
     let reported = auto_push(&git_context, &landed, &mut err).expect("auto-push ran");
     let outcome = match reported.outcome {
         AutoPushOutcome::Skipped => "skipped",
@@ -250,7 +255,8 @@ fn helper_auto_pushes() {
         reported.shown.replace('\n', "\\n"),
     );
     std::fs::write(&result, body).expect("write outcome");
-    std::io::Write::write_all(&mut std::io::stderr(), &err).expect("terminal");
+    let shown_terminal: Vec<u8> = std::fs::read(&terminal).expect("terminal text");
+    std::io::Write::write_all(&mut std::io::stderr(), &shown_terminal).expect("terminal");
 }
 
 /// Racing processes on one branch: fewer pushes than commits, and every commit reaches the remote.
@@ -339,7 +345,12 @@ fn a_joined_push_failure_is_reported_by_every_commit_it_covered() {
         assert!(Instant::now() < deadline, "the second helper never started");
         std::thread::sleep(Duration::from_millis(20));
     }
-    std::thread::sleep(Duration::from_secs(1));
+    // The failing push is released only once the second helper has said that it waits behind it.
+    let waiting_notice = result_b.with_extension("terminal");
+    while !std::fs::read_to_string(&waiting_notice).is_ok_and(|text| { return text.contains("waiting for process"); }) {
+        assert!(Instant::now() < deadline, "the second helper never said that it waits");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     std::fs::write(&release, "").expect("release the failing push");
     let (report_a, _terminal_a) = finish(first, &result_a);
     let (report_b, _terminal_b) = finish(second, &result_b);
@@ -448,7 +459,9 @@ fn skips_silently_without_an_upstream_or_an_origin_remote() {
                     OsString::from("GIT_CONFIG_GLOBAL"),
                     OsString::from("/nonexistent-global-config"),
                 ),
+                crate::test_support::scratch_environment().remove(0),
             ],
+            lfs_pre_push: None,
         },
         &landed,
         &mut err,

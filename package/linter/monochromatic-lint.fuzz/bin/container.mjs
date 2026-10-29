@@ -22,7 +22,7 @@ import {
 import {
   copyNextest,
   nextestCopyLines
-} from '../../../git-policy/cli/bin/native-nextest-snapshot.mjs';
+} from '../../../git-policy/cli/bin/native-nextest-snapshot.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,

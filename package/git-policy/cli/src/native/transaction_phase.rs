@@ -55,10 +55,14 @@ pub enum Phase {
     IndexInstalled,
     /// A landing race was lost; repeatable, numbered by occurrence.
     RaceLost,
+    /// An isolated merge wrote its intent record and has not yet asked the checkout to be updated.
+    MergeIntent,
+    /// The checkout was updated and the branch moved for an isolated merge, whose intent record is still on disk.
+    MergeApplied,
 }
 
 /// Every phase in transaction order, which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 7] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 9] = [
     Phase::CaptureLocked,
     Phase::PreparationDone,
     Phase::LandingLocked,
@@ -66,6 +70,8 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 7] = [
     Phase::RefUpdated,
     Phase::IndexInstalled,
     Phase::RaceLost,
+    Phase::MergeIntent,
+    Phase::MergeApplied,
 ];
 
 /// Phase names in transaction order.
@@ -88,6 +94,8 @@ impl Phase {
             Phase::RefUpdated => return "ref-updated",
             Phase::IndexInstalled => return "index-installed",
             Phase::RaceLost => return "race-lost",
+            Phase::MergeIntent => return "merge-intent",
+            Phase::MergeApplied => return "merge-applied",
         }
     }
 }

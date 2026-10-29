@@ -4,6 +4,8 @@
  @module
  */
 
+import { getEventListeners, } from 'node:events';
+
 import {
   describe,
   expect,
@@ -14,6 +16,7 @@ import { pMap, } from '../dist/final/neutral/index.mjs';
 
 import {
   createGate,
+  rejectionOf,
   yieldTurn,
 } from './test-support.ts';
 
@@ -184,6 +187,70 @@ await describe({
         expect(results,).toEqual([5],);
         abortController.abort();
         await yieldTurn();
+      },
+    },),
+
+    it({
+      name: 'listens for abort while the run is going and stops listening once it resolved',
+      fn: async () => {
+        const abortController = new AbortController();
+        const gate = createGate();
+        const running = pMap({
+          iterable: [5],
+          mapper: async function held(value: number,): Promise<number> {
+            await gate.open;
+            return value;
+          },
+          options: {
+            signal: abortController.signal,
+          },
+        },);
+        await yieldTurn();
+        /**
+         Abort listeners the signal holds while the mapper is still going.
+         */
+        const listenersWhileRunning = getEventListeners(
+          abortController.signal,
+          'abort',
+        ).length;
+        gate.release();
+        await running;
+        /**
+         Abort listeners the signal holds after the run resolved.
+         */
+        const listenersAfterResolve = getEventListeners(
+          abortController.signal,
+          'abort',
+        ).length;
+
+        expect(listenersWhileRunning,).toBe(1,);
+        expect(listenersAfterResolve,).toBe(0,);
+      },
+    },),
+
+    it({
+      name: 'stops listening for abort once the run rejected',
+      fn: async () => {
+        const abortController = new AbortController();
+        /**
+         Failure the mapper throws.
+         */
+        const failure = new Error('mapper failed',);
+        const caught = await rejectionOf(pMap({
+          iterable: [5],
+          mapper: function failing(): number {
+            throw failure;
+          },
+          options: {
+            signal: abortController.signal,
+          },
+        },),);
+
+        expect(caught,).toBe(failure,);
+        expect(getEventListeners(
+          abortController.signal,
+          'abort',
+        ),).toHaveLength(0,);
       },
     },),
   ],

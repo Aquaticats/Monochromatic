@@ -291,6 +291,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
      Results by input position, including `pMapSkip` entries staged for
      removal.
      */
+// mutation-test-disable-next-line array -- a seed at position 0 never reaches the caller: a run that settles with a nonempty prefix has assigned position 0 (every position below `doneIndex` is assigned), and a run cut at position 0 hands back the empty slice on the filtered path whether the array is seeded or not
     const result: unknown[] = [];
     /**
      Failures staged by input position like `result`, so the
@@ -339,10 +340,8 @@ export async function mapConcurrently<Element, NewElement, Result>(
     /**
      Removes the abort listener, called whenever the run settles.
      */
-// mutation-test-disable-next-line block, string -- cleanup only: the abort listener is registered `once` and no public surface observes its removal after the run settles
     function cleanup(): void {
       signal?.removeEventListener(
-        // mutation-test-disable-next-line string -- cleanup only: the abort listener is registered `once` and no public surface observes which event name it detaches from
         'abort',
         signalListener,
       );
@@ -370,7 +369,6 @@ export async function mapConcurrently<Element, NewElement, Result>(
       if (state.isResolved)
         return;
 
-// mutation-test-disable-next-line boolean -- spawn-loop control only: the loop pulls race the rejection and the run settlement is guarded elsewhere
       state.isResolved = true;
       settlement.reject(reason,);
       cleanup();
@@ -437,15 +435,18 @@ export async function mapConcurrently<Element, NewElement, Result>(
         return;
 
       for (const pendingIndex of pendingIndexes)
+// mutation-test-disable-next-line equality:<= -- the position that equals `doneIndex` was a pull that reported `done` or a mapper that returned `pMapStop`, and both delete it from `pendingIndexes` before any settle check runs
         if (pendingIndex < state.doneIndex)
           return;
 
+// mutation-test-disable-next-line conditional:true -- with `stopOnError` true nothing is ever staged into `errors` (only the `stopOnError` false branch of the catch writes it), so entering the block collects nothing and falls through
       if (!stopOnError) {
         /**
          Failures of the positions before the `done`, in input order.
          */
         const collectedErrors: unknown[] = [];
 
+// mutation-test-disable-next-line equality -- no failure is staged at the position that equals `doneIndex` (a `done` pull has no mapper call and a `pMapStop` mapper call did not fail), and a position at `errors.length` is not in `errors`, so visiting either bound collects nothing
         for (let position = 0; position < Math.min(
           state.doneIndex,
           errors.length,
@@ -466,7 +467,6 @@ export async function mapConcurrently<Element, NewElement, Result>(
       // `for await` does on a `break`. Not at the stop itself, as a source
       // that settles its `next()` calls out of call order may still owe an
       // earlier element, and closing could drop it.
-// mutation-test-disable-next-line conditional, block -- close bookkeeping only: closing an already-ended source is a no-op the source cannot observe through results
       if (!state.isIterableDone)
         void closeIterator(iterator,);
 
@@ -484,7 +484,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
       // unassigned when its pull reported `done`, and the lowest such position
       // is `doneIndex`. So the array is dense below `lastIndex`, and without
       // skips it can be handed over untouched.
-// mutation-test-disable-next-line conditional, block, equality -- result-shaping equivalence: with no skips and nothing cut off the filtered pass resolves the identical values
+// mutation-test-disable-next-line conditional:false, block -- result-shaping equivalence: with no skips and nothing cut off the filtered pass resolves the identical values, so taking the filtered pass, or skipping the dense hand-over, changes no result
       if ((lastIndex === result.length) && (state.skippedCount === 0)) {
         resolve(result,);
         return;
@@ -516,7 +516,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
     async function pullNext(): Promise<void> {
       // After a `done`, a pull would take an item nobody is going to map,
       // which a one-shot source, like a queue, would lose.
-// mutation-test-disable-next-line conditional, logical, equality -- spawn-loop control only: pulls after `done` or settlement are answered with `done` without touching the source, so pull counts and settlement are identical
+// mutation-test-disable-next-line equality -- `currentIndex` is incremented when a pull starts, before that pull can set `doneIndex` to its position, so a finite `doneIndex` is always below `currentIndex`
       if ((state.isResolved) || (state.currentIndex >= state.doneIndex))
         return;
 
@@ -549,6 +549,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
 
         // A failure from a pull after the end of the source is dropped, as
         // `done` is final, so it must have no effect.
+// mutation-test-disable-next-line equality:<= -- a pull that threw never reported `done`, so its own position cannot equal `doneIndex`
         if (index < state.doneIndex)
           throw error;
 
@@ -618,8 +619,9 @@ export async function mapConcurrently<Element, NewElement, Result>(
            */
           const element = await item.value;
 
-// mutation-test-disable-next-line conditional, logical, equality -- post-settle continuation only: the run promise is already settled and the result array it would write is discarded
+// mutation-test-disable-next-line equality:> -- the position of this runner is never the one that set `doneIndex`: a `done` pull has no runner, and this runner has not yet returned `pMapStop`
           if ((state.isResolved) || (position >= state.doneIndex))
+// mutation-test-disable-next-line boolean -- the next `pullNext` returns at its entry guard when the run settled or `currentIndex` is at or past `doneIndex`, without touching the source, so whether this runner goes on is unobservable
             flow.pullsOnward = false;
           else {
             /**
@@ -632,16 +634,19 @@ export async function mapConcurrently<Element, NewElement, Result>(
 
             // Ignore an element produced after an earlier pull reported
             // `done` or an earlier mapper returned `pMapStop`.
-// mutation-test-disable-next-line conditional, equality -- post-done continuation only: the result is cut at `doneIndex` when it settles, so a stored value past it is never observed
+// mutation-test-disable-next-line equality:> -- the position of this runner is never the one that set `doneIndex`: a `done` pull has no runner, and this runner has not yet returned `pMapStop`
             if (position >= state.doneIndex)
+// mutation-test-disable-next-line boolean -- the next `pullNext` returns at its entry guard when the run settled or `currentIndex` is at or past `doneIndex`, without touching the source, so whether this runner goes on is unobservable
               flow.pullsOnward = false;
             else if (value === pMapStop) {
               // A stop ends the result here, like a `done` from the source,
               // so settling waits only for the earlier elements.
               state.doneIndex = position;
+// mutation-test-disable-next-line boolean -- the next `pullNext` returns at its entry guard when the run settled or `currentIndex` is at or past `doneIndex`, without touching the source, so whether this runner goes on is unobservable
               flow.pullsOnward = false;
             }
             else {
+// mutation-test-disable-next-line conditional:true -- `skippedCount` only picks the dense hand-over at the settle step, and the filtered pass drops no non-skip value, so counting a non-skip value changes no result
               if (value === pMapSkip)
                 state.skippedCount += 1;
 
@@ -657,7 +662,9 @@ export async function mapConcurrently<Element, NewElement, Result>(
         catch (error) {
           // A failure past the end of the source is dropped, as `done` is
           // final.
+// mutation-test-disable-next-line equality:> -- no failure arrives at the position that equals `doneIndex`: a `done` pull has no mapper call, and the mapper call that returned `pMapStop` did not fail
           if (position >= state.doneIndex)
+// mutation-test-disable-next-line boolean -- the next `pullNext` returns at its entry guard when the run settled or `currentIndex` is at or past `doneIndex`, without touching the source, so whether this runner goes on is unobservable
             flow.pullsOnward = false;
           else if (isSettled)
             result[position] = {
@@ -666,6 +673,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
             };
           else if (stopOnError) {
             reject(error,);
+// mutation-test-disable-next-line boolean -- the next `pullNext` returns at its entry guard when the run settled or `currentIndex` is at or past `doneIndex`, without touching the source, so whether this runner goes on is unobservable
             flow.pullsOnward = false;
           }
           else
@@ -675,6 +683,7 @@ export async function mapConcurrently<Element, NewElement, Result>(
         pendingIndexes.delete(position,);
         settleIfFinished();
 
+// mutation-test-disable-next-line conditional:false -- every case that clears `pullsOnward` also settles the run or puts `doneIndex` at or below this position, and the next `pullNext` returns at its entry guard in both, without touching the source
         if (!flow.pullsOnward)
           return;
 
@@ -714,12 +723,12 @@ export async function mapConcurrently<Element, NewElement, Result>(
           await pullNext();
           /* oxlint-enable no-await-in-loop */
         }
-// mutation-test-disable-next-line block -- race-masked: the detached runner tail catch rejects the run when this catch block is emptied
         catch (error) {
           reject(error,);
           break;
         }
 
+// mutation-test-disable-next-line equality:> -- `currentIndex` is incremented when a pull starts, before that pull can set `doneIndex` to its position, so a finite `doneIndex` is always below `currentIndex`
         if ((state.isResolved) || (state.currentIndex >= state.doneIndex))
           break;
       }

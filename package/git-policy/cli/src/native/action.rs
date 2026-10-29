@@ -65,6 +65,9 @@ pub struct PushForward {
     pub subcommand_index: usize,
     /// The invocation's environment, which the integration step starts Git with.
     pub environment: Vec<(OsString, OsString)>,
+    /// The wrapper executable the Git LFS pre-push hook names, when this push must upload LFS objects first.
+    ///  Only the push itself carries the hook; the integration step's dry-run queries do not.
+    pub lfs_pre_push: Option<PathBuf>,
 }
 
 /// What:

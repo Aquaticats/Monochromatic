@@ -18,6 +18,8 @@ use super::auto_push_single_flight::{PushAttempt, SingleFlightError};
 /// The diagnostic log of the wrapper.
 use super::diagnostic_log::debug;
 /// Starts that ride out a short shortage of processes.
+/// The anonymous output file of the push, made in the per-user scratch directory.
+use super::scratch_location::scratch_file;
 use super::start_retry::RetryStart;
 /// Owned OS strings of the child environment.
 use std::ffi::{OsStr, OsString};
@@ -349,8 +351,9 @@ pub fn run_bounded_push(
     mut command: Command,
     deadline: Duration,
     grace: Duration,
+    environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
-    let mut output: File = tempfile::tempfile().map_err(SingleFlightError::Start)?;
+    let mut output: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = output.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = output.try_clone().map_err(SingleFlightError::Start)?;
     command

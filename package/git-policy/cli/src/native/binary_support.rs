@@ -66,7 +66,7 @@ pub const FIXTURE_ROOT_VARIABLE: &str = "CLI_GIT_TEST_ROOT";
 /// The directory fixtures are created in.
 ///  Cargo's per-target scratch directory, never `/tmp`: a shared tmpfs with a per-user quota fills up
 ///  when failing tests leave fixtures behind (issue 1809), and then every command of every session fails.
-fn fixture_root() -> PathBuf {
+pub fn fixture_root() -> PathBuf {
     let root: PathBuf = std::env::var_os(FIXTURE_ROOT_VARIABLE)
         .map_or_else(|| { return PathBuf::from(env!("CARGO_TARGET_TMPDIR")); }, PathBuf::from);
     std::fs::create_dir_all(&root).expect("fixture root");
@@ -158,6 +158,20 @@ pub fn bounded(fixture: &Fixture, program: &Path, path: &OsStr) -> Command {
     return bounded_for(fixture, program, path, TIME_BOUND_SECONDS);
 }
 
+/// What:
+///  Put a `man` in the fixture's `bin` directory that prints one marker line naming the page and exits 0.
+/// Why:
+///  Git renders `--help` by running `man`, which starts `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff` and
+///  `grotty` (11 process starts in all, 18 ms warm and 0.7 s cold on the development host, 3.2 s once under load),
+///  none of it the wrapper's work. Git looks `man` up on the command's `PATH`, whose first entry is this directory,
+///  so the wrapper still receives and forwards the real `--help` and Git still takes its manual-page path.
+pub fn stub_manual_viewer(fixture: &Fixture) {
+    executable(
+        fixture.root.join("bin/man").as_path(),
+        b"#!/bin/sh\necho \"manual page requested: $*\"\n",
+    );
+}
+
 /// Expose real Git at `<root>/real/git`,
 ///  a location that is not a conventional one.
 /// Conventional locations are promoted to the front of the candidate list,
@@ -218,9 +232,72 @@ pub fn observe(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
+/// What a command run under the shared bound asks the wrapper to do, read the way the wrapper reads it.
+enum SharedBoundMisuse {
+    /// A commit the wrapper lands through its transaction.
+    CommitTransaction,
+    /// A `--help` that makes Git render a manual page through `man` and the groff programs.
+    ManualPage,
+}
+
+/// What:
+///  Whether `command` runs under the shared bound (`timeout --signal=KILL 5 <program> <arguments>`) with
+///  arguments that need a longer bound or a stub instead; absent for any other command.
+/// Why:
+///  The shared bound is for single Git commands. A landed commit starts 40 Git processes and makes 36
+///  sync calls (`binary_budget_tests.rs`), against one process for direct Git, and a manual page starts 9 more
+///  (`man`, `preconv`, `tbl`, `nroff`, `col`, `groff`, `troff`, `grotty`), so under host load either one can pass
+///  the bound while the policy it is there to test works. This check does not depend on timing, so a misuse fails
+///  on every host, loaded or quiet, instead of once a day on a busy one.
+fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
+    let arguments: Vec<OsString> = command.get_args().map(OsStr::to_os_string).collect();
+    let [signal, bound, program, wrapped @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if signal != "--signal=KILL" || bound != TIME_BOUND_SECONDS {
+        return None;
+    }
+    let stripped = git_policy_cli::wrapper_invocation::strip_wrapper_controls(wrapped);
+    if stripped.layout.outcome != git_policy_cli::global_arguments::GlobalOutcome::Command {
+        return None;
+    }
+    let region: &[OsString] = git_policy_cli::wrapper_invocation::command_region(&stripped);
+    let word: &[u8] = git_policy_cli::wrapper_invocation::command_word(&stripped);
+    if word == b"commit"
+        && git_policy_cli::command_commit::parse_commit_region(region, &[]).is_ok_and(|facts| { return !facts.dry_run; })
+    {
+        return Some(SharedBoundMisuse::CommitTransaction);
+    }
+    let has_manual_stub: bool = Path::new(program)
+        .parent()
+        .is_some_and(|directory| { return directory.join("man").exists(); });
+    let asks_for_help: bool = region
+        .iter()
+        .take_while(|token| { return *token != "--"; })
+        .any(|token| { return token == "--help"; });
+    if word != b"cli-git" && asks_for_help && !has_manual_stub {
+        return Some(SharedBoundMisuse::ManualPage);
+    }
+    return None;
+}
+
 /// Run a command to completion with every byte of its output kept,
 ///  feeding `input` to its standard input.
+/// # Panics
+///  When the command is a commit transaction or a manual page under the shared bound; see `shared_bound_misuse`.
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
+    match shared_bound_misuse(command) {
+        Some(SharedBoundMisuse::CommitTransaction) => panic!(
+            "a commit under the shared {TIME_BOUND_SECONDS}-second bound: it starts 40 Git processes and makes 36 \
+             sync calls, so run it with `run_commit` (the {}-second bound of binary_commit_tests.rs)",
+            super::commit::COMMIT_BOUND_SECONDS
+        ),
+        Some(SharedBoundMisuse::ManualPage) => panic!(
+            "a `--help` under the shared {TIME_BOUND_SECONDS}-second bound renders a manual page through man and groff \
+             (9 process starts); put an executable `man` stub in the fixture's bin directory first (`stub_manual_viewer`)"
+        ),
+        None => {}
+    }
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

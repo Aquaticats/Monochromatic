@@ -104,7 +104,14 @@ pub fn context() -> GitContext {
     ] {
         overlay.push((OsString::from(name), OsString::from(value)));
     }
-    return GitContext { real_git: PathBuf::from(REAL_GIT), overlay, global_prefix: Vec::new() };
+    // The context names no repository, so the input files of its commands are made in the scratch directory beside
+    // the fixtures, under the target directory and never in the system temporary directory.
+    return GitContext {
+        real_git: PathBuf::from(REAL_GIT),
+        overlay,
+        global_prefix: Vec::new(),
+        common_dir: Some(super::support::fixture_root()),
+    };
 }
 
 /// Impl block: building a world and opening transactions in it.

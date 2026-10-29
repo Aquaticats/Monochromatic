@@ -132,6 +132,7 @@ type PullOutcome<NewElement> =
  Marks a queue slot whose worker has not settled yet, when the results are
  not kept in input order.
  */
+// mutation-test-disable-next-line string -- the symbol is module-private and only compared by identity, so its description is never read, logged, or thrown
 const emptySlot: unique symbol = Symbol('p-map empty queue slot',);
 
 /**
@@ -394,6 +395,7 @@ export function pMapIterable<Element, NewElement>(
             // and a source like a queue may never answer them, so give their
             // slots back now instead of waiting on them.
             for (const unfilledIndex of unfilledIndexes)
+// mutation-test-disable-next-line equality:>= -- the line above this loop already deleted `position` from `unfilledIndexes`, so no entry equals it
               if (unfilledIndex > position) {
                 unfilledIndexes.delete(unfilledIndex,);
                 fillSlot({ kind: 'done', },);
@@ -413,9 +415,9 @@ export function pMapIterable<Element, NewElement>(
           // stream ends at an earlier element: the pull would be wasted work,
           // and for a one-shot source, like a queue, it takes an item nobody is
           // going to ask for.
-// mutation-test-disable-next-line conditional, logical, equality -- spawn-gate control only: trySpawn after stop is reached solely from pending continuations whose outcomes are dropped
           if (state.isDone
             || state.isIterableDone
+// mutation-test-disable-next-line equality:>= -- `stopIndex` is the position of a pull that already started, and `index` is incremented when a pull starts, so a finite `stopIndex` is always below `index`
             || (state.index > state.stopIndex))
             return;
 
@@ -453,6 +455,7 @@ export function pMapIterable<Element, NewElement>(
              back exactly once.
              */
             const holds = {
+// mutation-test-disable-next-line boolean -- `readingCount` only gates `trySpawn`, and every failure closes that gate (an unordered failure before the end of the source sets `isDone`, an ordered one sets `stopIndex` below `index`, and a failure past the end of the source finds `isIterableDone` set), so a missed or doubled decrement is never read
               isReading: true,
               hasMapperSlot: false,
             };
@@ -470,6 +473,7 @@ export function pMapIterable<Element, NewElement>(
                   state.doneIndex,
                   currentIndex,
                 );
+// mutation-test-disable-next-line boolean -- `holds` is read only by the catch below, and nothing after this assignment can throw before the return
                 holds.isReading = false;
                 state.readingCount -= 1;
                 return { kind: 'done', };
@@ -502,6 +506,7 @@ export function pMapIterable<Element, NewElement>(
               }
 
               holds.hasMapperSlot = true;
+// mutation-test-disable-next-line boolean -- `readingCount` only gates `trySpawn`, and every failure closes that gate (an unordered failure before the end of the source sets `isDone`, an ordered one sets `stopIndex` below `index`, and a failure past the end of the source finds `isIterableDone` set), so a missed or doubled decrement is never read
               holds.isReading = false;
               state.readingCount -= 1;
 
@@ -513,8 +518,9 @@ export function pMapIterable<Element, NewElement>(
               // element, while this element was being read or waiting for a
               // mapper slot, so drop it instead of doing work nobody will
               // consume.
-// mutation-test-disable-next-line conditional, logical, equality, block -- dropped-work path only: the consumer already left the iteration or the stream ends earlier, so whether the pending mapper runs changes no yielded value, error, or close
+// mutation-test-disable-next-line equality -- `stopIndex` is the position of a worker that already passed this check (the one whose mapper stopped, or whose read or mapper failed), so no worker still at this check has `currentIndex` equal to it
               if (state.isDone || (currentIndex > state.stopIndex)) {
+// mutation-test-disable-next-line boolean -- `holds` is read only by the catch below, and nothing after this assignment can throw before the return
                 holds.hasMapperSlot = false;
                 releaseMapperSlot();
                 return {
@@ -531,6 +537,7 @@ export function pMapIterable<Element, NewElement>(
                 currentIndex,
               );
 
+// mutation-test-disable-next-line boolean -- `holds` is read only by the catch below, and nothing after this assignment can throw before the return
               holds.hasMapperSlot = false;
               releaseMapperSlot();
 
@@ -546,6 +553,7 @@ export function pMapIterable<Element, NewElement>(
               };
             }
             catch (error) {
+// mutation-test-disable-next-line conditional -- `readingCount` only gates `trySpawn`, and every failure closes that gate (an unordered failure before the end of the source sets `isDone`, an ordered one sets `stopIndex` below `index`, and a failure past the end of the source finds `isIterableDone` set), so a missed or doubled decrement is never read
               if (holds.isReading)
                 state.readingCount -= 1;
 
@@ -565,6 +573,7 @@ export function pMapIterable<Element, NewElement>(
                   state.stopIndex,
                   currentIndex,
                 );
+// mutation-test-disable-next-line equality:<= -- a pull that failed never reported `done`, so its own position cannot equal `doneIndex`
               else if (currentIndex < state.doneIndex)
                 state.isDone = true;
 
@@ -619,7 +628,6 @@ export function pMapIterable<Element, NewElement>(
          */
         using sourceShutdown: Disposable = {
           [Symbol.dispose]: function disposeSource(): void {
-// mutation-test-disable-next-line boolean -- dispose stop flag only: the consumer already left the iteration and the source close is gated separately
             state.isDone = true;
 
             if (!state.isIterableDone)
@@ -629,7 +637,6 @@ export function pMapIterable<Element, NewElement>(
         void sourceShutdown;
 
         /* oxlint-disable no-await-in-loop -- the consumer collects pulls one at a time, in yield order */
-// mutation-test-disable-next-line conditional, equality -- loop-shape only: the queue empties through the `done` outcome before the length check is reached
         while (state.headIndex < promises.length) {
           /**
            Oldest spawned pull's slot. Without `preserveOrder`, a filled slot

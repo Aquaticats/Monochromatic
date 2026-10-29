@@ -222,6 +222,26 @@ pub fn create_private_directory(path: &Path) -> std::io::Result<()> {
 }
 
 /// What:
+///  Create a directory and every missing parent with mode `0700`;
+///  an existing directory is accepted.
+/// Why:
+///   The per-user state directory may not exist yet,
+///  and the XDG rules ask for `0700` when a program creates one.
+///  Only the directories this call creates get the mode;
+///  existing parents keep theirs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await mkdir(path, { recursive: true, mode: 0o700 });
+/// ```
+pub fn create_private_directory_all(path: &Path) -> std::io::Result<()> {
+    // `mut` allows the builder to be switched to recursive creation.
+    let mut builder: std::fs::DirBuilder = private_directory_builder();
+    builder.recursive(true);
+    return builder.create(path);
+}
+
+/// What:
 ///  The directory builder that creates private directories on this platform.
 /// Why:
 ///   Only Unix configures a mode;

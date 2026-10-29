@@ -12,7 +12,7 @@ run = "cargo nextest run --lib"
 
 [tasks."test:planted"]
 description = "Plant each listed defect in a disposable copy of the subject and require the generator controls to fail"
-run = "node bin/planted-controls.mjs"
+run = "node bin/planted-controls.ts"
 
 [tasks."lint:types"]
 description = "Check the fuzz helper library with denied Clippy warnings"
@@ -20,11 +20,11 @@ run = ["cargo check --lib", "cargo clippy --lib -- -D warnings"]
 
 [tasks.build]
 description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"
-run = "node bin/container.mjs --build-only"
+run = "node bin/container.ts --build-only"
 
 [tasks.smoke]
 description = "Run generator controls, Clippy, then ASAN targets for 30s each in mount-free bounded containers"
-run = "node bin/container.mjs"
+run = "node bin/container.ts"
 
 [tasks."lock:subject"]
 description = "Seed the fuzz lockfile from the subject's lockfile, then let Cargo add only this sidecar's own packages, so both lock the same registry versions"

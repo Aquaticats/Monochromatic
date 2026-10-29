@@ -1,6 +1,7 @@
 //! Controls for the deadline-bound Git query: real children that answer, fail, stall or flood.
 
 use super::*;
+use crate::test_support::scratch_environment;
 
 /// A shell command running `script`.
 #[cfg(unix)]
@@ -34,6 +35,7 @@ fn a_finished_query_keeps_code_and_streams_apart() {
         "fixture",
         Duration::from_secs(60),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(
@@ -55,6 +57,7 @@ fn a_query_ended_by_a_signal_has_no_code() {
         "fixture",
         Duration::from_secs(60),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(output.code, None);
@@ -70,6 +73,7 @@ fn a_stalled_query_is_stopped_and_reported() {
         "rev-parse HEAD",
         Duration::from_millis(300),
         Duration::from_secs(5),
+        scratch_environment().as_slice(),
     )
     .expect_err("stalls");
     assert!(started.elapsed() >= Duration::from_millis(300), "{:?}", started.elapsed());
@@ -102,6 +106,7 @@ fn a_flooding_query_is_stopped() {
             "log",
             Duration::from_secs(60),
             Duration::from_secs(5),
+            scratch_environment().as_slice(),
         )
         .expect_err("floods");
         match &failure {
@@ -123,6 +128,7 @@ fn a_program_that_cannot_start_is_a_start_failure() {
         "x",
         Duration::from_secs(5),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");

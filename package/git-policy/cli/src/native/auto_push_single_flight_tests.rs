@@ -21,7 +21,7 @@ const FIXTURE_LOCK_WAIT_SECONDS: &str = "20";
 
 /// Environment of the fixture Git, matching the test support fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
-    return [
+    let mut environment: Vec<(OsString, OsString)> = [
         (LOCK_WAIT_VARIABLE, FIXTURE_LOCK_WAIT_SECONDS),
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
@@ -36,6 +36,9 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         return (OsString::from(name), OsString::from(value));
     })
     .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
+    return environment;
 }
 
 /// Coordinator Git for a fixture repository.
@@ -44,6 +47,7 @@ fn push_git(root: &Path) -> PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: root.to_path_buf(),
         environment: fixture_environment(),
+        lfs_pre_push: None,
     };
 }
 

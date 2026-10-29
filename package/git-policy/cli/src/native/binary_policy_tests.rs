@@ -12,6 +12,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
+use super::commit::run_commit;
 use super::support::{
     Fixture, Observed, bounded, direct, executable, fixture, git, observe, remove, repository,
     wrapped,
@@ -78,7 +79,8 @@ fn read_only_commands_start_at_most_the_location_query() {
     std::fs::create_dir(fixture.root.join("shim")).expect("shim directory");
     executable(
         fixture.root.join("shim/git").as_path(),
-        b"#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n",
+        // The hooks-off option the wrapper puts first is not part of the count's question, so the log leaves it out.
+        b"#!/bin/sh\nargs=\"$*\"\nargs=\"${args#-c core.hooksPath=/dev/null/cli-git-no-hooks }\"\nprintf '%s\\n' \"$args\" >> \"$CLI_GIT_TEST_SPAWN_LOG\"\nexec /usr/bin/git \"$@\"\n",
     );
     // Invalid configuration and a legacy file: reading either would stop the command.
     std::fs::write(repo.join(CONFIG_FILE_NAME), "this is not JSONC").expect("invalid");
@@ -503,7 +505,9 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
         "A  a.txt\n?? cli-git.config.jsonc\n?? rules/private.txt\n"
     );
     // The flag does not carry over: a commit without it stops on the staged file.
-    let blocked: Observed = run_wrapped(
+    // Both commits of this test run under the commit bound: a commit is not a single Git command (it starts 40 Git
+    // processes and makes 36 sync calls when it lands), and the shared 5-second bound refuses one.
+    let blocked: Observed = run_commit(
         &fixture,
         repo.as_path(),
         &["commit", "--quiet", "--message=blocked", "--", "a.txt"],
@@ -515,7 +519,7 @@ fn forbidden_strings_escape_skips_the_policy_for_one_command() {
         String::from_utf8_lossy(&blocked.stderr)
     );
     // With the flag the commit records it.
-    let committed: Observed = run_wrapped(
+    let committed: Observed = run_commit(
         &fixture,
         repo.as_path(),
         &[

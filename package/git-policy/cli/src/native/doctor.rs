@@ -6,6 +6,9 @@
 //!  The commit path warns when `core.hooksPath` is configured but never scans a directory, because a scan costs
 //!  file system calls on every commit; this command is where the scan happens, on request.
 //!  Exit status 0 means none were found, 1 means at least one was, and 2 means the repository could not be located.
+//!  A hook file that is byte for byte the shim `git lfs` writes for its own name is expected and harmless, because the
+//!  wrapper does the Git LFS upload itself and starts Git with traditional hooks off; it is explained apart from the
+//!  other hooks and does not make the exit status 1.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -253,11 +256,102 @@ pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, S
     });
 }
 
+/// The four hooks `git lfs install` writes.
+const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
+
+/// The longest shim file the comparison reads, in bytes; a longer file is not a shim.
+const LFS_SHIM_LIMIT: u64 = 1024;
+
+/// The text git-lfs 3.8.0 writes (`lfs/hook.go`, `hookBaseContent` and its `write`, which appends a line feed),
+///  with the hook's own name where `{{Command}}` stands.
+const LFS_SHIM_TEMPLATE: &str = r##"#!/bin/sh
+command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the '{{Command}}' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks')."; exit 2; }
+git lfs {{Command}} "$@"
+"##;
+
+/// What:
+///  The text git-lfs writes for the hook called `name`.
+/// Why:
+///   Recognition is by these exact bytes, so an edited or foreign file is never taken for a shim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// template.replaceAll('{{Command}}', name)
+/// ```
+pub fn lfs_shim_text(name: &str) -> String {
+    return LFS_SHIM_TEMPLATE.replace("{{Command}}", name);
+}
+
+/// What:
+///  Whether a hook file is exactly the git-lfs shim for its own name.
+/// Why:
+///   Only a regular file whose name is one of the four hooks and whose bytes equal that hook's shim counts; a link,
+///  a file that differs by one byte, and a shim under another hook's name are ordinary unsupported hooks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isFile(path) && readFileSync(path).equals(lfsShimText(basename(path)))
+/// ```
+pub fn is_lfs_shim(path: &Path) -> bool {
+    use std::io::Read;
+    let Some(name) = path.file_name().and_then(|found| { return found.to_str(); }) else {
+        return false;
+    };
+    if !LFS_SHIM_NAMES.contains(&name) {
+        return false;
+    }
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    if !metadata.file_type().is_file() {
+        return false;
+    }
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut content: Vec<u8> = Vec::new();
+    if file.take(LFS_SHIM_LIMIT).read_to_end(&mut content).is_err() {
+        return false;
+    }
+    return content == lfs_shim_text(name).as_bytes();
+}
+
+/// What:
+///  The explanation of the Git LFS shims a repository holds.
+/// Why:
+///   They are listed apart from the unsupported hooks and say what is going on, because the person who finds them
+///  after deleting them needs to know they come back, that this is normal, and that nothing needs doing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const explanation = (shims: string[]) => '...';
+/// ```
+pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
+    let mut text: String = String::from(
+        "git cli-git doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
+    );
+    for shim in shims {
+        text.push_str("  ");
+        text.push_str(shim.display().to_string().as_str());
+        text.push('\n');
+    }
+    text.push_str(
+        "git-lfs writes these files again whenever it cleans a file in a Git that cli-git did not start (for example \
+`git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
+normal. cli-git uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
+files never run through cli-git. You may delete them or leave them. Only a script that starts Git without cli-git, \
+such as `/usr/bin/git` directly, would run them.\n",
+    );
+    return text;
+}
+
 /// What:
 ///  Decide what `git cli-git doctor` prints and exits with.
 /// Why:
-///   Exit 0 with no output means no traditional hook was found, exit 1 lists each one, and exit 2 reports a
-///  repository or a directory that could not be examined.
+///   Exit 0 with no output means no traditional hook was found, exit 1 lists each one on standard output, and exit 2
+///  reports a repository or a directory that could not be examined.
+///  Git LFS shims are explained on standard error apart from the other hooks and leave an exit status of 0 as it is;
+///  any other hook beside them still ends in 1 with the unsupported report.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -268,21 +362,24 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
     };
-    let hooks: Vec<PathBuf> = match find_traditional_hooks(hook_directories(&location).as_slice()) {
-        Ok(found) => found,
+    let found: Vec<PathBuf> = match find_traditional_hooks(hook_directories(&location).as_slice()) {
+        Ok(listed) => listed,
         Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
     };
+    let (shims, hooks): (Vec<PathBuf>, Vec<PathBuf>) =
+        found.into_iter().partition(|path| { return is_lfs_shim(path.as_path()); });
+    let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
     if hooks.is_empty() {
         return Action::Exit {
             code: 0,
             stdout: String::new(),
-            stderr: String::new(),
+            stderr: shim_report,
         };
     }
     return Action::Exit {
         code: HOOKS_FOUND_EXIT_CODE,
         stdout: render_hooks(hooks.as_slice()),
-        stderr: String::from(FOUND_EXPLANATION),
+        stderr: format!("{FOUND_EXPLANATION}{shim_report}"),
     };
 }
 

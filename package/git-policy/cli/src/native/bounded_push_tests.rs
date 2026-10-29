@@ -3,6 +3,7 @@
 //!  and the limits derived from the environment.
 
 use super::*;
+use crate::test_support::scratch_environment;
 use std::ffi::OsStr;
 
 /// An environment holding the given pairs.
@@ -181,6 +182,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
         shell("echo one; echo two >&2; echo three; exit 3"),
         Duration::from_secs(60),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(attempt.exit_code, 3);
@@ -189,6 +191,7 @@ fn a_finished_push_keeps_the_interleaved_output_and_exit_code() {
         shell("echo remote: done"),
         Duration::from_secs(60),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(clean.exit_code, 0);
@@ -204,6 +207,7 @@ fn a_push_ended_by_a_signal_reports_one() {
         shell("echo before; kill -9 $$"),
         Duration::from_secs(60),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(attempt.exit_code, 1);
@@ -220,6 +224,7 @@ fn a_stalled_push_is_stopped_at_its_deadline() {
         shell("echo started; exec sleep 8"),
         Duration::from_millis(300),
         Duration::from_secs(10),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
@@ -253,6 +258,7 @@ fn a_silent_stalled_push_reports_only_the_reason() {
         shell("exec sleep 8"),
         Duration::from_millis(200),
         Duration::from_secs(10),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
@@ -274,6 +280,7 @@ fn a_push_that_ignores_the_stop_request_is_killed_after_the_grace() {
         shell("trap '' TERM; echo up; exec sleep 8"),
         Duration::from_millis(200),
         Duration::from_millis(400),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     let elapsed: Duration = started.elapsed();
@@ -292,6 +299,7 @@ fn a_push_that_honors_the_stop_request_ends_within_the_grace() {
         shell("trap 'echo got-the-request; exit 0' TERM; echo up; while :; do sleep 0.05; done"),
         Duration::from_millis(200),
         Duration::from_secs(3),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
@@ -330,6 +338,7 @@ fn a_flooding_push_is_stopped_and_its_output_capped() {
         shell("head -c 20000000 /dev/zero; exec sleep 8"),
         Duration::from_secs(60),
         Duration::from_secs(10),
+        scratch_environment().as_slice(),
     )
     .expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE);
@@ -352,6 +361,7 @@ fn a_program_that_cannot_start_is_a_start_failure() {
         Command::new("/nonexistent/cli-git-push-fixture"),
         Duration::from_secs(5),
         Duration::from_secs(1),
+        scratch_environment().as_slice(),
     )
     .expect_err("no such program");
     assert!(matches!(failure, SingleFlightError::Start(_)), "{failure}");

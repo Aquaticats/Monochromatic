@@ -38,6 +38,14 @@ type TranscriptContentBlock = {
   readonly text?: string;
 
   /**
+   Reasoning text, present on `thinking` blocks.
+
+   Stays on this machine: readers never send it to an external provider,
+   and records derived from it carry hashes and indexes instead of text.
+   */
+  readonly thinking?: string;
+
+  /**
    Tool arguments, present on `tool_use` blocks.
    
    Values stay `unknown` so each reader narrows the arguments it cares about

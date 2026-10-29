@@ -27,6 +27,7 @@ use super::commit_worktree_records::{HookChanges, describe_hook_changes, selecte
 use super::diagnostic_log::debug;
 use super::global_arguments::global_layout;
 use super::hook_dispatch_entries::write_hook_dispatch;
+use super::lfs_pre_push::uses_lfs;
 use super::hook_dispatch_plan::{HookDispatchPlan, HookPlanInputs, SILENCED_HOOK_EVENTS, compute_hook_dispatch_plan, new_preparation_lease};
 use super::policy_checks::ShippedChecks;
 use super::policy_engine::StageRequest;
@@ -296,6 +297,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
                     events,
                     exit_code,
                     landed_oid: None,
+                    uses_lfs: false,
                 });
             }
             LoopOutcome::Landed {
@@ -338,6 +340,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         events,
         exit_code: 0,
         landed_oid: Some(oid),
+        uses_lfs: capture.layout.config_snapshot.as_ref().is_none_or(uses_lfs),
     });
 }
 

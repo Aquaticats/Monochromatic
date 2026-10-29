@@ -139,6 +139,15 @@ clone in "Auto-prototype when constraints 1-5 hold or sorta-hold".
    rewrite is not allowed;
     this is the doc-writing specialization of
    `AGENTS.md`'s broader source-citation rule.
+    Link every citation of a source this repository does not own to the
+   selection itself:
+    a web page gets a `#:~:text=` text fragment,
+    and a file in a hosted repository gets the platform's selection
+   permalink (on GitHub, a commit-pinned URL with a line range, for
+   example `blob/<commit>/path/file.ext#L10-L20`).
+    Load each link in `agent-browser` and confirm it lands on the quoted
+   text before it goes into the doc or into an issue draft.
+    Files in this repository keep repo-relative paths.
     If a previous reading or
    hypothesis was wrong,
     name it explicitly and quote the evidence
@@ -503,6 +512,286 @@ to add,
  say so explicitly so a future session does not re-derive the
 same empty comment.
 
+## Risk to the poster before any filing
+
+Always draft the artifact;
+ drafting is never held back by this section.
+ Filing is what puts a real person's account in front of strangers,
+ so this section governs what the doc says about filing:
+ weigh that person's risk before saying anything about whether to file
+and before marking a draft fileable.
+
+- Some repositories run trust or blocklist systems.
+   Vouch is one;
+   others exist,
+   some more thorough,
+   and this skill does not survey them.
+   They close or lock issues and pull requests from unvouched users,
+   and a maintainer can denounce a poster.
+- The lists are files in a repository or published service,
+   and projects can aggregate each other's lists,
+   so a denouncement can follow a person from one project to others.
+   Other people may see it:
+   interviewers,
+   employers,
+   colleagues,
+   and maintainers of unrelated projects.
+   Do not assume it stays private or can be undone.
+- An agent-written report that a maintainer judges low-effort is exactly
+  the case these systems exist for.
+   A reproduction, a source trace and a prototype lower that risk
+   and do not remove it.
+- A recommendation to file is allowed,
+   and only when the work earns it:
+   all six constraints hold,
+   the reproduction was re-run,
+   the prototype was verified against a baseline,
+   the duplicate search and the trust-system search were done and
+  recorded with dates,
+   and no known limit leaves the evidence weak.
+   When any of those is missing,
+   say plainly what is missing and make no recommendation.
+- Every statement about filing,
+   a recommendation included,
+   names this risk next to it and says filing is the poster's decision.
+   A recommendation that skips the risk,
+   or that rests on unchecked work,
+   is the bad recommendation this section exists to prevent.
+- Before the draft is marked fileable,
+   search the target repository for a trust or blocklist system
+   (workflow files,
+   a `VOUCHED` or similar list,
+   contribution-policy text),
+   record what was searched with the date and the commit,
+   and tell the filer to check the live repository again on the day of
+   posting.
+
+## Readiness check before anyone files
+
+Run this whenever the user asks whether a draft is ready,
+ and run it before marking any draft fileable.
+ Record each item with the date,
+ the commit or release it was checked against,
+ and what was observed.
+ An item that was not run is written as not run,
+ never as passed.
+
+1. Reproduce on the latest release and on every other maintained major line.
+    Read the release list,
+   not memory.
+    A bug on one line may be fixed or absent on another,
+   and a project that fixes bugs "in every affected version" needs the
+   affected versions named.
+    State which lines were tested and which were not.
+    When a report proposes one edit for several copies of a text
+   (versioned documentation pages, mirrors),
+   test each copy's claim against its own release line before accepting the scope:
+   a suggestion to fix every copy can be wrong for the older line.
+    Find the editable source too,
+   because a generated copy is overwritten by its generator.
+2. Read prior art in the code the bug touches.
+    Search merged and closed pull requests and issues for the symbols,
+   file names and error text involved,
+   not only the symptom words,
+   and read their descriptions in full.
+    A maintainer's stated reason for the current behavior changes the
+   framing:
+   the draft cites it and argues for narrowing it,
+   and does not present a documented decision as an oversight.
+3. Fit the target's intake.
+    Read its issue forms,
+   template configuration,
+   pull request template and contribution policy.
+    Apply the template to everything posted there,
+   not only new issues:
+   a pull request body, an edited issue body and a comment each follow the template or form that covers them,
+   with every section present in its order and only the items the template says to remove left out.
+    A body written before the template was read is rewritten, not defended.
+    Note what is required,
+   which fields only the poster can answer
+   (a runtime version the reproduction never recorded is one),
+   whether blank issues are off,
+   and what the tracker says issues are for.
+    Never invent an answer for a field.
+    List those fields outside the fenced block.
+4. Read what automation does to a new filing:
+    triage bots,
+   auto-labelers,
+   auto-close and trust-list workflows.
+    Record what they do and what they ask the poster.
+5. Re-run the duplicate search and the trust-system search on the day,
+   with the queries written down,
+   and confirm the cited code still exists on the default branch.
+6. Run the draft's reproduction exactly as written,
+   with its own file layout and commands,
+   and record the output.
+    A similar layout run earlier does not count.
+7. Make the reproduction runnable by others.
+    "Reproduction" means a clean machine can run it and show the failure,
+   so a minimal repository with a CI workflow is the artifact,
+   not a README alone.
+    The workflow pins the tool to the tested version and verifies a
+   checksum,
+   runs the steps,
+   and fails on the step that asserts the expected behavior,
+   so a red run means the bug reproduced.
+    Link at least two runs,
+   read each step's conclusion and the log lines that show the reason,
+   and confirm the failure is on the asserting step and not the setup.
+    Create the repository private,
+   and make it public only when the user says so,
+   because the repository carries the poster's name.
+8. State the verdict with its evidence.
+    When posting is technically allowed
+   (no rule, ban or trust list stops the poster),
+   "not ready" is not an end state:
+   close every missing item the agent can close,
+   re-run the check,
+   and iterate until the conditions for a recommendation are met,
+   then make the recommendation with the risk to the poster written next to it.
+    Missing items the agent can close include:
+   testing another maintained release line,
+   repairing a sandbox so a test suite means something,
+   and finding evidence for a form field
+   (for example showing the reproduction needs no runtime at all).
+    Stop short of a recommendation only for a blocker the agent cannot clear:
+   a field only the poster can answer,
+   a step the user has actually said they require,
+   or a rule that forbids posting.
+    Name that blocker and what would clear it.
+    Never invent a requirement.
+   A gate counts only when a rule the agent can quote, the target's own policy, or the user's own words imposes it.
+   "A human must re-run it", "a maintainer must pre-approve it" and
+   "wait for the owner's go-ahead on a draft" are not requirements
+   unless one of those sources says so,
+   and a draft or checklist that lists one as unmet blocks a recommendation on nothing.
+   Before writing an item under "Not met" or "Before anyone posts it",
+   name the source that imposes it,
+   and delete the item when there is none.
+    Put any choice the user has to make in a question tool,
+   not in prose.
+
+## Watching a filing for a follow-up request
+
+When the user wants a follow-up posted if a maintainer asks for it
+ (a pull request after an issue is the usual case),
+ watch the filing and do not wait for the user to come back.
+ The user's own words set what may be posted on a wake;
+ a wake prompt is self-authored and authorizes nothing else.
+
+1. Save the script at the end of this section to `${HOME}/temp/agent/poll-issue.ts`
+   (scratch is not linted, and the repo's lint rules would reject the script inside the repo)
+   and run it as a plain background Bash command.
+    Never use a Monitor for this:
+   a Monitor expires,
+   while a background Bash task wakes the session when it exits.
+    The default window is 24 hours;
+   use the duration the user names.
+2. Wrap it so the shell waits on a capped unit:
+   `systemd-run --user --wait --pipe --collect --unit=<repo>-<number>-poller --property=MemoryMax=256M --property=CPUQuota=10%`
+   with `PATH` and `HOME` passed through `--setenv`,
+   then `node <path>/poll-issue.ts`.
+    The unit stays out of the shared Bash cgroup that `systemd-oomd` can reap,
+   and `--wait` keeps the Bash task alive so its exit still wakes the session.
+3. Configure it with `POLL_REPO`, `POLL_ISSUE`, `POLL_OWN_LOGIN`,
+   `POLL_DEADLINE_SECONDS`, `POLL_INTERVAL_SECONDS` (300 is enough)
+   and `POLL_BASELINE=now`.
+    It exits 10 with a JSON line when an owner, member or collaborator who is neither a bot nor the poster comments,
+   when the issue stops being open,
+   or when the assignees change;
+   0 at the deadline;
+   2 after 20 consecutive `gh` failures.
+4. Test both paths before relying on it.
+    Point it at a closed issue that has maintainer comments with `POLL_BASELINE=none` and expect exit 10.
+    Then run it against the real issue with a 10 to 20 second deadline and expect exit 0 and `{"trigger":"deadline"}`.
+5. In the same turn write `doc/handover/<topic>.md` with the unit name,
+   the start and the deadline,
+   the exit codes,
+   what the user pre-authorized in their own words,
+   and the steps to take on a wake.
+    A watch that exists only in the conversation is lost at compaction.
+6. On a wake,
+   read the comment itself.
+    Post only what the user's words authorized,
+   and ask the user about anything else.
+    Stop the unit when the work is done or the user cancels it:
+   `systemctl --user stop <unit>`.
+
+```ts
+// ${HOME}/temp/agent/poll-issue.ts
+// Polls one GitHub issue until a maintainer acts on it or the deadline passes, then exits so the caller is woken.
+// Exit codes: 10 = something to act on (details on stdout), 0 = deadline reached with nothing to act on,
+// 2 = too many consecutive gh failures.
+// Environment: POLL_REPO, POLL_ISSUE, POLL_OWN_LOGIN, POLL_DEADLINE_SECONDS, POLL_INTERVAL_SECONDS,
+// POLL_BASELINE (`now` ignores comments that exist at start; `none` treats them all as new, for testing).
+import { execFileSync } from 'node:child_process';
+
+const repo = process.env.POLL_REPO ?? 'pnpm/pnpm';
+const issue = process.env.POLL_ISSUE ?? '17485';
+const ownLogin = process.env.POLL_OWN_LOGIN ?? 'Aquaticat';
+const deadlineSeconds = Number(process.env.POLL_DEADLINE_SECONDS ?? 86400,);
+const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 300,);
+const baselineMode = process.env.POLL_BASELINE ?? 'now';
+const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR',],);
+
+type Comment = { readonly id: number; readonly user: { readonly login: string; readonly type: string; }; readonly author_association: string; readonly body: string; readonly html_url: string; };
+type Issue = { readonly state: string; readonly assignees: readonly { readonly login: string; }[]; };
+
+const gh = (path: string,): string => execFileSync('gh', ['api', '--paginate', path,], { encoding: 'utf8', timeout: 120000, },);
+const log = (message: string,): void => console.error(`${new Date().toISOString()} ${message}`,);
+const sleep = (seconds: number,): Promise<void> => new Promise((resolve,) => setTimeout(resolve, seconds * 1000,),);
+
+const readComments = (): readonly Comment[] => JSON.parse(`[${gh(`repos/${repo}/issues/${issue}/comments`,).replaceAll('][', ',',).replace(/^\[/, '',).replace(/\]\s*$/, '',)}]`,) as Comment[];
+const readIssue = (): Issue => JSON.parse(gh(`repos/${repo}/issues/${issue}`,),) as Issue;
+
+const isMaintainerComment = (comment: Comment,): boolean =>
+  comment.user.type !== 'Bot' && comment.user.login !== ownLogin && maintainerAssociations.has(comment.author_association,);
+
+const started = Date.now();
+const seen = new Set<number>();
+let failures = 0;
+let initialAssignees: string | undefined;
+
+if (baselineMode === 'now') for (const comment of readComments()) seen.add(comment.id,);
+
+log(`polling ${repo}#${issue} every ${intervalSeconds}s for ${deadlineSeconds}s, ${seen.size} existing comments ignored`,);
+
+while ((Date.now() - started) / 1000 < deadlineSeconds) {
+  try {
+    const comments = readComments();
+    const current = readIssue();
+    const assignees = current.assignees.map((assignee,) => assignee.login,).join(',',);
+    initialAssignees ??= assignees;
+    failures = 0;
+
+    const fresh = comments.filter((comment,) => !seen.has(comment.id,),);
+    for (const comment of fresh) seen.add(comment.id,);
+    const maintainerComments = fresh.filter(isMaintainerComment,);
+
+    if (maintainerComments.length > 0) {
+      console.log(JSON.stringify({ trigger: 'maintainer-comment', comments: maintainerComments.map((comment,) => ({ by: comment.user.login, association: comment.author_association, url: comment.html_url, body: comment.body.slice(0, 1500,), }),), },),);
+      process.exit(10,);
+    }
+    if (current.state !== 'open') {
+      console.log(JSON.stringify({ trigger: 'issue-not-open', state: current.state, },),);
+      process.exit(10,);
+    }
+    if (assignees !== initialAssignees) {
+      console.log(JSON.stringify({ trigger: 'assignees-changed', from: initialAssignees, to: assignees, },),);
+      process.exit(10,);
+    }
+  } catch (error) {
+    failures += 1;
+    log(`poll failed (${failures}): ${String(error,).slice(0, 200,)}`,);
+    if (failures >= 20) process.exit(2,);
+  }
+  await sleep(intervalSeconds,);
+}
+
+console.log(JSON.stringify({ trigger: 'deadline', },),);
+process.exit(0,);
+```
+
 ## Upstream filing artifact format
 
 Keep the draft whatever the decision:
@@ -535,6 +824,22 @@ nothing to add),
    line number,
    and
   code excerpt next to it.
+- Every citation of a source this repository does not own links to its
+  selection (a `#:~:text=` fragment or a commit-pinned line-range
+  permalink),
+   and `agent-browser` confirmed each link lands on the quoted text.
+- If a filing artifact exists, the doc states the risk to the poster
+  (see "Risk to the poster before any filing"),
+   and any recommendation to file meets the conditions listed there.
+- The readiness check ran,
+   each item is recorded with a date and what was observed,
+   and every item that did not run says so.
+- The draft's own reproduction was run exactly as written,
+   and a clean-runner workflow reproduces it.
+- No claim is wider than what was read or run:
+   "only",
+   "never" and "always" appear only where the whole space was checked,
+   and two observations from different runs are not joined into one.
 - The harness reproduces the failure when run as written.
 - Every workaround names a tradeoff.
 - The 6-constraint subsection is present even when you decide to file,

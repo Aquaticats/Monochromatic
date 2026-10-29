@@ -66,9 +66,9 @@ function findMethod(
     );
 
     if (descriptor !== undefined)
-      return ('value' in descriptor)
-        ? descriptor.value as unknown
-        : undefined;
+      // An accessor descriptor has no `value` property, so this read yields
+      // `undefined` for it, which is the documented answer for an accessor.
+      return descriptor.value as unknown;
   }
 
   return undefined;

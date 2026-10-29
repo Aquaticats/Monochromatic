@@ -118,6 +118,47 @@ enumeration.
  Suppressed mutants land in the report's `ignored` bucket with
 their reasons.
 
+### Suppressing one replacement
+
+A family name followed by a colon and a replacement hides only the mutants
+that replace the code with exactly that text,
+ so an equivalent mutant can be suppressed without hiding its siblings:
+
+```ts
+// mutation-test-disable-next-line equality:>= -- the tie cannot happen
+if (index > stopIndex) return;
+// mutation-test-disable-next-line conditional:false, block -- the guard only skips work
+if (!isNeeded) return;
+```
+
+The text is compared to the mutant's `replacement` field in the report,
+ character for character.
+ A bare family name keeps meaning every replacement of that family,
+ and a bare mention wins over restricted mentions of the same family.
+ Listing the same family with several replacements hides each of them,
+ and repeating an entry changes nothing.
+
+A replacement is written bare,
+ as a run of characters without whitespace,
+ commas,
+ or double quotes (`equality:>=`,
+ `update:--`),
+ or as a JSON string literal that can hold any text:
+ `string:"a, b: c -- d"` holds commas,
+ a colon,
+ spaces,
+ and the reason separator,
+ `method:"x.slice(\n  0,\n  1,\n)"` holds newlines,
+ and `optional-chaining:""` is the empty string.
+ These are rejected at enumeration with a message that says what to change:
+ a colon with nothing after it
+ (write `""` for the empty string),
+ a bare replacement with a double quote,
+ an unterminated or non-JSON quoted literal,
+ text after a replacement that is neither a comma nor the reason separator
+ (for example a bare replacement with a space),
+ and an empty or trailing family entry.
+
 Families:
  arithmetic,
  equality,

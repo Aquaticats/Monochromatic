@@ -34,12 +34,46 @@ Read-only commands,
   Any staged entry outside the committed paths that differs is named in a warning,
    so a loss of staged work is reported instead of silent.
   A transaction that an interrupted process left behind is recovered by the next invocation.
+- Merges beside other sessions' staged work.
+  Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
+   even when the merge touches none of the staged files.
+  When that is the only obstacle,
+   the wrapper computes the merge from Git objects,
+   commits it with the parents, message and signing native Git would use,
+   and lets Git's own fast-forward update move the checkout to it.
+  Every staged entry, unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
+  A merge that changes a path someone else has staged or modified, or that conflicts,
+   is refused with the paths named and the ways forward, and changes nothing.
+  Shapes the wrapper cannot make exact (`--squash`, `--no-commit`, `-s`, `-X`, several branches, an editor) run in
+   native Git unchanged; see "Merging with staged changes" for the full list.
 - Hooks.
   Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported:
-   any use of them with the wrapper is undefined behavior.
+  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported,
+   and they are never run through the wrapper:
+   every real Git it starts, forwarded commands and its own children alike, runs with
+   `-c core.hooksPath=/dev/null/cli-git-no-hooks` first, a directory that cannot exist.
+  Configured hooks still run, and a configured `pre-push` hook runs once per push that publishes:
+   the wrapper's own dry-run probes switch configured `pre-push` hooks off with `-c hook.pre-push.enabled=false`.
+  A `-c core.hooksPath=<directory>` you write after the subcommand's global options wins for that command.
+  A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs them.
   A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event
    (code `traditional-hooks-unsupported`) that says so; `git cli-git doctor` lists the scripts.
+  The shims `git lfs install` writes are the expected case: see "Git LFS" for what replaces them.
+- Git LFS.
+  Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
+   in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
+   `lfs.*` key.
+  The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
+   `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
+   Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
+  It covers a typed `git push` (including the merge push of a lost race), the auto-push after a commit and its
+   reconcile pushes.
+  `--dry-run` pushes and the wrapper's own probes never upload.
+  Without `git-lfs` on `PATH` the push stops and the message says to install it, remove the LFS configuration
+   or use `git push --no-verify`.
+  The other three hooks `git lfs install` writes (`post-checkout`, `post-commit`, `post-merge`) only keep lockable
+   files read-only, do nothing without the `lockable` attribute, and are not run.
+  See the SPEC section "Git LFS upload before a push" for the evidence and the limits.
 - Content policies.
   `final-newline`,
    `markdown/autofix`,
@@ -116,6 +150,7 @@ Read-only commands,
    skipping itself and any shim that leads back to it.
 - `monochromatic-lint` on an absolute `PATH` entry,
    only when `markdown/autofix` is configured.
+- `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
 - The scanner is linked into the executable and needs no separate installation.
 
 ## Install
@@ -169,6 +204,10 @@ git cli-git doctor
 git cli-git --help
 ```
 
+`git cli-git lfs-pre-push <remote> <url>` is the entry Git starts for the Git LFS upload described under "Git LFS";
+it is not meant to be typed.
+It reads the ref-update lines on standard input, runs `git-lfs pre-push` with them and returns its status.
+
 Exactly one scope is required:
  `--all`,
  or pathspecs after `--`.
@@ -179,7 +218,12 @@ Events are JSON lines on standard output.
 It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,
  and prints the path of every traditional hook it finds, one per line, on standard output:
  each executable regular file and each symbolic link, except names ending in `.sample`.
-It exits 0 when it finds none, 1 when it finds any, and 2 when it cannot locate or read the repository.
+A hook file that is byte for byte the shim git-lfs writes for its own name is not listed there:
+ it is explained on standard error, with its path, as normal and harmless (git-lfs writes these files again whenever
+ it cleans a file in a Git the wrapper did not start; the wrapper does the LFS upload itself and never runs them;
+ delete them or leave them).
+It exits 0 when it finds none or only such shims, 1 when it finds any other hook, and 2 when it cannot locate or read
+ the repository.
 Traditional hooks are not supported,
  so the commands that need a hook to keep working should become config hooks
  (`hook.<name>.event` with `hook.<name>.command`).
@@ -308,6 +352,54 @@ Commands without a table of their own (`rm`,
  `checkout-index`,
  `read-tree`,
  `restore` and the `--abort` commands) take the hatch directly after the subcommand.
+
+### Merging with staged changes
+
+Several sessions can share one checkout.
+When the index differs from `HEAD`,
+ native Git refuses a `git merge <branch>` that needs a merge commit with
+ `error: Your local changes to the following files would be overwritten by merge`,
+ whichever files are staged.
+The wrapper completes that merge instead, when all of these hold:
+
+- the command is `git merge` with one commit-ish and only the options `-m`, `--no-edit`, `--ff`, `--no-ff`,
+   `-q`, `-v`, `--stat`, `--no-stat`, `-n`, `--log`, `--no-log`, `-S`, `--gpg-sign`, `--no-gpg-sign`,
+   `--no-verify`, `--allow-unrelated-histories` and `--no-progress` (full spellings only);
+- the index differs from `HEAD`, and `HEAD` is not already ahead of or equal to the merged commit
+   (native Git fast-forwards over unrelated staged work and answers "Already up to date" by itself);
+- no merge, rebase, cherry-pick or revert is in progress, and the settings `merge.autostash`,
+   `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
+- the merge would not open an editor: pass `--no-edit`, or set `GIT_MERGE_AUTOEDIT=no`
+   (a merge started from a terminal opens one by default, and then native Git runs it and refuses it as before).
+
+The merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, signed when `-S` is given
+ or `commit.gpgSign` is true.
+Its message is Git's own (`git fmt-merge-msg`, then the whitespace cleanup of a commit that opens no editor),
+ and the checkout then moves with `git merge --ff-only <merge commit>`.
+That is Git's two-way update:
+ it writes exactly the paths the merge changes and keeps every other index entry and file.
+The merge commit skips `pre-merge-commit`, `prepare-commit-msg` and `commit-msg`,
+ like the merge the auto-push makes from objects;
+ `post-merge` runs once.
+The branch reflog reads `merge <branch>: Fast-forward`.
+
+Two refusals change nothing:
+
+- The merge changes a path that is staged, or modified in the worktree, by someone else.
+  The finding `merge-isolation/paths-in-use` names the paths.
+  The ways forward are to wait until the owner has committed or restored them,
+   to merge in a clean linked worktree and bring the result back with `git merge --ff-only`,
+   or, for your own files, to commit or stash them first.
+- The merge conflicts textually.
+  The finding `merge-isolation/merge-conflict` names the conflicting paths.
+  Resolve in a clean linked worktree or checkout, or rebase the branch.
+
+An untracked file where the merge adds one is refused by Git at the last step;
+ the finding `merge-isolation/not-applied` follows Git's message, and nothing is changed.
+A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
+`git pull` runs its merge inside Git, out of the wrapper's reach,
+ so a pull that needs a merge commit is still refused while the index holds staged changes;
+ run `git fetch`, then `git merge --no-edit origin/<branch>`.
 
 ### Output and exit status
 
@@ -462,8 +554,9 @@ The concurrent transaction itself cannot be turned off.
 
 ### Waiting and time limits
 
-The wrapper never waits for another process without a limit.
-Three environment variables set the limits,
+The wrapper never waits for another process without a limit,
+and never waits without saying so.
+The environment variables below set the limits and the pace of the notices,
 each a positive whole number of seconds;
 a zero,
 negative,
@@ -477,10 +570,22 @@ fractional or non-numeric value is ignored.
    hook and registry locks,
    the landing reservation,
    the worktree-copy settlement and a live `index.lock` holder.
-  After five seconds of waiting the command prints one line naming the process and the limit.
-  At the limit it stops with a message that names the holder,
-   leaves the lock in place and changes nothing else,
-   so the command can simply be run again.
+  At the limit it stops with a message that names the holder and every way forward:
+   let the holder finish and run the command again,
+   check with `ps` whether it is stuck,
+   or raise the limit.
+  The command leaves the lock in place and changes nothing else,
+   so it can simply be run again.
+- `CLI_GIT_CHILD_WAIT_SECONDS`,
+   default `1800`.
+  How long one Git process that the wrapper starts for itself may run before it is stopped:
+   the object reader (`git cat-file --batch`) that the policy checks read candidate files through,
+   and the Git steps of a commit in the shadow repository.
+  A process that crosses the limit is stopped,
+   and the command reports which one and how to go on.
+- `CLI_GIT_WAIT_NOTICE_SECONDS`,
+   default `10`.
+  How often a waiting command repeats its notice (see "What a waiting command prints").
 - `CLI_GIT_PUSH_DEADLINE_SECONDS`,
    default `600`.
   How long the push after a landed commit may run before it is stopped.
@@ -497,11 +602,54 @@ A command that passes through to Git unchanged,
  and the user's own hooks,
  run as long as they run and receive Ctrl-C like any Git command.
 
+#### What a waiting command prints
+
+Every wait before the push stage of a commit writes to standard error,
+so a queued commit can be told from a hung one.
+A wait that ends within one second prints nothing,
+because healthy commits queue behind each other briefly all the time.
+After that the first line comes,
+and it repeats every `CLI_GIT_WAIT_NOTICE_SECONDS` seconds until the wait ends.
+A wait whose holder is already known when it begins (a live `index.lock`,
+ the worktree-copy settlement,
+ another process's push) prints its first line at once.
+Each line names what the command waits for,
+ the process that holds it when the wrapper can tell,
+ how long the wait has lasted and where it gives up.
+
+- A lock held by a live process (the landing, hook, capture and registry locks),
+   as in the sample below.
+  The first line of a wait adds a hint,
+   and the repeats stay short.
+- The landing reservation that a commit asks for after it lost landing races:
+  the same line for the holder,
+   and, when several commits queue for the grant,
+   `This is number 2 of 3 commits in line, so 1 will be served first.`
+- An `index.lock` held by a live process proven by an open descriptor or Git's PID file,
+   with the proof named,
+   and an `index.lock` that nothing proves held,
+   which the wrapper retries on Git's backoff until `indexLock.unprovenOwnerTimeoutMs` has passed.
+- The worktree-copy settlement lock and another process's push of the same branch.
+- A long run of `monochromatic-lint` for a Markdown file,
+   which names the file and stops the linter after 60 seconds.
+- The object reader and the Git steps of a commit that run long,
+   which name the Git command and the process,
+   and stop it after `CLI_GIT_CHILD_WAIT_SECONDS`.
+
+```text
+// standard error of a commit that waits for the landing lock
+cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
+```
+
 ## State on disk
 
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
 The next invocation recovers what an interrupted one left.
+
+A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
+ from before Git starts updating the checkout until the branch has moved.
+Do not remove it by hand unless a command says so.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree, which can hold gigabytes.

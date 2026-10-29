@@ -71,6 +71,7 @@ fn an_alternate_index_is_reported_apart_from_the_real_one() {
         real_git: PathBuf::from(REAL_GIT),
         overlay,
         global_prefix: Vec::new(),
+        common_dir: None,
     };
     let arguments: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_owned()];
     let location: LandingLocation = resolve_landing_location(&context, arguments.as_slice())
