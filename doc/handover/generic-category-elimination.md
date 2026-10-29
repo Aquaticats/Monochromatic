@@ -221,10 +221,28 @@ User decisions taken during execution
 - `~/.local/bin/spawn-claude` and `spawn-pi` now link to
    `package/claude-code-plugin/source/src/cli/spawn-claude.ts` and `package/pi-plugin/spawn/dist/final/node/cli.mjs`;
    both print their help.
-- In flight:
-   three subagents are fixing the `upstream-fork/{conf,p-map,p-memoize}.fuzz` parity failures
-   (upstream oracles float, for example `'p-memoize': '>=9.0.0'`);
-   check `git log -- package/upstream-fork` for their commits.
+- Fork parity fixes:
+  - `conf`: the fork was fine;
+     autofix pass `3da31bdc3a` had corrupted the vendored upstream oracle `conf.fuzz/upstream-conf/`
+     (arrow `set` became a `function`, losing `this`).
+    Restored byte-exact in `4b2565bd3c` and `090879d2ff` (corrective commit comment posted on `4b2565bd3c`).
+    User approved an oxlint ignore for that directory:
+     `78c8068b76` (verified: oxlint reports no files for it, still lints its sibling `src/`).
+    First coverage baseline frozen: `975ab54da3`.
+  - `p-memoize`: upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
+     ported in `21bff0aa78`.
+    User chose a full 9.0.0 port next; its subagent is in flight.
+  - `p-map`: subagent in flight.
+- `0c5e7be0ee`:
+   ten fuzz sidecars built `SOURCE_MARKER` from `${sep}`-joined old segments (`package/module/<x>-fork/src`),
+   a form the move rewrite could not see, so every `fuzz:coverage` gate projected nothing.
+  After the fix, eight of ten gates pass.
+  `conf.fuzz` lacked a baseline (now frozen);
+   `jsonc-edit/core-ts.fuzz` reports covered-function drops in four files (`edit-comment.ts` 12 < 14, and so on),
+   and a subagent is diagnosing whether source changes or lost driver reach explain them.
+- Searches for moved paths so far covered literal paths, quoted segment lists (`'package', 'dev-script'`),
+   escaped separators, and `${sep}` joins;
+   test fixtures that use made-up paths such as `/repo/package/module/x` are left as they are.
 - `56178d85ed` is mislabeled;
    corrective commit comment posted.
 
