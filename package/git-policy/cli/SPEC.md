@@ -2707,6 +2707,99 @@ A nested commit transaction lands under the ancestor's landing lock the same way
 
 `git cli-git fix` holds the landing lock as described in "Direct fix".
 
+#### Merge beside staged changes
+
+Native Git refuses every merge that creates a commit while the index differs from `HEAD`,
+whichever paths differ
+(measured with Git 2.56.0 in `doc/planning/cli-git-merge-with-staged-index.md`).
+A fast-forward is not refused for paths it does not write,
+and a worktree change that is only unstaged is refused only when the merge writes that path.
+A forwarded `merge` therefore runs the isolated merge below
+after the landing lock is held and a foreign `index.lock` has cleared,
+and forwards to native Git unchanged in every case marked "forward".
+
+1.  Recover isolated merges whose owner died (see "Recovery"), before anything reads the checkout.
+2.  Forward unless the command, after alias resolution, is a builtin `merge`
+    whose arguments read as one commit-ish and only these options, in full spelling:
+    `-m <message>` (also `-m<message>`, `--message <message>`, `--message=<message>`, repeated),
+    `--no-edit`, `--ff`, `--no-ff`, `-q`, `--quiet`, `-v`, `--verbose`, `--stat`, `--no-stat`, `-n`,
+    `--summary`, `--no-summary`, `--log`, `--no-log` (not together with `-m`),
+    `-S`, `-S<keyid>`, `--gpg-sign`, `--gpg-sign=<keyid>`, `--no-gpg-sign`,
+    `--no-verify`, `--verify`, `--no-signoff`, `--no-autostash`, `--no-verify-signatures`,
+    `--progress`, `--no-progress`, `--allow-unrelated-histories`.
+    Every other option (`--squash`, `--commit`, `--no-commit`, `-s`, `--strategy`, `-X`, `--ff-only`, `--edit`, `-e`,
+    `--signoff`, `--cleanup`, `-F`, `--autostash`, `--verify-signatures`, `--abort`, `--continue`, `--quit`,
+    any abbreviation Git would accept, and several commit-ishes) forwards.
+3.  Forward when `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `rebase-merge`, `rebase-apply`
+    or `sequencer` exists in the worktree's Git directory.
+4.  Forward when `git diff-index --cached --quiet HEAD --` does not exit `1`:
+    a clean index, an unborn `HEAD`, or a failure.
+    This is the one process a merge into a clean index costs.
+5.  Forward, with a notice on standard error, when the merge would open an editor:
+    `--no-edit` is absent and `GIT_MERGE_AUTOEDIT` is unset or true,
+    and standard input and output are one terminal (or the variable is true).
+6.  Read `merge.ff`, `merge.stat`, `merge.autostash`, `merge.verifySignatures`, `commit.gpgSign` and every
+    `branch.<name>.mergeOptions` in one `git config --null --get-regexp`.
+    Forward when `merge.autostash` or `merge.verifySignatures` is true or any `mergeOptions` is set.
+7.  Resolve `HEAD` and the commit-ish (`<commit-ish>^{commit}`), and the merge bases (`git merge-base --all`).
+    Forward when either does not resolve,
+    when the commit-ish is already contained in `HEAD` (native Git prints "Already up to date."),
+    when there is no merge base and `--allow-unrelated-histories` is absent,
+    when `merge.ff` is `only` and `--ff` is absent,
+    and when `HEAD` is contained in the commit-ish and no merge commit is wanted
+    (`--no-ff`, or `merge.ff` false without `--ff`):
+    native Git fast-forwards over unrelated staged paths and refuses an overlap itself.
+8.  Describe the commit-ish as `git merge` does:
+    `git rev-parse --symbolic-full-name` names a branch (`branch 'x' of .`), a tag (`tag 'x' of .`)
+    or a remote-tracking branch (`remote-tracking branch 'x' of .`),
+    and a name that is only hexadecimal digits is `commit 'x'`.
+    Forward for any other name, because Git words `<name>^`, `<name>~<n>` and similar forms differently.
+    With `-m` this step is skipped.
+9.  `git merge-tree --write-tree --name-only --no-messages [--allow-unrelated-histories] <HEAD> <commit-ish>`.
+    Exit `1` is a textual conflict:
+    the `merge-isolation/merge-conflict` core finding names the conflicting paths and the ways forward
+    (merge in a clean linked worktree, resolve in a clean checkout, or rebase the branch), exit `2`,
+    and nothing is changed.
+    Any other failure forwards.
+10. The paths the merge changes are `git diff-tree -r --name-only -z --no-renames <HEAD> <merged tree>`.
+    The paths of other work are those of `git --no-optional-locks status --porcelain=v1 -z --untracked-files=no`,
+    both names of a rename or copy included.
+    Forward when any entry is unmerged (`U` in either column, `AA`, `DD`).
+    When the two sets overlap, the `merge-isolation/paths-in-use` core finding names the paths
+    (five by name, then a count) and the ways forward
+    (wait for the owner to commit or restore them, merge in a clean linked worktree and bring the result back with
+    `git merge --ff-only`, or commit or stash one's own files), exit `2`, and nothing is changed.
+11. The message is the `-m` values joined as Git joins them,
+    or `git fmt-merge-msg` (with `--log` or `--no-log` when given) of the description line,
+    then `git stripspace`.
+12. `git commit-tree <tree> -p <HEAD> -p <commit-ish>` with the message on standard input,
+    and `-S` (or `-S<keyid>`) when signing is asked for or `commit.gpgSign` is true and `--no-gpg-sign` is absent.
+    `commit-tree` neither runs hooks nor reads `commit.gpgSign`.
+    A failure (a signer that fails) leaves everything unchanged and exits `128` with Git's message.
+13. Write the intent record `cli-git-merges/<transaction id>.json` in the worktree's Git directory
+    (exclusive, synced, then the directory synced) and reach the `merge-intent` phase.
+14. Run `git merge --ff-only --quiet --no-edit <merge commit>` with `GIT_REFLOG_ACTION=merge <commit-ish>`
+    and the landing lease in its environment, so a nested wrapper does not wait for the lock.
+    Git refuses an overlap with staged or modified paths that appeared after step 10, and an untracked file in the way,
+    before it writes anything.
+    After a refusal the record is settled as in "Recovery": a merge that never began is discarded,
+    and the `merge-isolation/not-applied` core finding follows Git's own message, with Git's exit status.
+15. Reach the `merge-applied` phase, remove the record,
+    and print `Merge made by the 'ort' strategy.` and `git diff --stat --summary <HEAD> <merge commit>`
+    unless `-q` was given or the stat is turned off (`--no-stat`, `-n`, `merge.stat` false).
+    Standard output and error of the fast-forward (the `post-merge` hook) are passed through.
+    The exit status is `0`.
+16. Release the landing lock.
+
+The merge commit is made from objects and runs none of `pre-merge-commit`, `prepare-commit-msg` and `commit-msg`,
+and no content policy, as the commit the auto-push makes from objects does not (see "Auto-push").
+`post-merge` runs once, from the fast-forward.
+The linked-worktree copy does not run around an isolated merge; the next forwarded command settles it.
+The fast-forward is atomic as Git makes it:
+the worktree files and the index are written first, the branch moves last, by Git's own compare-and-swap
+against the commit read in step 7.
+A branch that moved meanwhile makes Git refuse, and nothing changes.
+
 ### Recovery
 
 At wrapper startup,
@@ -2771,6 +2864,42 @@ Recovery stabilizes exact artifacts through verified same-filesystem hard links,
 installs only through an owner-preserving hard link rather than the mutable lock pathname,
 refuses unsafe or replaced filesystem artifacts,
 and preserves conflicting evidence after unrelated ref or index movement.
+
+An isolated merge (see "Merge beside staged changes") that died leaves `cli-git-merges/<transaction id>.json`.
+Recovery runs under the landing lock,
+at every point where dead landings are recovered and at the start of every forwarded `merge`.
+A command that finds a record whose owner is dead (or whose bytes cannot be parsed) takes the landing lock first;
+a record whose owner is alive is skipped without taking the lock,
+because a nested wrapper run by that merge's own `post-merge` hook would otherwise wait for its ancestor.
+For a dead owner:
+
+- A record that cannot be parsed stops the command with exit `2` and a `content-unavailable` engine failure that
+  names the record, and the record stays.
+- The branch (or `HEAD`, for a detached `HEAD`) already names the merge commit:
+  the record is removed.
+- The branch names neither the recorded old commit nor the merge commit:
+  exit `2`, nothing is changed, the record stays, and the message names the branch value and the record.
+- Otherwise the paths the merge changes (`git diff-tree -r -z --raw --no-renames --no-abbrev <old> <new>`) are compared
+  with the worktree and the index.
+  A path's worktree state is its recorded object (hashed through Git with its path's filters, a symbolic link from
+  its target text), or missing.
+  A merge began when the index entry of any changed path equals the merge's entry,
+  or the worktree holds the merged content (or lacks the file the merge deletes) at any changed path.
+  Another session's staged or edited version of a changed path is not evidence.
+- A merge that never began is discarded: the record is removed and nothing else changes.
+- A merge that began, with every changed path holding its old or merged content (or lacking a path to add or delete),
+  is completed:
+  `git update-index -z --index-info` sets the index entries of the changed paths to the merge's,
+  deleted files are removed with their emptied directories,
+  `git checkout-index --force -z --stdin` writes the paths not already holding the merged content,
+  and the branch moves by `git update-ref <ref> <new> <old>`.
+  Every other index entry and file is untouched.
+- A merge that began with a changed path holding neither content stops with exit `2`, changes nothing,
+  keeps the record, and names the paths and the ways forward.
+
+The merge's own process applies the same rules to a failed fast-forward.
+The crash controls arm the phases `merge-intent` (record durable, Git not yet started)
+and `merge-applied` (branch moved, record not yet removed).
 
 ### Compatibility and degradation
 
@@ -3106,9 +3235,11 @@ so this suite is an inherent part of the transaction protocol.
   `objects-migrated`,
   `ref-updated`,
   `index-installed`,
-  and `race-lost`,
+  `race-lost`,
   reached after each lost landing race outside both locks,
-  after any reservation it earned and before the replay.
+  after any reservation it earned and before the replay,
+  and `merge-intent` and `merge-applied` of an isolated merge
+  (record durable and Git not yet started; branch moved and record not yet removed).
   `race-lost` can be reached more than once,
   so its files carry the occurrence:
   `race-lost-<n>.reached` and `race-lost-<n>.release`.

@@ -28,6 +28,8 @@ use super::recovery_inspect::{
 };
 /// Dead-transaction recovery.
 use super::recovery_landing::{RecoveryAction, RecoveryPlace, recover_dead_transaction};
+/// Isolated merges that died.
+use super::merge_isolation_recovery::recover_interrupted_merges;
 /// Owner liveness.
 use super::transaction_owner::OwnerLiveness;
 /// Registry listing and names.
@@ -258,6 +260,13 @@ pub fn recover_dead_landings(
             directory: item.entry.path.clone(),
             action,
         });
+    }
+    // An isolated merge that died while it held the landing lock is settled under the same lock.
+    if let Some(git_dir) = root.parent() {
+        let merges = recover_interrupted_merges(place, git_dir)?;
+        if !merges.is_empty() {
+            debug("recoverDeadLandings", format!("isolated merge recovery outcomes: {merges:?}").as_str());
+        }
     }
     return Ok(outcomes);
 }

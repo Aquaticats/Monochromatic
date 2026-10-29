@@ -25,8 +25,12 @@ use super::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
 use super::forwarded_command::ResolvedCommand;
 /// The repository shape the invocation selects.
 use super::worktree_identity::WorktreeIdentity;
+/// A merge the staged index would make native Git refuse, completed without disturbing the staged work.
+use super::merge_isolation::{IsolatedMerge, IsolatedMergeInput, run_isolated_merge};
 /// `OsString` is owned operating-system text of raw bytes.
 use std::ffi::OsString;
+/// Writing the merge's own output.
+use std::io::Write;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::PathBuf;
 
@@ -136,6 +140,28 @@ pub fn run_coordinated_forward(forward: &CoordinatedForward) -> CoordinatedRun {
     };
     let mut child_overlay: Vec<(OsString, OsString)> = forward.overlay.clone();
     child_overlay.push(coordination.lease.clone());
+    // A merge that native Git would refuse only because the index holds staged changes is completed in isolation.
+    if forward.command.word() == b"merge" {
+        let merge_input: IsolatedMergeInput<'_> = IsolatedMergeInput {
+            real_git: forward.real_git.as_path(),
+            overlay: child_overlay.as_slice(),
+            identity: &forward.identity,
+            command: &forward.command,
+            environment: forward.environment.as_slice(),
+        };
+        match run_isolated_merge(&merge_input) {
+            IsolatedMerge::Forward { notice } => {
+                if let Some(text) = notice {
+                    let _ = std::io::stderr().write_all(text.as_bytes());
+                }
+            }
+            IsolatedMerge::Finished { code, stdout, stderr } => {
+                let _ = std::io::stdout().write_all(stdout.as_bytes());
+                let _ = std::io::stderr().write_all(stderr.as_bytes());
+                return finish(ForwardedRun::Ran(code), coordination.release());
+            }
+        }
+    }
     let outcome: ForwardedRun = run_forwarded_git(
         forward.real_git.as_path(),
         forward.arguments.as_slice(),

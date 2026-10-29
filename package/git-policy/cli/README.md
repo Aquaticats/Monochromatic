@@ -34,6 +34,18 @@ Read-only commands,
   Any staged entry outside the committed paths that differs is named in a warning,
    so a loss of staged work is reported instead of silent.
   A transaction that an interrupted process left behind is recovered by the next invocation.
+- Merges beside other sessions' staged work.
+  Native Git refuses every `git merge` that creates a commit while the index holds any staged change,
+   even when the merge touches none of the staged files.
+  When that is the only obstacle,
+   the wrapper computes the merge from Git objects,
+   commits it with the parents, message and signing native Git would use,
+   and lets Git's own fast-forward update move the checkout to it.
+  Every staged entry, unstaged edit and untracked file that the merge does not change stays byte for byte as it was.
+  A merge that changes a path someone else has staged or modified, or that conflicts,
+   is refused with the paths named and the ways forward, and changes nothing.
+  Shapes the wrapper cannot make exact (`--squash`, `--no-commit`, `-s`, `-X`, several branches, an editor) run in
+   native Git unchanged; see "Merging with staged changes" for the full list.
 - Hooks.
   Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
   Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported:
@@ -309,6 +321,54 @@ Commands without a table of their own (`rm`,
  `read-tree`,
  `restore` and the `--abort` commands) take the hatch directly after the subcommand.
 
+### Merging with staged changes
+
+Several sessions can share one checkout.
+When the index differs from `HEAD`,
+ native Git refuses a `git merge <branch>` that needs a merge commit with
+ `error: Your local changes to the following files would be overwritten by merge`,
+ whichever files are staged.
+The wrapper completes that merge instead, when all of these hold:
+
+- the command is `git merge` with one commit-ish and only the options `-m`, `--no-edit`, `--ff`, `--no-ff`,
+   `-q`, `-v`, `--stat`, `--no-stat`, `-n`, `--log`, `--no-log`, `-S`, `--gpg-sign`, `--no-gpg-sign`,
+   `--no-verify`, `--allow-unrelated-histories` and `--no-progress` (full spellings only);
+- the index differs from `HEAD`, and `HEAD` is not already ahead of or equal to the merged commit
+   (native Git fast-forwards over unrelated staged work and answers "Already up to date" by itself);
+- no merge, rebase, cherry-pick or revert is in progress, and the settings `merge.autostash`,
+   `merge.verifySignatures` and `branch.<name>.mergeOptions` are unset;
+- the merge would not open an editor: pass `--no-edit`, or set `GIT_MERGE_AUTOEDIT=no`
+   (a merge started from a terminal opens one by default, and then native Git runs it and refuses it as before).
+
+The merge tree comes from `git merge-tree --write-tree`, the commit from `git commit-tree`, signed when `-S` is given
+ or `commit.gpgSign` is true.
+Its message is Git's own (`git fmt-merge-msg`, then the whitespace cleanup of a commit that opens no editor),
+ and the checkout then moves with `git merge --ff-only <merge commit>`.
+That is Git's two-way update:
+ it writes exactly the paths the merge changes and keeps every other index entry and file.
+The merge commit skips `pre-merge-commit`, `prepare-commit-msg` and `commit-msg`,
+ like the merge the auto-push makes from objects;
+ `post-merge` runs once.
+The branch reflog reads `merge <branch>: Fast-forward`.
+
+Two refusals change nothing:
+
+- The merge changes a path that is staged, or modified in the worktree, by someone else.
+  The finding `merge-isolation/paths-in-use` names the paths.
+  The ways forward are to wait until the owner has committed or restored them,
+   to merge in a clean linked worktree and bring the result back with `git merge --ff-only`,
+   or, for your own files, to commit or stash them first.
+- The merge conflicts textually.
+  The finding `merge-isolation/merge-conflict` names the conflicting paths.
+  Resolve in a clean linked worktree or checkout, or rebase the branch.
+
+An untracked file where the merge adds one is refused by Git at the last step;
+ the finding `merge-isolation/not-applied` follows Git's message, and nothing is changed.
+A merge killed while it runs is finished or discarded by the next invocation (see "State on disk").
+`git pull` runs its merge inside Git, out of the wrapper's reach,
+ so a pull that needs a merge commit is still refused while the index holds staged changes;
+ run `git fetch`, then `git merge --no-edit origin/<branch>`.
+
 ### Output and exit status
 
 Policy events of a wrapped command are JSON lines on standard error,
@@ -502,6 +562,10 @@ A command that passes through to Git unchanged,
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.
 Delete nothing there while a Git command is running.
 The next invocation recovers what an interrupted one left.
+
+A merge in progress keeps a one-line record in `cli-git-merges` in the worktree's Git directory,
+ from before Git starts updating the checkout until the branch has moved.
+Do not remove it by hand unless a command says so.
 
 The ignored-state copy into a new linked worktree stages its files in a `.cli-git-worktree-copy-*` directory
 beside the new worktree, which can hold gigabytes.
