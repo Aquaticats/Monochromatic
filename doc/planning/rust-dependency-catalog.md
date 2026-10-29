@@ -415,6 +415,53 @@ Changesets on update wait for Rust releases to adopt change intents
  `.changeset/config.json` names only npm packages,
  and `.github/workflows/cargo-publish.yml` publishes when a crate's `Cargo.toml` `version` is bumped by hand.
 
+### Derived from precedent (veto open)
+
+Adopted without a separate question because pnpm's docs or the repo's JS setup decide them;
+ each is offered to the owner for veto.
+
+- Internal path dependencies:
+   the sync writes `version = "=<target package.version>"`.
+   Evidence:
+   every internal JS reference uses `workspace:*`
+   (1537 matches of `"workspace:*"` and no other `workspace:` form across `package/*/*/package.json`),
+   and pnpm publishes `workspace:*` as the exact version (`docs/workspaces.md`, "Publishing workspace packages").
+- Adopt on sync rewrites `cargo add`'s caret literal into a `>=` floor.
+   Evidence:
+   the JS catalog's entries are `>=` floors although `pnpm-workspace.yaml` sets `savePrefix: ''`,
+   and the owner chose `>=` floors for Rust.
+- Table names follow pnpm:
+   `[catalog]` for the default catalog and `[catalogs.<name>]` for named ones.
+- Named-catalog entries hold bounded requirements (caret or exact),
+   and tighten skips them as it skips every non-`>=` entry.
+   Evidence:
+   pnpm's own named-catalog example is `react17: ^17.0.2`;
+   a `>=0.58` entry would be pulled to the newest release by the first recursive update.
+- The drift check runs in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`.
+   Evidence:
+   that workflow runs on `push` and `pull_request` to `main`,
+   and its setup action runs `pnpm install --frozen-lockfile`
+   (`.github/actions/task-cli-setup/action.yml`),
+   the JS catalog's drift gate.
+- [Issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801) narrows:
+   with `>=` floors and the recursive update,
+   direct dependencies converge whenever the update runs;
+   what remains is a cross-lockfile drift report and transitive dependencies.
+
+### Release age
+
+The repo sets `minimumReleaseAge: 1440` in `pnpm-workspace.yaml`.
+On the repo's cargo (`1.101.0-nightly`),
+ `cargo -Zunstable-options generate-lockfile --help` lists
+ `--publish-time <yyyy-mm-ddThh:mm:ssZ>`,
+ "Latest publish time allowed for registry packages (unstable)"
+ (tracking issue [rust-lang/cargo#16271]);
+ `cargo update --help` lists no such flag.
+So a release age can bound a full re-resolution but not a selective `cargo update <spec>`.
+The index `pubtime` field it relies on was stabilized in Rust 1.94.0.
+
+[rust-lang/cargo#16271]: https://github.com/rust-lang/cargo/issues/16271
+
 ### Named catalog selection
 
 A crate selects a named catalog in its own manifest,
