@@ -760,3 +760,107 @@ fn a_live_merges_record_is_left_alone() {
     assert!(record.exists(), "a running merge's record is not recovered");
     remove_settled(&fixture);
 }
+
+/// A pseudo-terminal: the master end the test keeps open, and the slave end a child can use as a terminal.
+struct Terminal {
+    /// Kept so the slave stays open for the child's whole run.
+    _master: std::fs::File,
+    /// What the child's standard streams are made from.
+    slave: std::fs::File,
+}
+
+/// Open a new pseudo-terminal.
+fn terminal() -> Terminal {
+    use std::os::fd::FromRawFd;
+    use std::os::unix::fs::OpenOptionsExt;
+    // SAFETY: `posix_openpt` returns a new descriptor that nothing else owns, which `File` takes over at once; the
+    // other calls only read or change that descriptor, and `ptsname_r` writes at most the buffer's length.
+    let (master, name): (std::fs::File, std::ffi::CString) = unsafe {
+        let descriptor: libc::c_int = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+        assert!(descriptor >= 0, "a pseudo-terminal is opened");
+        let master: std::fs::File = std::fs::File::from_raw_fd(descriptor);
+        assert_eq!(libc::grantpt(descriptor), 0, "the slave is granted");
+        assert_eq!(libc::unlockpt(descriptor), 0, "the slave is unlocked");
+        let mut buffer: [libc::c_char; 256] = [0; 256];
+        assert_eq!(libc::ptsname_r(descriptor, buffer.as_mut_ptr(), buffer.len()), 0, "the slave has a name");
+        (master, std::ffi::CStr::from_ptr(buffer.as_ptr()).to_owned())
+    };
+    let path: &str = name.to_str().expect("a UTF-8 terminal name");
+    let slave: std::fs::File = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(libc::O_NOCTTY)
+        .open(path)
+        .expect("the slave opens");
+    return Terminal { _master: master, slave };
+}
+
+/// Run a wrapped command with the given standard input and output, standard error piped, to its end.
+fn run_on(
+    fixture: &Fixture,
+    repo: &Path,
+    arguments: &[&str],
+    streams: (std::process::Stdio, std::process::Stdio),
+) -> Observed {
+    let (input, output) = streams;
+    let finished = wrapped_in(fixture, repo, arguments)
+        .stdin(input)
+        .stdout(output)
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("process starts")
+        .wait_with_output()
+        .expect("process finishes");
+    return Observed { code: finished.status.code(), stdout: finished.stdout, stderr: finished.stderr };
+}
+
+/// Without `--no-edit` or `GIT_MERGE_AUTOEDIT`, a merge opens an editor only when standard input and output are one
+/// terminal; then the wrapper hands it to native Git with the notice, and in any other arrangement it completes it.
+#[test]
+fn the_editor_opens_only_when_input_and_output_are_one_terminal() {
+    let one: Terminal = terminal();
+    let other: Terminal = terminal();
+    let same = || -> (std::process::Stdio, std::process::Stdio) {
+        return (
+            std::process::Stdio::from(one.slave.try_clone().expect("duplicate")),
+            std::process::Stdio::from(one.slave.try_clone().expect("duplicate")),
+        );
+    };
+    let two = || -> (std::process::Stdio, std::process::Stdio) {
+        return (
+            std::process::Stdio::from(one.slave.try_clone().expect("duplicate")),
+            std::process::Stdio::from(other.slave.try_clone().expect("duplicate")),
+        );
+    };
+    let input_only = || -> (std::process::Stdio, std::process::Stdio) {
+        return (std::process::Stdio::from(one.slave.try_clone().expect("duplicate")), std::process::Stdio::piped());
+    };
+    let output_only = || -> (std::process::Stdio, std::process::Stdio) {
+        return (std::process::Stdio::null(), std::process::Stdio::from(one.slave.try_clone().expect("duplicate")));
+    };
+    let neither = || -> (std::process::Stdio, std::process::Stdio) {
+        return (std::process::Stdio::null(), std::process::Stdio::piped());
+    };
+    let cases: [(&str, &dyn Fn() -> (std::process::Stdio, std::process::Stdio), bool); 5] = [
+        ("one terminal", &same, true),
+        ("two terminals", &two, false),
+        ("terminal input only", &input_only, false),
+        ("terminal output only", &output_only, false),
+        ("no terminal", &neither, false),
+    ];
+    for (name, streams, opens_editor) in cases {
+        let fixture: Fixture = fixture(format!("merge-editor-{}", name.replace(' ', "-")).as_str());
+        let repo: PathBuf = diverged(&fixture, "repo");
+        stage_unrelated_work(&fixture, repo.as_path());
+        let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        let observed: Observed = run_on(&fixture, repo.as_path(), &["merge", "feature"], streams());
+        let notice: bool = text(&observed.stderr).contains("this merge would open an editor");
+        assert_eq!(notice, opens_editor, "{name}: {}", text(&observed.stderr));
+        let merged: bool = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]) != before;
+        assert_eq!(merged, !opens_editor, "{name}: {}", text(&observed.stderr));
+        if !opens_editor {
+            assert_eq!(observed.code, Some(0), "{name}: {}", text(&observed.stderr));
+        }
+        remove_settled(&fixture);
+    }
+}
