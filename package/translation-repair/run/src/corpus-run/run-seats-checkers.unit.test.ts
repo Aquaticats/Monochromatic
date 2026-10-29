@@ -33,7 +33,6 @@ import {
   SEAT_BEDROCK_ONLY_TEXT,
   SEAT_HYPER_TEXT_BEDROCK,
   SEAT_OPENROUTER_ONLY_CHECKER,
-  SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
   SEAT_SYNTHETIC_VISION_WITHHELD,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 
@@ -192,10 +191,12 @@ await describe({
           anthropic: false,
           openrouter: false,
         };
+        // QWEN3.8-27B LED THIS ORDER UNTIL THE OWNER'S ANSWER OF 2026-10-29 ("Remove Qwen from wide seats"), so the
+        // top three are now the two it followed and Haiku 5.5, the next of the order.
         expect(judgeSeatsFor({ dry, },).checkers,).toEqual([
-          SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
           SEAT_OPENROUTER_ONLY_CHECKER,
           SEAT_SYNTHETIC_VISION_WITHHELD,
+          'claude-haiku-5-5',
         ],);
       },
     },),

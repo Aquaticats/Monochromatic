@@ -555,6 +555,10 @@ import type { SliceReplacement, } from '@monochromatic-dev/translation-repair-pa
  and the change cannot ride inside it, so the number moves. The consolidate version (43) moves for the same sheets; the
  repair slice (49) and refine (19) versions stay, since neither reads these sentences. The first ask does not carry the
  phrase, so its text is the same as at 35.
+
+ Stays at 36 for the removal of `hf:Qwen/Qwen3.8-27B` from the select judges (owner, 2026-10-29, "Remove Qwen from wide
+ seats"; ledger B1030; commits `6d39223583` and `ac692efa7f`). `translateRunShape` hashes the translator and judge lists, so a slice settled with Qwen
+ judging is keyed apart from one settled without it, and no stored record is served to a bench it was not settled by.
  */
 export const TRANSLATE_SLICE_CACHE_VERSION = 36;
 

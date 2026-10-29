@@ -29,6 +29,13 @@ export const REPORT_MOUNT: string = '/out';
 export const MANIFEST_MOUNT: string = '/manifest';
 
 /**
+ Source file list name inside the manifest mount: the NUL-separated,
+ repository-root-relative paths the container copies from the source mount
+ into the work tree (written by the host, read by `rsync --files-from`).
+ */
+export const SOURCE_FILE_LIST_NAME: string = 'source-files.list';
+
+/**
  Baked repository root inside the runtime image.
  */
 export const BAKED_ROOT: string = '/baked';

@@ -211,6 +211,62 @@ The catalog still lists the model,
 so its spelling and prices stay known;
 what changed is that the run never buys it there.
 
+## Addendum 2026-10-29: Qwen3.8-27B leaves the wide seats and the checker order
+
+The owner chose "Remove Qwen from wide seats" (question tool,
+2026-10-29),
+in answer to the measurement of its late voice on `XingZ6020` to `XingZ6022`.
+The option read:
+"No late wait for Qwen at all...
+loses every Qwen vote and claim,
+including the 18 critic rounds where only Qwen found an accepted issue."
+On 2026-10-22 the owner had said "Remove from both benches",
+which was read as the lane-contest and consolidation benches alone,
+so the wide seats kept it per provider until this answer
+(ledger B815,
+and B1030 for this change).
+
+The evidence put to the owner:
+under the rules of `XingZ6022`,
+Qwen's late ballot changed the round's own result in 42 of 272 late rounds
+(panel 20,
+select 21,
+checker 1;
+the critic proxy 18 of 32),
+at about 191 minutes of summed late grace,
+plus 160 minutes on 79 streams cut at the grace with no answer.
+Of the 131 panel rounds and 118 select rounds that had a late ballot,
+it was the late voice in 127 and 112.
+
+What the answer took:
+the `wide-seat-dropped` hold on its card,
+so the critics,
+the panel and the select judges of both lanes derive without it,
+and its line in `RUN_CHECKER_ORDER`,
+where it led.
+Its other seats stay:
+the translator seat,
+the picture-reader seat,
+the consolidation writer seat
+and the roster that block pairing,
+archive review and insertion admission ask,
+which are not judge seats,
+and `HYPER_SLOW_JUDGES` still withholds those while Hyper would serve it.
+The 120 s grace after quorum (`STRAGGLER_GRACE_MS`) is unchanged for every other voice.
+
+What it does to the benches,
+with every provider wet:
+the wide bench is 7 seats (it was 8),
+the select judges 8 (they were 9),
+with quorum 4 for both,
+where the select quorum was 5.
+The late judges stay 7,
+and the checker bench is Mimo v2.6 Flash,
+Kimi-K3 and Haiku 5.5.
+Haiku 5.5 was unmeasured as a checker and sat behind the three the benchmark ranked,
+so it now holds a place on the static bench of three,
+which is open to the owner's veto.
+
 ## Where the evidence lives
 
 - `doc/planning/translation-repair-roster-calibration-2026-09-01.md`:

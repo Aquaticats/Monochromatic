@@ -436,8 +436,10 @@ arg "[args]" var=#true help="File or folder paths to enqueue"
 # session natively: no socket passthrough, no --userns=keep-id, and the .desktop
 # association + LauncherEntry taskbar progress work without the container's SASL
 # EXTERNAL uid juggling. A container-built binary links only against runtime libs
-# present on the host (verified with `ldd`), and a binary built on the older
-# container glibc (Fedora 41) runs on the newer host glibc (Fedora 44+).
+# present on the host (verified with `ldd`). A binary runs on a host whose glibc is at least the container's. The container is
+# CachyOS, which ships the newest glibc: on 2026-10-29 its release binary needed GLIBC_2.44 (`sinh`, `cosh`) and did not
+# start on a Fedora 44 host with glibc 2.43 ("version `GLIBC_2.44' not found"), so on such a host the container
+# fallback of this task builds a binary that cannot run there.
 #
 # The host environment already provides WAYLAND_DISPLAY, XDG_RUNTIME_DIR, the
 # D-Bus session bus, PipeWire, and the XDG user dirs, so the empty-launch auto-load

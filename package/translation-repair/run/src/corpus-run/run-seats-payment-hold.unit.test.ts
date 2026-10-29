@@ -169,7 +169,7 @@ await describe({
   children: [
     it({
       name: 'WAITS OUT THE STATED HOLD OF A PROVIDER REFUSED FOR A REASON OTHER THAN PAYMENT (the control): Hyper back '
-        + 'makes the wide bench 4 of 8 against a quorum of 4, and its meter reads wet, so the wait buys the quorum',
+        + 'makes the wide bench 5 of 7 against a quorum of 4, and its meter reads wet, so the wait buys the quorum',
       fn: async (ctx) => {
         expect(await readsAfterRefusal({ paymentRequired: false, lines: [], sinon: ctx.sinon, },),).toBe(2,);
       },

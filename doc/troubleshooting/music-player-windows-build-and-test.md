@@ -209,6 +209,8 @@ The last full Wine run (fonts installed) ended with 1383 tests run: 1377 passed 
 
 - Without system fonts in the Wine prefix, three `ui_focus_ring_pages_tests` panicked inside Slint
   (`systemfonts.rs:71`) in an earlier run. The image now installs the `wine-*-winefonts` packages and they pass.
+  (Since 2026-10-29 the CachyOS image installs `noto-fonts` instead: Arch's `wine` ships Tahoma but not Arial or Times New Roman,
+   and with `wine` alone the same three tests panicked at `systemfonts.rs:71`; `ttf-liberation` did not fix them, `noto-fonts` did.)
 - `controller_flow::tests::removing_the_selected_file_reports_it_and_stops_playback` fails at
   `src/controller_flow_tests.rs:288` (`assert!(!controller.playing)`), and
   `controller_measures::refresh_tests::flow::the_selected_track_follows_its_path_...` fails at

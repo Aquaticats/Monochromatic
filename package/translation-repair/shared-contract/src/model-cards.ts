@@ -109,10 +109,20 @@ export const MODEL_CARDS: Readonly<Record<RosterModelId, ModelCard>> = {
     // benches": in XingZ6017, once Synthetic served it again, 40 of its 95
     // streams were cut after the grace with no answer and the mean
     // consolidation slice rose from 149 s to 315 s and 346 s (ledger B810, B815).
-    // The wide seats keep it while Synthetic serves it (`run-seats.ts`).
+    //
+    // Off the wide benches (critics, panel, both lanes' select judges) and the
+    // checker order by the owner's answer of 2026-10-29, "Remove Qwen from wide
+    // seats": in XingZ6022 it was the one voice that arrived after the quorum in
+    // 127 of 131 panel rounds that had a late ballot and 112 of 118 select
+    // rounds, and its late ballot changed the round's own result in 42 of 272
+    // late rounds (ledger B1030). It keeps the seats that are no judge seat
+    // (translator, picture reader, consolidation writer, the roster the
+    // pairing and admission rounds ask), where `run-seats.ts` still withholds it
+    // while Hyper would serve it.
     holds: [
       'openrouter-dropped',
       'late-judge-dropped',
+      'wide-seat-dropped',
     ],
   },
   'hf:moonshotai/Kimi-K3': {

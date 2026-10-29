@@ -696,7 +696,9 @@ named for that subject and listed here.
   the ceiling a hold could lift a short bench to,
   which the seat reader's line never stated (B833),
   a slice bought again by the next attempt for want of a second ballot (B834),
-  and the contest and consolidation rounds opened for slices their bench could not settle (B835).
+  the contest and consolidation rounds opened for slices their bench could not settle (B835),
+  and the model that was the late voice on the wide benches and the checker order
+  until the owner took those seats away (B1030).
 - [Audit ledger:
   short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md):
   The ceiling that counted a provider its meter keeps dry as coming back (B837),

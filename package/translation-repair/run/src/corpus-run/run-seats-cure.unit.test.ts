@@ -11,8 +11,8 @@
  seat is one Bedrock or NeuralWatt already reach, and Haiku is on the wide bench only). The Claude key is dry in
  every view here, so its own hold is the one held in the cases that name it: skipped in the lane contest, where its
  return leaves the late bench short, and waited out in the lanes phase, whose critics and panel are the wide bench and
- where its return takes the wide bench from 3 of 8 to 4 of 8 (a view where the wide bench is the only one short) or
- from 1 of 8 to 2, the floor of two voices the stages decide on; the rule is the same, and what differs is the bench the
+ where its return takes the wide bench from 3 of 7 to 4 of 7 (a view where the wide bench is the only one short) or
+ from 1 of 7 to 2, the floor of two voices the stages decide on; the rule is the same, and what differs is the bench the
  phase seats.
 
  TWO HOLDS THAT EACH CURE ALONE (round 5): a hold counts when the held set cures the bench between them and that
@@ -52,7 +52,7 @@ import { shortWarningOf, } from './run-seats-short-warning.test-fixture.ts';
 
 /**
  NeuralWatt and Bedrock wet and every other provider dry: the late bench is 3 of 7 reachable against a quorum of 4,
- and the wide bench 3 of 8.
+ and the wide bench 3 of 7.
  */
 const LATE_ONE_SHORT: BudgetView = {
   neuralwatt: false,
@@ -94,7 +94,7 @@ const POLL_MS = 5;
  NeuralWatt wet and every other provider dry: the late bench stands three seats short of its quorum of 4. Hyper back
  alone reaches the quorum, and so do Synthetic and Bedrock back together, while Synthetic alone or Bedrock alone leaves
  it short: with the three held, each one is unnecessary given the others, yet every one of them adds a seat to the bench
- the held set cures. The lanes phase also reads the wide bench over this view, at 1 of 8 reachable against a floor of
+ the held set cures. The lanes phase also reads the wide bench over this view, at 1 of 7 reachable against a floor of
  2 and a quorum of 4: the floor-lift case uses it for that bench, where the Claude key back makes the wide bench 2.
  */
 const LATE_THREE_SHORT: BudgetView = {
@@ -109,9 +109,9 @@ const LATE_THREE_SHORT: BudgetView = {
 };
 
 /**
- NeuralWatt, Bedrock, DeepSeek and Xiaomi wet and the rest dry: the wide bench is 3 of 8 reachable against a
+ NeuralWatt, Bedrock, DeepSeek and Xiaomi wet and the rest dry: the wide bench is 3 of 7 reachable against a
  quorum of 4, and the editors, refiners and translators the lanes phase also leans on are each at their quorum, so
- the wide bench is the only one short. The Claude key back makes the wide bench 4 of 8.
+ the wide bench is the only one short. The Claude key back makes the wide bench 4 of 7.
  */
 const WIDE_ONLY_SHORT: BudgetView = {
   neuralwatt: false,
@@ -305,7 +305,7 @@ await describe({
 
     it({
       name: 'DOES NOT WAIT OUT A HOLD ON THE CLAUDE KEY IN THE LANE CONTEST, WHICH JUDGES WITH THE LATE BENCH: the '
-        + 'Claude key back makes the wide bench 4 of 8 but the late bench stays 3 of 7 against a quorum of 4 '
+        + 'Claude key back makes the wide bench 4 of 7 but the late bench stays 3 of 7 against a quorum of 4 '
         + '(Haiku sits on the wide bench only), so the wait buys nothing and the line says the hold would not help',
       fn: async (ctx) => {
         const lines: string[] = [];
@@ -319,7 +319,7 @@ await describe({
 
     it({
       name: 'DOES NOT WAIT OUT A HOLD ON THE CLAUDE KEY IN THE PAGE CONSISTENCY PASS, WHICH ASKS THE LATE BENCH: the '
-        + 'wide bench is 3 of 8 and the Claude key back makes it 4 of 8, but the late bench the pass asks stays '
+        + 'wide bench is 3 of 7 and the Claude key back makes it 4 of 7, but the late bench the pass asks stays '
         + '3 of 7 against a quorum of 4, so the wait buys nothing',
       fn: async (ctx) => {
         const lines: string[] = [];
@@ -339,7 +339,7 @@ await describe({
     it({
       name: 'WAITS OUT A HOLD ON THE CLAUDE KEY IN A PHASE WHOSE JUDGING BENCH IS THE WIDE ONE (the control for the '
         + 'Claude key as the held provider): the lanes phase seats critics and panel from the wide bench, which is 3 '
-        + 'of 8 and with the Claude key back 4 of 8 against a quorum of 4, so the wait buys the quorum and the line '
+        + 'of 7 and with the Claude key back 4 of 7 against a quorum of 4, so the wait buys the quorum and the line '
         + 'announcing it prints the Claude key\'s hold',
       fn: async (ctx) => {
         const lines: string[] = [];
@@ -364,7 +364,7 @@ await describe({
 
     it({
       name: 'WAITS OUT A HOLD ON THE CLAUDE KEY WHEN ITS RETURN LIFTS THE WIDE BENCH OVER ITS FLOOR THOUGH NOT TO ITS '
-        + 'QUORUM: in the lanes phase, with only NeuralWatt wet, the wide bench reads 1 of 8 and the Claude key back '
+        + 'QUORUM: in the lanes phase, with only NeuralWatt wet, the wide bench reads 1 of 7 and the Claude key back '
         + 'makes it 2, the floor of 2 voices the stages decide on, so the wait buys a decision and not the quorum',
       fn: async (ctx) => {
         expect(

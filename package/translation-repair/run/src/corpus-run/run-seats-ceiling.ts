@@ -168,8 +168,8 @@ function ceilingClauseOf(
  @example
  ```ts
  const said = ceilingWordsOf({ running, dry, meterDry, names: phaseBenches({ phase, },), },);
- // => ['wide ceiling 3 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but not
- // to the quorum (the return brings back hf:moonshotai/Kimi-K3, hf:Qwen/Qwen3.8-27B)',]
+ // => ['wide ceiling 2 of 7 with synthetic back, floor 2 and quorum 4, so the return lifts it to the floor but not
+ // to the quorum (the return brings back hf:moonshotai/Kimi-K3)',]
  ```
  */
 export function ceilingWordsOf(

@@ -28,6 +28,10 @@ import {
   OPENROUTER_WITHHELD,
 } from '@monochromatic-dev/translation-repair-provider';
 import {
+  firstRoundWindow,
+  rosterQuorumSize,
+} from '@monochromatic-dev/translation-repair-stage';
+import {
   HYPER_SLOW_JUDGES,
   HYPER_SLOW_SELECT_JUDGES,
   judgeSeatsFor,
@@ -123,11 +127,14 @@ await describe({
   name: judgeSeatsFor.name,
   children: [
     it({
-      name: 'WITHHOLDS the Hyper-slow judge from the wide seats when Hyper would serve it and SEATS it there when '
-        + 'Synthetic does, KEEPS it off the late-judge bench either way, with the static drops holding either way',
+      name: 'WITHHOLDS the Hyper-slow judge from the seats that are not judge seats when Hyper would serve it, '
+        + 'and KEEPS it off the wide and late-judge benches either way, with the static drops holding either way',
       fn: async () => {
         expect(HYPER_SLOW_JUDGES.has(QWEN,),).toBe(true,);
-        expect(RUN_WIDE_SEATS.includes(QWEN,),).toBe(true,);
+        // THE OWNER'S ANSWER OF 2026-10-29: "Remove Qwen from wide seats", the critics, the panel and the
+        // judges of both lanes (ledger B1030), so the wide bench and the select bench derived from it lose the seat.
+        expect(RUN_WIDE_SEATS.includes(QWEN,),).toBe(false,);
+        expect(RUN_SELECT_JUDGES.includes(QWEN,),).toBe(false,);
         // THE OWNER'S ANSWER OF 2026-10-22: "Remove from both benches", the
         // consolidation slate and the late-judge rounds (ledger B815). The
         // consolidation slate's judges are the late judges, so the hold reaches both.
@@ -136,7 +143,8 @@ await describe({
         const dry = judgeSeatsFor({ dry: SYNTHETIC_DRY, },);
         expect(dry.wideSeats.includes(QWEN,),).toBe(false,);
         expect(dry.lateJudges.includes(QWEN,),).toBe(false,);
-        expect(dry.wideSeats.length,).toBe(RUN_WIDE_SEATS.length - 1,);
+        // The wide bench loses no second seat to the Synthetic-dry reading, since Qwen is already off it.
+        expect(dry.wideSeats,).toEqual(RUN_WIDE_SEATS,);
         expect(dry.lateJudges,).toEqual(RUN_LATE_JUDGES,);
         expect(dry.repairModels.criticModelIds,).toEqual(dry.wideSeats,);
         expect(dry.repairModels.panelModelIds,).toEqual(dry.wideSeats,);
@@ -157,6 +165,71 @@ await describe({
         expect(wet.translateModels.translatorModelIds,).toEqual(RUN_TRANSLATORS,);
         expect(wet.withheld,).toEqual([],);
         expect(wet.wideSeats.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'SEATS QWEN3.8-27B ON NO WIDE JUDGE SEAT under any reading (the owner\'s answer of 2026-10-29: critics, '
+        + 'panel, both lanes\' judges and the checker order), KEEPS it on the seats that are no judge seat while '
+        + 'Synthetic serves it, and SIZES each bench\'s quorum and first-round window from the seats left',
+      fn: async function seatsQwenOnNoWideJudgeSeat(): Promise<void> {
+        for (const view of [
+          ALL_WET,
+          SYNTHETIC_DRY,
+          OPENROUTER_ONLY,
+        ]) {
+          /**
+           Benches under this reading.
+           */
+          const seats = judgeSeatsFor({ dry: view, },);
+          for (const bench of [
+            seats.wideSeats,
+            seats.selectJudges,
+            seats.lateJudges,
+            seats.slateJudges,
+            seats.checkers,
+            seats.repairModels.criticModelIds,
+            seats.repairModels.panelModelIds,
+            seats.repairModels.judgeModelIds,
+            seats.repairModels.checkerModelIds,
+            seats.translateModels.judgeModelIds,
+          ])
+            expect(bench.includes(QWEN,),).toBe(false,);
+        }
+        for (const bench of [
+          RUN_WIDE_SEATS,
+          RUN_SELECT_JUDGES,
+          RUN_LATE_JUDGES,
+          RUN_CHECKER_ORDER,
+          RUN_MODELS.criticModelIds,
+          RUN_MODELS.panelModelIds,
+          RUN_MODELS.judgeModelIds,
+          RUN_MODELS.checkerModelIds,
+        ])
+          expect(bench.includes(QWEN,),).toBe(false,);
+        expect(RUN_CHECKER_ORDER[0],).not.toBe(QWEN,);
+
+        // THE POSITIVE CONTROL: the seats that are not judge seats keep Qwen3.8-27B while Synthetic serves it, so
+        // the absence on the judge benches is the removal and not a model that left the roster.
+        const wet = judgeSeatsFor({ dry: ALL_WET, },);
+        expect(wet.roster.includes(QWEN,),).toBe(true,);
+        expect(wet.translators.includes(QWEN,),).toBe(true,);
+        expect(wet.readers.includes(QWEN,),).toBe(true,);
+        expect(wet.writers.includes(QWEN,),).toBe(true,);
+
+        // QUORUM AND WINDOW FOLLOW FROM THE SEAT COUNT: the wide bench was 8 seats (quorum 4, first round 5 asked),
+        // the select bench was 9 with the decision seat (quorum 5, first round 6), and each loses the one seat.
+        expect(RUN_WIDE_SEATS,).toHaveLength(7,);
+        expect(rosterQuorumSize({ rosterSize: RUN_WIDE_SEATS.length, },),).toBe(4,);
+        expect(firstRoundWindow({ benchSize: RUN_WIDE_SEATS.length, },),).toBe(5,);
+        expect(RUN_SELECT_JUDGES,).toHaveLength(8,);
+        expect(rosterQuorumSize({ rosterSize: RUN_SELECT_JUDGES.length, },),).toBe(4,);
+        expect(firstRoundWindow({ benchSize: RUN_SELECT_JUDGES.length, },),).toBe(5,);
+        // The late bench had no Qwen seat to lose (ledger B815).
+        expect(RUN_LATE_JUDGES,).toHaveLength(7,);
+        expect(rosterQuorumSize({ rosterSize: RUN_LATE_JUDGES.length, },),).toBe(4,);
+        // The checker bench keeps its width of three and the contract's floor of two.
+        expect(RUN_MODELS.checkerModelIds,).toHaveLength(3,);
       },
     },),
 
@@ -292,14 +365,17 @@ await describe({
     },),
 
     it({
-      name: 'SEATS the Hyper-slow judge again in the wide and select seats when Hyper is dry too and OpenRouter would '
-        + 'serve it, since the withholding is about Hyper\'s serving speed and not about the model, and KEEPS it off '
-        + 'the late-judge bench, which its card holds it from',
+      name: 'SEATS the Hyper-slow judge again on the seats that are no judge seat when Hyper is dry too, since the '
+        + 'withholding is about Hyper\'s serving speed and not about the model, and KEEPS it off the wide, select and '
+        + 'late-judge benches, which its card holds it from whichever provider would serve it',
       fn: async () => {
         const seats = judgeSeatsFor({ dry: OPENROUTER_ONLY, },);
-        expect(seats.wideSeats.includes(QWEN,),).toBe(true,);
+        expect(seats.wideSeats.includes(QWEN,),).toBe(false,);
         expect(seats.lateJudges.includes(QWEN,),).toBe(false,);
-        expect(seats.selectJudges.includes(QWEN,),).toBe(true,);
+        expect(seats.selectJudges.includes(QWEN,),).toBe(false,);
+        // The positive control: no provider serves it in this reading, and the roster still seats it.
+        expect(seats.roster.includes(QWEN,),).toBe(true,);
+        expect(seats.translators.includes(QWEN,),).toBe(true,);
       },
     },),
 
@@ -394,7 +470,9 @@ await describe({
         /** Benches read under that view. */
         const seats = judgeSeatsFor({ dry: syntheticAndHyperDry, },);
 
-        expect(seats.unserved,).toEqual([QWEN, SEAT_HYPER_ONLY,],);
+        // BENCH ORDER: glm-5.3 sits on the late bench, which comes before the translators Qwen3.8-27B is named on
+        // since the wide bench (where it came first) let the seat go (the owner's answer of 2026-10-29).
+        expect(seats.unserved,).toEqual([SEAT_HYPER_ONLY, QWEN,],);
         expect(seats.roster.includes(SEAT_HYPER_ONLY,),).toBe(true,);
         expect(judgeSeatsFor({ dry: ALL_WET, },).unserved,).toEqual([],);
         // QWEN is not seated here, since Hyper would serve it too slowly, so it is not named unserved either.

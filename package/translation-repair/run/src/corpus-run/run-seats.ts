@@ -73,8 +73,15 @@ import {
 // withheld on a guess costs a voice.
 
 /**
- Judges that Hyper serves too slowly for the round window in every judge
- role: withheld while Hyper is the provider that would serve them.
+ Models that Hyper serves too slowly for the round window in every judge
+ role: withheld from each seat they hold while Hyper is the provider that
+ would serve them.
+
+ THE ONE MEMBER, Qwen3.8-27B, HOLDS NO JUDGE SEAT NOW: its card keeps it off
+ the wide benches (owner, 2026-10-29, ledger B1030) and the late bench (owner,
+ 2026-10-22, ledger B815), and the checker order does not list it. What this
+ set withholds is its translator, picture reader, consolidation writer and
+ roster seats, which the owner's answers did not take away.
  */
 export const HYPER_SLOW_JUDGES: ReadonlySet<RosterModelId> = new Set<RosterModelId>(['hf:Qwen/Qwen3.8-27B',],);
 

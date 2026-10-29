@@ -252,17 +252,29 @@ export const TRANSLATOR_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 't
  `doc/planning/translation-repair-roster-calibration-2026-09-01.md`, "The
  Toka_ls relaunch was killed at 77 minutes, in consolidation".
 
- `hf:Qwen/Qwen3.8-27B` IS NOT DROPPED HERE BUT SEATED PER PROVIDER, the
- owner's decision of 2026-09-03 after a morning in which it left every judge
- seat outright: served by Hyper it reasons past the round window (30 of 34
- translate-lane select rounds cut on XIEPT2), served by Synthetic it answers
- (25 of 28 on Toka_ls). `run-seats.ts` reads the meters before each phase
- and withholds the seat while Hyper is the provider that would serve it, that
- is while Synthetic is dry and Hyper is wet; with both dry no provider serves
- it, and a round reads it as unreachable and hands its place on (ledger P12
- corrected "while Synthetic is dry"). These static benches are the
- Synthetic-wet ones. `hf:moonshotai/Kimi-K3` is likewise withheld from the
- select seats alone while Hyper would serve it (`HYPER_SLOW_SELECT_JUDGES`).
+ `hf:Qwen/Qwen3.8-27B` LEFT THESE SEATS ON 2026-10-29, the owner's answer
+ "Remove Qwen from wide seats" (ledger B1030). Under the rules of XingZ6022 it
+ was the one voice that arrived after the quorum in 127 of the 131 panel
+ rounds and 112 of the 118 select rounds that had a late ballot, its late
+ ballot changed the round's own result in 42 of 272 late rounds, and the
+ grace it held open summed to about 191 minutes, with 160 more on 79 streams
+ cut at the grace with no answer. The owner chose to lose every Qwen vote and
+ claim, including the 18 critic rounds where only Qwen found an accepted
+ issue, over the wait. The checker order lost it the same day
+ ({@link RUN_CHECKER_ORDER}).
+
+ BEFORE THAT IT WAS SEATED PER PROVIDER, the owner's decision of 2026-09-03
+ after a morning in which it left every judge seat outright: served by Hyper
+ it reasons past the round window (30 of 34 translate-lane select rounds cut
+ on XIEPT2), served by Synthetic it answers (25 of 28 on Toka_ls).
+ `run-seats.ts` still reads the meters before each phase and withholds the
+ seats it keeps (translator, picture reader, consolidation writer and the
+ roster the pairing and admission rounds ask) while Hyper is the provider that
+ would serve it, that is while Synthetic is dry and Hyper is wet; with both
+ dry no provider serves it, and a round reads it as unreachable and hands its
+ place on (ledger P12 corrected "while Synthetic is dry").
+ `hf:moonshotai/Kimi-K3` is likewise withheld from the select seats alone
+ while Hyper would serve it (`HYPER_SLOW_SELECT_JUDGES`).
  */
 const WIDE_SEAT_DROPPED: ReadonlySet<RosterModelId> = holdSet({ hold: 'wide-seat-dropped', },);
 
@@ -301,12 +313,18 @@ export const RUN_TRANSLATORS: readonly RosterModelId[] = RUN_ROSTER
 
 /**
  Critics, adjudication panel and judges for both lanes: the roster less
- {@link WIDE_SEAT_DROPPED}. Seven since 2026-09-02 (eight from 2026-09-01)
- with Synthetic wet, so each of those stages reaches quorum at 4 voices (the
+ {@link WIDE_SEAT_DROPPED}. Seven since 2026-10-29, with Synthetic wet or dry
+ alike, so each of those stages reaches quorum at 4 voices (`ceil(7 / 2)`; the
  panel tally's minimum ballot weight of 3, once 3 of 7, was removed by the
- owner on 2026-10-25: two answering panelists decide); six with Synthetic dry (`run-seats.ts`
- withholds the Hyper-slow judge), quorum 3 (`ceil(6 / 2)`), and five of
- those judge the slates (the select-slow judge withheld too), quorum 3.
+ owner on 2026-10-25: two answering panelists decide). The slates add the
+ decision-only seat, eight judges with quorum 4, and 7 with Synthetic dry
+ (`run-seats.ts` withholds the select-slow judge, quorum 4).
+
+ It was eight from 2026-10-22, when Haiku 5.5 joined, until Qwen3.8-27B left
+ on 2026-10-29: quorum 4 with Synthetic wet, and seven with it dry, since
+ `run-seats.ts` withheld Qwen3.8-27B while Hyper would serve it. The slates
+ judged with nine then (quorum 5), and with seven (quorum 4) while Synthetic
+ was dry and the select-slow judge was withheld.
  */
 export const RUN_WIDE_SEATS: readonly RosterModelId[] = RUN_ROSTER
   .filter(function stillSeated(modelId,): boolean {
@@ -385,15 +403,20 @@ export const RUN_SELECT_JUDGES: readonly RosterModelId[] = [
 
  NONE OF THESE EDITS OR REFINES, so the independence the contract checks
  holds on every bench this order can seat.
+
+ QWEN3.8-27B LEFT THE ORDER ON 2026-10-29, where it ranked first, with its wide judge seats: the owner's answer
+ "Remove Qwen from wide seats" (ledger B1030). The benchmark's figures stay as its record. On the XingZ6022
+ checker rounds that had a late ballot it was the late voice in 33 of 46, with Mimo v2.6 Flash in 12 and Kimi-K3 in 1.
+ The static bench of three is now Mimo v2.6 Flash, Kimi-K3 and Haiku 5.5, the next of the order.
  */
 export const RUN_CHECKER_ORDER: readonly RosterModelId[] = [
-  'hf:Qwen/Qwen3.8-27B',
   'xiaomi/mimo-v2.6-flash',
   'hf:moonshotai/Kimi-K3',
-  // HAIKU 5.5 JOINS THE ORDER AT THE OWNER'S "Haiku wide" (2026-10-22), UNMEASURED AS A CHECKER, so it sits behind the
-  // three the benchmark ranks and in front of the two it ranks lowest: it fills the bench only when a provider
-  // serving one of those three is dry, and it does not displace a measured checker from the static bench of three. It
-  // sends no effort; the effort bench decides that.
+  // HAIKU 5.5 JOINED THE ORDER AT THE OWNER'S "Haiku wide" (2026-10-22), UNMEASURED AS A CHECKER, behind the three the
+  // benchmark ranks and in front of the two it ranks lowest, so that it filled the bench only when a provider serving one
+  // of those three was dry. The order lost its first seat on 2026-10-29, so it now holds the third place of the static
+  // bench of three: the Claude key serves a checker round in every reading in which it is wet, and when it is dry the
+  // next seat a wet provider serves takes the place. It sends no effort; the effort bench decides that.
   'claude-haiku-5-5',
   'google.gemma-4-31b',
   'inception/mercury-2.5',
@@ -428,7 +451,8 @@ export type RunRepairModels = RepairModels & {
 };
 
 /**
- Role roster for a corpus run: SEVEN of the nine critique and adjudicate (six while Synthetic is dry), FOUR edit
+ Role roster for a corpus run: SEVEN of the ten critique and adjudicate (Qwen3.8-27B left them on 2026-10-29, and
+ Synthetic being dry no longer takes a seat), FOUR edit
  against each other since 2026-10-22 (THREE until Sonnet 5.5 joined them on the owner's Claude key), THREE refine the
  result for naturalness, and three check the shipped repair.
 

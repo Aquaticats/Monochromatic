@@ -69,9 +69,11 @@ const CLAIMS: readonly {
       'hyper',
     ],
     reads: true,
+    // 'wide-seat-dropped' since the owner's answer of 2026-10-29, "Remove Qwen from wide seats".
     holds: [
       'openrouter-dropped',
       'late-judge-dropped',
+      'wide-seat-dropped',
     ],
   },
   {

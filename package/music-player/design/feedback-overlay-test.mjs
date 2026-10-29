@@ -7,13 +7,19 @@ import {
   rmSync,
   writeFileSync
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, 'node_modules', '.monochromatic', 'music-player-design');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 //region Consumer verification uses disposable copies, never changes inspected publication evidence
 const root = process.cwd();
 const fixture = mkdtempSync(join(
-  tmpdir(),
+  scratchBase,
   'feedback-overlay-review-'
 ));
 const evidence = join(
