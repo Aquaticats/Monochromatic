@@ -89,6 +89,41 @@ jobs:
         uses: ./.github/actions/task-cli-setup
       - name: Prepare dependencies
         run: task-run prepare:pnpm
+      # Rust dependency catalog (doc/decision/rust-dependency-catalog.md): prepare:pnpm has just run the
+      # file-enforcer sync (`node file-enforcer.config.ts`), so any change it made to a crate manifest or to
+      # rust-catalog.toml means the committed files drifted from what the sync renders, the counterpart of
+      # the JS `pnpm install --frozen-lockfile` gate. (`file-enforcer --check` here would compare against
+      # the files the sync just rewrote, so it could never fail.)
+      - name: Rust catalog drift
+        id: rust_catalog_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code --stat -- rust-catalog.toml ':(glob)package/**/Cargo.toml'; then
+            echo "::error::Crate manifests or rust-catalog.toml differ from what file-enforcer renders; run 'mise run sync:files' and commit the result (doc/runbook/rust-dependencies.md)"
+            exit 1
+          fi
+      - name: Restore Rust trust cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
+          restore-keys: |
+            rust-catalog-trust-
+      # Re-checks every locked registry version against the trust policy (pnpm's trustLockfile: false).
+      # A cold cache costs about 1024 crates.io requests at one per second, so about 17 minutes.
+      - name: Rust lockfile trust verification
+        id: rust_trust
+        continue-on-error: true
+        timeout-minutes: 25
+        run: task-run rust:verify
+      - name: Save Rust trust cache
+        if: always()
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
       - name: Static changed paths
         id: static
         continue-on-error: true

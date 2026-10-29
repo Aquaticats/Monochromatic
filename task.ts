@@ -364,6 +364,14 @@ const tasks: Record<string, TaskDefinition> = {
     description: 'Install dependencies',
     run: 'pnpm install',
   },
+  'rust:update': {
+    description: 'Update every first-party Cargo.lock under rust-catalog.toml\'s release-age and trust policy (pnpm -r --no-save update)',
+    run: 'node package/dev-script/rust-catalog-update/src/cli.ts',
+  },
+  'rust:verify': {
+    description: 'Check every locked Rust registry version against rust-catalog.toml\'s trust policy (CI)',
+    run: 'node package/dev-script/rust-catalog-update/src/cli.ts --verify',
+  },
   'lint:monochromatic-lint': {
     description: 'Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths',
     run: 'monochromatic-lint',
