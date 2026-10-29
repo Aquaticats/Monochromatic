@@ -1,5 +1,9 @@
 # Native cli-git signals and automatic maintenance lane
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 ## Purpose and how to respond
 
 This lane ports two parts of the commit path into the native Rust wrapper under `package/git-policy/cli/src/native/`:

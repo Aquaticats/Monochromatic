@@ -1,0 +1,12 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    // Oxlint's type-aware rules need a project that contains the runners; the type check itself runs through
+    // ../cli/tsconfig.json, which includes these files too. The runners import ../cli/bin, so the root covers both.
+    "rootDir": "..",
+  },
+  "include": [
+    "bin/**/*.ts",
+    "../cli/bin/**/*.ts",
+  ],
+}

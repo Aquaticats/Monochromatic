@@ -1,6 +1,14 @@
 {
   "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    // The cli.fuzz sidecar has no package.json of its own, so its runners are type-checked here, with their imports
+    // of ../cli/bin; the project root has to contain both packages.
+    "rootDir": "..",
+  },
   "include": [
     "e2e/**/*.ts",
+    "bin/**/*.ts",
+    "native-interop/**/*.ts",
+    "../cli.fuzz/bin/**/*.ts",
   ],
 }

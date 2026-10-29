@@ -1,5 +1,9 @@
 # cli-git Rust behavior ledger
 
+Note 2026-10-29: the runner scripts this document names under `package/git-policy` (`cli/bin`,
+`cli/native-interop` and `cli.fuzz/bin`) are TypeScript files now. Read every `.mjs` file name here as the same
+name ending in `.ts`; the driver `old-format-fixtures` is `old-format-driver`.
+
 Every responsibility the incumbent TypeScript Git policy wrapper carries,
 who consumes it,
 whether the Rust rewrite keeps it,
