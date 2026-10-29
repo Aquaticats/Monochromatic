@@ -185,6 +185,12 @@ export type NeuralWattClient = ModelCaller & {
    call of the run; call once, at the run's end.
    */
   readonly planSpend: (args: { readonly signal: AbortSignal; },) => Promise<NeuralWattPlanSpend>;
+
+  /**
+   Watt-hours this run's own calls drew, off the lines its ledger object appended (`NeuralWattLedger.drawnWh`): the
+   figure to print beside `planSpend`, whose difference can include energy this run did not draw.
+   */
+  readonly drawnWh: () => number;
 };
 
 /**
@@ -249,7 +255,7 @@ function servedIdFor({ modelId, }: { readonly modelId: RosterModelId; },): Neura
  @param dayStartSetting - owner's `TRANSLATION_REPAIR_NEURALWATT_DAY_START`
  (`neuralWattDayStartFrom`), used where the quota does not give the day's start
 
- @returns Client surface with chatText, chatJson, energy and planSpend
+ @returns Client surface with chatText, chatJson, energy, planSpend and drawnWh
 
  @example
  ```ts
@@ -600,6 +606,7 @@ export function createNeuralWattClient(
     energy,
     dayAnchor: anchors.decided,
     planSpend: quota.planSpend,
+    drawnWh: ledger.drawnWh,
   };
 }
 

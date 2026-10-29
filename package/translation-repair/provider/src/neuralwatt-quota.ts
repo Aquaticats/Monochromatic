@@ -24,7 +24,10 @@ import {
 // `kwh_used` too. A nonzero difference is a signal to look, not proof this
 // run spent it; a zero difference proves the run spent no plan energy but
 // not that the free energy lasted, since the free energy is not in this
-// figure. The rate limit is one request a second per customer, far above two
+// figure. THE END REPORT THEREFORE PRINTS THE RUN'S OWN METER BESIDE IT
+// (`NeuralWattClient.drawnWh`, the lines this run's ledger object wrote), so
+// that the difference is never read as the run's draw (XingZ6022, ledger
+// B1061). The rate limit is one request a second per customer, far above two
 // reads a run.
 
 /**
@@ -428,21 +431,55 @@ const LATER_START_NOTE = 'the first reading of the run failed, so this compariso
   + 'plan energy spent before it is not counted';
 
 /**
+ Decimals the run's own draw is printed to: one call is a few ten-thousandths of a watt-hour, which the three decimals of
+ the plan figure would round away.
+ */
+const DRAWN_WH_DECIMALS = 4;
+
+/**
  The sentence a run's end prints about plan energy.
+
+ THE PLAN FIGURE IS NOT THE RUN'S DRAW. It is the account's charged energy at the end less at the start, so it can include
+ energy this run did not draw (anything else done on the account in that time), and the charge is consumed energy times
+ the lane's multiplier (the quota documentation) where the run's own meter counts consumed energy alone. XingZ6022 read
+ 1,730.5 Wh charged against 238.272 Wh on the run's own meter, and its log cannot say why. The run's own meter is printed
+ beside the difference, when given, so that nobody reads the one as the other.
 
  @param spend - difference or reason for none, carrying `laterStartAt` where starting reading followed failed first read,
  because comparison from later start must not read as covering whole run
 
- @returns Plain statement, with what the figure cannot see
+ @param drawnWh - watt-hours the run's own ledger lines add up to (`NeuralWattClient.drawnWh`), absent where the caller has
+ no meter of its own to print
+
+ @returns Plain statement, with what the figure cannot see and what the run's own meter drew beside it
 
  @example
  ```ts
- rl.info(describePlanSpend({ spend, },),);
+ rl.info(describePlanSpend({ spend, drawnWh, },),);
  ```
  */
-export function describePlanSpend({ spend, }: { readonly spend: NeuralWattPlanSpend; },): string {
+export function describePlanSpend(
+  {
+    spend,
+    drawnWh,
+  }: {
+    readonly spend: NeuralWattPlanSpend;
+    readonly drawnWh?: number;
+  },
+): string {
+  /**
+   The run's own draw to the decimals the sentence prints, without float dust; not a number where none was given.
+   */
+  const drawnRounded = Number(drawnWh?.toFixed(DRAWN_WH_DECIMALS,),);
+
+  /**
+   The run's own draw as the sentence says it, absent where none was given.
+   */
+  const drawn =(drawnWh === undefined) ? undefined : `this run's own meter drew ${String(drawnRounded,)} Wh in that time`;
   if (spend.kind === 'not-comparable')
-    return `NeuralWatt plan energy: no difference to report, because ${spend.reason}`;
+    return `NeuralWatt plan energy: no difference to report, because ${spend.reason}${
+      (drawn === undefined) ? '' : `; ${drawn}`
+    }`;
 
   /**
    Where the comparison starts and what it leaves out, said only where the starting reading was taken after the run's
@@ -451,22 +488,34 @@ export function describePlanSpend({ spend, }: { readonly spend: NeuralWattPlanSp
   const laterStart = (spend.laterStartAt === undefined)
     ? undefined
     : `the later reading taken at ${spend.laterStartAt}`;
+  /**
+   The run's own draw as a clause followed by its separator, empty where none was given.
+   */
+  const drawnClause = (drawn === undefined) ? '' : `${drawn}; `;
   if (spend.kwh === 0)
     return (laterStart === undefined)
-      ? 'NeuralWatt plan energy: no plan energy was spent between the start and the end of the run; '
+      ? `NeuralWatt plan energy: no plan energy was spent between the start and the end of the run; ${drawnClause}`
         + 'the free daily energy is not in this figure'
       : `NeuralWatt plan energy: no plan energy was spent between ${laterStart} and the end of the run; ${LATER_START_NOTE}; `
-        + 'the free daily energy is not in this figure';
+        + `${drawnClause}the free daily energy is not in this figure`;
 
   /**
    The difference in watt-hours, without float dust.
    */
   const wh = Number((spend.kwh * WH_PER_KWH).toFixed(WH_DECIMALS,),);
+
+  /**
+   What the run's own draw means for the figure just printed, empty where none was given.
+   */
+  const notTheRunsDraw = (drawn === undefined)
+    ? ''
+    : `${drawn}, so the plan figure is not this run's draw: it is what the account was charged, which can include energy `
+      + 'this run did not draw; ';
   return `NeuralWatt PLAN ENERGY SPENT: ${String(wh,)} Wh of the owner's plan were charged between ${
     laterStart ?? 'the start'
   } and the end of the run${spend.inOverage ? ', and the plan is in overage' : ''}; ${
     (laterStart === undefined) ? '' : `${LATER_START_NOTE}; `
-  }anything else done on the account in that time is in this figure too`;
+  }${notTheRunsDraw}anything else done on the account in that time is in this figure too`;
 }
 
 //endregion NeuralWatt quota

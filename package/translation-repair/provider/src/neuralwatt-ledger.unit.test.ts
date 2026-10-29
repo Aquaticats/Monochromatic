@@ -404,9 +404,13 @@ await describe({
             const measured = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.5, day: DAY, },);
             const unreported = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.125, day: DAY, },);
             const abandoned = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 0.25, day: DAY, },);
-            const refused = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 9000, day: DAY, },);
-            if (!measured.granted || !unreported.granted || !abandoned.granted)
-              throw new Error('the calls fit and should have been granted',);
+            const refused = await ledger.reserve({ model: MODEL, promptTokens: 10, estimateWh: 9_000, day: DAY, },);
+            if (!measured.granted)
+              throw new Error('the measured call fits and should have been granted',);
+            if (!unreported.granted)
+              throw new Error('the unreported call fits and should have been granted',);
+            if (!abandoned.granted)
+              throw new Error('the abandoned call fits and should have been granted',);
             await measured.reservation.settle({ measuredWh: 0.015, },);
             await unreported.reservation.settle({},);
             await abandoned.reservation.noteAbandoned();

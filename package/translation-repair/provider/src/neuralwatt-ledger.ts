@@ -198,6 +198,14 @@ export type NeuralWattLedger = {
   readonly path: string;
 
   /**
+   Watt-hours of the lines THIS ledger object appended since it was made: settled calls at their measured figure or,
+   where the stream reported none, their estimate, and abandoned attempts at their estimate. It is the draw of the run
+   that holds the object, unlike `read`, whose day also counts lines an earlier run left in the file. A line whose
+   write failed is not counted.
+   */
+  readonly drawnWh: () => number;
+
+  /**
    Reads the energy of the given day, holds in flight included.
    */
   readonly read: (request: { readonly day: NeuralWattDay; },) => Promise<NeuralWattEnergy>;
@@ -262,6 +270,11 @@ export function createNeuralWattLedger(
   const holds = new Set<{ readonly wh: number; }>();
 
   /**
+   Watt-hours of the lines this object appended, added only after the append succeeded.
+   */
+  const drawn = { wh: 0, };
+
+  /**
    Appends one line, creating the directory on the way.
 
    @param entry - call's line
@@ -271,6 +284,16 @@ export function createNeuralWattLedger(
       path,
       entry,
     },);
+    drawn.wh += entry.wh;
+  }
+
+  /**
+   The draw of the run that holds this object.
+
+   @returns Watt-hours of the lines this object appended
+   */
+  function drawnWh(): number {
+    return drawn.wh;
   }
 
   /**
@@ -540,6 +563,7 @@ export function createNeuralWattLedger(
 
   return {
     path,
+    drawnWh,
     read,
     reserve,
   };

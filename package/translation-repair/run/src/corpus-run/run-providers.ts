@@ -348,6 +348,8 @@ export function configureProviders(
       report: async function reportPlanEnergy(): Promise<string> {
         return describePlanSpend({
           spend: await neuralwatt.planSpend({ signal: AbortSignal.timeout(PLAN_ENERGY_TIMEOUT_MS,), },),
+          // THE RUN'S OWN METER BESIDE THE ACCOUNT'S DIFFERENCE (ledger B1061).
+          drawnWh: neuralwatt.drawnWh(),
         },);
       },
     },);
