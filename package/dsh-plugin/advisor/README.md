@@ -45,9 +45,9 @@ so both forms resolve models, build context, and render results identically.
 - `/advisor` forms: bare (default reviewer review), `/advisor <slug>` (exact
   reviewer), `/advisor status`, `/advisor off`, `/advisor on`. `off` masks the
   tool through `ctx.tools.restrict` and records the disposer; `on` lifts the
-  mask. Cancellation reports `Advisor review cancelled.`; failures persist the
-  operation ledger as a durable `plugin:advisor/operation` plugin record and
-  return the error text.
+  mask. Cancellation reports `Advisor review cancelled.`; failures return the
+  error text, and every completed operation persists its ledger as a durable
+  `plugin:advisor/operation` plugin record.
 
 The tool description and prompt section carry the pi prompt snippet plus the
 four prompt guidelines unchanged. One text deviation is deliberate: the
@@ -80,9 +80,15 @@ Selection prefers, in order:
 2. `defaultReviewerModel` when it resolves inside the current scope: it picks
    the initial reviewer of a default call.
 3. The variant fallback ranking supplied through the Stage 2b seam
-   (`rankDefaultAdvisorCandidates` in the shared core): DSH ranks eligible
+   (`rankDefaultAdvisorCandidates` in the shared core): DSH ranks scoped
    candidates by largest `contextWindow`, then model `name`, then canonical
    slug, with the observed windows recorded in the selection reason.
+
+Default calls drop the current main model from the candidate scope before the
+ranking: exclusion matches route slugs and provider-independent identity
+(model id plus display name), so one model served on two routes is not
+consulted as its own reviewer. Ids repeat across unrelated models, so identity
+matching without a display name stays route-exact.
 
 Serial fallback across reviewers and the overlap suppression are unchanged
 from pi.
@@ -90,8 +96,10 @@ from pi.
 ## Recorded behavior picks
 
 - Unknown context window: `128_000` tokens.
-- Unknown output capacity: the model stays eligible and the request sets
-  `maxTokens = maxAdvisorOutputTokens`.
+- Output budget: `maxAdvisorOutputTokens` is a request budget, never an
+  eligibility floor. The request clamps to `min(budget, advertised capacity)`;
+  a route disclosing no capacity (or a non-positive one) receives the
+  configured budget unclamped.
 - Reasoning: efforts named or identified `max` are never sent; the greatest
   remaining effort is sent, and `reasoningEffort` is omitted when a route
   advertises none (Q5 pick).
@@ -125,10 +133,11 @@ behavior.
   (`[image: name (WxH, mime)]`, `[file: name (N bytes)]`) because the review
   prompt consumes text only.
 - Progress from `onUpdate` snapshots folds into the result text tail.
-- Failed operations persist their ledger through a durable
+- Completed operations persist their ledger through a durable
   `plugin:advisor/operation` plugin record (an ignorable session event every
   reader may skip) instead of pi's session-persistence
-  handle; non-message events never enter `deriveMessages()`.
+  handle; the session record stores rendered tool text only, and non-message
+  events never enter `deriveMessages()`.
 - The session toggle and the tool mask are plugin-process scoped
   (`ctx.tools.restrict` is global to the plugin instance).
 - `advisorDetailsAsJsonValue` normalizes details through a JSON pass so the

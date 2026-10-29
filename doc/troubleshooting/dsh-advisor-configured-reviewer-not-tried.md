@@ -30,6 +30,11 @@ The scoped kimi seats are `synthetic/hf:moonshotai/Kimi-K3`,
 Resolution needs an exact scoped match under the accepted explicit-model forms,
  so the configured key cannot resolve
  (`package/agent-harness-shared/advisor/src/advisor-selection.ts:100-113`).
+A re-probe after the harness restarted onto 0.2.1-rc.4
+ (2026-10-29 04:22 America/New_York)
+ still listed the same scoped slugs without `opencode-go/kimi-k3.1-pro`;
+ the `@earendil-works/pi-ai` 1.4.0 built-in `opencode-go` catalog holds
+ `kimi-k3`, never `kimi-k3.1-pro`, so the restart does not add the id.
 
 ### The resolution miss falls through silently
 
@@ -38,13 +43,19 @@ Resolution needs an exact scoped match under the accepted explicit-model forms,
 `applyConfiguredInitialReviewer` then rewrites the selection reason to
  `defaultReviewerModel "..." did not resolve among output-eligible scoped models,
  so the default ranking applies`
- (`package/agent-harness-shared/advisor/src/advisor-selection.ts:210-213`).
+ (`package/agent-harness-shared/advisor/src/advisor-selection.ts:210-213`;
+ the wording at incident time; the sentence now reads `among scoped models`).
 That reason lives only in the operation ledger field `reason`
  and a debug log line.
 The rendered summary carries attempts, reviews, and a progress tail,
  never the reason
  (`package/agent-harness-shared/advisor/src/run-advisor.ts:240-260`),
  so the operator sees a reviewer they never chose with no explanation.
+
+Resolved on 2026-10-29:
+ `renderAdvisorOperationSummary` now renders the selection-reason line
+ whenever the call made a default selection,
+ so the fallthrough names itself in the tool output.
 
 ### The first-ranked route rejects every Advisor dispatch
 
@@ -75,6 +86,14 @@ The Advisor request path sets `maxTokens`, `reasoning`, and auth fields
  so every `opencode-go` dispatch under Advisor fails at the endpoint.
 Main-agent calls carry the harness session id and succeed on the same route.
 
+Resolved on 2026-10-29:
+ the agent session id now rides every Advisor request
+ through `DshAdvisorAgentSurface.sessionId`,
+ the catalog and provider shims,
+ into `GenerateOptions.sessionId`
+ (`package/dsh-plugin/advisor/src/request-map.ts`),
+ so pi-ai attaches `x-opencode-session`.
+
 ### The response budget is shared with reasoning at a pinned effort
 
 The request sets `maxTokens: options.config.maxAdvisorOutputTokens`
@@ -97,24 +116,35 @@ The measured precedent for this failure class is
  [Pi Advisor 0.0.1 with Pi 0.84.1: Kimi K3 reasoning exhausts the 16K response budget](pi-advisor-reasoning-output-exhaustion.md),
  where `output: 16384, reasoning: 15664, textChars: 3362`.
 
-### The output budget doubles as an eligibility floor
+### The output budget doubled as an eligibility floor
 
-`filterAdvisorScopeByOutputCapacity` keeps only entries whose
- `model.maxTokens >= maxAdvisorOutputTokens`
- (`package/agent-harness-shared/advisor/src/output-eligibility.ts:46-53`).
-The catalog fills that field as
- `resolved.defaultMaxTokens ?? maxAdvisorOutputTokens`
- (`package/dsh-plugin/advisor/src/catalog.ts:117-124`).
-`@deepseek-ai/dsh-llm` defines `defaultMaxTokens` as
- "Adapter-configured per-request output cap materialized when callers omit one"
- (`lib/types/types.d.ts`),
- which is not the endpoint maximum.
-The listing `maxTokens` and `max_output_tokens` disclosures
- (for example neuralwatt `deepseek-v4-flash` at 393,216) are ignored here.
-Raising `maxAdvisorOutputTokens` to buy more output
- therefore also shrinks the eligible model set
- and rejects explicit requests for routes whose adapter declares a modest default cap
- (`package/agent-harness-shared/advisor/src/output-eligibility.ts:140-157`).
+`filterAdvisorScopeByOutputCapacity` kept only entries whose
+ `model.maxTokens >= maxAdvisorOutputTokens`.
+The catalog fills that field from `resolved.defaultMaxTokens`
+ (`package/dsh-plugin/advisor/src/catalog.ts:117-124`),
+ which the pi-ai adapter populates from the profile's per-model `maxTokens`
+ (the web UI value the discovery listing pre-fills from `max_output_tokens`),
+ substituting the configured budget when a route declares none.
+
+Correction to the first draft of this section:
+ the field holds the declared capacity when a route declares one,
+ so the listing disclosures do reach it through the profile.
+The defects were the floor semantics and the substitution.
+Raising `maxAdvisorOutputTokens` to buy more output shrank the eligible model
+ set and refused explicit requests:
+ the live profile's `neuralwatt/gemma-4-31b` declares `maxTokens: 16384`
+ (dropped under a 32,000 budget),
+ while `neuralwatt/kimi-k3` declares none
+ (substituted to 32,000, making the gate vacuous for it and its request
+ unclamped).
+
+Resolved on 2026-10-29:
+ `package/agent-harness-shared/advisor/src/output-eligibility.ts` is retired.
+Every scoped model stays selectable,
+ and the request clamps to `min(budget, advertised capacity)`
+ (`package/agent-harness-shared/advisor/src/advisor-client.ts`);
+ routes declaring a non-positive capacity receive the configured budget
+ unclamped.
 
 ### Non-current avoidance compares route slugs, not model identity
 
@@ -132,6 +162,14 @@ Avoidance is skipped when `agent.options.provider` is absent
  and is a no-op when the current slug is not in scope
  (`package/agent-harness-shared/advisor/src/advisor-selection.ts:454-456`).
 
+Resolved on 2026-10-29:
+ exclusion now also matches provider-independent identity
+ (model id plus display name),
+ and the DSH run context passes the conversation model's display name from the
+ catalog.
+Ids repeat across unrelated models,
+ so identity matching without a display name stays route-exact.
+
 ## Verification
 
 1. Explicit `advisor` request for `opencode-go/mimo-v2.6-pro` with a trivial question
@@ -148,12 +186,14 @@ Avoidance is skipped when `agent.options.provider` is absent
 ## Evidence limits
 
 - The operation ledger (attempt diagnostics, aggregate usage, selection reason)
-  is not persisted for completed operations.
+  was not persisted for completed operations at incident time.
   Session records store rendered text only,
-  and `advisor/operation` events (record name renamed to `plugin:advisor/operation` on 2026-10-29)
-  persist only when the whole operation fails,
-  so historical failure diagnostics are unrecoverable.
+  and the `plugin:advisor/operation` record
+  (name and `advisor/operation` renamed on 2026-10-29)
+  persisted only when the whole operation failed,
+  so the incident's own failure diagnostics are unrecoverable.
   The 400 cause above was reconstructed by probe on 2026-10-29.
+  Completed operations now persist their ledger the same way failures do.
 - The exact reasoning versus text token split of the truncated call is unrecoverable
   for the same reason.
   A 2,060-character body against a 32,000-token pool implies the remainder
@@ -169,22 +209,33 @@ Avoidance is skipped when `agent.options.provider` is absent
 3. Narrow the `question` to reduce the thinking draw under the shared pool;
    the focused follow-up completed within the same budget.
 
-## What does not work
+## What does not work at incident time
 
 - Raising `maxAdvisorOutputTokens` alone.
-  The pool stays shared with reasoning and the eligibility floor rises with the value.
+  The pool stays shared with reasoning and the eligibility floor rose with the value.
 - Naming any `opencode-go` slug.
-  The dispatch returns 400 `MissingSessionID` regardless of reviewer.
+  The dispatch returned 400 `MissingSessionID` regardless of reviewer.
 
-## Resolution and remaining work
+## Resolution
 
-- Config: replace `defaultReviewerModel: opencode-go/kimi-k3.1-pro`;
-  that id exists in no catalog and no route.
-- Plugin: send a `sessionId` on Advisor stream options so `opencode-go` routes
-  can attach `x-opencode-session`.
-- Plugin: split `maxAdvisorOutputTokens` from any eligibility floor
-  and read the endpoint `maxTokens` disclosure for capacity checks.
-- Plugin: surface the configured-reviewer fallthrough in the rendered summary,
-  not only in the ledger reason and debug log.
-- Plugin: persist the operation ledger and usage for completed operations.
-- Plugin: treat same-model-different-route as current when avoiding the main model.
+Landed on 2026-10-29 across `package/agent-harness-shared/advisor` and
+ `package/dsh-plugin/advisor`:
+
+- `fix(dsh-plugin-advisor): stamp the session identity onto every Advisor request`,
+  so `opencode-go` routes attach `x-opencode-session`.
+- `fix(*): clamp the advisor request output budget instead of gating scope on it`;
+  `output-eligibility.ts` is retired.
+- `fix(agent-harness-shared-advisor): surface the selection reason in the operation summary`.
+- `fix(dsh-plugin-advisor): persist the operation ledger for completed operations`.
+- `fix(*): avoid the current main model by identity across provider routes`.
+
+Remaining work:
+
+- The response pool is still shared with reasoning at the pinned greatest
+  effort below `max`, and the tool schema offers no knob to lower it,
+  so broad reviews can still end at `stopReason: "length"`.
+- Config: `defaultReviewerModel: opencode-go/kimi-k3.1-pro` still resolves to
+  nothing (re-probed 2026-10-29 04:22 after the rc.4 restart).
+  The value is kept at user direction pending the id appearing;
+  scoped kimi seats today are `neuralwatt/kimi-k3` and
+  `synthetic/hf:moonshotai/Kimi-K3`.
