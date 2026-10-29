@@ -1,22 +1,33 @@
 # thinking-dismissal
 
-Claude Code `PreToolUse` hook that shadow-records cost dismissals found in
-the session's thinking blocks.
+Claude Code hook that shadow-records cost dismissals found in the session's
+thinking blocks,
+at `PreToolUse`,
+`PostToolUse`,
+and `Stop` from one handler.
 
-## Why `PreToolUse`
+## Why three hook events
 
-A dismissal matters when it justifies an action.
-`PreToolUse` is the earliest point where the fresh thinking and the tool call
-it led to are both visible,
-so each record can attribute a dismissal to the action that followed it.
-A `Stop` hook only learns later that some dismissal happened somewhere in the
-turn,
-and it is also where a graduated gate would need to stand
-to demand a proof before an action runs.
+Each event sees a part of the turn the others miss,
+so one dismissal can be observed from three angles:
+
+- `PreToolUse` names the action a dismissal led to before it runs,
+  and it is where a graduated gate could demand a proof first.
+- `PostToolUse` proves the action actually ran,
+  since a denial at `PreToolUse` never produces one.
+- `Stop` is the only event that sees turn-ending thinking
+  with no tool call after it.
+
+Each observation is tagged with its event
+and kept once per event type,
+so the log holds the intent view,
+the completion view,
+and the residual view of the same hit,
+joinable on the block hash.
 
 ## What it does
 
-Reads the tail of the session transcript before every tool call,
+Reads the tail of the session transcript at each event,
 looks at each thinking block's sentences,
 and flags the ones that carry algorithmic cost and a dismissal together
 (for example a quadratic scan waved away because the input is short).
@@ -25,7 +36,7 @@ Everything runs on this machine.
 The record carries a block hash,
 a sentence index,
 a pattern id,
-the tool name and the tool call id;
+and on the tool events the tool name and call id;
 never reasoning text,
 because the log must stay safe to keep and read back.
 
@@ -36,11 +47,9 @@ and never contacts a provider.
 
 ## Where records land
 
-One JSONL line per tool call at
+One JSONL line per event at
 `~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`,
 overridable with `MONOCHROMATIC_THINKING_DISMISSAL_LOG` for tests.
-Hits an earlier record already carries are dropped,
-so overlapping tail rescans do not repeat themselves.
 
 ## Pattern
 

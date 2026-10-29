@@ -67,15 +67,23 @@ type ThinkingDismissalRecord = {
   readonly transcriptPath: string;
 
   /**
-   Tool the dismissal preceded,
-   so the record attributes it to an action.
+   Hook event that produced this observation,
+   since each event sees a different part of the turn.
    */
-  readonly toolName: string;
+  readonly hookEvent: string;
 
   /**
-   Identifier of the tool call the dismissal preceded.
+   Tool the dismissal preceded,
+   on the tool events only,
+   so the record attributes it to an action.
    */
-  readonly toolUseId: string;
+  readonly toolName?: string;
+
+  /**
+   Identifier of the tool call the dismissal preceded,
+   on the tool events only.
+   */
+  readonly toolUseId?: string;
 
   /**
    Thinking blocks the tail scan examined.
@@ -149,7 +157,7 @@ function shadowLogPath(env: ReadonlyDeep<NodeJS.ProcessEnv>,): string {
 
  @param logPath - Shadow log to read
 
- @returns Keys of the form `blockHash:sentenceIndex:pattern`
+ @returns Keys of the form `blockHash:sentenceIndex:pattern:hookEvent`
 
  @example
  ```ts
@@ -188,7 +196,7 @@ async function readRecordedKeys(logPath: string,): Promise<ReadonlySet<string>> 
     const record = parseRecord(line,);
     if (record === NOT_PARSED) continue;
     for (const hit of record.hits) {
-      keys.add(`${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}`,);
+      keys.add(`${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}:${record.hookEvent}`,);
     }
   }
   return keys;
@@ -226,9 +234,11 @@ async function appendShadowRecord(
   const fresh: ThinkingDismissalHit[] = [];
   for (const hit of record.hits) {
     /**
-     Deduplication key of the hit.
+     Deduplication key of the hit under this event,
+     so one event's observation never repeats
+     while the other events keep their own view.
      */
-    const key = `${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}`;
+    const key = `${hit.blockHash}:${hit.sentenceIndex}:${hit.pattern}:${record.hookEvent}`;
     if (recorded.has(key)) continue;
     recorded.add(key,);
     fresh.push(hit,);

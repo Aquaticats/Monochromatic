@@ -15,6 +15,26 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bundle/node/index.mjs"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bundle/node/index.mjs"
+          }
+        ]
+      }
     ]
   }
 }

@@ -9,8 +9,12 @@
  */
 
 import type {
+  PostToolUseInput,
+  PostToolUseOutput,
   PreToolUseInput,
   PreToolUseOutput,
+  StopInput,
+  StopOutput,
 } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
 import type {
   ReadonlyDeep,
@@ -46,20 +50,31 @@ type ThinkingDismissalDependencies = {
 };
 
 /**
- Output of the thinking-dismissal handler.
+ Events the handler serves.
 
- The hook only records, so it sets no `permissionDecision`
- and lets every tool call through.
+ Each one sees something the others miss:
+ `PreToolUse` names the action a dismissal led to before it runs,
+ `PostToolUse` proves the action ran,
+ and `Stop` is the only event that sees turn-ending thinking
+ with no tool call after it.
  */
-type ThinkingDismissalOutput = PreToolUseOutput;
+type ThinkingDismissalInput = PreToolUseInput | PostToolUseInput | StopInput;
 
 /**
- Builds the PreToolUse hook handler that shadow-records size dismissals in
- thinking.
+ Output of the thinking-dismissal handler.
 
- `PreToolUse` is the earliest point where the fresh thinking and the action
- it justifies are both visible,
- so a record can attribute a dismissal to the tool call that followed it.
+ The hook only records,
+ so it sets no `permissionDecision` and lets every tool call through.
+ */
+type ThinkingDismissalOutput = PreToolUseOutput | PostToolUseOutput | StopOutput;
+
+/**
+ Builds the hook handler that shadow-records size dismissals in thinking.
+
+ Serves `PreToolUse`,
+ `PostToolUse`,
+ and `Stop` from one implementation,
+ with each observation tagged by the event that produced it.
  Scanning is local and the record carries hashes and indexes only,
  so no reasoning text reaches the log or any external provider.
  The handler never throws and never denies:
@@ -67,7 +82,7 @@ type ThinkingDismissalOutput = PreToolUseOutput;
 
  @param dependencies - Ambient inputs, defaulting to `process.env`
 
- @returns Handler for one `PreToolUse` event
+ @returns Handler for one hook event
 
  @example
  ```ts
@@ -77,7 +92,7 @@ type ThinkingDismissalOutput = PreToolUseOutput;
  */
 function createThinkingDismissalHandler(
   dependencies: Readonly<ThinkingDismissalDependencies> = {},
-): (event: ReadonlyDeep<PreToolUseInput>,) => Promise<ThinkingDismissalOutput> {
+): (event: ReadonlyDeep<ThinkingDismissalInput>,) => Promise<ThinkingDismissalOutput> {
   /**
    Resolved ambient inputs.
    */
@@ -92,7 +107,7 @@ function createThinkingDismissalHandler(
     l: logger,
   },);
 
-  return async function thinkingDismissalHandler(event: ReadonlyDeep<PreToolUseInput>,): Promise<ThinkingDismissalOutput> {
+  return async function thinkingDismissalHandler(event: ReadonlyDeep<ThinkingDismissalInput>,): Promise<ThinkingDismissalOutput> {
     /**
      Handler-scoped logger.
      */
@@ -129,16 +144,31 @@ function createThinkingDismissalHandler(
        */
       const now = new Date()
         .toISOString();
-      await appendShadowRecord({
-        record: {
+      /**
+       Record of this event's observation,
+       with tool attribution on the tool events only.
+       */
+      const record: ThinkingDismissalRecord = (event.hook_event_name === 'Stop')
+        ? {
           sessionId: event.session_id,
           time: now,
           transcriptPath: event.transcript_path,
+          hookEvent: event.hook_event_name,
+          thinkingBlocks: scannedBlocks,
+          hits,
+        }
+        : {
+          sessionId: event.session_id,
+          time: now,
+          transcriptPath: event.transcript_path,
+          hookEvent: event.hook_event_name,
           toolName: event.tool_name,
           toolUseId: event.tool_use_id,
           thinkingBlocks: scannedBlocks,
           hits,
-        },
+        };
+      await appendShadowRecord({
+        record,
         logPath: shadowLogPath(env,),
       },);
       l.info(`thinking-dismissal shadow recorded ${String(foundHits,)} hits of ${String(scannedBlocks,)} blocks`,);
@@ -150,22 +180,22 @@ function createThinkingDismissalHandler(
 }
 
 /**
- Parses raw stdin as a {@link PreToolUseInput}.
+ Parses raw stdin as a {@link ThinkingDismissalInput}.
 
  Input is trusted; it comes from Claude Code's hook dispatch system.
 
  @param raw - JSON-encoded event payload received on stdin
 
- @returns the parsed PreToolUse event
+ @returns the parsed hook event
 
  @example
  ```ts
  thinkingDismissalParser('{"hook_event_name":"PreToolUse","tool_name":"Edit"}');
  ```
  */
-function thinkingDismissalParser(raw: string,): PreToolUseInput {
+function thinkingDismissalParser(raw: string,): ThinkingDismissalInput {
   /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted input from Claude Code hook system */
-  return JSON.parse(raw,) as PreToolUseInput;
+  return JSON.parse(raw,) as ThinkingDismissalInput;
 }
 
 /**
@@ -192,11 +222,12 @@ function thinkingDismissalWriter(output: ThinkingDismissalOutput,): string {
 /**
  Default handler instance, wired to `process.env`.
  */
-const thinkingDismissalHandler: (event: ReadonlyDeep<PreToolUseInput>,) => Promise<ThinkingDismissalOutput> =
+const thinkingDismissalHandler: (event: ReadonlyDeep<ThinkingDismissalInput>,) => Promise<ThinkingDismissalOutput> =
   createThinkingDismissalHandler();
 
 export type {
   ThinkingDismissalDependencies,
+  ThinkingDismissalInput,
   ThinkingDismissalOutput,
 };
 

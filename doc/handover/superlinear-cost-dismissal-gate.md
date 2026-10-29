@@ -364,16 +364,21 @@ block index and pattern ids only,
 never thinking text.
 The shadow trigger is built
 (commit `ee637f1b3b`,
-moved from `Stop` to `PreToolUse` on the owner's steer):
-the `cctd` Claude Code `PreToolUse` hook
+then moved off `Stop` alone on the owner's steer):
+the `cctd` Claude Code hook
 of `package/claude-code-plugin/thinking-dismissal`,
-registered beside `ccgr` in `.claude/settings.local.json`,
-appending one metadata-only record per tool call to
+one handler registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `.claude/settings.local.json`,
+appending one metadata-only record per event to
 `~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`.
-`PreToolUse` is the point where the fresh thinking and the action it
-justifies are both visible,
-so the record names the tool and the tool call id,
-and it is where a graduated gate could demand a proof before the action runs.
+Each event sees a part of the turn the others miss:
+`PreToolUse` names the action a dismissal led to before it runs
+(and is where a graduated gate could demand a proof),
+`PostToolUse` proves the action ran,
+`Stop` sees turn-ending thinking with no tool call after it.
+Observations are kept once per event type,
+joinable on the block hash.
 It records and never denies.
 Any Luna leg over non-thinking text stays open.
 
