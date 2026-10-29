@@ -47,6 +47,7 @@ const TALLY_PLURAL = {
   passRunLogs: 2,
   samples: 40,
   unreadable: 4,
+  danglingLinks: 3,
   unstampedLines: 5,
 };
 
@@ -207,7 +208,8 @@ await describe({
               tally: TALLY_PLURAL,
               printed,
             },),).toEqual([
-              'cap-census: 3 logs, 2 pass-run logs, 40 completed calls, 6 on ids no card names, 4 paths unreadable; '
+              'cap-census: 3 logs, 2 pass-run logs, 40 completed calls, 6 on ids no card names, 4 paths unreadable, '
+                + '3 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 5',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
@@ -228,11 +230,13 @@ await describe({
                 passRunLogs: 1,
                 samples: 1,
                 unreadable: 1,
+                danglingLinks: 1,
                 unstampedLines: 1,
               },
               printed,
             },),).toEqual([
-              'cap-census: 1 log, 1 pass-run log, 1 completed call, 1 on ids no card names, 1 path unreadable; '
+              'cap-census: 1 log, 1 pass-run log, 1 completed call, 1 on ids no card names, 1 path unreadable, '
+                + '1 dangling link with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 1',
               CAP_CENSUS_CLOSING_NOTE,
             ],);

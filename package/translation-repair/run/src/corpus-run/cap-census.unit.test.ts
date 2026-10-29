@@ -488,11 +488,11 @@ await describe({
           },
         },),
         it({
-          name: 'NAMES A POOLED PLACEHOLDER, which is the stale card P10 found, and not a card on the pooled floor, '
-            + 'which is a measured result; and counts calls on ids no card names',
+          name: 'NAMES NO ROSTER SEAT A POOLED PLACEHOLDER, none of the cards naming the pooled 99th any more, and '
+            + 'not a card on the pooled floor, which is a measured result; and counts calls on ids no card names',
           fn: async () => {
             /**
-             The checker seat's served id, a card that still names the pool.
+             The checker seat's served id, a card that carried the pooled 99th until ledger B990.
              */
             const checkerId = MODEL_CARDS[SEAT_OPENROUTER_ONLY_CHECKER].openrouter?.id ?? 'no openrouter block';
 
@@ -519,9 +519,30 @@ await describe({
               },),
               offRoster: census.offRoster,
             },).toEqual({
-              placeholders: [[SEAT, false,], [SEAT_OPENROUTER_ONLY, false,], [SEAT_OPENROUTER_ONLY_CHECKER, true,],],
+              placeholders: [[SEAT, false,], [SEAT_OPENROUTER_ONLY, false,], [SEAT_OPENROUTER_ONLY_CHECKER, false,],],
               offRoster: 1,
             },);
+          },
+        },),
+        it({
+          name: 'NAMES A SEAT A CALLER SAYS STILL RIDES THE POOLED 99TH as a placeholder, since no card on the roster '
+            + 'does once every seat with calls carries its own cap (ledger B990)',
+          fn: async () => {
+            /**
+             The checker seat's served id.
+             */
+            const checkerId = MODEL_CARDS[SEAT_OPENROUTER_ONLY_CHECKER].openrouter?.id ?? 'no openrouter block';
+            expect(
+              capCensus({
+                samples: [
+                  ...samplesOf({ provider: 'openrouter', model: checkerId, completions: [10,], },),
+                  ...samplesOf({ provider: 'hyper', model: HYPER_ID, completions: [10,], },),
+                ],
+                placeholderSeats: new Set([SEAT_OPENROUTER_ONLY_CHECKER,],),
+              },).rows.map(function placeholderOf(row,) {
+                return [row.modelId, row.placeholder,];
+              },),
+            ).toEqual([[SEAT, false,], [SEAT_OPENROUTER_ONLY_CHECKER, true,],],);
           },
         },),
       ],

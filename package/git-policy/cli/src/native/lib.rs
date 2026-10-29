@@ -504,6 +504,10 @@ pub mod candidate_tree;
 ///  removed when dropped.
 pub mod candidate_private_index;
 
+/// Which candidate paths have their `text` Git attribute unset,
+///  read from the state the candidates were listed from.
+pub mod candidate_attribute;
+
 /// What `git add` would stage,
 ///  and the worktree files a direct command selects.
 pub mod candidate_prediction;
