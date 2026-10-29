@@ -283,6 +283,15 @@ The rule:
 a doc written or edited in the family is linted before its commit:
 `mise run //:lint:monochromatic-lint <the doc's path>`,
 which reports nothing on a clean doc.
+That root task does not apply the semantic-wrap configuration,
+so a doc it passes can still fail the check that counts,
+`mise run //package/translation-repair/source-scan:test:unit`,
+whose `markdown-lint-clean` case applies that configuration.
+A brief for an agent that writes docs names the source-scan check and not the root task:
+round 8 reported the root task clean on the ledger of the plain reading with tables and the containers,
+and gate g225 found two `semantic-line-breaks` findings at its lines 716 and 717
+(fixed in `a45783f7d3`,
+ledger M300).
 A finding is fixed by breaking the line at a clause boundary,
 after a comma,
 a semicolon or a colon,
