@@ -49,11 +49,13 @@ export {
   GIT_MARKER_FILES,
   materialiseGitMarker,
   RSYNC_EXCLUDES,
+  rsyncSourceArgs,
 } from './container/worktree.ts';
 export {
   parseCliOptions,
   type CliOptions,
 } from './host/cli-options.ts';
+export { listSourceFiles, } from './host/source-file-list.ts';
 export {
   chunk,
   composeReshard,
@@ -90,6 +92,7 @@ export {
   BAKED_ENTRYPOINT,
   MANIFEST_MOUNT,
   REPORT_MOUNT,
+  SOURCE_FILE_LIST_NAME,
   SOURCE_MOUNT,
   WORK_MOUNT,
 } from './mounts.ts';
