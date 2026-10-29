@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
@@ -47,9 +47,11 @@ if (!process.env.usage_project || !process.env.usage_file) throw new Error('Name
 
 // region disposable inputs
 // As inspect:native: language servers run confined and cannot write into the project, and a directory below the
-// system temporary directory is required so that a session never points real servers at a real project.
+// agent scratch root is required so that a session never points real servers at a real project.
+const disposableRoot = join(homedir(), 'temp', 'agent');
+mkdirSync(disposableRoot, { recursive: true });
 const project = realpathSync(process.env.usage_project);
-if (!project.startsWith(realpathSync(tmpdir()) + sep)) throw new Error('The project must be a disposable directory below ' + tmpdir());
+if (!project.startsWith(realpathSync(disposableRoot) + sep)) throw new Error('The project must be a disposable directory below ' + disposableRoot);
 const sourceFile = realpathSync(resolve(project, process.env.usage_file));
 if (!sourceFile.startsWith(project + sep)) throw new Error('The file must be inside the project');
 const binary = resolve('target', profile, 'monochromatic-ide');
