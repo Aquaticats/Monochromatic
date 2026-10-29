@@ -778,6 +778,15 @@ named for that subject and listed here.
   with the items the review of round 10 left (B951),
   and the scan that reads "that" only before a noun it knows,
   with the pins and nits of the re-check of round 11 (B952).
+- [Audit ledger: the two-ballot translate text
+  and the lead's adoptions of 2026-10-29](audit-ledger-the-two-ballot-translate-text.md):
+  The owner's "Ship the two-ballot text" after the corpus pass `XingZ6022`:
+  the translate lane's winner that ships where the final round cannot seat two judges (B1020),
+  the defect note that said what happened at each kept archive (B1021),
+  the footnote guard that withdraws only what provably clears the orphan (B1022),
+  the follow-up that does not ask the same judges the same slate again (B1023),
+  the trace of a patch that resolved every accepted issue and lost (B1024),
+  and artifact generation 22 with the cache versions that did not move (B1025).
 - [Audit ledger: holds
   a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md):
   A hold a test registers for a provider that the seat reading sleeps for real:

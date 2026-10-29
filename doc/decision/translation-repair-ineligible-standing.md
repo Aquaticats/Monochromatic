@@ -860,3 +860,61 @@ and the log said nothing of why.
     absent over an eligible standing)
     and `consolidate-settle.unit.test.ts` (the refusal reaches every gate sheet).
     Fixed in `139a7f99a`.
+
+## Addendum 2026-10-29: the translate lane's two-ballot winner ships where the final round cannot seat two judges
+
+Taken after the corpus pass `XingZ6022` shipped the archive at sixteen slices
+(14,
+44,
+54,
+60,
+67 to 70,
+72,
+73,
+75,
+78,
+79,
+81,
+82 and 85)
+although the translate lane held a text two judges had chosen that passed the publication rule.
+The consolidation offered it on the slate,
+one slate judge was reachable,
+"one judge alone never decides" declined it,
+and `keepTheArchive` shipped the archive with the defect text "no wording passed the deterministic publication rule",
+which was false there.
+At slices 67 to 70 the archive carries an invented Metal Gear Solid 2 quotation.
+
+The owner's answer (question tool),
+choice "Ship the two-ballot text (Recommended)":
+"When the final round can't seat two judges,
+the translate lane's winner ships if two judges chose it and it passes the publication rule."
+
+- A refused standing whose slate round heard fewer than two judges,
+    or whose reachable slate judges are fewer than two,
+    ships the translate lane's text where two or more judges chose it in the lane's own round
+    and the lane offer admitted it (it passes the rule).
+    The settlement keeps its terminal and carries the mark `translateWinnerShipped`
+    and the finding `translate-winner-ships`.
+    It polishes nothing and is never cached.
+- With fewer reachable slate judges than a winner needs and such a text on the offer,
+    the purchase asks neither writers nor slate
+    (the check measured 65 calls and 10.679 Wh at these slices).
+- The rules that stand:
+    one judge alone never decides,
+    two ballots decide,
+    "Keep archive,
+    ship" where no wording passes,
+    and a disputed archive is never a candidate or a fallback.
+    A text with one ballot,
+    a text that fails the rule and a slate that seated two or more judges decide as before.
+- Every kept archive says why:
+    `no-wording-passed`,
+    `final-round-unseated` or `slate-declined`,
+    in its finding,
+    its log line and (artifact generation 22) its record,
+    and the publish defect `no-valid-wording` names the slices by reason.
+- The ballots are read off the translate lane's records,
+    not out of the artifact rows,
+    which carry none.
+- Ledger:
+    B1020 to B1025 in `package/translation-repair/doc/audit-ledger-the-two-ballot-translate-text.md`.
