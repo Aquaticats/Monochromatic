@@ -294,14 +294,15 @@ Published names (`shim-node-domexception`,
  `stub-silent`,
  `stub-throwing`)
 rename with their paths.
-Correction (user,
- 2026-10-29):
- the task is only to move.
-No `npm deprecate`,
- pausing,
- or publishing steps are part of this plan;
-an earlier answer that chose "rename and deprecate" is superseded.
-Old names simply stay on npmjs as they are.
+The user first said the task is only to move,
+ then confirmed (2026-10-29) that deprecating the old names on npm is fine.
+So:
+ after the user's manual first publish of each new name
+ (trusted publishing needs it,
+ `doc/decision/npm-publishing.md`),
+ the old names get `npm deprecate` pointing to the new ones;
+ the user runs the npm-authenticated steps.
+Nothing is paused.
 
 ### `webapp-productivity`,
  `desktop-daemon`,
@@ -405,8 +406,9 @@ Mapping (sidecars follow their subject,
 Publishing consequences:
 
 - `module-logger` and `module-fs-path` are on npmjs:
-   they rename with their paths;
-   nothing is deprecated (move only).
+   they rename with their paths,
+   and the old names get `npm deprecate` after the new names' first publish,
+   as for the shims.
 - `mise.toml`,
    `mise.no-env.toml`,
    and `.github/workflows/npm-publish.yml` assume `module-$NPM_MODULE` and `//package/module/$NPM_MODULE`;
