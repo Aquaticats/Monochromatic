@@ -66,7 +66,7 @@ Tool under test:
  compiled from source by the build stage of this repo's
 `package/music-player/desktop-app/Containerfile.sign` on CachyOS),
  built against OpenSSL 3.6.5.
- The first verification, on 2026-10-14, used osslsigncode 2.9 from the Fedora 41 package with OpenSSL 3.2;
+ The earlier verification used osslsigncode 2.9 from the Fedora 41 package with OpenSSL 3.2;
  neither the Arch nor the CachyOS repositories package the tool.
  Its `sign` usage confirms both
 the legacy `.pfx` path and the PKCS#11 path (`-pkcs11module` and `-pkcs11cert` still exist;
