@@ -27,7 +27,7 @@ import {
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { ArtifactContestSlice, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
-  contestedCountLine,
+  announceContested,
   contestedRows,
   contestedSliceName,
   indexConsolidationInputs,
@@ -90,6 +90,9 @@ import {
 
  @param judgeModelIds - roster that judges each slate and gates its winner;
  `modelIds` when not given
+
+ @param onSliceSettled - told of each slice's record the moment it is made, for a caller that keeps the slices which
+ finished when a later one fails
 
  @param archiveDisputes - slices whose archive rendering the repair lane's
  adjudicators disputed, whose repair text stands in for the archive
@@ -161,6 +164,7 @@ export async function consolidateDocument(
     perCallTimeoutMs,
     overlap = 1,
     beforeSlice,
+    onSliceSettled,
     archiveDisputes,
     acceptedRepairClaimNotes,
     translateWinnerBallots,
@@ -217,6 +221,12 @@ export async function consolidateDocument(
      while a named provider hold keeps the bench from quorum.
      */
     readonly beforeSlice?: () => Promise<ConsolidateSliceSeating>;
+
+    /**
+     Told of each slice's record the moment it is made, in the order slices finish and not in comparison order, so a caller
+     keeps what finished when a later slice's failure discards the returned list.
+     */
+    readonly onSliceSettled?: (slice: ArtifactConsolidateSlice,) => void;
     readonly l: Logger;
     readonly stageSettings: StageSettings;
   },
@@ -285,7 +295,10 @@ export async function consolidateDocument(
    */
   const twins: TwinMemo<ConsolidationSettlement> = new Map();
 
-  dl.info(contestedCountLine({ count: contests.length, },),);
+  announceContested({
+    l: dl,
+    count: contests.length,
+  },);
   return await mapOverlapped({
     items: eligibleRows,
     overlap,
@@ -571,12 +584,19 @@ export async function consolidateDocument(
           // THE TENSE FINDING IS RECORDED HERE, from the wording the slice shipped,
           // so a settlement resumed from the cache records the candidates of the
           // text that shipped as a fresh one does, and no verdict reads them.
-          return recordedConsolidateSlice({
+          /**
+           The record of the slice as the artifact keeps it.
+           */
+          const recorded = recordedConsolidateSlice({
             sliceIndex: row.sliceIndex,
             settlement,
             incumbentStandsIn: incumbentStandsIn || standInShips,
             ...((sheetFacts === undefined) ? {} : { sheetFacts, }),
           },);
+          // HANDED TO THE CALLER THE MOMENT IT EXISTS, since the overlapped map discards every finished slice when
+          // a later one fails, and an entry stopped dry mid-page ships the slices that did finish.
+          onSliceSettled?.(recorded,);
+          return recorded;
         },
       },);
     },

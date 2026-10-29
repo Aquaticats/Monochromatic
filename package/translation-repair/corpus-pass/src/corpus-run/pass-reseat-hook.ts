@@ -4,7 +4,6 @@ import { shortestHold, } from '@monochromatic-dev/translation-repair-provider/ts
 import {
   type JudgeSeatPhase,
   type JudgeSeats,
-  holdsWithinPass,
   readJudgeSeats,
   type SeatReadingClient,
   type WarnedState,
@@ -119,7 +118,7 @@ export function reseatHookFor<SeatingT,>(
     /**
      Whether a hold runs, which is what the memo of the last no-wait line is forgotten on.
      */
-    const held = shortestHold({ holds: holdsWithinPass({ client, },), },) !== 0;
+    const held = shortestHold({ holds: client.providerHolds(), },) !== 0;
     if ((!held) && ((staleWhen === undefined) || (!staleWhen(latest.seating,)))) {
       warned.signature = '';
       return latest.seating;

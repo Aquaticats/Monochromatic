@@ -1084,9 +1084,6 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
 
  @param promptPayloadDir - optional durable payload checkpoint beneath run root
 
- @param passLeftMs - what the pass has left, which bounds the seat reader's wait for NeuralWatt's
- return; absent outside a pass
-
  @param off - providers left off, whose keys are read as unset; the owner's rulings by
  default (`PROVIDERS_LEFT_OFF`), an empty list in a case that exercises an off provider's client
 
@@ -1120,7 +1117,6 @@ export function runClientWithFloors(
     env,
     transport,
     promptPayloadDir,
-    passLeftMs,
     off,
     maxHoldMs,
     admitClaudeAttempt,
@@ -1129,7 +1125,6 @@ export function runClientWithFloors(
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
     readonly promptPayloadDir?: string;
-    readonly passLeftMs?: () => number;
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
@@ -1266,10 +1261,7 @@ export function runClientWithFloors(
     beginEntry: budgets.beginEntry,
     neuralwattReturn: budgets.neuralwattReturn,
     neuralwattDryness: budgets.neuralwattDryness,
-    neuralwattHeldByReturn: budgets.neuralwattHeldByReturn,
     writingProviders: RUN_WRITING_PROVIDERS,
-    // Conditional spread keeps the bound absent outside a pass.
-    ...((passLeftMs === undefined) ? {} : { passLeftMs, }),
   };
 }
 
@@ -1295,7 +1287,6 @@ export function createRunClientWithFloors(
   options: {
     readonly promptPayloadDir?: string;
     readonly maxHoldMs: number;
-    readonly passLeftMs?: () => number;
     readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {

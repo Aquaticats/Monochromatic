@@ -1,3 +1,5 @@
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { ArtifactContestSlice, } from '@monochromatic-dev/translation-repair-lane-contest/ts';
 import {
   type ConsolidateRoster,
@@ -6,7 +8,6 @@ import {
 } from '@monochromatic-dev/translation-repair-artifact/ts';
 import type { DeclaredNamePair, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import type { PreparedSheetFacts, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Consolidation driver index
 // The two lookups the consolidation driver reads per slice, built once over
@@ -220,6 +221,32 @@ export function rosterRunShapeOf(
     ...((roster.polishConfig === undefined) ? {} : { polishConfig: roster.polishConfig, }),
     declaredNamePairs,
   },);
+}
+
+/**
+ Says how many contested slices the consolidation settles, on the driver's logger.
+
+ Split out of `consolidate-driver.ts` at the line cap, when the sink for finished slices joined it.
+
+ @param l - driver logger
+
+ @param count - contested slices to settle
+
+ @example
+ ```ts
+ announceContested({ l: dl, count: contests.length, },);
+ ```
+ */
+export function announceContested(
+  {
+    l,
+    count,
+  }: {
+    readonly l: Logger;
+    readonly count: number;
+  },
+): void {
+  l.info(contestedCountLine({ count, },),);
 }
 
 //endregion Consolidation driver index

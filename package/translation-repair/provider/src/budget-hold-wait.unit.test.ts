@@ -100,9 +100,6 @@ async function settledNow<ValueT,>(
  @param neuralwattAfter - the day the budgets report once this many reads have happened, in place of `neuralwatt`, for a
  day that changes while a hold is waited out
 
- @param neuralwattHoldIsReturn - whether a NeuralWatt hold stands for a spent day's return, which the budgets then
- report only when it lies inside the bound the ask names (`returnBoundMs`), as the real budgets do
-
  @param dryness - why NeuralWatt reads dry, which the budgets report to a refusal that ends the run; none when absent
 
  @returns Budget view plus counts of reads and hold asks
@@ -119,7 +116,6 @@ function scriptedBudgets(
     holdsByAsk,
     neuralwatt = { kind: 'unanchored', },
     neuralwattAfter,
-    neuralwattHoldIsReturn = false,
     dryness,
   }: {
     readonly views: readonly BudgetView[];
@@ -127,7 +123,6 @@ function scriptedBudgets(
     readonly holdsByAsk?: readonly ProviderRecord<number>[];
     readonly neuralwatt?: NeuralWattReturn;
     readonly neuralwattAfter?: { readonly reads: number; readonly day: NeuralWattReturn; };
-    readonly neuralwattHoldIsReturn?: boolean;
     readonly dryness?: NeuralWattDryness;
   },
 ): {
@@ -163,8 +158,7 @@ function scriptedBudgets(
       markRefused: async function markRefused(): Promise<void> {
         throw new Error('not asked here',);
       },
-      holds: function holdsNow({ returnBoundMs = Number.POSITIVE_INFINITY, }: { readonly returnBoundMs?: number; } = {},
-      ): ProviderRecord<number> {
+      holds: function holdsNow(): ProviderRecord<number> {
         /**
          The holds this ask reads, the scripted sequence's entry for it or the fixed ones.
          */
@@ -173,10 +167,7 @@ function scriptedBudgets(
           holdsByAsk.length - 1,
         )] ?? holds;
         holdAsks.count += 1;
-        return {
-          ...asked,
-          neuralwatt: (neuralwattHoldIsReturn && (asked.neuralwatt > returnBoundMs)) ? 0 : asked.neuralwatt,
-        };
+        return asked;
       },
       // Conditional spread keeps the double without a cause where the case names none.
       ...((dryness === undefined) ? {} : { neuralwattDryness: () => dryness, }),
@@ -950,7 +941,7 @@ await describe({
 
         it({
           name: 'KEEPS WAITING WHILE A HOLD STILL RUNS: a shorter hold on a provider that still reads dry ends first, '
-            + 'and the wait goes on for the NeuralWatt return behind it instead of ending the run short of it',
+            + 'and the wait goes on for the NeuralWatt refusal hold behind it instead of ending the run short of it',
           fn: async ctx => {
             const { budgets, reads, holdAsks, } = scriptedBudgets({
               views: [ALL_DRY, ALL_DRY, NEURALWATT_BACK,],
@@ -981,41 +972,6 @@ await describe({
             expect(holdAsks.count,).toBe(2,);
             // Both holds are slept, the 5 ms of Hyper's and then the 7 ms of NeuralWatt's.
             expect(waitedMs,).toBe(12,);
-          },
-        },),
-
-        it({
-          name: 'BOUNDS THE SUM OF THE NEURALWATT WAITS, not each: another hold waited out for as long as the bound '
-            + 'leaves nothing for a return that lies inside it alone, so the call refuses at once with the distance '
-            + 'instead of waiting on (a 300 s hold then a return 250 s away, scaled to 25 ms and 15 ms under a 20 ms '
-            + 'bound)',
-          fn: async ctx => {
-            const { budgets, holdAsks, } = scriptedBudgets({
-              views: [ALL_DRY,],
-              holds: NO_HOLDS,
-              neuralwattHoldIsReturn: true,
-              dryness: { kind: 'spent-day', dayStart: '2026-10-22T19:15:08.000Z', returnsInMs: 15, },
-              // The first ask sees a return past the bound and a hold on Hyper; the second sees the return inside it.
-              holdsByAsk: [
-                { ...NO_HOLDS, hyper: 25, neuralwatt: 45, },
-                { ...NO_HOLDS, neuralwatt: 15, },
-                NO_HOLDS,
-              ],
-            },);
-            const { thrown, waitedMs, } = await refusalAfterHolds({
-              sinon: ctx.sinon,
-              holdMs: 25,
-              options: {
-                budgets,
-                refused: NOBODY_REFUSED,
-                returnBoundMs: 20,
-              },
-            },);
-            expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
-            expect((thrown as EveryProviderDryError).neuralwattReturnsInMs,).toBe(15,);
-            expect(holdAsks.count,).toBe(2,);
-            // Only Hyper's 25 ms is slept: the 15 ms return does not fit in what the bound leaves.
-            expect(waitedMs,).toBe(25,);
           },
         },),
 

@@ -1,10 +1,11 @@
 /**
- Tests that a NeuralWatt reading that is dry because the day's energy is spent names its return as a hold, so the
- waits that already wait out holds (the router's and the seat reader's) wait for it when it is near.
+ Tests that a NeuralWatt reading that is dry because the day's energy is spent names its cause and the time of day its
+ day starts again, and that the budget layer keeps that reading true at the day start, while nothing waits for the
+ return (the owner's answer of 2026-10-29, "Never wait, relaunch"; `neuralwatt-never-waits.unit.test.ts` holds the
+ cases that show the router and the seat reader refuse at once).
 
  THE CASE IS XINGZ6019 (2026-10-22): NeuralWatt dry at 19:14:20 UTC because the day's 550 Wh was spent, its day
- restarting at 19:15:08 UTC, 48 s later. The bench stood short of its floor and the entry stopped 48 s before the
- energy came back. Every meter and clock here is a stub and no HTTP is made.
+ restarting at 19:15:08 UTC, 48 s later. Every meter and clock here is a stub and no HTTP is made.
 
  Fixtures are cat-themed invention.
 
@@ -87,15 +88,11 @@ const FRESH_DAY: Reading = {
  @param msBeforeReturn - how long before its day starts again the wall clock reads
 
  @param clock - monotonic clock the case advances, which the budgets judge every hold and the cache window against; a
- case that waits hands the fake clock its wait sleeps on, so no real time passes
+ case that waits out another hold hands the fake clock its wait sleeps on, so no real time passes
 
  @param reads - counts the energy reads
 
  @param spent - first reading, the spent day unless the case says otherwise
-
- @param withXiaomi - whether the fleet carries a Xiaomi client, whose meter reads wet always, as the live roster's does
-
- @param marginMs - milliseconds the budgets add to a return (none unless the case moves it)
 
  @param staysSpent - whether every later reading still shows the spent day (default: the new day shows from the second)
 
@@ -115,8 +112,6 @@ function budgetsBefore(
     clock,
     reads,
     spent = SPENT_DAY,
-    withXiaomi = false,
-    marginMs = 0,
     staysSpent = false,
     hyperCooldownMs,
   }: {
@@ -124,16 +119,12 @@ function budgetsBefore(
     readonly clock: { readonly now: number; };
     readonly reads: { count: number; };
     readonly spent?: Reading;
-    readonly withXiaomi?: boolean;
-    readonly marginMs?: number;
     readonly staysSpent?: boolean;
     readonly hyperCooldownMs?: number;
   },
 ): ReturnType<typeof createProviderBudgets> {
   return createProviderBudgets({
     maxHoldMs: TEST_MAX_HOLD_MS,
-    // Conditional spread keeps the fleet without a Xiaomi client where the case asks for none.
-    ...(withXiaomi ? { xiaomi: { spend: async () => ({ spentUsd: 0.0042, }), }, } : {}),
     // Conditional spread keeps the fleet without a Hyper meter where the case asks for none.
     ...((hyperCooldownMs === undefined)
       ? {}
@@ -156,53 +147,8 @@ function budgetsBefore(
       0,
       DAY_START_MS_OF_DAY - msBeforeReturn,
     ),),
-    returnMarginMs: marginMs,
+    returnMarginMs: 0,
   },);
-}
-
-/**
- The hold NeuralWatt carries after one reading of its spent day, for a caller that waits at most a minute.
-
- @param msBeforeReturn - how long before its day starts again the wall clock reads
-
- @returns Milliseconds NeuralWatt is held out for
-
- @example
- ```ts
- const held = await heldFor({ msBeforeReturn: 60_000, },);
- ```
- */
-async function heldFor({ msBeforeReturn, }: { readonly msBeforeReturn: number; },): Promise<number> {
-  const budgets = budgetsBefore({
-    msBeforeReturn,
-    clock: { now: 1_000, },
-    reads: { count: 0, },
-  },);
-  await budgets.read({ signal: SIGNAL, },);
-  return budgets.holds({ returnBoundMs: 60_000, },).neuralwatt;
-}
-
-/**
- The hold a router call would wait out at a distance, with the production margin of a second.
-
- @param msBeforeReturn - how long before its day starts again the wall clock reads
-
- @returns Milliseconds NeuralWatt is held out for under the router's bound
-
- @example
- ```ts
- const held = await heldWithin({ msBeforeReturn: 300_000, },);
- ```
- */
-async function heldWithin({ msBeforeReturn, }: { readonly msBeforeReturn: number; },): Promise<number> {
-  const budgets = budgetsBefore({
-    msBeforeReturn,
-    clock: { now: 1_000, },
-    reads: { count: 0, },
-    marginMs: 1_000,
-  },);
-  await budgets.read({ signal: SIGNAL, },);
-  return budgets.holds({ returnBoundMs: 300_000, },).neuralwatt;
 }
 
 /**
@@ -238,75 +184,9 @@ async function refusalAfterHolds(
 }
 
 await describe({
-  name: 'NeuralWatt dryness names its return',
+  name: 'NeuralWatt dryness names its cause and its day start',
   concurrency: 1,
   children: [
-    it({
-      name: 'HOLDS NEURALWATT OUT FOR THE 48 SECONDS UNTIL ITS DAY STARTS AGAIN when the day\'s energy is spent, so '
-        + 'the holds every wait reads carry the return, and the reading still says dry',
-      fn: async () => {
-        const reads = { count: 0, };
-        const budgets = budgetsBefore({ msBeforeReturn: 48_000, clock: { now: 1_000, }, reads, },);
-        expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
-        expect(budgets.holds().neuralwatt,).toBe(48_000,);
-        expect(budgets.holds().synthetic,).toBe(0,);
-      },
-    },),
-
-    it({
-      name: 'NAMES NO HOLD FOR A RETURN PAST THE BOUND, so the waits do not hold an entry for hours: the refusal states '
-        + 'the day start instead',
-      fn: async () => {
-        const reads = { count: 0, };
-        const budgets = budgetsBefore({
-          msBeforeReturn: 82_800_000,
-          clock: { now: 1_000, },
-          reads,
-        },);
-        expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
-        expect(budgets.holds({ returnBoundMs: 300_000, },).neuralwatt,).toBe(0,);
-      },
-    },),
-
-    it({
-      name: 'NAMES A HOLD AT THE BOUND AND NONE ONE MILLISECOND PAST IT',
-      fn: async () => {
-        expect([
-          await heldFor({ msBeforeReturn: 60_000, },),
-          await heldFor({ msBeforeReturn: 60_001, },),
-        ],).toEqual([60_000, 0,],);
-      },
-    },),
-
-    it({
-      name: 'HOLDS THE RETURN AT ANY DISTANCE for a caller that names no bound, and none past the bound a caller '
-        + 'names: the router names 300 s, the seat reader names none, and the production margin counts inside the '
-        + 'bound, the way the refusal\'s clause and the pass\'s park count it',
-      fn: async () => {
-        const far = budgetsBefore({ msBeforeReturn: 82_800_000, clock: { now: 1_000, }, reads: { count: 0, }, },);
-        await far.read({ signal: SIGNAL, },);
-        expect(far.holds().neuralwatt,).toBe(82_800_000,);
-        expect(far.holds({ returnBoundMs: 300_000, },).neuralwatt,).toBe(0,);
-        expect([
-          await heldWithin({ msBeforeReturn: 299_000, }),
-          await heldWithin({ msBeforeReturn: 299_001, }),
-        ],).toEqual([300_000, 0,],);
-      },
-    },),
-
-    it({
-      name: 'ENDS THE ROUTER\'S CALL AT THE BOUND AND STATES THE DISTANCE: every provider dry and NeuralWatt 301 s '
-        + 'from its day start throws the refusal with the milliseconds to the return on it, which the pass reads to '
-        + 'park instead of stopping, and the message states the time of day',
-      fn: async () => {
-        const budgets = budgetsBefore({ msBeforeReturn: 301_000, clock: { now: 1_000, }, reads: { count: 0, }, },);
-        const thrown = await refusalAfterHolds({ budgets, pollMs: 1, },);
-        expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
-        expect((thrown as EveryProviderDryError).neuralwattReturnsInMs,).toBe(301_000,);
-        expect((thrown as Error).message,).toContain('at 19:15:08 UTC',);
-      },
-    },),
-
     it({
       name: 'NAMES NO RETURN FOR ENERGY HELD BY CALLS IN FLIGHT: a day whose settled spend leaves more than the '
         + 'smallest call and whose reservations alone leave less releases them in seconds, not at the day start',
@@ -320,37 +200,6 @@ await describe({
         expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
         expect(budgets.holds().neuralwatt,).toBe(0,);
         expect(budgets.neuralwattDryness().kind,).toBe('reserved',);
-      },
-    },),
-
-    it({
-      name: 'TELLS A REFUSAL HOLD FROM THE DAY START: a refusal that holds NeuralWatt longer than its return is the '
-        + 'hold that won, and the day start is not named for it',
-      fn: async () => {
-        const reads = { count: 0, };
-        const clock = { now: 1_000, };
-        const budgets = budgetsBefore({ msBeforeReturn: 48_000, clock, reads, },);
-        await budgets.read({ signal: SIGNAL, },);
-        expect(budgets.neuralwattHeldByReturn(),).toBe(true,);
-        await budgets.markRefused({ provider: 'neuralwatt', signal: SIGNAL, statedWaitMs: 120_000, },);
-        expect(budgets.holds().neuralwatt,).toBeGreaterThan(48_000,);
-        expect(budgets.neuralwattHeldByReturn(),).toBe(false,);
-      },
-    },),
-
-    it({
-      name: 'STILL WAITS FOR THE DAY START OF A NEURALWATT THE ENTRY GAVE UP ON: its refusal cooldown counts for no wait '
-        + 'once it refused right after one ran out, and the return of its spent day is a hold the refusal never set',
-      fn: async () => {
-        const reads = { count: 0, };
-        const clock = { now: 1_000, };
-        const budgets = budgetsBefore({ msBeforeReturn: 3_600_000, clock, reads, staysSpent: true, },);
-        await budgets.markRefused({ provider: 'neuralwatt', signal: SIGNAL, },);
-        clock.now += 312_000;
-        await budgets.markRefused({ provider: 'neuralwatt', signal: SIGNAL, },);
-        expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
-        expect(budgets.holds().neuralwatt,).toBeGreaterThan(3_000_000,);
-        expect(budgets.neuralwattHeldByReturn(),).toBe(true,);
       },
     },),
 
@@ -369,46 +218,18 @@ await describe({
     },),
 
     it({
-      name: 'ENDS THE RUN WITH THE DAY START STATED when the account still reads the day spent after the return was '
-        + 'waited for, and offers no return to park for: the router waited for it already',
-      fn: async ctx => {
-        using fake = fakeClockStarted({ sinon: ctx.sinon, },);
-        /**
-         The fake instant the case began at, from which the wall clock stub moves with the fake clock.
-         */
-        const began = fake.clock.now;
-        const budgets = createProviderBudgets({
-          maxHoldMs: TEST_MAX_HOLD_MS,
-          neuralwatt: {
-            energy: async () => SPENT_DAY,
-            dayAnchor: () => ({ known: true, msOfDay: DAY_START_MS_OF_DAY, }),
-          },
-          freshForMs: FRESH_MS,
-          now: () => fake.clock.now,
-          // The wall clock reads 50 ms before the day start when the case begins and moves with the fake clock, so the
-          // day start passes during the wait and the next reading names the day after.
-          wallNow: () => new Date(Date.UTC(
-            2_026,
-            9,
-            23,
-            0,
-            0,
-            0,
-            (DAY_START_MS_OF_DAY - 50) + (fake.clock.now - began),
-          ),),
-          returnMarginMs: 20,
-        },);
-        /**
-         The router's call, sleeping out the 70 ms to the return (50 to the day start and the 20 of margin) on the fake
-         clock.
-         */
-        const refusal = refusalAfterHolds({ budgets, pollMs: 10, },);
-        await fake.clock.tickAsync(70 + 10,);
-        const thrown = await refusal;
-        expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
-        expect((thrown as Error).message,).toContain('after waiting',);
-        expect((thrown as Error).message,).toContain('at 19:15:08 UTC',);
-        expect((thrown as EveryProviderDryError).neuralwattReturnsInMs,).toBeUndefined();
+      name: 'STATES THE DAY START WITHOUT A DISTANCE when the account still reads the day spent after the return has '
+        + 'passed: the account is lagging, so the cause names no return to relaunch for',
+      fn: async () => {
+        const reads = { count: 0, };
+        const clock = { now: 1_000, };
+        const budgets = budgetsBefore({ msBeforeReturn: 48_000, clock, reads, staysSpent: true, },);
+        await budgets.read({ signal: SIGNAL, },);
+        clock.now += 48_000;
+        expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
+        expect(reads.count,).toBe(2,);
+        expect(budgets.neuralwattDryness(),).toEqual({ kind: 'spent-day', dayStart: SPENT_DAY.dayStart, },);
+        expect(budgets.holds().neuralwatt,).toBe(0,);
       },
     },),
 
@@ -444,57 +265,9 @@ await describe({
     },),
 
     it({
-      name: 'LETS THE ROUTER\'S WAIT SEE THE RETURN: every provider dry but NeuralWatt coming back in 50 ms waits it '
-        + 'out and reads NeuralWatt wet, instead of ending the run',
-      fn: async ctx => {
-        using fake = fakeClockStarted({ sinon: ctx.sinon, },);
-        const reads = { count: 0, };
-        // THE FAKE CLOCK IS THE MONOTONIC CLOCK, since time passes during the wait only as the case ticks it and the
-        // return is read against it.
-        const budgets = budgetsBefore({
-          msBeforeReturn: 50,
-          clock: fake.clock,
-          reads,
-          withXiaomi: true,
-          marginMs: 20,
-        },);
-        /**
-         The router's read, sleeping out the 70 ms to the return (50 to the day start and the 20 of margin) on the fake
-         clock, over the live roster's shape: a funded Xiaomi that serves a checker seat and nothing that writes, and
-         every other provider unconfigured and so dry.
-         */
-        const reading = readBudgetsPastHolds({
-          budgets,
-          modelId: 'glm-5.3',
-          signal: SIGNAL,
-          refused: NOBODY_REFUSED,
-          pollMs: 10,
-          writing: {
-            neuralwatt: true,
-            synthetic: true,
-            hyper: true,
-            bedrock: true,
-            deepseek: true,
-            xiaomi: false,
-            anthropic: true,
-            openrouter: true,
-          },
-        },);
-        await fake.clock.tickAsync(70 + 10,);
-        /**
-         What the read comes to once the wait has ended.
-         */
-        const view = await reading;
-        expect(view.neuralwatt,).toBe(false,);
-        expect(view.xiaomi,).toBe(false,);
-        expect(reads.count,).toBe(2,);
-      },
-    },),
-
-    it({
-      name: 'KEEPS THE DISTANCE ON THE REFUSAL AFTER WAITING OUT ANOTHER HOLD: every provider dry, Hyper held 40 ms '
-        + 'and NeuralWatt 600 s from its day start (past the router\'s 300 s), so the call waits out Hyper and the '
-        + 'refusal still carries the distance and the time of day, which the pass parks on',
+      name: 'WAITS OUT ANOTHER PROVIDER\'S HOLD BUT NOT NEURALWATT\'S DAY: every provider dry, Hyper held 40 ms and '
+        + 'NeuralWatt 600 s from its day start, so the call waits out Hyper and the refusal that follows states the '
+        + 'time of day and the distance for the operator to relaunch by',
       fn: async ctx => {
         using fake = fakeClockStarted({ sinon: ctx.sinon, },);
         // THE FAKE CLOCK IS THE MONOTONIC CLOCK, since Hyper's 40 ms hold is judged against it and passes only as the case
@@ -516,22 +289,7 @@ await describe({
         const thrown = await refusal;
         expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
         expect((thrown as Error).message,).toContain('after waiting',);
-        expect((thrown as EveryProviderDryError).neuralwattReturnsAt,).toBe('19:15:08 UTC',);
-        expect((thrown as EveryProviderDryError).neuralwattReturnsInMs,).toBeGreaterThan(590_000,);
-        expect((thrown as EveryProviderDryError).neuralwattReturnsInMs,).toBeLessThanOrEqual(600_000,);
-      },
-    },),
-
-    it({
-      name: 'CARRIES THE INSTANT OF THE READ THAT NAMED THE RETURN when the caller gives it, and none when it does '
-        + 'not, so a park counts the wait from the read and the router\'s own refusal counts it from its arrival',
-      fn: async () => {
-        /**
-         The refusal a seat reader makes, stamped.
-         */
-        const stamped = new EveryProviderDryError({ neuralwattReturnsInMs: 301_000, neuralwattReadAtMs: 1_000, },);
-        expect(stamped.neuralwattReadAtMs,).toBe(1_000,);
-        expect(new EveryProviderDryError({ neuralwattReturnsInMs: 301_000, },).neuralwattReadAtMs,).toBeUndefined();
+        expect((thrown as Error).message,).toContain('at 19:15:08 UTC (in 10 min)',);
       },
     },),
   ],

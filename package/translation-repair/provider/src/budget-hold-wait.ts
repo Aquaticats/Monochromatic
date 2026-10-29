@@ -8,14 +8,10 @@ import {
   EveryProviderDryError,
   idleWetProviders,
   meterWord,
-  type NeuralWattReturn,
   type WritingReach,
 } from './budget-routing.ts';
 import { holdReasonOf, } from './hold-reason.ts';
-import {
-  NEURALWATT_RETURN_WAIT_BOUND_MS,
-  type NeuralWattDryness,
-} from './neuralwatt-return-hold.ts';
+import type { NeuralWattDryness, } from './neuralwatt-return-hold.ts';
 import type {
   BudgetView,
   ProviderBudgets,
@@ -50,11 +46,6 @@ import {
  Logger root for the wait.
  */
 const l = contextRoot({ tag: 'translation-repair', },);
-
-/**
- What the run knows of NeuralWatt's day for a budget view that reports none.
- */
-const UNKNOWN_DAY: NeuralWattReturn = { kind: 'unanchored', };
 
 /**
  How often a call waiting out a provider hold checks whether it was aborted.
@@ -190,8 +181,8 @@ function measuredAt(
 }
 
 /**
- What NeuralWatt's dryness adds to the refusal that ends the call: the cause the last reading found, and the distance
- to a spent day's return while it still lies ahead, which the pass reads to park until it.
+ What NeuralWatt's dryness adds to the refusal that ends the call: the cause the last reading found, which carries the
+ time of day a spent day starts again and the distance to it for the operator to relaunch by.
 
  @param budgets - shared budget view, whose NeuralWatt cause is read when it reports one
 
@@ -214,7 +205,6 @@ function dryCauseOf(
   },
 ): {
   readonly neuralwattDryness?: NeuralWattDryness;
-  readonly neuralwattReturnsInMs?: number;
   readonly afterWaiting?: boolean;
 } {
   /**
@@ -225,13 +215,6 @@ function dryCauseOf(
     return waited ? { afterWaiting: true, } : {};
   return {
     neuralwattDryness: dryness,
-    // THE DISTANCE IS NAMED WHENEVER THE RETURN STILL LIES AHEAD, waited or not: a call that waited out another hold
-    // has not been through NeuralWatt's return, and dropping the distance there left the pass unable to park for it
-    // (R1). A return that has passed names none (the mark reads it as lag), and `waited` only words the message.
-    ...(((dryness.kind === 'spent-day') && (dryness.returnsInMs !== undefined)
-      && (dryness.returnsInMs > 0))
-      ? { neuralwattReturnsInMs: dryness.returnsInMs, }
-      : {}),
     ...(waited ? { afterWaiting: true, } : {}),
   };
 }
@@ -241,9 +224,9 @@ function dryCauseOf(
  some hold still runs.
 
  EVERY HOLD IS WAITED FOR, NOT THE FIRST ALONE. One wait for the shortest hold ended the wait at a hold on a provider
- that still read dry, with a longer hold (NeuralWatt's day starting again) a few minutes behind it, and the run ended
- short of a return it had named. The only bounds are the call's abort, the holds themselves (each of which ends), and a
- NeuralWatt return past what the router's bound leaves.
+ that still read dry, with a longer hold a few minutes behind it. The only bounds are the call's abort and the holds
+ themselves, each of which ends. NEURALWATT'S SPENT DAY IS NO HOLD AND IS NEVER WAITED FOR (the owner's answer of
+ 2026-10-29, "Never wait, relaunch"): the refusal that ends the call states the time of day it starts again.
 
  @param budgets - shared budget view
 
@@ -255,10 +238,6 @@ function dryCauseOf(
 
  @param holds - holds as the caller read them, with at least one running
 
- @param returnBoundMs - longest the waits of this call take in all, for a NeuralWatt return: every millisecond
- already waited comes off it before the holds are asked again, so a return inside the bound alone but past what is left
- is not waited for
-
  @param writing - providers whose wet reading keeps the run going
 
  @returns First reading in which some provider that keeps the run going no longer reads dry
@@ -267,9 +246,7 @@ function dryCauseOf(
 
  @example
  ```ts
- const view = await readAfterHolds({
-   budgets, modelId, signal, pollMs: HOLD_POLL_MS, holds: budgets.holds(), returnBoundMs: 300_000, writing,
- },);
+ const view = await readAfterHolds({ budgets, modelId, signal, pollMs: HOLD_POLL_MS, holds: budgets.holds(), writing, },);
  ```
  */
 async function readAfterHolds(
@@ -279,7 +256,6 @@ async function readAfterHolds(
     signal,
     pollMs,
     holds,
-    returnBoundMs,
     writing,
   }: {
     readonly budgets: ProviderBudgets;
@@ -287,7 +263,6 @@ async function readAfterHolds(
     readonly signal: AbortSignal;
     readonly pollMs: number;
     readonly holds: ProviderRecord<number>;
-    readonly returnBoundMs: number;
     readonly writing: WritingReach;
   },
 ): Promise<BudgetView> {
@@ -300,14 +275,13 @@ async function readAfterHolds(
   },);
 
   /**
-   The holds the next wait is taken from, how long that wait is, the milliseconds waited so far for the refusal that
-   ends the run after the waits, and how much of the NeuralWatt return bound those waits left.
+   The holds the next wait is taken from, how long that wait is, and the milliseconds waited so far for the refusal that
+   ends the run after the waits.
    */
   const next = {
     holds,
     shortest: shortestHold({ holds, },),
     waitedMs: 0,
-    boundLeftMs: returnBoundMs,
   };
   // The loop ends by a return or a throw: every wait is a running hold, and a hold ends.
   for (;;) {
@@ -318,13 +292,11 @@ async function readAfterHolds(
       return `${provider} ${String(next.holds[provider],)}ms`;
     },);
     /**
-     Whose hold is the shortest, and for NeuralWatt when its day starts again, for the lines.
+     Whose hold is the shortest, for the lines.
      */
     const reason = holdReasonOf({
       holds: next.holds,
       shortest: next.shortest,
-      neuralwatt: budgets.neuralwattReturn?.() ?? UNKNOWN_DAY,
-      neuralwattHeldByReturn: budgets.neuralwattHeldByReturn?.({ returnBoundMs: next.boundLeftMs, }) ?? true,
     },);
     rl.warn(
       `${modelId}: every provider is out for now (${held.join(', ',)}); `
@@ -354,13 +326,7 @@ async function readAfterHolds(
     },))
       return again;
 
-    // THE BOUND IS A SUM: what the waits so far took comes off it, so a return that lay inside the bound alone but lies
-    // past what is left ends the call with its refusal (and the distance) and is not waited for on top of them (R3).
-    next.boundLeftMs = Math.max(
-      0,
-      returnBoundMs - next.waitedMs,
-    );
-    next.holds = budgets.holds({ returnBoundMs: next.boundLeftMs, },);
+    next.holds = budgets.holds();
     next.shortest = shortestHold({ holds: next.holds, },);
     if (next.shortest === 0) {
       /**
@@ -412,9 +378,6 @@ async function readAfterHolds(
  @param writing - providers whose wet reading keeps the run going, because they serve a model seated in a writing
  bench (`WritingReach`); every provider where the caller knows no roster
 
- @param returnBoundMs - longest NeuralWatt return this call waits for; the router's own bound by default, since a
- call carries a deadline that cuts anything longer (`NEURALWATT_RETURN_WAIT_BOUND_MS`)
-
  @returns Every provider's dryness, holds waited out
 
  @throws {@link EveryProviderDryError} when every provider reads dry with no
@@ -433,7 +396,6 @@ export async function readBudgetsPastHolds(
     refused,
     pollMs,
     writing = EVERY_PROVIDER_COUNTS,
-    returnBoundMs = NEURALWATT_RETURN_WAIT_BOUND_MS,
   }: {
     readonly budgets: ProviderBudgets;
     readonly modelId: RosterModelId;
@@ -441,7 +403,6 @@ export async function readBudgetsPastHolds(
     readonly refused: ProviderName | typeof NOBODY_REFUSED;
     readonly pollMs: number;
     readonly writing?: WritingReach;
-    readonly returnBoundMs?: number;
   },
 ): Promise<BudgetView> {
   /**
@@ -473,7 +434,7 @@ export async function readBudgetsPastHolds(
   /**
    How long each provider's refusal still holds it out.
    */
-  const holds = budgets.holds({ returnBoundMs, },);
+  const holds = budgets.holds();
 
   // A REFUSAL THE BUDGETS GAVE NO HOLD HAS ALREADY ENDED (ledger B124).
   // `markRefused` holds a refuser whose meter reads wet only when another
@@ -534,7 +495,6 @@ export async function readBudgetsPastHolds(
     signal,
     pollMs,
     holds,
-    returnBoundMs,
     writing,
   },);
 }

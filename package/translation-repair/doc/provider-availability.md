@@ -207,10 +207,41 @@ and the next wait of 299850 ms at 00:34:18 UTC (line 20355).
 The cycle ran every 5 min 17 s:
 58 distinct minutes between 00:34 UTC and 06:05 UTC carry a `waited=` of 240 to 300 s.
 
-The bound an entry carries (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`) never cut this loop.
-It narrows `passLeftMs`,
-and the budgets apply that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
-so a cooldown is waited for whatever the bound is and only the entry's own abort ends the waiting.
+The bound an entry carried (`withEntryBound` in `corpus-pass/src/corpus-run/pass-entry-bound.ts`,
+removed on 2026-10-29 with the NeuralWatt return wait it served) never cut this loop.
+It narrowed `passLeftMs`,
+and the budgets applied that bound to NeuralWatt's day start alone (`holds` in `provider-budget.ts`),
+so a cooldown was waited for whatever the bound was and only the entry's own abort ended the waiting.
+Since 2026-10-29 nothing waits for NeuralWatt's day start at all:
+the owner chose "Never wait,
+relaunch"
+("Stop at once and relaunch later."),
+so the budgets name no hold for it,
+a call whose only way forward is NeuralWatt's day refuses on its first reading,
+and the refusal states the time of day in UTC the day starts again.
+A refusal cooldown or a stated `Retry-After` of any provider,
+NeuralWatt included,
+is still waited for.
+
+What the entry in flight ships when every provider goes dry in the middle of its page
+is the owner's answer of 2026-10-29,
+"Ship interim,
+resumable".
+The dry gate ends the run as before,
+and the entry's own `catch` ships an interim page before it files the stop as `INCOMPLETE`:
+the slices with a consolidation record as they settled,
+the archive's text for the others,
+and the original under its note for a slice the archive lacks.
+The entry gets no artifact,
+so it stays pending,
+and `interim/<id>.json` in the runs directory says the page is interim.
+A stop in the lanes phase has no consolidation record yet,
+so it ships the archive text,
+and the original under the note where the archive has none.
+A slice the lanes agreed on or the contest decided,
+with no consolidation record yet,
+ships the same way,
+and its bought work stays in the caches for the next run.
 
 A provider that refuses right after a cooldown ran out,
 with nothing served in between,
@@ -252,7 +283,6 @@ What the rule leaves alone:
 a hold that names its own return (a `Retry-After` header,
 a daily limit in the body),
 a payment refusal,
-NeuralWatt's day start,
 the quorum sizes of the benches,
 and the waits the benches take for the judges they count.
 A provider that served after its cooldown is waited for each time,
@@ -347,7 +377,7 @@ and the quorum and bench rules decide from there
 A pass whose providers left are too small for a writing bench
 (DeepSeek alone beside Synthetic)
 ends its entry with `WritingBenchUnreachableError` after the one wait,
-which parks the entry and does not end the run;
+which ends the entry as a failure a later pass resumes and does not end the run;
 the entry could not have finished with Synthetic back either.
 
 The limit that remains:

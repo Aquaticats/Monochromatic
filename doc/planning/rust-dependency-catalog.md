@@ -1125,12 +1125,16 @@ Remaining:
       failed). A helper agent also saw it fail with `TMPDIR` under the symlinked `/var/home/user/temp`
       (unreproduced here); `e655dcad15` (another session) moved its fixtures to `scratchRoot()`, whose
       `~/.cache` default is not a symlink here;
-      `plan.unit.test.ts` (60 tools) and `generate.unit.test.ts` (17 cargo pins) fail since `027a620a9e`/`1ea12b8f37`
-      added `cargo:monochromatic-mpm-shadow` without updating the counts (owner session asked);
+      the `plan.unit.test.ts` and `generate.unit.test.ts` count failures after `cargo:monochromatic-mpm-shadow` landed
+      were fixed by their owner `monochromatic-04` (`3659c961a1`, then invariants in `ee9a4848c9`);
       package lint after `64564dc323`: 1 warning, 0 errors (the CachyOS cells of `src/package/mise.container-test.ts`,
       another session's active work); `lint:types` and `lint:config:types` exit 0 (`b06505e14e`);
-      the machine-global `~/.config/monochromatic-dev/toolchain/toolchain.lock.json` still holds 119 `null` keys,
-      because only `generate.ts --global` rewrites it and this session has not run it.
+      done (owner-approved): `generate.ts --global` rewrote the machine-global lock and mpm manifests in
+      `~/.config/monochromatic-dev/toolchain/`; the global lock went from 119 `null` keys to 0, and its stale
+      `package/dev-script/...` provenance lines now name `package/file-enforcer/core/...`;
+      owner-approved AGENTS.md rule `FDL` (list `find` matches, then delete them separately, because `-delete`
+      implies `-depth` and disables `-prune`), added after this session's own `-prune -delete` walked into
+      `node_modules` (it deleted nothing outside the 99 intended files).
       done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps

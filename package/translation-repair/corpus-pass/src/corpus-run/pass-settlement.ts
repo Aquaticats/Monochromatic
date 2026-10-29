@@ -61,6 +61,9 @@ export type PassSettlement = {
  @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, per slice
  (owner, 2026-10-29, "Ship the two-ballot text")
 
+ @param onSliceSettled - told of each consolidation record the moment it is made, so an entry stopped dry in the middle
+ of its page keeps the slices that finished
+
  @param frontMatterSlices - syntax-bearing metadata positions
 
  @param pictureReadings - paired OCR evidence
@@ -94,6 +97,7 @@ export async function runPassSettlement(
     archiveDisputes,
     acceptedRepairClaimNotes,
     translateWinnerBallots,
+    onSliceSettled,
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,
@@ -110,6 +114,7 @@ export async function runPassSettlement(
     readonly archiveDisputes: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
     readonly translateWinnerBallots?: ReadonlyMap<number, number>;
+    readonly onSliceSettled?: (slice: ArtifactConsolidateSlice,) => void;
     readonly frontMatterSlices: ReadonlySet<number>;
     readonly pictureReadings: ReadonlyMap<string, PairedReading>;
     readonly entryCacheDir: string;
@@ -131,6 +136,7 @@ export async function runPassSettlement(
     archiveDisputes,
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
     ...((translateWinnerBallots === undefined) ? {} : { translateWinnerBallots, }),
+    ...((onSliceSettled === undefined) ? {} : { onSliceSettled, }),
     frontMatterSlices,
     pictureReadings,
     entryCacheDir,

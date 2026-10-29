@@ -54,28 +54,18 @@ const UNSEATED = { seated: 'roster', };
 const RESEATED = { seated: 'read under a hold', };
 
 /**
- The hook over a client whose NeuralWatt return is `returnInMs` away, answering holds by the bound it is asked with.
+ The hook over a client whose NeuralWatt carries a refusal hold of `holdMs`.
 
- @param returnInMs - milliseconds until NeuralWatt's day starts again
-
- @param passLeftMs - what the pass has left
+ @param holdMs - milliseconds NeuralWatt is held out for, none for zero
 
  @returns Hook and the dryness reads counted
 
  @example
  ```ts
- const { hook, reads, } = hookBefore({ returnInMs: 700, passLeftMs: 600, },);
+ const { hook, reads, } = hookBefore({ holdMs: 500, },);
  ```
  */
-function hookBefore(
-  {
-    returnInMs,
-    passLeftMs,
-  }: {
-    readonly returnInMs: number;
-    readonly passLeftMs: number;
-  },
-) {
+function hookBefore({ holdMs, }: { readonly holdMs: number; },) {
   const reads = { count: 0, };
   const hook = reseatHookFor({
     client: {
@@ -84,8 +74,8 @@ function hookBefore(
         return ALL_WET;
       },
       providerMeterStates: metersAllWet,
-      providerHolds: ({ returnBoundMs = Number.POSITIVE_INFINITY, }: { readonly returnBoundMs?: number; } = {},) => ({
-        neuralwatt: (returnInMs <= returnBoundMs) ? returnInMs : 0,
+      providerHolds: () => ({
+        neuralwatt: holdMs,
         synthetic: 0,
         bedrock: 0,
         deepseek: 0,
@@ -94,7 +84,6 @@ function hookBefore(
         hyper: 0,
         openrouter: 0,
       }),
-      passLeftMs: () => passLeftMs,
     },
     signal: new AbortController().signal,
     phase: 'lane contest',
@@ -303,10 +292,6 @@ function hookOverDayEnd(
           18_000_000 - (state.asks * 1_000),
         ),
       }),
-      passLeftMs: () => Math.max(
-        1,
-        3_600_000 - (state.asks * 1_000),
-      ),
     },
     signal: new AbortController().signal,
     phase,
@@ -349,32 +334,22 @@ await describe({
   concurrency: 1,
   children: [
     it({
-      name: 'READS NOTHING FOR A RETURN PAST WHAT THE PASS HAS LEFT: 700 away with 600 left is no hold, so the slice '
-        + 'keeps the seating it had and no dryness is read',
+      name: 'READS NOTHING WHEN NO HOLD RUNS: NeuralWatt\'s day return is no hold, so the slice keeps the seating it '
+        + 'had and no dryness is read',
       fn: async () => {
-        const { hook, reads, } = hookBefore({ returnInMs: 700, passLeftMs: 600, },);
+        const { hook, reads, } = hookBefore({ holdMs: 0, },);
         expect(await hook(),).toEqual(UNSEATED,);
         expect(reads.count,).toBe(0,);
       },
     },),
 
     it({
-      name: 'READS THE SEATS FOR A RETURN INSIDE WHAT THE PASS HAS LEFT: 500 away with 600 left is a hold, so the '
-        + 'slice takes the seating the reading gives',
+      name: 'READS THE SEATS UNDER A HOLD: a refusal hold of 500 ms on NeuralWatt makes the slice take the seating '
+        + 'the reading gives',
       fn: async () => {
-        const { hook, reads, } = hookBefore({ returnInMs: 500, passLeftMs: 600, },);
+        const { hook, reads, } = hookBefore({ holdMs: 500, },);
         expect(await hook(),).toEqual(RESEATED,);
         expect(reads.count,).toBe(1,);
-      },
-    },),
-
-    it({
-      name: 'READS NOTHING WHEN THE BOUND IS ZERO OR BELOW, the pass or the entry\'s cap spent, whatever '
-        + 'return is named',
-      fn: async () => {
-        const { hook, reads, } = hookBefore({ returnInMs: 5, passLeftMs: -1, },);
-        expect(await hook(),).toEqual(UNSEATED,);
-        expect(reads.count,).toBe(0,);
       },
     },),
 

@@ -94,8 +94,6 @@ type NeuralWattSeatClient = {
     RunClient,
     | 'neuralwattDryness'
       | 'neuralwattReturn'
-      | 'passBoundOwner'
-      | 'passLeftMs'
       | 'providerDryness'
       | 'providerHolds'
       | 'providerMeterStates'
@@ -111,10 +109,6 @@ type NeuralWattSeatClient = {
  @param spent - first NeuralWatt reading, the spent day unless the case says otherwise
 
  @param syntheticWet - whether Synthetic, the only other configured provider, has budget
-
- @param passLeftMs - what the pass has left, which bounds the wait for a return; absent for a pass that bounds nothing
-
- @param boundOwner - whose bound passLeftMs is, the entry's own cap or the pass (default: the pass)
 
  @param lagging - whether the account still reads the spent day after the return (default: the new day shows)
 
@@ -134,16 +128,12 @@ export function clientBefore(
     spent = SPENT_DAY,
     syntheticWet = true,
     lagging = false,
-    passLeftMs,
-    boundOwner,
     now,
   }: {
     readonly msBeforeReturn: number;
     readonly spent?: NeuralWattEnergy;
     readonly syntheticWet?: boolean;
     readonly lagging?: boolean;
-    readonly passLeftMs?: number;
-    readonly boundOwner?: 'entry' | 'pass';
     readonly now?: () => number;
   },
 ): NeuralWattSeatClient {
@@ -200,22 +190,6 @@ export function clientBefore(
       providerHolds: budgets.holds,
       neuralwattReturn: budgets.neuralwattReturn,
       neuralwattDryness: budgets.neuralwattDryness,
-      // Conditional spread keeps the client without a pass bound where the case names none.
-      ...((passLeftMs === undefined)
-        ? {}
-        : {
-          passLeftMs: function passLeft() {
-            return passLeftMs;
-          },
-        }),
-      // Conditional spread keeps the client without an owner where the case names none.
-      ...((boundOwner === undefined)
-        ? {}
-        : {
-          passBoundOwner: function passBoundOwner() {
-            return boundOwner;
-          },
-        }),
     },
   };
 }

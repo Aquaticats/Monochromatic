@@ -15,7 +15,7 @@ import {
   readFile,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { setImmediate, } from 'node:timers/promises';
 
@@ -142,7 +142,7 @@ export async function enterThrowawayPackage(): Promise<ThrowawayPackage> {
    Fresh temporary package root.
    */
   const dir = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'logger-fuzz-file-',
   ),);
   await mkdir(join(

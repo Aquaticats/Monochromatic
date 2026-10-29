@@ -1259,6 +1259,7 @@ _.path = [
   "package/llm/token-count/node_modules/.bin",
   "package/mcp/mvm/node_modules/.bin",
   "package/mutation-test/cli-unused-export/node_modules/.bin",
+  "package/mutation-test/cli/node_modules/.bin",
   "package/pi-plugin/advisor/node_modules/.bin",
   "package/pi-plugin/agent-settled-notification/node_modules/.bin",
   "package/pi-plugin/ask-user-question/node_modules/.bin",

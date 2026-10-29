@@ -4,13 +4,14 @@ import {
 } from '@monochromatic-dev/logger-core/ts';
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
-import { returnFitsWithin, } from './neuralwatt-return-fit.ts';
 import type { NeuralWattDryness, } from './neuralwatt-return-hold.ts';
 
 //region NeuralWatt return mark
 // WHY NEURALWATT READS DRY AND WHEN A SPENT DAY STARTS AGAIN, on the budget layer's monotonic clock, kept beside the
 // cached meter reading that named them. A reading replaces the mark, so a return never outlives the reading that named
-// it, and past it the budget layer reads the meters again whatever the reading's age (`provider-budget.ts`).
+// it, and past it the budget layer reads the meters again whatever the reading's age (`provider-budget.ts`). The mark
+// WAITS FOR NOTHING (the owner's answer of 2026-10-29, "Never wait, relaunch"): it counts the distance down for the
+// refusal that states it, and tells the budget layer when its cached dry reading is stale.
 
 /**
  Logger root for the return mark.
@@ -20,11 +21,16 @@ const root = contextRoot({ tag: 'translation-repair', },);
 /**
  Milliseconds before the return at which it counts as passed.
 
- MEASURED, NOT PICKED: 400 timers requested at 7.4 ms fired early in 396 cases by up to 1.3 ms, because Node truncates
- fractional milliseconds (the review of 2026-10-22, keyless scratch measures). A timer that wakes a hair before its time
- would otherwise leave the cached dry reading in place and end the run a moment short of the energy coming back; two
- milliseconds covers the worst measured. The margin added to a return protects the server side, and sits inside the
- return, so it does not cover the timer.
+ IT GUARDS THE CACHED READING, NOT A TIMER. Nothing arms a timer for the return (the owner's answer of 2026-10-29,
+ "Never wait, relaunch"); the budget layer asks {@link NeuralWattReturnMark.passed} on each call that would otherwise be
+ served the cached dry reading (`provider-budget.ts`, `currentReading`). A reading taken a hair before the boundary
+ names a return that is a hair away, and without this margin the next call inside that hair would be served the dry
+ reading that named it. With it the call reads the meters again, which costs one reading and replaces the mark.
+ Past the boundary the same call reads again either way, so the margin only moves the re-read a hair earlier.
+
+ THE VALUE IS THE ONE THE TIMER MEASURE GAVE, kept as a small margin and not re-derived for the cache: 400 timers
+ requested at 7.4 ms fired early in 396 cases by up to 1.3 ms, because Node truncates fractional milliseconds
+ (the review of 2026-10-22, keyless scratch measures), and two milliseconds covered the worst measured.
  */
 const PASSED_SLACK_MS = 2;
 
@@ -86,7 +92,8 @@ export type NeuralWattReturnMark = {
   readonly dryness: () => NeuralWattDryness;
 
   /**
-   Whether the day has started again since the reading that named the return.
+   Whether the day has started again since the reading that named the return, so the budget layer reads the meters
+   again whatever the age of the cached reading.
    */
   readonly passed: () => boolean;
 
@@ -94,16 +101,6 @@ export type NeuralWattReturnMark = {
    Milliseconds left until the day starts again, zero where no return is named or it has passed.
    */
   readonly leftMs: () => number;
-
-  /**
-   Milliseconds left until the day starts again, or zero where the return lies past what a caller waits for.
-
-   THE DISTANCE IS COMPARED WITH ITS MARGIN INCLUDED (`returnFitsWithin`), the way the refusal states it and the pass's
-   park counts it, so a return exactly at the bound is waited for and one within the margin past it is not.
-
-   @param boundMs - longest return the caller waits for
-   */
-  readonly leftWithinMs: (args: { readonly boundMs: number; },) => number;
 };
 
 /**
@@ -169,7 +166,7 @@ export function createNeuralWattReturnMark(
   /**
    Whether the day has started again since the reading that named the return.
 
-   @returns Whether the return has passed, counting a timer that fired a hair early
+   @returns Whether the return has passed, counting the last hair before it as passed
    */
   function passed(): boolean {
     return (held.mark
@@ -234,17 +231,6 @@ export function createNeuralWattReturnMark(
     passed,
 
     leftMs,
-
-    leftWithinMs: function leftWithinMs({ boundMs, },): number {
-      /**
-       Milliseconds until the day starts again, margin included.
-       */
-      const left = leftMs();
-      return returnFitsWithin({
-        returnsInMs: left,
-        boundMs,
-      },) ? left : 0;
-    },
   };
 }
 

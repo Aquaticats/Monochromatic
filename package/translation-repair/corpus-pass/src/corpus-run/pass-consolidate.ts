@@ -59,6 +59,8 @@ import {
  @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, per slice
  (owner, 2026-10-29, "Ship the two-ballot text")
 
+ @param onSliceSettled - told of each slice's record the moment it is made, so a stop keeps the slices that finished
+
  @param contests - lane contest records
 
  @param frontMatterSlices - syntax-bearing metadata positions
@@ -100,10 +102,12 @@ export async function runPassConsolidation(
     archiveDisputes,
     acceptedRepairClaimNotes,
     translateWinnerBallots,
+    onSliceSettled,
     l,
     stageSettings,
   }: {
     readonly client: RunClient;
+    readonly onSliceSettled?: (slice: ArtifactConsolidateSlice,) => void;
     readonly archiveDisputes?: ReadonlyMap<number, ArchiveDispute>;
     readonly acceptedRepairClaimNotes?: ReadonlyMap<number, string>;
     readonly translateWinnerBallots?: ReadonlyMap<number, number>;
@@ -181,6 +185,7 @@ export async function runPassConsolidation(
     ...((archiveDisputes === undefined) ? {} : { archiveDisputes, }),
     ...((acceptedRepairClaimNotes === undefined) ? {} : { acceptedRepairClaimNotes, }),
     ...((translateWinnerBallots === undefined) ? {} : { translateWinnerBallots, }),
+    ...((onSliceSettled === undefined) ? {} : { onSliceSettled, }),
     signal,
     perCallTimeoutMs: RUN_PER_CALL_TIMEOUT_MS,
     overlap,

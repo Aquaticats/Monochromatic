@@ -545,9 +545,6 @@ const WITHHELD: Record<string, string> = {
   ReasonOrderError: 'a test fixture\'s refusal (`reason-order.test-fixture.ts`) that quotes the field names and the '
     + 'instruction phrases the case handed it, which are the case\'s own strings; no boundary prints it, so the marker '
     + 'would mean nothing',
-  ReturnTimeNotUtcError: 'quotes the return time text a NeuralWatt failure carried when its only writer was expected '
-    + 'to give a time ending in UTC; the text is that of a broken invariant, so nothing proves it holds only a time, '
-    + 'and the marker would claim a safety the message cannot show',
   SweepOptionRefusalError: 'the rotation sweep\'s own refusal of a command line, printed by `rotationSweepMain` '
     + 'and never through the boundary; its sentence names the option and value the operator typed, which is all it '
     + 'carries, so the marker would mean nothing where no boundary reads it',

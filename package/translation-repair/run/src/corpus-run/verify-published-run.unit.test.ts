@@ -46,6 +46,7 @@ import {
   strayPage,
 } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/published-run.test-fixture.ts';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';
+import { interimEntry, } from '@monochromatic-dev/translation-repair-page-check/ts/corpus-run/interim-entry.test-fixture.ts';
 
 /**
  Ending of the closing line, which says how many pages had no length to check.
@@ -401,6 +402,60 @@ await describe({
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
+      },
+    },),
+    it({
+      name: 'NAMES a page a dry stop shipped for an entry with no artifact as interim, with its slice counts, and not as '
+        + 'a stray page',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat5',
+          settledSlices: 1,
+          archiveSlices: 2,
+          sourceSlices: 0,
+        },);
+
+        expect(await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },),).toEqual({
+          code: 0,
+          lines: [
+            'verify-published: matched=1 settledWithNoPage=0 pageWithNoArtifact=1 declined=0',
+            '  INTERIM PAGE: InterimCat5. A dry stop shipped it with 1 settled slice, 2 archive slices and 0 original '
+              + 'slices; it stays open until a pass settles the entry again and overwrites it',
+            'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
+              + 'missing=0 consistency-groups=0 read-at-generation=21',
+            `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
+          ],
+        },);
+      },
+    },),
+    it({
+      name: 'NAMES an interim page whose bytes are not the page its record was written for, so a page edited or '
+        + 'replaced after the stop does not pass as the interim page',
+      fn: async (ctx) => {
+        await using published = await publishedRun();
+        const { runsDir, } = published;
+        await interimEntry({
+          runsDir,
+          entryId: 'InterimCat6',
+          settledSlices: 0,
+          archiveSlices: 2,
+          sourceSlices: 1,
+          recordedPageText: 'The cat waited somewhere else.\n',
+        },);
+
+        expect((await verified({
+          sinon: ctx.sinon,
+          runsDir,
+        },)).lines,).toContain(
+          '  INTERIM PAGE DISAGREES WITH ITS RECORD: InterimCat6. The page on disk is not the page the record was '
+            + 'written for; the next pass that reaches the entry overwrites it',
+        );
       },
     },),
     it({
