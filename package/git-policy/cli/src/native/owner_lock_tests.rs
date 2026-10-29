@@ -46,7 +46,7 @@ fn helper_holds_a_lock() {
     // With a release file the hold is only a safety cap; the file ends it as soon as the test creates it.
     let release: Option<PathBuf> = std::env::var_os(HELPER_RELEASE).map(PathBuf::from);
     let waited: Instant = Instant::now();
-    while release.as_ref().is_none_or(|path| !path.exists())
+    while release.as_ref().is_none_or(|path| return !path.exists())
         && waited.elapsed() < Duration::from_millis(hold)
     {
         std::thread::sleep(Duration::from_millis(5));
