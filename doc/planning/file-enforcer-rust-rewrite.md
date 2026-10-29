@@ -246,6 +246,15 @@ the user chose "Ask mpm where it can" over porting every lookup (my recommendati
 - Accepted limits:
   `mpm outdated` sees only tools installed on the machine running it,
   and reports no download hashes.
+- A planned npm or PyPI tool that is not installed:
+  asked 2026-10-29,
+  the user answered "Require sync first,
+  and auto-sync on such failures and retry."
+  `update` syncs the missing tools,
+  then retries the lookup once;
+  a second failure is a JSON-lines error naming each tool.
+  Read narrowly as syncing only the missing tools and retrying once;
+  a full sync or more retries would be a broader reading.
 - Retracted from the first asking:
   my con that mpm "drops versions" described mpm's restore (install) behavior
   (`doc/decision/mpm-toolchain-adoption.md:389-399`),
@@ -351,6 +360,41 @@ noting:
 - Accepted tradeoff:
   issue #335 records the list changing between checkouts after filtered or stale installs,
   so `check` reports `mise.toml` drift on such a machine until a full `pnpm install` runs.
+
+### Cutover: one switch
+
+Asked 2026-10-29;
+the user chose "One switch" over two stages (my recommendation).
+
+- Everything is built first:
+  the Rust file-enforcer,
+  the dependency-catalog Rust library,
+  the mpm-shadow subcommands,
+  and the plan conversion.
+- Old and new output are compared on this repo,
+  then one commit switches tasks,
+  CI,
+  and `Dockerfile`,
+  and deletes `package/file-enforcer/core`.
+- Until that commit,
+  the TypeScript tool keeps producing every managed file,
+  including the new crates' own `Cargo.toml`.
+
+### Global toolchain plan: converted directly
+
+Asked 2026-10-29 about `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts`
+(mode 0600,
+59 entries);
+the user answered "Convert,
+you just do it,
+no need for my review."
+
+- At the switch,
+  a one-off converter writes `toolchain.plan.jsonc` beside it,
+  keeping comments,
+  at mode 0600,
+  and replaces the `.data.ts`.
+- The old file is backed up under `${HOME}/temp/agent` first.
 
 ### Adopted from the request and repository rules
 
