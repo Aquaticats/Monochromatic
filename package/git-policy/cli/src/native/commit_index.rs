@@ -20,6 +20,10 @@
 /// One required Git start, its request builder and the failure text.
 use super::capture_order::{CaptureIndexes, indexed_request};
 use super::start_retry::RetryStart;
+/// Staged additions carried into the explicit-path index, and the pathspec-file reader.
+use super::commit_staged_additions::{
+    StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
+};
 use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
 use super::transaction_journal::TransactionMode;
@@ -193,6 +197,7 @@ pub fn initialize_commit_index(
             indexes.object_directory.as_path(),
             &["read-tree".to_string(), selection.base_revision.to_string()],
         )?;
+        carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
     let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all")];
     arguments.extend(selection_arguments(selection));
@@ -202,8 +207,53 @@ pub fn initialize_commit_index(
         indexes.commit_index.as_path(),
         indexes.object_directory.as_path(),
         &arguments,
-    )?;
+    )
+    .map_err(explain_ignored_refusal)?;
     return Ok(());
+}
+
+/// What:
+///  Makes the selected paths that the real index stages as additions tracked in the private index.
+/// Why:
+///   Native `git commit -- <path>` takes such a path's worktree content without asking an ignore rule,
+///  and the private index, which starts from the base, would otherwise apply the rule (issue #1807).
+///  A pathspec file that this wrapper cannot read leaves the selection to Git alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await carrySelectedStagedAdditions({ context, cwd, indexes, selection });
+/// ```
+fn carry_selected_staged_additions(
+    context: &GitContext,
+    cwd: &Path,
+    indexes: &CaptureIndexes,
+    selection: &IndexSelection,
+) -> Result<(), GitFailure> {
+    let mut pathspecs: Vec<OsString> = selection.pathspecs.to_vec();
+    if let Some(file) = selection.pathspec_file {
+        // A file that cannot be read now fails in `git add` with Git's own message.
+        let Ok(bytes) = std::fs::read(file) else {
+            return Ok(());
+        };
+        let Some(listed) = pathspecs_of_file(bytes.as_slice(), selection.pathspec_file_nul) else {
+            return Ok(());
+        };
+        pathspecs.extend(listed);
+    }
+    let additions: Vec<StagedAddition> = staged_additions_selected(
+        context,
+        cwd,
+        indexes.captured_index.as_path(),
+        selection.base_revision,
+        pathspecs.as_slice(),
+    )?;
+    return carry_additions(
+        context,
+        cwd,
+        indexes.commit_index.as_path(),
+        indexes.object_directory.as_path(),
+        additions.as_slice(),
+    );
 }
 
 /// What:

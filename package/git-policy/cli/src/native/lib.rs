@@ -262,6 +262,7 @@ pub mod commit_revalidation;
 pub mod commit_no_change;
 
 /// The finding for a staged deletion that an explicit-path commit cannot record.
+pub mod commit_staged_additions;
 pub mod commit_staged_deletions;
 
 /// The `git commit` command: the transaction, the settled events, the post-commit gate and the backup.
