@@ -3139,3 +3139,20 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   `d7bba16754`): in-process filesystem identity, `findmnt` starts 3 to 0 per commit; full suite not run by the agent.
   Known divergence: a host with `/run/udev/data` and no `findmnt` records `fs-uuid_` instead of `f-fsid_`.
   Merge after reading its diff; its scratch is in `~/temp/agent/s2` (`ns/` needs `chmod --recursive u+rwx`).
+
+## Update at 2026-10-29 (slice J report)
+
+- Journal agent (a4bd69a2e240509bc) finished on branch `worktree-agent-a4bd69a2e240509bc` (`74f04c463a`, `e48b110e7c`,
+  `ea1cb159a3`, `589debb275`, `0895770b64`). Not merged. Full host suite and gate not run by the agent.
+- J1 needed no production change (the `ensure_*` helpers sync only what they create; the three syncs are creation syncs on a
+  fresh repository, none on a warm one). Correct the handover sentence that says they sync even when nothing was created.
+- J2 dropped both syncs in `remove_transaction_directory`: 41 to 39 syncs on a warm commit. The rename-ordering barrier is an
+  accepted unsourced assumption.
+- J3 harness: 247 recovery cases (kill at six phases, then empty, halve or delete each state file), identical across two runs,
+  recorded on host Git 2.55.0 (regenerate on the gate's 2.56.0). Two cases leave a corrupt real index: `post-1.index` emptied
+  or halved at `ref-updated` is installed as the real index. Two are silently inconsistent: `landing-1.json` or
+  `preparing.json` deleted at `ref-updated`. Neither index snapshot is synced today. Remedies, not done: sync both snapshots
+  before `landing-1.json`, or have recovery verify their content. Do this before dropping any further journal sync.
+- Sticking messages for `preparing.json`, landing, index-lock and ref-updated records name no file or transaction and carry an
+  inapplicable fetch hint: a UX item still to fix.
+- No sync-budget ratchet test exists yet (the planning doc names one); still to write.
