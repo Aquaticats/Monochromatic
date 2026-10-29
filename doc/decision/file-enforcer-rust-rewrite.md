@@ -268,8 +268,15 @@ and accepted with this record:
   `schemars` derive without serde `Deserialize` is unproven,
   and the golden test's corpus check needs a JSON Schema validator crate not yet named;
   `monochromatic-jsonc-edit` emits trailing commas,
-  while the JetBrains files hold strict JSON,
-  so the XML crate's JSON leg needs strict output unless LSP4IJ and Harper are shown to accept them.
+  while the JetBrains files hold strict JSON.
+  Resolved 2026-10-29 after the user asked whether strict JSON editing is built in or a de facto crate:
+  the standard library has no JSON,
+  and the de facto crate `serde_json` is already in `rust-catalog.toml:91` (`serde_json = ">=1"`)
+  and used by seven repository crates;
+  it writes strict JSON,
+  and its insertion-order `Map` feature keeps key order through a read-modify-write.
+  The JSON embedded in the JetBrains XML is therefore edited with `serde_json`,
+  not `monochromatic-jsonc-edit`.
 - Follow-ups:
   process rules in issue #1817.
 
