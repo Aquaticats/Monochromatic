@@ -3012,4 +3012,69 @@ Stall reproduction results (user asked to reproduce, not to change the bound; me
   5) only then drop file syncs of pre-landing records. Lock-candidate syncs stay.
 - Journal records cost two syncs each (file, then directory) by `write_journal_record`; lock candidates sync
   `owner.json` before publication so a power loss cannot leave a malformed blocking record (fail-closed, would stick
-  every acquirer). Cutting those is a durability decision for the user, not made yet.
+  every acquirer). The user decided (option B, "high rollers"): sync only at the barriers before side effects, but only
+  after a harness exists that tears, drops and reorders records; the slice order is in the planning document.
+
+### State at 2026-10-29 11:10 (written on the user's request "Update handover now")
+
+Plan and decisions: `doc/planning/cli-git-spawn-and-sync-reduction.md` (accepted by the user). Decisions in this
+session, all from the user: the 5-second stall is to be reproduced, not hidden by a bound (not reproduced yet, see
+task 66 below); commit-path speed work is wanted; retry scope B (retry failed starts everywhere, plus allow-listed
+git commands that fail inside themselves); spawn batching: "save as many as possible, engineer it ourselves, the
+precedent is forbidden-strings (own engine, `OPTIMIZATIONS.md`, oracle-checked parity), engineering cost does not
+matter"; journal syncs option B. Standing instruction added mid-session: do not serialize embarrassingly parallel
+work (run independent slices, mutation files and suites side by side, batch independent reads and edits).
+
+Released: 0.2.13 (`eb0ac0471e`): the failed-landing pack-keep fix, one `git config` call for the four hook switches,
+no sync on the scratch stdin file. crates.io 10:54:12Z; GitHub release tag `monochromatic-git-policy-cli-v0.2.13`
+(10:56:50Z). Verification at that `HEAD`: clippy clean; host suite 1994 of 1995 and binary suite 163 of 164 with only
+the two known host-only linter failures; container gate 2160 passed, 5 skipped, 0 failed in 67 s. Correction to
+my own habit: 0.2.12 had already been released by another session (`d2c2d04bbc`, final-newline fix); my first
+release run bumped nothing and committed nothing. Always read the current version before running
+`~/temp/agent/release.ts <from> <to> <note>` (it now also bumps the fuzz crate's `=0.2.x` pin and commits four files).
+
+Committed after 0.2.13, unreleased: `feat(git-policy/cli): retry a child start the host refused for lack of
+processes` (slice R, first half). `start_retry.rs`: `retry_refused_start_with` (injectable pause), the `RetryStart`
+extension trait (`spawn_retrying`, `output_retrying`, `status_retrying`) and `exec_retrying`; pauses 10 ms doubling to
+500 ms, 5 s budget, one warning per retry, final error keeps `WouldBlock` and says how often it was refused. Every
+Linux start site uses it (macOS-only probes `ps`, `lsof` and the inspector are left alone). Seven unit tests, shown
+failing with the retry condition broken (three failed). `binary_fork_failure_tests.rs` now runs the single-failure
+sweep, a burst-of-three sweep, an uninjected control, and requires that no `could not start` of the wrapper's own
+escapes; the injection control is the strace trace containing `(INJECTED)`. Both sweeps passed (6.4 s and 7.2 s).
+Not yet run on this commit: clippy, the full host suite, the container gate. Remaining in slice R: the allow-listed
+retry of git commands that fail inside themselves (`unable to create thread`, `cannot fork`) for read-only queries
+and the idempotent shadow-repository steps, with an allow-list and a wording match; mutating steps are not retried.
+
+In flight, started in parallel at about 11:05 as background agents in their own worktrees (results arrive as
+notifications; review each diff, merge, then rerun clippy, host, binary and the gate on the merge; stop leftover
+processes and units and remove the worktrees afterwards):
+- hooks and config: omit hook shims for events with no user hook (conservative exactness rule), one
+  `git config --list -z --show-scope` snapshot (tasks 71 and the S3 part of 72);
+- filesystem identity: `findmnt` replaced by `statx`, `/proc/self/mountinfo` and `/dev/disk/by-uuid` with fallback
+  (S2 of task 72); I already wrapped the `findmnt` start in the retry, so expect a trivial conflict;
+- small natives: empty-tree object name constant, `HEAD` read on the files backend, sequencer-marker pre-check with
+  the six lookup spellings and `packed-refs`, `git version` cache (S4 of task 72);
+- journal: skip `ensure_*` syncs when nothing was created, drop the two post-removal syncs, and build the tearing,
+  dropping and reordering recovery harness with an outcome table (J1 to J3 of task 69). A table row that sticks every
+  command is a real bug and must be reported at once.
+
+Open, not decided by evidence yet:
+- Task 66: the root cause of the two 5-second kills (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`,
+  `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`) is unknown; the commands measure 3 to 40
+  ms; one host-wide fork-failure episode was observed, not reproduced on demand. Next step: refuse bursts of
+  `clone3` while several heavy tests overlap (the fork-failure sweep covers one commit at a time) to look for the five
+  90-second commit hangs of the first partition run (`commit::fewer_lost_races_than_configured_take_no_reservation`,
+  `commit::a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing`, three `event_path_commit` replays).
+- Task 68: pseudoref probes and the `core.hooksPath` plus maintenance merge were refused on evidence; the user then
+  asked for as many replacements as possible by native engineering; the exact marker pre-check (S4) is the
+  answer to the first, the configuration snapshot (S3) the answer to the second.
+- Mutation campaign (task 65) is deferred until the slices are merged, then it runs over every touched file side by
+  side: one unit per file with distinct `GIT_POLICY_NATIVE_IMAGE_TAG` values (the script `m1804-mutation.ts` runs them
+  in sequence and retries a failed baseline up to eight times; make it parallel first). The container suite takes about
+  30 s when split into twelve `--partition count:i/12` containers (`~/temp/agent/partition-run.ts`) against about
+  300 s serial under load; making the gate and the mutation baselines use it is a candidate follow-up.
+- Parked: the auto-push merge runs no push-time policy (issue 1804 stays open for that decision).
+
+Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by command), `measure-fsync.ts`,
+`sync-sites.ts` (each sync with its Rust caller via `strace -k`), `trace-histogram.ts`, `fork-fault-injection.ts`
+(scratch version of the permanent sweep), `partition-run.ts`, `pids-hang-repro.ts`, `wait-publish.ts <sha> <version>`.
