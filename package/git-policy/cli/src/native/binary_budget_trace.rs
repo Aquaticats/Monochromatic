@@ -118,10 +118,10 @@ fn git_key(arguments_of_start: &[String]) -> String {
     let Some(subcommand) = operands.first() else {
         return String::from("(no subcommand)");
     };
-    if COMPOUND.contains(subcommand) {
-        if let Some(operand) = operands.get(1) {
-            return format!("{subcommand} {operand}");
-        }
+    if COMPOUND.contains(subcommand)
+        && let Some(operand) = operands.get(1)
+    {
+        return format!("{subcommand} {operand}");
     }
     return String::from(*subcommand);
 }

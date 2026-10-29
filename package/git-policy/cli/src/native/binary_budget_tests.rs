@@ -209,46 +209,59 @@ fn traced(inner: &Command, trace: &Path) -> Command {
     return outer;
 }
 
-/// The lines `name: count` of a section, for every name in the budget or in what was observed, in name order.
-///  A name the budget lists at zero and the commit never started prints `name: 0`.
-fn section(budgeted: &[(&str, usize)], observed: &BTreeMap<String, usize>) -> Vec<String> {
-    let mut names: BTreeMap<String, usize> = BTreeMap::new();
-    for (name, _allowed) in budgeted {
-        names.insert(String::from(*name), observed.get(*name).copied().unwrap_or(0));
+/// Every figure of a budget or of a trace, keyed by what it counts.
+type Figures = BTreeMap<String, usize>;
+
+/// The figures a trace shows.
+fn observed_figures(counts: &Counts) -> Figures {
+    let mut figures: Figures = Figures::new();
+    for (name, seen) in &counts.git_starts {
+        figures.insert(format!("starts of git {name}"), *seen);
     }
-    for (name, seen) in observed {
-        names.insert(name.clone(), *seen);
+    for (name, seen) in &counts.other_starts {
+        figures.insert(format!("starts of {name}"), *seen);
     }
-    return names.iter().map(|(name, seen)| { return format!("  {name}: {seen}"); }).collect();
+    figures.insert(String::from("sync calls by the wrapper"), counts.wrapper_syncs);
+    for (name, seen) in &counts.git_syncs {
+        figures.insert(format!("sync calls by git {name}"), *seen);
+    }
+    for (name, seen) in &counts.other_syncs {
+        figures.insert(format!("sync calls by {name}"), *seen);
+    }
+    return figures;
 }
 
-/// The text of a budget as a report.
-///  `other_starts` is the budget's list after the filesystem adjustment of `other_starts_expected`.
-fn budget_report(budget: &Budget, other_starts: &[(&str, usize)]) -> String {
-    let expected = |list: &[(&str, usize)]| -> Vec<String> {
-        let mut lines: Vec<(String, usize)> = list.iter().map(|(name, allowed)| { return (String::from(*name), *allowed); }).collect();
-        lines.sort();
-        return lines.iter().map(|(name, allowed)| { return format!("  {name}: {allowed}"); }).collect();
-    };
-    return format!(
-        "git starts:\n{}\nother starts:\n{}\nwrapper syncs: {}\ngit syncs:\n{}\n",
-        expected(budget.git_starts).join("\n"),
-        expected(other_starts).join("\n"),
-        budget.wrapper_syncs,
-        expected(budget.git_syncs).join("\n"),
-    );
+/// The figures a budget allows; `other_starts` is its list after the filesystem adjustment.
+fn budget_figures(budget: &Budget, other_starts: &[(&str, usize)]) -> Figures {
+    let mut figures: Figures = Figures::new();
+    for (name, allowed) in budget.git_starts {
+        figures.insert(format!("starts of git {name}"), *allowed);
+    }
+    for (name, allowed) in other_starts {
+        figures.insert(format!("starts of {name}"), *allowed);
+    }
+    figures.insert(String::from("sync calls by the wrapper"), budget.wrapper_syncs);
+    for (name, allowed) in budget.git_syncs {
+        figures.insert(format!("sync calls by git {name}"), *allowed);
+    }
+    return figures;
 }
 
-/// The text of what was observed, with the same names as the budget's report and zeros where the budget names
-///  something the commit did not do.
-fn observed_report(budget: &Budget, other_starts: &[(&str, usize)], counts: &Counts) -> String {
-    return format!(
-        "git starts:\n{}\nother starts:\n{}\nwrapper syncs: {}\ngit syncs:\n{}\n",
-        section(budget.git_starts, &counts.git_starts).join("\n"),
-        section(other_starts, &counts.other_starts).join("\n"),
-        counts.wrapper_syncs,
-        section(budget.git_syncs, &counts.git_syncs).join("\n"),
-    );
+/// One line for each figure that differs, naming what it counts; a figure missing on one side counts as zero there.
+fn differences(budgeted: &Figures, observed: &Figures) -> Vec<String> {
+    let mut keys: Vec<&String> = budgeted.keys().chain(observed.keys()).collect();
+    keys.sort();
+    keys.dedup();
+    let mut lines: Vec<String> = Vec::new();
+    for key in keys {
+        let allowed: usize = budgeted.get(key).copied().unwrap_or(0);
+        let seen: usize = observed.get(key).copied().unwrap_or(0);
+        if allowed != seen {
+            let unlisted: &str = if budgeted.contains_key(key) { "" } else { " (not in the budget)" };
+            lines.push(format!("  {key}: observed {seen}, budget {allowed}{unlisted}"));
+        }
+    }
+    return lines;
 }
 
 /// Whether the filesystem holding `directory` has a UUID, which is what lets the wrapper identify it without `stat`.
@@ -266,11 +279,6 @@ fn other_starts_expected(budget: &Budget, fixture: &Fixture) -> Vec<(&'static st
         .iter()
         .map(|(name, allowed)| { return (*name, if *name == "stat" && uuid { 0 } else { *allowed }); })
         .collect();
-}
-
-/// Sync-class calls made by programs that are neither the wrapper nor Git, which no budget allows.
-fn assert_no_other_syncs(counts: &Counts, context: &str) {
-    assert!(counts.other_syncs.is_empty(), "{context}: sync calls by other programs: {:?}", counts.other_syncs);
 }
 
 /// Run the scenario's commit under `strace` and require its counts to equal `budget`.
@@ -301,14 +309,14 @@ fn require_budget(label: &str, scenario: Scenario, budget: &Budget) {
     let version: String = String::from_utf8_lossy(&Command::new(REAL_GIT).arg("--version").output().expect("git --version").stdout)
         .trim()
         .to_string();
-    assert_no_other_syncs(&counts, label);
     let other_starts: Vec<(&str, usize)> = other_starts_expected(budget, &fixture);
-    let observed: String = observed_report(budget, other_starts.as_slice(), &counts);
-    assert_eq!(
-        observed,
-        budget_report(budget, other_starts.as_slice()),
-        "{label} ({version}): the counts differ from the budget (left: observed, right: budget). A saving lowers the \
-         constant in binary_budget_tests.rs; a rise needs a recorded reason.\nstarted Git commands:\n{}\nstderr: {}",
+    let differing: Vec<String> =
+        differences(&budget_figures(budget, other_starts.as_slice()), &observed_figures(&counts));
+    assert!(
+        differing.is_empty(),
+        "{label} ({version}): the counts differ from the budget in binary_budget_tests.rs. A saving lowers the constant; \
+         a rise needs a recorded reason.\n{}\nstarted Git commands:\n{}\nstderr: {}",
+        differing.join("\n"),
         counts.commands.join("\n"),
         String::from_utf8_lossy(&run.stderr),
     );
