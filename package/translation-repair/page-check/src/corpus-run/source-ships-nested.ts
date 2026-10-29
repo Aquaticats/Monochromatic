@@ -451,10 +451,15 @@ export function footnoteInParagraphSpans(
           end: split,
         },
       },),
+      // A part that starts with the marks of a display math is read without the lead: after it the marks are inline math to
+      // the parse, and the lines of the math would be joined, where the page reads a display math.
       asParagraph: isIndentedFourOrMore({
         source,
         at: range.start,
-      },),
+      },) && (!source.startsWith(
+        '$$',
+        range.start,
+      )),
     },),
     second: footnoteBodySpans({
       source,
