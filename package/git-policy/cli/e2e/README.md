@@ -342,9 +342,11 @@ Every scenario that needs a hook registers it as a config hook
 which `repository-setup-fixture.ts` writes with
 `git config hook.e2e-<event>.command "<hook program> <event>"` and
 `git config --add hook.e2e-<event>.event <event>`.
-The command runs the shared hook program, so the logging, markers, holds, trailer and lint-staged mode described above
-are the same for every event.
-Config hooks need Git 2.54.0, so every hooked scenario declares `minimumGit: '2.54.0'` and skips on older Git.
+The command runs the shared hook program of `hook-program-fixture.ts`,
+so its logging, markers, holds, trailer and lint-staged mode are the same for every event.
+Config hooks need Git 2.54.0,
+so every hooked scenario declares `minimumGit: '2.54.0'` and skips on older Git.
+The native task runs Git 2.55.0 only, so that skip does not occur there.
 
 Traditional hooks (executable files in `.git/hooks` or a `core.hooksPath` directory)
 are unsupported by the wrapper, and any use is undefined behavior,
@@ -505,6 +507,8 @@ so a replay reproduces the workload exactly but can land a free-running race dif
 These counts are historical:
 they predate the switch from traditional hooks to config hooks,
 which removed two scenarios and gave the other hooked scenarios a `minimumGit` of 2.54.0.
+The first native run after the switch (seed 1369728287, Git 2.55.0) passed 34 scenarios
+and skipped the two `replay-unavailable-*` scenarios, which run on Git 2.39.5 only.
 
 Seeds 1,
 2,
