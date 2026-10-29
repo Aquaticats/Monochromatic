@@ -13,6 +13,7 @@ import {
   statSync,
 } from 'node:fs';
 import { join, } from 'node:path';
+import { isErrnoException, } from './fs-probe.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import {
   homeDirFromEnv,
@@ -28,6 +29,11 @@ import {
  (`linux-x64`, `linux-arm64-musl`, ...).
  
  @returns Platform id for the running host
+
+ @example
+ ```ts
+ hostPlatformId(); // 'linux-x64'
+ ```
  */
 export function hostPlatformId(): string {
   /**
@@ -70,10 +76,18 @@ export function hostPlatformId(): string {
 
 /**
  Whether a path exists and is executable by the current user.
- 
+
+ Only operating-system file errors (a missing path, a permission refusal) count as "not executable";
+ any other failure propagates.
+
  @param path - Absolute path to test
- 
+
  @returns `true` when the path resolves to an executable
+
+ @example
+ ```ts
+ isExecutable('/usr/bin/env',); // true
+ ```
  */
 export function isExecutable(path: string,): boolean {
   try {
@@ -83,18 +97,74 @@ export function isExecutable(path: string,): boolean {
     );
     return statSync(path,)
       .isFile();
-  } catch {
+  } catch (error) {
+    if (!isErrnoException(error,))
+      throw error;
     return false;
   }
 }
 
 /**
+ Whether a path is a directory; an unreadable path is not.
+
+ @param path - Absolute path to test
+
+ @returns `true` when the path resolves to a directory
+ */
+function isDirectory(path: string,): boolean {
+  try {
+    return statSync(path,)
+      .isDirectory();
+  } catch (error) {
+    if (!isErrnoException(error,))
+      throw error;
+    // Unreadable entries are simply not candidates.
+    return false;
+  }
+}
+
+/**
+ Names inside a directory, sorted for deterministic order; an unreadable directory has none.
+
+ @param dir - Absolute directory to list
+
+ @returns Entry names in lexicographic order
+ */
+function sortedChildren(dir: string,): readonly string[] {
+  try {
+    return readdirSync(dir,)
+      .toSorted();
+  } catch (error) {
+    if (!isErrnoException(error,))
+      throw error;
+    return [];
+  }
+}
+
+/**
+ Directory levels below the search root that `findBinUnder` descends through.
+ */
+const MAX_BIN_SEARCH_DEPTH = 3;
+
+/**
+ Marks that `findBinUnder` found no matching binary.
+ */
+export const BIN_NOT_FOUND: unique symbol = Symbol('findBinUnder found no matching binary',);
+
+/**
  Finds a binary file by name under a directory, searching shallowest first
  and lexicographic order within one depth, bounded to three directory levels.
- 
- @param options - Root directory and binary name
- 
- @returns Absolute path of the match, or `null` when none resolves
+
+ @param root - Directory the search starts in
+
+ @param name - Binary file name to look for
+
+ @returns Absolute path of the match, or {@link BIN_NOT_FOUND} when none resolves
+
+ @example
+ ```ts
+ findBinUnder({ root: '/opt/tools', name: 'rg', },); // '/opt/tools/ripgrep-15.2.0/rg'
+ ```
  */
 export function findBinUnder(
   {
@@ -104,7 +174,7 @@ export function findBinUnder(
     readonly root: string;
     readonly name: string;
   },
-): string | null {
+): string | typeof BIN_NOT_FOUND {
   /**
    Pending directories, as `[dir, depth]` pairs.
    */
@@ -131,19 +201,9 @@ export function findBinUnder(
     );
     if (isExecutable(direct,))
       return direct;
-    if (current.depth >= 3)
+    if (current.depth >= MAX_BIN_SEARCH_DEPTH)
       continue;
-    /**
-     Child directories of the current one, sorted for deterministic order.
-     */
-    let children: string[] = [];
-    try {
-      children = readdirSync(current.dir,)
-        .sort();
-    } catch {
-      continue;
-    }
-    for (const child of children) {
+    for (const child of sortedChildren(current.dir,)) {
       /**
        Absolute child path.
        */
@@ -151,21 +211,16 @@ export function findBinUnder(
         current.dir,
         child,
       );
-      try {
-        if (statSync(childPath,)
-          .isDirectory())
-          pending.push(
-            {
-              dir: childPath,
-              depth: current.depth + 1,
-            },
-          );
-      } catch {
-        // Unreadable entries are simply not candidates.
-      }
+      if (isDirectory(childPath,))
+        pending.push(
+          {
+            dir: childPath,
+            depth: current.depth + 1,
+          },
+        );
     }
   }
-  return null;
+  return BIN_NOT_FOUND;
 }
 
 //endregion Filesystem helpers
@@ -184,10 +239,21 @@ export type BinSearchContext = {
 
 /**
  Directories to search for one tool's binaries, in resolution order.
- 
- @param options - Plan entry plus search context
- 
+
+ @param entry - Plan entry whose route decides where binaries land
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment overriding manager homes; the process environment when absent
+
+ @param extraDirs - Extra directories a staged tool contributes
+
  @returns Absolute directories, in order
+
+ @example
+ ```ts
+ binSearchDirs({ entry: toolById('node',), paths, },); // ['/.../node/26.12.0']
+ ```
  */
 export function binSearchDirs(
   {
@@ -213,131 +279,145 @@ export function binSearchDirs(
     id: entry.id,
     version: entry.version,
   });
-  switch (entry.route) {
-    case 'cargo-binstall':
-      return [
-        join(
-          (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
-            ? e.CARGO_HOME
-            : join(
-              home,
-              '.cargo',
-            ),
-          'bin',
+  if (entry.route === 'cargo-binstall')
+    return [
+      join(
+        (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
+          ? e.CARGO_HOME
+          : join(
+            home,
+            '.cargo',
+          ),
+        'bin',
+      ),
+    ];
+  if (entry.route === 'bin-sourced')
+    return [
+      // `bin install` drops files in its configured download directory;
+      // `sync` pre-seeds that config with the toolchain bin dir.
+      paths.toolchainBinDir,
+      join(
+        home,
+        '.local',
+        'bin',
+      ),
+      ...(extraDirs ?? []),
+    ];
+  if (entry.route === 'mpm-pnpm')
+    return [
+      ...(extraDirs ?? []),
+      (e.PNPM_HOME !== undefined) && (e.PNPM_HOME !== '')
+        ? e.PNPM_HOME
+        : join(
+          home,
+          '.local',
+          'share',
+          'pnpm',
         ),
-      ];
-    case 'bin-sourced':
-      return [
-        // `bin install` drops files in its configured download directory;
-        // `sync` pre-seeds that config with the toolchain bin dir.
-        paths.toolchainBinDir,
-        join(
+      join(
+        paths.toolchainRoot,
+        'node',
+      ),
+    ];
+  if (entry.route === 'mpm-uvx')
+    return [
+      (e.UV_TOOL_BIN_DIR !== undefined) && (e.UV_TOOL_BIN_DIR !== '')
+        ? e.UV_TOOL_BIN_DIR
+        : join(
           home,
           '.local',
           'bin',
         ),
-        ...(extraDirs ?? []),
-      ];
-    case 'mpm-pnpm':
-      return [
-        ...(extraDirs ?? []),
-        (e.PNPM_HOME !== undefined) && (e.PNPM_HOME !== '')
-          ? e.PNPM_HOME
+      ...(extraDirs ?? []),
+    ];
+  // Scoped installs: `cargo install --root <installDir>` and
+  // `GOBIN=<installDir>/bin` both land binaries under the tool's own
+  // install directory (`binSearchDirs` callers walk its `bin/` level).
+  if ((entry.route === 'cargo-git') || (entry.route === 'go-install'))
+    return [
+      installDir,
+    ];
+  if (entry.route === 'rustup-toolchain')
+    return [
+      join(
+        (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
+          ? e.CARGO_HOME
           : join(
             home,
-            '.local',
-            'share',
-            'pnpm',
+            '.cargo',
           ),
-        join(
-          paths.toolchainRoot,
-          'node',
-        ),
-      ];
-    case 'mpm-uvx':
-      return [
-        (e.UV_TOOL_BIN_DIR !== undefined) && (e.UV_TOOL_BIN_DIR !== '')
-          ? e.UV_TOOL_BIN_DIR
+        'bin',
+      ),
+      join(
+        (e.RUSTUP_HOME !== undefined) && (e.RUSTUP_HOME !== '')
+          ? e.RUSTUP_HOME
           : join(
             home,
-            '.local',
-            'bin',
+            '.rustup',
           ),
-        ...(extraDirs ?? []),
-      ];
-    case 'cargo-git':
-    case 'go-install':
-      // Scoped installs: `cargo install --root <installDir>` and
-      // `GOBIN=<installDir>/bin` both land binaries under the tool's own
-      // install directory (`binSearchDirs` callers walk its `bin/` level).
-      return [
+        'toolchains',
+      ),
+    ];
+  if (entry.route === 'android-sdk')
+    return [
+      join(
         installDir,
-      ];
-    case 'rustup-toolchain':
-      return [
-        join(
-          (e.CARGO_HOME !== undefined) && (e.CARGO_HOME !== '')
-            ? e.CARGO_HOME
-            : join(
-              home,
-              '.cargo',
-            ),
-          'bin',
-        ),
-        join(
-          (e.RUSTUP_HOME !== undefined) && (e.RUSTUP_HOME !== '')
-            ? e.RUSTUP_HOME
-            : join(
-              home,
-              '.rustup',
-            ),
-          'toolchains',
-        ),
-      ];
-    case 'android-sdk':
-      return [
-        join(
-          installDir,
-          'cmdline-tools',
-          entry.version,
-          'bin',
-        ),
-        join(
-          installDir,
-          'platform-tools',
-        ),
-        join(
-          installDir,
-          'build-tools',
-          entry.options
-            .androidPackages
-            ?.find(
-            (component,) => component.startsWith('build-tools;',),
-            )
-            ?.slice('build-tools;'.length,)
-            ?? entry.version,
-        ),
-      ];
-    case 'archive':
-      return [installDir];
-    case 'rustup-components':
-      return [];
-  }
+        'cmdline-tools',
+        entry.version,
+        'bin',
+      ),
+      join(
+        installDir,
+        'platform-tools',
+      ),
+      join(
+        installDir,
+        'build-tools',
+        entry.options
+          .androidPackages
+          ?.find(
+          function isBuildToolsComponent(component,): boolean {
+            return component.startsWith('build-tools;',);
+          },
+          )
+          ?.slice('build-tools;'.length,)
+          ?? entry.version,
+      ),
+    ];
+  if (entry.route === 'archive')
+    return [installDir];
+  // `rustup-components` installs into the rustup toolchain, never a bin directory of its own.
+  return [];
 }
 
 /**
  Resolves one declared bin name to the file the exposure directory should
  link, searching every directory the tool's route owns.
- 
- @param options - Plan entry, bin name, and search context
- 
+
+ @param entry - Plan entry that declares the bin
+
+ @param name - Declared bin name to resolve
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment overriding manager homes; the process environment when absent
+
+ @param extraDirs - Extra directories a staged tool contributes
+
  @returns Absolute link target, or `null` when the bin is not installed
+
+ @example
+ ```ts
+ findToolBin({ entry: toolById('node',), name: 'node', paths, },); // '/.../node/26.12.0/bin/node'
+ ```
  */
 export function findToolBin(
   {
     entry,
     name,
-    ...context
+    paths,
+    env,
+    extraDirs,
   }: BinSearchContext & {
     readonly entry: ToolPlanEntry;
     readonly name: string;
@@ -345,7 +425,9 @@ export function findToolBin(
 ): string | null {
   for (const dir of binSearchDirs({
     entry,
-    ...context,
+    paths,
+    env,
+    extraDirs,
   },)) {
     /**
      Direct hit in one search directory.
@@ -365,7 +447,7 @@ export function findToolBin(
       root: dir,
       name,
     },);
-    if (nested !== null)
+    if (nested !== BIN_NOT_FOUND)
       return nested;
   }
   return null;
