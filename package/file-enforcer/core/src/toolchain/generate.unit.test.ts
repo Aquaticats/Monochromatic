@@ -311,14 +311,14 @@ await describe({
               )
                 .length,
             )
-              .toBe(17,);
+              .toBe(18,);
             expect(
               headers.filter(
                 (line,) => line.includes('.operations.'),
               )
                 .length,
             )
-              .toBe(34,);
+              .toBe(36,);
           },
         },),
         it({

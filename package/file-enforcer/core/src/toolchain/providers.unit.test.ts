@@ -580,6 +580,54 @@ await describe({
               .toBeInstanceOf(Error,);
           },
         },),
+
+        it({
+          name: 'installCargoBinstall hands the GitHub token to the install so release lookups skip the unauthenticated quota',
+          fn: async () => {
+            /**
+             Fixture whose toolchain cargo records the token it was started with.
+             */
+            const fixture = makeFixture();
+            /**
+             File the fake cargo writes the token it received into.
+             */
+            const tokenFile = join(
+              fixture.root,
+              'received-token.txt',
+            );
+            writeFakeCli({
+              cliPath: join(
+                fixture.paths.toolchainBinDir,
+                'cargo',
+              ),
+              logFile: fixture.logFile,
+              body: `fs.writeFileSync(${JSON.stringify(tokenFile,)}, String(process.env.GITHUB_TOKEN,),);`,
+            },);
+            /**
+             PATH restricted to the fixture so no real cargo or gh resolves.
+             */
+            using pathOverride = overridePath(fixture.paths.toolchainBinDir,);
+            await installCargoBinstall({
+              entry: fixtureEntry({
+                id: 'cargo:fixture',
+                route: 'cargo-binstall',
+                packageId: 'fixture-crate',
+                bins: ['fixture-crate'],
+              },),
+              paths: fixture.paths,
+              env: {
+                ...fixture.env,
+                GITHUB_TOKEN: 'fixture-token-0123456789',
+              },
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
+            expect(readFileSync(
+              tokenFile,
+              'utf8',
+            ),)
+              .toBe('fixture-token-0123456789',);
+          },
+        },),
       ],
     },),
 

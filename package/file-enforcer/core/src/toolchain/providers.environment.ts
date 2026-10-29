@@ -57,24 +57,21 @@ export async function resolveGithubToken(
   },
 ): Promise<string | typeof NO_GITHUB_TOKEN> {
   /**
-   Earlier lookup result, when this process already resolved a token.
-   */
-  const cached = githubTokenCache.get(GITHUB_TOKEN_CACHE_KEY,);
-  if (cached !== undefined)
-    return cached;
-  /**
-   Token from the environment, which CI and interactive shells set.
+   Token from the environment, which CI and interactive shells set. It is read
+   before the cache and never cached, so a token the caller passes always wins
+   over an earlier `gh` lookup and never leaks into later calls.
    */
   const fromEnv = env.GITHUB_TOKEN
     ?? process.env
       .GITHUB_TOKEN;
-  if ((fromEnv !== undefined) && (fromEnv !== '')) {
-    githubTokenCache.set(
-      GITHUB_TOKEN_CACHE_KEY,
-      fromEnv,
-    );
+  if ((fromEnv !== undefined) && (fromEnv !== ''))
     return fromEnv;
-  }
+  /**
+   Earlier `gh` lookup result, when this process already ran one.
+   */
+  const cached = githubTokenCache.get(GITHUB_TOKEN_CACHE_KEY,);
+  if (cached !== undefined)
+    return cached;
   /**
    Token from the machine's `gh` login, when it has one.
    */

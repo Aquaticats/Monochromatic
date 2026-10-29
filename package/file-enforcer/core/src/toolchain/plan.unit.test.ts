@@ -65,10 +65,10 @@ await describe({
       name: 'TOOLS',
       children: [
         it({
-          name: 'declares 60 tools with unique ids',
+          name: 'declares 61 tools with unique ids',
           fn: async () => {
             expect(TOOLS.length,)
-              .toBe(60,);
+              .toBe(61,);
             /**
              Ids seen once each.
              */
@@ -81,10 +81,10 @@ await describe({
           },
         },),
         it({
-          name: 'keeps 54 floating requests, 4 pins and 2 channels',
+          name: 'keeps 55 floating requests, 4 pins and 2 channels',
           fn: async () => {
             /**
-             Request shapes counted across the 60 tools.
+             Request shapes counted across the 61 tools.
              */
             const counts = {
               track: 0,
@@ -101,7 +101,7 @@ await describe({
             }
             expect(counts,)
               .toEqual({
-                track: 54,
+                track: 55,
                 pinned: 4,
                 channel: 2,
               },);
@@ -177,6 +177,7 @@ await describe({
               .toEqual(
               [
                 'cargo:monochromatic-git-policy-cli',
+                'cargo:monochromatic-mpm-shadow',
                 'cargo:monochromatic-search-shadow',
                 'conda:bubblewrap',
               ],
