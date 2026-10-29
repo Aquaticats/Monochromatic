@@ -132,8 +132,10 @@ Do not move these until the named session reports them idle.
   so that shim is held too and its `link:` path must move in the same commit.
   The peer will annotate its historical ledger mentions of the shim path after the move.
   One gate takes about 20 to 25 minutes.
-  The cooldown branch landed as `b95d7cf83d`;
-  round 8 is still in its gate.
+  Released 2026-10-29:
+   both branches landed (`b95d7cf83d`,
+   `c6185d4086`);
+  only the katex override rule still applies.
 
 Uncommitted main-worktree changes owned by none of these peers:
 `toolchain.lock.json`,
@@ -299,6 +301,24 @@ It also approved path-only edits in `check-mode.ts`,
  `.github/workflows/advisory-core.yml`,
  and `rust-catalog.toml` comments,
 and wants a message when the move commit lands.
+`package/dev-script/file-enforcer/src/cargo/catalog/types.ts` is left out of the batch commit:
+ `monochromatic-fb` commits its path edit together with its own fix.
+
+### Commit guard blocks the scanner rename
+
+The first batch commit was refused by `security/forbidden-strings`:
+renaming `package/cli/forbidden-strings` re-stages the scanner's own data,
+ and 19 lines self-match
+ (`data/builtin-rules.txt:118`,
+ the vendored `data/betterleaks-default-config.toml`,
+ `src/port-betterleaks-relaxations.ts:141`).
+The policy has no escape hatch,
+ and merges of pre-move branches would be refused the same way.
+User decision:
+ teach the guard to skip scanning a path whose blob already exists in a parent commit's tree,
+ then land the whole batch.
+That guard change is being built in a separate worktree;
+the staged batch waits in the main worktree index until it lands.
 Its notes for crate moves:
  `file-enforcer.config.ts` discovers crates via `package/*/*/Cargo.toml` and `package/*/*/*/Cargo.toml`;
  rewrite relative `path` dependencies and let the catalog sync re-derive versions;
