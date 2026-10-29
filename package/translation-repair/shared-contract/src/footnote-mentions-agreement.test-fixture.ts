@@ -187,7 +187,7 @@ const GENERATOR_RANGE = 4_294_967_296;
 
  @param seed - integer the stream starts from
 
- @returns A function giving the next number each call
+ @returns Function giving the next number each call
 
  @example
  ```ts
@@ -220,7 +220,7 @@ function seededStream({ seed, }: { readonly seed: number; },): () => number {
 
  @param roll - number in `[0, 1)`
 
- @returns The picked element
+ @returns Picked element
 
  @throws {@link Error} when the pool is empty
 
@@ -258,7 +258,7 @@ function pick(
 
  @param maxPieces - most pieces after the URL body
 
- @returns The texts, the same on every run for one seed
+ @returns Texts, same on every run for one seed
 
  @example
  ```ts
@@ -421,7 +421,7 @@ function isSubMultiset(
 
  @param reading - both readers' answers on one text
 
- @returns The scan's standing
+ @returns Scan's standing
 
  @example
  ```ts

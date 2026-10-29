@@ -151,7 +151,7 @@ export function providerRecord<ValueT,>(
 
  @param provider - provider to leave out
 
- @returns The others, in the order the owner prefers to spend on them
+ @returns Others, in the order the owner prefers to spend on them
 
  @example
  ```ts

@@ -35,9 +35,9 @@ const rememberedDefinitions: {
 /**
  The link and footnote definition lines of a page, joined the way the refinement gate joins them.
 
- @param pageText - the page, or the slices of it that carry text, joined by blank lines
+ @param pageText - page, or the slices of it that carry text, joined by blank lines
 
- @returns The definition lines in page order, one per definition, empty when the page holds none
+ @returns Definition lines in page order, one per definition, empty when the page holds none
 
  @example
  ```ts
@@ -72,11 +72,11 @@ export function pageDefinitionsOf({ pageText, }: { readonly pageText: string; },
  A slice with the page's definitions after it, which the grammar parses so a reference in the slice resolves. The slice stays at
  the start, so every offset of the slice is an offset of the result.
 
- @param text - the slice
+ @param text - slice
 
- @param definitions - the page's definitions, empty for a slice read alone
+ @param definitions - page's definitions, empty for a slice read alone
 
- @returns The slice alone, or the slice, a blank line and the definitions
+ @returns Slice alone, or the slice, a blank line and the definitions
 
  @example
  ```ts

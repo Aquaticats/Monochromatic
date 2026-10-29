@@ -162,11 +162,11 @@ export function claudeCallDeadlineMs({ maxTokens, }: { readonly maxTokens: numbe
 
  @param wireModel - model id the request carries
 
- @param prices - the model's prices
+ @param prices - model's prices
 
  @param effort - effort the card sends, absent for the model's own default
 
- @returns The side
+ @returns Side
 
  @example
  ```ts

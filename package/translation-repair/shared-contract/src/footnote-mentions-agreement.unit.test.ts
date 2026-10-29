@@ -38,7 +38,7 @@ import {
 
  @param node - mdast node under the walk
 
- @returns The reason a fragment cannot settle the marker, empty for any other node
+ @returns Reason a fragment cannot settle the marker, empty for any other node
  */
 function blockReasonOf({ node, }: { readonly node: { readonly type: string; }; },): string {
   if (node.type === 'code')
@@ -55,7 +55,7 @@ function blockReasonOf({ node, }: { readonly node: { readonly type: string; }; }
 
  @param text - text to parse
 
- @returns The strict grammar's tree where it accepts the text, then the plain tree
+ @returns Strict grammar's tree where it accepts the text, then the plain tree
  */
 function treesOf({ text, }: { readonly text: string; },): readonly { readonly type: string; readonly children?: readonly { readonly type: string; }[]; }[] {
   /**
@@ -82,7 +82,7 @@ function treesOf({ text, }: { readonly text: string; },): readonly { readonly ty
 
  @param text - text read
 
- @returns The reasons the text holds, each once, empty when it holds none
+ @returns Reasons the text holds, each once, empty when it holds none
  */
 function countingReasonsOf({ text, }: { readonly text: string; },): readonly string[] {
   /**
@@ -111,7 +111,7 @@ function countingReasonsOf({ text, }: { readonly text: string; },): readonly str
 
  @param texts - texts to read with both readers
 
- @returns The breaking readings, each with its text and both answers
+ @returns Breaking readings, each with its text and both answers
  */
 function breaking({ texts, }: { readonly texts: readonly string[]; },): readonly (Reading & { readonly standing: string; })[] {
   return texts

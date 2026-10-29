@@ -26,7 +26,7 @@ import {
 
  @param accepted - edits already accepted, disjoint from the candidate
 
- @param candidate - the edit being judged
+ @param candidate - edit being judged
 
  @returns Where the text the edits leave first passes the bound, or that it
  stays within

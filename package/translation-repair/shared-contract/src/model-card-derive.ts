@@ -359,7 +359,7 @@ export function keyedBy<Key extends string, Value>(
 
  @param of - value for one key
 
- @returns The record, read under the keys' union
+ @returns Record, read under the keys' union
 
  @throws When the keys repeat, which is the one way the built record can
  miss one
@@ -402,7 +402,7 @@ export function recordOver<Key extends string, Value>(
 
  @param owner - whose entries these are, so the refusal says where the repeat sits
 
- @returns The record, with its keys widened to `string`
+ @returns Record, with its keys widened to `string`
 
  @throws When an id appears more than once, since the later row would replace
  the earlier and drop it without a word
@@ -448,7 +448,7 @@ export function recordOfDistinctIds<Value>(
 
  @param toRow - row for one card
 
- @returns The record, read under that provider's served-id union
+ @returns Record, read under that provider's served-id union
 
  @throws {@link Error} naming an unreachable state when a served spelling
  on the roster's list has no card or a card's spelling is off the list,

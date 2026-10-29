@@ -14,7 +14,7 @@ import type { RosterModelId, } from './roster-id.ts';
 
  @param modelId - roster model
 
- @returns The identity two seats must not share on one bench
+ @returns Identity two seats must not share on one bench
 
  @example
  ```ts
@@ -51,7 +51,7 @@ export class WireModelRepeatedError extends Error {
 
    @param wireModel - model seated more than once
 
-   @param modelIds - the roster ids on the bench that send it, in bench order
+   @param modelIds - roster ids on the bench that send it, in bench order
 
    @example
    ```ts
@@ -82,7 +82,7 @@ export class WireModelRepeatedError extends Error {
 
  @param bench - name of the bench, for the failure
 
- @param modelIds - the bench's seats
+ @param modelIds - bench's seats
 
  @throws {@link WireModelRepeatedError} naming the first wire model seated twice
 
