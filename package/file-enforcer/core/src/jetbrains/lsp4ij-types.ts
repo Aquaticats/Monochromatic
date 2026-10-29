@@ -47,11 +47,6 @@ export type Lsp4ijScopedServer = {
 export type Lsp4ijServerSettings = {
   readonly baseConfig?: Lsp4ijConfigPatch;
   readonly baseServerMatch: Lsp4ijBaseServerMatch;
-  /**
-   Staleness manifest path override forwarded to every settings write;
-   omitted, writes use the workspace's default manifest.
-   */
-  readonly manifestPath?: string;
   readonly optionsFiles?: Lsp4ijOptionsFiles;
   readonly productPrefixes: readonly string[];
   readonly schemaDefaults?: Readonly<Record<string, JsonValue>>;

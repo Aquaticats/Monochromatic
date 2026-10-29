@@ -70,16 +70,28 @@ async function readTrackedExisting(
  
  @param settings - Declarative LSP4IJ server settings policy.
  
+ @param manifestPath - Optional staleness manifest path override forwarded to every settings write.
+ 
  @example
  ```ts
  await manageLsp4ijServerSettings({
-   productPrefixes: ['IntelliJIdea'],
-   baseServerMatch: { templateId: 'harper-ls' },
-   scopedServers: [],
+   settings: {
+     productPrefixes: ['IntelliJIdea'],
+     baseServerMatch: { templateId: 'harper-ls' },
+     scopedServers: [],
+   },
  });
  ```
  */
-export async function manageLsp4ijServerSettings(settings: Lsp4ijServerSettings,): Promise<void> {
+export async function manageLsp4ijServerSettings(
+  {
+    settings,
+    manifestPath,
+  }: {
+    readonly manifestPath?: string;
+    readonly settings: Lsp4ijServerSettings;
+  },
+): Promise<void> {
   /**
    Function-scoped tagged logger.
    */
@@ -152,9 +164,9 @@ export async function manageLsp4ijServerSettings(settings: Lsp4ijServerSettings,
   /**
    Manifest override spread into each write; empty so production callers keep the default manifest.
    */
-  const manifestPathOption = settings.manifestPath === undefined
+  const manifestPathOption = manifestPath === undefined
     ? {}
-    : { manifestPath: settings.manifestPath, };
+    : { manifestPath, };
   await Promise.all([
     overwrite({
       dest: languageSettingsPath,
