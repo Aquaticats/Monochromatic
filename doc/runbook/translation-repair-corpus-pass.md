@@ -595,6 +595,7 @@ Each is the exact string the log carries.
     `INTERRUPTED`,
     `DESTINATIONS`,
     `DEFECTS`,
+    `INTERIM`,
     `CLEANUP`,
     `REATTEMPT`,
     `STALLED`,
@@ -673,9 +674,31 @@ Each is the exact string the log carries.
     (`at 19:15:08 UTC (in 5 min 1 s)`),
     so launch the pass again after that time.
     The entries already settled keep their pages,
-    and the entry in flight stays resumable.
+    and the entry in flight stays resumable and ships an interim page (next entry).
     No `TALLY` line says `PARKED`,
     and no `NOT RESUMED` line follows a stop.
+
+-   `INTERIM <id> at=<time> attempt=<n> settled=<n> archive=<n> source=<n> reason=dry-stop`,
+    printed just before the `TALLY <id> status=INCOMPLETE` line of an entry the dry stop ended in the middle of its page
+    (the owner's answer of 2026-10-29,
+    "Ship interim,
+    resumable").
+    The page of that entry in the published tree is interim:
+    `settled` slices carry the wording a consolidation record settled,
+    `archive` slices carry the archive's text,
+    and `source` slices carry the original under the note
+    "This passage has not been translated yet.
+    The original text follows."
+    No artifact is written,
+    so the entry is still pending;
+    `interim/<id>.json` in the runs directory records the counts and the digest of the page.
+    Launch the pass again after the time the stop line states:
+    it repeats the entry on its caches,
+    overwrites the page,
+    and removes the record when the entry settles.
+    A stop before the entry is sliced prints no `INTERIM` line and ships no page.
+    `mise run //package/translation-repair/run:verify-published` names the page `INTERIM PAGE` with the counts,
+    or `INTERIM PAGE DISAGREES WITH ITS RECORD` when the page on disk is not the one the record was written for.
 
 -   `STALLED <id> at=<time> attempt=<n>`,
     which is the earned-re-attempt rule refusing.

@@ -318,7 +318,8 @@ named for that subject and listed here.
   and a census that named every dangling link under the agent root and buried its own summary (B991).
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md):
   The wait for NeuralWatt's day to start again and the park of the pass between entries,
-  removed on the owner's answer of 2026-10-29 (B1005).
+  removed on the owner's answer of 2026-10-29 (B1005),
+  and the interim page a mid-page dry stop ships on his second answer of the same day (B1006 to B1008).
 - [Audit ledger: footnote markers and link destinations](audit-ledger-footnote-markers-and-link-destinations.md):
   Scans for footnote markers and link destinations that disagreed with the parse,
   about where a marker is a reference or where an address ends,

@@ -300,6 +300,58 @@ A long NeuralWatt hold also makes the per-slice re-seating (`pass-reseat-hook.ts
 while it runs,
 as it does for any hold.
 
+**A dry stop in the middle of a page ships an interim page and keeps the entry open.**
+The owner answered on 2026-10-29.
+The question was what the run ships for an entry in flight when every funded route goes dry in the middle of its page,
+with some slices settled and some not.
+The rule then in force kept the entry `INCOMPLETE` and resumable,
+shipped the earlier entries,
+and shipped no page for the stopped one.
+The owner chose
+"Ship interim,
+resumable":
+"Ship settled slices,
+plus archive text or the source text under its note elsewhere,
+and keep the entry open so a later run replaces it (as you ruled on 2026-10-23 for source-text slices)."
+The rules that still hold are the owner's:
+a run always ships,
+"No valid wording:
+keep the archive at that slice and ship" (2026-09-27),
+the note "This passage has not been translated yet.
+The original text follows."
+for a slice with no archive and no backed wording (2026-10-23),
+and a dry stop ends the run only when no funded provider serves a writing seat.
+The lead's reading of "settled" is open to the owner's veto:
+a slice is settled when it has a consolidation record.
+A slice the lanes agreed on or the contest decided,
+with no record yet,
+ships as the archive text,
+or as the original under the note where the archive has none,
+and its bought work stays in the caches for the later run.
+A stop inside the lanes phase therefore ships every slice as archive text or original.
+The interim page is composed by the reading every page comes from (`would-ship-text.ts`),
+with the slices no record settled marked unsettled,
+and written by `publishFixedPage` (`interim-page.ts`),
+so the page checks and the defect lines run over it as over any page.
+The entry stays pending because the artifact is still the only sentinel that an entry is done:
+the record that the page is interim sits in `interim/<id>.json` beside `artifacts/`,
+as a decline record sits in `declined/`,
+and no reader of `artifacts/` reads it.
+The record names the counts of settled,
+archive and original slices,
+the reason `dry-stop`,
+and the SHA-256 of the page as written.
+A later run repeats the entry on its caches and overwrites the page,
+and a run that settles it removes the record after the artifact is written.
+A stop before the entry is sliced ships no page,
+since there is no slice to ship and the archive stands as it is.
+Only the every-provider-dry refusal ships an interim page;
+every other stop of an entry is filed as before.
+`verify-published` names such a page `INTERIM PAGE` with its counts,
+or `INTERIM PAGE DISAGREES WITH ITS RECORD` when the page on disk is not the one the record was written for.
+No artifact field or kind is added,
+so the artifact generation is unchanged.
+
 How the hold behaves,
 in both directions (pinned in `provider-budget-xiaomi-hold.unit.test.ts`):
 the budget layer clears a payment mark when the meter's level text changes,

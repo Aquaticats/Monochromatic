@@ -223,6 +223,26 @@ A refusal cooldown or a stated `Retry-After` of any provider,
 NeuralWatt included,
 is still waited for.
 
+What the entry in flight ships when every provider goes dry in the middle of its page
+is the owner's answer of 2026-10-29,
+"Ship interim,
+resumable".
+The dry gate ends the run as before,
+and the entry's own `catch` ships an interim page before it files the stop as `INCOMPLETE`:
+the slices with a consolidation record as they settled,
+the archive's text for the others,
+and the original under its note for a slice the archive lacks.
+The entry gets no artifact,
+so it stays pending,
+and `interim/<id>.json` in the runs directory says the page is interim.
+A stop in the lanes phase has no consolidation record yet,
+so it ships the archive text,
+and the original under the note where the archive has none.
+A slice the lanes agreed on or the contest decided,
+with no consolidation record yet,
+ships the same way,
+and its bought work stays in the caches for the next run.
+
 A provider that refuses right after a cooldown ran out,
 with nothing served in between,
 is now given up for the entry.
