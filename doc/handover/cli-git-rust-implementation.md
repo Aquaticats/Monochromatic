@@ -3428,3 +3428,18 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   one shared mechanism, adds permanent tests shown failing, and updates README/SPEC. Parent merges its branch after reading
   the diff, then verifies (clippy, host, binary) and includes it in the next gate and release.
 - Queue position: this joins the open items after the merge agent's branch and the two finished branches.
+
+## Update at 2026-10-29 (Git LFS: the wrapper handles it directly, or the shims get a carve-out)
+
+- The main checkout's `.git/hooks` held four traditional hooks, all git-lfs shims (`post-checkout`, `post-commit`,
+  `post-merge`, `pre-push`, each `git lfs <hook> "$@"`). The user said to delete them all; they are deleted (the inert
+  `*.sample` files stay). `core.hooksPath` is unset; the 112 linked worktrees share that hooks directory.
+- Consequence while this is open: `pre-push` was what uploaded LFS objects on push, and the crate has no native LFS upload
+  (only `manual_push_probe.rs` mentions LFS). A push that adds or changes an LFS-tracked file publishes the pointer without
+  the object. `git lfs install` restores the shims if that becomes urgent.
+- The user's decision: "I want the wrapper handle all our lfs needs directly. If not possible, keep them, but for our
+  traditional git hooks unsupportiveness, keep a carve-out for lfs."
+- Agent `ab2b64d9df753a15f` (isolated worktree): researches the four hooks from primary sources, decides per hook (native,
+  unnecessary here, or not possible), implements the native step with zero extra syscalls on the common path, fails closed
+  when the upload fails, and for any hook it cannot handle keeps the shim and exempts a byte-exact LFS shim from the warning
+  and from `git cli-git doctor`. Parent merges after reading the diff, verifies, and includes it in the next gate and release.
