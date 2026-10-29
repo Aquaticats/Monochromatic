@@ -92,10 +92,13 @@ Owner follow-ups the same day:
    the checkout is 14 GB after excludes (11 GB of ignored `.claude/worktrees`), so rsync exits 11 in every container.
   The p-map run (55 of 55 shards failed) and the p-memoize rerun were stopped.
   Copying only `git ls-files --cached --others --exclude-standard` is 804 MB.
-- In flight: a subagent passes that list to each shard and copies with `--files-from`,
-   then proves it with a narrow p-map run (`src/errors.ts`) on the CachyOS image.
-- Queued for this session after it lands:
-   full `test:mutation` runs of `upstream-fork/p-map` and `upstream-fork/p-memoize`, then survivor triage.
+- Fixed: each shard gets the `git ls-files` list and copies with `--files-from` (`8b4374358e`, tests `b7c1773fd1`).
+  Narrow p-map probe on the `cachyos-v4` runtime image: 19515 files copied, 6 shards, no copy failure;
+   `src/errors.ts` Killed 5, Survived 5, CompileError 11.
+- `.claude` left out of the image build context (`containerignore`), which had made `COPY . /baked` take about 25 minutes.
+- Running since 11:13 local: units `mutation-p-map-3` (551 mutants) and `mutation-p-memoize-3` (363 mutants),
+   reusing image `baa75398fb47`; logs `~/temp/agent/package-category-elimination/mutation-p-{map,memoize}.log`.
+  Next: survivor triage from each package's `dist/mutation-report.json`.
 
 ## Out of scope by owner choice
 
