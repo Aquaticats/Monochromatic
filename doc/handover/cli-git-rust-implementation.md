@@ -3225,3 +3225,20 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   a signal it already holds (a configured `core.hooksPath` from the config snapshot); a new `doctor` management
   subcommand scans `<git-common-dir>/hooks` and the configured path and reports every traditional hook. Do this after the
   merge verifies, on the merged tree.
+
+## Update at 2026-10-29 (parallel work in flight)
+
+- Merged tree `integrate-slices` (`~/temp/agent/merge-slices`, tip `11b79d7d5a`): clippy clean; host 2124 of 2125 and
+  binary 191 of 192 (only the two known linter failures). Container gate running in unit `cli-git-gate-merge`
+  (log `~/temp/agent/gate-merge.log`, image tag `mmerge`). On a pass: merge `integrate-slices` into main, release
+  (read the current crate version first), remove worktrees and branches.
+- Mutation wave 1 on the merged tree, units `cli-git-mutpar-w1-*` (`start_retry`, `commit_staged_additions`,
+  `filesystem_identity_mount`, `config_snapshot`, `transaction_git`), logs `~/temp/agent/mutpar-w1-*.log.N`, started with
+  `MUT_ROOT=~/temp/agent/merge-slices node ~/temp/agent/mutation-parallel.ts w1 <files>`. Wave 2 still to run on the
+  final tree: `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`,
+  `hook_presence`, `hook_dispatch_plan`, `rule_require_root`, and the 1804 files (task 65).
+- Three agents started from `integrate-slices`, each in its own worktree: (1) remove `core.hooksPath` handling, warn on
+  traditional hooks without extra syscalls, add `git cli-git doctor` (agent a8b31ddd4ffbe9b0d); (2) spawn and sync budget
+  ratchet tests (a25fe20d930cb8679); (3) recovery: torn index snapshots, the two silent-inconsistency cases, and sticking
+  messages that name the file (a49eb138569c35a3c). Merge each after reading its diff; agent 1 and 3 avoid each other's
+  files by brief.
