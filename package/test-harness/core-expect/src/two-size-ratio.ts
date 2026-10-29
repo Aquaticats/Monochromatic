@@ -44,10 +44,12 @@ export type TwoSizeMeasurement = {
 };
 
 /**
- Smallest denominator the ratio accepts,
- so a base timing at the clock floor cannot fabricate a huge ratio.
+ Smallest base timing this harness reads reliably.
+ A base below it cannot carry a ratio,
+ so the measurement refuses rather than flooring the denominator
+ and suppressing the growth figure.
  */
-const MIN_BASE_MS = 0.001;
+const MIN_BASE_MS = 0.01;
 
 /**
  Rounds discarded before measurement,
@@ -287,6 +289,9 @@ export function measureTwoSizeRatio<Input>({
     bestMs: smallest(baseRounds,),
     worstMs: largest(baseRounds,),
   };
+  if (base.bestMs < MIN_BASE_MS) {
+    throw new TwoSizeRatioInputError(`base timing ${base.bestMs} ms is below the ${MIN_BASE_MS} ms this harness reads reliably, so no growth figure is readable from it; raise size until the base timing clears that floor.`,);
+  }
   /**
    Best and worst of the doubled-size rounds.
    */
