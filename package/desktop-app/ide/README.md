@@ -976,7 +976,9 @@ Two windows of the IDE on one project therefore never empty each other's `/tmp`.
 A process holds an exclusive lock on `tmp-<...>.lock` beside its directory for as long as it lives.
 Every preparation removes the directories (and lock files) of other processes whose lock nobody holds,
 so a process that exited or was killed leaves its `/tmp` only until the next launch of that server on that project.
-The lock, not the process id, tells a live owner from a dead one,
+The lock,
+not the process id,
+tells a live owner from a dead one,
 because the system releases a lock when its process ends however it ends and a process id is reused.
 A shared directory had two failures.
 The sandbox binds the directory by path,

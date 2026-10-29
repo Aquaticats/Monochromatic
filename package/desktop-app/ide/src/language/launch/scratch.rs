@@ -6,7 +6,10 @@
 //! Each process now names its own directory `tmp-<process id>-<hex nonce>` beside the server's other state,
 //!  holds an exclusive advisory lock on `tmp-<...>.lock` beside it for as long as it lives,
 //!  and removes the directories of other processes whose lock nobody holds any more.
-//! The system releases a lock when its process ends however it ends (exit, crash, `kill -9`),
+//! The system releases a lock when its process ends however it ends
+//!  (exit,
+//!  crash,
+//!  `kill -9`),
 //!  and a process id alone would be reused;
 //!  the nonce keeps two live processes apart even when two process-id namespaces share one cache folder.
 
@@ -68,7 +71,10 @@ pub fn scratch_name() -> &'static str {
 
 /// What:
 ///  True for a name this module makes:
-///  `tmp-`, decimal digits, `-`, hexadecimal digits.
+///  `tmp-`,
+///  decimal digits,
+///  `-`,
+///  hexadecimal digits.
 /// Why:
 ///  Only names of this shape are claimed or removed,
 ///  so the shared `tmp` directory of earlier versions

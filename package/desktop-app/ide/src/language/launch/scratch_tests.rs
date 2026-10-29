@@ -24,7 +24,8 @@ fn canonical(directory: &tempfile::TempDir) -> PathBuf {
         .expect("canonical directory");
 }
 
-/// Prepare the launch of a server named `server` the way the confining policy does, from this process.
+/// Prepare the launch of a server named `server` the way the confining policy does,
+/// from this process.
 fn prepare_here(state: &Path, project: &Path) -> PathBuf {
     let server = state.join("server");
     let scratch = server.join(scratch_name());
@@ -162,7 +163,8 @@ fn a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one(
     );
 }
 
-/// A process that ended cannot say so, so the next preparation finds the lock it held released.
+/// A process that ended cannot say so,
+/// so the next preparation finds the lock it held released.
 #[test]
 fn the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation() {
     let parent = tempfile::tempdir().expect("parent");
