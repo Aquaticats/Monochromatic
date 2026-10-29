@@ -225,7 +225,14 @@ await describe({
         },);
 
         expect(await sortedEntries(tempDir,),).toEqual([MANIFEST_FILE_NAME,],);
-        expect(JSON.parse(await readFile(manifestPath, 'utf8',),),).toEqual(EMPTY_MANIFEST,);
+        /**
+         Manifest text persisted by the write.
+         */
+        const persistedText = await readFile(
+          manifestPath,
+          'utf8',
+        );
+        expect(JSON.parse(persistedText,),).toEqual(EMPTY_MANIFEST,);
       },
     },),
 

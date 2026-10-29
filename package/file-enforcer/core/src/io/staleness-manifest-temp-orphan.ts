@@ -43,7 +43,7 @@ const MANIFEST_TEMP_FILE_SEGMENT_COUNT = 2;
 /**
  Sentinel for a directory entry that is not a temp file of the manifest.
  */
-const NOT_A_MANIFEST_TEMP_FILE: unique symbol = Symbol('file-enforcer/io/staleness-manifest-temp-orphan: directory entry is not a manifest temp file',);
+const NOT_A_MANIFEST_TEMP_FILE: unique symbol = Symbol('file-enforcer/io/staleness-manifest-temp-orphan: directory entry whose name does not follow the writer naming scheme',);
 
 /**
  Process id embedded in a manifest temp file name, or {@link NOT_A_MANIFEST_TEMP_FILE}
@@ -80,12 +80,7 @@ export function manifestTempFilePath(
     readonly uniqueToken: string;
   },
 ): string {
-  return [
-    manifestPath,
-    String(processId,),
-    uniqueToken,
-  ].join(MANIFEST_TEMP_FILE_SEPARATOR,)
-  + MANIFEST_TEMP_FILE_SUFFIX;
+  return `${manifestPath}${MANIFEST_TEMP_FILE_SEPARATOR}${String(processId,)}${MANIFEST_TEMP_FILE_SEPARATOR}${uniqueToken}${MANIFEST_TEMP_FILE_SUFFIX}`;
 }
 
 /**
@@ -121,18 +116,24 @@ function manifestTempFileWriter(
     return NOT_A_MANIFEST_TEMP_FILE;
   if (!entry.endsWith(MANIFEST_TEMP_FILE_SUFFIX,))
     return NOT_A_MANIFEST_TEMP_FILE;
-  if (entry.length < prefix.length + MANIFEST_TEMP_FILE_SUFFIX.length)
+  /**
+   Index where the shared temp suffix begins.
+   */
+  const suffixStart = entry.length - MANIFEST_TEMP_FILE_SUFFIX.length;
+  if (suffixStart < prefix.length)
     return NOT_A_MANIFEST_TEMP_FILE;
 
   /**
-   Segments between prefix and suffix: process id and unique token.
+   Text between prefix and suffix: process id and unique token.
    */
-  const segments = entry
-    .slice(
-      prefix.length,
-      entry.length - MANIFEST_TEMP_FILE_SUFFIX.length,
-    )
-    .split(MANIFEST_TEMP_FILE_SEPARATOR,);
+  const middle = entry.slice(
+    prefix.length,
+    suffixStart,
+  );
+  /**
+   Segments of the middle text: process id and unique token.
+   */
+  const segments = middle.split(MANIFEST_TEMP_FILE_SEPARATOR,);
   if (segments.length !== MANIFEST_TEMP_FILE_SEGMENT_COUNT)
     return NOT_A_MANIFEST_TEMP_FILE;
 
