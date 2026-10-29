@@ -78,24 +78,34 @@ User decisions taken during execution
 - `claude-cpu-watch.service`:
    `~/.config/systemd/user/claude-cpu-watch.service` links to `package/claude-cpu-cap/daemon/systemd/`;
    running from the new `src/cpu-watch.ts`.
-- Type checks for every moved package:
-   systemd unit `category-move-lint-types`,
-   summary in `~/temp/agent/package-category-elimination/verify-types.summary.txt`
-   (result pending at this update;
-    known preexisting failure:
-    `file-enforcer` TS7006 in `src/toolchain/update.ts`).
+- Type checks for every moved package
+   (`~/temp/agent/package-category-elimination/verify-types.summary.txt`):
+   88 pass,
+   8 have no `lint:types` task,
+   3 failed.
+  `file-enforcer/core`:
+   the preexisting TS7006 in `src/toolchain/update.ts` (user defers it).
+  `dependency-catalog/cli-rust-update`:
+   `registry.unit.test.ts` lacks `fetchDump`,
+   from `monochromatic-fb`'s in-progress registry change, not the move.
+  `upstream-fork/deepmerge-ts.fuzz`:
+   its gitignored `*.local.*` files still imported `module-test`
+   (the move script reads tracked files only);
+   rewritten in place.
+- Gitignored files the move script could not reach:
+   81 compiled `.js` files and a source map beside moved sources still name old packages
+   and regenerate on the next build of each package;
+   `file-manager/variant-qt/.qmlls.ini` was pointed at the new build directory.
 
 ## Open follow-ups
 
-- Record the `lint:types` results here and fix any move-caused failure.
-- `cargo-publish.yml` misreads a moved manifest as a version change
-   (its detect step reads the old path as empty),
-  so each move push starts a doomed publish of an unchanged version
-  (run 40845758673 after the `cli` move;
-   run 40854963672 for this batch).
-  A publish step that skips versions already on crates.io,
-   as the guard's job does,
-   would stop it.
+- `cargo-publish.yml` reads a moved manifest's old path as empty and starts a publish of the unchanged version.
+  The `jsonc-edit` and `nested-wayland-session` jobs skip versions already on crates.io,
+   so run 40854963672 for this batch succeeded;
+  the `forbidden-strings` job has no such skip,
+   so run 40845758673 after the `cli` move failed
+   ("crate forbidden-strings@0.5.0 already exists").
+  Giving that job the same skip would stop the false failure.
 - `PRESERVED_PREFIXES` in `package/git-policy/cli/src/native/policy_final_newline.rs`
    still lists `package/forbidden-strings/core.fuzz/seed/` (no such directory)
    and `package/test-fixture/toml-edit/src/` (no `.gitattributes` yet);
