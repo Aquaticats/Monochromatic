@@ -176,7 +176,9 @@ and the amendments to `doc/decision/monorepo-manager-all-rust.md` and `doc/decis
 Next:
 the gates before implementation,
 then one task per area,
-tracked in the implementation issue.
+tracked in issue #1818 (which points at the `prototype/fe-mpm-files` branch).
+The prototype's images and worktrees were removed with the user's approval;
+the branch stays locally and on `origin`.
 
 ## Superseded next action (2026-10-29, after confirmation)
 
