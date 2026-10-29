@@ -153,11 +153,14 @@ const configOverride = {
  documented in this package's README. The internal wrappers that
  forward through `MatcherSet[K]` inherit the same shape. External
  function signatures may use rest parameters.
+ The module lives in `package/test-harness/core-expect` since the
+ generic category elimination moved it from `package/module/test-expect`
+ (2026-10-29), and the globs name that current location.
  */
 const jestMatcherApiOverride = {
   files: [
-    '**/module/test-expect/src/expect.ts',
-    '**/module/test-expect/src/expect-matchers.ts',
+    '**/test-harness/core-expect/src/expect.ts',
+    '**/test-harness/core-expect/src/expect-matchers.ts',
   ],
   rules: {
     'no-restricted-syntax/no-rest-params': 'off',

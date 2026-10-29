@@ -1,10 +1,16 @@
-FROM fedora:latest
+# CachyOS, unpinned (doc/decision/container-base-distro.md). The host passes CACHYOS_IMAGE, the newest CachyOS image
+# its CPU level runs (package/mutation-test/cli/src/host/image.ts); without it the plain image builds.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
 ENV PATH=/usr/local/bin:/baked/node_modules/.bin:$PATH
 
-RUN dnf install --assumeyes ca-certificates curl git jq libatomic procps-ng rsync tar which \
-  && dnf clean all \
-  && rm --recursive --force /var/cache/dnf
+# --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot give it
+# (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md). gcc-libs carries libatomic, which the
+# official Node.js Linux build links against.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+    ca-certificates curl gcc-libs git jq procps-ng rsync tar which \
+  && rm --recursive --force /var/cache/pacman/pkg/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

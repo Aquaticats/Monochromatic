@@ -35,16 +35,19 @@ import {
 // THE PROGRAM THAT PUTS THE LINE BREAKS BACK, started once per passage.
 //
 // The rule that wraps shipped text lives in the repository's Rust linter, the
-// `monochromatic-lint` executable that `mise.toml` pins as a cargo tool. This
-// module is the only place that decides what it is asked. A passage goes in
-// on standard input and the wrapped passage comes back on standard output:
-// never in an argument, never through a file, never through a shell, so
-// quoting, backslashes and a leading dash are not a concern of this code.
+// `monochromatic-lint` executable that `toolchain.lock.json` pins as a cargo
+// tool. This module is the only place that decides what it is asked. A
+// passage goes in on standard input and the wrapped passage comes back on
+// standard output: never in an argument, never through a file, never through
+// a shell, so quoting, backslashes and a leading dash are not a concern of
+// this code.
 //
 // FOUND BY NAME. The program is started as `monochromatic-lint`, and the
 // operating system's lookup of the PATH finds it, which is why a run started
-// by `mise run` or `mise exec --` finds the pinned one. No path and no user
-// name is written here.
+// by `mise run` finds the pinned one: the root `mise.toml` puts the tree's
+// `.cache/toolchain-bin`, which `mise run toolchain:sync` fills from
+// `toolchain.lock.json`, on the PATH ahead of any ambient or global tool. No
+// path and no user name is written here.
 //
 // ITS VERSION IS CHECKED BEFORE ITS FIRST PASSAGE. The rule's behavior is the
 // binary's, so a different version is a different wrap, and the cache replay

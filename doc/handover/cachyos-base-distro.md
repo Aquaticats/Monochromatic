@@ -11,11 +11,12 @@ Owner follow-ups the same day:
 
 ## In flight (2026-10-29)
 
-- Subagent in `test-harness/core-matrix`: the CPU-level resolver (`--build-arg CACHYOS_IMAGE=<image>`),
-   plus a check for non-x86-64 container builds and images built in one place and run elsewhere.
-  When it lands, the tool and desktop agents wire it into their image builds.
-- `terminal/app` and `ide/app` are held until the dev/release split lands;
-   monochromatic-ec dry-runs the IDE release on that commit before any real release, so send them the hash.
+- `terminal/app` and `ide/app` split into CachyOS dev images and Ubuntu 24.04 release images:
+   monochromatic-ec's IDE release dry run 40887621364 passed (detect, build arm64, build x64, checksums, release),
+   newest glibc symbol 2.39 on both legs like baseline 40877021793.
+  It needed `cb03f20350` (monochromatic-ec): the arm64 executable now names `ld-linux-aarch64.so.1`,
+   added to the arm64 shared-library allow list in `ide-release.yml`.
+  The compositor release in `cargo-publish.yml` builds on ubuntu-24.04 runners, so the CachyOS image does not touch it.
 - monochromatic-71 wants the `search-shadow/cli` `test:container` result line.
 
 - Subagent: tool and test Containerfiles
@@ -37,7 +38,15 @@ Owner follow-ups the same day:
    `nested-wayland-session/cli` `7c448d8a3e`, `2f68ce13f8`.
 - pacman hooks need `--disable-sandbox` in rootless podman builds:
    `doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md` (`bd06f4c440`).
-- Fedora dropped from the test matrices (owner decision, `8627135ed7`).
+- Fedora dropped from the test matrices (owner decision, `8627135ed7`; code `a055954b40`).
+- `test-harness/core-matrix`: `cachyos` distro (`98c49b0603`), CPU-level resolver and `cachyos-image` bin (`6204200b67`),
+   pacman installs with a full sync and no hook sandbox (`038e3d9077`; lint, types and 19 test suites pass).
+- file-enforcer ensure-package container matrix: CachyOS cells (`15cfc9951d`, `04d9489934`, `241bc0c9b0`, `8c4ad0e59d`);
+   final run `4 cells passed` (ubuntu and cachyos, root and user).
+- Survey: `ide-release.yml:193` builds the IDE image natively on `ubuntu-24.04-arm`,
+   so the IDE release path must use the multi-arch Ubuntu 24.04 release image;
+   no workflow moves images between machines.
+- Known gap left alone: `container:arch` resolves to `arch:latest`, which does not exist (the image is `archlinux`).
 
 ## Found during verification, not caused by the base change
 
@@ -55,12 +64,19 @@ Owner follow-ups the same day:
    `pnpmfile hook 'updateConfig' timed out after 30 seconds` at load average 58;
    rerun as unit `mutation-p-memoize-2`.
 
-## Queued for this session
+## Mutation-test runtime image and the work-tree copy
 
-- `package/mutation-test/cli/runtime/Containerfile` (`FROM fedora:latest`):
-   migrate after the running `mutation-p-memoize` and `mutation-p-map` systemd units finish,
-   because changing it changes the runtime image hash mid-run.
-  Then rebuild `mutation-test/cli` and run one package's `test:mutation` on the new image.
+- Runtime image on CachyOS: Containerfile committed, `image.ts` passes `--build-arg CACHYOS_IMAGE`
+   from the resolver and hashes the base image into the tag (lockfile change 3 lines).
+  Lint findings in `shards.ts`, `selection.ts`, `scratch-parent.ts` come from `2972f3c6a0` (another session).
+- Every shard copies the checkout into a 2 GiB tmpfs with rsync and fixed excludes;
+   the checkout is 14 GB after excludes (11 GB of ignored `.claude/worktrees`), so rsync exits 11 in every container.
+  The p-map run (55 of 55 shards failed) and the p-memoize rerun were stopped.
+  Copying only `git ls-files --cached --others --exclude-standard` is 804 MB.
+- In flight: a subagent passes that list to each shard and copies with `--files-from`,
+   then proves it with a narrow p-map run (`src/errors.ts`) on the CachyOS image.
+- Queued for this session after it lands:
+   full `test:mutation` runs of `upstream-fork/p-map` and `upstream-fork/p-memoize`, then survivor triage.
 
 ## Out of scope by owner choice
 

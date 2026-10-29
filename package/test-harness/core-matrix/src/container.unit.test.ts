@@ -267,7 +267,7 @@ await describe({
               monorepoRoot: '/repo',
             },);
 
-            expect(cmd,).toContain('pacman -Sy --noconfirm curl unzip',);
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip',);
             expect(cmd,).not.toContain('sudo',);
           },
         },),
@@ -285,7 +285,7 @@ await describe({
               monorepoRoot: '/repo',
             },);
 
-            expect(cmd,).toContain('pacman -Sy --noconfirm curl unzip sudo',);
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed curl unzip sudo',);
             expect(cmd,).toContain('useradd -m testuser',);
           },
         },),
@@ -303,7 +303,7 @@ await describe({
               monorepoRoot: '/repo',
             },);
 
-            expect(cmd,).toContain('pacman -Sy --noconfirm gcc-libs jq',);
+            expect(cmd,).toContain('pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed gcc-libs jq',);
           },
         },),
 

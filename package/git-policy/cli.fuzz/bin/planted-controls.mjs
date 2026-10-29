@@ -16,7 +16,6 @@ import {
   readFile,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve,
@@ -27,6 +26,13 @@ import {
   runCommand,
 } from '../../cli/bin/native-verification-process.mjs';
 import { plants } from './planted-table.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy-fuzz');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Repository-relative inputs the helper library needs to build. */
 const inputs = [
@@ -244,7 +250,7 @@ const repository = resolve(
   '../../../..',
 );
 await using root = await mkdtempDisposable(join(
-  tmpdir(),
+  scratchBase,
   'cli-git-fuzz-planted-',
 ));
 const evidenceRoot = join(

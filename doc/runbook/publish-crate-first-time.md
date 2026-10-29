@@ -425,8 +425,8 @@ Still to do:
 
 Status:
 0.1.0 published and released on 2026-10-29; Trusted Publishing configured and exercised by CI.
-Owner action remaining: none for the crate; the `cargo login` token the owner created for this publish should be revoked
-at <https://crates.io/settings/tokens> once no further manual publish is planned.
+Owner action remaining: none. The owner revoked the `cargo login` token created for this publish on 2026-10-29,
+and `cargo logout` then removed the dead credential from `~/.cargo/credentials.toml`.
 
 Crate `monochromatic-mpm-shadow`,
 version `0.1.0`,

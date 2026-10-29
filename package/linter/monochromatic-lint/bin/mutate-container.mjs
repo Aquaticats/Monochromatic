@@ -15,11 +15,15 @@ import {
   rm,
   writeFile
 } from 'node:fs/promises';
-import {
-  homedir,
-  tmpdir
-} from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'monochromatic-lint');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image. */
 const imageTag = process.env
@@ -390,7 +394,7 @@ async function campaign({
     throw new VerificationError('This scope already selects mutants by name; --re would widen it.');
   const timeoutSeconds = scope.timeoutSeconds ?? defaultTimeoutSeconds;
   const context = await mkdtemp(join(
-    tmpdir(),
+    scratchBase,
     'monochromatic-lint-mutation-'
   ));
   const evidenceRoot = join(

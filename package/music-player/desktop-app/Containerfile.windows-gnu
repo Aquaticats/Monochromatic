@@ -12,7 +12,8 @@ FROM ${CACHYOS_IMAGE}
 # Build toolchain:
 #   mingw-w64-gcc, mingw-w64-binutils  the cross gcc driver and GNU ld (x86_64-w64-mingw32-gcc / -ld),
 #                          plus dlltool and windres, which the `windows` crates (raw-dylib) and
-#                          winresource call. mingw-w64-crt, mingw-w64-headers and mingw-w64-winpthreads are the C runtime,
+#                          winresource call. Arch's mingw-w64 packages default to the UCRT C runtime (the executable
+#                          imports api-ms-win-crt-* DLLs), the one the release build also uses. mingw-w64-crt, mingw-w64-headers and mingw-w64-winpthreads are the C runtime,
 #                          headers and threads library the cross compiler links against.
 #   gcc, cmake, ninja, make  opusic-sys cmake-builds libopus 1.6.1; its build script picks the
 #                          Ninja generator when `ninja` runs, and the cmake crate then passes
@@ -20,9 +21,10 @@ FROM ${CACHYOS_IMAGE}
 #   clang                  libclang is not needed for this target (bindgen is Linux-only, via
 #                          pipewire), so it is deliberately absent.
 # Run time:
-#   wine                   the Windows API layer that runs the .exe files, with the fonts Wine registers in its prefix;
-#                          headless console tests need no display. Without the fonts Slint's software renderer finds no
-#                          system font on Windows and three UI tests panic in `systemfonts.rs`.
+#   wine                   the Windows API layer that runs the .exe files; headless console tests need no display.
+#   noto-fonts             system fonts for Slint's software renderer; without them it finds no font under Wine and three
+#                          UI tests panic in `systemfonts.rs` (Arch's wine ships Tahoma but not the Arial and Times New
+#                          Roman files that Fedora's winefonts packages added, and ttf-liberation alone did not help).
 #   xorg-server-xvfb       a virtual X11 display, because Wine's graphics driver talks to X11;
 #                          only the app launch check uses it.
 #   xdotool                drives the app launch check.
@@ -32,7 +34,7 @@ FROM ${CACHYOS_IMAGE}
 RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
       gcc cmake ninja make \
       mingw-w64-gcc mingw-w64-binutils mingw-w64-crt mingw-w64-headers mingw-w64-winpthreads \
-      wine \
+      wine noto-fonts \
       xorg-server-xvfb xdotool mesa \
       curl tar gzip which file \
     && rm --recursive --force /var/cache/pacman/pkg/*

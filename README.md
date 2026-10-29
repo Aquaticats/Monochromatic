@@ -39,7 +39,6 @@ housekeeping),
 and [`pi-plugin`](package/pi-plugin/) does the same for the Pi coding agent
 (advisor,
 guardrail,
-morph-compact,
 model selection).
 Harness-agnostic logic (session discovery,
 usage projection,
@@ -337,7 +336,7 @@ package/
   oxlint-plugin/            Custom Oxlint plugins (tsdoc, no-restricted-syntax,
                               stylistic, prefer-readonly-parameter-type, test-import)
   pi-plugin/                Pi coding-agent plugins (advisor, guardrail, statusline,
-                              spawn, morph-compact, search-fetch)
+                              spawn, search-fetch)
   pi-shared/                Shared Pi plugin logic (model selection, model review)
   rolldown-plugin/          Rolldown/tsdown plugins (import-attributes)
   runtime-error/            Runtime error reproductions (bun)
