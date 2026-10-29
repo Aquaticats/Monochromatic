@@ -196,13 +196,35 @@ affected selection,
 caching,
 and aggregate failure reporting.
 
-This repository still resolves pnpm 12.3.4,
-so none of the 12.4 additions is locally established.
+Update 2026-10-28:
+ the session resolves pnpm 12.14.0 from a Mise-managed install,
+and `toolchain.lock.json` records 12.16.1 for its `pnpm` entry with `track: latest`,
+so the 12.4 additions are locally established.
+`pnpm pipeline --help`,
+`pnpm tasks --help`,
+and `pnpm run --help` on 12.14.0 show pipeline runs,
+concurrency-group status,
+`--dry-run --json`,
+`--stream`,
+`--aggregate-output`,
+`--reverse`,
+`--sort`,
+and the `[since]` affected-selection filters.
 Cargo support installs and vendors dependencies but does not install Rust or compile crates.
 Python support requires an existing interpreter.
 Pipeline commands execute scripts selected from project manifests,
 not TypeScript declarations directly.
+`https://pnpm.io/cli/pipeline`,
+fetched 2026-10-28,
+still warns "pnpm pipeline is experimental.
+Its configuration and output may change.";
+12.5.0 added `concurrencyGroups`,
+12.6.0 added task `priority` and `pnpm tasks status`,
+and 12.12.0 added signed remote-cache result sharing.
+Both 12.14.0 and 12.16.1 accept `--no-bail` and `--resume-from` while `pnpm run --help` lists neither,
+because `pnpm/crates/cli/src/cli_args/cli_command.rs:321-337` marks the flags `hide = true`.
 `doc/troubleshooting/pnpm-12-4-polyglot-workspace.md` records the source trace and current limitations.
+`doc/troubleshooting/pnpm-recursive-no-bail-semantics.md` records the task-orchestration documentation trace.
 
 ## Meta Package Manager candidate surface
 
@@ -444,6 +466,83 @@ also exited at the documentation gate:
 `https://nadle.dev/docs/getting-started/features/` configures `CopyTask` with `to`,
 while `https://nadle.dev/docs/guides/file-operation-tasks/` uses `into`.
 See `doc/audit/tech-monorepo-manager-vet-2026-09-16.md`.
+
+Update 2026-10-28:
+ the failure-semantics question that update left open is now measured,
+and `doc/troubleshooting/pnpm-recursive-no-bail-semantics.md` holds the probe and source trace.
+Both pnpm 12.14.0 and 12.16.1 skip a failed task's dependents under `--no-bail`,
+continue independent ready tasks,
+and exit non-zero
+(`pnpm/crates/workspace-task-scheduler/src/tests.rs:880`),
+so the `workspace-task-orchestration` sentence is correct
+and the `cli/recursive` sentence "all tasks will finish" is false as written.
+Parity-gate items "intentional failure tolerance",
+"tests continuing after build failure where required",
+"retained failure causes",
+and "correct aggregate exit status" hold across independent projects,
+but a dependent of a failure never runs under any `--no-bail` spelling.
+
+Task edges and package edges also disagree today.
+`rg -n '^\s*depends\b' -g 'mise*.toml' package/` matches 178 lines on 2026-10-28,
+and edges name other packages and the root project directly:
+`package/translation-repair/translate-stage/mise.toml:10`
+depends on 13 `//package/translation-repair/*:build:js:node` tasks
+while `package/translation-repair/translate-stage/package.json` omits
+`@monochromatic-dev/translation-repair-glossary` from `dependencies`.
+pnpm `dependsOn` entries take only `name` for the same project
+and `^name` for the same-named task in each workspace dependency
+(`https://pnpm.io/workspace-task-orchestration`,
+fetched 2026-10-28),
+so exact task-edge parity needs package-graph reshaping or repository-owned scheduling.
+Missing scripts pass through as skipped tasks,
+and `pnpm -r run --dry-run --json test` prints the resolved graph with `missingScript` flags,
+which covers "missing optional package builds" and machine-readable listing at the graph level.
+No disposable pnpm pilot is recorded in `doc/`;
+every gap recorded here is documentation,
+configuration,
+or probe evidence.
+
+Update 2026-10-29:
+ the disposable pilot is now recorded in
+[`pnpm-task-execution-pilot.md`](pnpm-task-execution-pilot.md),
+covering graph reshaping,
+declaration compilation,
+paths with spaces,
+missing scripts,
+and pipeline failure tolerance.
+It closes the "no pilot" gap with a conditional ranking,
+and the remaining open item is whether the user accepts three semantic shifts
+for a pnpm-owned task slice.
+
+Update 2026-10-29 (Nadle):
+ [`nadle-task-execution-pilot.md`](nadle-task-execution-pilot.md)
+pilots Nadle 0.6.1 against the same gates and compares both with meow.
+Nadle covers exact task edges,
+typed in-process bodies,
+caching,
+and machine-readable output,
+but its name grammar bans the colon task vocabulary,
+so the contract choice is now a three-way flagged decision.
+
+Update 2026-10-29 (task-slice comparison):
+ [`task-slice-comparison.md`](task-slice-comparison.md)
+joins the measured Poe the Poet 0.49.0,
+Buck2 2026-10-14,
+Pants 2.33.1,
+projen 0.104.19,
+Please 17.34.0,
+and Tilt 0.37.8 pilots
+with pnpm 12.16,
+Nadle 0.6.1,
+meow,
+and keeping Mise.
+Only Poe the Poet,
+projen,
+and Tilt keep the colon task names;
+Tilt fails the failure-tolerance gate outright in batch mode;
+the documented-drift class that culled Nadle reproduces in every candidate,
+so it is recorded per candidate rather than used as a cull.
+The contract question follows with every candidate.
 
 Parity gate:
  preserve package namespaces,

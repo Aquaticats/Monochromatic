@@ -179,6 +179,12 @@ EXT:
  fetch current doc/src before answering,
  never recall.
 
+TXF:
+ Link to selection where possible:
+cite web sources with `#:~:text=` text fragments
+or the platform's selection permalink,
+and confirm the match with `agent-browser` before publishing it.
+
 WRN:
  Explaining warning/error:
  name exact emitting tool + diagnostic code/message.
