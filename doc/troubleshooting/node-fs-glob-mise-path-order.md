@@ -133,7 +133,7 @@ materialized package bins.
 For example,
  the sorted order makes
 `package/pi-plugin/advisor/node_modules/.bin` win for `pi` and
-`package/cli/git-clone-size/node_modules/.bin` win for `tsc`.
+`package/git-clone-size/cli/node_modules/.bin` win for `tsc`.
 
 ## Regeneration on a partially installed workspace deletes entries
 

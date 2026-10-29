@@ -56,7 +56,7 @@ Use `fast-check` property tests,
 repo (`package/module/test/src/format-error.property.unit.test.ts`).
 The test moved on 2026-10-04 to `package/module/test-diagnostic/src/format-error.property.unit.test.ts`.
  The
-Rust `cargo-fuzz` setup in `package/cli/forbidden-strings.fuzz` does not apply
+Rust `cargo-fuzz` setup in `package/forbidden-strings/cli.fuzz` does not apply
 to a TypeScript package.
 
 One set of files,

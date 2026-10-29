@@ -90,7 +90,7 @@ which makes it the cleanest test of the question.
    `public constructor(message: string,) { super(message,); this.name = 'XError'; }`,
    concentrated in `git-policy/cli` (42 files),
    `module/deepmerge-ts.fuzz` (12),
-   `cli/open-code-review-issue` (11) and `cli/mvm` (9).
+   `open-code-review-issue/cli` (11) and `mvm/cli` (9).
 - No base class sets the name automatically;
    `new.target.name` appears nowhere in the repository.
 - All 209 assignments found by `rg` match their enclosing class name.
@@ -639,7 +639,7 @@ which is how the numbers below were produced.
    C15 belongs here.
 - Rust error kinds:
    `io::Error::new(io::ErrorKind::` at 15 sites across 8 files,
-   11 of them in `cli/wg-quicker-exempt`.
+   11 of them in `wg/cli-quicker-exempt`.
    The policy is which kind maps to which failure.
    C998 belongs here.
 - Web-component shadow roots:
@@ -725,7 +725,7 @@ Eleven of the seventeen have no owner today:
 - Rust error kinds,
    C998,
    15 `io::Error::new(io::ErrorKind::` sites across 8 files,
-   11 of them in `cli/wg-quicker-exempt`.
+   11 of them in `wg/cli-quicker-exempt`.
    Owner:
    one helper that chooses the kind.
 - Web-component shadow roots,

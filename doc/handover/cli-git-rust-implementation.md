@@ -3,6 +3,12 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
+> `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
 > `package/cli/mvm` is now `package/mvm/cli`.
 
@@ -2881,5 +2887,54 @@ a first run was invalid because the wrapper link failed, so it was discarded):
 - control: auto-push on a checked-out `main` already merges and fast-forwards.
 Proposal written: `doc/planning/cli-git-stack-concurrent-pushes.md` (change A: push to the tracked ref on a name mismatch;
 change B: reconcile a stale-rejected explicit push by reusing the loop).
-Open: the user's decisions on merge vs rebase, scope of explicit pushes, and detached HEAD handling.
+User decisions (2026-10-29): merge like auto-push; any non-force single-branch update; leave a detached HEAD where it is
+and print the merge commit. The user then chose "A and B together in one release" (2026-10-29), so the plan is accepted for implementation.
+Order: read `manual_push_probe.rs`, `manual_push_range.rs`, `manual_push_lifecycle.rs`, `command_push.rs` and
+`rule_atomic_push.rs` for the policy input range; write failing tests first; implement A and B; run the chain, the
+container gate and the podman harness again; release; start the mutation campaign without blocking the release.
+Design findings (also in the planning doc, "Implementation findings"): an eligible explicit push runs as a child with
+inherited streams; after a non-zero exit the loop re-probes the updates, fetches the destination tip and merges only
+when the remote diverged; the merge is pushed by the wrapper invoking itself with an environment marker so the push
+gates run on the integrated result.
+Queued, not in this release: the auto-push merge push runs no push-time policy (pre-existing); gating it could stop merges
+that publish today, so it needs the user's decision.
+Tasks: 63 (change A), 64 (change B).
+Progress 2026-10-29: change A committed (auto-push names the tracked ref via `named_destination_push`; two tests shown
+failing first, 116 auto-push tests pass). Change B committed as `d926d5621a`: `push_stacking.rs`
+(`Action::ForwardPush`, `STACKED_PUSH_MARKER`), the reconcile loop generalized as `integrate_and_push` with
+`Reconcile { explicit }` (auto-push wording and behavior unchanged), `stackable_option_tokens` in `command_push.rs`
+(force, delete, mirror, all, tags, prune, follow-tags, repo, porcelain, set-upstream, dry-run and `+refspec` are never
+stacked). Six unit and four binary tests pass on the first run, so the guard proof is still owed: disable `stack_if_push`,
+rebuild, show the lost-race binary test fail, restore.
+Chain unit `cli-git-chain-1804` (logs `~/temp/agent/b1804-{clippy,host,bin}.log`) is running; do not edit `src/native`
+while it runs. Still owed: command_push unit tests for `stackable_option_tokens`, container gate, podman harness rerun,
+README section, release, mutation campaign (non-blocking).
+Not stacked by design: no single-flight lock for explicit pushes (the remote arbitrates; the loop is bounded at 10).
+Verification 2026-10-29 (all on the committed tree): clippy clean; host suite 1959 of 1960 and binary suite 159 of 160
+(only the two known host-only markdown-linter failures); container gate 2121 passed, 5 skipped, 0 failed
+(`~/temp/agent/m1804-container.log`). Guard proof: with `stack_if_push` disabled the lost-race and conflict binary tests
+fail; the refused-merge test was strengthened because it passed trivially. Podman rerun
+(`~/temp/agent/podman-1804-fixed/repro.log`, binary built from this tree): the explicit push from a detached worktree
+published the merge and left HEAD alone; the differently named upstream auto-pushes and reconciles. One harness artifact:
+after a rebase made the local HEAD equal to a remote ancestor, the later push was correctly left as rejected.
+Release 0.2.11 committed as `a302d5ee8c` (the fuzz crate's `=0.2.10` pin now needs the bump too, so a release is four
+files); publish run 40847281021. The earlier `cargo-publish` push run 40845758673 for `4fc48e3bb1` failed: not mine,
+check whether 0.2.10 reached crates.io.
+Release 0.2.11 outcome: publish run 40847281021 succeeded; crates.io shows 0.2.11 (09:09 UTC) and 0.2.10 (08:28 UTC), so
+the failed run 40845758673 did not stop 0.2.10. The released Linux archive passed the podman harness
+(`~/temp/agent/podman-1804-released/repro.log`): stacked explicit push exit 0 from a detached worktree, tracked-ref
+auto-push reconciled. Comment posted on issue 1804; the issue stays open for the auto-push policy decision below.
+Correction (checked 05:20): `toolchain.lock.json` was briefly modified and uncommitted (wrapper 0.2.10 to 0.2.11 and an
+unrelated pnpm 1.11.1 to 1.11.2); another session committed it as `536631ce75` (`chore(toolchain): install git-policy-cli
+0.2.11`, 05:13) and the file is clean now. The host's `~/.cargo/bin/cli-git-native` was replaced at 05:11 and its sha256
+(`ed951186...`) equals the released 0.2.11 archive binary, so the host runs 0.2.11. I did not run `toolchain:sync`;
+the earlier note here that the host was older was true at 04:30 only.
+Mutation campaign attempt 1 (unit `cli-git-mut-m1804`, 05:2x) produced no result: all four unmutated baselines failed on
+a different timing-sensitive test each (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`
+and `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed` hit the 5-second bound;
+`owner_lock::tests::a_bounded_wait_takes_a_free_lock_and_one_freed_in_time` and `a_slow_wait_sends_one_slow_notice`)
+while the host load average was about 28. The container gate had passed 2121 of 2121 earlier, so this is load flakiness,
+not a regression. Attempt 2 reruns the same four files; logs `~/temp/agent/m1804-mutation-<file>.log`. Do not edit
+`src/native` while it runs.
+Queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).

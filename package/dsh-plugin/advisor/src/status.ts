@@ -4,7 +4,6 @@
 
 import {
   buildAdvisorSystemPrompt,
-  filterAdvisorScopeByOutputCapacity,
   maxContextCharsForAdvisorModel,
   selectAdvisorModel,
   type AdvisorConfig,
@@ -102,14 +101,6 @@ export async function buildDshAdvisorStatus(
     errorPrefix: 'advisor',
   },);
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = filterAdvisorScopeByOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: options.config
-      .maxAdvisorOutputTokens,
-  },);
-  /**
    Current main model to avoid for default selection, when configured.
    */
   const currentMainModel = (options.mainProvider === undefined)
@@ -122,12 +113,12 @@ export async function buildDshAdvisorStatus(
   /**
    Empty-context default ranking for status display.
    */
-  const defaultSelection = eligibleScope.entries
+  const defaultSelection = scope.entries
     .length
     === 0
     ? undefined
     : selectAdvisorModel({
-      scope: eligibleScope,
+      scope,
       config: options.config,
       estimatedInputTokens: 0,
       modelRegistry: options.catalog,
@@ -198,12 +189,14 @@ export async function buildDshAdvisorStatus(
               .defaultReviewerModel);
       },);
   /**
-   Eligible slugs whose output capacity is unknown and therefore eligible by
-   the shared fallback rule.
+   Scoped slugs whose output capacity is unknown; requests to them carry the
+   configured budget unclamped.
    */
-  const capacityUnknownSlugs = eligibleScope
+  const capacityUnknownSlugs = scope
     .entries
-    .filter(function hasUnknownCapacity(entry,) {
+    .filter(function hasUnknownCapacity(
+      entry: ForeignBorrowed<ScopedAdvisorModel>,
+    ) {
       return options
         .catalog
         .factsBySlug
@@ -211,7 +204,9 @@ export async function buildDshAdvisorStatus(
         ?.outputCapacityUnknown
         === true;
     },)
-    .map(function readSlug(entry,) {
+    .map(function readSlug(
+      entry: ForeignBorrowed<ScopedAdvisorModel>,
+    ) {
       return entry.canonicalSlug;
     },);
 
@@ -247,21 +242,10 @@ export async function buildDshAdvisorStatus(
         return entry.canonicalSlug;
       },)
         .join(', ',)}`,
-    `Eligible Advisor models (>=${
+    `Advisor request budget: ${
       String(options.config
         .maxAdvisorOutputTokens,)
-    } output tokens): ${eligibleScope.entries
-      .length
-      === 0
-      ? 'none'
-      : eligibleScope
-        .entries
-        .map(function mapEligibleEntry(
-          entry: ForeignBorrowed<ScopedAdvisorModel>,
-        ) {
-        return entry.canonicalSlug;
-      },)
-        .join(', ',)}`,
+    } output tokens, clamped to each route's advertised maximum`,
     `Output capacity unknown: ${capacityUnknownSlugs.length === 0
       ? 'none'
       : capacityUnknownSlugs.join(', ',)}`,

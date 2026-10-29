@@ -4,10 +4,11 @@
 
  @example
  ```ts
- import { createRegistry, fetchTextWithUserAgent, spawnCargo, updateRustLockfiles, } from '@monochromatic-dev/dev-script-rust-catalog-update';
+ import { cargoToolchain, createRegistry, createSpawnCargo, fetchTextWithUserAgent, updateRustLockfiles, } from '@monochromatic-dev/dev-script-rust-catalog-update';
 
  const registry = createRegistry({ root: process.cwd(), fetchText: fetchTextWithUserAgent, });
- await updateRustLockfiles({ root: process.cwd(), dryRun: true, now: Date.now(), runCargo: spawnCargo, registry, });
+ const runCargo = createSpawnCargo({ toolchain: await cargoToolchain({ root: process.cwd(), explicit: process.env.RUSTUP_TOOLCHAIN ?? '', }), });
+ await updateRustLockfiles({ root: process.cwd(), dryRun: true, now: Date.now(), runCargo, registry, });
  ```
 
  @packageDocumentation
@@ -16,6 +17,7 @@
 export {
   type CargoOutcome,
   CargoResolveError,
+  createSpawnCargo,
   excludedUpdateSpecs,
   publishTimeCutoff,
   resolveCrate,
@@ -61,6 +63,7 @@ export {
   fetchTextWithUserAgent,
   HISTORY_CACHE_DIR,
   parseIndexPubtimes,
+  parseOwnerIds,
   parseVersionHistory,
   type Registry,
   RegistryError,
@@ -74,6 +77,10 @@ export {
   parseSelector,
   pruneSelectors,
 } from './selectors.ts';
+export {
+  cargoToolchain,
+  rustToolchainFromLock,
+} from './toolchain.ts';
 export {
   type UpdateReport,
   updateRustLockfiles,

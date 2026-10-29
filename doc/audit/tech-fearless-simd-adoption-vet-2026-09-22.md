@@ -1,5 +1,11 @@
 # Fearless SIMD adoption vet
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/forbidden-regex.bench` is now `package/forbidden-strings/core.bench`;
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`.
+
 - Status: in progress; no adoption recommendation or score.
 - Lifecycle phase: targeted evidence, not validated.
 - Subject: `fearless_simd` adoption for existing Rust packages in this monorepo.

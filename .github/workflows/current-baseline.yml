@@ -27,7 +27,7 @@ jobs:
           task-run //package/module/logger:build
           task-run //package/module/p-map-fork:build
           task-run //package/module/toml-edit:build
-          task-run //package/cli/forbidden-strings:build
+          task-run //package/forbidden-strings/cli:build
           task-run //package/linter/monochromatic-lint:build
       - name: Unit fast subset
         if: steps.build.outcome == 'success'
@@ -35,5 +35,5 @@ jobs:
           task-run //package/module/logger:test:unit
           task-run //package/module/p-map-fork:test:unit
           task-run //package/module/toml-edit:test:unit
-          task-run //package/cli/forbidden-strings:test
+          task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test

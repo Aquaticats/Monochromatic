@@ -656,7 +656,7 @@ so each component is a directory of sibling modules.
    `lint:clippy`,
    `lint:rust` via `monochromatic-rust-linter`,
    and `test` as `cargo nextest run --release`
-   (`package/cli/forbidden-strings/mise.toml`, verified);
+   (`package/forbidden-strings/cli/mise.toml`, verified);
    `cargo-nextest` is a root tool (`mise.no-env.toml:105`, verified).
 - Release precedent:
    `.github/workflows/cargo-publish.yml` has per-crate job sets.

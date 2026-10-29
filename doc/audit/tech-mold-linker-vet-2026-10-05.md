@@ -1,5 +1,11 @@
 # Mold linker vet report
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`.
+
 Status:
 complete;
 recommendation stated: the incumbent finalist (keep rust-lld, no product change);

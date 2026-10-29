@@ -202,8 +202,8 @@ $ sudo ip netns delete wgq-fib
 
 ### Translate only the exact occupancy-probe response
 
-`package/cli/wg-quicker/src/tunnel-table-diagnostic.ts:9-12` records both exact family diagnostics.
-`package/cli/wg-quicker/src/tunnel-table-diagnostic.ts:34-46` treats a result as absence only when:
+`package/wg/cli-quicker/src/tunnel-table-diagnostic.ts:9-12` records both exact family diagnostics.
+`package/wg/cli-quicker/src/tunnel-table-diagnostic.ts:34-46` treats a result as absence only when:
 
 - exit status is exactly `2`;
 - stderr after terminal whitespace removal equals the selected family's two-line diagnostic.

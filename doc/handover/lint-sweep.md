@@ -1,5 +1,13 @@
 # Lint sweep handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/fy` is now `package/fy/cli`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 STATUS:
  COMPLETE (2026-05-26).
  All 84 active packages pass `:lint` (oxlint + types) with zero warnings/errors,

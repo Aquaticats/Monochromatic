@@ -18,7 +18,16 @@ minimumReleaseAgeExcludePrune = true
 minimumReleaseAgeIgnoreMissingTime = false
 minimumReleaseAgeStrict = true
 trustPolicy = "no-downgrade"
-trustPolicyExclude = []
+# Reviewed and approved by the owner on 2026-10-29 (issue #1806): first releases by publishers who are
+# listed crate owners or publish through the owning team.
+trustPolicyExclude = [
+  "fontique@0.12.0",
+  "parley@0.12.0",
+  "parley_data@0.12.0",
+  "parley_engine@0.12.0",
+  "smallvec@1.16.4",
+  "wayland-server@0.31.14",
+]
 trustPolicyExcludePrune = true
 
 [catalog]

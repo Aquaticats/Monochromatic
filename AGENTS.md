@@ -341,6 +341,8 @@ OPT:
  then "Ranking:
  B > A > C,
  because ..." giving the reason for every adjacent pair.
+ Score capability for the target workload,
+ never fidelity to incumbents.
 
 OPA:
  `AskUserQuestion`:

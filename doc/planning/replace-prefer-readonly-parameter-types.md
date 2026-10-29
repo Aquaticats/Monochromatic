@@ -686,10 +686,10 @@ when the complete reachable value
   `package/module/dom`,
   `package/module/test`,
   `package/module/jsonc-edit`,
-  `package/cli/mutation-test`,
+  `package/mutation-test/cli`,
   `package/dev-script/catalog-tighten`,
   `package/agent-harness-shared/terminal-title`,
-  `package/cli/git-clone-size`,
+  `package/git-clone-size/cli`,
   `package/pi-shared/model-selection`,
   `package/pi-plugin/advisor`,
   `package/pi-plugin/auto-mode`,
@@ -699,8 +699,8 @@ when the complete reachable value
   `package/pi-plugin/thinking-default`,
   `package/agent-harness-shared/session-discovery`,
   `package/typeface/aquaticat`,
-  `package/cli/android-exempt-unused`,
-  `package/cli/terminal-exec`,
+  `package/android-exempt-unused/cli`,
+  `package/terminal-exec/cli`,
   and `package/webapp-productivity/wc` now pass package Oxlint under replacement rule with one JavaScript-plugin worker.
 
 Final root semantic,
@@ -742,7 +742,7 @@ Verified package tasks:
 - `mise run //package/module/test:lint:types`;
 - `mise run //package/module/test:lint:oxlint`;
 - `mise run //package/module/test:buildAndTest`;
-- `mise run //package/cli/mutation-test:buildAndTest`;
+- `mise run //package/mutation-test/cli:buildAndTest`;
 - `mise run //package/module/jsonc-edit:buildAndTest`;
 - `mise run //package/git-policy/cli:build`;
 - `mise run //package/git-policy/cli:test:unit`;

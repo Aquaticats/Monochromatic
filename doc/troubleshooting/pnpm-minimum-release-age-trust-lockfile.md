@@ -44,7 +44,7 @@ The current install still checks the lockfile identity and active policy before 
 pnpm 11.15.1 also rejected an intentionally adopted dependency during fresh resolution:
 
 ```console
-$ pnpm install --filter @monochromatic-dev/cli-wg-allowedips --lockfile=false --ignore-scripts
+$ pnpm install --filter @monochromatic-dev/wg-cli-allowedips --lockfile=false --ignore-scripts
 [ERR_PNPM_NO_MATURE_MATCHING_VERSION] 2 versions do not meet the minimumReleaseAge constraint:
   cidr-tools@12.1.3 ...
   ip-bigint@9.0.7 ...

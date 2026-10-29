@@ -3,7 +3,7 @@
 ## Symptom
 
 This is a **source-established integration constraint**, not a reproduced compiler error or a discovered upstream bug.
-`package/rust-module/forbidden-regex/src/dfa/sheng.rs` and `sheng2.rs` gate their fast paths on
+`package/forbidden-strings/core/src/dfa/sheng.rs` and `sheng2.rs` gate their fast paths on
 AVX-512F, AVX-512BW, and AVX-512VBMI.
 Replacing that guard with `fearless_simd::Level::new().as_avx512()` would require a larger CPU feature set
 and therefore cannot preserve fast-path eligibility on every CPU admitted by the current guard.
@@ -16,7 +16,7 @@ Source examined at the `fearless_simd-v1.0.0` tag,
 commit `dcbd824a897a098ec0124c088f971ac6d890d0cd`, on 2026-09-22.
 
 1.  The consuming Sheng entry checks only the three features
-    (`package/rust-module/forbidden-regex/src/dfa/sheng.rs:226-240`):
+    (`package/forbidden-strings/core/src/dfa/sheng.rs:226-240`):
 
     ```rust
     if is_x86_feature_detected!("avx512vbmi")
@@ -70,7 +70,7 @@ commit `dcbd824a897a098ec0124c088f971ac6d890d0cd`, on 2026-09-22.
   The published 1.0 crates.io archive checksum was not verified in this source-only assessment.
 - **Source catalog, works:** the incumbent's narrow three-feature guard selects its existing
   `#[target_feature(enable = "avx512f,avx512bw,avx512vbmi")]` function
-  (`package/rust-module/forbidden-regex/src/dfa/sheng.rs:281-302`).
+  (`package/forbidden-strings/core/src/dfa/sheng.rs:281-302`).
   Upstream `fearless_simd/src/generated/simd_types.rs:7990-8001` provides
   `u8x64<S>` construction for any valid token,
   while `src/generated/avx512.rs:17687-17700` converts it to `__m512i` for any `S: Simd`.
@@ -113,7 +113,7 @@ Two **source-supported approaches, pending compilation and correctness tests**, 
   Upstream `fearless_simd/src/generated/simd_trait.rs:9652-9654` and
   `src/generated/avx512.rs:17687-17700` expose these pieces;
   the consumer's table elements are `[u8; 64]` in
-  `package/rust-module/forbidden-regex/src/dfa/sheng.rs:99-117`.
+  `package/forbidden-strings/core/src/dfa/sheng.rs:99-117`.
   Tradeoff: only raw-pointer load obligations move into the dependency;
   the target-feature call remains and emitted loads may differ.
 

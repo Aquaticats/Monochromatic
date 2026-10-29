@@ -70,7 +70,9 @@ export function registryVersions(sources: readonly string[],): readonly LockedVe
   const byKey = new Map<string, LockedVersion>();
   for (const source of sources) {
     for (const locked of parseCargoLock(source,)
-      .filter(isRegistryPackage,)) {
+      .filter(function isRegistry(entry: LockedPackage,): boolean {
+        return isRegistryPackage(entry,);
+      },)) {
       /**
        Version without the fields the checks do not read.
        */

@@ -164,7 +164,7 @@ Pattern:
 
 Measured:
  15 sites across 8 files,
-11 of them in `package/cli/wg-quicker-exempt`.
+11 of them in `package/wg/cli-quicker-exempt`.
 C998 is the cluster,
 dismissed as boilerplate-trivial.
 
@@ -172,7 +172,7 @@ Design:
  start inside the package that holds 11 of the 15 sites.
 
 ```rust
-// package/cli/wg-quicker-exempt/src/error.rs
+// package/wg/cli-quicker-exempt/src/error.rs
 /// One place deciding which `ErrorKind` a failure carries, so the mapping is a
 /// reviewable table instead of 11 independent choices.
 pub(crate) fn invalidInput(message: impl Into<String>) -> std::io::Error {
@@ -381,7 +381,7 @@ and call one kernel or fall back.
 
 Measured:
  8 units sharing 67 of 68 tokens in
-`package/rust-module/forbidden-regex/src/regex/batch.rs`,
+`package/forbidden-strings/core/src/regex/batch.rs`,
 differing only in the kernel name.
 C604 is the cluster,
 whose recorded rationale describes the kernels in `dfa/sheng.rs` and `dfa/sheng2.rs`

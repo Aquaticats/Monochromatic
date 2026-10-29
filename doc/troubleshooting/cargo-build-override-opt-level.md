@@ -6,14 +6,14 @@ even though the release profile asks for `opt-level = 3`.
 
 ## Symptom
 
-`mise run //package/cli/forbidden-strings:build` (`cargo build --release`)
+`mise run //package/forbidden-strings/cli:build` (`cargo build --release`)
 took about seven minutes on a 16-core machine,
 almost all of it in `forbidden-strings`' `build.rs`,
 which compiles the embedded 259-rule baseline through the `forbidden-regex` build-dependency
-(`package/cli/forbidden-strings/build.rs:89`).
+(`package/forbidden-strings/cli/build.rs:89`).
 Nothing in the output says the build script is unoptimized:
 the `Finished` line reads `` `release` profile [optimized] ``,
-and the release profile in `package/cli/forbidden-strings/Cargo.toml` sets `opt-level = 3`.
+and the release profile in `package/forbidden-strings/cli/Cargo.toml` sets `opt-level = 3`.
 
 In `cargo build --verbose` output,
 the runtime `forbidden_regex` unit carries `-C opt-level=3`,
@@ -111,7 +111,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-forbidden-regex = { path = "/var/home/user/Monochromatic/package/rust-module/forbidden-regex" }
+forbidden-regex = { path = "/var/home/user/Monochromatic/package/forbidden-strings/core" }
 
 [profile.buildemu]
 inherits = "release"
@@ -141,19 +141,19 @@ codegen-units = 256
 use forbidden_regex::RegexSet;
 use std::time::Instant;
 
-#[path = "/var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/frx/error.rs"]
+#[path = "/var/home/user/Monochromatic/package/forbidden-strings/cli/src/rule/frx/error.rs"]
 mod error;
-#[path = "/var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/frx/escape.rs"]
+#[path = "/var/home/user/Monochromatic/package/forbidden-strings/cli/src/rule/frx/escape.rs"]
 mod escape;
-#[path = "/var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/frx/format.rs"]
+#[path = "/var/home/user/Monochromatic/package/forbidden-strings/cli/src/rule/frx/format.rs"]
 mod format;
-#[path = "/var/home/user/Monochromatic/package/cli/forbidden-strings/src/rule/frx/sections.rs"]
+#[path = "/var/home/user/Monochromatic/package/forbidden-strings/cli/src/rule/frx/sections.rs"]
 mod sections;
 
 fn main() {
     let mode = std::env::args().nth(1).expect("mode: whole | each");
     let text = std::fs::read_to_string(
-        "/var/home/user/Monochromatic/package/cli/forbidden-strings/data/builtin-rules.txt",
+        "/var/home/user/Monochromatic/package/forbidden-strings/cli/data/builtin-rules.txt",
     )
     .expect("read rules");
     let rules = format::parse_rules(&text).unwrap_or_else(|e| panic!("parse: {e}"));
@@ -239,7 +239,7 @@ SHA-256 `d5cdce69254b5fc2f546fe69dc2522dd9da1a9451cad92226b2d71f2920bbd2f`.
 ### End-to-end clean builds
 
 Each build used a fresh `CARGO_TARGET_DIR`
-and `mise run //package/cli/forbidden-strings:build -- --timings --verbose`.
+and `mise run //package/forbidden-strings/cli:build -- --timings --verbose`.
 
 - before (`9b3c13a82`: no build-override, one-at-a-time engine): 7m 01s total, build script run 400.07s
 - after (`f515ed927` plus later comment and documentation commits;
@@ -251,7 +251,7 @@ and `mise run //package/cli/forbidden-strings:build -- --timings --verbose`.
 ### Set `build-override` in the workspace root manifest
 
 ```toml
-# package/cli/forbidden-strings/Cargo.toml
+# package/forbidden-strings/cli/Cargo.toml
 [profile.release.build-override]
 opt-level = 3
 
@@ -260,7 +260,7 @@ opt-level = 3
 ```
 
 The dev override matters because `cargo check`, clippy, `cargo nextest`, and debug builds all run the build script.
-`package/cli/forbidden-strings.fuzz/Cargo.toml` repeats both tables,
+`package/forbidden-strings/cli.fuzz/Cargo.toml` repeats both tables,
 because it is its own workspace root and Cargo ignores the scanner manifest's profiles there.
 
 Tradeoffs:

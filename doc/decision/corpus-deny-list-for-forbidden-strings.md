@@ -107,7 +107,7 @@ and `build.rs` already uses it,
 compiling the ported baseline once at build time into `OUT_DIR/builtin-rules-precompiled.bin`.
 
 BUT THE PRECOMPILED SLOT IS NOT REACHABLE FOR USER RULES.
-`package/cli/forbidden-strings/src/frx_load.rs` states the split in its own module note:
+`package/forbidden-strings/cli/src/frx_load.rs` states the split in its own module note:
 the runtime rules file is "compiled from text at startup via `compile_from_text`",
 while the builtin baseline is "embedded as a precompiled serialized `RegexSet`
 and rebuilt via `load_precompiled` (never recompiled), active only under `--builtin-rules`".
@@ -135,5 +135,5 @@ so it could write `.cache/forbidden-strings.rules.bin` beside it,
 and the scanner could prefer the serialized set when it is newer than the text.
 That turns two minutes per commit into two minutes per rule change,
 which is what the design assumed all along.
-Filed rather than built: it is a change to `package/cli/forbidden-strings`,
+Filed rather than built: it is a change to `package/forbidden-strings/cli`,
 not to the package this work owns.

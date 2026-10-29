@@ -131,7 +131,7 @@ That encoding is injective,
 
 ### Why the functional harness failed after kernel recovery
 
-`package/cli/wg-quicker-exempt/src/main.rs:72-82` selects real pins when attachment succeeds and enters
+`package/wg/cli-quicker-exempt/src/main.rs:72-82` selects real pins when attachment succeeds and enters
 keeper fallback only for typed object-pin failure:
 
 ```rust
@@ -146,7 +146,7 @@ match pin::attach_cgroup(mark, cgroup) {
 
 Fallback-specific tests previously relied on host kernel producing that error.
 Successful pinning on kernel `7.2.0-ogc6.1.fc44.x86_64` therefore left no keeper state for assertions such as
-`package/cli/wg-quicker-exempt/src/pin_tests.rs:609-617`:
+`package/wg/cli-quicker-exempt/src/pin_tests.rs:609-617`:
 
 ```rust
 run_cli(&["attach", "8888", cgroup])?;
@@ -159,7 +159,7 @@ let output = Command::new(cli_binary()?)
 An independent path assumption also failed first.
 Current Rust test executable was under `target/debug/build/.../out`,
 not directly under `target/debug/deps`.
-`package/cli/wg-quicker-exempt/src/pin_tests.rs:54-73` now walks test executable ancestors until it finds actual
+`package/wg/cli-quicker-exempt/src/pin_tests.rs:54-73` now walks test executable ancestors until it finds actual
 `debug/wg-quicker-exempt`:
 
 ```rust
@@ -200,9 +200,9 @@ Reproduce the object-pin failure with a disposable cgroup:
 cgroup=/sys/fs/cgroup/wgq-pin-repro
 sudo mkdir -- "$cgroup"
 sudo strace --trace=bpf \
-  package/cli/wg-quicker-exempt/target/debug/wg-quicker-exempt \
+  package/wg/cli-quicker-exempt/target/debug/wg-quicker-exempt \
   attach 8888 "$cgroup"
-sudo package/cli/wg-quicker-exempt/target/debug/wg-quicker-exempt \
+sudo package/wg/cli-quicker-exempt/target/debug/wg-quicker-exempt \
   detach "$cgroup" || true
 sudo rmdir -- "$cgroup"
 ```
@@ -234,12 +234,12 @@ Working catalog:
 Current complete harness is:
 
 ```sh
-mise run //package/cli/wg-quicker-exempt:buildAndTest
-mise run //package/cli/wg-quicker-exempt:test:functional
+mise run //package/wg/cli-quicker-exempt:buildAndTest
+mise run //package/wg/cli-quicker-exempt:test:functional
 ```
 
 Fallback-specific debug functional invocations inject typed object-pin failure at
-`package/cli/wg-quicker-exempt/src/pin.rs:302-306`:
+`package/wg/cli-quicker-exempt/src/pin.rs:302-306`:
 
 ```rust
 #[cfg(debug_assertions)]

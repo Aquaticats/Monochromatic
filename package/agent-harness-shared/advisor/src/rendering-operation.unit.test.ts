@@ -39,4 +39,20 @@ await describe({ name: '', children: [
     const expanded = renderAdvisorOperationSummary({ details, text: 'Review first line\nReview second line', expanded: true, theme, },);
     expect(expanded,).toContain('Review second line',);
   }, },),
+  it({ name: 'summary surfaces the configured-reviewer selection reason', fn: async (): Promise<void> => {
+    const details = { operation: {
+      attempts: [{ model: 'q/b', attempt: 1, state: 'succeeded' }],
+      reviews: [{ model: 'q/b' }], usageIncomplete: false, end: 'stop',
+    }, defaultSelectionReason: 'Initial selection: defaultReviewerModel "missing/reviewer" did not resolve among scoped models, so the default ranking applies', };
+    const result = renderAdvisorOperationSummary({ details, text: 'Review text', expanded: false, theme, },);
+    expect(result,).toContain('defaultReviewerModel "missing/reviewer" did not resolve among scoped models',);
+  }, },),
+  it({ name: 'summary omits the selection line without a default selection', fn: async (): Promise<void> => {
+    const details = { operation: {
+      attempts: [{ model: 'q/b', attempt: 1, state: 'succeeded' }],
+      reviews: [{ model: 'q/b' }], usageIncomplete: false, end: 'stop',
+    } };
+    const result = renderAdvisorOperationSummary({ details, text: 'Review text', expanded: false, theme, },);
+    expect(result,).not.toContain('Initial selection',);
+  }, },),
 ], },);

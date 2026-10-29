@@ -49,7 +49,7 @@ The scanner has no notion of a file that is exempt from scanning,
  so it reads its own rule file as ordinary
 content.
  Stated in the tool's own README,
- `package/cli/forbidden-strings/README.md:95`:
+ `package/forbidden-strings/cli/README.md:95`:
 
 ```md
 - **Per-rule path scoping**.
@@ -67,7 +67,7 @@ The policy is registered without any path exclusion,
     'security/forbidden-strings': [
       'error',
       {
-        executable: './package/cli/forbidden-strings/target/release/forbidden-strings',
+        executable: './package/forbidden-strings/cli/target/release/forbidden-strings',
         builtinRules: true,
       },
     ],
@@ -97,7 +97,7 @@ that the reported line number pointed at existing content.
 Version under test:
  `forbidden-strings 0.3.0`,
  built at
-`package/cli/forbidden-strings/target/release/forbidden-strings`.
+`package/forbidden-strings/cli/target/release/forbidden-strings`.
 
 Harness,
  run against a disposable directory rather than the repository:
@@ -109,12 +109,12 @@ printf 'const Oxc[C]omment = 1;\n' > "$D/hit-one.ts"
 printf 'const ParsedComment = 3;\n' > "$D/clean.ts"
 for f in hit-one clean; do
   printf '%-12s ' "$f"
-  ./package/cli/forbidden-strings/target/release/forbidden-strings \
+  ./package/forbidden-strings/cli/target/release/forbidden-strings \
     --rules "$D/rules.txt" "$D/$f.ts" > /dev/null 2>&1 \
     && echo "exit 0 (no violation)" || echo "exit 1 (violation)"
 done
 printf '%-12s ' "appendix"
-./package/cli/forbidden-strings/target/release/forbidden-strings \
+./package/forbidden-strings/cli/target/release/forbidden-strings \
   --rules "$D/rules.txt" forbidden-strings.append.txt > /dev/null 2>&1 \
   && echo "exit 0 (no violation)" || echo "exit 1 (violation)"
 rm --recursive --force "$D"
@@ -193,7 +193,7 @@ sections have the same exposure the moment that file is scanned.
 
 ## Upstream filing decision
 
-`forbidden-strings` is a repository-owned package under `package/cli/forbidden-strings`,
+`forbidden-strings` is a repository-owned package under `package/forbidden-strings/cli`,
  not third-party,
  so the
 six-constraint upstream check does not apply and there is nothing to file on an external tracker.

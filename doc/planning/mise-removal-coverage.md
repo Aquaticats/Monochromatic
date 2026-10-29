@@ -553,9 +553,52 @@ where the Buck2 sandbox footnote is also corrected:
 The ranking is refrozen with per-pair justifications and flip conditions;
 the contract question follows over every candidate.
 
-Parity gate:
- preserve package namespaces,
-partial invocation,
+Update 2026-10-29 (scoring axis correction):
+ the user rejected parity with the current status quo
+ as the scoring axis
+ ("Parity with the current status quo is poor scoring axis.
+Assume we're fine with huge huge refactors and everything."),
+ so [`task-slice-comparison.md`](task-slice-comparison.md)
+ is rescored on intrinsic capability for the slice job.
+Migration and shape cost
+ (renames,
+ label grammar,
+ body syntax,
+ adapters,
+ codegen,
+ stubs)
+ score nothing
+ and are recorded as implementation notes.
+The task-slice gate below is reframed
+ from "preserve X"
+ to the capability the runner must deliver.
+The acceptance-boundary behaviors
+ in `package/dev-script/task-util/src/build-and-test.unit.test.ts`
+ stay requirements.
+This reframe is scoped to the task slice;
+ the other slices in this document keep their own gates.
+
+Update 2026-10-29 (contract answer):
+ the user chose Pants 2.33.1
+ as the task-slice owner,
+ and chose the `OPT` tightening
+ ("Score capability for the target workload,
+ never fidelity to incumbents."),
+ commit `3b928a1db5`.
+The reopened vet for Pants
+ opens at
+ [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md);
+ adoption waits on that vet
+ and on explicit acceptance,
+ which unlocks the `doc/decision/` record
+ and the migration of 1,811 task names,
+ 603 edges,
+ and the `//package/<path>:<task>` call sites.
+
+Capability catalog:
+ address one task of one package,
+exact dependency edges,
+safe task bodies,
 paths containing spaces,
 sequential and parallel groups,
 missing optional package builds,
@@ -799,7 +842,7 @@ Evidence:
 `.idea/misc.xml`,
 `package/config/dotfiles/`,
 `package/dev-script/vm-builder/Containerfile`,
-and `package/cli/mutation-test/runtime/Containerfile`.
+and `package/mutation-test/cli/runtime/Containerfile`.
 
 Proposed owner:
  selected tool provisioner paths or stable project-local wrappers.

@@ -21,6 +21,20 @@ import { pruneSelectors, } from './selectors.ts';
 //region Prune
 
 /**
+ One exclude setting before and after pruning.
+
+ @example
+ ```ts
+ const change: SelectorChange = { key: 'trustPolicyExclude', before: ['gone',], after: [], };
+ ```
+ */
+type SelectorChange = {
+  readonly key: 'minimumReleaseAgeExclude' | 'trustPolicyExclude';
+  readonly before: readonly string[];
+  readonly after: readonly string[];
+};
+
+/**
  Exclude settings that can be pruned, with the flag that enables each.
  */
 const PRUNABLE = [
@@ -69,14 +83,16 @@ export function pruneExcludes(
   /**
    Locked `name@version` keys.
    */
-  const lockedKeys = new Set(locked.map(versionKey,),);
+  const lockedKeys = new Set(locked.map(function toKey(entry: LockedVersion,): string {
+    return versionKey(entry,);
+  },),);
   /**
    Settings whose selectors change.
    */
   const changes = PRUNABLE.filter(function isEnabled(prunable,): boolean {
     return settings[prunable.flag];
   },)
-    .map(function prune(prunable,) {
+    .map(function prune(prunable,): SelectorChange {
       /**
        Current selectors.
        */
@@ -94,7 +110,7 @@ export function pruneExcludes(
         after,
       };
     },)
-    .filter(function changed(change,): boolean {
+    .filter(function changed(change: SelectorChange,): boolean {
       return change.before
         .join('\u0000',)
         !== change.after
@@ -110,9 +126,9 @@ export function pruneExcludes(
    */
   const edit = changes.reduce(
     function apply(
-      state,
-      change,
-    ) {
+      state: ReturnType<typeof parseTomlEdit>,
+      change: SelectorChange,
+    ): ReturnType<typeof parseTomlEdit> {
       return tomlSet({
         edit: state,
         path: [change.key,],
@@ -123,7 +139,7 @@ export function pruneExcludes(
   );
   return {
     source: tomlStringify({ edit, },),
-    removed: changes.flatMap(function removedOf(change,): readonly string[] {
+    removed: changes.flatMap(function removedOf(change: SelectorChange,): readonly string[] {
       return change.before
         .filter(function isGone(selector: string,): boolean {
           return !change.after

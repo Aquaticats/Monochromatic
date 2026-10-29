@@ -1,5 +1,11 @@
 # OCR GitHub Issue adapter handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/open-code-review-issue` is now `package/open-code-review-issue/cli`;
+> `@monochromatic-dev/cli-open-code-review-issue` is now `@monochromatic-dev/open-code-review-issue-cli`.
+
 ## Status
 
 The local adapter is implemented at `package/cli/open-code-review-issue`.

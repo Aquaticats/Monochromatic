@@ -197,7 +197,7 @@ or by dispatching `cargo-publish.yml` with **dry-run** unchecked.
    `doc/planning/monorepo-manager-from-scratch-design.md`,
    under "Managed file editing".
    This port does not silently change that decision.
-- `package/rust-module/forbidden-regex/Cargo.toml` is a standalone,
+- `package/forbidden-strings/core/Cargo.toml` is a standalone,
    published Rust-library precedent,
    while `.github/workflows/cargo-publish.yml` currently handles only the named crates in its dispatch and push paths.
 - `mise exec rust -- cargo info jsonc-edit` and the same probe for `monochromatic-jsonc-edit` both reported

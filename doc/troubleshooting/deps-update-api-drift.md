@@ -33,7 +33,7 @@ The full sweep recorded 2026-10-20 in
 found 213 packages carrying a `lint:types` task,
 with 170 passing and 43 failing;
 of the failures,
-one was real API drift (`package/cli/unused-export`),
+one was real API drift (`package/mutation-test/cli-unused-export`),
 38 were missing-or-stale-`dist` build-class failures,
 and 4 were commented-out tasks matched by accident.
 
@@ -141,7 +141,7 @@ their `lint:types` tasks are the downstream signal.
 
 ### Symptom
 
-`mise run //package/cli/unused-export:lint:types` failed
+`mise run //package/mutation-test/cli-unused-export:lint:types` failed
 with `tsc` reporting `TS2339` three times
 (measured at pre-fix `b710410e81`):
 
@@ -156,7 +156,7 @@ src/find-unused.ts(174,20): error TS2339: Property 'referencesOf' does not exist
 Installed `yuku-analyzer` `0.19.0` renamed three members,
 and its installed declarations decide the current names
 (`yuku-analyzer/index.d.ts`,
-reachable as `package/cli/unused-export/node_modules/yuku-analyzer/index.d.ts`).
+reachable as `package/mutation-test/cli-unused-export/node_modules/yuku-analyzer/index.d.ts`).
 `Analyzer.addFile` became `Analyzer.setFile` (`:143`),
 project-wide reference search moved from the analyzer onto the binding
 (`Binding.findReferences` at `:256`),
@@ -186,7 +186,7 @@ interface Diagnostic {
 ### Fix
 
 Commit `ea2812babc` rewrites the three call sites in
-`package/cli/unused-export/src/find-unused.ts`:
+`package/mutation-test/cli-unused-export/src/find-unused.ts`:
 `analyzer.setFile(...)` replaces `analyzer.addFile(...)`,
 the debug line prints `diagnostic.path`,
 and `local.findReferences()` replaces `analyzer.referencesOf(local)`.
@@ -203,7 +203,7 @@ After any `yuku-analyzer` or `yuku-*` bump run:
 
 ```sh
 # Repository root
-mise run //package/cli/unused-export:lint:types
+mise run //package/mutation-test/cli-unused-export:lint:types
 ```
 
 `TS2339` naming `Analyzer`,
@@ -211,7 +211,7 @@ mise run //package/cli/unused-export:lint:types
 or `Diagnostic` members
 means the API renamed again;
 diff `yuku-analyzer/index.d.ts` and `@yuku-toolchain/types/index.d.ts`
-against `package/cli/unused-export/src/find-unused.ts`.
+against `package/mutation-test/cli-unused-export/src/find-unused.ts`.
 
 ## Pi-ai 1.3.0 shipped the 2026-10-15 model catalog
 
@@ -336,7 +336,7 @@ mise run //package/pi-plugin/advisor:lint:types
 mise run //package/agent-harness-shared/shell-command-analyzer:lint:types
 mise run //package/pi-plugin/current-time-context:lint:types
 mise run //package/pi-plugin/terminal-title:lint:types
-mise run //package/cli/unused-export:lint:types
+mise run //package/mutation-test/cli-unused-export:lint:types
 mise run //package/pi-plugin/model-retirement:test:unit
 ```
 

@@ -15,7 +15,7 @@
 
 /// The reconcile of a push that a moved remote branch rejected, and the lines it adds to the output.
 use super::auto_push_reconcile::{
-    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, reconcile_divergent_push,
+    RECONCILE_FAILED_PREFIX, RECONCILE_LINE_PREFIX, named_destination_push, reconcile_divergent_push,
 };
 /// The single-flight coordinator, its Git command builder and its error type.
 use super::auto_push_single_flight::{
@@ -308,7 +308,19 @@ pub fn auto_push(
             joined: false,
         });
     };
-    let push_arguments = if has_upstream {
+    let named: Option<Vec<String>> = if has_upstream {
+        named_destination_push(git, &branch_ref)?
+    } else {
+        None
+    };
+    let named_arguments: Vec<&str> = named
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    let push_arguments: &[&str] = if !named_arguments.is_empty() {
+        named_arguments.as_slice()
+    } else if has_upstream {
         UPSTREAM_PUSH_ARGUMENTS
     } else {
         FIRST_PUSH_ARGUMENTS

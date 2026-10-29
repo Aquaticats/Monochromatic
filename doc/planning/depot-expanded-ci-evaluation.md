@@ -970,7 +970,7 @@ matcher and p-map failures need explicit dispositions before required-check adop
 #### Rust, Kotlin and native prerequisites
 
 Use package Nextest owners,
-including `//package/cli/forbidden-strings:test`
+including `//package/forbidden-strings/cli:test`
 and `//package/music-player/truepeak-core:test`,
 with default build/test concurrency and the owner-declared feature/profile flags.
 Bind case identity to its binary and package context.

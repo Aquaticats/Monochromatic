@@ -159,7 +159,7 @@ cgroups and cover future per-window scopes dynamically.
   marker to the configured cgroups;
   `down` removes the rule.
    Marker binary is built from
-  `package/cli/wg-quicker-exempt` (Rust,
+  `package/wg/cli-quicker-exempt` (Rust,
    raw bpf syscalls,
    pins links under
   `/sys/fs/bpf/wg-quicker-exempt/`).
@@ -184,8 +184,8 @@ sets the mark map,
 
 ## Package
 
-- `@monochromatic-dev/cli-wg-quicker`,
-   dir `package/cli/wg-quicker` (SGD).
+- `@monochromatic-dev/wg-cli-quicker`,
+   dir `package/wg/cli-quicker` (SGD).
 - Mirrors `wg-allowedips` scaffolding:
    rolldown node build,
    module-logger,

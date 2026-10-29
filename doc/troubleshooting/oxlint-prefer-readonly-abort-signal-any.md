@@ -121,7 +121,7 @@ Run the focused checks:
 ```sh
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node
 mise run //package/oxlint-plugin/prefer-readonly-parameter-type:test:unit
-mise run //package/cli/git-clone-size:lint:oxlint
+mise run //package/git-clone-size/cli:lint:oxlint
 ```
 
 ### Patterns that now work
@@ -130,7 +130,7 @@ mise run //package/cli/git-clone-size:lint:oxlint
 - Exact `AbortSignal.timeout` resolves to the same owner with no caller-owned effect target.
 - Exact `TaskSignal.any` cannot match the `AbortSignal` entry merely because both use an anonymous inline type.
 - Package-local anonymous `const` fixtures retain owner `__type` and existing package catalog identities.
-- `package/cli/git-clone-size/src/stream.ts` declares the dependency mutation on `options.signal`,
+- `package/git-clone-size/cli/src/stream.ts` declares the dependency mutation on `options.signal`,
   and its exported `estimate` boundary propagates that optional accurate contract.
 
 ### Patterns that fail closed

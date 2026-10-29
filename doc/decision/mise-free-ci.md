@@ -81,7 +81,7 @@ where `/usr/local/bin` does not exist.
 - Local: `task-run //package/module/logger:build`,
   `//package/module/logger:test:unit`, `//package/module/toml-edit:build`,
   `//package/module/toml-edit:test:unit`, `//package/module/p-map-fork:build`,
-  `//package/cli/forbidden-strings:build` and
+  `//package/forbidden-strings/cli:build` and
   `//package/linter/monochromatic-lint:build` all pass through the CLI on the
   developer machine.
 - Remote (Namespace `nsc` ephemeral instance, Wolfi base): after `apk add

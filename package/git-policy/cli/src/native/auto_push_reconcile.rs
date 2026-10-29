@@ -52,11 +52,11 @@ const REMOTE_REJECTED_MARKER: &str = "[remote rejected]";
 /// type Destination = { remote: string; mergeRef: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct Destination {
+pub struct Destination {
     /// Remote name from `branch.<name>.remote`.
-    remote: String,
+    pub remote: String,
     /// Full ref from `branch.<name>.merge`, for example `refs/heads/main`.
-    merge_ref: String,
+    pub merge_ref: String,
 }
 
 /// What:
@@ -82,10 +82,10 @@ pub fn was_rejected_as_stale(output: &str) -> bool {
 /// ```ts
 /// { exitCode: 1, output: `${previous}\n${RECONCILE_FAILED_PREFIX}${reason}` }
 /// ```
-fn unpublished(previous: &str, exit_code: i64, reason: &str) -> PushAttempt {
+fn unpublished(failed_prefix: &str, previous: &str, exit_code: i64, reason: &str) -> PushAttempt {
     return PushAttempt {
         exit_code: if exit_code == 0 { 1 } else { exit_code },
-        output: format!("{previous}\n{RECONCILE_FAILED_PREFIX}{reason}"),
+        output: format!("{previous}\n{failed_prefix}{reason}"),
     };
 }
 
@@ -195,6 +195,35 @@ fn read_destination(
         remote: push_remote,
         merge_ref: target,
     }));
+}
+
+/// What:
+///  The arguments of a push that names its destination, when the plain `git push` of this branch cannot.
+/// Why:
+///   Under `push.default=simple` Git refuses to push a branch whose upstream has another name (a linked worktree
+///  branch created from `origin/main` is the usual case) before it contacts the remote, so no reconcile can start.
+///  The destination `read_destination` resolves is exactly where the person tracked the branch, so the push names it.
+///  A branch whose destination has its own name needs no such push, and nothing is returned for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function namedDestinationPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// ```
+pub fn named_destination_push(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<Vec<String>>, SingleFlightError> {
+    let Some(destination) = read_destination(git, branch_ref)? else {
+        return Ok(None);
+    };
+    if destination.merge_ref == branch_ref {
+        return Ok(None);
+    }
+    return Ok(Some(vec![
+        String::from("push"),
+        destination.remote,
+        format!("{branch_ref}:{}", destination.merge_ref),
+    ]));
 }
 
 /// What:
@@ -464,13 +493,97 @@ pub fn reconcile_divergent_push(
         git,
         &argv(&["rev-parse", "--verify", &format!("{branch_ref}^{{commit}}")]),
     )?;
+    let plan = Reconcile {
+        destination,
+        local,
+        branch_ref: Some(branch_ref),
+        label: "auto-push",
+        explicit: false,
+    };
+    let mut push_merge = |target: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let arguments = argv(&[
+            "push",
+            &target.remote,
+            &format!("{merge_oid}:{}", target.merge_ref),
+        ]);
+        let mut command = git_command(git, &arguments);
+        apply_low_speed_defaults(&mut command, &git.environment);
+        return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE);
+    };
+    return Ok(match integrate_and_push(git, &plan, rejected, &mut push_merge)? {
+        Integrated::NotDivergent(attempt) | Integrated::Finished(attempt) => attempt,
+    });
+}
+
+/// What:
+///  What one reconcile run integrates, where, and how it words and limits itself.
+///  `Option<&str>` is "the branch, or nothing for a detached HEAD".
+/// Why:
+///   Auto-push and an explicit push share the loop; they differ in the line prefix they print, in whether the branch
+///  follows the published merge, and in how much of a failure they keep quiet about.
+///   An explicit push already printed Git's own refusal, so a remote that cannot be fetched, a remote that did not
+///  diverge, and a failure that is not a stale update are left exactly as the push reported them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reconcile = { destination: Destination; local: string; branchRef?: string; label: string; explicit: boolean };
+/// ```
+pub struct Reconcile<'a> {
+    /// The remote and the ref the rejected push updated.
+    pub destination: Destination,
+    /// The commit the rejected push sent.
+    pub local: String,
+    /// The branch that follows the published merge when it can, or nothing for a detached HEAD.
+    pub branch_ref: Option<&'a str>,
+    /// The word after `cli-git:` in every line the run adds.
+    pub label: &'a str,
+    /// Whether the rejected push was typed by a person and has already shown its own output.
+    pub explicit: bool,
+}
+
+/// How a reconcile run ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Integrated = { kind: 'not-divergent'; attempt } | { kind: 'finished'; attempt };
+/// ```
+pub enum Integrated {
+    /// The remote did not diverge, or the run could not tell; the rejected attempt stands as it was.
+    NotDivergent(PushAttempt),
+    /// The run published the merge, or says why it did not.
+    Finished(PushAttempt),
+}
+
+/// What:
+///  Merge the remote tip into the pushed commit and publish the result, a bounded number of times.
+/// Why:
+///   Another worktree advancing the remote makes the plain push fail for good, while both histories are valid and
+///  must both be kept; the merge is published as a new commit above the local tip, so the landed commit stays
+///  reachable and nothing is forced.
+///   `push_merge` publishes one merge, and is told the destination and the merge commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function integrateAndPush({ git, plan, rejected, pushMerge }): Promise<Integrated>;
+/// ```
+pub fn integrate_and_push(
+    git: &PushGit,
+    plan: &Reconcile<'_>,
+    rejected: PushAttempt,
+    push_merge: &mut dyn FnMut(&Destination, &str) -> Result<PushAttempt, SingleFlightError>,
+) -> Result<Integrated, SingleFlightError> {
+    let destination = plan.destination.clone();
+    let local = plan.local.clone();
+    let label = plan.label;
+    let line_prefix = format!("cli-git: {label}: ");
+    let failed_prefix = format!("{line_prefix}not published: ");
     let short = destination
         .merge_ref
         .strip_prefix("refs/heads/")
         .unwrap_or(&destination.merge_ref)
         .to_owned();
     let message = format!(
-        "Merge {}/{short} into {short}\n\nCreated by cli-git auto-push because {}/{short} advanced after the commit landed.",
+        "Merge {}/{short} into {short}\n\nCreated by cli-git {label} because {}/{short} advanced after the commit landed.",
         destination.remote, destination.remote
     );
     let mut previous = rejected.output.clone();
@@ -481,14 +594,22 @@ pub fn reconcile_divergent_push(
         let remote_tip = match fetch_remote_tip(git, &destination)? {
             Ok(tip) => tip,
             Err(failed) => {
-                return Ok(unpublished(
+                if plan.explicit && refused_against.is_none() {
+                    debug(
+                        TAG,
+                        "the remote could not be fetched after an explicit push failed; its own report stands",
+                    );
+                    return Ok(Integrated::NotDivergent(rejected));
+                }
+                return Ok(Integrated::Finished(unpublished(
+                    &failed_prefix,
                     &format!("{previous}\n{}", failed.output),
                     failed.exit_code,
                     &format!(
                         "{}/{short} has commits this branch lacks, and fetching them failed; nothing was pushed and the worktree was not touched.",
                         destination.remote
                     ),
-                ));
+                )));
             }
         };
         if let Some((tip, refusal)) = refused_against.take()
@@ -498,7 +619,7 @@ pub fn reconcile_divergent_push(
                 TAG,
                 "the remote did not move after it refused the merge; the refusal is final",
             );
-            return Ok(refusal);
+            return Ok(Integrated::Finished(refusal));
         }
         match (
             is_ancestor(git, &remote_tip, &local)?,
@@ -509,30 +630,42 @@ pub fn reconcile_divergent_push(
                     TAG,
                     "the remote tip is behind the branch; the rejection was not a divergence",
                 );
-                return Ok(rejected);
+                return Ok(Integrated::NotDivergent(rejected));
+            }
+            (_, Some(true)) if plan.explicit => {
+                debug(
+                    TAG,
+                    "the remote already contains the pushed commit; the explicit push failed for another reason",
+                );
+                return Ok(Integrated::NotDivergent(rejected));
             }
             (_, Some(true)) => {
-                return Ok(PushAttempt {
+                return Ok(Integrated::Finished(PushAttempt {
                     exit_code: 0,
                     output: format!(
-                        "{RECONCILE_LINE_PREFIX}{}/{short} already contains {local}; nothing to push.",
+                        "{line_prefix}{}/{short} already contains {local}; nothing to push.",
                         destination.remote
                     ),
-                });
+                }));
             }
             (Some(false), Some(false)) => {}
             _ => {
-                return Ok(unpublished(
+                if plan.explicit {
+                    return Ok(Integrated::NotDivergent(rejected));
+                }
+                return Ok(Integrated::Finished(unpublished(
+                    &failed_prefix,
                     &previous,
                     rejected.exit_code,
                     "Git could not relate the branch to the remote tip; nothing was pushed and the worktree was not touched.",
-                ));
+                )));
             }
         }
         let merge_oid = match commit_merge(git, &local, &remote_tip, &message)? {
             Ok(oid) => oid,
             Err(paths) => {
-                return Ok(unpublished(
+                return Ok(Integrated::Finished(unpublished(
+                    &failed_prefix,
                     &previous,
                     rejected.exit_code,
                     &format!(
@@ -542,7 +675,7 @@ pub fn reconcile_divergent_push(
                         paths.join(", "),
                         destination.remote
                     ),
-                ));
+                )));
             }
         };
         debug(
@@ -551,19 +684,19 @@ pub fn reconcile_divergent_push(
                 "attempt {attempt}: pushing the merge {merge_oid} of {local} and {remote_tip}"
             ),
         );
-        let arguments = argv(&[
-            "push",
-            &destination.remote,
-            &format!("{merge_oid}:{}", destination.merge_ref),
-        ]);
-        let mut command = git_command(git, &arguments);
-        apply_low_speed_defaults(&mut command, &git.environment);
-        let pushed = run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE)?;
+        let pushed = push_merge(&destination, &merge_oid)?;
         if pushed.exit_code == 0 {
-            let branch = branch_ref
-                .strip_prefix("refs/heads/")
-                .unwrap_or(branch_ref);
-            let followed = match advance_local_branch(git, branch_ref, &local, &merge_oid)? {
+            let branch = plan
+                .branch_ref
+                .map(|reference| {
+                    return reference.strip_prefix("refs/heads/").unwrap_or(reference);
+                })
+                .unwrap_or("HEAD");
+            let advanced = match plan.branch_ref {
+                Some(branch_ref) => advance_local_branch(git, branch_ref, &local, &merge_oid)?,
+                None => Err(String::from("HEAD is detached")),
+            };
+            let followed = match advanced {
                 Ok(false) => format!("{branch} and the worktree were fast-forwarded to it."),
                 Ok(true) => format!(
                     "{branch} and the worktree were fast-forwarded to it; your uncommitted changes were left as they are."
@@ -577,24 +710,25 @@ pub fn reconcile_divergent_push(
                     )
                 }
             };
-            return Ok(PushAttempt {
+            return Ok(Integrated::Finished(PushAttempt {
                 exit_code: 0,
                 output: format!(
-                    "{}\n{RECONCILE_LINE_PREFIX}{}/{short} had new commits, so the merge {merge_oid} of {branch} and {}/{short} \
+                    "{}\n{line_prefix}{}/{short} had new commits, so the merge {merge_oid} of {branch} and {}/{short} \
                      was published. {followed}",
                     pushed.output, destination.remote, destination.remote
                 )
                 .trim_start_matches('\n')
                 .to_owned(),
-            });
+            }));
         }
-        if !was_rejected_as_stale(&pushed.output) {
-            return Ok(pushed);
+        if !plan.explicit && !was_rejected_as_stale(&pushed.output) {
+            return Ok(Integrated::Finished(pushed));
         }
         previous = pushed.output.clone();
         refused_against = Some((remote_tip, pushed));
     }
-    return Ok(unpublished(
+    return Ok(Integrated::Finished(unpublished(
+        &failed_prefix,
         &previous,
         rejected.exit_code,
         &format!(
@@ -602,7 +736,7 @@ pub fn reconcile_divergent_push(
              Push again when the remote is quiet.",
             destination.remote
         ),
-    ));
+    )));
 }
 
 /// Reconcile behavior is controlled in the test module.

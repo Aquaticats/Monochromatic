@@ -8,8 +8,8 @@ Status:
  not yet enacted;
  implementation starts on explicit request.
 
-Migrate `package/cli/forbidden-strings` off resharp and the `regex` crate
-onto the in-house engine at `package/rust-module/forbidden-regex`.
+Migrate `package/forbidden-strings/cli` off resharp and the `regex` crate
+onto the in-house engine at `package/forbidden-strings/core`.
 
 ## Motivation
 
@@ -17,11 +17,11 @@ onto the in-house engine at `package/rust-module/forbidden-regex`.
   `gix-hash`,
   and `gix-index` as pre-1.0 `0.x` dependency exposure;
   the engine swap removes the largest of the three.
-- `package/rust-module/forbidden-regex/README.md` states the engine
+- `package/forbidden-strings/core/README.md` states the engine
   "exists to power the `forbidden-strings` secret scanner";
   its `RegexSet` internally owns literal gating and prefiltering,
   duplicating what `scan.rs` builds today with aho-corasick shards.
-- `package/rust-module/forbidden-regex.bench` measures the engine ahead of the
+- `package/forbidden-strings/core.bench` measures the engine ahead of the
   `regex` crate on the scanner's common case
   (mostly-non-matching,
    code-like lines).
@@ -48,7 +48,7 @@ Rejected alternatives:
 `data/builtin-rules.txt` and the append files are rewritten once into the
 restricted dialect,
  scripted from the porter in
-`package/rust-module/forbidden-regex.bench/src/{port,normalize}.rs`
+`package/forbidden-strings/core.bench/src/{port,normalize}.rs`
 with a human-reviewed diff.
 After migration the loader hard-errors on any rule outside the dialect
 (fail-closed).
@@ -121,7 +121,7 @@ Publish-readiness audit (measured 2026-07-16):
   221 run,
    221 passed,
    1 skipped
-  (`mise run //package/rust-module/forbidden-regex:test`).
+  (`mise run //package/forbidden-strings/core:test`).
 - `lint:rust` (max-lines,
    require-rustdoc) passes.
 - Clippy fails:
@@ -195,11 +195,11 @@ This is an engine API work item that lands before the scanner rewrite.
   (audited 2026-07-16),
   which the sentinel test still covers.
 - Fuzz:
-  scanner-level targets in `package/cli/forbidden-strings.fuzz` are retargeted;
+  scanner-level targets in `package/forbidden-strings/cli.fuzz` are retargeted;
   gate/shard/dispatch targets die with the machinery they fuzz;
   the literal-roundtrip target grows adversarial verbose-mode escaping cases
   (literal-to-dialect escaping is a syntax-boundary transformer);
-  engine-level fuzzing stays in `package/rust-module/forbidden-regex.fuzz`.
+  engine-level fuzzing stays in `package/forbidden-strings/core.fuzz`.
 - Cutover validation:
   a one-shot differential run of the 0.1.9 binary against the new binary
   over the repo corpus with the real rule files;

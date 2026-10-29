@@ -107,6 +107,7 @@ pub(super) fn stopped(action: Action) -> String {
         Action::Forward { .. } => panic!("expected a stop action, got {action:?}"),
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
     }
 }
 
@@ -233,6 +234,7 @@ fn inspection_commands_are_forwarded_without_wrapper_controls() {
             }
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
         }
     }
     remove(root.as_path());
@@ -285,6 +287,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
         Action::Forward { .. } => panic!("the management namespace is never forwarded"),
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
     }
     // The global prefix reaches the direct command: it selects the repository whose file is read.
     resolution.path = OsString::from("/usr/bin");
@@ -311,6 +314,7 @@ fn management_namespace_is_answered_by_the_wrapper() {
         Action::Forward { .. } => panic!("the management namespace is never forwarded"),
         Action::ForwardCoordinated { .. } => panic!("a coordinated forward is not expected in this control"),
         Action::ForwardSettled { .. } => panic!("a settled forward is not expected in this control"),
+        Action::ForwardPush { .. } => panic!("a stacked push is not expected in this control"),
     }
     remove(root.as_path());
 }

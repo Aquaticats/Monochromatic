@@ -164,9 +164,9 @@ Provision the worktree before the subagent's first commit:
 
 ```sh
 # doc/troubleshooting/claude-code-worktree-create-hook-no-path.md
-mkdir --parents .claude/worktrees/<name>/package/cli/forbidden-strings/target/release
-cp --reflink=auto --preserve=mode package/cli/forbidden-strings/target/release/forbidden-strings \
-  .claude/worktrees/<name>/package/cli/forbidden-strings/target/release/forbidden-strings
+mkdir --parents .claude/worktrees/<name>/package/forbidden-strings/cli/target/release
+cp --reflink=auto --preserve=mode package/forbidden-strings/cli/target/release/forbidden-strings \
+  .claude/worktrees/<name>/package/forbidden-strings/cli/target/release/forbidden-strings
 cd -- /var/home/user/Monochromatic/.claude/worktrees/<name> && mise run prepare:pnpm:install
 ```
 
@@ -228,7 +228,7 @@ A read-only probe inside it reported:
 - root `.claude/worktrees/agent-<id>` on branch `worktree-agent-<id>`;
 - `HEAD` at `origin/main` (`aa5f9d2bc`) while local `main` was at `8cd4e9721`,
   so unpushed local commits are absent from an isolated worktree;
-- no `node_modules` and no `package/cli/forbidden-strings/target/release/forbidden-strings`,
+- no `node_modules` and no `package/forbidden-strings/cli/target/release/forbidden-strings`,
   so its first commit would hit the scanner failure described under "Verified workarounds" until provisioned;
 - a clean status: the main checkout's uncommitted files are not carried over.
 
@@ -247,7 +247,7 @@ On 2026-10-05 the user chose to set both Claude Code `worktree` settings and tes
   "worktree": {
     "baseRef": "head",
     "symlinkDirectories": [
-      "package/cli/forbidden-strings/target"
+      "package/forbidden-strings/cli/target"
     ]
   }
 ```
@@ -273,7 +273,7 @@ the read-only probe under "Fix applied" had started from `origin/main`.
 
 ### A symlinked root `node_modules` fails and is unsafe
 
-The first probe ran with `node_modules` and `package/cli/forbidden-strings/target` both listed.
+The first probe ran with `node_modules` and `package/forbidden-strings/cli/target` both listed.
 Both appeared in the worktree as symbolic links into the main checkout,
 and the scanner executable resolved through its link.
 The first commit still failed in the `git add` step with a policy event.
@@ -304,7 +304,7 @@ so an isolated agent would import the main checkout's package sources instead of
 The second probe ran with the settings shown under "Worktree settings chosen and tested".
 
 - `node_modules` did not exist;
-  `package/cli/forbidden-strings/target` was a link into the main checkout.
+  `package/forbidden-strings/cli/target` was a link into the main checkout.
 - `mise run prepare:pnpm:install` succeeded with no trust prompt in 15.5 seconds
   (pnpm reported 13.3 seconds).
   It reused 604 packages from the content-addressable store,
@@ -316,7 +316,7 @@ The second probe ran with the settings shown under "Worktree settings chosen and
 ### Side effects
 
 - The link is untracked and not ignored:
-  `git status --short` prints `?? package/cli/forbidden-strings/target`.
+  `git status --short` prints `?? package/forbidden-strings/cli/target`.
   `.gitignore:54` is `target/`,
   and the `gitignore` manual says a pattern `foo/`
   "will not match a regular file or a symbolic link foo".
@@ -335,7 +335,7 @@ Cleanup order used for the second probe, from the main checkout:
 
 ```sh
 # doc/troubleshooting/claude-code-worktree-create-hook-no-path.md
-unlink .claude/worktrees/agent-<id>/package/cli/forbidden-strings/target
+unlink .claude/worktrees/agent-<id>/package/forbidden-strings/cli/target
 git worktree remove .claude/worktrees/agent-<id>
 git branch --delete --force worktree-agent-<id>
 git push origin --delete worktree-agent-<id>
@@ -349,7 +349,7 @@ The scanner executable in the main checkout was still present afterwards.
 ### The refusal that blocked one probe step
 
 In the first probe,
-`ls -d package/git-policy/cli/node_modules package/cli/mvm/node_modules 2>&1` was refused before it ran:
+`ls -d package/git-policy/cli/node_modules package/mvm/cli/node_modules 2>&1` was refused before it ran:
 
 ```text
 This agent is isolated in the worktree /var/home/user/Monochromatic/.claude/worktrees/agent-a096a5b013ff39b97, but this command feeds node text naming git in a plain command, which cannot be shown to stay inside the worktree. Refusing to run it — a worktree-isolated agent's git operations must target its own worktree. Run the plain command from /var/home/user/Monochromatic/.claude/worktrees/agent-a096a5b013ff39b97.

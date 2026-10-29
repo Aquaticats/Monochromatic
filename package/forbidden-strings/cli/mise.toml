@@ -1,0 +1,125 @@
+[tasks."verify:evidence"]
+description = "Reconcile retained source manifests with current compiled inputs without hiding mismatches"
+run = "node bin/verify-evidence.mjs"
+
+[tasks."verify:markdown"]
+description = "Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline"
+run = "node bin/render-docs.mjs"
+
+[tasks."dependencies:fetch"]
+description = "Fetch the existing locked dependency archives before offline container verification"
+run = "cargo fetch --locked"
+
+[tasks."lint:clippy:container"]
+description = "Run all-target/all-feature Clippy with warnings denied in the bounded offline scanner snapshot"
+run = "node bin/test-container.mjs --clippy"
+
+[tasks."test:release:container"]
+description = "Verify the actual release scanner and all-feature embedding consumers inside the bounded snapshot"
+run = "node bin/test-container.mjs --release"
+
+[tasks."test:guards:observe:container"]
+description = "Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults"
+run = "node bin/observe-guards-container.mjs"
+
+[tasks."test:guards:container"]
+description = "Prove real executable and public-loader panic guards with passing and disabled disposable variants"
+run = "node bin/guard-container.mjs"
+
+[tasks."test:mutation:startup:container"]
+description = "Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes"
+run = "node bin/mutate-container.mjs --startup"
+
+[tasks."test:mutation:pathname:container"]
+description = "Mutate only pathname normalization, prefix counting and component masking with the full all-feature baseline and complete retained outcomes"
+run = "node bin/mutate-container.mjs --pathname"
+
+[tasks."test:mutation:container"]
+description = "Mutation-test embedding owners in a bounded mount-free snapshot, retaining every outcome"
+run = "node bin/mutate-container.mjs"
+
+[tasks."test:container"]
+description = "Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container"
+run = "node bin/test-container.mjs"
+
+[tasks.build]
+description = "Build the forbidden-strings binary in release mode"
+run = "cargo build --release"
+
+[tasks."build:debug"]
+description = "Build the forbidden-strings binary in debug mode"
+run = "cargo build"
+
+[tasks."generate:rules"]
+description = "Regenerate the embedded data/builtin-rules.txt baseline from the vendored betterleaks config (two-stage: TS porter, then dialectport)"
+run = [
+  "node src/mise.port-betterleaks.ts",
+  "cargo run --release --manifest-path ../../forbidden-strings/core.bench/Cargo.toml --bin dialectport",
+]
+
+[tasks.lint]
+description = "cargo check (no codegen)"
+run = "cargo check"
+
+[tasks."lint:fuzzing"]
+description = "cargo check with the fuzzing feature (type-checks the fuzz_api surface the sidecar consumes)"
+# The production `lint`/`lint:clippy` tasks build with `fuzzing` off, so the
+# `#[cfg(feature = \"fuzzing\")]` re-exports in `src/fuzz_api.rs` (and the helpers they
+# reach: `escape_literal`, `load_from_text`) go untype-checked there. This task is the
+# fast local check for that surface; the fuzz sidecar's `build` is the full integration.
+run = "cargo check --features fuzzing"
+
+[tasks."lint:clippy"]
+description = "Run clippy over the lib, bins, tests, and benches"
+run = "cargo clippy --release --all-targets -- --deny warnings"
+
+[tasks."lint:clippy:windows"]
+description = "Type-check and lint every target, including Windows-only test code, for x86_64-pc-windows-gnu with warnings denied"
+# Clippy only checks, so no Windows linker or MinGW is needed; the host toolchain needs
+# `rustup target add x86_64-pc-windows-gnu`. This catches Windows compile errors that the
+# Linux gates cannot see, but runs no test: native behavior still needs a Windows run.
+run = "cargo clippy --locked --all-targets --all-features --target x86_64-pc-windows-gnu -- --deny warnings"
+
+[tasks."format:clippy"]
+description = "Apply clippy's machine-applicable suggestions in place"
+run = "cargo clippy --fix --allow-dirty --allow-staged"
+
+[tasks.package]
+description = "Build the crates.io package tarball"
+run = "cargo package"
+
+[tasks.publish]
+description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing + SLSA build provenance attestation); use this task only when CI cannot."
+run = "cargo publish"
+
+[tasks.test]
+description = "cargo nextest run"
+run = "cargo nextest run --release"
+
+[tasks."scan:all"]
+description = "Scan the complete repository with the release forbidden-strings binary"
+depends = ["build"]
+shell = "node --input-type=module-typescript -e"
+run = """
+const { spawn } = await import('node:child_process')
+const { once } = await import('node:events')
+// No --rules flag: the root mise [env] exports FORBIDDEN_STRINGS_RULES
+// pointing at the file-enforcer composed .cache rules file (the retired
+// root forbidden-strings.local.txt no longer exists). --builtin-rules
+// mirrors how the commit gate and CI invoke the scanner.
+const child = spawn(
+  './package/forbidden-strings/cli/target/release/forbidden-strings',
+  ['--builtin-rules', '--all'],
+  { cwd: '../../..', stdio: 'inherit' },
+)
+await once(child, 'exit')
+if (child.exitCode !== 0) throw new Error(`forbidden-strings exited ${String(child.exitCode)}`)
+"""
+
+# Fuzzing lives in the sibling config root at package/forbidden-strings/cli.fuzz so a
+# scoped nightly toolchain does not force this published crate onto nightly.
+# Run targets via `mise run //package/forbidden-strings/cli.fuzz:build` etc.
+
+[tasks."lock:members"]
+description = "Record a changed version of a path dependency in this lockfile without moving any other locked version"
+run = "cargo update --offline --workspace"

@@ -37,6 +37,11 @@ export type CreateDshAdvisorRunContextOptions = {
    Agent model id paired with `mainProvider`.
    */
   readonly mainModel?: string;
+  /**
+   Display name of the agent model, letting default avoidance recognize the
+   same model served on another provider route.
+   */
+  readonly mainModelName?: string;
 };
 
 //endregion Types
@@ -82,6 +87,9 @@ export function createDshAdvisorRunContext(
         model: {
           provider: options.mainProvider,
           id: options.mainModel,
+          ...(options.mainModelName === undefined
+            ? {}
+            : { name: options.mainModelName, }),
         },
       }),
   };

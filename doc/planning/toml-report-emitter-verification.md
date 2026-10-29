@@ -1,7 +1,7 @@
 # Verify report emitters before choosing artifact paths
 
 The TOML continuation initially retained private shard JSON without copying the native CLI's default final report.
-The frozen `package/cli/mutation-test/src/cli.ts` writes `mutation-report.json` beside its current directory
+The frozen `package/mutation-test/cli/src/cli.ts` writes `mutation-report.json` beside its current directory
 after orchestration completes.
 The [TOML audit](../audit/depot-toml-reconciliation-2026-10-17.md)
 records the separate default-report capture and source-preserving recovery bridge.

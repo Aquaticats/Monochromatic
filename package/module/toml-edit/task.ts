@@ -31,7 +31,7 @@ export default {
       shell: 'node --input-type=module-typescript -e',
       run: `
 const args = parseUsageArgs(process.env.usage_args ?? '')
-runWorkspaceNode('package/cli/mutation-test', 'cli', ['--package', 'package/module/toml-edit', '--full-suite', ...args])
+runWorkspaceNode('package/mutation-test/cli', 'cli', ['--package', 'package/module/toml-edit', '--full-suite', ...args])
 `,
     },
   },

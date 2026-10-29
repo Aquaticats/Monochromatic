@@ -1,5 +1,10 @@
 # Monorepo manager discovery: web and repository
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Run date: 2026-09-16.
 Scope: monorepo managers that run arbitrary command tasks across workspace packages,
 plus components with a persistent watch or daemon process and an inspection RPC, IPC, or HTTP API.

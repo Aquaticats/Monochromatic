@@ -1,5 +1,12 @@
 # Depot trial interview
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/rust-module/forbidden-regex.fuzz` is now `package/forbidden-strings/core.fuzz`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 ## Published research and accepted first interview round on 2026-10-18
 
 Research tip `64d814b21cae7399270cfcc244ad98c78aa905ec` is published through the isolated merge worktree.
@@ -2471,7 +2478,6 @@ The configured dprint Markdown plugin is disabled,
 so dprint verification covers JSON artifacts only;
 Markdown is checked by monochromatic-lint and CommonMark rendering.
 
-
 The [host consumer evidence](../audit/depot-coherent-host-consumers-2026-10-17.evidence.json)
 retains every observed nextest identity,
 source failures,
@@ -2497,7 +2503,6 @@ The separate macOS API and artifact transport incidents are open as `#1175` and 
 Private verifier record-classification repairs are filed and closed as `#1177`.
 Source trace and executed historical-log retrieval are in
 [the transport troubleshooting record](../troubleshooting/github-actions-native-macos-provenance-transports.md).
-
 
 The four case manifests now have complete static registrations with `completeGraph: true`.
 Their 24 committed copies are byte-identical across six isolated harnesses.

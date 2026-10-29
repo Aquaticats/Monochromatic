@@ -1,5 +1,10 @@
 # `mvm` on a host whose libvirt lives only in the virt-manager Flatpak
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mvm` is now `package/mvm/cli`.
+
 ## Purpose and state
 
 The repository's VM tool `mvm` (`package/cli/mvm`) could not reach libvirt on this machine,

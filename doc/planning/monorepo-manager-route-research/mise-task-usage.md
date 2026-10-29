@@ -836,19 +836,19 @@ Verified (task dump,
 and 15 of them run a native toolchain the glob cannot reach:
 
 ```text
-//package/cli/forbidden-strings:test            cargo nextest run --release
+//package/forbidden-strings/cli:test            cargo nextest run --release
 //package/cli/nested-wayland-session:test       cargo nextest run
 //package/desktop-app/file-manager:test         cargo nextest run --release
 //package/desktop-app/file-manager-gtk-sticky:test
 //package/desktop-app/file-manager-qt:test
 //package/desktop-app/terminal:test
-//package/cli/forbidden-strings.fuzz:test           cargo nextest run --lib --release
+//package/forbidden-strings/cli.fuzz:test           cargo nextest run --lib --release
 //package/linter/kotlin:test                    ./gradlew test --no-daemon --console=plain
 //package/linter/rust:test
 //package/music-player/desktop-app:test
 //package/music-player/truepeak-core:test
 //package/rust-linter-plugin/builtin:test
-//package/rust-module/forbidden-regex:test
+//package/forbidden-strings/core:test
 //package/rust-module/rust-linter-core:test
 //package/rust-module/rust-linter-pattern:test
 ```
@@ -897,7 +897,7 @@ Verified (`overrides.ts`):
 Nothing marks the divergence in either direction.
 
 The consequence is not theoretical.
-Verified (`package/cli/wg-quicker-exempt/mise.toml:21-23`):
+Verified (`package/wg/cli-quicker-exempt/mise.toml:21-23`):
 
 ```toml
 [tasks."test:unit"]
@@ -1078,7 +1078,7 @@ Verified (`:1664-1694`):
 the markers are the paired meta-arguments
 `overridden = true` on the base and `override = true` on the specialization,
 "validated as a pair".
-`package/cli/wg-quicker-exempt:test:unit` running `cargo test`
+`package/wg/cli-quicker-exempt:test:unit` running `cargo test`
 becomes a marked override of a marked-overridable base,
 or an error.
 The dead `extends` at

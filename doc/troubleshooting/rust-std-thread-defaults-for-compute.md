@@ -2,7 +2,7 @@
 
 Two `std::thread` defaults surfaced
 when `forbidden-regex` moved `RegexSet::new` rule construction onto worker threads
-(`package/rust-module/forbidden-regex/src/parallel.rs`).
+(`package/forbidden-strings/core/src/parallel.rs`).
 Both are documented behavior, not bugs,
 but each one silently regresses a library that adopts threads naively.
 
@@ -19,7 +19,7 @@ a single-pattern `RegexSet::compile_lenient` got slower even though one pattern 
 - after caching the core count in a `OnceLock`: 45.6 microseconds per call
 
 `forbidden-strings` validates each user rule with a one-element `RegexSet::new` call
-(`package/cli/forbidden-strings/src/rule/frx.rs:111`),
+(`package/forbidden-strings/cli/src/rule/frx.rs:111`),
 so the uncached lookup would have added its cost once per rule.
 
 ### Stack overflow on deeply nested patterns in spawned threads
@@ -151,7 +151,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-forbidden-regex = { path = "/var/home/user/Monochromatic/package/rust-module/forbidden-regex" }
+forbidden-regex = { path = "/var/home/user/Monochromatic/package/forbidden-strings/core" }
 
 [profile.release]
 opt-level = 3
@@ -238,7 +238,7 @@ Measured alternately in one session to share the noise band:
 ### Cache the core count once per process
 
 ```rust
-// package/rust-module/forbidden-regex/src/parallel.rs
+// package/forbidden-strings/core/src/parallel.rs
 static CORE_COUNT: OnceLock<usize> = OnceLock::new();
 
 fn core_count() -> usize {
@@ -254,7 +254,7 @@ That is the exact staleness the std docs chose not to accept by default.
 ### Give compute workers an explicit stack size
 
 ```rust
-// package/rust-module/forbidden-regex/src/parallel.rs
+// package/forbidden-strings/core/src/parallel.rs
 let spawned = thread::Builder::new()
     .stack_size(WORKER_STACK_BYTES)
     .spawn_scoped(scope, || return drain(patterns, stop_on_error, next, first_error));

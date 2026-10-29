@@ -8,7 +8,7 @@ Accepted.
 
 ## Context
 
-`package/cli/forbidden-strings` is a deny-list scanner that mixes a custom
+`package/forbidden-strings/cli` is a deny-list scanner that mixes a custom
 regex prefix extractor,
  Aho-Corasick gates,
  a hybrid `regex` + `resharp`
@@ -48,7 +48,7 @@ code they fuzzed,
  serialize,
  and `line_matches`
 paths) moved to the engine's own sidecar at
-`package/rust-module/forbidden-regex.fuzz` and is not duplicated here.
+`package/forbidden-strings/core.fuzz` and is not duplicated here.
 
 ## Decision
 

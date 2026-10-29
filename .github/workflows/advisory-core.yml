@@ -89,6 +89,41 @@ jobs:
         uses: ./.github/actions/task-cli-setup
       - name: Prepare dependencies
         run: task-run prepare:pnpm
+      # Rust dependency catalog (doc/decision/rust-dependency-catalog.md): prepare:pnpm has just run the
+      # file-enforcer sync (`node file-enforcer.config.ts`), so any change it made to a crate manifest or to
+      # rust-catalog.toml means the committed files drifted from what the sync renders, the counterpart of
+      # the JS `pnpm install --frozen-lockfile` gate. (`file-enforcer --check` here would compare against
+      # the files the sync just rewrote, so it could never fail.)
+      - name: Rust catalog drift
+        id: rust_catalog_drift
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code --stat -- rust-catalog.toml ':(glob)package/**/Cargo.toml'; then
+            echo "::error::Crate manifests or rust-catalog.toml differ from what file-enforcer renders; run 'mise run sync:files' and commit the result (doc/runbook/rust-dependencies.md)"
+            exit 1
+          fi
+      - name: Restore Rust trust cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
+          restore-keys: |
+            rust-catalog-trust-
+      # Re-checks every locked registry version against the trust policy (pnpm's trustLockfile: false).
+      # A cold cache costs about 1024 crates.io requests at one per second, so about 17 minutes.
+      - name: Rust lockfile trust verification
+        id: rust_trust
+        continue-on-error: true
+        timeout-minutes: 25
+        run: task-run rust:verify
+      - name: Save Rust trust cache
+        if: always()
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: .cache/rust-catalog-update
+          key: rust-catalog-trust-${{ hashFiles('package/**/Cargo.lock') }}
       - name: Static changed paths
         id: static
         continue-on-error: true
@@ -121,7 +156,7 @@ jobs:
           task-run //package/module/logger:build
           task-run //package/module/p-map-fork:build
           task-run //package/module/toml-edit:build
-          task-run //package/cli/forbidden-strings:build
+          task-run //package/forbidden-strings/cli:build
           task-run //package/linter/monochromatic-lint:build
       - name: Unit fast subset
         id: unit
@@ -129,7 +164,7 @@ jobs:
           task-run //package/module/logger:test:unit
           task-run //package/module/p-map-fork:test:unit
           task-run //package/module/toml-edit:test:unit
-          task-run //package/cli/forbidden-strings:test
+          task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test
       - name: Summary
         if: always()
@@ -138,7 +173,7 @@ jobs:
             echo "## Advisory core result"
             echo "- commit: ${{ github.sha }}"
             echo "- provider: GitHub-hosted Linux"
-            echo "- fast subset: module/logger, module/p-map-fork, module/toml-edit, cli/forbidden-strings, linter/monochromatic-lint"
+            echo "- fast subset: module/logger, module/p-map-fork, module/toml-edit, forbidden-strings/cli, linter/monochromatic-lint"
             echo "- results are advisory; no required checks and no branch-protection change"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Enforce advisory result

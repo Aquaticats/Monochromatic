@@ -1,5 +1,12 @@
 # Handover: slopo cluster report to GitHub issue triage
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`;
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
+
 ## Task (user instructions, verbatim intent)
 
 1. Look through every cluster in `.slopo.local.dir/` and open GitHub issues per suggested action.

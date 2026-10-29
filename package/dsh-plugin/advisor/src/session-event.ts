@@ -19,8 +19,9 @@ declare module '@deepseek-ai/dsh-session/types' {
    */
   interface PluginRecordMap {
     /**
-     Operation ledger snapshot recorded when an Advisor operation fails, so
-     attempt states and usage survive the thrown tool or command error.
+     Operation ledger snapshot recorded when an Advisor operation completes, so
+     attempt states, diagnostics, and usage survive the rendered-text-only
+     session record.
      */
     'plugin:advisor/operation': AdvisorOperationSnapshot;
   }
@@ -30,19 +31,20 @@ declare module '@deepseek-ai/dsh-session/types' {
 //region Public API
 
 /**
- Persist one failed Advisor operation to the session log as an ignorable
- plugin record.
+ Persist one Advisor operation to the session log as an ignorable plugin
+ record.
 
  `appendPluginRecord` marks the record `ignorable` and namespaces it under
  `plugin:`, so every reader that lacks this plugin skips it instead of
  refusing the whole log the way an unknown required event does. The agent
  lifecycle attaches the session-log writer, so this append is durable exactly
- like agent-loop events. Successful operations carry their ledger in the
- canonical tool JSON value instead.
+ like agent-loop events. Every completed operation appends here because the
+ session record stores rendered tool text only and the canonical tool JSON
+ value carrying `details` is not durable.
 
  @param session - session log receiving the durable record
 
- @param operation - failed operation ledger snapshot
+ @param operation - operation ledger snapshot
 
  @example
  ```ts

@@ -1,5 +1,12 @@
 # AUDIT: regex-replacement parsing performance
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mvm` is now `package/mvm/cli`;
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Audit of the parsers introduced by the no-regex sweep
 (`HANDOVER.no-regex.md`,
  27 commits).

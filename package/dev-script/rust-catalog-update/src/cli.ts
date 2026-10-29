@@ -13,7 +13,7 @@
  @module
  */
 
-import { spawnCargo, } from './cargo.ts';
+import { createSpawnCargo, } from './cargo.ts';
 import {
   createRegistry,
   fetchTextWithUserAgent,
@@ -22,6 +22,7 @@ import {
   type UpdateReport,
   updateRustLockfiles,
 } from './update.ts';
+import { cargoToolchain, } from './toolchain.ts';
 import { verifyRustLockfiles, } from './verify.ts';
 
 /**
@@ -248,7 +249,14 @@ export async function main(args: readonly string[],): Promise<void> {
     root,
     dryRun: mode === 'dry-run',
     now: Date.now(),
-    runCargo: spawnCargo,
+    runCargo: createSpawnCargo({
+      toolchain: await cargoToolchain({
+        root,
+        explicit: process.env
+          .RUSTUP_TOOLCHAIN
+          ?? '',
+      },),
+    },),
     registry,
   },);
   printReport({

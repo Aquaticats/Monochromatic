@@ -1,0 +1,45 @@
+[tasks.run]
+description = "Run mutation-test CLI from source"
+run = "node src/cli.ts"
+
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks."test:integration"]
+description = "Run the built CLI against the fixture package in real podman containers and assert report expectations"
+run = "node package/mutation-test/cli/src/integration-check.ts"
+dir = "{{config_root}}/../../.."
+
+[tasks.buildAndTest]
+description = "Build the node lib + bin, then run unit tests"
+run = ["mise run build", "mise run test:unit"]

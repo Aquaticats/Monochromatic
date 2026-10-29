@@ -1,5 +1,10 @@
 # Depot expanded CI rollout handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 ## Purpose
 
 Resume the accepted Depot expanded CI rollout after a planned PC shutdown.

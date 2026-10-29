@@ -415,5 +415,8 @@ The same shape reappeared under `@monochromatic-dev/dsh-plugin-advisor`
  while a focused follow-up on the same model, effort, and budget completed fully.
 The advisor still shares the response pool with reasoning
  and offers no effort or output knob in the tool schema.
+On 2026-10-29 the request budget learned to clamp to advertised capacity and
+ stopped gating scope,
+ which sizes the pool honestly but does not split it from reasoning.
 The full cause chain and its probes are recorded in
  [DSH Advisor 2026-10-29: configured reviewer not tried, first-ranked route 400s, review truncated](dsh-advisor-configured-reviewer-not-tried.md).

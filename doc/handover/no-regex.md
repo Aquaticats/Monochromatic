@@ -1,5 +1,10 @@
 # HANDOVER.no-regex
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 State of the lint-failure refactor triggered by the oxlint rule
 `no-restricted-syntax/no-regex`.
  Resume from here after compaction.

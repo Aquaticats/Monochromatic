@@ -65,9 +65,9 @@ A sibling Gradle-based Kotlin linter lives in
 [`git-policy-cli`](package/git-policy/cli/) wraps git with policy guards
 (rejecting bulk staging and pathspec-less commits,
 guarding worktree removal) as a native Rust executable configured by data in `cli-git.config.jsonc`.
-[`cli/forbidden-strings`](package/cli/forbidden-strings/) is a gitignore-aware Rust scanner
+[`forbidden-strings/cli`](package/forbidden-strings/cli/) is a gitignore-aware Rust scanner
 for banned tokens and leaked credentials,
-with a coverage-guided [`cargo-fuzz` harness](package/cli/forbidden-strings.fuzz/).
+with a coverage-guided [`cargo-fuzz` harness](package/forbidden-strings/cli.fuzz/).
 
 **Custom Oxlint plugins**:
 [`oxlint-tsdoc`](package/oxlint-plugin/tsdoc/) enforces TSDoc correctness

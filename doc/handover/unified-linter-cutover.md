@@ -1,5 +1,10 @@
 # Unified-linter cutover handoff
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`.
+
 ## Purpose
 
 Carry out step 7 of the numbered plan in

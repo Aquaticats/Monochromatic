@@ -110,7 +110,7 @@ await describe({
         it({
           name: 'rejects package behavior a test- prefix glob would have exempted',
           fn: async () => {
-            expect(matchesDefault('/repo/package/cli/mutation-test/src/container/test-run.ts',),)
+            expect(matchesDefault('/repo/package/mutation-test/cli/src/container/test-run.ts',),)
               .toBe(false,);
           },
         },),

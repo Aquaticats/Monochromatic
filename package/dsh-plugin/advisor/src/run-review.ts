@@ -135,6 +135,8 @@ export async function runDshAdvisorReview(
   ] = await Promise.all([
     buildDshAdvisorCatalog({
       llm: options.llm,
+      sessionId: options.agent
+        .sessionId,
       maxAdvisorOutputTokens: options.config
         .maxAdvisorOutputTokens,
       ...(options.signal === undefined
@@ -150,6 +152,33 @@ export async function runDshAdvisorReview(
     },),
   ],);
   /**
+   Canonical slug of the agent's conversation model route.
+   */
+  const currentModelSlug = (options.agent
+    .options
+    .provider
+    === undefined)
+    || (options.agent
+      .options
+      .model
+      === undefined)
+    ? undefined
+    : `${options.agent
+      .options
+      .provider}/${options.agent
+        .options
+        .model}`;
+  /**
+   Display name of the conversation model when the catalog resolved that route,
+   letting default avoidance recognize the same model on another route.
+   */
+  const currentModelName = currentModelSlug === undefined
+    ? undefined
+    : catalog.factsBySlug
+      .get(currentModelSlug,)
+      ?.model
+      .name;
+  /**
    Reviews and operation metadata collected by one Advisor operation.
    */
   const result = await runAdvisorCore({
@@ -158,14 +187,7 @@ export async function runDshAdvisorReview(
       transcript,
       cwd: options.agent
         .cwd,
-      ...((options.agent
-        .options
-        .provider
-        === undefined)
-        || (options.agent
-          .options
-          .model
-          === undefined)
+      ...(currentModelSlug === undefined
         ? {}
         : {
           mainProvider: options.agent
@@ -174,6 +196,9 @@ export async function runDshAdvisorReview(
           mainModel: options.agent
             .options
             .model,
+          ...(currentModelName === undefined
+            ? {}
+            : { mainModelName: currentModelName, }),
         }),
     },),
     config: options.config,
@@ -201,6 +226,19 @@ export async function runDshAdvisorReview(
         ?.(operation,);
     },
   },);
+  /**
+   Operation ledger persisted for every completed operation.
+
+   The session record stores rendered tool text only, so attempt diagnostics
+   and usage survive in the durable `plugin:advisor/operation` record.
+   */
+  const {
+    operation,
+  } = result.details;
+  if (operation !== undefined)
+    options
+      .agent
+      .appendOperationRecord(operation,);
   return {
     result,
     progress: progressState.latest,

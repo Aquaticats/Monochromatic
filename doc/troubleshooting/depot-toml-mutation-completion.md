@@ -9,8 +9,8 @@ independent file-enforcer mutation never ran.
 The [TOML audit](../audit/depot-toml-reconciliation-2026-10-17.md) retains exact identities and provider usage.
 
 At frozen source `525d2e09f8168a3bdd7e513e26d4c80b363123e5`,
-`package/cli/mutation-test/src/host/cli-options.ts` permits each container session to last `1800` seconds.
-`package/cli/mutation-test/src/host/orchestrate.ts` can schedule further sessions and retries.
+`package/mutation-test/cli/src/host/cli-options.ts` permits each container session to last `1800` seconds.
+`package/mutation-test/cli/src/host/orchestrate.ts` can schedule further sessions and retries.
 The original trial executor waits for child exit without a per-check deadline,
 buffers output to check logs,
 and sequences independent gates in one container job.
@@ -156,7 +156,7 @@ and provider usage.
 ## Inherited method lookup emits invalid replacement values
 
 Issue [#1118](https://github.com/Aquaticats/Monochromatic/issues/1118)
-is a distinct source producer defect in `package/cli/mutation-test/src/engine/operator/chain-method.ts`.
+is a distinct source producer defect in `package/mutation-test/cli/src/engine/operator/chain-method.ts`.
 The unchanged source lookup accepts inherited Object functions as method-swap replacements.
 A real source consumer proves mapped-string and unmapped negative controls,
 then function-valued `toString`,
@@ -227,7 +227,7 @@ full-campaign issue `#1113` remains open.
 ## Selected files and actual mutation test execution
 
 Source `525d2e09f8168a3bdd7e513e26d4c80b363123e5`
-uses `package/cli/mutation-test/src/container/test-run.ts` to run selected files in order.
+uses `package/mutation-test/cli/src/container/test-run.ts` to run selected files in order.
 It stops at the first failure or timeout.
 The 37-file full-suite selection is therefore a candidate list,
 not a claim that every test file executes for every mutant.

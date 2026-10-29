@@ -64,7 +64,7 @@ The screenshot establishes that Node subsequently attempted the deleted path.
 This is evidence for the lifetime gap explicitly left open by the previous fix.
 It is not evidence that a package rebuild removed this helper.
 
-A separate confirmed defect was in the pre-fix `package/cli/terminal-exec/src/build-command.ts`:
+A separate confirmed defect was in the pre-fix `package/terminal-exec/cli/src/build-command.ts`:
 it filtered every token beginning with `--gtk-single-instance`,
 including the user's explicit `--gtk-single-instance=false`.
 The log retains that flag through tokenization but omits it from the final launch vector.
@@ -182,11 +182,11 @@ Commit `269d21002` additionally opens the cancellation registry scope before ter
 A regression demonstrated that shutdown during that first asynchronous operation could otherwise be forgotten,
 allowing an already-cancelled request to open a terminal.
 
-`package/cli/terminal-exec/src/build-command.ts:122`
+`package/terminal-exec/cli/src/build-command.ts:122`
 now retains the parsed desktop-entry arguments directly:
 
 ```ts
-// package/cli/terminal-exec/src/build-command.ts
+// package/terminal-exec/cli/src/build-command.ts
 ...terminal.execTokens,
 ```
 
@@ -547,9 +547,9 @@ Oxlint reported `Found 0 warnings and 0 errors.` for each package.
 
 ```sh
 # Repository root, reproducible package checks.
-mise run //package/cli/terminal-exec:build
-mise run //package/cli/terminal-exec:lint
-mise run //package/cli/terminal-exec:test:unit
+mise run //package/terminal-exec/cli:build
+mise run //package/terminal-exec/cli:lint
+mise run //package/terminal-exec/cli:test:unit
 mise run //package/pi-plugin/ask-user-question:build
 mise run //package/pi-plugin/ask-user-question:lint
 mise run //package/pi-plugin/ask-user-question:test:unit

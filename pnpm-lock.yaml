@@ -27,12 +27,84 @@ catalogs:
     '@deepseek-ai/cordis':
       specifier: 4.0.5
       version: 4.0.5
+    '@deepseek-ai/dsh-agent':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-attachment':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-brand':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-commands':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-fs':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-llm':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
     '@deepseek-ai/dsh-llm-pi-ai':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-ptc-runtime':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-sandbox':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-sandbox-policy':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-scope':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-session':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-session-persistence':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-session-projection':
       specifier: 0.2.1-rc.4
       version: 0.2.1-rc.4
     '@deepseek-ai/dsh-settings':
       specifier: 0.2.1-rc.4
       version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-storage':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-storage-domain':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-system-prompt':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-timeout':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-tools':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-typert-protocol':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-user-approval':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-util-values':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-working-directory':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/dsh-workspace':
+      specifier: 0.2.1-rc.4
+      version: 0.2.1-rc.4
+    '@deepseek-ai/schemastery':
+      specifier: 3.18.5
+      version: 3.18.5
     '@earendil-works/pi-ai':
       specifier: '>=1.4.0'
       version: 1.4.0
@@ -404,6 +476,7 @@ overrides:
   semver: '>=7.8.5'
   undici: '>=8.5.0'
   ws: '>=8.20.1'
+  zod: '>=4.6.6'
 
 packageExtensionsChecksum: sha256-ildddnaoOJi7ERlUaAdmdiIiGuuiWWilwz9dBwbe87s=
 
@@ -446,24 +519,6 @@ importers:
       '@monochromatic-dev/claude-code-plugin-terminal-title':
         specifier: workspace:*
         version: link:package/claude-code-plugin/terminal-title
-      '@monochromatic-dev/cli-git-clone-size':
-        specifier: workspace:*
-        version: link:package/cli/git-clone-size
-      '@monochromatic-dev/cli-mvm':
-        specifier: workspace:*
-        version: link:package/cli/mvm
-      '@monochromatic-dev/cli-open-code-review-issue':
-        specifier: workspace:*
-        version: link:package/cli/open-code-review-issue
-      '@monochromatic-dev/cli-terminal-exec':
-        specifier: workspace:*
-        version: link:package/cli/terminal-exec
-      '@monochromatic-dev/cli-wg-allowedips':
-        specifier: workspace:*
-        version: link:package/cli/wg-allowedips
-      '@monochromatic-dev/cli-wg-quicker':
-        specifier: workspace:*
-        version: link:package/cli/wg-quicker
       '@monochromatic-dev/config-dprint':
         specifier: workspace:*
         version: link:package/config/dprint
@@ -482,12 +537,30 @@ importers:
       '@monochromatic-dev/dev-script-task-util':
         specifier: workspace:*
         version: link:package/dev-script/task-util
+      '@monochromatic-dev/git-clone-size-cli':
+        specifier: workspace:*
+        version: link:package/git-clone-size/cli
       '@monochromatic-dev/module-image-diff':
         specifier: workspace:*
         version: link:package/module/image-diff
+      '@monochromatic-dev/mvm-cli':
+        specifier: workspace:*
+        version: link:package/mvm/cli
+      '@monochromatic-dev/open-code-review-issue-cli':
+        specifier: workspace:*
+        version: link:package/open-code-review-issue/cli
       '@monochromatic-dev/pi-plugin-spawn':
         specifier: workspace:*
         version: link:package/pi-plugin/spawn
+      '@monochromatic-dev/terminal-exec-cli':
+        specifier: workspace:*
+        version: link:package/terminal-exec/cli
+      '@monochromatic-dev/wg-cli-allowedips':
+        specifier: workspace:*
+        version: link:package/wg/cli-allowedips
+      '@monochromatic-dev/wg-cli-quicker':
+        specifier: workspace:*
+        version: link:package/wg/cli-quicker
       '@oxlint/plugins':
         specifier: 'catalog:'
         version: 1.90.0
@@ -551,10 +624,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -612,10 +685,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -664,7 +737,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -784,7 +857,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -818,6 +891,34 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+
+  package/android-exempt-unused/cli:
+    dependencies:
+      '@clack/prompts':
+        specifier: 'catalog:'
+        version: 1.8.1
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
 
   package/build-tool/css:
     dependencies:
@@ -1044,426 +1145,6 @@ importers:
         specifier: 'catalog:'
         version: 26.6.5
 
-  package/cli/android-exempt-unused:
-    dependencies:
-      '@clack/prompts':
-        specifier: 'catalog:'
-        version: 1.8.1
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/ownership-marker-foreign-borrowed':
-        specifier: workspace:*
-        version: link:../../ownership-marker/foreign-borrowed
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/fy:
-    dependencies:
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@optique/core':
-        specifier: 'catalog:'
-        version: 1.3.6
-      '@optique/run':
-        specifier: 'catalog:'
-        version: 1.3.6
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-
-  package/cli/git-clone-size:
-    dependencies:
-      '@monochromatic-dev/module-async-time':
-        specifier: workspace:*
-        version: link:../../module/async-time
-      '@monochromatic-dev/module-caught-value':
-        specifier: workspace:*
-        version: link:../../module/caught-value
-      '@monochromatic-dev/module-const':
-        specifier: workspace:*
-        version: link:../../module/const
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/module-numeric-format':
-        specifier: workspace:*
-        version: link:../../module/numeric-format
-      '@monochromatic-dev/module-or-throw':
-        specifier: workspace:*
-        version: link:../../module/or-throw
-      '@monochromatic-dev/ownership-marker-foreign-borrowed':
-        specifier: workspace:*
-        version: link:../../ownership-marker/foreign-borrowed
-      '@optique/core':
-        specifier: 'catalog:'
-        version: 1.3.6
-      '@optique/run':
-        specifier: 'catalog:'
-        version: 1.3.6
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-
-  package/cli/mutation-test:
-    dependencies:
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/ownership-marker-foreign-borrowed':
-        specifier: workspace:*
-        version: link:../../ownership-marker/foreign-borrowed
-      '@optique/core':
-        specifier: 'catalog:'
-        version: 1.3.6
-      '@optique/run':
-        specifier: 'catalog:'
-        version: 1.3.6
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-      p-limit:
-        specifier: 'catalog:'
-        version: 7.3.3
-      yuku-ast:
-        specifier: 'catalog:'
-        version: 0.19.0
-      yuku-parser:
-        specifier: 'catalog:'
-        version: 0.19.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/mutation-test.fixture:
-    devDependencies:
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/mvm:
-    dependencies:
-      '@monochromatic-dev/module-async-time':
-        specifier: workspace:*
-        version: link:../../module/async-time
-      '@monochromatic-dev/module-caught-value':
-        specifier: workspace:*
-        version: link:../../module/caught-value
-      '@monochromatic-dev/module-const':
-        specifier: workspace:*
-        version: link:../../module/const
-      '@monochromatic-dev/module-hyperscript':
-        specifier: workspace:*
-        version: link:../../module/hyperscript
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/module-numeric-format':
-        specifier: workspace:*
-        version: link:../../module/numeric-format
-      '@optique/core':
-        specifier: 'catalog:'
-        version: 1.3.6
-      '@optique/run':
-        specifier: 'catalog:'
-        version: 1.3.6
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-      type-fest:
-        specifier: 'catalog:'
-        version: 5.10.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/open-code-review-issue:
-    dependencies:
-      '@inquirer/checkbox':
-        specifier: 'catalog:'
-        version: 5.2.8(@types/node@26.6.5)
-      '@inquirer/input':
-        specifier: 'catalog:'
-        version: 5.1.9(@types/node@26.6.5)
-      '@monochromatic-dev/module-caught-value':
-        specifier: workspace:*
-        version: link:../../module/caught-value
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/rgffplay:
-    dependencies:
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/terminal-exec:
-    dependencies:
-      '@monochromatic-dev/module-caught-value':
-        specifier: workspace:*
-        version: link:../../module/caught-value
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/unused-export:
-    dependencies:
-      '@monochromatic-dev/cli-mutation-test':
-        specifier: workspace:*
-        version: link:../mutation-test
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      yaml:
-        specifier: 'catalog:'
-        version: 3.0.0-2
-      yuku-analyzer:
-        specifier: 'catalog:'
-        version: 0.19.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/vmsync:
-    dependencies:
-      '@monochromatic-dev/module-const':
-        specifier: workspace:*
-        version: link:../../module/const
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/module-or-throw':
-        specifier: workspace:*
-        version: link:../../module/or-throw
-      '@optique/core':
-        specifier: 'catalog:'
-        version: 1.3.6
-      '@optique/run':
-        specifier: 'catalog:'
-        version: 1.3.6
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-      type-fest:
-        specifier: 'catalog:'
-        version: 5.10.0
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-fs-path':
-        specifier: workspace:*
-        version: link:../../module/fs-path
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-
-  package/cli/wg-allowedips:
-    dependencies:
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/module-wg-allowedips':
-        specifier: workspace:*
-        version: link:../../module/wg-allowedips
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-
-  package/cli/wg-quicker:
-    dependencies:
-      '@monochromatic-dev/module-async-time':
-        specifier: workspace:*
-        version: link:../../module/async-time
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../../module/logger
-      '@monochromatic-dev/module-or-throw':
-        specifier: workspace:*
-        version: link:../../module/or-throw
-      '@monochromatic-dev/module-wg-allowedips':
-        specifier: workspace:*
-        version: link:../../module/wg-allowedips
-      string-dedent:
-        specifier: 'catalog:'
-        version: 3.0.2
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../../module/test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-
   package/cloudflare-worker/rand:
     dependencies:
       '@monochromatic-dev/module-logger':
@@ -1609,9 +1290,9 @@ importers:
 
   package/config/tofu:
     dependencies:
-      '@monochromatic-dev/module-wg-allowedips':
+      '@monochromatic-dev/wg-core-allowedips':
         specifier: workspace:*
-        version: link:../../module/wg-allowedips
+        version: link:../../wg/core-allowedips
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2000,6 +1681,34 @@ importers:
         specifier: 'catalog:'
         version: 26.6.5
 
+  package/dev-script/rust-catalog-update:
+    dependencies:
+      '@monochromatic-dev/module-async-time':
+        specifier: workspace:*
+        version: link:../../module/async-time
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/module-rust-catalog':
+        specifier: workspace:*
+        version: link:../../module/rust-catalog
+      '@monochromatic-dev/module-toml-edit':
+        specifier: workspace:*
+        version: link:../../module/toml-edit
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/dev-script/task-cli:
     dependencies:
       string-dedent:
@@ -2155,86 +1864,86 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
       '@deepseek-ai/cordis':
-        specifier: 4.0.5
+        specifier: 'catalog:'
         version: 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-agent':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(8ec018824675a629e70103f38a0c2621)
       '@deepseek-ai/dsh-attachment':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-brand':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-commands':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-agent@0.2.1-rc.4(8ec018824675a629e70103f38a0c2621))(@deepseek-ai/dsh-attachment@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-typert-protocol@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-fs':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))
       '@deepseek-ai/dsh-llm':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-ptc-runtime':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))
       '@deepseek-ai/dsh-sandbox':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))
       '@deepseek-ai/dsh-sandbox-policy':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-agent@0.2.1-rc.4(8ec018824675a629e70103f38a0c2621))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))(@deepseek-ai/dsh-session-projection@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-system-prompt@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))
       '@deepseek-ai/dsh-scope':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-session':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-session-persistence':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-timeout@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-session-projection':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))
       '@deepseek-ai/dsh-storage':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-storage-domain':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-storage@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-system-prompt':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-timeout':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-tools':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(cc529effceda4a9130f684509f68fe87)
       '@deepseek-ai/dsh-typert-protocol':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-user-approval':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-agent@0.2.1-rc.4(8ec018824675a629e70103f38a0c2621))(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-system-prompt@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))
       '@deepseek-ai/dsh-util-values':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-working-directory':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(4c0edf7d494b1fec4c2d48a2a51d5645)
       '@deepseek-ai/dsh-workspace':
-        specifier: 0.2.1-rc.4
+        specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-session-persistence@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-timeout@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-storage-domain@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-storage@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-storage@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-typert-protocol@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/schemastery':
-        specifier: 3.18.5
+        specifier: 'catalog:'
         version: 3.18.5
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -2268,7 +1977,7 @@ importers:
         version: 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-llm-pi-ai':
         specifier: 'catalog:'
-        version: 0.2.1-rc.4(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-fs@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))))(undici@8.12.3)(zod@4.4.3)
+        version: 0.2.1-rc.4(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-fs@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))))(undici@8.12.3)(zod@4.6.7)
       '@deepseek-ai/dsh-settings':
         specifier: 'catalog:'
         version: 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/schemastery@3.18.5)
@@ -2342,6 +2051,89 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+
+  package/fy/cli:
+    dependencies:
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@optique/core':
+        specifier: 'catalog:'
+        version: 1.3.6
+      '@optique/run':
+        specifier: 'catalog:'
+        version: 1.3.6
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+
+  package/git-clone-size/cli:
+    dependencies:
+      '@monochromatic-dev/module-async-time':
+        specifier: workspace:*
+        version: link:../../module/async-time
+      '@monochromatic-dev/module-caught-value':
+        specifier: workspace:*
+        version: link:../../module/caught-value
+      '@monochromatic-dev/module-const':
+        specifier: workspace:*
+        version: link:../../module/const
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/module-numeric-format':
+        specifier: workspace:*
+        version: link:../../module/numeric-format
+      '@monochromatic-dev/module-or-throw':
+        specifier: workspace:*
+        version: link:../../module/or-throw
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+      '@optique/core':
+        specifier: 'catalog:'
+        version: 1.3.6
+      '@optique/run':
+        specifier: 'catalog:'
+        version: 1.3.6
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
 
   package/git-policy/cli:
     devDependencies:
@@ -2429,15 +2221,15 @@ importers:
 
   package/mcp/mvm:
     dependencies:
-      '@monochromatic-dev/cli-mvm':
-        specifier: workspace:*
-        version: link:../../cli/mvm
       '@monochromatic-dev/mcp-stdio':
         specifier: workspace:*
         version: link:../stdio
       '@monochromatic-dev/module-caught-value':
         specifier: workspace:*
         version: link:../../module/caught-value
+      '@monochromatic-dev/mvm-cli':
+        specifier: workspace:*
+        version: link:../../mvm/cli
       valibot:
         specifier: 'catalog:'
         version: 1.5.0(typescript@7.1.0-beta)
@@ -3979,7 +3771,7 @@ importers:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: '>=1.3.0'
-        version: 1.3.0(zod@4.4.3)
+        version: 1.3.0(zod@4.6.7)
       '@monochromatic-dev/module-logger':
         specifier: workspace:*
         version: link:../logger
@@ -4079,31 +3871,6 @@ importers:
         specifier: 'catalog:'
         version: 7.1.0-beta
 
-  package/module/wg-allowedips:
-    dependencies:
-      '@monochromatic-dev/module-logger':
-        specifier: workspace:*
-        version: link:../logger
-      cidr-tools:
-        specifier: 'catalog:'
-        version: 13.0.4
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/module-test':
-        specifier: workspace:*
-        version: link:../test
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-
   package/module/zip-writer:
     dependencies:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
@@ -4159,6 +3926,169 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+
+  package/mutation-test/cli:
+    dependencies:
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+      '@optique/core':
+        specifier: 'catalog:'
+        version: 1.3.6
+      '@optique/run':
+        specifier: 'catalog:'
+        version: 1.3.6
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+      p-limit:
+        specifier: 'catalog:'
+        version: 7.3.3
+      yuku-ast:
+        specifier: 'catalog:'
+        version: 0.19.0
+      yuku-parser:
+        specifier: 'catalog:'
+        version: 0.19.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/mutation-test/cli-unused-export:
+    dependencies:
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/mutation-test-cli':
+        specifier: workspace:*
+        version: link:../cli
+      yaml:
+        specifier: 'catalog:'
+        version: 3.0.0-2
+      yuku-analyzer:
+        specifier: 'catalog:'
+        version: 0.19.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/mutation-test/cli.fixture:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/mvm/cli:
+    dependencies:
+      '@monochromatic-dev/module-async-time':
+        specifier: workspace:*
+        version: link:../../module/async-time
+      '@monochromatic-dev/module-caught-value':
+        specifier: workspace:*
+        version: link:../../module/caught-value
+      '@monochromatic-dev/module-const':
+        specifier: workspace:*
+        version: link:../../module/const
+      '@monochromatic-dev/module-hyperscript':
+        specifier: workspace:*
+        version: link:../../module/hyperscript
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/module-numeric-format':
+        specifier: workspace:*
+        version: link:../../module/numeric-format
+      '@optique/core':
+        specifier: 'catalog:'
+        version: 1.3.6
+      '@optique/run':
+        specifier: 'catalog:'
+        version: 1.3.6
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.10.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/open-code-review-issue/cli:
+    dependencies:
+      '@inquirer/checkbox':
+        specifier: 'catalog:'
+        version: 5.2.8(@types/node@26.6.5)
+      '@inquirer/input':
+        specifier: 'catalog:'
+        version: 5.1.9(@types/node@26.6.5)
+      '@monochromatic-dev/module-caught-value':
+        specifier: workspace:*
+        version: link:../../module/caught-value
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
 
   package/ownership-marker/foreign-borrowed:
     devDependencies:
@@ -4414,10 +4344,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 1.4.0
@@ -4457,7 +4387,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4473,9 +4403,6 @@ importers:
 
   package/pi-plugin/ask-user-question:
     dependencies:
-      '@monochromatic-dev/cli-terminal-exec':
-        specifier: workspace:*
-        version: link:../../cli/terminal-exec
       '@monochromatic-dev/module-caught-value':
         specifier: workspace:*
         version: link:../../module/caught-value
@@ -4485,10 +4412,13 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/terminal-exec-cli':
+        specifier: workspace:*
+        version: link:../../terminal-exec/cli
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 1.4.0
@@ -4519,7 +4449,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4556,7 +4486,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 1.4.0
@@ -4587,7 +4517,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4621,10 +4551,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 1.4.0
@@ -4664,7 +4594,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4695,10 +4625,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4726,7 +4656,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@earendil-works/pi-tui':
         specifier: 'catalog:'
         version: 1.4.0
@@ -4757,10 +4687,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4788,10 +4718,10 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4834,7 +4764,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4865,7 +4795,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4890,7 +4820,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4915,7 +4845,7 @@ importers:
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
-        version: 1.4.0(zod@4.4.3)
+        version: 1.4.0(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
@@ -4943,13 +4873,38 @@ importers:
     devDependencies:
       '@earendil-works/pi-ai':
         specifier: 'catalog:'
-        version: 1.4.0(undici@8.12.3)(zod@4.4.3)
+        version: 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
         version: link:../../config/rolldown
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/rgffplay/cli:
+    dependencies:
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
       '@monochromatic-dev/module-test':
         specifier: workspace:*
         version: link:../../module/test
@@ -5184,6 +5139,28 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+
+  package/terminal-exec/cli:
+    dependencies:
+      '@monochromatic-dev/module-caught-value':
+        specifier: workspace:*
+        version: link:../../module/caught-value
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
 
   package/test-fixture/css-imported: {}
 
@@ -7997,6 +7974,46 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
 
+  package/vmsync/cli:
+    dependencies:
+      '@monochromatic-dev/module-const':
+        specifier: workspace:*
+        version: link:../../module/const
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/module-or-throw':
+        specifier: workspace:*
+        version: link:../../module/or-throw
+      '@optique/core':
+        specifier: 'catalog:'
+        version: 1.3.6
+      '@optique/run':
+        specifier: 'catalog:'
+        version: 1.3.6
+      nano-spawn:
+        specifier: 'catalog:'
+        version: 2.1.0
+      type-fest:
+        specifier: 'catalog:'
+        version: 5.10.0
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-fs-path':
+        specifier: workspace:*
+        version: link:../../module/fs-path
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/webapp-productivity/done:
     dependencies:
       '@monochromatic-dev/module-caught-value':
@@ -8213,13 +8230,97 @@ importers:
         specifier: 'catalog:'
         version: 0.1.1
 
+  package/wg/cli-allowedips:
+    dependencies:
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/wg-core-allowedips':
+        specifier: workspace:*
+        version: link:../core-allowedips
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  package/wg/cli-quicker:
+    dependencies:
+      '@monochromatic-dev/module-async-time':
+        specifier: workspace:*
+        version: link:../../module/async-time
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      '@monochromatic-dev/module-or-throw':
+        specifier: workspace:*
+        version: link:../../module/or-throw
+      '@monochromatic-dev/wg-core-allowedips':
+        specifier: workspace:*
+        version: link:../core-allowedips
+      string-dedent:
+        specifier: 'catalog:'
+        version: 3.0.2
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  package/wg/core-allowedips:
+    dependencies:
+      '@monochromatic-dev/module-logger':
+        specifier: workspace:*
+        version: link:../../module/logger
+      cidr-tools:
+        specifier: 'catalog:'
+        version: 13.0.4
+    devDependencies:
+      '@monochromatic-dev/config-rolldown':
+        specifier: workspace:*
+        version: link:../../config/rolldown
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/module-test':
+        specifier: workspace:*
+        version: link:../../module/test
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
 packages:
 
   '@anthropic-ai/sdk@1.3.0':
     resolution: {integrity: sha512-k7z9BlLLPxfZH+ov7dS6EnaN/wiZeV8YNT1LZfrpAHIy7oY7pHr4UzirF9f2OlHtFEnRBOX+AZQ91Y5fK+TPTw==, tarball: https://registry.npmjs.org/@anthropic-ai/sdk/-/sdk-1.3.0.tgz}
     hasBin: true
     peerDependencies:
-      zod: ^3.25.0 || ^4.0.0
+      zod: '>=4.6.6'
     peerDependenciesMeta:
       zod:
         optional: true
@@ -10556,7 +10657,7 @@ packages:
       '@smithy/signature-v4': '>=5.4.0 <6'
       undici: '>=8.5.0'
       ws: '>=8.20.1'
-      zod: ^3.25 || ^4.0
+      zod: '>=4.6.6'
     peerDependenciesMeta:
       '@aws-sdk/credential-provider-node':
         optional: true
@@ -11171,9 +11272,6 @@ packages:
   zeptomatch@2.1.0:
     resolution: {integrity: sha512-KiGErG2J0G82LSpniV0CtIzjlJ10E04j02VOudJsPyPwNZgGnRKQy7I1R7GMyg/QswnE4l7ohSGrQbQbjXPPDA==, tarball: https://registry.npmjs.org/zeptomatch/-/zeptomatch-2.1.0.tgz}
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==, tarball: https://registry.npmjs.org/zod/-/zod-4.4.3.tgz}
-
   zod@4.6.7:
     resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==, tarball: https://registry.npmjs.org/zod/-/zod-4.6.7.tgz}
 
@@ -11182,13 +11280,13 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@1.3.0(zod@4.4.3)':
+  '@anthropic-ai/sdk@1.3.0(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.10.0
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
     optionalDependencies:
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@babel/runtime@7.29.10': {}
 
@@ -11412,7 +11510,7 @@ snapshots:
       '@deepseek-ai/dsh-session': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-typert-protocol': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-util-crypto': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/dsh-config-editor@0.2.1-rc.4(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)':
     dependencies:
@@ -11438,7 +11536,7 @@ snapshots:
     dependencies:
       '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
 
-  '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.4(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-fs@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))))(undici@8.12.3)(zod@4.4.3)':
+  '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.4(@deepseek-ai/cordis-plugin-loader@1.0.6)(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-fs@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))))(undici@8.12.3)(zod@4.6.7)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-attachment': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
@@ -11449,7 +11547,7 @@ snapshots:
       '@deepseek-ai/dsh-timeout': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-util-values': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/schemastery': 3.18.5
-      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.6.7)
     optionalDependencies:
       '@deepseek-ai/cordis-plugin-loader': 1.0.6(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-fs': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))
@@ -11472,7 +11570,7 @@ snapshots:
       '@deepseek-ai/dsh-util-crypto': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-util-values': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/schemastery': 3.18.5
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/dsh-ptc-runtime@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))))':
     dependencies:
@@ -11488,7 +11586,7 @@ snapshots:
       '@deepseek-ai/dsh-session-projection': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))
       '@deepseek-ai/dsh-system-prompt': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/schemastery': 3.18.5
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/dsh-sandbox@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-llm@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)))':
     dependencies:
@@ -11513,7 +11611,7 @@ snapshots:
     dependencies:
       '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-session': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/dsh-session@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))':
     dependencies:
@@ -11545,7 +11643,7 @@ snapshots:
       '@deepseek-ai/cordis': 4.0.5(@deepseek-ai/cordis-plugin-loader@1.0.6)
       '@deepseek-ai/dsh-storage': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/schemastery': 3.18.5
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/dsh-storage@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)':
     dependencies:
@@ -11625,16 +11723,16 @@ snapshots:
       '@deepseek-ai/dsh-storage': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-storage-domain': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-storage@0.2.1-rc.4(@deepseek-ai/cordis@4.0.5))
       '@deepseek-ai/dsh-typert-protocol': 0.2.1-rc.4(@deepseek-ai/cordis@4.0.5)
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@deepseek-ai/schemastery@3.18.5':
     dependencies:
       '@deepseek-ai/cosmokit': 1.8.6
       '@standard-schema/spec': 1.1.0
 
-  '@earendil-works/pi-agent-core@1.4.0(undici@8.12.3)(zod@4.4.3)':
+  '@earendil-works/pi-agent-core@1.4.0(undici@8.12.3)(zod@4.6.7)':
     dependencies:
-      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.4.3)
+      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.6.7)
       typebox: 1.3.27
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
@@ -11646,14 +11744,14 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@1.4.0(undici@8.12.3)(zod@4.4.3)':
+  '@earendil-works/pi-ai@1.4.0(undici@8.12.3)(zod@4.6.7)':
     dependencies:
-      '@anthropic-ai/sdk': 1.3.0(zod@4.4.3)
+      '@anthropic-ai/sdk': 1.3.0(zod@4.6.7)
       '@earendil-works/pi-telemetry': 1.4.0
       '@smithy/node-http-handler': 4.12.1
       http-proxy-agent: 9.1.0
       https-proxy-agent: 9.1.0
-      openai: 7.19.0(undici@8.12.3)(zod@4.4.3)
+      openai: 7.19.0(undici@8.12.3)(zod@4.6.7)
       partial-json: 0.1.7
       typebox: 1.3.27
     transitivePeerDependencies:
@@ -11670,10 +11768,10 @@ snapshots:
     dependencies:
       quickjs-wasi: 3.6.2
 
-  '@earendil-works/pi-coding-agent@1.4.0(zod@4.4.3)':
+  '@earendil-works/pi-coding-agent@1.4.0(zod@4.6.7)':
     dependencies:
-      '@earendil-works/pi-agent-core': 1.4.0(undici@8.12.3)(zod@4.4.3)
-      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.4.3)
+      '@earendil-works/pi-agent-core': 1.4.0(undici@8.12.3)(zod@4.6.7)
+      '@earendil-works/pi-ai': 1.4.0(undici@8.12.3)(zod@4.6.7)
       '@earendil-works/pi-codemode': 1.4.0
       '@earendil-works/pi-mcp': 1.4.0
       '@earendil-works/pi-tui': 1.4.0
@@ -13758,10 +13856,10 @@ snapshots:
 
   obug@3.0.0: {}
 
-  openai@7.19.0(undici@8.12.3)(zod@4.4.3):
+  openai@7.19.0(undici@8.12.3)(zod@4.6.7):
     optionalDependencies:
       undici: 8.12.3
-      zod: 4.4.3
+      zod: 4.6.7
 
   opentype.js@2.0.0: {}
 
@@ -14450,8 +14548,6 @@ snapshots:
     dependencies:
       grammex: 3.1.13
       graphmatch: 1.1.1
-
-  zod@4.4.3: {}
 
   zod@4.6.7: {}
 

@@ -33,7 +33,7 @@ Pass criteria:
    or `tty=true`.
 - Does not use `spawn-claude` for Codex.
 - Does not probe `terminal-exec` with `--help`;
-   source evidence is `package/cli/terminal-exec/src/cli.ts`,
+   source evidence is `package/terminal-exec/cli/src/cli.ts`,
    where unknown options are ignored.
 
 Fail examples:
@@ -173,7 +173,7 @@ Fail examples:
 2026-05-14:
  the active Codex session failed Case 1 during suite creation by running `terminal-exec --help`,
  which opened Ghostty instead of printing help.
- The parser behavior is documented in `package/cli/terminal-exec/src/cli.ts`:
+ The parser behavior is documented in `package/terminal-exec/cli/src/cli.ts`:
  supported options are `--app-id=`,
  `--title=`,
  `--dir=`,

@@ -34,13 +34,13 @@ through the tunnel.
 The consumer path is correct;
 the dataset lacks the records.
 
-`package/module/wg-allowedips/src/asn-fetch.ts:34` names the single upstream artifact:
+`package/wg/core-allowedips/src/asn-fetch.ts:34` names the single upstream artifact:
 
 ```ts
 const IPINFO_LITE_URL = 'https://ipinfo.io/data/ipinfo_lite.json.gz';
 ```
 
-`package/module/wg-allowedips/src/asn-fetch.ts:228` downloads it with the caller's token:
+`package/wg/core-allowedips/src/asn-fetch.ts:228` downloads it with the caller's token:
 
 ```ts
   const response = await fetch(databaseUrl(token,),);
@@ -49,7 +49,7 @@ const IPINFO_LITE_URL = 'https://ipinfo.io/data/ipinfo_lite.json.gz';
 Each NDJSON line is pre-filtered by substring,
 parsed,
 then compared exactly
-(`package/module/wg-allowedips/src/asn-fetch.ts:102` and `package/module/wg-allowedips/src/asn-fetch.ts:116`):
+(`package/wg/core-allowedips/src/asn-fetch.ts:102` and `package/wg/core-allowedips/src/asn-fetch.ts:116`):
 
 ```ts
   if (!line.includes(targetAsn,))
@@ -61,7 +61,7 @@ then compared exactly
     return NO_MATCHING_NETWORK;
 ```
 
-An empty result reaches `package/module/wg-allowedips/src/networks.ts:350`,
+An empty result reaches `package/wg/core-allowedips/src/networks.ts:350`,
 which warns and contributes nothing:
 
 ```ts
@@ -72,7 +72,7 @@ which warns and contributes nothing:
 ```
 
 The empty result is still cached atomically by `writeAsnCache`
-(`package/module/wg-allowedips/src/asn-cache.ts:210`),
+(`package/wg/core-allowedips/src/asn-cache.ts:210`),
 which is why a zero-byte cache file is the durable trace of an empty answer rather than of a failed
 download.
 A failed download throws instead,
@@ -144,7 +144,7 @@ In-repo harness,
 which reproduces the warning through the shipped command:
 
 ```sh
-mise run //package/cli/wg-allowedips:run -- \
+mise run //package/wg/cli-allowedips:run -- \
   --allowed ~/allowed.txt \
   --disallowed ~/disallowed.txt
 ```

@@ -187,7 +187,7 @@ Kind detection from filesystem signals is ambiguous in real cases:
   Kind `ts-cli` is not "no extends";
    it's "extends some + adds run.
   "
-- `package/cli/forbidden-strings` is Rust (cargo-based),
+- `package/forbidden-strings/cli` is Rust (cargo-based),
    extends nothing from
   root,
    has its own `build`/`lint`/`test` shapes.

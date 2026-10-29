@@ -26,7 +26,6 @@ import { AdvisorCompletionError, } from './advisor-completion-error.ts';
 
 import { ADVISOR_SYSTEM_PROMPT, } from './constants.ts';
 import { buildAdvisorUserMessageText, } from './advisor-request.ts';
-import { assertAdvisorEndpointOutputCapacity, } from './output-eligibility.ts';
 import type { AdvisorModelResolution, } from './ports.ts';
 import type {
   AdvisorConfig,
@@ -245,13 +244,30 @@ export async function requestAdvisor(
   const modelSlug = `${options.model
     .provider}/${options.model
       .id}`;
-  assertAdvisorEndpointOutputCapacity({
-    endpointSlug: modelSlug,
-    advertisedOutputTokens: options.model
-      .maxTokens,
-    maxAdvisorOutputTokens: options.config
-      .maxAdvisorOutputTokens,
-  },);
+  /**
+   Advertised endpoint output capacity read from the model record.
+
+   Catalog facts substitute the configured budget when a route discloses no
+   capacity, so this value is always present at dispatch.
+   */
+  const advertisedOutputTokens = options.model
+    .maxTokens;
+  /**
+   Requested output tokens clamped to the advertised endpoint capacity.
+
+   The configured `maxAdvisorOutputTokens` is a request budget, never an
+   eligibility requirement: a route advertising less receives the smaller
+   request instead of being refused, and a route advertising a non-positive
+   capacity receives the configured budget.
+   */
+  const requestMaxTokens = advertisedOutputTokens <= 0
+    ? options.config
+      .maxAdvisorOutputTokens
+    : Math.min(
+      options.config
+        .maxAdvisorOutputTokens,
+      advertisedOutputTokens,
+    );
   /**
    Request auth resolved through the model-resolution port.
    */
@@ -338,8 +354,7 @@ export async function requestAdvisor(
    Provider options independent of attempt deadline state.
    */
   const providerOptions: Omit<SimpleStreamOptions, 'signal' | 'timeoutMs'> = {
-    maxTokens: options.config
-      .maxAdvisorOutputTokens,
+    maxTokens: requestMaxTokens,
     ...(advisorReasoningLevel
       === undefined ? {} : { reasoning: advisorReasoningLevel, }),
     ...(providerApiKey

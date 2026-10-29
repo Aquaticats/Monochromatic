@@ -3,7 +3,7 @@
 ## Symptom
 
 During a `toml-edit` mutation run on `src/set-replace.ts`,
- `package/cli/mutation-test` launched a disposable Podman shard and its source copy failed:
+ `package/mutation-test/cli` launched a disposable Podman shard and its source copy failed:
 
 ```text
 file has vanished: "/src-ro/package/module/deepmerge-ts.fuzz/.cache/typescript/tsconfig.tsbuildinfo"
@@ -17,11 +17,11 @@ The affected input was a concurrently changed cache file in another package,
 
 ## Root cause
 
-`package/cli/mutation-test/src/container/worktree.ts:73-89` copies the entire mounted repository
+`package/mutation-test/cli/src/container/worktree.ts:73-89` copies the entire mounted repository
  into the shard's writable work tree:
 
 ```ts
-// package/cli/mutation-test/src/container/worktree.ts
+// package/mutation-test/cli/src/container/worktree.ts
 await spawn('rsync', [
   '--archive',
   '--delete',
@@ -66,10 +66,10 @@ The container log identified rsync `3.5.0-g483b5efc`;
 ## Verification
 
 - The failing shard log captured `rsync` code 24 before it could write a shard report.
-- `package/cli/mutation-test/src/container/worktree.unit.test.ts` was red before the fix
+- `package/mutation-test/cli/src/container/worktree.unit.test.ts` was red before the fix
   because the rsync list lacked `**/.cache`.
 - After the change,
-  `mise run //package/cli/mutation-test:buildAndTest`,
+  `mise run //package/mutation-test/cli:buildAndTest`,
   `lint:types`,
   and `lint:oxlint` passed.
 - A disposable rsync fixture copied `package/example/kept.ts` while excluding
@@ -123,8 +123,8 @@ A previous failure must not be reclassified as a killed or surviving mutant.
 
 - Exclude `**/.cache` in the shard rsync list and the image-context ignore file.
   This is the committed fix in
-  `package/cli/mutation-test/src/container/worktree.ts` and
-  `package/cli/mutation-test/runtime/containerignore`.
+  `package/mutation-test/cli/src/container/worktree.ts` and
+  `package/mutation-test/cli/runtime/containerignore`.
   Tradeoff: packages relying on a checked-in or prepopulated `.cache` artifact inside the mutation
   container must regenerate it in their build or test task.
 - Run the failed package source file again in a fresh container to get an infrastructure-clean report.

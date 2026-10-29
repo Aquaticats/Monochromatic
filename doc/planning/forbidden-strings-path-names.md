@@ -31,7 +31,7 @@ No match-span API is needed for the updated behavior.
 
 ## Evidence and next action
 
-- `package/cli/forbidden-strings/src/frx_scan.rs` uses rule-ID-only line matches.
+- `package/forbidden-strings/cli/src/frx_scan.rs` uses rule-ID-only line matches.
 - `package/git-policy/forbidden-strings/src/materialize-candidates.ts` uses synthetic filenames.
 - `package/git-policy/forbidden-strings/src/scanner-output.ts` currently relays original candidate paths.
 
@@ -59,11 +59,11 @@ The scanner's paired logical-name option preserves both identities separately.
 
 ## Verification
 
-- `mise run //package/cli/forbidden-strings:test` exercises the release CLI with
+- `mise run //package/forbidden-strings/cli:test` exercises the release CLI with
   name-only findings, content and name redaction, external paths, empty files,
   multiple operand indexes, and unchanged content behavior.
-- `mise run //package/cli/forbidden-strings:lint:clippy` and
-  `mise run //package/cli/forbidden-strings:lint:rust` check Rust code and item documentation.
+- `mise run //package/forbidden-strings/cli:lint:clippy` and
+  `mise run //package/forbidden-strings/cli:lint:rust` check Rust code and item documentation.
 - `mise run //package/git-policy/forbidden-strings:test:unit` exercises real scanner
   output through the adapter, including exact historical bytes and a clean working-tree file.
 - `mise run //package/git-policy/forbidden-strings:lint:types` and
@@ -71,8 +71,8 @@ The scanner's paired logical-name option preserves both identities separately.
 - `mise run //package/git-policy/cli:test:built:trust` checks packed host events in a
   disposable container; its name-finding fixture asserts that the offending name
   does not appear in host JSON output.
-- `mise run //package/cli/forbidden-strings.fuzz:lint:clippy` checks the expanded fuzz target,
-  and `mise run //package/cli/forbidden-strings.fuzz:test` checks its generator library.
+- `mise run //package/forbidden-strings/cli.fuzz:lint:clippy` checks the expanded fuzz target,
+  and `mise run //package/forbidden-strings/cli.fuzz:test` checks its generator library.
   The fuzz format target recognizes line-break names as fail-closed findings.
   A coverage-guided fuzz campaign was not run.
 

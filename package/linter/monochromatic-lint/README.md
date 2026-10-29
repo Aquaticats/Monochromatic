@@ -690,7 +690,7 @@ and `src/closure_binary_tests.rs` drives the built executable for the skip,
 failure and severity cases.
 `mise run //package/linter/monochromatic-lint:test:host` runs the one test that needs the real tools
 (`cargo-dylint`,
-the `rustc-dev` nightly and a warm cargo cache) over `package/cli/wg-quicker-exempt`,
+the `rustc-dev` nightly and a warm cargo cache) over `package/wg/cli-quicker-exempt`,
 and compares it with an `--all-targets` run of the same library so that the absence of test findings is shown by a
 probe that could have found them.
 

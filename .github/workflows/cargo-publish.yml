@@ -21,9 +21,9 @@ on:
   push:
     branches: ['main']
     paths:
-    - 'package/cli/forbidden-strings/Cargo.toml'
+    - 'package/forbidden-strings/cli/Cargo.toml'
     - 'package/cli/nested-wayland-session/Cargo.toml'
-    - 'package/rust-module/forbidden-regex/Cargo.toml'
+    - 'package/forbidden-strings/core/Cargo.toml'
     - 'package/rust-module/jsonc-edit/Cargo.toml'
     - 'package/linter/monochromatic-lint/Cargo.toml'
     - 'package/git-policy/cli/Cargo.toml'
@@ -62,7 +62,7 @@ jobs:
         INPUT_CRATE: ${{ github.event.inputs.crate }}
       run: |
         set -euo pipefail
-        cargo_toml='package/cli/forbidden-strings/Cargo.toml'
+        cargo_toml='package/forbidden-strings/cli/Cargo.toml'
         after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         before=''
         if [ -n "${BEFORE_SHA:-}" ] \
@@ -130,9 +130,9 @@ jobs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
       with:
         path: |
-          package/cli/forbidden-strings/target
-          !package/cli/forbidden-strings/target/package
-        key: cargo-v2-publish-fs-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('package/cli/forbidden-strings/Cargo.lock') }}
+          package/forbidden-strings/cli/target
+          !package/forbidden-strings/cli/target/package
+        key: cargo-v2-publish-fs-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('package/forbidden-strings/cli/Cargo.lock') }}
         restore-keys: |
           cargo-v2-publish-fs-${{ runner.os }}-${{ steps.toolchain.outputs.id }}-
 
@@ -145,20 +145,20 @@ jobs:
     # .crate as part of its post-upload cleanup when --no-verify is NOT
     # passed; that was the 0.1.6 failure mode.
     - name: Build .crate package (verifies by compile)
-      working-directory: package/cli/forbidden-strings
+      working-directory: package/forbidden-strings/cli
       run: cargo package
 
     - name: Log cargo directory sizes
       if: always()
       run: |
-        du --summarize --human-readable package/cli/forbidden-strings/target "$HOME/.cargo/registry" "$HOME/.cargo/git" || true
-        du --max-depth=2 --human-readable package/cli/forbidden-strings/target | sort --human-numeric-sort --reverse | head --lines=15 || true
+        du --summarize --human-readable package/forbidden-strings/cli/target "$HOME/.cargo/registry" "$HOME/.cargo/git" || true
+        du --max-depth=2 --human-readable package/forbidden-strings/cli/target | sort --human-numeric-sort --reverse | head --lines=15 || true
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
-        subject-path: 'package/cli/forbidden-strings/target/package/forbidden-strings-${{ needs.detect.outputs.version }}.crate'
+        subject-path: 'package/forbidden-strings/cli/target/package/forbidden-strings-${{ needs.detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
       if: ${{ !inputs.dry-run }}
@@ -167,12 +167,12 @@ jobs:
 
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
-      working-directory: package/cli/forbidden-strings
+      working-directory: package/forbidden-strings/cli
       run: cargo publish --dry-run --no-verify
 
     - name: Publish
       if: ${{ !inputs.dry-run }}
-      working-directory: package/cli/forbidden-strings
+      working-directory: package/forbidden-strings/cli
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
       run: cargo publish --no-verify
@@ -226,7 +226,7 @@ jobs:
 
     - name: Build binary
       shell: bash
-      working-directory: package/cli/forbidden-strings
+      working-directory: package/forbidden-strings/cli
       run: cargo build --release --target ${{ matrix.target }}
 
     - name: Package binary archive
@@ -244,11 +244,11 @@ jobs:
         esac
         stage_dir="forbidden-strings-${VERSION}-${TARGET}"
         mkdir -p "dist/${stage_dir}"
-        cp "package/cli/forbidden-strings/target/${TARGET}/release/${bin}${ext}" "dist/${stage_dir}/"
+        cp "package/forbidden-strings/cli/target/${TARGET}/release/${bin}${ext}" "dist/${stage_dir}/"
         # README is decoration; if it ever moves or is renamed, ship the
         # binary anyway rather than failing the whole release pipeline.
-        if [ -f package/cli/forbidden-strings/README.md ]; then
-          cp package/cli/forbidden-strings/README.md "dist/${stage_dir}/"
+        if [ -f package/forbidden-strings/cli/README.md ]; then
+          cp package/forbidden-strings/cli/README.md "dist/${stage_dir}/"
         fi
         case "$TARGET" in
           *windows*)
@@ -734,7 +734,7 @@ jobs:
         INPUT_CRATE: ${{ github.event.inputs.crate }}
       run: |
         set -euo pipefail
-        cargo_toml='package/rust-module/forbidden-regex/Cargo.toml'
+        cargo_toml='package/forbidden-strings/core/Cargo.toml'
         after=$(awk -F'"' '/^version = / { print $2; exit }' "$cargo_toml")
         before=''
         if [ -n "${BEFORE_SHA:-}" ] \
@@ -793,14 +793,14 @@ jobs:
 
     # Not cached: the cold build takes 6 s; a cache would add restore and save steps for almost no gain (doc/decision/ci-caching.md).
     - name: Build .crate package (verifies by compile)
-      working-directory: package/rust-module/forbidden-regex
+      working-directory: package/forbidden-strings/core
       run: cargo package
 
     - name: Attest .crate provenance
       if: ${{ !inputs.dry-run }}
       uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
       with:
-        subject-path: 'package/rust-module/forbidden-regex/target/package/forbidden-regex-${{ needs.fr-detect.outputs.version }}.crate'
+        subject-path: 'package/forbidden-strings/core/target/package/forbidden-regex-${{ needs.fr-detect.outputs.version }}.crate'
 
     - name: Authenticate with crates.io (Trusted Publishing)
       if: ${{ !inputs.dry-run }}
@@ -809,7 +809,7 @@ jobs:
 
     - name: Publish (dry run)
       if: ${{ inputs.dry-run }}
-      working-directory: package/rust-module/forbidden-regex
+      working-directory: package/forbidden-strings/core
       run: cargo publish --dry-run --no-verify
 
     - name: Publish (skips if this version is already on crates.io)
@@ -818,7 +818,7 @@ jobs:
       # nested-wayland-session bootstrap. Idempotent: skips when the version is
       # already present, so re-runs never fail on a duplicate upload.
       if: ${{ !inputs.dry-run }}
-      working-directory: package/rust-module/forbidden-regex
+      working-directory: package/forbidden-strings/core
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         VERSION: ${{ needs.fr-detect.outputs.version }}
@@ -1332,11 +1332,13 @@ jobs:
     # Packaging replaces the path dependency with its version requirement, so the crates.io index must already
     # list the forbidden-strings release this crate requires. A push that bumps both crates starts the
     # forbidden-strings publish job in the same run; this step waits for it for up to thirty minutes.
+    # The Rust catalog writes path dependencies as exact requirements (`version = "=0.5.0"`),
+    # and the index lists bare versions (`"vers":"0.5.0"`), so the extraction drops a leading `=`.
     - name: Wait for the required forbidden-strings release
       working-directory: package/git-policy/cli
       run: |
         set -euo pipefail
-        required=$(sed -n 's/^forbidden-strings = .*version = "\([^"]*\)".*/\1/p' Cargo.toml)
+        required=$(sed -n 's/^forbidden-strings = .*version = "=\{0,1\}\([^"]*\)".*/\1/p' Cargo.toml)
         if [ -z "$required" ]; then
           echo 'No forbidden-strings version requirement found in Cargo.toml.' >&2
           exit 1

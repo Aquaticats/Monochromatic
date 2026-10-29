@@ -783,8 +783,8 @@ The build already rejects recursive invocation through `PI_AUTO_MODE_NATIVE_BUIL
 The guarded host/default profile is now dispatched as run `39118106788`,
 using pushed and API-verified harness `3f3a8f0bf3733f0c97bf29c56e9010e27371b0f2`.
 Its 35 remaining non-module Node default owners have 424 source-hashed candidate files.
-The distinct `package/cli/wg-allowedips` owner is included;
-the previous module failures concerned `package/module/wg-allowedips`.
+The distinct `package/wg/cli-allowedips` owner is included;
+the previous module failures concerned `package/wg/core-allowedips`.
 The profile plans 187 owning invocations across 2 sequential `8CPU/32GB` jobs,
 with the same 15-minute job,
 3-minute command,

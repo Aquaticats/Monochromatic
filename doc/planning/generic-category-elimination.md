@@ -377,7 +377,11 @@ Mapping (sidecars follow their subject,
   and `jsonc-edit/core-rust` (from `rust-module/jsonc-edit`,
    with `.fuzz`;
    crate name unchanged).
-- `cache/kv-store` and `cache/memoize`.
+- `kv-store/core` and `kv-store/memoize` (memoize is built on kv-store).
+  Changed 2026-10-29 from `cache/kv-store` and `cache/memoize`:
+   `.gitignore` line 67 (`cache/`) ignores every directory named `cache`,
+   and `doc/decision/gitignore-negations.md` fixes such collisions at the source,
+   so the user chose the `kv-store` family over a `!` re-include.
 - `llm/llm-type`,
    `llm/token-count`,
    `llm/image-diff`.
@@ -391,17 +395,27 @@ Mapping (sidecars follow their subject,
    `core-matrix`.
 - `upstream-fork/<name>` with `<name>.fuzz` for the eight `*-fork` packages;
   `module/deepmerge-ts.fuzz` to `upstream-fork/deepmerge-ts.fuzz`.
+  `<name>` drops the `-fork` suffix (`module/p-limit-fork` to `upstream-fork/p-limit`;
+   user decision 2026-10-29,
+   since the category already says it).
+- The commit guard's final-newline autofix must honor git's `text` attribute
+  (user decision 2026-10-29):
+   fuzz seeds marked `-text` keep their bytes wherever the package moves,
+   instead of relying on the policy's hardcoded path list.
+  Rejected by the user:
+   committing past the policy with `--no-enforce-final-newline`,
+   and `.gitignore` negations.
+  The `module` batch waits for guard 0.2.12 with that change;
+  `jsonc-edit/core-rust.fuzz` gains the same `.gitattributes` as `forbidden-strings/cli.fuzz`.
 - `module/wg-allowedips` moves with the `cli` batch (`wg/core-allowedips`).
 - `rust-module/forbidden-regex` moves with the `cli` batch (`forbidden-strings/core`).
 - `rust-module/rust-linter-core` and `rust-linter-pattern` are untracked build output:
    list with `git clean --dry-run -d -X`,
    then remove.
-- Pending the `dev-script` round:
-   `module/pnpm-workspace-catalog` and `module/rust-catalog`
-  (joint with `catalog-tighten`,
-   `deps-cube`,
-   `deps-update`;
-   `rust-catalog` is held by `monochromatic-fb`).
+- `module/pnpm-workspace-catalog` and `module/rust-catalog` move with this batch,
+   together with the `dependency-catalog` tools and `file-enforcer` from the `dev-script` mapping,
+   in `monochromatic-fb`'s window (2026-10-29),
+   so its file-enforcer cleanup lands on final paths.
 
 Publishing consequences:
 

@@ -24,7 +24,7 @@
     "src"
   ],
   "dependencies": {
-    "@monochromatic-dev/cli-terminal-exec": "workspace:*",
+    "@monochromatic-dev/terminal-exec-cli": "workspace:*",
     "@monochromatic-dev/module-caught-value": "workspace:*",
     "@monochromatic-dev/module-logger": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"

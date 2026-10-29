@@ -27,7 +27,7 @@ parser family across the repo beats per-package parser diversity.
    used wherever repository code traverses parse output.
 - `yuku-analyzer`:
    cross-file semantic model powering
-  `@monochromatic-dev/cli-unused-export`.
+  `@monochromatic-dev/mutation-test-cli-unused-export`.
 - Catalog floors sit at `>=0.7.3` because 0.7.4 was younger than pnpm's
   `minimumReleaseAge` at adoption time;
   the range adopts newer versions as they age past the cutoff.
@@ -36,7 +36,7 @@ parser family across the repo beats per-package parser diversity.
 
 ## Displaced incumbents
 
-- `oxc-parser` left `package/cli/mutation-test` together with the
+- `oxc-parser` left `package/mutation-test/cli` together with the
   package's hand-rolled walker;
   yuku-ast's walk added type-erased-subtree skipping,
   so mutants inside erased TypeScript positions no longer waste

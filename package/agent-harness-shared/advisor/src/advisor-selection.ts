@@ -10,10 +10,6 @@ import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { resolveAdvisorRequestedModel, } from './advisor-requested-model.ts';
 import { rankDefaultAdvisorCandidates, } from './default-ranking.ts';
-import {
-  assertAdvisorEndpointOutputCapacity,
-  requireAdvisorScopeWithOutputCapacity,
-} from './output-eligibility.ts';
 import type { AdvisorModelResolution, } from './ports.ts';
 import type {
   AdvisorConfig,
@@ -209,7 +205,7 @@ export function applyConfiguredInitialReviewer(
       return defaultSelection;
     return {
       ...defaultSelection,
-      reason: `${defaultSelection.reason}; defaultReviewerModel "${keyText}" did not resolve among output-eligible scoped models, so the default ranking applies`,
+      reason: `${defaultSelection.reason}; defaultReviewerModel "${keyText}" did not resolve among scoped models, so the default ranking applies`,
     };
   }
   /**
@@ -259,7 +255,7 @@ export function applyConfiguredInitialReviewer(
  Select explicit model, configured initial reviewer, or default highest expected-cost non-current model.
  
  Selection order: an explicit slug is exact; otherwise `defaultReviewerModel`
- picks the initial reviewer when it resolves in the output-eligible scope;
+ picks the initial reviewer when it resolves in scope;
  otherwise the ranking policy (or the built-in expected-cost ranking when no
  policy is supplied) picks one. Only explicit requests disable fallback and
  overlap.
@@ -308,44 +304,29 @@ export function selectAdvisorModel(
   if ((requestedSlug !== undefined) && (requestedSlug.trim()
     !== '')) {
     /**
-     Explicit model resolved against authenticated scope before output eligibility validation.
+     Explicit model resolved against authenticated scope; the request budget
+     clamps to the endpoint's advertised capacity at dispatch.
      */
-    const selection = resolveAdvisorRequestedModel({
+    return resolveAdvisorRequestedModel({
       scope,
       requestedSlug,
       modelRegistry,
     },);
-    assertAdvisorEndpointOutputCapacity({
-      endpointSlug: selection.selected
-        .canonicalSlug,
-      advertisedOutputTokens: selection.selected
-        .model
-        .maxTokens,
-      maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-    },);
-    return selection;
   }
 
-  /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = requireAdvisorScopeWithOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
   /**
    Configured initial reviewer lookup, resolved before the variant ranking runs.
    */
   const configuredReviewerResolution = resolveConfiguredDefaultReviewer({
     config,
-    scope: eligibleScope,
+    scope,
     modelRegistry,
   },);
   /**
    Default-selection scope with current main model removed when alternatives exist.
    */
   const defaultScope = scopeAvoidingCurrentMainModel({
-    scope: eligibleScope,
+    scope,
     ...(currentMainModel
       === undefined ? {} : { currentMainModel, }),
   },);
@@ -394,6 +375,10 @@ export function selectAdvisorModel(
 
 /**
  Return scope entries excluding current main model when at least one alternative remains.
+
+ Exclusion matches the active primary model by route slug, and by provider
+ independent identity (model id plus display name) so the same model served on
+ another route does not masquerade as an independent reviewer.
  
  @param scope - effective scoped model set
  
@@ -423,12 +408,24 @@ export function scopeAvoidingCurrentMainModel(
    */
   const currentMainModelSlug = `${currentMainModel.provider}/${currentMainModel.id}`;
   /**
-   Scoped entries that differ from active primary model.
+   Scoped entries that differ from active primary model, by route slug or by
+   provider independent identity (model id plus display name).
    */
   const alternativeEntries: EffectiveModelScope['entries'][number][] = [];
   for (const entry of scope.entries) {
-    if (entry.canonicalSlug
+    /**
+     Scoped model record compared against the active primary identity.
+     */
+    const { model: entryModel, } = entry;
+    /**
+     Whether the entry is the active primary model served on another route.
+     */
+    const sameModelDifferentRoute = (entryModel.id === currentMainModel.id)
+      && (currentMainModel.name !== undefined)
+      && (entryModel.name === currentMainModel.name);
+    if ((entry.canonicalSlug
       !== currentMainModelSlug)
+      && (!sameModelDifferentRoute))
       alternativeEntries[alternativeEntries.length] = entry;
   }
 

@@ -90,12 +90,12 @@ and distinguishes mount-entry flags from filesystem-wide flags.
 
 The six teardown failures were introduced by running Node as PID 1 in the new PID namespace.
 The source boundary matters:
-frozen `package/cli/wg-quicker-exempt/src/keeper_process.rs:53` reads `/proc/<pid>/cmdline`,
+frozen `package/wg/cli-quicker-exempt/src/keeper_process.rs:53` reads `/proc/<pid>/cmdline`,
 and `keeper_process.rs:82` rejects a command mismatch:
 
 ```rust
 //! Excerpt of the frozen process identity rejection.
-// package/cli/wg-quicker-exempt/src/keeper_process.rs:82, abridged.
+// package/wg/cli-quicker-exempt/src/keeper_process.rs:82, abridged.
 if observed_command != expected {
     return Err(io::Error::new(
         io::ErrorKind::InvalidData,
