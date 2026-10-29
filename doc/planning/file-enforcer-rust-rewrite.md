@@ -85,6 +85,65 @@ what mpm does versus mpm-shadow;
 and what the user wants that the old tool never did.
 The decisions in this file are then re-checked against those root answers.
 
+### Outside review findings, checked against the repository (2026-10-29)
+
+Reviews:
+[`doc/research/file-enforcer-rust-rewrite-review-sol.md`](../research/file-enforcer-rust-rewrite-review-sol.md)
+and
+[`doc/research/file-enforcer-rust-rewrite-review-astra.md`](../research/file-enforcer-rust-rewrite-review-astra.md);
+the kimi re-run is pending.
+Both reviews worked from the attached text only.
+
+Confirmed by reading the repository:
+
+- CI regenerates before it diffs:
+  `.github/workflows/advisory-core.yml` runs `task-run prepare:pnpm`,
+  which runs the sync,
+  then `git diff --exit-code`;
+  swapping the diff for `check` while keeping the prepare step would pass on drift.
+- The IDE launches the old script by path:
+  `package/ide/app/src/language/toolchain.rs:65` (`ENTRY_POINT`),
+  its notices and tests,
+  and `package/ide/app/bin/inspect-language-toolchain.ts:41,86,288`.
+- The global toolchain folder also holds `plan.artifacts.data.ts` (28,691 bytes),
+  which the conversion decision omits.
+- Postinstall has a `run` form as well as `link`:
+  `search-shadow link .cache/search-shadow-bin`
+  (`package/file-enforcer/core/src/toolchain/plan.tools.data.ts:353-370`).
+- Rust toolchain version lookup (rustup channel manifests,
+  `static.rust-lang.org`) lives in `update.resolvers.rust.ts` and has no owner in the update decision.
+- The old watch warns when a generated file is edited (`package/file-enforcer/core/src/watch/notify.ts:72`).
+- Two consumers outside the deletion plan still depend on the old package:
+  `package/test-fixture/file-enforcer-perf/package.json:9`
+  and `package/oxlint-plugin/prefer-readonly-parameter-type/src/workspace-source-effect.unit.test.ts:22`.
+- No symlinks exist in `.claude/skills` or `.factory/skills` today;
+  the symlink-containment finding is about what the mirror rule must specify.
+
+Weakened:
+
+- Scanner cache staleness:
+  `package/forbidden-strings/cli/README.md` keys the compiled artifact by the SHA-256 of the exact rules text,
+  and "A later scan repairs a missing or rejected artifact automatically",
+  so a rules change cannot reuse a stale artifact.
+  Source-backed (`runtime_cache/envelope.rs:260`),
+  not executed;
+  a run on a throwaway rules file stays a gate before implementation.
+
+Design gaps both reviews raise,
+for the root round:
+the update-then-render sequence,
+an ordering model so rules read each other's planned output,
+publishing before the switch,
+the IDE launcher,
+whether `mpm outdated` follows npm's `latest` tag (including downgrades),
+writer coordination for `watch` against concurrent edits,
+schema and hand-written decoder agreement,
+clap's own help and error output under JSON-lines-only,
+per-output coverage (license pruning,
+create-if-absent seeds,
+file modes),
+and watch rediscovering new packages and matched paths.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
