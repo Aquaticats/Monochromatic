@@ -23,13 +23,42 @@ No need to preserve anything." (user, 2026-10-29)
   locking,
   and config-as-TypeScript model are not requirements and are not a design to port.
 
-## Known precedent to reconcile
+## Decisions
 
-- `doc/decision/monorepo-manager-all-rust.md` (accepted 2026-09-16) puts a Rust rewrite of file-enforcer inside the
-  single-file monorepo manager placeholder-named meow,
-  configured in OpenTofu-shaped HCL
-  (`doc/decision/monorepo-manager-hcl-front-end.md`).
-  How this request relates to that decision is an open question for the user.
+### Standalone tool that meow can embed
+
+Asked 2026-10-29 how the rewrite relates to meow,
+whose accepted decision (`doc/decision/monorepo-manager-all-rust.md`, 2026-09-16)
+puts file enforcement inside the single meow binary with an HCL config and daemon-owned watch mode.
+The user chose "Standalone, meow can embed".
+
+- The engine is a library crate and the CLI is a clap binary over it;
+  meow may depend on the library later instead of rewriting it.
+- The tool has its own watch mode until a meow daemon exists.
+- The config is JSONC,
+  following the cli-git and linter rewrites (`doc/decision/cli-git-rust-rewrite.md`),
+  which also moved off HCL.
+- Consequence to record when this is accepted:
+  amend `doc/decision/monorepo-manager-all-rust.md` so meow links this crate and its file-enforcement config is JSONC.
+
+Evidence at the time:
+meow is plan-only with no code
+(`doc/handover/monorepo-manager.md`, "Design research; no product code"),
+last designed 2026-09-21,
+and issue #1799 prefers an existing tool over building a monorepo manager.
+
+### Adopted from the request and repository rules
+
+- Rust is approved for this tool by the request itself;
+  no existing approval scope (meow, cli-git, the linter) covers a standalone file-enforcer.
+- The CLI uses clap,
+  as requested;
+  repository precedent is clap derive in `package/forbidden-strings/cli` and others.
+- Every Rust dependency comes from `rust-catalog.toml` through `workspace = true`
+  (`doc/decision/rust-dependency-catalog.md`).
+- Rust tests run through nextest (`RNQ` in `AGENTS.md`).
+- The TypeScript file-enforcer keeps running until the Rust tool replaces it;
+  concurrent edits in `package/file-enforcer/core` belong to other sessions.
 
 ## Open questions
 
