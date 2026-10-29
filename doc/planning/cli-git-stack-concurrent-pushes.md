@@ -95,7 +95,13 @@ When the wrapper forwarded an explicit `git push` and the result matches `was_re
 - After success, fast-forward the checked-out branch only when `<src>` is that branch and the worktree allows it, as
   `advance_local_branch` does; a detached HEAD or a differently named source stays where it is, and the report says so.
 
-## Open decisions for the user
+## Decisions
+
+The user answered the three questions below on 2026-10-29, taking the recommended option each time:
+merge, any non-force single-branch update, and leave a detached HEAD where it is while printing the merge commit.
+The proposal as a whole is not yet accepted for implementation.
+
+## Decision questions as asked
 
 1.  Integration style. Recommended: merge (as auto-push does today), because it never rewrites a commit the caller may
     already have shared, and the loop exists and is mutation-tested.

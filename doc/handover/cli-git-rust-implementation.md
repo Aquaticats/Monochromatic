@@ -2881,5 +2881,6 @@ a first run was invalid because the wrapper link failed, so it was discarded):
 - control: auto-push on a checked-out `main` already merges and fast-forwards.
 Proposal written: `doc/planning/cli-git-stack-concurrent-pushes.md` (change A: push to the tracked ref on a name mismatch;
 change B: reconcile a stale-rejected explicit push by reusing the loop).
-Open: the user's decisions on merge vs rebase, scope of explicit pushes, and detached HEAD handling.
+User decisions (2026-10-29): merge like auto-push; any non-force single-branch update; leave a detached HEAD where it is
+and print the merge commit. Whether to implement is not yet answered; do not start before the user accepts the plan.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
