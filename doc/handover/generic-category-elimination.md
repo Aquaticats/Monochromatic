@@ -192,6 +192,11 @@ User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publ
 
 ## Open follow-ups
 
+- [Issue 1804](https://github.com/Aquaticats/Monochromatic/issues/1804):
+   the git wrapper should stack concurrent changes on push instead of failing non-fast-forward
+  (the 0.2.10 release push lost two races).
+  Until it lands,
+   push from a worktree with `git pull --rebase origin main && git push origin HEAD:main` in one command.
 - `56178d85ed` is mislabeled;
    corrective commit comment posted.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) tracks the renamed npm names there.
