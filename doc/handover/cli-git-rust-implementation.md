@@ -3639,3 +3639,41 @@ blocks after it. Times are local.
   that session; only the scratch-location branch remained. Peers now listed: `monochromatic-fb`, `monochromatic-db`,
   `monochromatic-71`, and a translation-quality session; none is known to own issue 1810.
 - Task numbers: 75 (conversion), with 73 (issue 1811) and 74 (LFS) still open.
+
+## Update at 2026-10-29 (night): LFS branch complete, combined tree has two flaky tests, three agents running
+
+- LFS branch `worktree-agent-ab2b64d9df753a15f` is complete (head `fc4ccf9d4f`; commits `457627bfa6`, `40005a5827` for
+  hooks-off and doctor, `789ffb594c`, `fc4ccf9d4f` for the probe decision). Not merged. Verification by the agent:
+  clippy clean; host 2192 of 2193 and binary 236 of 237, each with only the known linter test failing; container gate
+  not run.
+  - `hooks_off.rs`: every real-Git start (forwarding builder and push coordinator builder) carries
+    `-c core.hooksPath=/dev/null/cli-git-no-hooks`, added by `entry::run_process` through `hooks_off::activate()`;
+    `git config` starts are exempt so doctor and the warning read the real setting; a caller's own `-c core.hooksPath`
+    wins; config hooks still run; budget ratchet counts unchanged. Measured on Git 2.56.0 only; the path is unchecked
+    on Windows (task 30) and on Git 2.39 outside the container e2e suite.
+  - Measured: through the wrapper git-lfs writes no shim files at all (it reads the inherited setting and finds
+    nothing writable); a plain `/usr/bin/git add` still writes all four; a local-path remote's server-side hooks still
+    run.
+  - `doctor`: a regular file named `pre-push`, `post-checkout`, `post-commit` or `post-merge` with exactly git-lfs
+    3.8.0's text is explained on stderr as normal and harmless; exit 0 when only such shims exist (the agent's and my
+    choice, open to veto), 1 beside any other hook, 2 without a repository.
+  - User decision taken today: the wrapper's own dry-run push probes skip configured `pre-push` hooks
+    (`-c hook.pre-push.enabled=false` in `probe_arguments`, `manual_push_probe.rs`), so a config pre-push hook runs
+    once per publishing push and twice for a lost race, never for a probe. The real, stacked, merge and reconcile
+    pushes still run it.
+- Combined tree (detached head `ea9591e857` in `~/temp/agent/integrate-merge-wt`: main `6f864674de` plus oxlint,
+  scratch locations, issue 1811, and two compile fixes): clippy clean; host 2261 of 2264; binary 234 of 235 (known
+  linter test). Host failures: the known linter test, and two flaky tests that pass alone:
+  `owner_lock::tests::a_long_wait_repeats_its_slow_notice_at_every_interval` (counted 4 notices, expected 3, on real
+  timers) and `replay_reservation::tests::a_free_reservation_is_not_granted_to_a_younger_requester` (fixture teardown
+  at `test_support.rs:153`: `Directory not empty`, a writer outlives the test body). The 1811 agent was resumed to fix
+  both properly and to audit its other timer or thread tests, on a new branch
+  `worktree-agent-a367b2612f424f68c-combined` created from `ea9591e857`. Land from that branch, not from the throwaway
+  worktree.
+- Conversion `.mjs` to `.ts` (agent `ab1d5540a005d7319`, task 75) is running.
+- Land order: the 1811-combined branch (after the fix; add `Closes #1810` in a commit body; merge main for the
+  `clippy.toml` ban and the peer's `.mjs` rewrite; `native:clippy` on that result), then the LFS branch (expect
+  conflicts in `entry.rs`, `auto_push_single_flight.rs`, `lib.rs`, `README.md`, `SPEC.md`), then the conversion
+  branch; one container gate on the final main; release the next version; install it.
+- Lesson: `tail --pid=$(systemctl --user show --property=MainPID --value <unit>)` returns at once or never when the
+  unit has already exited; read the unit's journal with `journalctl --user --since "-3 hours" --unit=<unit>` instead.
