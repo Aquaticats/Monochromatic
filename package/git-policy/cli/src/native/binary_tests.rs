@@ -102,6 +102,14 @@ mod version_cache;
 #[path = "binary_fork_failure_tests.rs"]
 mod fork_failure;
 
+/// Reads a `strace` trace of a wrapped commit into process starts and sync calls per program, for the budget controls.
+#[path = "binary_budget_trace.rs"]
+mod budget_trace;
+
+/// Ratchet budgets: the process starts and fsync-class calls of a wrapped commit can only go down.
+#[path = "binary_budget_tests.rs"]
+mod budget;
+
 /// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
 #[path = "binary_known_content_tests.rs"]
 mod known_content;
