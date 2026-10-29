@@ -127,7 +127,13 @@ Do not move these until the named session reports them idle.
    `module-test`,
    and `git-executable` by name;
   its docs cite `package/module/logger` by path.
+  It also loads `package/shim/katex` as `katex` through the
+  `'micromark-extension-math>katex': 'link:package/shim/katex'` override in `pnpm-workspace.yaml`,
+  so that shim is held too and its `link:` path must move in the same commit.
+  The peer will annotate its historical ledger mentions of the shim path after the move.
   One gate takes about 20 to 25 minutes.
+  The cooldown branch landed as `b95d7cf83d`;
+  round 8 is still in its gate.
 
 Uncommitted main-worktree changes owned by none of these peers:
 `toolchain.lock.json`,
