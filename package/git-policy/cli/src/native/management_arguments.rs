@@ -3,6 +3,7 @@
 //!  the wrapper's own management namespace.
 //! Why:
 //!  `check` and `fix` run policies over an explicit scope;
+//!  `doctor` lists the traditional hooks a repository holds;
 //!  `trust`,
 //!  `untrust` and
 //!      `status` are retired with executable configuration and only explain that.
@@ -38,6 +39,7 @@ use std::ffi::OsString;
 pub const MANAGEMENT_USAGE: &str = "\
 Usage: git cli-git check (--all | -- <pathspec>...) [--policy <id>]...
        git cli-git fix (--all | -- <pathspec>...) [--policy <id>]...
+       git cli-git doctor
        git cli-git --help
 ";
 
@@ -51,6 +53,7 @@ Run repository policies directly.
 Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
+  doctor   List traditional hooks (unsupported); exit 1 when any are found.
 
 Scope (exactly one):
   --all             The whole repository.
@@ -113,6 +116,9 @@ pub enum ManagementAction {
         ///  which selects standard output.
         help: bool,
     },
+    /// `doctor`:
+    ///  list the traditional hooks the repository holds.
+    Doctor,
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -389,6 +395,13 @@ pub fn parse_management_arguments(
     }
     if name == "status" {
         return parse_retired(RetiredCommand::Status, rest);
+    }
+    // `doctor` takes no options or scope, so any stray argument is a usage error.
+    if name == "doctor" {
+        if !rest.is_empty() {
+            return Err(ManagementRefusal::Usage);
+        }
+        return Ok(ManagementAction::Doctor);
     }
     if name == "check" {
         return parse_direct(false, rest);

@@ -6,20 +6,16 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { createHash, } from 'node:crypto';
-import {
-  createWriteStream,
-  linkSync,
-  mkdirSync,
-  renameSync,
-  symlinkSync,
-  unlinkSync,
-} from 'node:fs';
+import { createWriteStream, } from 'node:fs';
 import {
   chmod,
+  link,
   mkdir,
   readFile,
   rename,
   rm,
+  symlink,
+  unlink,
 } from 'node:fs/promises';
 import {
   basename,
@@ -290,10 +286,10 @@ export async function extractArchive(
 
  @example
  ```ts
- atomicSymlink({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
+ await atomicSymlink({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
  ```
  */
-export function atomicSymlink(
+export async function atomicSymlink(
   {
     linkPath,
     target,
@@ -301,7 +297,7 @@ export function atomicSymlink(
     readonly linkPath: string;
     readonly target: string;
   },
-): string {
+): Promise<string> {
   /**
    Logger tagged for this link replacement.
    */
@@ -309,7 +305,7 @@ export function atomicSymlink(
     tag: atomicSymlink.name,
     l,
   },);
-  mkdirSync(
+  await mkdir(
     dirname(linkPath,),
     { recursive: true },
   );
@@ -325,17 +321,17 @@ export function atomicSymlink(
     }.tmp`,
   );
   try {
-    unlinkSync(temp);
+    await unlink(temp,);
   } catch (error) {
     log.debug(`no stale temporary link at ${temp} to clear: ${caughtValueText(error,)}`,);
   }
-  symlinkOrCopy(
+  await symlinkOrCopy(
     {
       linkPath: temp,
       target,
     },
   );
-  renameSync(
+  await rename(
     temp,
     linkPath,
   );
@@ -352,10 +348,10 @@ export function atomicSymlink(
 
  @example
  ```ts
- symlinkOrCopy({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
+ await symlinkOrCopy({ linkPath: '/tmp/bin/git', target: '/tmp/tools/git', },);
  ```
  */
-export function symlinkOrCopy(
+export async function symlinkOrCopy(
   {
     linkPath,
     target,
@@ -363,7 +359,7 @@ export function symlinkOrCopy(
     readonly linkPath: string;
     readonly target: string;
   },
-): void {
+): Promise<void> {
   /**
    Logger tagged for this link creation.
    */
@@ -372,13 +368,13 @@ export function symlinkOrCopy(
     l,
   },);
   try {
-    symlinkSync(
+    await symlink(
       target,
       linkPath,
     );
   } catch (error) {
     log.debug(`symlink to ${target} unavailable, using a hard link: ${caughtValueText(error,)}`,);
-    linkSync(
+    await link(
       target,
       linkPath,
     );

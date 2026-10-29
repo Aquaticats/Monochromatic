@@ -31,6 +31,7 @@ const DISTRO_MANAGER_MAP: Record<string, PackageManager> = {
   alma: 'dnf',
   alpine: 'apk',
   arch: 'pacman',
+  cachyos: 'pacman',
 };
 
 /**

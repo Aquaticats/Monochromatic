@@ -623,3 +623,39 @@ fn direct_commands_report_git_failures() {
     }
     remove(root.as_path());
 }
+
+/// Unpack an exit action into its status, standard output and standard error.
+fn exit_parts(action: Action) -> (i32, String, String) {
+    let Action::Exit { code, stdout, stderr } = action else {
+        panic!("a management command ends in an exit action");
+    };
+    return (code, stdout, stderr);
+}
+
+/// `doctor` lists the traditional hooks with status 1, prints nothing with status 0 when there are none, and does
+/// not load the configuration, so a broken `cli-git.config.jsonc` does not stop it.
+#[test]
+fn doctor_lists_traditional_hooks_without_loading_the_configuration() {
+    let root: PathBuf = fixture("management-doctor");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join(CONFIG_FILE_NAME), b"{ not valid").expect("a broken configuration");
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    assert_eq!(plan(&["doctor"], repo.as_path(), &inputs), exit(0, "", ""));
+    executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    let (code, stdout, stderr) = exit_parts(plan(&["doctor"], repo.as_path(), &inputs));
+    assert_eq!(code, 1);
+    assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()));
+    assert!(stderr.contains("unsupported"), "{stderr}");
+    remove(root.as_path());
+}
+
+/// `doctor` outside a repository reports the failure with status 2.
+#[test]
+fn doctor_outside_a_repository_fails_with_status_two() {
+    let root: PathBuf = fixture("management-doctor-outside");
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let (code, stdout, stderr) = exit_parts(plan(&["doctor"], root.as_path(), &inputs));
+    assert_eq!((code, stdout.as_str()), (2, ""));
+    assert!(stderr.starts_with("git cli-git doctor: "), "{stderr}");
+    remove(root.as_path());
+}

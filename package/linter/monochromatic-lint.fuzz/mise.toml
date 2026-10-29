@@ -2,6 +2,10 @@
 description = "Regenerate the owning fuzz Cargo lockfile without network"
 run = "cargo generate-lockfile --offline"
 
+[tasks."lock:version"]
+description = "Refresh only the linter dependency's lockfile entry after its version bump, without re-resolving any dependency"
+run = "cargo update --offline --package monochromatic-lint"
+
 [tasks.list]
 description = "List registered fuzz targets"
 run = "cargo fuzz list --fuzz-dir ."

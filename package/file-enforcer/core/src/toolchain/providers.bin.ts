@@ -6,12 +6,11 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import { stat, } from 'node:fs/promises';
+  mkdir,
+  readFile,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import {
   basename,
   dirname,
@@ -20,13 +19,16 @@ import {
   run,
   type RunResult,
 } from './exec.ts';
+import { isErrnoException, } from './fs-probe.ts';
 import { homeDirFromEnv, } from './paths.ts';
+import { ALL_TOOLS, } from './plan.ts';
 import {
   artifactForHost,
   type ProviderContext,
 } from './providers.context.ts';
 import {
   binCliPath,
+  NO_GITHUB_TOKEN,
   resolveGithubToken,
 } from './providers.environment.ts';
 import { l, } from '../logger.ts';
@@ -46,14 +48,35 @@ const GITHUB_PREFIX = 'https://github.com/';
 const MIN_RELEASE_DOWNLOAD_SEGMENTS = 6;
 
 /**
+ Thrown when an artifact URL is not a GitHub release download, so `bin install` has no release tag to resolve.
+
+ @example
+ ```ts
+ throw new ReleaseTagUrlError('https://example.test/tool.tar.gz');
+ ```
+ */
+export class ReleaseTagUrlError extends Error {
+  /**
+   Builds the error.
+
+   @param artifactUrl - URL that is not a release download
+   */
+  constructor(artifactUrl: string,) {
+    super(`cannot derive a release-tag URL from ${artifactUrl}: bin-sourced artifacts must be https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>`,);
+    this.name = 'ReleaseTagUrlError';
+  }
+}
+
+/**
  Resolves the release-tag URL behind one artifact download URL
  (`https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>` to
  `https://github.com/<owner>/<repo>/releases/tag/<tag>`).
 
  @param artifactUrl - Artifact download URL from `toolchain.lock.json`
 
- @returns Release-tag URL for `bin install`, or `null` when the URL is not a
- GitHub release download
+ @returns Release-tag URL for `bin install`
+
+ @throws ReleaseTagUrlError when the URL is not a GitHub release download
 
  @example
  ```ts
@@ -61,9 +84,9 @@ const MIN_RELEASE_DOWNLOAD_SEGMENTS = 6;
  // 'https://github.com/example/demo/releases/tag/v1.0.0'
  ```
  */
-export function releaseTagUrl(artifactUrl: string,): string | null {
+export function releaseTagUrl(artifactUrl: string,): string {
   if (!artifactUrl.startsWith(GITHUB_PREFIX,))
-    return null;
+    throw new ReleaseTagUrlError(artifactUrl,);
   /**
    Segments after the host: owner, repo, `releases`, `download`, tag, asset.
    */
@@ -82,14 +105,11 @@ export function releaseTagUrl(artifactUrl: string,): string | null {
   ] = segments;
   if ((segments.length < MIN_RELEASE_DOWNLOAD_SEGMENTS)
     || (releases !== 'releases')
-    || (download !== 'download'))
-    return null;
-  if (owner === '')
-    return null;
-  if (repo === '')
-    return null;
-  if (tag === '')
-    return null;
+    || (download !== 'download')
+    || (owner === '')
+    || (repo === '')
+    || (tag === ''))
+    throw new ReleaseTagUrlError(artifactUrl,);
   return `${GITHUB_PREFIX}${owner}/${repo}/releases/tag/${decodeURIComponent(tag,)}`;
 }
 
@@ -129,12 +149,14 @@ function isRecord(value: unknown,): value is Record<string, unknown> {
 
  @returns The file's settings; empty when the file is absent or malformed
 
+ @throws Error when the file exists but cannot be read
+
  @example
  ```ts
- const existing = readBinConfig('/tmp/bin/config.json',);
+ const existing = await readBinConfig('/tmp/bin/config.json',);
  ```
  */
-function readBinConfig(configPath: string,): Readonly<Record<string, unknown>> {
+async function readBinConfig(configPath: string,): Promise<Readonly<Record<string, unknown>>> {
   /**
    Logger tagged for this read.
    */
@@ -142,13 +164,11 @@ function readBinConfig(configPath: string,): Readonly<Record<string, unknown>> {
     tag: readBinConfig.name,
     l,
   },);
-  if (!existsSync(configPath,))
-    return {};
   try {
     /**
      Parsed file content.
      */
-    const parsed: unknown = JSON.parse(readFileSync(
+    const parsed: unknown = JSON.parse(await readFile(
       configPath,
       'utf8',
     ),);
@@ -157,7 +177,10 @@ function readBinConfig(configPath: string,): Readonly<Record<string, unknown>> {
       : {};
   }
   catch (error) {
-    // Only a malformed file is replaced; any other failure is the caller's.
+    // An absent file starts empty and a malformed one is replaced; any other failure is the caller's.
+    if (isErrnoException(error,)
+      && (error.code === MISSING_ENTRY_CODE))
+      return {};
     if (!(error instanceof SyntaxError))
       throw error;
     log.info(`replacing the malformed bin configuration ${configPath}: ${caughtValueText(error,)}`,);
@@ -180,10 +203,10 @@ function readBinConfig(configPath: string,): Readonly<Record<string, unknown>> {
 
  @example
  ```ts
- seedBinConfig({ downloadDir: '/tmp/toolchain/bin', configPath: '/tmp/toolchain/bin.json', },);
+ await seedBinConfig({ downloadDir: '/tmp/toolchain/bin', configPath: '/tmp/toolchain/bin.json', },);
  ```
  */
-export function seedBinConfig(
+export async function seedBinConfig(
   {
     downloadDir,
     configPath,
@@ -191,16 +214,16 @@ export function seedBinConfig(
     readonly downloadDir: string;
     readonly configPath: string;
   },
-): string {
+): Promise<string> {
   /**
    Existing settings kept, with `default_path` converged to the toolchain.
    */
-  const existing = readBinConfig(configPath,);
-  mkdirSync(
+  const existing = await readBinConfig(configPath,);
+  await mkdir(
     dirname(configPath,),
-    { recursive: true },
+    { recursive: true, },
   );
-  writeFileSync(
+  await writeFile(
     configPath,
     `${
       JSON.stringify(
@@ -381,7 +404,7 @@ export async function installBinSourced(
     entry,
     paths,
     env,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Verified artifact for the host platform, whose URL carries the tag.
@@ -391,8 +414,6 @@ export async function installBinSourced(
    Release-tag URL `bin install` resolves to the locked release.
    */
   const tagUrl = releaseTagUrl(artifact.url,);
-  if (tagUrl === null)
-    throw new Error(`cannot derive a release-tag URL from ${artifact.url}`,);
   /**
    Asset file name inside the release.
    */
@@ -412,14 +433,14 @@ export async function installBinSourced(
       return aliases[name] === undefined;
     },
     );
-  seedBinConfig({
+  await seedBinConfig({
     downloadDir: paths.toolchainBinDir,
     configPath: paths.binConfigFile,
   },);
   /**
    Absolute `bin` CLI at the bootstrap's install directory.
    */
-  const cli = binCliPath({
+  const cli = await binCliPath({
     paths,
     env,
     tools,
@@ -436,7 +457,7 @@ export async function installBinSourced(
     ...process.env,
     HOME: homeDirFromEnv({ env, }),
     BIN_CONFIG: paths.binConfigFile,
-    ...(token === null
+    ...(token === NO_GITHUB_TOKEN
       ? {}
       : { GITHUB_TOKEN: token, }),
   };

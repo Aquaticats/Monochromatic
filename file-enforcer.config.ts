@@ -1392,69 +1392,71 @@ function harperLintersDisabled(rules: readonly string[],): Record<string, false>
  */
 async function manageHarperLsp4ij(): Promise<void> {
   await manageLsp4ijServerSettings({
-    productPrefixes: [
-      'IntelliJIdea',
-      'IdeaIC',
-    ],
-    baseServerMatch: {
-      commandLineIncludes: 'harper-ls',
-      serverNameEquals: 'Harper Language Server',
-      templateId: 'harper-ls',
-    },
-    baseConfig: {
-      set: harperLintersDisabled([
-        'UseTitleCase',
-        'SplitWords',
-        'PhrasalVerbAsCompoundNoun',
-      ],),
-      arrayUnion: {
-        'harper-ls.excludePatterns': [
-          '**/AGENTS.md',
-          '**/CLAUDE.md',
-          join(
-            process.cwd(),
+    settings: {
+      productPrefixes: [
+        'IntelliJIdea',
+        'IdeaIC',
+      ],
+      baseServerMatch: {
+        commandLineIncludes: 'harper-ls',
+        serverNameEquals: 'Harper Language Server',
+        templateId: 'harper-ls',
+      },
+      baseConfig: {
+        set: harperLintersDisabled([
+          'UseTitleCase',
+          'SplitWords',
+          'PhrasalVerbAsCompoundNoun',
+        ],),
+        arrayUnion: {
+          'harper-ls.excludePatterns': [
+            '**/AGENTS.md',
+            '**/CLAUDE.md',
+            join(
+              process.cwd(),
+              'AGENTS.md',
+            ),
+            join(
+              process.cwd(),
+              'CLAUDE.md',
+            ),
+          ],
+        },
+      },
+      schemaDefaults: {
+        'harper-ls.linters.UseTitleCase': {
+          type: 'boolean',
+          default: true,
+          description: 'Prompts you to use title case in relevant headings.',
+        },
+      },
+      scopedServers: [
+        {
+          id: 'harper-ls-agents-claude-md',
+          name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
+          fileNames: [
             'AGENTS.md',
-          ),
-          join(
-            process.cwd(),
             'CLAUDE.md',
-          ),
-        ],
-      },
+          ],
+          languageId: 'markdown',
+          copyOptions: [
+            'commandLine',
+            'installAlreadyDone',
+            'installerConfigurationContent',
+            'serverUrl',
+            'templateId',
+            'workingDir',
+            'workspaceFolderStrategyConfiguration',
+          ],
+          configOmitKeys: ['harper-ls.excludePatterns',],
+          config: { set: harperLintersDisabled([
+            'MissingTo',
+            'LongSentences',
+            'OxfordComma',
+          ],), },
+        },
+      ],
     },
-    schemaDefaults: {
-      'harper-ls.linters.UseTitleCase': {
-        type: 'boolean',
-        default: true,
-        description: 'Prompts you to use title case in relevant headings.',
-      },
-    },
-    scopedServers: [
-      {
-        id: 'harper-ls-agents-claude-md',
-        name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
-        fileNames: [
-          'AGENTS.md',
-          'CLAUDE.md',
-        ],
-        languageId: 'markdown',
-        copyOptions: [
-          'commandLine',
-          'installAlreadyDone',
-          'installerConfigurationContent',
-          'serverUrl',
-          'templateId',
-          'workingDir',
-          'workspaceFolderStrategyConfiguration',
-        ],
-        configOmitKeys: ['harper-ls.excludePatterns',],
-        config: { set: harperLintersDisabled([
-          'MissingTo',
-          'LongSentences',
-          'OxfordComma',
-        ],), },
-      },
-    ],
   },);
 }
 
@@ -2516,17 +2518,6 @@ await Promise.all([
   overwrite({
     dest: './CLAUDE.md',
     content: `Generated from \`AGENTS.md\` by file-enforcer.
-
-In-process subagents (the Agent tool,
-including the general-purpose type) run inside this session and forward their results back to you reliably.
-General-purpose subagents are allowed.
-Caveat:
-you cannot enumerate how many subagents are running,
-and SendMessage steering is unreliable,
-so fan out general-purpose subagents only in interactive sessions
-where the user watches and steers them in the Claude Code UI.
-Rationale:
-\`doc/decision/general-purpose-subagent-ban.md\`.
 
 Reset times provided by the harness are unreliable:
 never record one or wait for one;

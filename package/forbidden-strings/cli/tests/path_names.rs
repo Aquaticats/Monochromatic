@@ -12,7 +12,7 @@ const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
 
 /// Creates a new temporary root for each test process.
 fn fixture(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("path-names-{}-{}", label, std::process::id()));
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("path-names-{}-{}", label, std::process::id()));
     fs::create_dir_all(&dir).expect("create test directory");
     return dir;
 }

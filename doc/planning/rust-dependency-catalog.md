@@ -1039,9 +1039,11 @@ Done since the cold run:
 
 Remaining:
 
-1.  Confirm the new CI verify step on a real `advisory-core` run:
-     its log should show `comparing lockfiles with <sha>` and `verifying N newly locked versions`.
-2.  Set aside a trust-failing version and re-resolve (adopted from pnpm), `Refs #1800`:
+1.  Done: the CI verify step ran on a real dispatched `advisory-core` run (40864046534),
+     fetched the base and verified 0 newly locked versions.
+     Its log should show `comparing lockfiles with <sha>` and `verifying N newly locked versions`.
+2.  Done in `0001595901` (guard test proven: `SET_ASIDE_ROUNDS = 0` fails both set-aside tests).
+     Set aside a trust-failing version and re-resolve (adopted from pnpm), `Refs #1800`:
      split `checkTrust` into a structured core returning the refused `name@version` with its problems;
      candidates are older releases of that crate, caret-compatible with the refused version,
      published before the release-age cutoff, not yanked (from the sparse index, a per-run `yanked(name)` on `Registry`,
@@ -1052,7 +1054,8 @@ Remaining:
      Needs a small tested version comparator (prerelease and `+build` metadata, for example `0.11.1+wasi-snapshot-preview1`),
      a fake cargo runner that understands `--precise`, and a test that fails with the set-aside removed.
      Check `cargo update --help` and the Cargo Book for how `--precise` treats yanked versions first.
-3.  Rename the toolchain plan data to `plan.tools.data.ts` and `plan.artifacts.data.ts`
+3.  Done in `71ff15994f` (with the `**/*.data.ts` max-lines override in `package/config/oxlint`).
+     Rename the toolchain plan data to `plan.tools.data.ts` and `plan.artifacts.data.ts`
      (renderer, loader, patcher, tests, and the global copy in `~/.config/monochromatic-dev/toolchain/`),
      make the renderer's output lint-clean, then tell the `monochromatic-db` session, which runs `toolchain:update`.
 4.  The other `src/toolchain/*` lint findings (357 errors and 267 warnings after the rename `71ff15994f`).
@@ -1066,7 +1069,43 @@ Remaining:
      This session keeps `types.ts`, `paths.ts`, `plan.ts`, `plan.load.ts`, `lock.ts`, `src/index.ts`,
      the toolchain tests' `require-eventual-artifact` imports, and any cross-cluster signature change the agents report.
      `lock.ts` and `plan.ts` are done (0 findings).
-     Open question for the owner, to ask with the agents' reports:
+     All three clusters landed (`e5cc3750e4` providers, `a11dc18d42` sync/status, `fca18e62d3` update,
+      plus `66f…` making the bin list row scan linear after the owner rejected a quadratic replacement:
+      "quadratic here isn't acceptable");
+      117 findings remained afterwards, all cross-cluster or in this session's files.
+     Owner decisions (2026-10-29):
+      lock absence is written by omitting the key ("Omit absent keys"), so `manager`, `packageId`, `os`,
+      and `bootstrap.requiresTool` become optional and the plan data drops its `null` literals;
+      none of the three outside readers uses those fields (checked: core-matrix reads only `.tools.node.artifacts`);
+      `bin-paths.ts` keeps Node built-ins only and takes one justified scoped disable for `prefer-caught-value-text`;
+      AGENTS.md MXL stays as written ("Leave MXL as is").
+     Landed `cd1943f4f3` (optional fields, validator-based loader).
+     Coordination (2026-10-29): session `monochromatic-71` owns `types.ts`, `exposure.ts`, `sync.ts`,
+      `plan.tools.data.ts`, and `plan.load.guards.ts` while it adds a `postinstall.run` kind;
+      it will message when done, and this session then regenerates `toolchain.lock.json` once for both changes.
+     `monochromatic-71` finished in `4dc59d9057`; the lock and mpm manifests were regenerated once in `920e76c1db`
+      (search-shadow 0.2.0 `run` step plus omitted absent keys), and `file-enforcer --check` reported no drift
+      in the generated root `mise.toml`.
+     Landed since (2026-10-29):
+      `d258e48a5b` (async artifact writes and bin config seeding, `ReleaseTagUrlError`, `NO_GITHUB_TOKEN`,
+      linear `findBinUnder` walk), `37ea4d8fec` (container tests heal the workspace packages they reach instead of
+      the removed `package/module`; both toolchain matrix cells pass, including the postinstall command suite),
+      `18ac101cea` (`runPostinstallCommands` export), `7a31de940c` and `b172391f8f` (plan guards clean and split into
+      `plan.load.guards.options.ts`), `b64e268e8a` (the `bin-paths.ts` scoped disable, justified in
+      `package/file-enforcer/core/src/toolchain/bin-paths.lint-exemption.md`), `2b3290a61f` and `a2ff589e21`
+      (single-line style findings). 71 errors and 13 warnings remained after `a2ff589e21`.
+     In progress (2026-10-29, the owner watching): one helper agent owns all non-test toolchain source for the
+      absence and sync-API cascade (`paths.ts` including `isMainModule`, `layout.ts` `findToolBin`, `exec.ts`,
+      `exposure.ts`, `providers.context.ts`, `providers.environment.ts`, `status.ts`, and their callers);
+      it edits tests only for forced call-site changes.
+     Queued after that agent reports: message `monochromatic-71` the commit to build on (it waits to add an owner-approved
+      `toolchain:sync` warning in `sync.ts` `isAtLockedVersion` when an installed version differs from the lock);
+      then the toolchain tests' `require-eventual-artifact` imports (35 findings in 10 test
+      files) through `src/index.ts`, then a full toolchain test pass and a final lint count.
+     Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
+      `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
+      stale `module-*` links into the removed `package/module`; its write-up goes to `doc/troubleshooting/`.
+     Former open question for the owner:
       `types.ts` mirrors `toolchain.lock.json`, which holds 120 JSON `null` values
       (30 `manager`, 30 `packageId`, 59 `os`, 1 `requiresTool`)
       and is read outside file-enforcer (`package/test-harness/core-matrix`, `package/ide/app/bin/inspect-language-toolchain.ts`,
@@ -1074,7 +1113,7 @@ Remaining:
       `no-nullish-union` either becomes optional fields with omitted lock keys (a format change for those readers)
       or keeps `null` in the on-disk mirror type behind a documented scoped disable.
      `paths.ts`'s `isMainModule` uses `realpathSync` at every toolchain entry point's top level,
-      so its `no-sync` fix changes callers in all three clusters.
+      so its `no-sync` fix changes callers in all three clusters (now inside the cascade agent's scope).
 5.  Open, not fixed:
      the overwrite, TOML-write, JetBrains, and Mise-manifest suites time out on
      `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` when the whole suite runs in parallel,

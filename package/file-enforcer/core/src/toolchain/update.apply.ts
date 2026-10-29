@@ -68,9 +68,7 @@ function moveVersionPins(
   return {
     ...entry,
     version: newVersion,
-    packageId: entry.packageId === oldVersion
-      ? newVersion
-      : entry.packageId,
+    ...(entry.packageId === oldVersion ? { packageId: newVersion, } : {}),
     env,
     artifacts,
   };
@@ -241,11 +239,15 @@ export async function writeResolutions(
   /**
    Generated root artifacts (the lock and the mpm manifests).
    */
-  for (const name of writeArtifacts({
+  /**
+   Root artifacts this update rewrote.
+   */
+  const { written: artifactsWritten, } = await writeArtifacts({
     tools,
     paths,
-  },)
-    .written)
-    written.push(name,);
-  return written;
+  },);
+  return [
+    ...written,
+    ...artifactsWritten,
+  ];
 }

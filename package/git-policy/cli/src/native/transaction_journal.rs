@@ -17,6 +17,9 @@
 //! const preparing = parsePreparingRecord(bytes); await writeJournalRecord({ directory, filename, record });
 //! ```
 
+/// The digest of an index snapshot.
+use super::content_digest::ContentDigest;
+
 /// Journal schema version of every per-transaction state record.
 pub const JOURNAL_SCHEMA_VERSION: i64 = 2;
 /// Invocation capture record filename.
@@ -342,6 +345,12 @@ pub struct LandingRecord {
     pub added_paths: Vec<AddedPath>,
     /// Selected worktree completion records.
     pub selected_worktree_paths: Vec<AddedPath>,
+    /// Length and hash of the pre-landing snapshot as written;
+    ///  absent in a record written before digests existed.
+    pub pre_landing_digest: Option<ContentDigest>,
+    /// Length and hash of the post-index as written;
+    ///  absent in a record written before digests existed.
+    pub post_digest: Option<ContentDigest>,
 }
 
 /// What:

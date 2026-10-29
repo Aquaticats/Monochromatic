@@ -17,6 +17,7 @@ use crate::policy_forbidden_strings::FORBIDDEN_STRING_CODE;
 use crate::policy_markdown::{MARKDOWN_AUTOFIX_CODE, MARKDOWN_VIOLATION_CODE};
 use crate::policy_root_context::ROOT_CONTEXT_CODE;
 use crate::rule_add_explicit::BULK_ADD_CODE;
+use crate::traditional_hook_warning::TRADITIONAL_HOOKS_UNSUPPORTED_CODE;
 
 /// Every engine failure code, with an exhaustive match so a new variant stops compilation here.
 fn every_engine_failure() -> Vec<EngineFailureCode> {
@@ -59,6 +60,9 @@ fn every_engine_failure_code_has_a_hint() {
         assert!(hint.len() > 80, "{name} is too thin to help: {hint}");
     }
     assert!(engine_failure_hint(LEGACY_CONFIG_IGNORED_CODE).is_some());
+    let traditional: &str =
+        engine_failure_hint(TRADITIONAL_HOOKS_UNSUPPORTED_CODE).expect("the traditional-hooks warning has a hint");
+    assert!(traditional.starts_with("Hint: ") && traditional.contains("git cli-git doctor"), "{traditional}");
     assert_eq!(engine_failure_hint("not-a-code"), None);
 }
 

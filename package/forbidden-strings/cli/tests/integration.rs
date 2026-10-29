@@ -50,7 +50,7 @@ impl Command {
     fn configured(program: impl AsRef<std::ffi::OsStr>) -> ProcessCommand {
         static CACHE_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
         let cache_root = CACHE_ROOT.get_or_init(|| {
-            let path = std::env::temp_dir().join(format!(
+            let path = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
                 "forbidden-strings-integration-cache-{}",
                 std::process::id(),
             ));
@@ -65,7 +65,7 @@ impl Command {
 }
 
 // What:     `fn unique_tmp(label) -> PathBuf` returns a fresh empty
-//           directory under `std::env::temp_dir()`. Uses PID + label so
+//           directory under `CARGO_TARGET_TMPDIR`. Uses PID + label so
 //           parallel test runs do not collide.
 // Why:      Tests create rules files and target files; sharing a dir
 //           across tests is a flake source.
@@ -77,7 +77,7 @@ impl Command {
 // }
 // ```
 fn unique_tmp(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
         "fs-int-{}-{}",
         label,
         std::process::id()

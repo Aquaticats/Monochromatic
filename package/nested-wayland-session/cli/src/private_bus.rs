@@ -132,7 +132,10 @@ impl PrivateBus {
     ///  so the compositor starts the daemon once.
     pub fn start() -> Result<Self> {
         let sequence = PRIVATE_BUS_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let directory = std::env::temp_dir().join(format!(
+        let runtime_directory = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).context(
+            "XDG_RUNTIME_DIR is not set; the private D-Bus socket needs the per-user runtime directory",
+        )?;
+        let directory = runtime_directory.join(format!(
             "monochromatic-nested-wayland-session-{}-{sequence}",
             std::process::id(),
         ));

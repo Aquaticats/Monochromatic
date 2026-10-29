@@ -244,7 +244,26 @@ User decisions taken during execution
      the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
      (parity and coverage gates pass, confirmed by a rerun).
     User chose to port the new 7.1 APIs too (`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, `preserveOrder`),
-     mirroring upstream's shapes; its subagent is in flight.
+     mirroring upstream's shapes.
+    Done: `cc54c0acc6` (`pMapStop`, `pMapSettled`, `preserveOrder`), `89fdcb55c1` (keyed variants),
+     the stack-trace link, sidecar parity tests, refrozen coverage baseline (`dca2e1f455`),
+     unit suites (`a035dcc4f2`, `638225a63b`, `9c4daa4605`), fork README `9df5ebfe0e`, sidecar README `ab896e888e`.
+    Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (10 files) pass.
+    The subagent once stopped on `EDQUOT`
+     (8.9G of leaked `native-binary-*` git-policy/cli test fixtures filled the user's `/tmp` tmpfs quota, issue #1809).
+    Upstream's ava suite was hand-adapted per feature rather than ported wholesale;
+     the differential fuzz against installed upstream is the parity guarantee for the new APIs.
+  - `test:mutation` for `p-map` and `p-memoize` (user asked 2026-10-29):
+     first attempt failed because `package/mutation-test/cli/dist` was built 2026-10-20 and still scanned
+     `package/cli/mutation-test/src/container`; rebuilt (doc example fixed in `5ae7a23939`).
+    Running as systemd user units `mutation-p-memoize` and `mutation-p-map`,
+     logs in `~/temp/agent/package-category-elimination/mutation-*.log`,
+     reports land in each package's `dist/mutation-report.json`; survivors still need triage.
+  - A scan of `package/**/dist` for old category paths found stale builds;
+     rebuilt `test-harness/core-matrix` (stack-frame filter fragments), `wg/cli-quicker` (build hint),
+     `file-manager/variant-electron`, `doodle-widget/app`; all now clean.
+    Remaining hits are old mutation reports, fuzz artifacts, and deliberate doc examples
+     (`/repo/package/module/x` in oxlint plugins; translation-repair's pre-split history path).
   - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
      (removed `rebuildEntry` callbacks and the JSON.parse fast path)
      and made the driver reach `emitPlainJson` again;

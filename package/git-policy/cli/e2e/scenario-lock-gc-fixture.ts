@@ -160,6 +160,8 @@ const gcPrune: ScenarioDefinition = {
   name: 'gc-prune-during-commits',
   group: 'concurrency',
   summary: 'git gc --prune=now runs while one commit is held in pre-commit and 3 others commit',
+  // Config hooks need Git 2.54.0.
+  minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
@@ -172,7 +174,7 @@ const gcPrune: ScenarioDefinition = {
           'held.txt',
         ],
       },),
-      hooks: 'hookdir',
+      hooks: 'config',
       hookEvents: ['pre-commit',],
     },);
   },

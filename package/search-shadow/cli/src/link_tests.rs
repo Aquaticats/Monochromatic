@@ -42,7 +42,7 @@ fn write_tool(directory: &Path, name: &str) {
 /// ```
 #[test]
 fn links_only_the_names_that_have_a_real_tool() {
-    let world = tempfile::tempdir().expect("make a temporary directory");
+    let world = crate::test_scratch::scratch();
     let tools = world.path().join("tools");
     fs::create_dir(&tools).expect("make the tools directory");
     write_tool(&tools, "rg");
@@ -71,7 +71,7 @@ fn links_only_the_names_that_have_a_real_tool() {
 /// A link whose real tool has gone must be removed, so `command -v` stops reporting it.
 #[test]
 fn removes_a_stale_link_when_the_real_tool_is_gone() {
-    let world = tempfile::tempdir().expect("make a temporary directory");
+    let world = crate::test_scratch::scratch();
     let tools = world.path().join("tools");
     fs::create_dir(&tools).expect("make the tools directory");
     write_tool(&tools, "rg");
@@ -92,7 +92,7 @@ fn removes_a_stale_link_when_the_real_tool_is_gone() {
 /// Linking again is idempotent, replaces what is in the way, and never takes a shadow link for the real tool.
 #[test]
 fn linking_again_replaces_what_is_there_and_skips_its_own_links() {
-    let world = tempfile::tempdir().expect("make a temporary directory");
+    let world = crate::test_scratch::scratch();
     let tools = world.path().join("tools");
     fs::create_dir(&tools).expect("make the tools directory");
     write_tool(&tools, "rg");

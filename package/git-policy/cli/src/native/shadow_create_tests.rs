@@ -216,6 +216,53 @@ fn overwritten_shadow_files_are_private() {
     remove(root.as_path());
 }
 
+/// The `config` starts Git logged to a trace file, as their argument lists.
+fn config_starts(trace: &Path) -> Vec<String> {
+    return std::fs::read_to_string(trace)
+        .unwrap_or_default()
+        .lines()
+        .filter(|line| { return line.contains("| start "); })
+        .filter_map(|line| { return line.rsplit_once("| ").map(|(_head, command)| { return command.to_string(); }); })
+        .filter(|command| { return command.split(' ').nth(1) == Some("config"); })
+        .collect();
+}
+
+/// Creating a shadow reads the repository format from the snapshot when it can, and from Git's `--file` listing
+///  when the configuration includes another file.
+#[test]
+fn the_repository_format_comes_from_the_snapshot_unless_the_configuration_includes_a_file() {
+    let root: PathBuf = fixture("shadow-create-format-source");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let trace: PathBuf = root.join("trace2.txt");
+    let mut overlay = crate::test_support::isolated_overlay();
+    overlay.push((std::ffi::OsString::from("GIT_TRACE2_PERF"), trace.clone().into_os_string()));
+    let context: GitContext = GitContext { overlay, ..git_context() };
+    for (name, include, transaction_id) in [
+        ("plain", false, TRANSACTION),
+        ("included", true, "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a11"),
+    ] {
+        if include {
+            std::fs::write(repo.join(".git/extra"), "[user]\n\tname = Someone\n").expect("extra");
+            git(repo.as_path(), &["config", "include.path", "extra"]);
+        }
+        let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+        let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+        let transaction: PathBuf = root.join(format!("transaction-{name}"));
+        std::fs::create_dir_all(&transaction).expect("transaction directory");
+        let _ = std::fs::remove_file(trace.as_path());
+        create_shadow_repository(&context, repo.as_path(), &capture, transaction_id, transaction.as_path())
+            .expect("shadow");
+        let started: Vec<String> = config_starts(trace.as_path());
+        if include {
+            assert_eq!(started.len(), 1, "{started:?}");
+            assert!(started[0].ends_with("config --file config --null --list"), "{started:?}");
+        } else {
+            assert!(started.is_empty(), "{started:?}");
+        }
+    }
+    remove(root.as_path());
+}
+
 /// A directory that exists already is accepted, a file in its place is not, and a missing parent fails.
 #[test]
 fn an_existing_private_directory_is_accepted_and_a_file_is_not() {

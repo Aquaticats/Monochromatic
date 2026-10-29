@@ -311,15 +311,12 @@ fn an_unknown_option_is_refused_by_git_and_nothing_lands() {
     remove_settled(&fixture);
 }
 
-/// A `pre-commit` hook that fails ends the commit with Git's status and leaves nothing behind.
+/// A configured `pre-commit` hook that fails ends the commit with Git's status and leaves nothing behind.
 #[test]
 fn a_failing_pre_commit_hook_stops_the_commit_with_its_status() {
     let fixture: Fixture = fixture("commit-hook-fails");
     let repo: PathBuf = edited_repository(&fixture, "repo");
-    super::support::executable(
-        repo.join(".git/hooks/pre-commit").as_path(),
-        b"#!/bin/sh\necho rejected by the hook >&2\nexit 1\n",
-    );
+    super::support::configure_pre_commit_hook(&fixture, repo.as_path(), b"#!/bin/sh\necho rejected by the hook >&2\nexit 1\n");
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
     let rejected: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=x", "a.txt"]);
     assert_eq!(rejected.code, Some(1), "{}", stderr_of(&rejected));
@@ -329,13 +326,14 @@ fn a_failing_pre_commit_hook_stops_the_commit_with_its_status() {
     remove_settled(&fixture);
 }
 
-/// A `pre-commit` hook that re-stages the file through the wrapper has its change kept in the commit.
+/// A configured `pre-commit` hook that re-stages the file through the wrapper has its change kept in the commit.
 #[test]
 fn a_pre_commit_hook_restaging_a_file_is_kept() {
     let fixture: Fixture = fixture("commit-hook-restages");
     let repo: PathBuf = edited_repository(&fixture, "repo");
-    super::support::executable(
-        repo.join(".git/hooks/pre-commit").as_path(),
+    super::support::configure_pre_commit_hook(
+        &fixture,
+        repo.as_path(),
         b"#!/bin/sh\nprintf 'hooked\\n' >> a.txt\ngit add -- a.txt\n",
     );
     let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=second", "a.txt"]);
@@ -441,8 +439,9 @@ fn a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing() {
     let fixture: Fixture = fixture("commit-signal");
     let repo: PathBuf = edited_repository(&fixture, "repo");
     let started: PathBuf = fixture.root.join("hook-started");
-    super::support::executable(
-        repo.join(".git/hooks/pre-commit").as_path(),
+    super::support::configure_pre_commit_hook(
+        &fixture,
+        repo.as_path(),
         format!("#!/bin/sh\ntouch '{}'\nsleep 60\n", started.display()).as_bytes(),
     );
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);

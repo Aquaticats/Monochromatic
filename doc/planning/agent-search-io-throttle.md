@@ -301,11 +301,24 @@ source-only crate installs by compiling (about 9 seconds measured). The plan ent
 for `rg` (the schema allows one link per entry), and the link directory precedes `.cache/toolchain-bin` in the generated PATH.
 
 For the many-tool version the owner chose a `postinstall.run` kind that runs `search-shadow link .cache/search-shadow-bin`,
-so the crate owns the tool list. It needs a new schema variant, a runner in `exposure.ts` and a call in `sync.ts` after the
-exposure rebuild (`sync.ts` runs postinstall links before `rebuildExposure`, and `search-shadow link` needs the exposure
-directory on `PATH` to find the locked `rg`). On 2026-10-29 the working tree held another session's uncommitted edits to
-`exposure.ts`, `sync.ts`, `generate.ts` and about thirty other files under `package/file-enforcer/core/src/toolchain/`, so this
-change waits for them to land (concurrent work is not overwritten).
+so the crate owns the tool list. It is implemented (commit `4dc59d9057`): `PostinstallRun` and `PostinstallStep` in `types.ts`,
+`parsePostinstallRun` in `plan.load.guards.ts`, `runPostinstallCommands` in `exposure.ts` (the command starts from the worktree
+root with the exposure directory and the toolchain bin directory first on `PATH`; a failure lands in the sync failure
+record), and a call in `sync.ts` after the exposure rebuild, because `sync.ts` runs postinstall links before `rebuildExposure`
+and `search-shadow link` needs the exposure directory on `PATH` to find the locked `rg`. The plan entry is version 0.2.0 with
+`run: { sourceBin: 'search-shadow', args: ['link', '.cache/search-shadow-bin'] }`; the lock and manifests were regenerated in
+commit `920e76c1db` by the session that owned the other toolchain edits.
+
+Verified on 2026-10-29 with `mise run toolchain:sync` (3 installed, 59 unchanged, 0 failed): `.cache/search-shadow-bin` holds
+nine links (`du`, `egrep`, `fd`, `fgrep`, `find`, `grep`, `rg`, `tokei`, `tree`; only tools whose real binary was on `PATH`).
+Through `mise exec` in the repository root, `rg`, `grep`, `find` and `fd` resolve to those links; `rg -rl foo package`,
+`grep -rn foo` and `find . -name x` exit 2 with their explanations; `find . -maxdepth 1 -name package` runs; `find --version`
+prints GNU findutils 4.10.0. The two new runner tests in `providers.unit.matrix.test.ts` first could not run, because the
+container task `test:container:toolchain` failed on `chmod -R a+rX .../package/module`, a path the category rename removed;
+commit `37ea4d8fec` fixed that, and the session that owns the toolchain files reported (second hand, quoting the result
+lines) that both cells, ubuntu root and ubuntu user, passed the `postinstall command` suite ("2 cells passed").
+The sync also installed `monochromatic-lint` 0.4.0 and `monochromatic-git-policy-cli` 0.2.13, because a third session's
+version bumps were in the working tree when it ran.
 
 ## Git wrapper UX review
 
@@ -348,11 +361,26 @@ Open:
 
 - Read caps on `/dev/nvme0n1`: the bandwidth cap throttles cold buffered reads, the IOPS cap was never verified at a value
   below the delivered rate, and nothing applies either to the agents yet. A cap on `/dev/dm-1` is silently dropped.
-- The many-tool shadows: code and tests are on `main`; still to do are the container check against the real tools (running,
-  slowed by a Fedora mirror at about 78 KiB/s; the `Containerfile` now disables the unused openh264 repository and keeps the
-  dnf cache between builds), the 0.2.0 version bump and release, the `postinstall.run` schema change and the plan entry
-  (waiting for the other session's toolchain edits to land). In Claude Code shells `grep` and `find` are shell functions
-  running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
+- The many-tool shadows: released as 0.2.0 on 2026-10-29 (crates.io lists it; release `monochromatic-search-shadow-v0.2.0`
+  holds the x86_64 and aarch64 archives and the checksums; CI run 40871385671). `mise run //package/search-shadow/cli:test:container`
+  passes every check against the real ripgrep, grep, find, ugrep, ag, ack, fd, bfs, tree, du, ncdu, tokei and cloc in podman
+  (121 s on a warm dnf cache; the first build took 814 s because the Fedora mirror delivered about 60 KiB/s, so the
+  `Containerfile` disables the unused openh264 repository and keeps the dnf cache between builds). The test found one real
+  defect, fixed before the release: `find --version` with a wide working directory was refused. The `postinstall.run`
+  step and the plan entry at 0.2.0 are in place and verified (see "Activation, as verified"). In Claude Code shells `grep`
+  and `find` are shell functions running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
+  The runner's matrix tests pass in the toolchain container matrix (reported by the owning session).
+- `/tmp` is a 16 GiB tmpfs with a per-user quota of about 13 GiB that was 98 percent used on 2026-10-29 (hundreds of
+  `native-binary-*` directories of about 95 MB and `monochromatic-lint-stub-cargo-*` of 5 MB left by test runs of other
+  sessions), which made `git commit` fail with `Disk quota exceeded` while writing its signing buffer. Setting
+  `TMPDIR=${HOME}/temp/agent/gittmp` for the commit avoids it; the leaking tests are not fixed.
+- Queued, decided by the owner on 2026-10-29: `toolchain:sync` warns when it is about to replace an installed tool with a
+  different version. Background: trees share one `~/.cargo/bin`, `isAtLockedVersion` in `sync.ts` observes the shared
+  `cargo binstall --list` record and needs an exact match with the lock, so trees pinning different versions of one cargo tool
+  (lint 0.3.0 and 0.4.0 that day) overwrite each other on every sync. The warning goes through the tagged logger and names the
+  entry id, the observed version and the locked version; one test accompanies it. It waits for the session that owns
+  `package/file-enforcer/core/src/toolchain/` to commit its cascade (`observed` may become a symbol sentinel instead of `null`),
+  and that session migrates test imports afterwards. The owner declined per-tree cargo installs for now.
 - A Claude Code PreToolUse hook for the commands a `PATH` shadow cannot see (not built).
 - `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...`; whether that matches after
   the move to `Aquaticats` is untested.

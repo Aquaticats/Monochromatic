@@ -6,12 +6,12 @@
  Node builtins only.
  */
 
+import { constants, } from 'node:fs';
 import {
-  accessSync,
-  constants,
-  readdirSync,
-  statSync,
-} from 'node:fs';
+  access,
+  readdir,
+  stat,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { isErrnoException, } from './fs-probe.ts';
 import type { ToolPlanEntry, } from './types.ts';
@@ -86,16 +86,16 @@ export function hostPlatformId(): string {
 
  @example
  ```ts
- isExecutable('/usr/bin/env',); // true
+ await isExecutable('/usr/bin/env',); // true
  ```
  */
-export function isExecutable(path: string,): boolean {
+export async function isExecutable(path: string,): Promise<boolean> {
   try {
-    accessSync(
+    await access(
       path,
       constants.X_OK,
     );
-    return statSync(path,)
+    return (await stat(path,))
       .isFile();
   } catch (error) {
     if (!isErrnoException(error,))
@@ -111,9 +111,9 @@ export function isExecutable(path: string,): boolean {
 
  @returns `true` when the path resolves to a directory
  */
-function isDirectory(path: string,): boolean {
+async function isDirectory(path: string,): Promise<boolean> {
   try {
-    return statSync(path,)
+    return (await stat(path,))
       .isDirectory();
   } catch (error) {
     if (!isErrnoException(error,))
@@ -130,9 +130,9 @@ function isDirectory(path: string,): boolean {
 
  @returns Entry names in lexicographic order
  */
-function sortedChildren(dir: string,): readonly string[] {
+async function sortedChildren(dir: string,): Promise<readonly string[]> {
   try {
-    return readdirSync(dir,)
+    return (await readdir(dir,))
       .toSorted();
   } catch (error) {
     if (!isErrnoException(error,))
@@ -147,9 +147,109 @@ function sortedChildren(dir: string,): readonly string[] {
 const MAX_BIN_SEARCH_DEPTH = 3;
 
 /**
- Marks that `findBinUnder` found no matching binary.
+ Marks that a binary search found no matching binary.
  */
-export const BIN_NOT_FOUND: unique symbol = Symbol('findBinUnder found no matching binary',);
+export const BIN_NOT_FOUND: unique symbol = Symbol('searched directories held no executable of the requested name',);
+
+/**
+ Searches one directory level for a binary, then descends into the level below.
+
+ The level is the unit of concurrency: every candidate of one depth is probed at once, and the first hit in array
+ order wins, which keeps the shallowest-first, lexicographic order of the sequential walk. The recursion depth is
+ bounded by `MAX_BIN_SEARCH_DEPTH`.
+
+ @param dirs - Directories of this depth, in visiting order
+
+ @param name - Binary file name to look for
+
+ @param depth - Depth of `dirs` below the search root
+
+ @returns Absolute path of the match, or {@link BIN_NOT_FOUND} when none resolves
+ */
+async function searchBinLevel(
+  {
+    dirs,
+    name,
+    depth,
+  }: {
+    readonly dirs: readonly string[];
+    readonly name: string;
+    readonly depth: number;
+  },
+): Promise<string | typeof BIN_NOT_FOUND> {
+  if (dirs.length === 0)
+    return BIN_NOT_FOUND;
+  /**
+   Direct candidate in each directory of this level.
+   */
+  const directs = dirs.map(
+    function directCandidate(dir,): string {
+      return join(
+        dir,
+        name,
+      );
+    },
+  );
+  /**
+   Whether each direct candidate is an executable file, in the same order as `directs`.
+   */
+  const executable = await Promise.all(directs.map(
+    function candidateIsExecutable(direct,): Promise<boolean> {
+      return isExecutable(direct,);
+    },
+  ),);
+  /**
+   First executable candidate in visiting order.
+   */
+  const [hit,] = directs.filter(
+    function isHit(
+      _direct,
+      index,
+    ): boolean {
+      return executable[index] === true;
+    },
+  );
+  if (hit !== undefined)
+    return hit;
+  if (depth >= MAX_BIN_SEARCH_DEPTH)
+    return BIN_NOT_FOUND;
+  /**
+   Absolute child paths of every directory of this level, in visiting order.
+   */
+  const children = (await Promise.all(dirs.map(
+    async function childPaths(dir,): Promise<readonly string[]> {
+      return (await sortedChildren(dir,)).map(
+        function childPath(child,): string {
+          return join(
+            dir,
+            child,
+          );
+        },
+      );
+    },
+  ),))
+    .flat();
+  /**
+   Whether each child is a directory, in the same order as `children`.
+   */
+  const childIsDirectory = await Promise.all(children.map(
+    function childIsDir(child,): Promise<boolean> {
+      return isDirectory(child,);
+    },
+  ),);
+  return searchBinLevel({
+    dirs: children.filter(
+      function isDirectoryChild(
+        _child,
+        index,
+      ): boolean {
+        return childIsDirectory[index] === true;
+      },
+    ),
+    name,
+    depth: depth + 1,
+  },);
+}
 
 /**
  Finds a binary file by name under a directory, searching shallowest first
@@ -163,10 +263,10 @@ export const BIN_NOT_FOUND: unique symbol = Symbol('findBinUnder found no matchi
 
  @example
  ```ts
- findBinUnder({ root: '/opt/tools', name: 'rg', },); // '/opt/tools/ripgrep-15.2.0/rg'
+ await findBinUnder({ root: '/opt/tools', name: 'rg', },); // '/opt/tools/ripgrep-15.2.0/rg'
  ```
  */
-export function findBinUnder(
+export async function findBinUnder(
   {
     root,
     name,
@@ -174,53 +274,12 @@ export function findBinUnder(
     readonly root: string;
     readonly name: string;
   },
-): string | typeof BIN_NOT_FOUND {
-  /**
-   Pending directories, as `[dir, depth]` pairs.
-   */
-  const pending: {
-    dir: string;
-    depth: number
-  }[] = [{
-    dir: root,
-    depth: 0
-  }];
-  while (pending.length > 0) {
-    /**
-     Next directory to inspect.
-     */
-    const current = pending.shift();
-    if (current === undefined)
-      break;
-    /**
-     Direct candidate in this directory.
-     */
-    const direct = join(
-      current.dir,
-      name,
-    );
-    if (isExecutable(direct,))
-      return direct;
-    if (current.depth >= MAX_BIN_SEARCH_DEPTH)
-      continue;
-    for (const child of sortedChildren(current.dir,)) {
-      /**
-       Absolute child path.
-       */
-      const childPath = join(
-        current.dir,
-        child,
-      );
-      if (isDirectory(childPath,))
-        pending.push(
-          {
-            dir: childPath,
-            depth: current.depth + 1,
-          },
-        );
-    }
-  }
-  return BIN_NOT_FOUND;
+): Promise<string | typeof BIN_NOT_FOUND> {
+  return await searchBinLevel({
+    dirs: [root],
+    name,
+    depth: 0,
+  },);
 }
 
 //endregion Filesystem helpers
@@ -233,8 +292,8 @@ export function findBinUnder(
  */
 export type BinSearchContext = {
   readonly paths: ToolchainPaths;
-  readonly env?: PathEnv | undefined;
-  readonly extraDirs?: readonly string[] | undefined;
+  readonly env?: PathEnv;
+  readonly extraDirs?: readonly string[];
 };
 
 /**
@@ -404,14 +463,14 @@ export function binSearchDirs(
 
  @param extraDirs - Extra directories a staged tool contributes
 
- @returns Absolute link target, or `null` when the bin is not installed
+ @returns Absolute link target, or {@link BIN_NOT_FOUND} when the bin is not installed
 
  @example
  ```ts
- findToolBin({ entry: toolById('node',), name: 'node', paths, },); // '/.../node/26.12.0/bin/node'
+ await findToolBin({ entry: toolById('node',), name: 'node', paths, },); // '/.../node/26.12.0/bin/node'
  ```
  */
-export function findToolBin(
+export async function findToolBin(
   {
     entry,
     name,
@@ -422,12 +481,12 @@ export function findToolBin(
     readonly entry: ToolPlanEntry;
     readonly name: string;
   },
-): string | null {
+): Promise<string | typeof BIN_NOT_FOUND> {
   for (const dir of binSearchDirs({
     entry,
     paths,
-    env,
-    extraDirs,
+    env: env ?? process.env,
+    extraDirs: extraDirs ?? [],
   },)) {
     /**
      Direct hit in one search directory.
@@ -436,21 +495,23 @@ export function findToolBin(
       dir,
       name,
     );
-    if (isExecutable(direct,))
+    /* oxlint-disable no-await-in-loop -- search directories are ordered by precedence, and a later directory's bounded walk is only worth its filesystem cost when every earlier one missed */
+    if (await isExecutable(direct,))
       return direct;
     /**
      Bounded nested search for layouts that keep binaries in child
      directories (`ripgrep-15.2.0-x86_64-unknown-linux-musl/rg`,
      `node/26.12.0/bin/npm`, `toolchains/<triple>/bin/rustc`).
      */
-    const nested = findBinUnder({
+    const nested = await findBinUnder({
       root: dir,
       name,
     },);
+    /* oxlint-enable no-await-in-loop */
     if (nested !== BIN_NOT_FOUND)
       return nested;
   }
-  return null;
+  return BIN_NOT_FOUND;
 }
 
 //endregion Link targets

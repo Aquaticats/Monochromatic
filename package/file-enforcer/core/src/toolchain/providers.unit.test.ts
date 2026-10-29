@@ -28,22 +28,22 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  ALL_TOOLS,
+  BIN_BOOTSTRAP,
+  hostPlatformId,
   installArchive,
   installBinSourced,
   installCargoBinstall,
   installCargoGit,
   installGoInstall,
   installMpmPnpm,
+  observeTool,
+  resolveToolchainPaths,
   seedBinConfig,
-} from './providers.ts';
-import { hostPlatformId, } from './layout.ts';
-import {
-  BIN_BOOTSTRAP,
-  ALL_TOOLS,
-} from './plan.ts';
-import { resolveToolchainPaths, toolInstallDir, type ToolchainPaths, } from './paths.ts';
-import { observeTool, } from './status.ts';
-import type { ToolPlanEntry, } from './types.ts';
+  type ToolchainPaths,
+  toolInstallDir,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -169,8 +169,8 @@ type FixtureEntryOverrides = {
   readonly request?: ToolPlanEntry['request'];
   readonly version?: ToolPlanEntry['version'];
   readonly route?: ToolPlanEntry['route'];
-  readonly manager?: ToolPlanEntry['manager'];
-  readonly packageId?: ToolPlanEntry['packageId'];
+  readonly manager?: string;
+  readonly packageId?: string;
   readonly bins?: ToolPlanEntry['bins'];
   readonly options?: ToolPlanEntry['options'];
   readonly artifacts?: ToolPlanEntry['artifacts'];
@@ -189,10 +189,7 @@ function fixtureEntry(overrides: FixtureEntryOverrides,): ToolPlanEntry {
     request: { track: 'latest' },
     version: '1.2.3',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},
@@ -885,7 +882,7 @@ await describe({
               '',
               'utf8',
             );
-            seedBinConfig({
+            await seedBinConfig({
               downloadDir: fixture.paths.toolchainBinDir,
               configPath,
             },);

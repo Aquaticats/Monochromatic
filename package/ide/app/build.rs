@@ -293,16 +293,22 @@ fn by_path(left: &(String, PathBuf), right: &(String, PathBuf)) -> std::cmp::Ord
 /// function generateEmbeddedRuntime(outDir: string, packageRoot: string): void
 /// ```
 fn generate_embedded_runtime(out_directory: &Path, package: &Path) {
-    // What: `ancestors().nth(3)` climbs from `target/<profile>/build/ide-<hash>/out` to `target/<profile>`.
+    // What: The nearest ancestor named `build` is Cargo's build-script directory, and its parent is `target/<profile>`.
+    //       That holds for `target/<profile>/build/ide-<hash>/out` and for the layout of newer Cargo,
+    //       `target/<profile>/build/ide/<hash>/out`, where a fixed count of levels reaches `build` instead.
     // Why: The runtime task prepares `target/debug/runtime` and `target/release/runtime`, one per profile.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const profileDirectory = path.resolve(outDir, '../../..');
+    // const profileDirectory = path.dirname(nearestAncestorNamed(outDir, 'build'));
     // ```
-    let Some(profile) = out_directory.ancestors().nth(3) else {
+    let Some(profile) = out_directory
+        .ancestors()
+        .find(|ancestor| ancestor.file_name().is_some_and(|name| name == "build"))
+        .and_then(Path::parent)
+    else {
         panic!(
-            "Unexpected Cargo output directory {}",
+            "Unexpected Cargo output directory {}: no ancestor is named build",
             out_directory.display()
         );
     };

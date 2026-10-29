@@ -8,6 +8,16 @@
  */
 
 import { execFile, } from 'node:child_process';
+import {
+  readFile,
+  realpath,
+} from 'node:fs/promises';
+import {
+  isAbsolute,
+  join,
+  relative,
+  sep,
+} from 'node:path';
 import { promisify, } from 'node:util';
 
 //region Bounds
@@ -249,3 +259,410 @@ export async function runContainerCell(
 }
 
 //endregion Cell execution
+
+//region Readable workspace
+
+/**
+ Prefix of a pnpm workspace protocol dependency specifier.
+ */
+const WORKSPACE_PROTOCOL = 'workspace:';
+
+/**
+ Raised when `chmod` cannot make a directory the container reads world-readable.
+ */
+export class ReadabilityHealError extends Error {
+  /**
+   @param dir - Directory `chmod` failed on
+
+   @param stderr - Diagnostic `chmod` printed
+   */
+  constructor(
+    {
+      dir,
+      stderr,
+    }: {
+      readonly dir: string;
+      readonly stderr: string;
+    },
+  ) {
+    super(`chmod could not make ${dir} world-readable for the container cells: ${stderr}`,);
+    this.name = 'ReadabilityHealError';
+  }
+}
+
+/**
+ Reads the workspace-protocol dependency names one manifest declares.
+
+ @param manifest - Parsed `package.json`
+
+ @param fields - Dependency tables to read; the tested package needs its dev
+ dependencies (test harnesses), its dependencies need only what they import
+
+ @returns Package names whose specifier uses `workspace:`
+
+ @example
+ ```ts
+ workspaceNames({ manifest: { dependencies: { a: 'workspace:*', b: '^1.0.0', }, }, fields: ['dependencies',], },); // ['a']
+ ```
+ */
+function workspaceNames(
+  {
+    manifest,
+    fields,
+  }: {
+    readonly manifest: unknown;
+    readonly fields: readonly string[];
+  },
+): readonly string[] {
+  if (((typeof manifest) !== 'object') || (manifest === null))
+    return [];
+  return fields.flatMap(function namesIn(field,) {
+    /**
+     Dependency table under this field, when the manifest has one.
+     */
+    const table: unknown = Reflect.get(
+      manifest,
+      field,
+    );
+    if (((typeof table) !== 'object') || (table === null))
+      return [];
+    return Object.entries(table,)
+      .filter(function isWorkspace([, specifier,],) {
+        return ((typeof specifier) === 'string') && specifier.startsWith(WORKSPACE_PROTOCOL,);
+      },)
+      .map(function nameOf([name,],) {
+        return name;
+      },);
+  },);
+}
+
+/**
+ Narrows a caught value to the filesystem error for a path that does not exist.
+
+ @param error - Value a filesystem call rejected with
+
+ @returns Whether the value is an `ENOENT` error
+
+ @example
+ ```ts
+ isMissingPathError(Object.assign(new Error('gone',), { code: 'ENOENT', },),); // true
+ ```
+ */
+function isMissingPathError(error: unknown,): error is Error & { readonly code: 'ENOENT'; } {
+  if (!Error.isError(error,))
+    return false;
+  return Reflect.get(
+    error,
+    'code',
+  ) === 'ENOENT';
+}
+
+/**
+ Resolves one package's workspace dependencies to their real directories.
+
+ @param dir - Package directory holding `package.json`
+
+ @param monorepoRoot - Highest directory whose `node_modules` is searched
+
+ @param fields - Dependency tables to follow
+
+ @returns Real directories of the linked workspace packages, each found the
+ way Node resolves a bare import: the nearest `node_modules/<name>` from the
+ package directory up to the monorepo root. pnpm's `dedupeDirectDeps` links a
+ dependency the root also declares only at the root, so the package's own
+ `node_modules` alone misses it. A dependency with no link anywhere on that
+ path is skipped with a warning: the cell resolves imports the same way, so
+ it cannot read that package either.
+
+ @example
+ ```ts
+ await linkedWorkspaceDirs({ dir: '/repo/package/file-enforcer/core', monorepoRoot: '/repo', fields: ['dependencies',], },);
+ ```
+ */
+async function linkedWorkspaceDirs(
+  {
+    dir,
+    monorepoRoot,
+    fields,
+  }: {
+    readonly dir: string;
+    readonly monorepoRoot: string;
+    readonly fields: readonly string[];
+  },
+): Promise<readonly string[]> {
+  /**
+   Directories whose `node_modules` Node would search, nearest first.
+   */
+  const searchDirs = nodeModulesSearchDirs({
+    dir,
+    monorepoRoot,
+  },);
+  /**
+   Parsed manifest of the package.
+   */
+  const manifest: unknown = JSON.parse(await readFile(
+    join(
+      dir,
+      'package.json',
+    ),
+    'utf8',
+  ),);
+  /**
+   Real directory of each declared link, or an empty list for a missing one.
+   */
+  const resolved = await Promise.all(
+    workspaceNames({
+      manifest,
+      fields,
+    },)
+      .map(async function resolveLink(name,): Promise<readonly string[]> {
+        /**
+         Every candidate link on the search path, probed together.
+         */
+        const probes = await Promise.allSettled(searchDirs.map(function probe(searchDir,) {
+          return realpath(join(
+            searchDir,
+            'node_modules',
+            name,
+          ),);
+        },),);
+        /**
+         Nearest probe that resolved or failed for a reason other than absence.
+         */
+        const decisive = probes.find(function isDecisive(outcome,) {
+          return (outcome.status === 'fulfilled') || (!isMissingPathError(outcome.reason,));
+        },);
+        if (decisive === undefined) {
+          console.warn(
+            `[container-readability] ${name} is declared in ${dir}/package.json but no node_modules/${name} exists from ${dir} up to ${monorepoRoot}; run pnpm install to link it (skipped)`,
+          );
+          return [];
+        }
+        if (decisive.status === 'rejected')
+          throw decisive.reason;
+        return [decisive.value,];
+      },),
+  );
+  return resolved.flat();
+}
+
+/**
+ Lists the directories whose `node_modules` Node searches for a bare import
+ made from one directory, nearest first, stopping at the monorepo root.
+
+ @param dir - Directory the import is made from
+
+ @param monorepoRoot - Highest directory searched
+
+ @returns `dir`, its ancestors, and `monorepoRoot` last; only `dir` when it
+ lies outside the monorepo root. The list length is the path depth, so
+ building it is bounded by the number of path segments.
+
+ @example
+ ```ts
+ nodeModulesSearchDirs({ dir: '/repo/package/a/core', monorepoRoot: '/repo', },);
+ // ['/repo/package/a/core', '/repo/package/a', '/repo/package', '/repo']
+ ```
+ */
+function nodeModulesSearchDirs(
+  {
+    dir,
+    monorepoRoot,
+  }: {
+    readonly dir: string;
+    readonly monorepoRoot: string;
+  },
+): readonly string[] {
+  /**
+   Path from the monorepo root down to the directory.
+   */
+  const below = relative(
+    monorepoRoot,
+    dir,
+  );
+  if (below.startsWith('..',) || isAbsolute(below,))
+    return [dir,];
+  /**
+   Segments from the root down to the directory.
+   */
+  const segments = below === ''
+    ? []
+    : below.split(sep,);
+  /**
+   Each prefix directory, root first.
+   */
+  const prefixes = segments.reduce(
+    function extend(
+      dirs: string[],
+      segment: string,
+    ): string[] {
+      dirs.push(join(
+        dirs.at(-1,) ?? monorepoRoot,
+        segment,
+      ),);
+      return dirs;
+    },
+    [],
+  );
+  return [
+    ...prefixes.toReversed(),
+    monorepoRoot,
+  ];
+}
+
+/**
+ Lists the workspace packages one package reaches through `workspace:`
+ dependencies, transitively, as monorepo-relative directories.
+
+ The tested package's dev dependencies count (test harnesses run in the
+ cell); deeper packages contribute only their runtime dependencies.
+
+ @param monorepoRoot - Worktree root the relative paths start from
+
+ @param packageDir - Absolute directory of the tested package
+
+ @returns Monorepo-relative directories, each listed once
+
+ @example
+ ```ts
+ await workspaceDependencyDirs({ monorepoRoot: '/repo', packageDir: '/repo/package/file-enforcer/core', },);
+ // ['package/logger/core', 'package/test-harness/core', ...]
+ ```
+ */
+export async function workspaceDependencyDirs(
+  {
+    monorepoRoot,
+    packageDir,
+  }: {
+    readonly monorepoRoot: string;
+    readonly packageDir: string;
+  },
+): Promise<readonly string[]> {
+  /**
+   Real directory of the tested package.
+   */
+  const self = await realpath(packageDir,);
+  /**
+   Real directories already reached, the tested package included.
+   */
+  const reached = new Set<string>([self,],);
+  /**
+   Marks a level's first-time directories as reached and reads their
+   runtime dependencies in parallel.
+
+   @param frontier - Directories found at this level, possibly repeated
+
+   @returns Directories the next level holds
+   */
+  async function nextLevel(frontier: readonly string[],): Promise<readonly string[]> {
+    /**
+     Frontier entries reached for the first time.
+     */
+    const fresh = [...new Set(frontier,),].filter(function isNew(dir,) {
+      return !reached.has(dir,);
+    },);
+    for (const dir of fresh)
+      reached.add(dir,);
+    /**
+     Dependencies of every fresh directory.
+     */
+    const next = await Promise.all(fresh.map(function dependenciesOf(dir,) {
+      return linkedWorkspaceDirs({
+        dir,
+        monorepoRoot,
+        fields: ['dependencies',],
+      },);
+    },),);
+    return next.flat();
+  }
+  for (
+    let frontier = await linkedWorkspaceDirs({
+      dir: packageDir,
+      monorepoRoot,
+      fields: [
+        'dependencies',
+        'devDependencies',
+      ],
+    },);
+    frontier.length > 0;
+    // oxlint-disable-next-line no-await-in-loop -- each level's manifests name the next level, so levels run in sequence while each level reads in parallel
+    frontier = await nextLevel(frontier,)
+  );
+  reached.delete(self,);
+  return [...reached,].map(function toRelative(dir,) {
+    return relative(
+      monorepoRoot,
+      dir,
+    );
+  },);
+}
+
+/**
+ Makes the directories a container cell reads world-readable (read and
+ traverse bits only, never content). Rootless podman shows the mounted
+ worktree as container-root-owned, so a non-root cell reads only
+ world-readable files, and agent tooling here creates sources with mode 600.
+
+ @param monorepoRoot - Worktree root the cells mount
+
+ @param packageDir - Absolute directory of the tested package; its transitive
+ workspace dependencies are healed whole
+
+ @param ownDirs - Monorepo-relative directories of the tested package the
+ cells read
+
+ @returns Monorepo-relative directories that were healed
+
+ @throws ReadabilityHealError when `chmod` fails on a directory
+
+ @example
+ ```ts
+ await healReadableDirs({ monorepoRoot: '/repo', packageDir: '/repo/package/file-enforcer/core', ownDirs: ['package/file-enforcer/core/src',], },);
+ ```
+ */
+export async function healReadableDirs(
+  {
+    monorepoRoot,
+    packageDir,
+    ownDirs,
+  }: {
+    readonly monorepoRoot: string;
+    readonly packageDir: string;
+    readonly ownDirs: readonly string[];
+  },
+): Promise<readonly string[]> {
+  /**
+   Every directory the cells read.
+   */
+  const dirs = [
+    ...ownDirs,
+    ...await workspaceDependencyDirs({
+      monorepoRoot,
+      packageDir,
+    },),
+  ];
+  await Promise.all(dirs.map(async function heal(dir,) {
+    /**
+     Outcome of the recursive chmod; symlinks are not followed.
+     */
+    const outcome = await runBounded({
+      command: 'chmod',
+      args: [
+        '--recursive',
+        'a+rX',
+        join(
+          monorepoRoot,
+          dir,
+        ),
+      ],
+    },);
+    if (outcome.code !== 0)
+      throw new ReadabilityHealError({
+        dir,
+        stderr: outcome.stderr,
+      },);
+  },),);
+  return dirs;
+}
+
+//endregion Readable workspace

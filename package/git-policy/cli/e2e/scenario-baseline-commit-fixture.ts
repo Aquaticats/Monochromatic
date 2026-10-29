@@ -240,13 +240,15 @@ const traceSequential: ScenarioDefinition = {
   // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
   replayPlumbing: 'unused',
   summary: `replay ${String(BASELINE_TRACE_COMMITS,)} consecutive trace commits one at a time`,
+  // Config hooks need Git 2.54.0.
+  minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
         random,
         paths: ['README.txt',],
       },),
-      hooks: 'hookdir',
+      hooks: 'config',
       hookEvents: ['pre-commit',],
     },);
   },

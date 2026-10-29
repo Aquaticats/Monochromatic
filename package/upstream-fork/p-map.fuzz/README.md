@@ -66,6 +66,11 @@ replaces) and the fork:
  streaming yields,
  backpressure backlog,
  and configuration error messages must all match.
+The workloads include stop calls (`pMapStop`), both streaming orders (`preserveOrder`),
+and an object or `Map` input shape, and they drive `pMap`, `pMapSettled`, `pMapKeyed`,
+`pMapSettledKeyed`, and `pMapIterable` through both implementations.
+Configuration messages are compared for each asynchronous map with arbitrary input,
+mapper, and options values.
 
 The `p-map` catalog entry floats (`>=7.1.1`), so the oracle moves with the
 lockfile while the fork's source is ported by hand.
@@ -73,7 +78,7 @@ A parity failure after a lockfile refresh means upstream changed behavior:
 read the upstream release notes and diff, then port the change into the fork
 (or document the divergence in the fork's README and express it in the parity
 test).
-The fork was last aligned to `p-map` 7.1.1 for `pMap` and `pMapIterable`.
+The fork was last aligned to `p-map` 7.1.1 for every export.
 
 ### Running
 

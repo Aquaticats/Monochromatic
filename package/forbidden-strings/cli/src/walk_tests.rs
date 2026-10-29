@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 // What:     `fn unique_tmp(label: &str) -> PathBuf` returns a fresh
-//           empty directory under `/tmp` (or platform equivalent).
+//           empty directory under the test scratch root.
 //           Uses pid + label to avoid collisions across concurrent
 //           tests; we don't take a `tempfile` crate dependency for
 //           one test.
@@ -34,7 +34,7 @@ use std::process::Command;
 // }
 // ```
 fn unique_tmp(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = crate::test_scratch::scratch_root().join(format!(
         "fs-walk-test-{}-{}",
         label,
         std::process::id()

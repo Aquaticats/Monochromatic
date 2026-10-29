@@ -12,6 +12,7 @@ FROM registry.fedoraproject.org/fedora:latest
 RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
     dnf install --assumeyes --disablerepo=fedora-cisco-openh264 --setopt=keepcache=1 \
       --setopt=install_weak_deps=False --skip-unavailable \
-      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux
+      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux \
+      diffutils procps-ng
 
 COPY search-shadow /usr/local/bin/search-shadow

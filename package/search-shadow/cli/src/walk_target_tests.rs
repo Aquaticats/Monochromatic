@@ -22,16 +22,16 @@ use std::fs;
 /// ```
 #[test]
 fn a_directory_that_contains_dot_git_is_a_repository_root() {
-    // `tempfile::tempdir()` makes a directory that is deleted when the variable goes out of scope.
-    let repository = tempfile::tempdir().expect("make a temporary directory");
+    // `scratch()` makes a directory that is deleted when the variable goes out of scope.
+    let repository = crate::test_scratch::scratch();
     fs::create_dir(repository.path().join(".git")).expect("make .git");
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     // `assert_eq!(a, b)` stops the test with a message when `a != b` (a macro, hence `!`).
     assert_eq!(classify(".", repository.path(), home.path()), WalkTarget::RepositoryRoot);
     assert_eq!(classify("./", repository.path(), home.path()), WalkTarget::RepositoryRoot);
     // An absolute spelling, from another directory, names the same repository.
-    let elsewhere = tempfile::tempdir().expect("make a temporary directory");
+    let elsewhere = crate::test_scratch::scratch();
     let absolute = repository.path().to_string_lossy().to_string();
     assert_eq!(classify(&absolute, elsewhere.path(), home.path()), WalkTarget::RepositoryRoot);
 }
@@ -39,10 +39,10 @@ fn a_directory_that_contains_dot_git_is_a_repository_root() {
 /// A plain subdirectory of a repository is bounded: its walk stays inside it.
 #[test]
 fn a_subdirectory_of_a_repository_is_bounded() {
-    let repository = tempfile::tempdir().expect("make a temporary directory");
+    let repository = crate::test_scratch::scratch();
     fs::create_dir(repository.path().join(".git")).expect("make .git");
     fs::create_dir(repository.path().join("package")).expect("make a subdirectory");
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
 
     assert_eq!(classify("package", repository.path(), home.path()), WalkTarget::Bounded);
 }
@@ -50,8 +50,8 @@ fn a_subdirectory_of_a_repository_is_bounded() {
 /// The home directory and the filesystem root are wide whatever they contain.
 #[test]
 fn the_home_directory_and_the_filesystem_root_are_wide() {
-    let home = tempfile::tempdir().expect("make a temporary directory");
-    let work = tempfile::tempdir().expect("make a temporary directory");
+    let home = crate::test_scratch::scratch();
+    let work = crate::test_scratch::scratch();
     let home_text = home.path().to_string_lossy().to_string();
 
     assert_eq!(classify(&home_text, work.path(), home.path()), WalkTarget::Home);
@@ -61,8 +61,8 @@ fn the_home_directory_and_the_filesystem_root_are_wide() {
 /// A path that does not exist walks nothing, so it is bounded.
 #[test]
 fn a_missing_path_is_bounded() {
-    let work = tempfile::tempdir().expect("make a temporary directory");
-    let home = tempfile::tempdir().expect("make a temporary directory");
+    let work = crate::test_scratch::scratch();
+    let home = crate::test_scratch::scratch();
 
     assert_eq!(classify("no/such/directory", work.path(), home.path()), WalkTarget::Bounded);
 }

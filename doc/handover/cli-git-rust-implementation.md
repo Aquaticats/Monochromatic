@@ -3252,3 +3252,85 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Agent a4bd69a2e240509bc (slice J) was resumed to find the cause (harness assumption or a real change from one of the other
   slices) and fix it on its own worktree after merging `integrate-slices`; then merge its branch into `integrate-slices`
   again and rerun the gate.
+
+## Update at 2026-10-29 (J fix, budget agent report, /tmp pressure)
+
+- The two tearing failures were a harness bug: its number normalizer assumed 7-digit pids and the container (`--init`) has
+  short ones, so the `cli-git-add-policy-<pid>-...` key differed between listing and case runs. Fixed in `019d433cc9`
+  (15 keys renamed, no outcome changed) and fast-forwarded onto `integrate-slices`. Gate run 2 ended after two container
+  stages with no verdict and no error in the log; the rerun is unit `cli-git-gate-merge4`
+  (log `~/temp/agent/gate-merge4.log`, ends with an `exit=` line).
+- Budget agent (a25fe20d930cb8679) finished on branch `worktree-agent-a25fe20d930cb8679` (`e6aabdf36c`, `83330e8c99`,
+  `182acb78f6`; merged `integrate-slices` first). Exact per-subcommand start and sync budgets for no hooks, one config
+  hook and amend in `binary_budget_tests.rs`; no-hook commit: 33 wrapper syncs plus 3 from `index-pack`, `stat` 3 on
+  tmpfs, 0 on a UUID filesystem. Shown failing by lowering budgets. Its full binary run showed 7 unexplained failures,
+  suspected to come from /tmp running out of space; verify on a clean merge before trusting it.
+- /tmp is a 16 GB tmpfs holding 13 GB, including 160 leaked `/tmp/native-binary-<pid>-*` fixtures (about 99 to 280 MB each)
+  from killed or failing test runs. Concurrent suites hit EDQUOT, which also empties task output files. The auto-mode
+  classifier denied cleaning them ("Shared Scratch Sweep") for both the agent and me. A user decision is needed: allow a
+  sweep of dead-pid fixtures older than 30 minutes, or clear `/tmp` by hand. Longer term, the binary test fixtures
+  should remove themselves on failure.
+
+## Update at 2026-10-29 (issue 1809: fixtures leave /tmp)
+
+- Cause of the quota failures: `/tmp` is a tmpfs with a per-user quota (13108M); 160 leaked `native-binary-<pid>-*` fixtures
+  (8.9 GB) from panicking tests filled it, and every command writing under `/tmp` failed with EDQUOT. A peer session
+  (monochromatic-fb) removed the dead-pid fixtures with the user's approval.
+- Fix: binary fixtures live in `CARGO_TARGET_TMPDIR` with an `impl Drop for Fixture`; unit fixtures live in
+  `<target>/test-fixtures` and a thread-exit guard removes them; `CLI_GIT_KEEP_FIXTURES=1` keeps them for debugging and
+  `CLI_GIT_TEST_ROOT` moves the root (for example onto a tmpfs for speed). Controls: `test_support_tests.rs` and
+  `binary_fixture_tests.rs`, shown failing with the guards disabled (3 of the removal tests fail).
+- Consequence of the longer fixture path: a Unix socket path is limited to about 108 bytes, so
+  `a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened` now binds through `/proc/self/fd/<dir>/` on Linux.
+- Verified: clippy clean; host 2024 of 2026 before the socket fix (the socket test now passes); binary 170 of 171 (only the
+  known linter failure); no entries left in the fixture directories after the runs.
+- New rule `XTD` in AGENTS.md (commit `6232630542`): never use `/tmp`; the device behind it is unknowable.
+- Open: three production uses of `std::env::temp_dir()` remain: `markdown_linter.rs` (temporary linter config),
+  `transaction_git.rs` (`cli-git-input-*` file), `manual_push_probe.rs` (scratch). They break the new rule. Decide where
+  production scratch goes (the transaction directory under `.git/cli-git`, or `$XDG_RUNTIME_DIR`).
+
+## Update at 2026-10-29 (all agents reported; final integration under verification)
+
+- Branch `integrate-slices` (checked out at `~/temp/agent/merge-slices`) now holds: slices S2, J, S4, S1/S3; the J harness
+  fix; main (including 1807, 1808, 1809, the `XTD` rule and other sessions' work); and the three later agents: recovery
+  (`worktree-agent-a49eb138569c35a3c`: snapshot digests, contradiction detection, messages that name the file), hooks
+  (`worktree-agent-a8b31ddd4ffbe9b0d`: `core.hooksPath` handling removed, `configuration-warning` code
+  `traditional-hooks-unsupported`, `git cli-git doctor`), and budget (`worktree-agent-a25fe20d930cb8679`: exact per-subcommand
+  start and sync budgets). One conflict, in `binary_recovery_tearing_tests.rs` (two independent tests), resolved by keeping both.
+- Recovery agent facts: it chose snapshot digests over fsyncing the snapshots (about 3 ms cheaper per commit, no extra syncs);
+  a torn `post-1.index` now sticks instead of being installed; the two delete-at-`ref-updated` silent-inconsistency cases now
+  stick; recovery stops no longer carry the fetch hint. The handover text under "slice J report" about torn snapshots,
+  silent inconsistency and the message UX item is superseded by this. Not covered: a directory that lost every record, and a
+  branch with reflogs off.
+- Hooks agent facts: the dispatcher's inner run uses `-c core.hooksPath=<tx>/no-hooks` (a path never created); one configured
+  hook costs 4 hook-runner starts; the common path gained no syscalls (strace: statx 117 to 113, the rest equal). SPEC.md
+  reworded: no traditional-hook start on the commit path is an implementation property, not a promise.
+- Open: the e2e container suite installs traditional hooks in many scenarios. Agent a1360b7e02c5cec27 is converting the
+  fixtures to config hooks. The Windows clippy target was not run by anyone.
+- Gate run 4 failed in the gate runner (copying the source snapshot into `/tmp/cli-git-native-test-*` hit the quota). That is
+  one more `/tmp` use for issue 1810. Next: verify the final tree (clippy, host, binary in
+  `~/temp/agent/final-verify.txt`), run the container gate once, merge to main, release (read the crate version first),
+  remove worktrees and branches, run mutation wave 2.
+
+## Update at 2026-10-29 (0.3.0 released; decisions)
+
+- Release 0.3.0 (`651df035b5`) is on crates.io (published 2026-10-29T12:56:31Z). Contents: traditional Git hooks
+  unsupported (config hooks only, a non-blocking warning for a configured `core.hooksPath`, `git cli-git doctor`),
+  process-start retry, fewer Git starts and syncs per commit, recovery snapshot digests and file-naming messages, staged
+  additions in explicit-path commits, fixtures off `/tmp`. Verified before the bump on the merged tree: clippy clean; host
+  2166 of 2167 and binary 201 of 202 (only the two known linter failures); container gate 2370 passed, 5 skipped.
+- User decisions (AskUserQuestion): the two deleted hookdir e2e scenarios (`baseline-hooks-hookdir`,
+  `hooks-hookdir-concurrent`) stay deleted; the Git version cache stays in the user cache directory.
+- e2e agent (a1360b7e02c5cec27) merged into main: every hook in the e2e suite is a config hook; capped native run 34 passed,
+  2 skipped (Git 2.39.5 only). Not measured: a baseline of the old suite, and the `minimumGit: '2.54.0'` fields. Two
+  images remain: `localhost/cli-git-concurrent-e2e:cfghooks` and `localhost/cli-git-concurrent-e2e-native:cfghooks`.
+  `mise run //package/git-policy/cli:lint:oxlint` shows 30 errors and 53 warnings in files the agent did not touch
+  (`bin/native-perf.mjs`, four `e2e/*-fixture.ts`). Not mine to fix without a decision.
+- Still running or pending: the scratch-location agent (ab12997169a0f5b11, moves the three production `temp_dir()` uses and
+  the crate's test references; then tell monochromatic-80 clippy is clean so it lands the root `clippy.toml` ban); mutation
+  wave 1 units `cli-git-mutpar-w1-*` (read `~/temp/agent/mutpar-w1-*.log.*`); wave 2 over `commit_index`, `landing_attempt`,
+  `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`, `doctor`, `traditional_hook_warning`,
+  `recovery_snapshot`, `recovery_contradiction`, `content_digest`, `rule_require_root` and the 1804 files; issue 1810 (the
+  rest of the `/tmp` audit); cleanup of worktrees, branches (`integrate-slices`, `worktree-agent-*`) and the two e2e images.
+- Rejected requests: a peer asked this session to release monochromatic-lint 0.4.0; it is not this session's work.
+- The GitHub release monochromatic-git-policy-cli-v0.3.0 exists (published 2026-10-29T12:59:01Z, not a draft).

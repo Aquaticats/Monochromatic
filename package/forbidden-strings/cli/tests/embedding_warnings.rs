@@ -84,7 +84,7 @@ fn warning_consumer_probe() {
 #[test]
 fn public_warning_paths_preserve_scan_results_without_emitting_terminal_json() {
     for mode in ["blocked", "unavailable", "relative", "corrupt"] {
-        let root: PathBuf = std::env::temp_dir().join(format!("scanner-warning-{}-{mode}", std::process::id()));
+        let root: PathBuf = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("scanner-warning-{}-{mode}", std::process::id()));
         std::fs::create_dir(&root).expect("fresh fixture");
         std::fs::write(root.join("rules"), "WARNING_FIXTURE_LONG\n").expect("fixture rules");
         if mode == "blocked" { std::fs::write(root.join("cache"), "blocked").expect("cache blocker"); }

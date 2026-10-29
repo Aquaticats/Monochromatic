@@ -12,12 +12,12 @@ import {
   ALL_TOOLS,
   BIN_BOOTSTRAP,
   MPM_BOOTSTRAP,
-  TOOLS,
-  TOOLS_BY_ID,
+  TOOL_ROUTES,
   toolById,
   toolPlanInstallableNames,
-} from './plan.ts';
-import { TOOL_ROUTES, } from './types.ts';
+  TOOLS,
+  TOOLS_BY_ID,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Hex digits in a SHA-256 digest.
@@ -167,7 +167,7 @@ await describe({
              */
             const filtered = TOOLS
               .filter(
-              (entry,) => entry.os !== null,
+              (entry,) => entry.os !== undefined,
               )
               .map(
               (entry,) => entry.id,
@@ -218,10 +218,9 @@ await describe({
               .options.postinstall,)
               .toEqual({
                 when: 'always',
-                link: {
+                run: {
                   sourceBin: 'search-shadow',
-                  linkName: 'rg',
-                  linkDir: '.cache/search-shadow-bin',
+                  args: ['link', '.cache/search-shadow-bin',],
                 },
               },);
           },
@@ -292,7 +291,6 @@ await describe({
               .toBe('bin',);
             expect(BIN_BOOTSTRAP.options.bootstrap,)
               .toEqual({
-                requiresTool: null,
                 distribution: 'standalone-binary',
               },);
             expect(BIN_BOOTSTRAP.artifacts['linux-x64']?.sha256,)

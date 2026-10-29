@@ -57,6 +57,8 @@ function isFirstPartyManifest(manifestPath: string,): boolean {
  
  @param spec - Plan builder for the fleet
  
+ @param stalenessManifestPath - Optional staleness manifest path override forwarded to {@link overwrite}
+ 
  @example
  ```ts
  await enforceManifest({ manifestPath: 'package/linter/monochromatic-lint/Cargo.toml', spec, });
@@ -66,9 +68,11 @@ async function enforceManifest(
   {
     manifestPath,
     spec,
+    stalenessManifestPath,
   }: {
     readonly manifestPath: string;
     readonly spec: CargoManifestSpec;
+    readonly stalenessManifestPath?: string;
   },
 ): Promise<void> {
   /**
@@ -88,10 +92,16 @@ async function enforceManifest(
   if (next === content)
     return;
 
-  await overwrite({
-    dest: manifestPath,
-    content: next,
-  },);
+  await overwrite(stalenessManifestPath === undefined
+    ? {
+      dest: manifestPath,
+      content: next,
+    }
+    : {
+      dest: manifestPath,
+      content: next,
+      manifestPath: stalenessManifestPath,
+    },);
 }
 
 /**
@@ -109,6 +119,8 @@ async function enforceManifest(
  
  @param spec - Plan builder describing every owned edit
  
+ @param manifestPath - Optional staleness manifest path override forwarded to every write
+ 
  @example
  ```ts
  await manageCargoManifests({
@@ -121,8 +133,10 @@ export async function manageCargoManifests(
   {
     manifestGlobs,
     spec,
+    manifestPath,
   }: {
     readonly manifestGlobs: readonly string[];
+    readonly manifestPath?: string;
     readonly spec: CargoManifestSpec;
   },
 ): Promise<void> {
@@ -141,10 +155,16 @@ export async function manageCargoManifests(
   const uniqueManifestPaths = [...new Set(manifestPaths,),].toSorted();
   addWatchedPaths(uniqueManifestPaths,);
 
-  await Promise.all(uniqueManifestPaths.map(async function enforceOne(manifestPath,): Promise<void> {
-    await enforceManifest({
-      manifestPath,
-      spec,
-    },);
+  await Promise.all(uniqueManifestPaths.map(async function enforceOne(cratePath,): Promise<void> {
+    await enforceManifest(manifestPath === undefined
+      ? {
+        manifestPath: cratePath,
+        spec,
+      }
+      : {
+        manifestPath: cratePath,
+        spec,
+        stalenessManifestPath: manifestPath,
+      },);
   },),);
 }

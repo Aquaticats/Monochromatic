@@ -487,8 +487,10 @@ RT1:
  `rg` for text search,
  not directory navigation;
  `rg --files` for globs;
- `--hidden`/`--no-ignore` only with a named path:
- the rg shadow refuses them at a repo root.
+ `--hidden`,
+ recursive `grep`,
+ unbounded `find` only with a named path:
+ the search shadows refuse them at a repo root.
 
 RT4:
  `gh` for GitHub issues,
@@ -566,6 +568,15 @@ ATH:
  first `mkdir --parents` it,
  then `chmod 700`
  (trust checks reject group/other bits).
+
+XTD:
+ Never use `/tmp` for scratch,
+ fixtures,
+ or caches:
+ which device backs it is unknowable (tmpfs,
+ quota,
+ slow disk).
+Use `${HOME}/temp/agent` or the build directory.
 
 CLN:
  Investigating package source:
@@ -1123,10 +1134,12 @@ PP8:
 PPX:
  Class members default to `#private`.
 
-#### Regular expressions
+#### Unbounded input
 
 RG2:
- Code replacing a regex makes one linear pass (O(n) time,
+ Code consuming unbounded input
+ (regex replacement included)
+ makes one linear pass (O(n) time,
  O(1) stack),
  proven O(n) for unbounded input.
 
@@ -1162,6 +1175,13 @@ RCI:
  inspect existing repo-owned generators and managers;
  extend one that already owns it.
  A stopgap for a misbehaving tool is not an owner.
+
+BXD:
+ Containers start `FROM docker.io/cachyos/cachyos:latest`,
+ unpinned;
+ Alpine only where CachyOS lacks the architecture.
+Exceptions:
+ `doc/decision/container-base-distro.md`.
 
 ### Adding new packages
 

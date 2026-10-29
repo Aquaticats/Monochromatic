@@ -172,7 +172,7 @@ export type ToolObservation = {
 
  @param tools - Plan of the scope being observed; absent means the repository plan
 
- @returns Observed version text, or `null` when the tool is absent
+ @returns Observed version text, or {@link NOT_INSTALLED} when the tool is absent
 
  @example
  ```ts
@@ -191,19 +191,13 @@ export async function observeTool(
     readonly env: PathEnv;
     readonly tools?: readonly ToolPlanEntry[];
   },
-): Promise<string | null> {
-  /**
-   Version the entry's route reports, or the not-installed marker.
-   */
-  const observed = await ROUTE_OBSERVERS[entry.route]({
+): Promise<string | typeof NOT_INSTALLED> {
+  return await ROUTE_OBSERVERS[entry.route]({
     entry,
     paths,
     env,
     tools,
   },);
-  return observed === NOT_INSTALLED
-    ? null
-    : observed;
 }
 
 /**
@@ -244,10 +238,10 @@ async function observeEntry(
   return {
     id: entry.id,
     locked: entry.version,
-    ...(observed === null
+    ...(observed === NOT_INSTALLED
       ? {}
       : { observed, }),
-    inSync: (observed !== null)
+    inSync: (observed !== NOT_INSTALLED)
       && versionMatches({
         observed,
         locked: entry.version,
@@ -378,5 +372,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();

@@ -194,6 +194,8 @@ function killScenario(phase: HookEvent | 'offset',): ScenarioDefinition {
     // A hook-phase victim is killed before landing, or after it in post-commit before the bystander starts,
     // so the bystander never loses a race; a seeded offset can kill inside landing after the bystander started.
     replayPlumbing: phase === 'offset' ? 'required' : 'unused',
+    // Config hooks need Git 2.54.0.
+    minimumGit: '2.54.0',
     summary: phase === 'offset'
       ? 'SIGKILL one committing agent at a seeded offset while another commits, then recover'
       : `SIGKILL one committing agent inside ${phase} while another commits, then recover`,
@@ -207,7 +209,7 @@ function killScenario(phase: HookEvent | 'offset',): ScenarioDefinition {
             'follow-up.txt',
           ],
         },),
-        hooks: 'hookdir',
+        hooks: 'config',
         hookEvents: ALL_HOOK_EVENTS,
       },);
     },

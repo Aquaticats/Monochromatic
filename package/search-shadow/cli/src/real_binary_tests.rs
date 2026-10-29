@@ -55,9 +55,9 @@ fn write_tool(directory: &Path, name: &str, mode: u32) {
 /// ```
 #[test]
 fn finds_the_first_executable_on_path() {
-    // `tempfile::tempdir()` makes a directory that is deleted when the variable goes out of scope.
-    let first = tempfile::tempdir().expect("make a temporary directory");
-    let second = tempfile::tempdir().expect("make a temporary directory");
+    // `scratch()` makes a directory that is deleted when the variable goes out of scope.
+    let first = crate::test_scratch::scratch();
+    let second = crate::test_scratch::scratch();
     write_tool(first.path(), "rg", 0o755);
     write_tool(second.path(), "rg", 0o755);
     let path_variable = format!("{}:{}", first.path().display(), second.path().display());
@@ -72,8 +72,8 @@ fn finds_the_first_executable_on_path() {
 /// The lookup must not return a file without execute bits.
 #[test]
 fn skips_a_file_that_is_not_executable() {
-    let plain = tempfile::tempdir().expect("make a temporary directory");
-    let real = tempfile::tempdir().expect("make a temporary directory");
+    let plain = crate::test_scratch::scratch();
+    let real = crate::test_scratch::scratch();
     write_tool(plain.path(), "rg", 0o644);
     write_tool(real.path(), "rg", 0o755);
     let path_variable = format!("{}:{}", plain.path().display(), real.path().display());
@@ -86,8 +86,8 @@ fn skips_a_file_that_is_not_executable() {
 /// A symlink that resolves to the skipped path (the shadow itself) must be passed over, which is what stops the loop.
 #[test]
 fn skips_a_link_that_resolves_to_the_shadow() {
-    let shadow_directory = tempfile::tempdir().expect("make a temporary directory");
-    let real_directory = tempfile::tempdir().expect("make a temporary directory");
+    let shadow_directory = crate::test_scratch::scratch();
+    let real_directory = crate::test_scratch::scratch();
     write_tool(shadow_directory.path(), "search-shadow", 0o755);
     write_tool(real_directory.path(), "rg", 0o755);
     let shadow_executable = shadow_directory.path().join("search-shadow");
@@ -104,8 +104,8 @@ fn skips_a_link_that_resolves_to_the_shadow() {
 /// Empty entries, missing directories and directories named like the tool must not stop the search.
 #[test]
 fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool() {
-    let trap = tempfile::tempdir().expect("make a temporary directory");
-    let real = tempfile::tempdir().expect("make a temporary directory");
+    let trap = crate::test_scratch::scratch();
+    let real = crate::test_scratch::scratch();
     fs::create_dir(trap.path().join("rg")).expect("make a directory named like the tool");
     write_tool(real.path(), "rg", 0o755);
     let path_variable = format!("::/does/not/exist:{}:{}", trap.path().display(), real.path().display());
@@ -118,7 +118,7 @@ fn ignores_empty_entries_missing_directories_and_directories_named_like_the_tool
 /// Nothing runnable on PATH gives `None`, which the shim reports as "not found".
 #[test]
 fn answers_none_when_no_directory_holds_the_tool() {
-    let empty = tempfile::tempdir().expect("make a temporary directory");
+    let empty = crate::test_scratch::scratch();
     let path_variable = format!("{}", empty.path().display());
 
     let found = find_in_path("rg", &path_variable, Path::new(""));

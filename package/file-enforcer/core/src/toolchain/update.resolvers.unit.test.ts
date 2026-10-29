@@ -13,9 +13,8 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import type { ToolArtifacts, } from './plan.artifacts.data.ts';
-import type { ToolPlanEntry, } from './types.ts';
 import {
+  type Fetcher,
   mapGithubRows,
   resolveGoModule,
   resolveGoRuntime,
@@ -23,8 +22,9 @@ import {
   resolveRust,
   resolveRustup,
   resolveZigLatest,
-  type Fetcher,
-} from './update.resolvers.ts';
+  type ToolArtifacts,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 
@@ -61,7 +61,7 @@ type FixtureOverrides = {
   readonly request?: ToolPlanEntry['request'];
   readonly version?: ToolPlanEntry['version'];
   readonly route?: ToolPlanEntry['route'];
-  readonly packageId?: ToolPlanEntry['packageId'];
+  readonly packageId?: string;
   readonly bins?: ToolPlanEntry['bins'];
   readonly env?: ToolPlanEntry['env'];
   readonly artifacts?: ToolPlanEntry['artifacts'];
@@ -80,10 +80,7 @@ function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
     request: { track: 'latest' },
     version: '1.0.0',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},

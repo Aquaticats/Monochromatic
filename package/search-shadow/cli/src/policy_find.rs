@@ -25,6 +25,10 @@ use crate::walk_target::{WalkTarget, classify, phrase};
 /// ```
 const MAX_BOUNDED_DEPTH: u64 = 3;
 
+/// The options that make `find` and `bfs` print their version or usage text instead of walking (`-version` and `-help` are
+/// the single-dash spellings GNU find accepts).
+const INFORMATION_FLAGS: &[&str] = &["--version", "--help", "-version", "-help"];
+
 /// The leading one-token options of `find` and `bfs` that come before the start points (`-H`, `-L`, `-P`, `-E`, `-X`, ...).
 const LEADING_FLAGS: &[&str] = &["-H", "-L", "-P", "-E", "-X", "-d", "-s", "-x"];
 
@@ -117,6 +121,13 @@ pub fn find_refusal(
 ) -> Option<String> {
     if allow_wide {
         return None;
+    }
+    // `--version` and `--help` print text and never walk, so they are never refused (with no start point they would
+    // otherwise look like a walk of the current directory).
+    for argument in arguments {
+        if INFORMATION_FLAGS.contains(&argument.as_str()) {
+            return None;
+        }
     }
     let depth: Option<u64> = find_max_depth(arguments);
     if depth.is_some() && depth.unwrap_or_default() <= MAX_BOUNDED_DEPTH {

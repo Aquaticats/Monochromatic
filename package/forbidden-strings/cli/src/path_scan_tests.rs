@@ -108,7 +108,7 @@ fn navigation_markers_are_not_segments() {
 #[test]
 fn absolute_path_under_root_uses_relative_name() {
     let loaded = load_rules("VAULTTOKEN_LONG\n");
-    let dir: std::path::PathBuf = std::env::temp_dir().join(format!("name-root-{}", std::process::id()));
+    let dir: std::path::PathBuf = crate::test_scratch::scratch_root().join(format!("name-root-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("nested")).expect("create path fixture");
     std::fs::write(dir.join("nested").join("test.txt"), "clean").expect("write path fixture");
     let canonical: std::path::PathBuf = std::fs::canonicalize(&dir).expect("canonical root");
@@ -128,7 +128,7 @@ fn absolute_path_under_root_uses_relative_name() {
 #[test]
 #[cfg(unix)]
 fn symlink_name_is_not_replaced_by_target() {
-    let dir = std::env::temp_dir().join(format!("name-link-{}", std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!("name-link-{}", std::process::id()));
     std::fs::create_dir_all(dir.join(".git")).expect("create repository marker");
     std::fs::write(dir.join("clean.txt"), "clean").expect("create link target");
     let link = dir.join("VAULTTOKEN_LONG");

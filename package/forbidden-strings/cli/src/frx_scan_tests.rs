@@ -4,9 +4,9 @@ use super::{line_starts, scan_file, scan_one_set};
 use crate::ScanFinding;
 use std::panic::AssertUnwindSafe;
 
-// Creates a fresh temp dir under the OS temp root, keyed by label and pid.
+// Creates a fresh temp dir under the test scratch root, keyed by label and pid.
 fn temp_dir(label: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("frx-scan-{}-{}", label, std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!("frx-scan-{}-{}", label, std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create temp dir");
     return dir

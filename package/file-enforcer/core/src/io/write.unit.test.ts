@@ -32,6 +32,23 @@ async function setup(prefix: string,): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix,),);
 }
 
+/**
+ Builds a disposable staleness manifest path inside a test's own fixture directory,
+ so writes never contend for the workspace's shared manifest and lock.
+
+ @param tempDir - Fixture directory returned by {@link setup}.
+
+ @returns Manifest path under the fixture directory, removed with it by {@link teardown}.
+
+ @example
+ ```ts
+ await overwrite({ dest, content, manifestPath: manifestPathFor(tempDir,), },);
+ ```
+ */
+function manifestPathFor(tempDir: string,): string {
+  return join(tempDir, 'staleness-manifest.json',);
+}
+
 /** Removes the temp directory */
 async function teardown(tempDir: string,): Promise<void> {
   await rm(tempDir, { recursive: true, force: true, },);
@@ -50,7 +67,7 @@ await describe({
           fn: async () => {
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'new.txt',);
-            await overwrite({ dest, content: 'fresh content', },);
+            await overwrite({ dest, content: 'fresh content', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('fresh content',);
             await teardown(tempDir,);
           },
@@ -61,7 +78,7 @@ await describe({
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'existing.txt',);
             await writeFile(dest, 'old',);
-            await overwrite({ dest, content: 'new', },);
+            await overwrite({ dest, content: 'new', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('new',);
             await teardown(tempDir,);
           },
@@ -72,7 +89,7 @@ await describe({
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'same.txt',);
             await writeFile(dest, 'unchanged',);
-            await overwrite({ dest, content: 'unchanged', },);
+            await overwrite({ dest, content: 'unchanged', manifestPath: manifestPathFor(tempDir,), },);
             /** No writeTimestamp recorded because the actual write was skipped */
             expect(
               writeTimestamps.has(resolve(dest,),),
@@ -86,7 +103,7 @@ await describe({
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'tracked-skip.txt',);
             await writeFile(dest, 'same',);
-            await overwrite({ dest, content: 'same', },);
+            await overwrite({ dest, content: 'same', manifestPath: manifestPathFor(tempDir,), },);
             /** Path should be managed regardless of skip */
             expect(
               writes.has(resolve(dest,),),
@@ -101,12 +118,12 @@ await describe({
             const dest = join(tempDir, 'changed.txt',);
             await writeFile(dest, 'old content',);
 
-            await overwrite({ dest, content: 'new content', },);
+            await overwrite({ dest, content: 'new content', manifestPath: manifestPathFor(tempDir,), },);
             /** Captured value proves no new write occurred without touching sibling state */
             const firstTimestamp = writeTimestamps.get(resolve(dest,),);
             expect(firstTimestamp,).toBeDefined();
 
-            await overwrite({ dest, content: 'new content', },);
+            await overwrite({ dest, content: 'new content', manifestPath: manifestPathFor(tempDir,), },);
             /** Same content now: timestamp must be identical to the first write */
             expect(
               writeTimestamps.get(resolve(dest,),),
@@ -119,7 +136,7 @@ await describe({
           fn: async () => {
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'a', 'b', 'c', 'deep.txt',);
-            await overwrite({ dest, content: 'deep', },);
+            await overwrite({ dest, content: 'deep', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('deep',);
             await teardown(tempDir,);
           },
@@ -129,7 +146,7 @@ await describe({
           fn: async () => {
             const tempDir = await setup('file-enforcer-write-',);
             const dest = join(tempDir, 'empty.txt',);
-            await overwrite({ dest, content: '', },);
+            await overwrite({ dest, content: '', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('',);
             await teardown(tempDir,);
           },
@@ -140,7 +157,7 @@ await describe({
             const tempDir = await setup('file-enforcer-write-',);
             const content = 'line1\nline2\ttab\r\nwindows\n\u{1F600}emoji';
             const dest = join(tempDir, 'special.txt',);
-            await overwrite({ dest, content, },);
+            await overwrite({ dest, content, manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe(content,);
             await teardown(tempDir,);
           },
@@ -160,7 +177,7 @@ await describe({
           fn: async () => {
             const tempDir = await setup('file-enforcer-wne-',);
             const dest = join(tempDir, 'new.txt',);
-            await overwriteIfNotExists({ dest, content: 'created', },);
+            await overwriteIfNotExists({ dest, content: 'created', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('created',);
             await teardown(tempDir,);
           },
@@ -171,7 +188,7 @@ await describe({
             const tempDir = await setup('file-enforcer-wne-',);
             const dest = join(tempDir, 'keep.txt',);
             await writeFile(dest, 'original',);
-            await overwriteIfNotExists({ dest, content: 'should-not-appear', },);
+            await overwriteIfNotExists({ dest, content: 'should-not-appear', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('original',);
             await teardown(tempDir,);
           },
@@ -182,7 +199,7 @@ await describe({
             const tempDir = await setup('file-enforcer-wne-',);
             const dest = join(tempDir, 'skipme.txt',);
             await writeFile(dest, 'existing',);
-            await overwriteIfNotExists({ dest, content: 'ignored', },);
+            await overwriteIfNotExists({ dest, content: 'ignored', manifestPath: manifestPathFor(tempDir,), },);
             expect(
               writes.has(resolve(dest,),),
             ).toBe(true,);
@@ -194,7 +211,7 @@ await describe({
           fn: async () => {
             const tempDir = await setup('file-enforcer-wne-',);
             const dest = join(tempDir, 'sub', 'dir', 'new.txt',);
-            await overwriteIfNotExists({ dest, content: 'nested', },);
+            await overwriteIfNotExists({ dest, content: 'nested', manifestPath: manifestPathFor(tempDir,), },);
             expect(await readFile(dest, 'utf8',),).toBe('nested',);
             await teardown(tempDir,);
           },
@@ -227,6 +244,7 @@ await describe({
             await overwriteEach({
               destGlob: join(tempDir, 'dest', '*.ts',),
               files,
+              manifestPath: manifestPathFor(tempDir,),
             },);
 
             expect(await readFile(join(tempDir, 'dest', 'a.ts',), 'utf8',),).toBe(
@@ -260,6 +278,7 @@ await describe({
             await overwriteEach({
               destGlob: join(destDir, '*.ts',),
               files,
+              manifestPath: manifestPathFor(tempDir,),
             },);
 
             /** No writeTimestamp for this dest because content was identical (size check unsafe under concurrent execution) */
@@ -283,6 +302,7 @@ await describe({
                 sourceGlob: join(tempDir, 'src', '*.ts',),
                 results: [],
               },),
+              manifestPath: manifestPathFor(tempDir,),
             },);
             /** No tracker entry should reference this test's tempDir (size check unsafe under concurrent execution) */
             const tempPrefix = resolve(tempDir,);
@@ -311,6 +331,7 @@ await describe({
             await overwriteEach({
               destGlob: join(tempDir, 'out', '*.ts',),
               files,
+              manifestPath: manifestPathFor(tempDir,),
             },);
             /** Each dest path must be tracked individually (size check unsafe under concurrent execution) */
             expect(

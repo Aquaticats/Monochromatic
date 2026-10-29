@@ -143,3 +143,7 @@ pub use crate::cache::{CacheError, DecisionCache, WRITE_BATCH_LIMIT};
 ///  behind the `service` feature.
 #[cfg(feature = "service")]
 pub use crate::service::cached_or_resolve;
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;
