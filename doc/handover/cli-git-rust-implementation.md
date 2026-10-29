@@ -3428,3 +3428,28 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   one shared mechanism, adds permanent tests shown failing, and updates README/SPEC. Parent merges its branch after reading
   the diff, then verifies (clippy, host, binary) and includes it in the next gate and release.
 - Queue position: this joins the open items after the merge agent's branch and the two finished branches.
+
+## Update at 2026-10-29 (Git LFS handled by the wrapper, branch worktree-agent-ab2b64d9df753a15f)
+
+- User directive: the wrapper handles all of this repository's Git LFS needs directly, no traditional hook files. Verdicts
+  (sources: git-lfs `commands/command_pre_push.go`, `command_post_checkout.go`, `command_post_commit.go`,
+  `command_post_merge.go`; man page `git-lfs-pre-push`): `pre-push` native; `post-checkout`, `post-commit`, `post-merge`
+  unnecessary here (each returns early without a `lockable` attribute, and no tracked `.gitattributes` has one). The set of
+  hooks that cannot be handled natively is empty, so no shim support, recognition or doctor category was added (user
+  clarification).
+- Design: `lfs_pre_push.rs`. For a real push in a repository whose config has a `filter.lfs.*` or `lfs.*` key, the wrapper
+  adds `-c hook.cli-git-lfs-pre-push.event=pre-push -c hook.cli-git-lfs-pre-push.command='<own exe>' cli-git lfs-pre-push`
+  to the real `git push` it starts; Git supplies the arguments and the ref-update lines; the entry runs
+  `git-lfs pre-push` and explains a failure. Covered: forwarded push (`entry.rs` `stack_if_push`), the stacked first push
+  (`PushForward.lfs_pre_push`), the auto-push (`PushGit.lfs_pre_push`, decided from the commit's config snapshot through
+  `TransactionResult.uses_lfs`) and its reconcile pushes. The probes run without it (a dry-run push still runs pre-push).
+- Measured (strace, debug binaries, before = commit 1e523469fb): `status` identical (3 execs, 753 syscalls, with and without
+  LFS keys); commit with auto-push: 51 execs before and after without LFS keys, 51 to 55 with LFS keys (the hook's own
+  starts, no extra config read); a forwarded push in a repository without LFS keys: 23 to 24 execs (one `git config --list`
+  read); with LFS keys 23 to 28; `push --dry-run` 5 to 5. The commit budget ratchets pass unchanged.
+- Finding: git-lfs rewrites its four shims whenever `filter-process` or `clean` runs
+  (`doc/troubleshooting/git-lfs-rewrites-hook-shims.md`), so deleting them does not last; a present `pre-push` shim uploads
+  a second time (nothing to send). Open question for the user: keep `.git/hooks` unwritable, or accept the doctor listing.
+- Tests: `lfs_pre_push_tests.rs` (unit), `binary_lfs_pre_push_tests.rs` (stand-in `git-lfs`), `binary_lfs_server_tests.rs`
+  (real `git-lfs`, inline server; skipped without `git-lfs` on PATH). Shown failing by removing each guard in turn.
+- Not done: the container gate (the parent runs it); `post-*` hooks stay unrun (lockable not used).
