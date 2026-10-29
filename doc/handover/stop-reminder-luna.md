@@ -14,8 +14,11 @@ This file holds the state, the decisions, and the next actions.
 
 - Source: `package/claude-code-plugin/source/src/handler/stop-reminder/`.
   `index.ts` holds the decision and the handler.
+  The pure decision is `decision.ts`, which `index.ts` re-exports.
   The wording checks are in `uncertainty.ts`, `uncertainty-phrases.ts`, `uncertainty-strip.ts`,
   `uncertainty-citations.ts` and `parked-decision.ts`.
+  Their once-per-trigger scan is `reminder-history.ts`, and `reminder-lead.ts` holds the opening sentence of each
+  reminder that the scan looks for.
   The Luna path is `luna-situation.ts`, `situation-action.ts`, `turn-history.ts` and `verdict-log.ts`.
   State releases are `continuation-depth.ts`, `continuation-progress.ts`, `continuation-tasks.ts` and
   `queued-notification.ts`.
@@ -42,12 +45,16 @@ This file holds the state, the decisions, and the next actions.
 - First stop of a turn (`stop_hook_active` false): an uncertainty phrase (hedges and admitted gaps), an uncited
   categorical dismissal, a trailing question, and a choice left with the user in prose each add a reminder.
   Any reminder blocks.
-- Inside a blocked chain (`stop_hook_active` true): those wording checks are off, except the parked-decision check,
-  which runs once per phrase per turn.
-  It finds its own earlier feedback record in the transcript since the last human turn.
+- Inside a blocked chain (`stop_hook_active` true): the same four checks run, each trigger at most once per turn.
+  A trigger is skipped when the transcript since the last human turn already holds this hook's feedback record with
+  the same opening sentence.
+  The first hit of each detector decides, so a new hedge after a raised one in the same message is not looked at.
 - With `MONOCHROMATIC_STOP_AUTO_CONTINUE` and Luna on: Luna labels the final message with one of six situations and a
   label at 0.60 or higher acts.
-  On a repeated stop Luna also receives the assistant text of the turn's earlier stops.
+  A verdict under 0.60 still blocks when `announces_own_next_step`, `leaves_open_work` and `waits_on_user` together
+  reach 0.9, with the reason of the largest of the three.
+  On a repeated stop with a background task running, Luna also receives the assistant text of the turn's earlier
+  stops.
 - Released without asking Luna: plan mode, a running subagent, and a finished task's notification still queued.
 - Released by state alone: the depth limit, and a forced continuation that issued no tool call.
 
@@ -66,6 +73,10 @@ This file holds the state, the decisions, and the next actions.
 - 2026-10-25: Luna's block rule stays the top label at 0.60.
 - 2026-10-25: Luna receives the earlier stops on repeated stops only, and every verdict record logs
   `stopHookActive`.
+- 2026-10-29, three separate questions, the recommended option each time:
+  the wording checks run inside a chain once per trigger;
+  Luna receives the earlier stops only on a repeated stop with a background task running;
+  a verdict under the cutoff blocks when the three always-blocking labels together reach 0.9.
 
 ## Commits
 
@@ -76,6 +87,9 @@ This file holds the state, the decisions, and the next actions.
 - `96b0d41d55`: earlier stops to Luna on repeated stops, and `stopHookActive` in the log.
 - `1223a6246e`: final-message matching by its end, and the corrected Luna measurements.
 - `14be22175a` and `0aacd31e09`: the measurement write-ups in the troubleshooting document.
+- `cfed07b08e`: this handover and the section on the 2026-10-29 miss.
+- `d618de1464`: wording checks once per trigger in a chain, history only with a task running, and the split rule;
+  `index.ts` was split into `decision.ts` because it passed the code-line limit.
 
 ## Misses and false blocks, in order
 
@@ -91,30 +105,32 @@ This file holds the state, the decisions, and the next actions.
    Fixed by the parked-decision check running in a chain.
 5. 2026-10-25, this repository: a report ending "Veto this if you want turn history tried anyway".
    The owner chose the narrow phrase set, which has no `veto`, so this exact wording is still not caught.
-6. 2026-10-29 03:10, session `a45b87f9`: the open case below.
+6. 2026-10-29 03:10, session `a45b87f9`: "I haven't run a fixture ... Do you want me to?" inside a chain.
+   Fixed by the three decisions of 2026-10-29, in `d618de1464`; the next section holds the detail.
 
-## Open: the 2026-10-29 miss
+## The 2026-10-29 miss, closed
 
 The stop was inside a chain: the stop before it had been blocked on "I haven't checked whether the rule guards against
 these", and the agent answered by checking.
-Its final message said "I haven't run a fixture" and ended "Do you want me to?".
 The wording and trailing-question checks were off because `stop_hook_active` was true.
 Luna with the earlier stops scored `waits_on_user` 0.54 and `leaves_open_work` 0.37 and was released at the 0.60
 cutoff; on the final message alone it scored `waits_on_user` 0.99, which would have blocked.
 The turn history the owner chose on 2026-10-25 produced that split.
 
-Three separate decisions are put to the owner, each with measured numbers in the troubleshooting section
-"A chain stop that history turned into a miss, 2026-10-29":
+The three decisions, with measured numbers in the troubleshooting section
+"A chain stop that history turned into a miss, 2026-10-29", are built and checked on the built bundle against the
+real stop with the real gateway:
 
-- Run the wording checks inside a chain once per trigger, as the parked-decision check already does.
+- The wording checks run in a chain once per trigger.
   On the logged chain stops this flags 14 stops nothing else blocked, including the 23:11 and 10:31 misses,
   one false hit ("as it should be"), and no trailing questions.
-- Send the earlier stops to Luna on every repeated stop, never, or only when a background task is running.
+- Luna receives the earlier stops only on a repeated stop with a background task running.
   All three verified repeated false blocks had tasks running, and four of the eight repeated misses had none.
-- Block when the always-blocking labels together reach 0.8 and no single label reaches 0.60.
-  In the logs this happened 3 times in 832 released stops, and this stop (0.95) would be a fourth.
+- A split verdict blocks at 0.9 combined.
+  In the logs the 0.9 level fired never in 832 released stops; this stop (0.95) is the first.
+- Each rule alone blocks the 03:10 stop; they overlap on purpose, since the owner chose all three.
 
-Answers are not recorded here yet.
+Still uncovered: the 2026-10-25 wording "Veto this if you want turn history tried anyway" (item 5).
 
 ## Not yet known
 
@@ -132,14 +148,20 @@ Answers are not recorded here yet.
   Claude Code 2.1.305.
 - The block on "Oxlint is still running" has no verdict-log or transcript record; its cause is unconfirmed.
 - The standing-instruction and direct-question variants of the nudge study were not rerun on full messages.
-- The 14 unblocked chain stops: 11 are unclassified.
+- The 14 unblocked chain stops: 11 are unclassified, so the precision of the chain rule is unmeasured beyond
+  the two known misses and one false hit.
+- The history-with-a-task rule is fitted to ten stops.
+- Live behavior of the three new rules: nothing has run yet beyond fixtures and one real stop.
+  The verdict log's `stopHookActive` and `detail` ("blocking labels together") make it measurable.
 
 ## Next actions
 
-1. Record the owner's answers to the three decisions, then implement the chosen ones with tests.
-   The chain gate is in `stopRemindersDecision` in `index.ts`, the history switch is the `earlierStops` argument in the
-   handler, and a split-label rule belongs in `situation-action.ts`.
-2. Rebuild the bundle, verify on the built hook with a fixture transcript, and update the README and this file.
+1. Watch the next few days of stops for the new rules: blocks inside a chain that the owner finds wrong, and misses
+   that remain.
+   Each new miss or false block goes in "Misses and false blocks" with the stop's session, line and time, and the
+   verdict row, as the 03:10 one did.
+2. Measure the live precision of the chain rule from the verdict log once enough chain stops carry
+   `stopHookActive`, and classify the 11 unclassified chain stops.
 3. Open follow-ups: #1772 (calibrate the 0.60 cutoff, the running-task release and the `permissionMode` and
    `sessionCrons` skips from the verdict log), #1773 (replace the mise credential fallback), and #1786 (the installed
    `pi` command lacks `cross-spawn`).

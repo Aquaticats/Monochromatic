@@ -10,6 +10,8 @@
 
 import type { RustCatalogEntry, } from '@monochromatic-dev/module-rust-catalog/ts';
 
+import type { GeneratedEntry, } from './types.ts';
+
 //region Values
 
 /**
@@ -53,31 +55,68 @@ export function renderString(value: string,): string {
  ```
  */
 export function renderEntryValue(entry: RustCatalogEntry,): string {
+  return renderGeneratedValue({
+    entry,
+    defaultFeatures: true,
+  },);
+}
+
+/**
+ Renders one generated `[workspace.dependencies]` value.
+
+ @param generated - catalog entry plus whether the crate keeps default features
+
+ @returns TOML value text; a plain string only for a registry entry without rename that keeps default features
+
+ @example
+ ```ts
+ renderGeneratedValue({ entry: { kind: 'registry', version: '>=0.3', }, defaultFeatures: false, });
+ // '{ version = ">=0.3", default-features = false }'
+ ```
+ */
+export function renderGeneratedValue(generated: GeneratedEntry,): string {
   /**
-   Rename suffix, empty without a rename.
+   Catalog entry to render.
    */
-  const rename = entry.package === undefined ? '' : `, package = ${renderString(entry.package,)}`;
-  if (entry.kind === 'git')
-    return `{ git = ${renderString(entry.git,)}, rev = ${renderString(entry.rev,)}${rename} }`;
-  if (entry.package === undefined)
+  const { entry, } = generated;
+  /**
+   Inline-table fields after the source fields.
+   */
+  const tail = [
+    ...(entry.package === undefined ? [] : [`package = ${renderString(entry.package,)}`,]),
+    ...(generated.defaultFeatures ? [] : ['default-features = false',]),
+  ];
+  /**
+   Source fields of the entry.
+   */
+  const head = entry.kind === 'git'
+    ? [
+      `git = ${renderString(entry.git,)}`,
+      `rev = ${renderString(entry.rev,)}`,
+    ]
+    : [`version = ${renderString(entry.version,)}`,];
+  if ((entry.kind === 'registry') && (tail.length === 0))
     return renderString(entry.version,);
-  return `{ version = ${renderString(entry.version,)}${rename} }`;
+  return `{ ${[
+    ...head,
+    ...tail,
+  ].join(', ',)} }`;
 }
 
 /**
  Renders the generated table body, one entry per line, sorted by name.
 
- @param entries - dependency name to resolved catalog entry
+ @param entries - dependency name to resolved entry
 
  @returns header line plus entry lines, each ending in a newline
 
  @example
  ```ts
- renderGeneratedTable(new Map([['anyhow', { kind: 'registry', version: '>=1', }]]));
+ renderGeneratedTable(new Map([['anyhow', { entry: { kind: 'registry', version: '>=1', }, defaultFeatures: true, }]]));
  // '[workspace.dependencies]\nanyhow = ">=1"\n'
  ```
  */
-export function renderGeneratedTable(entries: ReadonlyMap<string, RustCatalogEntry>,): string {
+export function renderGeneratedTable(entries: ReadonlyMap<string, GeneratedEntry>,): string {
   /**
    Entry lines in name order.
    */
@@ -88,7 +127,7 @@ export function renderGeneratedTable(entries: ReadonlyMap<string, RustCatalogEnt
      */
     const entry = entries.get(name,);
     if (entry !== undefined)
-      lines.push(`${name} = ${renderEntryValue(entry,)}\n`,);
+      lines.push(`${name} = ${renderGeneratedValue(entry,)}\n`,);
   }
   return `${GENERATED_TABLE_HEADER}\n${lines.join('',)}`;
 }

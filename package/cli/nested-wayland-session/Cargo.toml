@@ -146,8 +146,8 @@ smithay = "pinned"
 anyhow = ">=1"
 clap = ">=4"
 crossbeam-channel = ">=0.5"
-image = ">=0.25"
-smithay = "=0.7.0"
+image = { version = ">=0.25", default-features = false }
+smithay = { version = "=0.7.0", default-features = false }
 tracing = ">=0.1"
 tracing-subscriber = ">=0.3"
 zbus = ">=5.19.0"

@@ -805,6 +805,42 @@ Type-checking the catalog code therefore reads that task's output for errors in 
 and `src/index.ts`,
  which report none.
 
+### Cargo 1.98 regression from the migration (2026-10-29)
+
+The migration commit `fd0bd03540` broke cargo 1.98.0 (the `localhost/monochromatic/ide` image),
+ blocking the IDE 0.1.3 release:
+ Edition 2024 member sites with `default-features = false` over a generated entry that kept default features
+ fail with "`default-features = false` cannot override workspace's `default-features`".
+Host nightly 1.101 accepts them because rust-lang/cargo#17126 (cargo 1.99) allows the override,
+ so the earlier `memchr` probe in "Open questions" passed on the wrong toolchain to catch it.
+Full trace: `doc/troubleshooting/cargo-1-98-inherited-default-features.md`.
+
+Fix, commit `d1477a13ba`:
+ a crate's generated entry carries `default-features = false` when every catalog site of that dependency in the crate
+ writes it,
+ and sites that disagree fail the sync with a named issue
+ (`package/dev-script/file-enforcer/src/cargo/catalog/default-features.ts`).
+Verified with `cargo metadata --locked` for all seven affected crates on host nightly and on cargo 1.98.0,
+ with the pre-fix ide manifest still failing on 1.98.0 as the control.
+
+Owner correction (2026-10-29):
+ "we should always use nightly rust for everything!"
+The 1.98 cargo came from `package/desktop-app/terminal/Containerfile` installing floating `--default-toolchain stable`
+ (the IDE image is built `FROM localhost/monochromatic/terminal`);
+ `nested-wayland-session` and the music-player Linux image did the same.
+Commit `8652ba7d7f` makes each of them install `ARG RUST_TOOLCHAIN`,
+ defaulting to the `toolchain.lock.json` pin (`nightly-2026-10-29`),
+ the pattern `package/music-player/desktop-app/Containerfile.windows-gnu` already used
+ (its default had drifted to `nightly-2026-10-21` and was bumped).
+So the catalog targets the pinned nightly only;
+ the `default-features = false` rendering stays,
+ since it is also what pre-2024 editions need on every cargo.
+The `ARG` defaults are synced by hand,
+ which is how the windows-gnu default drifted.
+`package/forbidden-strings/core/mutants.Containerfile` still uses `FROM docker.io/library/rust:1`;
+ it sits in another session's uncommitted rename batch,
+ which was asked to switch it when the batch lands.
+
 ## Rejected
 
 - Repository-root Cargo workspace:
@@ -831,5 +867,30 @@ and `src/index.ts`,
 - Name of the mise task and of its package
    (decided:
    a package bin under `package/dev-script/` run by a thin mise task).
-- Where the trust cache lives (a committed file or a CI cache);
-   a cold full verification is about 17 minutes at 1 request per second for 1024 names.
+- Decided (owner, 2026-10-29):
+   the trust cache is local and gitignored,
+   `.cache/rust-catalog-update/crates-io/<name>.json`,
+   holding per version only `num`,
+   `created_at`,
+   the publisher id,
+   the trusted-publishing repository,
+   and the declared repository;
+   CI restores and saves it with the pinned `actions/cache/restore` and `actions/cache/save` steps
+   that `.github/workflows/music-player-release.yml` already uses,
+   keyed on a hash of every `Cargo.lock` with a prefix restore key.
+  Measured 2026-10-29:
+   the 24 lockfiles hold 1024 registry crate names with 46,593 published versions
+   (local sparse-index cache; `clap` has the most, 462);
+   `https://crates.io/api/v1/crates/clap/versions` returns all 462 in one response (`meta.next_page` is null),
+   so a cold verification is 1024 requests,
+   about 17 minutes at 1 request per second.
+  GitHub removes cache entries "that have not been accessed in over 7 days",
+   so a cold run recurs after a quiet week.
+  Rejected:
+   a committed evidence file (about 4 to 5 MB estimated, regenerated on every update,
+   and CI would check the committed copy instead of crates.io)
+   and no cache (17 minutes on every run).
+- Re-probed 2026-10-29 on `cargo 1.101.0-nightly (3960fa69b 2026-10-12)`:
+   `cargo generate-lockfile --help` lists `--publish-time` and `cargo update --help` does not,
+   with or without `-Zunstable-options`,
+   so the update keeps full re-resolution through `generate-lockfile`.
