@@ -3365,3 +3365,54 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   crate version first). Until it lands, the pending merge of `worktree-agent-afe3b1e78082f5280` (oxlint cleanup) into
   main fails for this very reason.
 - Task list updated: tasks 67, 68, 70, 71 and 72 are completed (released in 0.3.0).
+
+## State at 2026-10-29 (late afternoon): read this block first
+
+- Released: `monochromatic-git-policy-cli` 0.3.0 (`651df035b5`), on crates.io and as GitHub release
+  `monochromatic-git-policy-cli-v0.3.0`. Everything in the earlier blocks of today up to "0.3.0 released" is in it, except
+  what is listed below as not merged.
+- Closed today: issues 1807 (staged additions that an ignore rule matches), 1808 (the not-at-root message now says why), 1809
+  (fixtures leave `/tmp`). Opened: 1810 (audit existing `/tmp` uses, assigned to the user; `monochromatic-80` owns the
+  non-Rust part and the root `clippy.toml` ban; this session owns the crate's Rust uses).
+- New rules and decisions of today: `XTD` in AGENTS.md (never use `/tmp`); traditional Git hooks are unsupported (README,
+  SPEC, warning, `git cli-git doctor`); the two hookdir e2e scenarios stay deleted; the Git version cache stays in the user
+  cache directory; merges must succeed when other sessions have staged changes in the main checkout.
+- Finished on branches, NOT yet on main (the merge into the shared main checkout is refused by native Git while other
+  sessions hold staged changes there; see the merge agent below):
+  - `worktree-agent-afe3b1e78082f5280`: oxlint cleanup, 30 errors and 53 warnings to 0 and 0
+    (`bin/native-perf*.mjs`, four `e2e/*-fixture.ts`); run once against the real release binary, forwarded commands add
+    1.8 to 3.1 ms median, an explicit-path commit 155 ms median (5 samples, under load).
+  - `worktree-agent-ab12997169a0f5b11`: the crate's production scratch off `/tmp` (`scratch_location.rs`; input file in
+    `<git-common-dir>/cli-git-scratch`; linter config, linter streams, push and query output files and the push probe in
+    `<state>/cli-git/scratch` with `<state>` = absolute `XDG_STATE_HOME` or `$HOME/.local/state`; 24-hour sweep; no
+    `temp_dir()` left in the crate, so clippy is clean with the five-method ban too); design note
+    `doc/planning/cli-git-scratch-locations.md`. Host 2183 of 2184, binary 205 of 206 (only the two known linter tests).
+    Container gate not yet run on it. Deviation: probe and linter use the per-user directory, not the repository, to avoid
+    one more `rev-parse` start per push.
+  - After both reach main: tell `monochromatic-80` (peer, `uds:/run/user/1000/cc-socks/2748920.sock`) so it lands the root
+    `clippy.toml` ban; run the gate once on main; release the next version (read the crate version first).
+- Running: agent `afb65bb9babbe8ffa` (isolated merge when foreign staged changes block native `git merge`; reuses the
+  auto-push reconcile machinery; conflicts and overlaps refuse with a finding that names the paths; clean-index and
+  fast-forward merges keep forwarding natively; `git pull` if the same mechanism applies). Mutation wave 1 units
+  `cli-git-mutpar-w1-*` (`start_retry`, `commit_staged_additions`, `filesystem_identity_mount`, `config_snapshot`,
+  `transaction_git`; logs `~/temp/agent/mutpar-w1-*.log.N`; started with
+  `MUT_ROOT=~/temp/agent/merge-slices node ~/temp/agent/mutation-parallel.ts w1 <files>`).
+- Open items, in order: (1) land the merge agent's branch, then the two finished branches; (2) gate and release;
+  (3) mutation wave 2 over `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`,
+  `git_version_cache`, `doctor`, `traditional_hook_warning`, `recovery_snapshot`, `recovery_contradiction`, `content_digest`,
+  `rule_require_root`, `scratch_location`, the 1804 files, then read wave 1; (4) issue 1810 follow-up by
+  `monochromatic-80` (gate runner `bin/test-native-container.mjs` and `bin/native-verification-process.mjs` copy the source
+  snapshot to `/tmp/cli-git-native-test-*`); (5) tasks 65 and 66 (1804 mutation, the 5-second kills and the 90-second
+  hangs), 69 (further journal syncs only after the tearing table allows; the digests made the snapshot syncs unnecessary),
+  23 and 30 (Windows items), and the Windows clippy target nobody has run; (6) cleanup: remove worktrees
+  `.claude/worktrees/agent-*` (not `agent-a563e0c526d53df51`, which is not this session's), `~/temp/agent/merge-slices`,
+  `~/temp/agent/verify-retry`, delete the merged branches (`integrate-slices`, `worktree-agent-*`), remove the two e2e
+  images `localhost/cli-git-concurrent-e2e:cfghooks` and `localhost/cli-git-concurrent-e2e-native:cfghooks`, and stop leftover
+  `cli-git-*` units (`systemctl --user list-units 'cli-git-*'`).
+- Lessons of today: a full per-user `/tmp` quota (13108M) makes every command fail with EDQUOT and empties task output files,
+  so set `TMPDIR=~/temp/agent/tmp` for commands and never rely on `/tmp`; a merge commit made after a failed conflict edit
+  carried markers (`1240234269`, fixed by `e66495826a`): guard the commit with a marker check; the `-- <filter>` argument is
+  ignored by `native:test:container`; the harness normalizes numbers in file names assuming long pids, which broke in the
+  container (`019d433cc9`).
+- Stale text in earlier blocks: the "slice J report" lines about torn snapshots, silent inconsistency and the message UX item
+  are superseded by the recovery agent's block; the `core.hooksPath` removal queue block is done.
