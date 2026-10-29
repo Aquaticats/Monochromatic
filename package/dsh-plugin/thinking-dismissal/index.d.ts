@@ -18,7 +18,7 @@ export type DismissalHit = {
  Folded projection state: reasoning-block count and the hits found so far.
  */
 export type DismissalState = {
-  readonly reasoningBlocks: number;
+  readonly textBlocks: number;
   readonly hits: readonly DismissalHit[];
 };
 

@@ -30,10 +30,10 @@ await describe({
       },
     },),
     it({
-      name: 'folds reasoning blocks into hits and counts, and ignores other events',
+      name: 'folds assistant prose into hits and counts, and ignores other events',
       fn: async () => {
         const initial = thinkingDismissalProjection.init();
-        verify(initial.reasoningBlocks,).toBe(0,);
+        verify(initial.textBlocks,).toBe(0,);
         const folded = thinkingDismissalProjection.apply(initial, {
           type: 'assistant/message',
           seq: 1,
@@ -48,7 +48,7 @@ await describe({
             },
           },
         },);
-        verify(folded.reasoningBlocks,).toBe(1,);
+        verify(folded.textBlocks,).toBe(2,);
         verify(folded.hits.length,).toBe(1,);
         const untouched = thinkingDismissalProjection.apply(folded, {
           type: 'turn/start',
