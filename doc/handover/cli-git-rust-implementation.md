@@ -3127,3 +3127,15 @@ hits changes between runs; permanent tests assert invariants for every outcome, 
 Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by command), `measure-fsync.ts`,
 `sync-sites.ts` (each sync with its Rust caller via `strace -k`), `trace-histogram.ts`, `fork-fault-injection.ts`
 (scratch version of the permanent sweep), `partition-run.ts`, `pids-hang-repro.ts`, `wait-publish.ts <sha> <version>`.
+
+## Update at 2026-10-29 (issues 1807 and 1808, slice S2 report)
+
+- Issue 1808 closed by `813d74dab1`: the not-at-root refusal stays (the proposal was declined) and its message now says
+  the rule exists because agents and humans frequently forget which directory they are in.
+- Issue 1807 in progress: `commit_staged_additions.rs` carries real-index staged additions that match the selection into
+  the explicit-path private index; the ignored-path refusal names `git add --force -- <path>`. Unit tests shown failing
+  without the fix (8 of 14). Binary tests added in `binary_commit_tests.rs`; host and binary suites and gate still to run.
+- Slice S2 agent (aa0a34070e816763b) finished on branch `worktree-agent-aa0a34070e816763b` (`e29c38425b`, `34d8dde3c3`,
+  `d7bba16754`): in-process filesystem identity, `findmnt` starts 3 to 0 per commit; full suite not run by the agent.
+  Known divergence: a host with `/run/udev/data` and no `findmnt` records `fs-uuid_` instead of `f-fsid_`.
+  Merge after reading its diff; its scratch is in `~/temp/agent/s2` (`ns/` needs `chmod --recursive u+rwx`).
