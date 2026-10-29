@@ -180,6 +180,20 @@ tracked in issue #1818 (which points at the `prototype/fe-mpm-files` branch).
 The prototype's images and worktrees were removed with the user's approval;
 the branch stays locally and on `origin`.
 
+Gates running (2026-10-29):
+four choosing-technology vets (`toml_edit`,
+`browserslist-rs`,
+`schemars`,
+an XML editor),
+each writing `doc/audit/tech-file-enforcer-*-vet-2026-10-29.md` uncommitted for review,
+and one agent running the three live probes in sequence,
+writing `${HOME}/temp/agent/fe-rust/gate-probes.md`.
+When they return:
+review and commit the vets,
+ask the user any question a vet ends with,
+record the probe verdicts in issue #1818,
+then start the first implementation area.
+
 ## Superseded next action (2026-10-29, after confirmation)
 
 The user confirmed a shared understanding ("Shared understanding"),
