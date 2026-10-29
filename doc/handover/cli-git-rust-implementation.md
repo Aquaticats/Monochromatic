@@ -3816,3 +3816,29 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `lfs_pre_push`, `hooks_off`, `scratch_location`, `doctor`) and the 1804 files; load-flaky tests of task 66
   (`discard::a_linked_worktree_runs_the_forms_only_while_clean`, `discard::reading_forms_are_never_rejected`); Windows
   checks (task 30), including the `/dev/null/cli-git-no-hooks` hooks path; cleanup list in the previous block.
+
+## Update at 2026-10-29 (night, last): help text fix and shared-bound fix landed, mutation wave 2 in progress
+
+- Landed on main after 0.4.0 (not yet released): the `doctor` help text now states the real exit statuses
+  (`651c661e8a`, test pinned and shown failing first); the discard tests stop tripping the shared 5-second bound
+  (`a70c344c29`): the commit-based tests use the commit bound, `reading_forms_are_never_rejected` stubs `man`, and
+  `observe_raw` in `binary_support.rs` now fails any command under the 5-second bound that is a transaction commit or
+  a `--help` without a `man` stub, with no clock involved. Its measurements are in
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`: a wrapped commit starts 40 Git
+  processes and makes 36 sync calls (0.15 to 0.45 s, direct Git 4 ms), the rest of the commands at most about 0.1 s.
+  No 5-second stall of an ordinary command was reproduced, so the rare host-wide stalls are not proven gone;
+  `dependent_version` and `controls` are unchanged (no mechanism found).
+- Mutation wave 2 (units `cli-git-mutpar-w2-*`, logs `~/temp/agent/mutpar-w2-<file>.log.N`, tree = `b0624e8569` in
+  `~/temp/agent/integrate-3`, images tagged `w20` to `w25` from the gate image `development`): `hooks_off.rs` 8
+  mutants, 8 caught (23 min). `wait_progress.rs` baseline ok, 30 mutants, running when this was written.
+  `merge_isolation.rs`, `merge_options.rs`, `child_watch.rs`, `lfs_pre_push.rs` never got past the baseline: each
+  failed three times on `worktree_copy_lock::tests::waiter_names_a_live_holder_and_takes_the_lock_after_release`
+  (`worktree_copy_lock_tests.rs:281`, expected 1 notice, got 0).
+- Cause of that failure (by reading): a helper thread releases the lock after a fixed 150 ms; under load the waiter
+  reaches `acquire` late and never waits. Agent `a367b2612f424f68c` was resumed to fix it with a sink-driven release
+  (`ActionSink`), to audit every test with a fixed-sleep release, and to fix the ones that can fail under load, on a
+  new branch `worktree-agent-a367b2612f424f68c-waits` from main. After it lands: rerun `merge_isolation`,
+  `merge_options`, `child_watch`, `lfs_pre_push`, then `doctor`, `scratch_location`, the 1804 files.
+- Open after this: the next release (carries the help text and test fixes, no behavior change); Windows checks (task
+  30); cleanup list in the earlier block (add the worktrees `integrate-3`, `integrate-4`, `integrate-5` and the
+  `rel040` and `verify-040*` scratch).
