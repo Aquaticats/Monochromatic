@@ -3448,3 +3448,27 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   enough; traditional LFS hooks must be explicitly supported (a contract: the byte-exact shim runs on every path where Git
   would run it, with Git's arguments and stdin, including the wrapper's own plumbing paths, and a failure fails closed;
   doctor reports supported shims separately; everything else stays unsupported). Sent to agent `ab2b64d9df753a15f`.
+
+## Update at 2026-10-29 (merge beside staged changes: agent finished, integration under verification)
+
+- Agent `afb65bb9babbe8ffa` finished (branch `worktree-agent-afb65bb9babbe8ffa`, six commits a2958d6546 to 2f138e24dc). A
+  `git merge` that native Git refuses only because the index holds staged changes now completes in isolation: the merge
+  commit is built from objects (`git merge-tree --write-tree`, `git commit-tree`) and the checkout moves with
+  `git merge --ff-only <merge commit>` under the landing lock; an intent journal (`merge-intent`, `merge-applied` phases)
+  makes a kill recoverable. Overlap with staged or unstaged paths refuses with `merge-isolation/paths-in-use`; a textual
+  conflict refuses with `merge-isolation/merge-conflict`; `--squash`, `--no-commit`, `-s`, `-X`, octopus and every in-progress
+  state forward to native Git. Decision record: `doc/planning/cli-git-merge-with-staged-index.md`.
+- Deviation from the brief (the agent flagged it for veto): landing is Git's own fast-forward, not the commit path's
+  compare-and-swap with a computed post-index. Measured: native fast-forward keeps unrelated staged entries and refuses
+  only on overlap, so a second worktree writer was not needed.
+- Costs: a merge into a clean index starts one extra process (`git diff-index --cached --quiet HEAD --`); the case that
+  now succeeds starts 15 processes (it failed after 11 before).
+- Not done: `git pull` hits the same refusal (the merge is a child Git spawns, invisible to the wrapper). Workaround:
+  `git fetch` then `git merge --no-edit origin/<branch>`. `git merge FETCH_HEAD` forwards.
+- Agent's verification: clippy clean; host 2205 of 2207 (known linter failure plus one fixed afterwards); binary 224 of 225
+  (known linter failure); container gate not run.
+- Integration: merged onto `main` (c1367ce73b) in the throwaway worktree `~/temp/agent/integrate-merge-wt` (detached HEAD,
+  because `git switch --create` is blocked by branch-worktree-only). Verification units `cli-git-verify-merge-clippy`
+  and `cli-git-verify-merge-tests` (targets `~/temp/agent/target-merge-clippy`, `~/temp/agent/target-merge-tests`). When
+  green: fast-forward the main checkout to the merge commit (`git merge --ff-only`, safe beside unrelated staged files), then
+  merge the oxlint and scratch-location branches, one container gate, release, cleanup.
