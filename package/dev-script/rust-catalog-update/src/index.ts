@@ -63,6 +63,7 @@ export {
   fetchTextWithUserAgent,
   HISTORY_CACHE_DIR,
   parseIndexPubtimes,
+  parseOwnerIds,
   parseVersionHistory,
   type Registry,
   RegistryError,

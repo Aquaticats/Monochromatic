@@ -12,6 +12,7 @@ import { l, } from './logger.ts';
 import {
   releaseAgeProblems,
   trustProblems,
+  type VersionRecord,
 } from './policy.ts';
 import type { Registry, } from './registry.ts';
 
@@ -137,7 +138,59 @@ export async function checkReleaseAge(
 }
 
 /**
- Checks the trust policy, one crates.io history request per crate at most.
+ Trust problems of several versions of one crate.
+
+ @param name - crate name
+
+ @param versions - versions to check
+
+ @param history - every release of the crate
+
+ @param settings - catalog settings
+
+ @param now - current time in milliseconds
+
+ @param ownerIds - account ids of the crate's listed individual owners
+
+ @returns problems across the versions
+
+ @example
+ ```ts
+ crateTrustProblems({ name, versions, history, settings, now, ownerIds: new Set(), });
+ ```
+ */
+function crateTrustProblems(
+  {
+    name,
+    versions,
+    history,
+    settings,
+    now,
+    ownerIds,
+  }: {
+    readonly name: string;
+    readonly versions: readonly string[];
+    readonly history: readonly VersionRecord[];
+    readonly settings: RustCatalogSettings;
+    readonly now: number;
+    readonly ownerIds: ReadonlySet<string>;
+  },
+): readonly string[] {
+  return versions.flatMap(function check(version: string,): readonly string[] {
+    return trustProblems({
+      name,
+      version,
+      history,
+      settings,
+      now,
+      ownerIds,
+    },);
+  },);
+}
+
+/**
+ Checks the trust policy: one crates.io history request per crate at most,
+ plus an owners request for a crate that would otherwise be refused.
 
  Requests run one at a time so the registry's spacing holds.
 
@@ -198,14 +251,34 @@ export async function checkTrust(
       name,
       versions: nameVersions,
     },);
-    for (const version of nameVersions)
-      problems.push(...trustProblems({
-        name,
-        version,
-        history,
-        settings,
-        now,
-      },),);
+    /**
+     Findings without the owner list; most crates pass here and cost no owners request.
+     */
+    const withoutOwners = crateTrustProblems({
+      name,
+      versions: nameVersions,
+      history,
+      settings,
+      now,
+      ownerIds: new Set<string>(),
+    },);
+    if (withoutOwners.length === 0)
+      continue;
+    // A listed owner's first release ranks as a known publisher, so a refusal is
+    // rechecked against the current owner list before it stands.
+    /**
+     Account ids of the crate's listed individual owners.
+     */
+    // oxlint-disable-next-line no-await-in-loop -- crates.io allows one API request per second, so lookups must be sequential.
+    const ownerIds = await registry.owners(name,);
+    problems.push(...crateTrustProblems({
+      name,
+      versions: nameVersions,
+      history,
+      settings,
+      now,
+      ownerIds,
+    },),);
   }
   return problems;
 }

@@ -408,6 +408,45 @@ export function parseVersionHistory(text: string,): readonly VersionRecord[] {
     },);
 }
 
+/**
+ Account ids of a crate's listed individual owners from a crates.io owners response.
+
+ Team owners (`kind: "team"`) are left out: the API does not list their members.
+
+ @param text - `/api/v1/crates/<name>/owners` body
+
+ @returns user ids as text
+
+ @throws SyntaxError when the body is not JSON
+
+ @example
+ ```ts
+ parseOwnerIds('{"users":[{"id":3618,"kind":"user"},{"id":9,"kind":"team"}]}'); // Set { '3618' }
+ ```
+ */
+export function parseOwnerIds(text: string,): ReadonlySet<string> {
+  /**
+   Parsed body.
+   */
+  const body: unknown = JSON.parse(text,);
+  /**
+   Raw owner entries.
+   */
+  const users = isObject(body,) && Array.isArray(body.users,) ? body.users : [];
+  return new Set(users.filter(function isUser(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+    return isObject(entry,) && (entry.kind === 'user');
+  },)
+    .map(function toId(entry: Readonly<Record<string, unknown>>,): string {
+      return idField({
+        object: entry,
+        key: 'id',
+      },);
+    },)
+    .filter(function isPresent(id: string,): boolean {
+      return id !== '';
+    },),);
+}
+
 //endregion Parse
 
 //region Client
@@ -432,6 +471,10 @@ export type Registry = {
     readonly name: string;
     readonly versions: readonly string[]
   },) => Promise<readonly VersionRecord[]>;
+  /**
+   Account ids of a crate's listed individual owners, fetched fresh because ownership changes.
+   */
+  readonly owners: (name: string,) => Promise<ReadonlySet<string>>;
 };
 
 /**
@@ -542,7 +585,35 @@ export function createRegistry(
     root,
     HISTORY_CACHE_DIR,
   );
+  /**
+   Fetches a crates.io API URL no sooner than `minIntervalMs` after the previous one.
+
+   @param url - API URL
+
+   @returns response body
+
+   @throws RegistryError when the request fails
+
+   @example
+   ```ts
+   await spacedApiGet('https://crates.io/api/v1/crates/anyhow/owners');
+   ```
+   */
+  async function spacedApiGet(url: string,): Promise<string> {
+    /**
+     Time left before the next request is allowed.
+     */
+    const delay = (throttle.lastRequestAt + minIntervalMs) - Date.now();
+    if (delay > 0)
+      await wait(delay,);
+    throttle.lastRequestAt = Date.now();
+    log.info(`fetching ${url}`,);
+    return await fetchText(url,);
+  }
   return {
+    owners: async function owners(name: string,): Promise<ReadonlySet<string>> {
+      return parseOwnerIds(await spacedApiGet(`${API_URL}/crates/${encodeURIComponent(name,)}/owners`,),);
+    },
     pubtimes: async function pubtimes(name: string,): Promise<ReadonlyMap<string, string>> {
       /**
        Index file URL.
@@ -577,21 +648,9 @@ export function createRegistry(
       },))
         return cached;
       /**
-       Time left before the next request is allowed.
-       */
-      const delay = (throttle.lastRequestAt + minIntervalMs) - Date.now();
-      if (delay > 0)
-        await wait(delay,);
-      throttle.lastRequestAt = Date.now();
-      /**
-       API URL for this crate.
-       */
-      const url = `${API_URL}/crates/${encodeURIComponent(name,)}/versions`;
-      log.info(`fetching ${url}`,);
-      /**
        Fresh records.
        */
-      const fresh = parseVersionHistory(await fetchText(url,),);
+      const fresh = parseVersionHistory(await spacedApiGet(`${API_URL}/crates/${encodeURIComponent(name,)}/versions`,),);
       await mkdir(
         cacheDir,
         { recursive: true, },

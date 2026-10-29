@@ -54,13 +54,18 @@ The trust levels are heuristics from crates.io data,
  ranked from highest to lowest:
 
 - Trusted Publishing (`trustpub_data` present).
-- A token publish by an account that published an earlier release.
-- A token publish by an account new to the crate.
+- A token publish by an account that published an earlier release or is a listed individual crate owner.
+- A token publish by any other account.
 
 With `trustPolicy = "no-downgrade"`,
  a version fails when an earlier stable release ranked higher,
  when its Trusted Publishing repository differs from earlier trusted releases,
- or when its declared `repository` differs from the release before it.
+ or when its declared `repository` differs from a declared `repository` on the release before it
+ (an undeclared value on either side is not a change).
+The owner list comes from `https://crates.io/api/v1/crates/<name>/owners`,
+ fetched only for a crate that would otherwise be refused.
+Team owners do not count,
+ because the API does not list their members.
 `trustPolicyExclude` exempts versions,
  and `trustPolicyIgnoreAfter` (minutes) skips versions older than that.
 

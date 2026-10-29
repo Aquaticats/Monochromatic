@@ -70,6 +70,11 @@ function record(
   return { num, createdAt, publisherId, trustpubRepository, repository, };
 }
 
+/**
+ No owner list looked up.
+ */
+const NO_OWNERS: ReadonlySet<string> = new Set();
+
 //endregion Fixtures
 
 await describe({
@@ -113,9 +118,9 @@ await describe({
          First release by account 7.
          */
         const first = record({ num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', },);
-        expect(trustLevel({ record: record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', trustpubRepository: 'o/r', publisherId: '', },), earlier: [first,], },),).toBe(3,);
-        expect(trustLevel({ record: record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', },), earlier: [first,], },),).toBe(2,);
-        expect(trustLevel({ record: first, earlier: [], },),).toBe(1,);
+        expect(trustLevel({ record: record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', trustpubRepository: 'o/r', publisherId: '', },), earlier: [first,], ownerIds: NO_OWNERS, },),).toBe(3,);
+        expect(trustLevel({ record: record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', },), earlier: [first,], ownerIds: NO_OWNERS, },),).toBe(2,);
+        expect(trustLevel({ record: first, earlier: [], ownerIds: NO_OWNERS, },),).toBe(1,);
       },
     },),
   ],
@@ -135,11 +140,11 @@ await describe({
           record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', trustpubRepository: 'o/r', publisherId: '', },),
           record({ num: '1.0.2', createdAt: '2026-03-01T00:00:00Z', publisherId: '9', },),
         ];
-        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, },),).toEqual([],);
+        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
         /**
          Findings for the downgraded release.
          */
-        const downgraded = trustProblems({ name: 'a', version: '1.0.2', history, settings: SETTINGS, now: NOW, },);
+        const downgraded = trustProblems({ name: 'a', version: '1.0.2', history, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },);
         expect(downgraded.length,).toBe(1,);
         expect(downgraded[0],).toContain('trust level 1, below an earlier release\'s 3',);
       },
@@ -162,7 +167,7 @@ await describe({
         /**
          Findings for the new account's release.
          */
-        const problems = trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, },);
+        const problems = trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },);
         expect(problems.length,).toBe(1,);
         expect(problems[0],).toContain('trust level 1, below an earlier release\'s 2',);
       },
@@ -180,7 +185,7 @@ await describe({
         /**
          Findings.
          */
-        const problems = trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, },);
+        const problems = trustProblems({ name: 'a', version: '1.0.1', history, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },);
         expect(problems.length,).toBe(2,);
         expect(problems[0],).toContain('trusted-published from evil/r, not o/r',);
         expect(problems[1],).toContain('declares repository "https://github.com/evil/r"',);
@@ -196,15 +201,62 @@ await describe({
           record({ num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', trustpubRepository: 'o/r', publisherId: '', },),
           record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', publisherId: '9', },),
         ];
-        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicy: 'off', }, now: NOW, },),).toEqual([],);
-        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicyExclude: ['a@1.0.1',], }, now: NOW, },),).toEqual([],);
-        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicyIgnoreAfter: 60, }, now: NOW, },),).toEqual([],);
+        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicy: 'off', }, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
+        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicyExclude: ['a@1.0.1',], }, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
+        expect(trustProblems({ name: 'a', version: '1.0.1', history, settings: { ...SETTINGS, trustPolicyIgnoreAfter: 60, }, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
+      },
+    },),
+    it({
+      name: 'rates a listed owner\'s first release as a known publisher, and still refuses a non-owner',
+      fn: async () => {
+        // Same shape as parley 0.12.0: earlier releases by account 7, then the
+        // first release by account 9, who is a listed owner.
+        /**
+         Account 7 publishes 1.0.0 and 1.0.1; account 9 publishes 1.0.2.
+         */
+        const history = [
+          record({ num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', },),
+          record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', },),
+          record({ num: '1.0.2', createdAt: '2026-03-01T00:00:00Z', publisherId: '9', },),
+        ];
+        expect(trustProblems({ name: 'a', version: '1.0.2', history, settings: SETTINGS, now: NOW, ownerIds: new Set(['7', '9',],), },),).toEqual([],);
+        expect(trustProblems({ name: 'a', version: '1.0.2', history, settings: SETTINGS, now: NOW, ownerIds: new Set(['7',],), },).length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'ignores a repository that was undeclared before or after, and flags a change between declared ones',
+      fn: async () => {
+        // Same shape as parley_engine: a 0.0.0 placeholder without a repository.
+        /**
+         Placeholder without a repository, then a real release with one.
+         */
+        const placeholder = [
+          record({ num: '0.0.0', createdAt: '2026-01-01T00:00:00Z', repository: '', },),
+          record({ num: '0.12.0', createdAt: '2026-02-01T00:00:00Z', repository: 'https://github.com/o/r', },),
+        ];
+        expect(trustProblems({ name: 'a', version: '0.12.0', history: placeholder, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
+        /**
+         A release that drops the repository.
+         */
+        const dropped = [
+          record({ num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', },),
+          record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', repository: '', },),
+        ];
+        expect(trustProblems({ name: 'a', version: '1.0.1', history: dropped, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },),).toEqual([],);
+        /**
+         A release that moves to another repository.
+         */
+        const moved = [
+          record({ num: '1.0.0', createdAt: '2026-01-01T00:00:00Z', },),
+          record({ num: '1.0.1', createdAt: '2026-02-01T00:00:00Z', repository: 'https://github.com/b/r', },),
+        ];
+        expect(trustProblems({ name: 'a', version: '1.0.1', history: moved, settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },).length,).toBe(1,);
       },
     },),
     it({
       name: 'reports a version crates.io does not list',
       fn: async () => {
-        expect(trustProblems({ name: 'a', version: '9.9.9', history: [], settings: SETTINGS, now: NOW, },).length,).toBe(1,);
+        expect(trustProblems({ name: 'a', version: '9.9.9', history: [], settings: SETTINGS, now: NOW, ownerIds: NO_OWNERS, },).length,).toBe(1,);
       },
     },),
   ],

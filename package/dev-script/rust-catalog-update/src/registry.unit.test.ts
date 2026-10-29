@@ -22,6 +22,7 @@ import {
   createRegistry,
   HISTORY_CACHE_DIR,
   parseIndexPubtimes,
+  parseOwnerIds,
   parseVersionHistory,
   sparseIndexPath,
 } from './registry.ts';
@@ -164,6 +165,19 @@ await describe({
         },);
         expect((await registry.pubtimes('itoa',)).get('1.0.18',),).toBe('2026-03-20T00:12:37Z',);
         expect(urls,).toEqual(['https://index.crates.io/it/oa/itoa',],);
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: parseOwnerIds.name,
+  children: [
+    it({
+      name: 'keeps individual owner ids and leaves out teams, whose members the API hides',
+      fn: async () => {
+        expect([...parseOwnerIds('{"users":[{"id":3618,"login":"a","kind":"user"},{"id":9,"login":"github:o:t","kind":"team"},{"login":"no-id","kind":"user"}]}',),],).toEqual(['3618',],);
+        expect([...parseOwnerIds('{}',),],).toEqual([],);
       },
     },),
   ],

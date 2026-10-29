@@ -166,6 +166,9 @@ function fakeRegistry(history: readonly VersionRecord[],): Registry {
     history: async function lookup(): Promise<readonly VersionRecord[]> {
       return history;
     },
+    owners: async function owners(): Promise<ReadonlySet<string>> {
+      return new Set();
+    },
   };
 }
 

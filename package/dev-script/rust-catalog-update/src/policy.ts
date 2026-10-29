@@ -153,26 +153,36 @@ const FIRST_TIME_PUBLISHER_LEVEL = 1;
 /**
  Heuristic trust level of one release given the releases published before it.
 
+ A token publish ranks as a known publisher when the account published an
+ earlier release or is a listed crate owner (owner decision, 2026-10-29,
+ issue #1806), so maintainer rotation inside the owner list is not a downgrade.
+
  @param record - release to rate
 
  @param earlier - releases published before it
+
+ @param ownerIds - account ids of the crate's listed individual owners; empty when not looked up
 
  @returns 3 for Trusted Publishing, 2 for a known token publisher, 1 for a first-time publisher
 
  @example
  ```ts
- trustLevel({ record, earlier: [], }); // 1 or 3
+ trustLevel({ record, earlier: [], ownerIds: new Set(), }); // 1 or 3
  ```
  */
 export function trustLevel({
   record,
   earlier,
+  ownerIds,
 }: {
   readonly record: VersionRecord;
-  readonly earlier: readonly VersionRecord[]
+  readonly earlier: readonly VersionRecord[];
+  readonly ownerIds: ReadonlySet<string>;
 },): number {
   if (record.trustpubRepository !== '')
     return TRUSTED_PUBLISHING_LEVEL;
+  if ((record.publisherId !== '') && ownerIds.has(record.publisherId,))
+    return KNOWN_PUBLISHER_LEVEL;
   return earlier.some(function samePublisher(previous: VersionRecord,): boolean {
     return (previous.publisherId !== '') && (previous.publisherId === record.publisherId);
   },)
@@ -193,11 +203,13 @@ export function trustLevel({
 
  @param now - current time in milliseconds
 
+ @param ownerIds - account ids of the crate's listed individual owners; empty when not looked up
+
  @returns problem descriptions, empty when the version passes or the policy is off
 
  @example
  ```ts
- trustProblems({ name: 'anyhow', version: '1.0.104', history, settings, now: Date.now(), });
+ trustProblems({ name: 'anyhow', version: '1.0.104', history, settings, now: Date.now(), ownerIds: new Set(), });
  ```
  */
 export function trustProblems(
@@ -207,12 +219,14 @@ export function trustProblems(
     history,
     settings,
     now,
+    ownerIds,
   }: {
     readonly name: string;
     readonly version: string;
     readonly history: readonly VersionRecord[];
     readonly settings: RustCatalogSettings;
     readonly now: number;
+    readonly ownerIds: ReadonlySet<string>;
   },
 ): readonly string[] {
   if ((settings.trustPolicy === 'off') || isExcluded({
@@ -253,6 +267,7 @@ export function trustProblems(
   const level = trustLevel({
     record,
     earlier,
+    ownerIds,
   },);
   /**
    Highest level among earlier stable releases (prereleases do not raise the bar for a stable release).
@@ -275,6 +290,7 @@ export function trustProblems(
             0,
             index,
           ),
+          ownerIds,
         },),
       );
     },
@@ -298,7 +314,12 @@ export function trustProblems(
    The release just before this one.
    */
   const previous = earlier.at(-1,);
-  if ((previous !== undefined) && (previous.repository !== record.repository))
+  // Only a change between two declared repositories counts; an undeclared one
+  // on either side carries no evidence about who controls the crate
+  // (owner decision, 2026-10-29, issue #1806).
+  if ((previous !== undefined) && (previous.repository !== '')
+    && (record.repository !== '')
+    && (previous.repository !== record.repository))
     problems.push(`${name}@${version} declares repository ${JSON.stringify(record.repository,)}, but ${previous.num} declared ${JSON.stringify(previous.repository,)}`,);
   return problems.map(function withRemedy(problem: string,): string {
     return `${problem}; review the release, then add "${name}@${version}" to trustPolicyExclude in rust-catalog.toml if it is legitimate`;
