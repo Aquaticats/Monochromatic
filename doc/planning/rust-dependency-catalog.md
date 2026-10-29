@@ -1005,10 +1005,14 @@ Owner decisions (2026-10-29, question tool):
    the owner "never had and never will accept PRs containing a lockfile change",
    so every committed lockfile comes from the owner's own sessions,
    which is the trusted-base case pnpm's `trustLockfile: true` exists for.
-   `--verify --base <rev>` checks only registry versions that some `Cargo.lock` holds and the same lockfile at `<rev>` did not.
+   `--verify --base <rev>` checks only registry versions that some `Cargo.lock` holds and no `Cargo.lock` held at `<rev>`
+   (a union across lockfiles, as the update's own new-version check uses; a crate whose lockfile is new counts in full).
    Commits auto-push straight to `main`, so a merge base with `main` would always be empty there;
    CI passes the push's previous commit (`github.event.before`) as the base,
-   and needs that commit fetched.
+   and fetches that one commit.
+   Landed in `161cb34c54`; verified locally (0 versions against `HEAD`, 691 versions and 13 findings against a base from before 2026-09-01).
+   Known limit: after a force-push `github.event.before` may be unreachable, so the step fails
+   (`continue-on-error` keeps the workflow green).
 - `trustPolicyIgnoreAfter = 525600` (365 days) in `rust-catalog.toml`.
 - Toolchain plan data: "Add a *.data.ts pattern".
    `plan.tools.ts` and `plan.artifacts.ts` are data, not code ("the 300 line limit doesn't apply to non-code"),
@@ -1022,24 +1026,40 @@ Adopted from pnpm without asking (its documented behavior settles it):
  with the version excluded, up to a bound, before failing.
  Queued after the verify scope change.
 
+Done since the cold run:
+ the cold verify (log `${HOME}/temp/agent/rust-catalog/cold-verify.log`) and the restore of the API-rich cache;
+ the verify scope and ignore-after (`161cb34c54`);
+ the `**/*.data.ts` lint override in `package/config/oxlint`;
+ in `package/file-enforcer/core`, the `fetcher` type fix (`a6b16edc2a`),
+ the zero-width-space and readonly-tuple fixes,
+ and every non-toolchain test importing the built entry (`53525c50c6`),
+ which took the package from 452 to 360 lint errors.
+#1800's acceptance criteria are met, so it closes with this status update;
+ the items below are tracked here and in the session task list.
+
 Remaining:
 
-1.  A cold `task-run rust:verify` from an empty cache: done (results in this section);
-     the restore below is done too.
-    Record kept:
-     systemd unit `rust-verify-cold`, log `${HOME}/temp/agent/rust-catalog/cold-verify.log`.
-    The API-rich cache it replaced is in `${HOME}/temp/agent/rust-catalog/cache-before-cold-run/`;
-     after the run, copy those files back over `.cache/rust-catalog-update/crates-io/` (API histories carry more fields).
-2.  Fix every pre-existing file-enforcer lint and type error
-     (452 errors and 454 warnings measured before the move, mostly `src/toolchain/*`;
-     `src/toolchain/plan.artifacts.ts` is `toolchain:update` output, so its findings are fixed in the renderer),
-     committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
-    Order:
-    1.  `format:oxlint` autofix alone, one commit.
-    2.  Type errors (`src/toolchain/update.ts` `fetcher` parameters), then a baseline `test:unit` run.
-    3.  Leaf files by finding count, one commit each, following the idioms of the lint-clean
-         `package/dependency-catalog/cli-rust-update` for nullish unions, regex, sync calls, examples, and parameter docs.
-    4.  The two oversized plan data files (`plan.tools.ts` 1027 lines, generated `plan.artifacts.ts`)
-         change the loader and patcher contract and the global scope copy in `~/.config/monochromatic-dev/toolchain/`,
-         so their shape goes to the owner as a ranked question, not a silent redesign.
-3.  Close #1800.
+1.  Confirm the new CI verify step on a real `advisory-core` run:
+     its log should show `comparing lockfiles with <sha>` and `verifying N newly locked versions`.
+2.  Set aside a trust-failing version and re-resolve (adopted from pnpm), `Refs #1800`:
+     split `checkTrust` into a structured core returning the refused `name@version` with its problems;
+     candidates are older releases of that crate, caret-compatible with the refused version,
+     published before the release-age cutoff, not yanked (from the sparse index, a per-run `yanked(name)` on `Registry`,
+     not the cached history format), not already set aside, and passing the trust policy against the full history;
+     try them newest first with `cargo update --package <name>@<version> --precise <candidate>` in each crate that locks it;
+     re-run both checks after each round (transitive versions move), with bounded rounds and bounded attempts;
+     keep the original finding when nothing works; report each set-aside as a warning in dry and real runs.
+     Needs a small tested version comparator (prerelease and `+build` metadata, for example `0.11.1+wasi-snapshot-preview1`),
+     a fake cargo runner that understands `--precise`, and a test that fails with the set-aside removed.
+     Check `cargo update --help` and the Cargo Book for how `--precise` treats yanked versions first.
+3.  Rename the toolchain plan data to `plan.tools.data.ts` and `plan.artifacts.data.ts`
+     (renderer, loader, patcher, tests, and the global copy in `~/.config/monochromatic-dev/toolchain/`),
+     make the renderer's output lint-clean, then tell the `monochromatic-db` session, which runs `toolchain:update`.
+4.  The other `src/toolchain/*` lint findings, one file per commit.
+     `providers.ts` (1557 lines) and `update.resolvers.ts` (1521 lines) are code, so they still split into sibling modules.
+5.  Open, not fixed:
+     the overwrite, TOML-write, JetBrains, and Mise-manifest suites time out on
+     `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` when the whole suite runs in parallel,
+     and `src/io/write.unit.test.ts` passes alone; there is no baseline from before the import change,
+     and tests sharing one real lock path is itself a defect to propose to the owner.
+     The toolchain plan and generator tests still expect `nightly-2026-10-28` and node `26.12.1`.
