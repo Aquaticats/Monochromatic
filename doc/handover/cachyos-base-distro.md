@@ -26,6 +26,34 @@ Owner follow-ups the same day:
 - Subagent: CachyOS target in `test-harness/core-matrix` (default container distro)
    and a CachyOS cell in file-enforcer's ensure-package container matrix.
 
+## Done
+
+- Tool and test images on CachyOS, verified on `cachyos-v4` (subagent report, 2026-10-29):
+   `search-shadow/cli` `b2b8297ff6` (test:container 44 PASS, rerun independently by monochromatic-71;
+   ack is not in Arch or CachyOS repos, so it installs App::Ack from CPAN),
+   `file-enforcer/core/generator` `6985201202`, `d371bc2e04`, `1e523469fb`
+   (Arch PostgreSQL wants clang for JIT bitcode, so the libversion build uses `with_llvm=no`),
+   `test-fixture/file-enforcer-perf` `856bb719ae`, `cbc7292378`,
+   `nested-wayland-session/cli` `7c448d8a3e`, `2f68ce13f8`.
+- pacman hooks need `--disable-sandbox` in rootless podman builds:
+   `doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md` (`bd06f4c440`).
+- Fedora dropped from the test matrices (owner decision, `8627135ed7`).
+
+## Found during verification, not caused by the base change
+
+- `nested-wayland-session/cli` `verify:container`:
+   two `appearance_portal` tests fail with `XDG_RUNTIME_DIR is not set`
+   since `45cec40b27` made the private D-Bus need it;
+   the container task never sets it (fails on Fedora too).
+  With `--tmpfs /xdg --env XDG_RUNTIME_DIR=/xdg`, 279 of 279 tests pass.
+- `test-fixture/file-enforcer-perf` `perf:constrained`:
+   `StalenessManifestPersistenceError` (staleness manifest lock timeout) from file-enforcer-core,
+   reproduced on the host outside any container.
+- `test-fixture/file-enforcer-perf/TODO.md` asks to pin Node, which conflicts with the "latest" decision.
+- The first p-memoize mutation run failed building its image:
+   `pnpmfile hook 'updateConfig' timed out after 30 seconds` at load average 58;
+   rerun as unit `mutation-p-memoize-2`.
+
 ## Queued for this session
 
 - `package/mutation-test/cli/runtime/Containerfile` (`FROM fedora:latest`):
