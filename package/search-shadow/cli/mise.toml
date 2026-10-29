@@ -82,7 +82,7 @@ for (const name of linkedNames) {
 // The disk priority reaches the real process: a grep blocked on a FIFO and a find blocked in -exec both report best-effort level 7.
 const grepPriority = inContainer('mkfifo /tmp/in; (PATH=/shadow-bin:$PATH grep foo < /tmp/in > /dev/null) & sleep 0.3; ionice -p $(pgrep --newest --exact grep); echo foo > /tmp/in; wait')
 check('priority: a shadowed grep runs at best-effort level 7', grepPriority.stdout.includes('best-effort: prio 7'), grepPriority.stdout + grepPriority.stderr)
-const findPriority = inContainer('mkdir /tmp/d && touch /tmp/d/f; (PATH=/shadow-bin:$PATH find /tmp/d -type f -exec sleep 2 \\\; > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact find); wait')
+const findPriority = inContainer('mkdir /tmp/d && touch /tmp/d/f; (PATH=/shadow-bin:$PATH find /tmp/d -type f -exec sleep 2 \\\\; > /dev/null) & sleep 0.5; ionice -p $(pgrep --newest --exact find); wait')
 check('priority: a shadowed find runs at best-effort level 7', findPriority.stdout.includes('best-effort: prio 7'), findPriority.stdout + findPriority.stderr)
 
 // Refusals at a repository root: rg -r, rg --hidden, grep -r, find; and the tools that are only throttled are never refused.
