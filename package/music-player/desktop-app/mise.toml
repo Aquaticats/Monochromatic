@@ -442,7 +442,8 @@ arg "[args]" var=#true help="File or folder paths to enqueue"
 # 2026-10-29 gave a binary that needed GLIBC_2.44 (`sinh`, `cosh`) and did not start on a Fedora 44 host with glibc 2.43
 # ("version `GLIBC_2.44' not found"). So the container fallback builds with cargo-zigbuild for x86_64-unknown-linux-gnu.2.39
 # (target/x86_64-unknown-linux-gnu/release/music-player), and the binary needs no glibc newer than 2.39. The run-quick and
-# run-debug tasks still build with plain cargo in the container.
+# run-debug tasks still build with plain cargo in the container. Zig is a stopgap here, used only on this build path: issue #1814
+# tracks replacing it (candidates without Zig: polyfill-glibc, obggcc).
 #
 # The host environment already provides WAYLAND_DISPLAY, XDG_RUNTIME_DIR, the
 # D-Bus session bus, PipeWire, and the XDG user dirs, so the empty-launch auto-load

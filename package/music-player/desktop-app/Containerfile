@@ -90,7 +90,8 @@ RUN arch="$(uname -m)" \
 # The `run` mise task builds in this image and starts the binary on the host. CachyOS ships the newest glibc, and a binary built
 # against it needs symbols (GLIBC_2.44 `sinh` and `cosh` on 2026-10-29) that an older host lacks. cargo-zigbuild links with
 # Zig's bundled glibc stubs for a chosen version, so `cargo zigbuild --target x86_64-unknown-linux-gnu.2.39` makes a binary that
-# needs nothing newer than glibc 2.39 (Ubuntu 24.04's, the repository's release floor).
+# needs nothing newer than glibc 2.39 (Ubuntu 24.04's, the repository's release floor). Zig is a stopgap used only for this
+# one build path; issue #1814 tracks replacing it.
 # Zig 0.15.2 is the version toolchain.lock.json pins (`.tools.zig`); it is downloaded the way package/terminal/app/Containerfile
 # does, with the same checksums. cargo-zigbuild comes from the distro repository; --assume-installed stops pacman from also
 # installing the distro's own newer zig package, which would be a second Zig beside this one.
