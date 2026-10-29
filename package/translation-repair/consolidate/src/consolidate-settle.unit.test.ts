@@ -975,7 +975,7 @@ await describe({
          Whether every judge sheet and every gate sheet of one settlement
          carries the references.
 
-         @param referenceContext - the slice's references, none left out
+         @param referenceContext - slice's references, none left out
 
          @returns Judge and gate answers, false for a round never asked
          */
@@ -1019,7 +1019,7 @@ await describe({
          Whether every judge sheet and every gate sheet of one settlement
          carries exactly one tense block.
 
-         @param recorded - the slice's death record, none left out
+         @param recorded - slice's death record, none left out
 
          @returns Judge and gate answers, false for a round never asked
          */

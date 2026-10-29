@@ -63,7 +63,7 @@ export class WithheldSlateAbsenceError extends Error {
 
    @param reason - why the judging said the slate had nothing to ship
 
-   @param cause - the absence itself, kept for its findings
+   @param cause - absence itself, kept for its findings
 
    @example
    ```ts
@@ -99,11 +99,11 @@ export class WithheldSlateAbsenceError extends Error {
  (ledger B43). An absence over an eligible standing, and anything else the
  judging raises, passes through unchanged.
 
- @param judged - the judging in flight
+ @param judged - judging in flight
 
  @param standingEligible - whether the standing passed the deterministic gate
 
- @returns The judges' decision
+ @returns Judges' decision
 
  @throws {@link WithheldSlateAbsenceError} when the judging raises an absence
  over a withheld standing
@@ -152,7 +152,7 @@ export async function requireWithheldSlateDecided<const DecidedT,>(
  slate has a row in `perCandidate` for its position, since
  `countCandidateWeights` gives every candidate one.
 
- @param result - the single round's decline, which kept the incumbent
+ @param result - single round's decline, which kept the incumbent
 
  @returns Whether the standing is on the slate and no ballot named it
 
@@ -196,7 +196,7 @@ function standingDrewNoBallot(
 
  @param judging - everything {@link judgeTranslateSlate} needs
 
- @returns The judges' decision, from whichever round decided it
+ @returns Judges' decision, from whichever round decided it
 
  @throws Whatever the judging raises, unchanged
 
@@ -300,7 +300,7 @@ async function judgeSingleRoundOverStanding(
  @param stageSettings - straggler windows and contest ledger the entry file
  read for this launch (`StageSettings`)
 
- @returns The judges' decision
+ @returns Judges' decision
 
  @throws {@link WithheldSlateAbsenceError} when the judging raises an absence
  over a withheld standing, a fault in this code

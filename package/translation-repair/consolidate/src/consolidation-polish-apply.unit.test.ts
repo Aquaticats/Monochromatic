@@ -54,7 +54,7 @@ const REPAIR_CLAIMS_NOTE = 'REPAIR PANEL CLAIMS ACCEPTED: the repair lane\'s adj
  @param sheetsBySchema - where every sheet is recorded under its reply
  schema's name, for the cases reading what each role was shown
 
- @param rewrite - the refiner's proposal, a faithful one unless a case needs
+ @param rewrite - refiner's proposal, faithful one unless a case needs
  another
 
  @returns Scripted client
@@ -508,7 +508,7 @@ await describe({
         /**
          Polish of one configuration, with the gate sheets it sent.
 
-         @param declaredNamePairs - the page's declared names, none left out
+         @param declaredNamePairs - page's declared names, none left out
 
          @returns Final text beside the gate sheets
          */

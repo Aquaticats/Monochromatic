@@ -85,7 +85,7 @@ const SUBJECT = {
  judge by its ballot schema, and a producer as anything else, which it
  refuses so a producer asked would show.
 
- @returns The client and what it was asked, by role
+ @returns Client and what it was asked, by role
 
  @example
  ```ts
@@ -156,7 +156,7 @@ function countingClient(): {
 
  @param laneTexts - lane texts offered beside the standing
 
- @returns The settlement
+ @returns Settlement
  */
 async function buyOverEmptyStanding(
   {

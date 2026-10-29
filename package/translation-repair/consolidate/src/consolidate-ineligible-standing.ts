@@ -226,7 +226,7 @@ export function nothingValidShips(
 
  @param settlement - what the stage settled, before any polish
 
- @param subject - the slice, whose syntax role decides the not-run reason the
+ @param subject - slice, whose syntax role decides the not-run reason the
  final naturalness check requires; taken whole so no exit has to thread the
  role across on its own
 
