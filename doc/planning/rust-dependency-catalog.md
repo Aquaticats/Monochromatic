@@ -346,7 +346,41 @@ For Cargo,
  the build always uses `Cargo.lock`,
  so the lockfile is the resolved-version source
  (the JS tool avoids lockfiles because `node_modules` can be deleted while the lockfile stays).
-Owner and floor rule are open.
+Owner:
+ extend `catalog-tighten` with a Cargo source,
+ because it already owns floor tightening;
+ `rust-catalog.toml` then has two writers (the `file-enforcer` sync and tighten),
+ as `pnpm-workspace.yaml` already has pnpm plus tighten.
+
+Floor rule:
+ the highest version resolved across the consuming crates' lockfiles.
+Why
+ (the owner pointed out the earlier question should not have existed):
+ pnpm's catalogs page lists "Maintain unique versions" as the first advantage,
+ and `catalog-tighten`'s resolver (`src/version-resolve.ts`, `readInstalledVersion`) states
+ "a catalog pins one version across all importers, so the first on-disk hit is the active version".
+Under that one-version premise a lowest-resolved floor would contradict the catalog's purpose.
+
+Probe (throwaway crate, repo cargo, offline):
+ with `itoa` locked at 1.0.11 and the requirement raised from `1.0.4` to `1.0.15`,
+ `cargo metadata --locked` failed ("cannot update the lock file ... because --locked was passed"),
+ and a plain `cargo metadata` re-resolved only `itoa`,
+ to 1.0.18 (the newest cached release, not the new floor),
+ while `memchr` stayed at 2.6.4.
+So a raised floor moves lower-locked crates to whatever is newest,
+ not to the floor,
+ unless tighten also updates their lockfiles.
+
+### Named catalog selection
+
+A crate selects a named catalog in its own manifest,
+ under `[package.metadata.rust-catalog.catalogs]`
+ (for example `windows = "windows-legacy"`).
+Why:
+ pnpm selects at the consumer (`catalog:<name>`),
+ and the selection moves with the crate.
+Cargo's manifest reference says the `package.metadata` table "is completely ignored by Cargo and will not be warned
+ about".
 
 ## pnpm feature map
 
@@ -462,7 +496,6 @@ Following pnpm,
 
 - Which pnpm features to omit
    (asked as a feature list).
-- Where a crate selects a named catalog.
 - Whether strict membership now covers internal crates through `workspace:` entries,
    which pnpm allows but does not require.
 - Where the CI check runs.
