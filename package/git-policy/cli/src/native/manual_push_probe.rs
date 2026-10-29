@@ -175,8 +175,8 @@ pub fn parse_update_records(
 }
 
 /// What:
-///  The probe's Git arguments: the invocation's global options, the hook path override,
-///  then `push` with `--dry-run --verify` placed before any `--` terminator.
+///  The probe's Git arguments: the invocation's global options, the hook path override, the switch that turns
+///  configured `pre-push` hooks off, then `push` with `--dry-run --verify` placed before any `--` terminator.
 /// Why:
 ///   The `--` terminator is the user's; the options Git interprets must stay before it.
 ///
@@ -199,6 +199,11 @@ pub fn probe_arguments(
         "core.hooksPath={}",
         hooks_directory.display()
     )));
+    // The probe publishes nothing, so no configured `pre-push` hook may run for it (a configured hook would run once
+    //  more per probe, and the LFS upload hook would upload during a dry run).
+    //  This switch leaves the recording hook in the private directory alone: it disables configured hooks only.
+    arguments.push(OsString::from("-c"));
+    arguments.push(OsString::from("hook.pre-push.enabled=false"));
     arguments.push(OsString::from("push"));
     arguments.extend(post_subcommand[..insertion].iter().cloned());
     arguments.push(OsString::from("--dry-run"));

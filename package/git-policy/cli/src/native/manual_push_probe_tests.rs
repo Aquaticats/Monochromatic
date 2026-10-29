@@ -139,6 +139,8 @@ fn probe_arguments_keep_git_options_before_the_terminator() {
             "/repo",
             "-c",
             "core.hooksPath=/hooks",
+            "-c",
+            "hook.pre-push.enabled=false",
             "push",
             "origin",
             "main",

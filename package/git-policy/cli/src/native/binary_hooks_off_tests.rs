@@ -151,6 +151,63 @@ fn a_failing_pre_push_hook_file_blocks_neither_a_push_nor_an_auto_push() {
     remove_settled(&fixture);
 }
 
+/// Configure a `pre-push` hook that appends `configured` to the markers.
+fn configured_pre_push(fixture: &Fixture, world: &World) {
+    let script: PathBuf = fixture.root.join("configured-pre-push");
+    executable(script.as_path(), format!("#!/bin/sh\necho configured >> '{}'\n", world.markers.display()).as_bytes());
+    git(fixture, world.repo.as_path(), &["config", "hook.control.event", "pre-push"]);
+    git(fixture, world.repo.as_path(), &["config", "hook.control.command", script.to_str().expect("UTF-8")]);
+}
+
+/// A configured `pre-push` hook runs once for a normal push: the wrapper's scope probe is a dry-run push and skips it.
+#[test]
+fn a_configured_pre_push_hook_runs_once_for_a_normal_push() {
+    let fixture: Fixture = fixture("hooks-off-probe-once");
+    let world: World = world(&fixture, false);
+    configured_pre_push(&fixture, &world);
+    let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert_eq!(markers(&world), "configured\n");
+    remove_settled(&fixture);
+}
+
+/// A configured `pre-push` hook runs once for a push of a commit that landed, through the auto-push (no probe there).
+#[test]
+fn a_configured_pre_push_hook_runs_once_for_an_auto_push() {
+    let fixture: Fixture = fixture("hooks-off-auto-once");
+    let world: World = world(&fixture, false);
+    configured_pre_push(&fixture, &world);
+    std::fs::write(world.repo.join("a.txt"), b"one\n").expect("a.txt");
+    git(&fixture, world.repo.as_path(), &["add", "--", "a.txt"]);
+    let landed: Observed = run_commit(&fixture, world.repo.as_path(), &["commit", "--quiet", "--message=one", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(markers(&world), "configured\n");
+    remove_settled(&fixture);
+}
+
+/// A lost race runs the hook twice, for the two pushes that publish; the three probes (scope, integration, and the
+///  stacked push's scope) run none.
+#[test]
+fn a_configured_pre_push_hook_runs_twice_for_a_lost_race_push() {
+    let fixture: Fixture = fixture("hooks-off-probe-race");
+    let world: World = world(&fixture, false);
+    configured_pre_push(&fixture, &world);
+    // The origin gets `main` from a clone that is not the pushing repository, so the push loses.
+    git(&fixture, world.repo.as_path(), &["push", "--quiet", "--no-verify", "origin", "main"]);
+    let rival: PathBuf = fixture.root.join("rival");
+    git(&fixture, fixture.root.as_path(), &["clone", "--quiet", world.origin.to_str().expect("UTF-8"), "rival"]);
+    std::fs::write(rival.join("rival.txt"), b"rival\n").expect("rival.txt");
+    git(&fixture, rival.as_path(), &["add", "--", "rival.txt"]);
+    git(&fixture, rival.as_path(), &["commit", "--quiet", "--message=rival", "--", "rival.txt"]);
+    git(&fixture, rival.as_path(), &["push", "--quiet", "--no-verify", "origin", "HEAD:main"]);
+    commit_directly(&fixture, &world, "local.txt");
+    let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert!(stderr_of(&pushed).contains("had new commits"), "{}", stderr_of(&pushed));
+    assert_eq!(markers(&world), "configured\nconfigured\n");
+    remove_settled(&fixture);
+}
+
 /// A local-path remote runs its own server-side hooks: the setting does not follow the push into the remote.
 #[test]
 fn a_local_remotes_server_side_hook_still_runs() {

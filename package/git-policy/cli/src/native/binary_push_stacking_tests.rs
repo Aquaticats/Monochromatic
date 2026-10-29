@@ -137,9 +137,10 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
     let lines = record_lines(&race);
-    // A configuration hook also runs in the wrapper's dry-run probes (the probe replaces only the hooks directory):
-    //  the scope probe and the push, then the integration probe, the stacked push's scope probe and the stacked push.
-    assert_eq!(hook_runs(&race), 5, "{lines:?}");
+    // Two pushes publish, so two runs: the typed push, which the origin rejects, and the stacked merge push.
+    //  The wrapper's three dry-run probes (the typed push's scope probe, the integration probe after the rejection and
+    //  the stacked push's scope probe) disable configured `pre-push` hooks and add no run.
+    assert_eq!(hook_runs(&race), 2, "{lines:?}");
     assert_eq!(lines.first().map(String::as_str), Some("marker=unset"), "{lines:?}");
     assert!(stacked_push_ran(&race), "the merge went through a stacked push: {lines:?}");
     assert!(lines.contains(&format!("pushed={published}")), "the hook saw the merge: {lines:?}");
