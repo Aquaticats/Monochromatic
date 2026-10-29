@@ -3242,3 +3242,13 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   ratchet tests (a25fe20d930cb8679); (3) recovery: torn index snapshots, the two silent-inconsistency cases, and sticking
   messages that name the file (a49eb138569c35a3c). Merge each after reading its diff; agent 1 and 3 avoid each other's
   files by brief.
+
+## Update at 2026-10-29 (merged-tree gate failed; resumed the J agent)
+
+- Container gate on `integrate-slices`: 2294 of 2296 run passed; `recovery_tearing::damage_at_index_installed` and
+  `damage_at_landing_locked` fail deterministically (reproduced twice) at `binary_recovery_tearing_tests.rs:379`: no file
+  `cli-git-transactions/<id>/cli-git-add-policy-<pid>-<n>-0/index` at those phases under Git 2.56.0. They pass on the host
+  (Git 2.55.0). The container task ignores a `-- <filter>` argument (it ran all 2296). Main stays unmerged until fixed.
+- Agent a4bd69a2e240509bc (slice J) was resumed to find the cause (harness assumption or a real change from one of the other
+  slices) and fix it on its own worktree after merging `integrate-slices`; then merge its branch into `integrate-slices`
+  again and rerun the gate.
