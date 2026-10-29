@@ -129,6 +129,37 @@ A catalog key that is not a valid npm package name is logged and skipped,
  so a
 crafted key cannot become a result-map entry.
 
+## Cargo catalog
+
+The same command also tightens `rust-catalog.toml`,
+ the Rust dependency catalog (`doc/decision/rust-dependency-catalog.md`).
+For each `>=` floor in `[catalog]`,
+ it reads every crate's `Cargo.lock`,
+ takes the version each consuming crate's own root package locks for that direct dependency,
+ and raises the floor to the highest release across them
+ (the catalog's one-version premise).
+Cargo builds from the lockfile,
+ so for Cargo the lockfile is the resolved-version source.
+
+- A crate consumes an entry when its generated `[workspace.dependencies]` table lists it and the crate does not select
+   a named catalog for it in `[package.metadata.rust-catalog.catalogs]`.
+- Renamed entries (`package = "..."`) are looked up under the real package name.
+- Prerelease locked versions are ignored.
+- Git pins and every named-catalog entry are `SKIP`ped:
+   named catalogs hold bounded requirements by design.
+- The tool never writes lockfiles.
+   Run the recursive Cargo update first,
+   so each crate's lockfile already holds the newest releases,
+   then tighten,
+   then `mise run sync:files` to carry the new floors into the crates.
+
+Statuses match the npm side:
+ `TIGHT` (old to new),
+ `OK`,
+ `SKIP`,
+ and `MISS` (no consuming crate locks a release of it).
+A repository without `rust-catalog.toml` skips this step.
+
 ## Scope and roadmap
 
 This tool currently targets pnpm and its node-modules linkers (isolated and

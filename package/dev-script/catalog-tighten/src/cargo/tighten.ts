@@ -68,7 +68,13 @@ export type CargoTightenResult = {
  ```
  */
 export function planCargoTighten(
-  { document, crates, }: { readonly document: RustCatalogDocument; readonly crates: readonly CrateUsage[]; },
+  {
+    document,
+    crates,
+  }: {
+    readonly document: RustCatalogDocument;
+    readonly crates: readonly CrateUsage[]
+  },
 ): readonly CargoTightenResult[] {
   /**
    Results in catalog order.
@@ -76,7 +82,13 @@ export function planCargoTighten(
   const results: CargoTightenResult[] = [];
   for (const [name, entry,] of document.catalog) {
     if (entry.kind === 'git') {
-      results.push({ name, status: 'SKIP', oldRequirement: `rev ${entry.rev}`, newRequirement: '', detail: 'git pin', },);
+      results.push({
+        name,
+        status: 'SKIP',
+        oldRequirement: `rev ${entry.rev}`,
+        newRequirement: '',
+        detail: 'git pin',
+      },);
       continue;
     }
     /**
@@ -88,26 +100,43 @@ export function planCargoTighten(
      */
     const locked: ParsedVersion[] = [];
     for (const crate of crates) {
-      if (!crate.uses.has(name,))
+      if (!crate.uses
+        .has(name,))
         continue;
-      for (const version of crate.lockVersions.get(lockedName,) ?? []) {
+      for (const version of crate.lockVersions
+        .get(lockedName,)
+        ?? []) {
         /**
          Parsed locked version.
          */
         const parsed = parseVersion(version,);
-        if (parsed.prerelease.length === 0)
+        if (parsed.prerelease
+          .length
+          === 0)
           locked.push(parsed,);
       }
     }
     if (locked.length === 0) {
-      results.push({ name, status: 'MISS', oldRequirement: entry.version, newRequirement: '', detail: 'no consuming crate locks a release of it', },);
+      results.push({
+        name,
+        status: 'MISS',
+        oldRequirement: entry.version,
+        newRequirement: '',
+        detail: 'no consuming crate locks a release of it',
+      },);
       continue;
     }
     /**
      Highest locked release.
      */
-    const highest = locked.reduce(function pickHigher(best: ParsedVersion, candidate: ParsedVersion,): ParsedVersion {
-      return compareVersions({ left: candidate, right: best, },) > 0 ? candidate : best;
+    const highest = locked.reduce(function pickHigher(
+      best: ParsedVersion,
+      candidate: ParsedVersion,
+    ): ParsedVersion {
+      return compareVersions({
+        left: candidate,
+        right: best,
+      },) > 0 ? candidate : best;
     },);
     /**
      Current floor version.
@@ -117,10 +146,25 @@ export function planCargoTighten(
      Highest locked version as text.
      */
     const highestText = `${String(highest.major,)}.${String(highest.minor,)}.${String(highest.patch,)}`;
-    if (compareVersions({ left: highest, right: floor, },) > 0)
-      results.push({ name, status: 'TIGHT', oldRequirement: entry.version, newRequirement: `>=${highestText}`, detail: '', },);
+    if (compareVersions({
+      left: highest,
+      right: floor,
+    },) > 0)
+      results.push({
+        name,
+        status: 'TIGHT',
+        oldRequirement: entry.version,
+        newRequirement: `>=${highestText}`,
+        detail: '',
+      },);
     else
-      results.push({ name, status: 'OK', oldRequirement: entry.version, newRequirement: entry.version, detail: '', },);
+      results.push({
+        name,
+        status: 'OK',
+        oldRequirement: entry.version,
+        newRequirement: entry.version,
+        detail: '',
+      },);
   }
   for (const [catalogName, catalog,] of document.catalogs) {
     for (const [name, entry,] of catalog) {
@@ -155,7 +199,13 @@ export function planCargoTighten(
  ```
  */
 export function rewriteCatalogFloors(
-  { source, results, }: { readonly source: string; readonly results: readonly CargoTightenResult[]; },
+  {
+    source,
+    results,
+  }: {
+    readonly source: string;
+    readonly results: readonly CargoTightenResult[]
+  },
 ): string {
   /**
    New requirement per tightened name.
@@ -163,12 +213,15 @@ export function rewriteCatalogFloors(
   const tightened = new Map<string, CargoTightenResult>();
   for (const result of results) {
     if (result.status === 'TIGHT')
-      tightened.set(result.name, result,);
+      tightened.set(
+        result.name,
+        result,
+      );
   }
   /**
-   Table header the current line sits under.
+   Table header the current line sits under, updated as headers pass.
    */
-  let section = '';
+  const cursor = { section: '', };
   /**
    Lines after rewriting.
    */
@@ -179,16 +232,26 @@ export function rewriteCatalogFloors(
      */
     const trimmed = line.trim();
     if (trimmed.startsWith('[',))
-      section = trimmed;
+      cursor.section = trimmed;
     /**
      Key before ` =`, for entry lines.
      */
-    const key = trimmed.slice(0, Math.max(trimmed.indexOf('=',), 0,),).trim();
+    const key = trimmed.slice(
+      0,
+      Math.max(
+        trimmed.indexOf('=',),
+        0,
+      ),
+    )
+      .trim();
     /**
      Planned change for this entry, if any.
      */
-    const change = section === '[catalog]' ? tightened.get(key,) : undefined;
-    lines.push(change === undefined ? line : line.replace(JSON.stringify(change.oldRequirement,), JSON.stringify(change.newRequirement,),),);
+    const change = cursor.section === '[catalog]' ? tightened.get(key,) : undefined;
+    lines.push(change === undefined ? line : line.replace(
+      JSON.stringify(change.oldRequirement,),
+      JSON.stringify(change.newRequirement,),
+    ),);
   }
   return lines.join('\n',);
 }

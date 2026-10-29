@@ -1764,6 +1764,12 @@ importers:
       '@monochromatic-dev/module-pnpm-workspace-catalog':
         specifier: workspace:*
         version: link:../../module/pnpm-workspace-catalog
+      '@monochromatic-dev/module-rust-catalog':
+        specifier: workspace:*
+        version: link:../../module/rust-catalog
+      '@monochromatic-dev/module-toml-edit':
+        specifier: workspace:*
+        version: link:../../module/toml-edit
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0

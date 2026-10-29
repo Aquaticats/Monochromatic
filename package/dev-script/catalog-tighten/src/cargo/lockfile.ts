@@ -42,7 +42,8 @@ type LockedPackage = {
  ```
  */
 function isTable(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null) && !Array.isArray(value,);
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
 }
 
 /**
@@ -63,7 +64,10 @@ function lockedPackages(source: string,): readonly LockedPackage[] {
   /**
    Whole lockfile as plain values.
    */
-  const root = tomlGetValue({ edit: parseTomlEdit({ source, },), path: [], },);
+  const root = tomlGetValue({
+    edit: parseTomlEdit({ source, },),
+    path: [],
+  },);
   /**
    Raw package entries.
    */
@@ -73,7 +77,8 @@ function lockedPackages(source: string,): readonly LockedPackage[] {
    */
   const packages: LockedPackage[] = [];
   for (const entry of raw) {
-    if (!isTable(entry,) || (typeof entry.name !== 'string') || (typeof entry.version !== 'string'))
+    if ((!isTable(entry,)) || ((typeof entry.name) !== 'string')
+      || ((typeof entry.version) !== 'string'))
       continue;
     /**
      Dependency strings such as `anyhow` or `syn 2.0.110`.
@@ -81,11 +86,16 @@ function lockedPackages(source: string,): readonly LockedPackage[] {
     const dependencies: string[] = [];
     if (Array.isArray(entry.dependencies,)) {
       for (const dependency of entry.dependencies) {
-        if (typeof dependency === 'string')
+        if ((typeof dependency) === 'string')
           dependencies.push(dependency,);
       }
     }
-    packages.push({ name: entry.name, version: entry.version, source: typeof entry.source === 'string' ? entry.source : '', dependencies, },);
+    packages.push({
+      name: entry.name,
+      version: entry.version,
+      source: (typeof entry.source) === 'string' ? entry.source : '',
+      dependencies,
+    },);
   }
   return packages;
 }
@@ -111,7 +121,13 @@ function lockedPackages(source: string,): readonly LockedPackage[] {
  ```
  */
 export function directDependencyVersions(
-  { source, packageName, }: { readonly source: string; readonly packageName: string; },
+  {
+    source,
+    packageName,
+  }: {
+    readonly source: string;
+    readonly packageName: string
+  },
 ): ReadonlyMap<string, readonly string[]> {
   /**
    Every locked package.
@@ -138,15 +154,25 @@ export function directDependencyVersions(
      Locked registry versions of that name.
      */
     const candidates = packages.filter(function isNamed(entry: LockedPackage,): boolean {
-      return (entry.name === name) && entry.source.startsWith('registry+',);
+      return (entry.name === name)
+        && entry.source
+          .startsWith('registry+',);
     },);
     /**
      The version this crate uses: the stated one, or the only one.
      */
-    const resolved = version !== '' ? version : (candidates.length === 1 ? candidates[0]?.version ?? '' : '');
+    const resolved = version !== '' ? version : (candidates.length === 1 ? candidates[0]
+      ?.version
+      ?? '' : '');
     if (resolved === '')
       continue;
-    versions.set(name, [...(versions.get(name,) ?? []), resolved,],);
+    versions.set(
+      name,
+      [
+        ...(versions.get(name,) ?? []),
+        resolved,
+      ],
+    );
   }
   return versions;
 }
