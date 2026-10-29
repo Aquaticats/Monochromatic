@@ -262,10 +262,10 @@ a path column containing a two-character space run parses its tail as the versio
 Two are fixed in `c42e90ea02`:
 `splitRows` keeps every terminator-separated row in one pass,
 and both version columns normalize alike.
-The first needs a contract choice,
-because `readBinRow` documents "the shortest prefix"
-and no rule says what a version word looks like;
-the proposal with the owner anchors on the URL column instead.
+The first is dropped:
+it would change `readBinRow`'s documented shortest-prefix contract,
+and the owner ruled on 2026-10-29
+that `file-enforcer` is dead and nothing new gets built on it.
 
 ## Open
 
@@ -449,6 +449,11 @@ and safe to delete:
   (commit `d4988f4c9b`),
   whose self-test shows a synthetic quadratic tripping the bound
   while one-pass work passes it.
+- Ruled by the owner 2026-10-29:
+  `file-enforcer` is dead as of that day
+  and nothing new gets built on it,
+  which drops the third blind-review by-product
+  rather than changing `readBinRow`'s parse contract.
 
 ## Shadow runs so far
 
