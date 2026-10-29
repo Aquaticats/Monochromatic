@@ -31,24 +31,33 @@ struct Run {
     origin_main: String,
 }
 
-/// The stand-in `git-lfs`: record the arguments, the input and the origin's `main`, then exit with `status`.
-fn stand_in_source(world_origin: &Path, record: &Path, status: i32) -> String {
+/// The stand-in `git-lfs`: record the arguments, the input and the origin's `main`, then exit with `status` from the
+///  run numbered `from_run` (counting from zero) on, and with `0` before it.
+fn stand_in_source(world_origin: &Path, record: &Path, status: i32, from_run: usize) -> String {
     return format!(
         "#!/bin/sh\n\
+         count=$(grep -c '^run ' '{record}' 2>/dev/null || true)\n\
          {{\n\
          printf 'run arguments=%s\\n' \"$*\"\n\
          sed 's/^/input /'\n\
          printf 'origin-main=%s\\n' \"$({REAL_GIT} --git-dir='{origin}' rev-parse --verify --quiet refs/heads/main || echo absent)\"\n\
          }} >> '{record}'\n\
-         exit {status}\n",
+         if [ \"${{count:-0}}\" -ge {from_run} ]; then exit {status}; fi\n\
+         exit 0\n",
         origin = world_origin.display(),
         record = record.display(),
     );
 }
 
-/// Create the repository and its origin.
-///  `lfs` adds a Git LFS key to the repository configuration; `program` installs the stand-in with that exit status.
+/// Create the repository and its origin, and a stand-in program that fails every run.
 fn world(fixture: &Fixture, lfs: bool, program: Option<i32>) -> World {
+    return world_failing_from(fixture, lfs, program, 0);
+}
+
+/// Create the repository and its origin.
+///  `lfs` adds a Git LFS key to the repository configuration; `program` installs the stand-in with that exit status,
+///  which it returns from run number `from_run` on.
+fn world_failing_from(fixture: &Fixture, lfs: bool, program: Option<i32>, from_run: usize) -> World {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     let origin: PathBuf = fixture.root.join("origin.git");
     git(fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "origin.git"]);
@@ -61,7 +70,7 @@ fn world(fixture: &Fixture, lfs: bool, program: Option<i32>) -> World {
     if let Some(status) = program {
         executable(
             fixture.root.join("bin/git-lfs").as_path(),
-            stand_in_source(origin.as_path(), record.as_path(), status).as_bytes(),
+            stand_in_source(origin.as_path(), record.as_path(), status, from_run).as_bytes(),
         );
     }
     return World { repo, origin, record };
@@ -300,7 +309,7 @@ fn the_merge_push_after_a_lost_race_runs_the_upload_before_the_ref_moves() {
     assert_ne!(tip, rival_tip, "the merge was published: {stderr}");
     let recorded: Vec<Run> = runs(&world);
     let last: &Run = recorded.last().expect("an upload ran");
-    assert!(recorded.len() >= 2, "the rejected push and the merge push each ran the hook: {recorded:?}");
+    assert_eq!(recorded.len(), 2, "the rejected push and the merge push each ran the hook once, the probe never: {recorded:?}");
     assert_eq!(last.input, vec![format!("{tip} {tip} refs/heads/main {rival_tip}")], "{recorded:?}");
     assert_eq!(last.origin_main, rival_tip, "the merge was uploaded for before the ref moved");
     remove_settled(&fixture);
@@ -310,7 +319,7 @@ fn the_merge_push_after_a_lost_race_runs_the_upload_before_the_ref_moves() {
 #[test]
 fn a_failing_upload_blocks_the_merge_push_after_a_lost_race() {
     let fixture: Fixture = fixture("lfs-lost-race-fails");
-    let world: World = world(&fixture, true, Some(6));
+    let world: World = world_failing_from(&fixture, true, Some(6), 1);
     let (_rival, rival_tip) = lost_race(&fixture, &world);
     commit_directly(&fixture, world.repo.as_path(), "local.txt", "local\n");
     let pushed: Observed = wrapped(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
@@ -334,7 +343,7 @@ fn the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves() {
     assert_ne!(tip, rival_tip, "the merge was published: {stderr}");
     let recorded: Vec<Run> = runs(&world);
     let last: &Run = recorded.last().expect("an upload ran");
-    assert!(recorded.len() >= 2, "the rejected push and the reconcile push each ran the hook: {recorded:?}");
+    assert_eq!(recorded.len(), 2, "the rejected push and the reconcile push each ran the hook once: {recorded:?}");
     assert_eq!(last.input, vec![format!("{tip} {tip} refs/heads/main {rival_tip}")], "{recorded:?}");
     assert_eq!(last.origin_main, rival_tip);
     remove_settled(&fixture);
@@ -344,7 +353,7 @@ fn the_reconcile_push_of_an_auto_push_runs_the_upload_before_the_ref_moves() {
 #[test]
 fn a_failing_upload_blocks_the_reconcile_push_of_an_auto_push() {
     let fixture: Fixture = fixture("lfs-reconcile-fails");
-    let world: World = world(&fixture, true, Some(8));
+    let world: World = world_failing_from(&fixture, true, Some(8), 1);
     commit_directly(&fixture, world.repo.as_path(), "a.txt", "one\n");
     let (_rival, rival_tip) = lost_race(&fixture, &world);
     std::fs::write(world.repo.join("a.txt"), b"one\ntwo\n").expect("edit");
