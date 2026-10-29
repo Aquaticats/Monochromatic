@@ -199,60 +199,36 @@ energy held by calls in flight (the settled spend alone leaves more than the sma
 a day the account still shows spent after its return passed is the account lagging and names no return either,
 and a refusal names the day start only when the day-start hold is the one that won.
 
-**The bounds are open to the owner's veto.**
-They are the lead's rulings of fix rounds 1 to 4,
-not the owner's.
-Three waits meet the return,
-each bounded by what can cut it.
-
-- A router call bounds the sum of its waits for a return at 300 s (`NEURALWATT_RETURN_WAIT_BOUND_MS`),
-  the budget layer's own refusal cooldown (`REFUSAL_COOLDOWN_MS`).
-  The 360 s per-call deadline (`RUN_PER_CALL_TIMEOUT_MS`) is not the reason:
-  it is armed inside each client's per-model slot,
-  after routing,
-  and the router waits on the stage's round signal (the caller's abort and the straggler cut),
-  so the deadline never reaches the router's wait.
-  The bound is a sum:
-  what the waits so far took comes off it before the holds are asked again,
-  so a 300 s hold waited out leaves no room for a return 250 s away,
-  and that return ends the call with the refusal at once.
-  The distance is compared with its margin included (`returnFitsWithin`),
-  the way the refusal's clause and the pass's park compare it.
-  A return past the bound ends the call with the all-dry refusal,
-  which states the time of day and the distance (`at 19:15:08 UTC (in 5 min 1 s)`)
-  and carries the distance as `neuralwattReturnsInMs`.
-  The distance stays on the refusal while the return still lies ahead,
-  also after the call waited out another hold first,
-  so the pass can park on it.
-- The seat reader sits outside every exchange,
-  so no call deadline applies to it.
-  Its bound is what the pass has left:
-  the shorter of the soft budget remaining and the hard cap,
-  and inside an entry also what that entry's own hard cap has left,
-  so a wait for a NeuralWatt return never outlasts the entry's timer (`withEntryBound` in `pass-entry-bound.ts`;
-  the client carries the bound as `passLeftMs` and whose it is as `passBoundOwner`).
-  Only a NeuralWatt return is filtered by the bound:
-  a stated hold (Hyper's daily limit,
-  a rate limit's)
-  and a refusal cooldown are waited for whatever the bound is,
-  and the entry's abort cuts them when the entry's timer ends first.
-  A return inside it is waited for,
-  as Hyper's stated holds are (923 s and 2 h 25 m on record).
-  A return past it is refused at once,
-  with the time of day in UTC and the distance stated and the note that it is past what the bound has left,
-  naming the bound that won
-  ("the entry has left" when the entry's own cap is the smaller,
-  "this pass has left" otherwise),
-  whichever refusal ends the reading:
-  the bench error,
-  the error line of a phase that goes on without its writers,
-  the warning of a bench short of quorum,
-  or the all-dry refusal,
-  which also carries `neuralwattReturnsInMs`.
-  Nothing here is bounded by 300 s.
-  The reader waits only for a hold whose provider,
-  back,
-  would help cure a bench that stands short:
+**NeuralWatt's day start is never waited for.**
+The owner answered on 2026-10-29.
+The question was whether a run should wait for NeuralWatt's 550 Wh day to start again at 19:15:08 UTC
+when it is spent and other routes are empty.
+A bounded wait was then in force:
+one call waited at most 300 s in total for a return,
+the seat reader waited for a return that fitted the time the pass and the entry had left,
+and between entries the pass parked,
+logged `PARKED` and resumed.
+The owner chose
+"Never wait,
+relaunch":
+"Stop at once and relaunch later."
+He had said on 2026-10-22,
+"You don't need to align launches to NeuralWatt starts",
+and the NeuralWatt subscription reads `canceling`,
+its period ending 2027-01-20 19:15:08 UTC.
+The router's 300 s bound,
+the seat reader's pass and entry bound,
+the park and its `PARKED`,
+`NOT RESUMED` and `the pass resumes` lines are therefore removed.
+The budget layer names no hold for the day start,
+a call whose only way forward is the day start refuses on its first reading,
+and the refusal states the time of day in UTC and the distance (`at 19:15:08 UTC (in 5 min 1 s)`),
+counted down from the reading that named it.
+Holds of other providers (a refusal cooldown or a stated `Retry-After`) are waited for as before,
+and so is a refusal cooldown on NeuralWatt itself.
+The seat reader waits only for a hold whose provider,
+back,
+would help cure a bench that stands short:
   the held providers are judged together,
   and a held provider counts when the benches they cure between them include one
   to which its own return adds a reachable seat
@@ -275,7 +251,7 @@ each bounded by what can cut it.
   When the reader does not wait,
   the line names the running holds it skipped and why
   (`held: xiaomi (2 h), deepseek (40 min); neither would help cure a short bench`),
-  and says that no NeuralWatt return lies inside what the pass has left only when NeuralWatt is dry with no hold.
+  and says that NeuralWatt's day return is not waited for only when NeuralWatt is dry with no hold.
   The re-seat hook still reads the seats under any hold,
   since its reading is what re-seats a slice
   (a provider going dry changes the seating whether or not its hold would cure anything,
@@ -284,9 +260,8 @@ each bounded by what can cut it.
   and takes the same rule for its waiting through the reader.
   It writes the no-wait warning once per state,
   where a state is the set of held providers and the names of the benches that stand short.
-  The time a hold has left,
-  the distance to a NeuralWatt return and the figure past what the pass has left shrink between slices
-  and never make a new line,
+  The time a hold has left shrinks between slices
+  and never makes a new line,
   so a hold of hours over hundreds of slices writes one line and not hundreds.
   A change of the held set or of the short benches writes one more,
   and so does a hold that ends and comes back,
@@ -294,116 +269,26 @@ each bounded by what can cut it.
   (a reading that finds no unmet bench,
   or that waited,
   forgets the last state).
-  **This seat-reader bound is the lead's ruling after the first fix waited at any distance,
-  its entry-scoped form the lead's ruling of fix round 4,
-  the would-help rule,
-  the skipped-holds line and the bound-owner wording the lead's rulings of fix round 5,
-  and all are open to the owner's veto.**
-- The pass parks when every provider reads dry and the return is known and inside what the pass has left,
-  which is the shorter of the soft budget remaining and the hard cap (the park sits between entries on a fresh timer,
-  so the entry's cap does not narrow it).
-  The run ends only when the return is unknown or past what the pass has left,
-  and the stop line states the return time.
-  A seat reader's all-dry refusal for a return inside what the pass has left but past what the entry has left
-  therefore parks the pass and ends nothing.
-  The writing bench error parks the pass the same way when NeuralWatt's return would lift the bench to its floor
-  (asked of the roster,
-  `returnLiftsWritingBenches`,
-  with no provider name list):
-  it then carries the distance,
-  the time of day and the spent day,
-  the entry scheduler hands it to the gate,
-  and the gate applies the same checks and the same requeue.
-  A bench error that carries no return,
-  or one the pass cannot wait for,
-  ends its entry as before and never stops the run;
-  its message says the pass may park and names that other outcome,
-  since the gate parks only where the return fits what the pass has left.
-  When slices of one entry fail with both the all-dry refusal and such a bench error,
-  the overlapped map throws the refusal,
-  which ends the run,
-  whichever arrived first,
-  and the bench error only when no refusal is among the failures;
-  the map only hands the failure over,
-  and the gate decides whether the pass parks.
-  **The park on the bench error is the lead's ruling of fix round 5 and open to the owner's veto.**
-
-The park works at the seam between entries,
-because the wait must sit outside any exchange:
-
-1. The dry gate (`pass-dry-stop.ts`) receives the refusal (or the bench error that carries the return),
-   records a park instead of tripping,
-   logs the start with the reason and the UTC return time,
-   and aborts the shared signal so the entry in flight ends.
-2. The queue (`runAttemptQueue`) sees the pass is parked,
-   puts that entry back at the front with no verdict line,
-   so none of `REATTEMPT`,
-   `STALLED` and `INCOMPLETE` is printed,
-   and calls the gate's wait before asking the budget whether the pass goes on.
-3. The gate waits for what is left of the return,
-   stored as an instant on its monotonic clock,
-   counted from the read that named the return where the failure carries that stamp
-   (the seat reader's bench error and its all-dry refusal both do,
-   as `neuralwattReadAtMs`,
-   so slices that unwind late do not push the wait past the return)
-   and from the moment the failure arrived otherwise,
-   as for the router's own refusal,
-   which names the distance as it is raised,
-   logs the end,
-   and gives the pass a fresh signal.
-4. A refusal for the day start of a park that has ended trips instead of parking again,
-   since the account has then not rolled to the new day it should have,
-   and parking again would wait a day in a loop.
-   This replaces a 60 s window copied from the budget layer's freshness window,
-   which was not the mechanism and let a refusal an hour later park for another day.
-
-Known costs of the park:
-the attempt it interrupts is already counted in the attempt map,
-and its `TALLY` line says `PARKED`,
-with `returnsInMs=` and `returnsAt=`
-(an ISO 8601 time with `Z` for UTC,
-one token)
-before the reason,
-so the cap on the reason never cuts them,
-and not `ERROR` or `INCOMPLETE`.
-The only writer of the time gives it as `<time> UTC`,
-so the line keeps one rule for it,
-and a time in any other zone throws `ReturnTimeNotUtcError` naming the text,
-since stating it would need a conversion that nothing does.
-The status comes from the gate's answer for that entry's own failure (`parkedFor`):
-the gate keeps the failure it chose to park for,
-and every other parking failure it sees while the park lasts
-(attempts run one at a time,
-so each belongs to the attempt that parked),
-and answers for those very objects only,
-never from whether the gate happens to be parked or from the class of the failure.
-The answer is the return the park waits for,
-its distance and its time of day,
-and the line prints those and never its own failure's,
-since a further parking failure may name no return,
-or another distance than the one the park waits for,
-and the operator reads the line as the wait the pass is in.
-That was the lead's ruling after the ninth re-check,
-open to the owner's veto.
-It answers for all of them because the layers that choose which failure an entry ends with
-(`runGatherRound` in `stage-round.ts`,
-`image-reading-contain.ts`,
-and `mapOverlapped` in `overlapped-map.ts`)
-choose by another order than the failures' arrival at the gate:
-the order in which the asks caught them,
-the roster slot order,
-and the order of insertion with the run-ending failures searched first.
-The entry may therefore end with a parking failure that was not the first the gate saw.
-This was the lead's ruling after the eighth re-check,
-open to the owner's veto.
-When the budget ends the pass after the wait,
-the queue prints `NOT RESUMED <id>` for the entry the park cut short,
-so the log names the entry a later pass must resume.
-Nothing in the code reads the printed status:
-the scheduler works from the disposition it is returned,
-and the tests match lines by prefix,
-so the status is read by people and by the runbook only,
-and `PARKED` is neither a failure nor a settlement.
+The writing bench error never carries a return and never stops the run:
+it ends its entry as a failure a later pass resumes.
+When slices of one entry fail with both the all-dry refusal and another failure,
+the overlapped map throws the refusal,
+which ends the run,
+whichever arrived first.
+The dry gate (`pass-dry-stop.ts`) trips on the refusal at once,
+logs the cause,
+and aborts the shared signal so the entry in flight ends;
+the queue starts no further entry,
+and the stop line carries the refusal's message,
+which states the time of day in UTC NeuralWatt's day starts again.
+Nothing puts an entry back to wait for it.
+The mechanisms that did were removed with the owner's answer of 2026-10-29:
+the park,
+`ParkAnswer`,
+`ReturnTimeNotUtcError`,
+`parksTheRun`,
+the entry bound `withEntryBound`,
+and the seat reader's `passLeftMs` and `passBoundOwner`.
 A class tested with `instanceof` across packages is the same class only when the importing package lists its owner under
 `dependencies`,
 since a library build bundles every other workspace import

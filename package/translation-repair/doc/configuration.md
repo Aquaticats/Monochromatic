@@ -518,15 +518,13 @@ so the entry sorts first and the pass does not end on a count its stamp would re
 The lines are `OVERLAP`,
 `TALLY` (settled,
 error,
-incomplete,
-parked and declined),
+incomplete and declined),
 `INTERRUPTED`,
 `DESTINATIONS`,
 `DEFECTS`,
 `CLEANUP`,
 `REATTEMPT`,
-`STALLED`,
-`INCOMPLETE` and `NOT RESUMED`.
+`STALLED` and `INCOMPLETE`.
 The lines of the pass itself belong to no attempt,
 and carry the time without an attempt:
 `START`,
@@ -580,8 +578,13 @@ and neither does one that slice-tags a logger built over a module's root logger.
 A source scan (`entry-logger-scan.unit.test.ts`) reads the syntax tree of the pass's source and fails a plain
 `tagged({ tag: ... })` whose tag names an entry in any spelling,
 as long as no `sliceTagged` wraps it.
-`the pass resumes` and the parked warning are logger lines of the pass,
-so they carry the logger's time and no attempt.
+The pass never parks for NeuralWatt's day to start again
+(the owner's answer of 2026-10-29,
+"Never wait,
+relaunch"):
+the `STOP every provider is out of budget` line carries the refusal's message,
+which states the time of day in UTC the day starts again,
+and the operator relaunches after it.
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,
