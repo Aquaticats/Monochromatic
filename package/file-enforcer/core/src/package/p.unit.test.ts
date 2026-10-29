@@ -3,7 +3,9 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { p, } from './p.ts';
+import {
+  p,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

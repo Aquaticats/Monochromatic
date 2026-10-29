@@ -11,18 +11,16 @@ import {
 import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 import {
+  classifyEvent,
   reset,
   resetWriteTimestamps,
   setWriteTimestamp,
+  shouldTrigger,
   trackDest,
   trackRead,
   trackWriteTime,
-} from '../tracker.ts';
-import {
-  classifyEvent,
-  shouldTrigger,
   watchDirs,
-} from './watch-filter.ts';
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

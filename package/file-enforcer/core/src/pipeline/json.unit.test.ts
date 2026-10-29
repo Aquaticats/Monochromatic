@@ -10,7 +10,7 @@ import {
   mergeObjectDefaults,
   omitJsonKey,
   parseJsonObject,
-} from './json.ts';
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: '',

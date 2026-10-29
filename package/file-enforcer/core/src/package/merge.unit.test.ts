@@ -3,8 +3,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { mergeOverrides, } from './merge.ts';
-import { p, } from './p.ts';
+import {
+  mergeOverrides,
+  p,
+} from '../../dist/final/node/index.mjs';
 
 //region mergeOverrides
 

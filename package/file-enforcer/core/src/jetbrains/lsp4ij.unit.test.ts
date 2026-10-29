@@ -19,11 +19,11 @@ import {
   ABSENT_XML_VALUE,
   findXmlEntryByKey,
   getXmlOptionValue,
+  type Lsp4ijServerSettings,
+  manageLsp4ijServerSettings,
   type XmlEntry,
-} from '../pipeline/xml.ts';
-import { manageLsp4ijServerSettings, } from './lsp4ij.ts';
+} from '../../dist/final/node/index.mjs';
 
-import type { Lsp4ijServerSettings, } from './lsp4ij-types.ts';
 
 /**
  Minimal global settings XML holding one base server's configuration.

@@ -13,10 +13,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  type JetbrainsOptionsDirectory,
   latestJetbrainsOptionsDirectory,
   NO_JETBRAINS_OPTIONS_DIRECTORY,
-  type JetbrainsOptionsDirectory,
-} from './options-dir.ts';
+} from '../../dist/final/node/index.mjs';
 
 /**
  Product prefixes recognized by IntelliJ IDEA discovery in these tests.

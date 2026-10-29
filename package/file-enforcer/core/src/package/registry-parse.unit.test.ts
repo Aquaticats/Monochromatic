@@ -3,7 +3,9 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { firstWhitespaceToken, } from './registry-parse.ts';
+import {
+  firstWhitespaceToken,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: firstWhitespaceToken.name,

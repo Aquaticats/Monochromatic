@@ -3,7 +3,9 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { evaluatePredicate, } from './evaluate-predicate.ts';
+import {
+  evaluatePredicate,
+} from '../../dist/final/node/index.mjs';
 
 //region Predicates
 

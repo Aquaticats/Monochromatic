@@ -55,6 +55,8 @@ function isWhitespace(c: string,): boolean {
  firstWhitespaceToken('  ripgrep  aqua:BurntSushi/ripgrep'); // 'ripgrep'
  firstWhitespaceToken('   ');                                // ''
  ```
+
+ @internal
  */
 export function firstWhitespaceToken(line: string,): string {
   /**

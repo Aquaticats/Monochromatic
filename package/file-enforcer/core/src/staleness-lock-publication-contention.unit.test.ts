@@ -8,13 +8,13 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { lockOwnerState, } from './io/staleness-manifest-lock-owner.ts';
 import {
+  acquireManifestLock,
+  lockOwnerState,
   publishLockOwnerPublication,
   removeLockOwnerPublication,
   stageLockOwnerPublication,
-} from './io/staleness-manifest-lock-owner-publish.ts';
-import { acquireManifestLock, } from './io/staleness-manifest-lock.ts';
+} from '../dist/final/node/index.mjs';
 import {
   setupStalenessLockFixture,
   teardownStalenessLockFixture,

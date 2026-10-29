@@ -71,6 +71,8 @@ function publishedLockOwnerPath(lockPath: string,): string {
  ```ts
  await stageLockOwnerPublication({ lockPath, ownerText });
  ```
+
+ @internal
  */
 export async function stageLockOwnerPublication(
   {
@@ -96,6 +98,8 @@ export async function stageLockOwnerPublication(
  ```ts
  await publishLockOwnerPublication('/tmp/manifest.json.lock');
  ```
+
+ @internal
  */
 export async function publishLockOwnerPublication(lockPath: string,): Promise<void> {
   await rename(
@@ -116,6 +120,8 @@ export async function publishLockOwnerPublication(lockPath: string,): Promise<vo
  ```ts
  await removeLockOwnerPublication('/tmp/manifest.json.lock');
  ```
+
+ @internal
  */
 export async function removeLockOwnerPublication(lockPath: string,): Promise<void> {
   await unlink(publishedLockOwnerPath(lockPath,),);

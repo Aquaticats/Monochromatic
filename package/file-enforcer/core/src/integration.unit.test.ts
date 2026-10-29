@@ -18,7 +18,7 @@ import {
   reset,
   resetWriteTimestamps,
   writes,
-} from './tracker.ts';
+} from '../dist/final/node/index.mjs';
 
 //region integration tests with real config files
 
@@ -41,7 +41,7 @@ await describe({
 
         /** Config that imports from the package and runs a simple copy */
         const configContent = `
-            import { cat, overwrite } from '${join(import.meta.dirname, 'index.ts',)}';
+            import { cat, overwrite } from '${join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)}';
             await overwrite({
               dest: '${join(tempDir, 'dest.md',)}',
               content: await cat(['${join(tempDir, 'source.md',)}']),
@@ -78,7 +78,7 @@ await describe({
 
         /** Config concatenating two files */
         const configContent = `
-            import { cat, overwrite } from '${join(import.meta.dirname, 'index.ts',)}';
+            import { cat, overwrite } from '${join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)}';
             await overwrite({
               dest: '${join(tempDir, 'combined.txt',)}',
               content: await cat(['${join(tempDir, 'a.txt',)}', '${
@@ -112,7 +112,7 @@ await describe({
         /** Config that reads, deduplicates, and writes */
         const configContent = `
             import { cat, dedup, overwrite } from '${
-          join(import.meta.dirname, 'index.ts',)
+          join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)
         }';
             await overwrite({
               dest: '${join(tempDir, 'unique.txt',)}',
@@ -147,7 +147,7 @@ await describe({
         /** Config that extracts a property from JSON */
         const configContent = `
             import { cat, getJsonProperty, overwrite } from '${
-          join(import.meta.dirname, 'index.ts',)
+          join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)
         }';
             await overwrite({
               dest: '${join(tempDir, 'name.txt',)}',
@@ -181,7 +181,7 @@ await describe({
 
         /** Config with a simple copy to verify tracker state */
         const configContent = `
-            import { cat, overwrite } from '${join(import.meta.dirname, 'index.ts',)}';
+            import { cat, overwrite } from '${join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)}';
             await overwrite({
               dest: '${join(tempDir, 'output.md',)}',
               content: await cat(['${join(tempDir, 'input.md',)}']),
@@ -213,7 +213,7 @@ await describe({
         /** Config that registers a manual dependency via addWatchedPaths */
         const configContent = `
             import { addWatchedPaths, exec, overwrite } from '${
-          join(import.meta.dirname, 'index.ts',)
+          join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)
         }';
             addWatchedPaths(['${join(tempDir, 'dep.json',)}']);
             const result = await exec({ cmd: 'echo', args: ['from-exec'] });
@@ -253,7 +253,7 @@ await describe({
         /** Config using overwriteIfNotExists */
         const configContent = `
             import { cat, overwriteIfNotExists } from '${
-          join(import.meta.dirname, 'index.ts',)
+          join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)
         }';
             await overwriteIfNotExists({
               dest: '${join(tempDir, 'keep.txt',)}',
@@ -283,7 +283,7 @@ await describe({
         const configPath = join(tempDir, 'file-enforcer.config.ts',);
         const configContent = `
             import { appendFile } from 'node:fs/promises';
-            import { overwrite } from '${join(import.meta.dirname, 'index.ts',)}';
+            import { overwrite } from '${join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)}';
             await appendFile('${markerPath}', 'ran\\n');
             await overwrite({
               dest: '${destPath}',
@@ -325,7 +325,7 @@ await describe({
         /** Config using cat(glob) -> overwriteEach */
         const configContent = `
             import { cat, overwriteEach } from '${
-          join(import.meta.dirname, 'index.ts',)
+          join(import.meta.dirname, '..', 'dist', 'final', 'node', 'index.mjs',)
         }';
             const files = await cat('${join(srcDir, '*.ts',)}');
             await overwriteEach({

@@ -16,15 +16,13 @@ import {
   resolve,
 } from 'node:path';
 import {
-  writes,
-  writeTimestamps,
-} from '../tracker.ts';
-import { globResults, } from './cat.ts';
-import {
+  globResults,
   overwrite,
   overwriteEach,
   overwriteIfNotExists,
-} from './write.ts';
+  writes,
+  writeTimestamps,
+} from '../../dist/final/node/index.mjs';
 
 // No reset()/resetWriteTimestamps() in setup: each test uses a unique mkdtemp
 // path, so tracker keys never collide. Clearing the globals under concurrent

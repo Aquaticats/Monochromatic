@@ -9,7 +9,7 @@
  not-a-product sentinel; and a product name built from a prefix and a
  dotted numeric version parses back to that exact tuple.
  
- Run plan and seed policy: see `../fuzz-budget.ts`.
+ Run plan and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -30,12 +30,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   compareVersionParts,
   NOT_A_MATCHING_PRODUCT,
   parseVersionParts,
-} from './options-dir.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

@@ -14,7 +14,7 @@ import {
   trackWriteTime,
   writes,
   writeTimestamps,
-} from './tracker.ts';
+} from '../dist/final/node/index.mjs';
 
 //region tracker basics
 
@@ -127,7 +127,7 @@ await describe({
     //region writeTimestamps
 
     describe({
-      name: 'writeTimestamps',
+      name: 'write timestamps',
       children: [
         it({
           name: 'trackWriteTime records a timestamp for the path',

@@ -15,7 +15,7 @@ import {
   expandGlob,
   firstGlobMetaIndex,
   mirrorGlobPath,
-} from './glob.ts';
+} from '../../dist/final/node/index.mjs';
 
 /** Creates a fresh temp directory */
 async function makeTmpDir(): Promise<string> {

@@ -119,6 +119,8 @@ export async function detectManager(): Promise<PackageManager | typeof NO_PACKAG
  ```ts
  resetManagerCache();
  ```
+
+ @internal
  */
 export function resetManagerCache(): void {
   managerDetection.reset();
@@ -201,6 +203,8 @@ const rootDetection = lazyOnce({ compute: detectRoot, },);
    // skip sudo prefix
  }
  ```
+
+ @internal
  */
 export function isRoot(): boolean {
   return rootDetection.get();
@@ -214,6 +218,8 @@ export function isRoot(): boolean {
  ```ts
  resetRootCache();
  ```
+
+ @internal
  */
 export function resetRootCache(): void {
   rootDetection.reset();

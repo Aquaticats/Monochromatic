@@ -8,7 +8,7 @@
  must never overwrite an existing key; `omitJsonKey` must drop exactly
  the named key while preserving the order of the rest.
  
- Run plan (bounded vs campaign) and seed policy: see `../fuzz-budget.ts`.
+ Run plan (bounded vs campaign) and seed policy: see `../fuzz-budget-fixture.ts`.
  
  @module
  */
@@ -35,7 +35,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { fuzzRunPlan, } from '../fuzz-budget.ts';
+import { fuzzRunPlan, } from '../fuzz-budget-fixture.ts';
 import {
   formatJsonObject,
   isJsonObject,
@@ -45,7 +45,7 @@ import {
   mergeObjectDefaults,
   omitJsonKey,
   parseJsonObject,
-} from './json.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Constants and arbitraries
 

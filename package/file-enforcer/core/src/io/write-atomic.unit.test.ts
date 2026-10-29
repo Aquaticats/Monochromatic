@@ -14,11 +14,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { overwrite, } from '../../dist/final/node/index.mjs';
 import {
   type AtomicTempFileWriter,
+  overwrite,
   writeFileAtomically,
-} from './write-atomic.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Atomic write fixture helpers
 

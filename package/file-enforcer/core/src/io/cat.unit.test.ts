@@ -14,11 +14,11 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { reads, } from '../tracker.ts';
 import {
   cat,
   type GlobResults,
-} from './cat.ts';
+  reads,
+} from '../../dist/final/node/index.mjs';
 
 // No reset() in setup: each test uses a unique mkdtemp path, so tracker keys
 // never collide. Clearing the globals under concurrent test execution wipes
