@@ -87,7 +87,14 @@ That change landed on `origin/main` (`27dfc042ed`,
 but is not installed yet.
 
 ### Guard release 0.2.10:
- in progress
+ pushed as `aaeb6b25a5`,
+ publish pending
+
+The release worktree is removed;
+the steps below record how it was cut.
+Remaining:
+ wait for `cargo-publish.yml` on `aaeb6b25a5`,
+ then `mise run toolchain:update` and `mise run toolchain:sync`.
 
 User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publish.yml`).
 
@@ -172,9 +179,12 @@ User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publ
    it commits and pauses `file-enforcer`);
   `module/rust-catalog` and the catalog tools stay held.
 - `monochromatic-ec`:
-   holds `desktop-app/ide`,
+   released `desktop-app/ide`,
    `desktop-app/terminal`,
-   `cli/nested-wayland-session` until its IDE 0.1.3 release.
+   and `cli/nested-wayland-session` after IDE 0.1.3 (`ide-v0.1.3`).
+  When moving them,
+   update `.github/workflows/ide-release.yml` and `//package/desktop-app/ide:<task>` addresses together with the dirs;
+   `doc/handover/slint-ide-0x.md` still lists old paths (historical note rule applies).
 - Translation-repair session:
    holds released;
    the katex shim and its `pnpm-workspace.yaml` `link:` override move in one commit,
