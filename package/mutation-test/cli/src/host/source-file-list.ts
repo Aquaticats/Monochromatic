@@ -70,8 +70,11 @@ export async function listSourceFiles(options: {
     ],
     { cwd: options.repoRoot, },
   );
-  rl.info(`${String(result.stdout
-    .split('\0',)
-    .length - 1,)} source files listed under ${options.repoRoot}`,);
+  /**
+   Split output: every path ends in a NUL, so the last segment is empty.
+   */
+  const entries = result.stdout
+    .split('\0',);
+  rl.info(`${String(entries.length - 1,)} source files listed under ${options.repoRoot}`,);
   return result.stdout;
 }
