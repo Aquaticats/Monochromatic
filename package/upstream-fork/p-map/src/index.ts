@@ -7,6 +7,8 @@
  calls run at once,
  results collect in input order,
  `pMapSkip` drops a result,
+ `pMapStop` ends the iteration,
+ `pMapSettled`, `pMapKeyed`, and `pMapSettledKeyed` cover `Promise.allSettled()` and the keyed forms,
  `stopOnError` picks first-failure versus `AggregateError`,
  the abort
  `signal` rejects with its reason,

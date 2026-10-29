@@ -6,7 +6,7 @@
  attribution. Scheduling semantics match `p-map` 7.1.1: up to `concurrency`
  mapper calls run at once over a synchronous or asynchronous input, results
  collect in input order, and `stopOnError`, the abort `signal`, and
- `pMapSkip` behave as upstream defines them.
+ `pMapSkip`, `pMapStop`, and the settled variant behave as upstream defines them.
  
  @module
  */
