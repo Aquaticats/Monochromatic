@@ -14,30 +14,42 @@
 #   podman run --rm -v repology-state:/state -v repology-parsed:/parsed \
 #     -v repology-pgdata:/var/lib/pgsql/data repology-updater --extract
 
-FROM registry.fedoraproject.org/fedora:latest
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md); CACHYOS_IMAGE lets the caller pick the x86-64-v3 or
+# x86-64-v4 build of CachyOS that the host CPU supports.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
-# PostgreSQL 18, Python 3.14, libversion build deps
-RUN dnf install -y --setopt=install_weak_deps=False \
-    postgresql-server \
-    postgresql-server-devel \
-    postgresql-contrib \
-    python3 \
-    python3-pip \
-    python3-devel \
+# PostgreSQL 18, Python 3.14, libversion build deps.
+# Arch ships headers in the main packages, so there are no -devel names:
+#   postgresql             the server and contrib modules (pg_trgm)
+#   postgresql-libs        libpq, pg_config and the server headers the libversion extension builds against
+#   python, python-pip     the interpreter and pip
+#   gcc, make, cmake       C and C++ compilers (gcc covers g++), and the build tools for libversion
+#   pkgconf                pkg-config
+#   rpm-tools              rpm2cpio and the Python rpm bindings
+#   yajl, libxml2, libxslt development libraries (headers included)
+RUN pacman --sync --refresh --sysupgrade --noconfirm --needed \
+    postgresql \
+    postgresql-libs \
+    python \
+    python-pip \
     gcc \
-    gcc-c++ \
-    redhat-rpm-config \
+    make \
     cmake \
-    pkg-config \
+    pkgconf \
     git \
     rsync \
-    rpm2cpio \
+    rpm-tools \
     cpio \
-    yajl-devel \
-    libxml2-devel \
-    libxslt-devel \
-    python3-rpm \
-    && dnf clean all
+    yajl \
+    libxml2 \
+    libxslt \
+    && rm --recursive --force /var/cache/pacman/pkg/*
+
+# entrypoint.sh keeps the cluster in /var/lib/pgsql/data, the directory the repology-pgdata volume mounts over. Arch's
+# package uses /var/lib/postgres instead, so the directory is created here, owned by the postgres user, and a named
+# volume copies that ownership on first use.
+RUN install --directory --owner=postgres --group=postgres /var/lib/pgsql/data
 
 # Configure git to use GitHub token when available (via build secret).
 # The credential helper writes the token into the extraheader so all
