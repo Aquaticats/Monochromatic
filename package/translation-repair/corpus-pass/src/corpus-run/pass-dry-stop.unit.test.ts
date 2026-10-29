@@ -164,8 +164,10 @@ function benchErrorBefore(
   },);
 }
 
+// SEQUENTIAL: the router case fakes the process-wide timer function, so no other case of the file may run beside it.
 await describe({
   name: createPassDryStop.name,
+  concurrency: 1,
   children: [
     it({
       name: 'STARTS UNTRIPPED: the signal is live and no stop is asked for',
@@ -481,7 +483,25 @@ await describe({
       name: 'PARKS ON THE REFUSAL THE ROUTER MAKES AFTER WAITING OUT ANOTHER HOLD, over real budgets: Hyper held 40 ms '
         + 'and NeuralWatt\'s spent day 600 s from starting again, past the router\'s own 300 s, so the call waits for '
         + 'Hyper and the refusal still carries the return, which the pass has the time for',
-      fn: async () => {
+      fn: async ctx => {
+        /**
+         The fake clock the router's wait sleeps on, and the monotonic clock the budgets judge Hyper's hold against. A
+         native timer made before the install and cleared under it, such as the module logger's start check, is cleared
+         by the real `clearTimeout`.
+         */
+        const clock = ctx.sinon.useFakeTimers({
+          now: 1_000,
+          toFake: [
+            'setTimeout',
+            'clearTimeout',
+          ],
+          shouldClearNativeTimers: true,
+        },);
+        using _installed = {
+          [Symbol.dispose]: function removeClock(): void {
+            clock.restore();
+          },
+        };
         /**
          Milliseconds after 00:00 UTC the account's day starts at: 19:15:08 UTC.
          */
@@ -503,6 +523,7 @@ await describe({
           },
           freshForMs: 600_000,
           cooldownMs: 40,
+          now: () => clock.now,
           wallNow: () => new Date(Date.UTC(
             2_026,
             9,
@@ -514,10 +535,14 @@ await describe({
           ),),
           returnMarginMs: 0,
         },);
-        const {signal} = new AbortController();
+        const abort = new AbortController();
+        const { signal, } = abort;
         await budgets.read({ signal, },);
         await budgets.markRefused({ provider: 'hyper', signal, },);
-        const refusal = await rejectionOf(async function route(): Promise<unknown> {
+        /**
+         The router's call, sleeping out Hyper's 40 ms hold in slices of a millisecond on the fake clock.
+         */
+        const routing = rejectionOf(async function route(): Promise<unknown> {
           return await readBudgetsPastHolds({
             budgets,
             modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -526,6 +551,13 @@ await describe({
             pollMs: 1,
           },);
         },);
+        await clock.tickAsync(40 + 1,);
+        // A wait still going once the hold has ended ends here as a failure and not as a hang: the abort is seen at the
+        // wait's next slice.
+        abort.abort();
+        await clock.tickAsync(1,);
+        const refusal = await routing;
+        expect((refusal as Error).message,).toContain('after waiting',);
         const dryStop = createPassDryStop({ passLeftMs: () => 3_600_000, waitMs: async () => {}, },);
         dryStop.trip({ error: refusal, },);
         expect(dryStop.tripped(),).toBe(false,);

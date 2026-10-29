@@ -13,6 +13,7 @@
 
 import {
   describe,
+  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
@@ -31,6 +32,7 @@ import {
   RUN_TRANSLATORS,
 } from '../../dist/final/node/index.mjs';
 import { metersAllWet, } from '@monochromatic-dev/translation-repair-provider/ts/meter-states.test-fixture.ts';
+import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
 
 //region Hold need tests
 
@@ -95,49 +97,63 @@ function servesTranslators({ provider, }: { readonly provider: ProviderName; },)
 }
 
 /**
- Reads the seats of the translate lane over scripted views and holds, counting reads.
+ Reads the seats of the translate lane over scripted views and holds, counting reads. A hold the reading waits out is
+ slept on a fake clock the call ticks past, so no real time passes.
 
  @param holdsByAsk - holds each ask reads, the last repeated
 
  @param lines - receives what the reading logs
 
+ @param sinon - case's own sandbox, which fakes the timers
+
  @returns Dryness reads made
 
  @example
  ```ts
- const reads = await readTranslateLane({ holdsByAsk: [NO_HOLDS,], lines: [], },);
+ const reads = await readTranslateLane({ holdsByAsk: [NO_HOLDS,], lines: [], sinon: ctx.sinon, },);
  ```
  */
 async function readTranslateLane(
   {
     holdsByAsk,
     lines,
+    sinon,
   }: {
     readonly holdsByAsk: readonly typeof NO_HOLDS[];
     readonly lines: string[];
+    readonly sinon: DisposableSandbox;
   },
 ): Promise<number> {
   /**
    Reads and asks made so far.
    */
   const counted = { reads: 0, asks: 0, };
-  await readJudgeSeats({
-    client: {
-      providerDryness: async () => {
-        counted.reads += 1;
-        return (counted.reads === 1) ? BEDROCK_ALONE : ALL_WET;
-      },
-      providerMeterStates: metersAllWet,
-      providerHolds: () => {
-        const asked = holdsByAsk[Math.min(counted.asks, holdsByAsk.length - 1,)] ?? NO_HOLDS;
-        counted.asks += 1;
-        return asked;
-      },
-    },
-    phase: 'translate lane',
-    signal: new AbortController().signal,
-    l: levelCapturingLogger({ lines, },),
+  await readOnFakeClock({
+    sinon,
+    holdMs: Math.max(...holdsByAsk.flatMap(function holdsOf(asked,): readonly number[] {
+      return Object.values(asked,);
+    },),),
     pollMs: 5,
+    reading: async function reading({ signal, },): Promise<void> {
+      await readJudgeSeats({
+        client: {
+          providerDryness: async () => {
+            counted.reads += 1;
+            return (counted.reads === 1) ? BEDROCK_ALONE : ALL_WET;
+          },
+          providerMeterStates: metersAllWet,
+          providerHolds: () => {
+            const asked = holdsByAsk[Math.min(counted.asks, holdsByAsk.length - 1,)] ?? NO_HOLDS;
+            counted.asks += 1;
+            return asked;
+          },
+        },
+        phase: 'translate lane',
+        signal,
+        l: levelCapturingLogger({ lines, },),
+        pollMs: 5,
+      },);
+    },
   },);
   return counted.reads;
 }
@@ -159,9 +175,9 @@ await describe({
     it({
       name: 'DOES NOT WAIT FOR A HOLD ON A PROVIDER THAT SERVES NO SEAT OF A SHORT BENCH: Bedrock alone wet, the '
         + 'translators short, and only Xiaomi held (it serves none of them), so the reading seats what it read at once',
-      fn: async () => {
+      fn: async ctx => {
         const lines: string[] = [];
-        const reads = await readTranslateLane({ holdsByAsk: [{ ...NO_HOLDS, xiaomi: 40, },], lines, },);
+        const reads = await readTranslateLane({ holdsByAsk: [{ ...NO_HOLDS, xiaomi: 40, },], lines, sinon: ctx.sinon, },);
         expect(reads,).toBe(1,);
         expect(lines.some(function waits(line,): boolean {
           return line.includes('waiting ',);
@@ -173,7 +189,7 @@ await describe({
       name: 'WAITS FOR A HOLD ON A PROVIDER THAT SERVES A SEAT OF A SHORT BENCH, and for that one: Hyper held 40 ms '
         + 'and Xiaomi 10 ms, the wait is the 40 ms of the provider that serves the translators and not the 10 ms of '
         + 'the one that does not',
-      fn: async () => {
+      fn: async ctx => {
         const lines: string[] = [];
         const reads = await readTranslateLane({
           holdsByAsk: [
@@ -181,6 +197,7 @@ await describe({
             NO_HOLDS,
           ],
           lines,
+          sinon: ctx.sinon,
         },);
         expect(reads,).toBe(2,);
         expect(lines.some(function waitsForHyper(line,): boolean {

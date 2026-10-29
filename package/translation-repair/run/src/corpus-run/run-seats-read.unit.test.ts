@@ -14,7 +14,6 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
-  DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
@@ -53,6 +52,7 @@ import {
   SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
 } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { withFreshRunSeats, } from '@monochromatic-dev/translation-repair-stage/ts/corpus-run/fresh-run-seats.test-fixture.ts';
+import { readOnFakeClock, } from './run-seats-fake-clock.test-fixture.ts';
 
 //region Seat reading tests
 
@@ -276,7 +276,8 @@ await describe({
   children: [
     describe({
       name: readJudgeSeats.name,
-      concurrency: DEFAULT_CONCURRENCY,
+      // SEQUENTIAL: cases of this suite fake the process-wide timer function.
+      concurrency: 1,
       children: [
         it({
           name: 'READS the dryness view off the run client, and SEATS the full bench when the view cannot be '
@@ -471,25 +472,31 @@ await describe({
           name: 'WAITS OUT THE SHORTEST HOLD ONCE and reads again when a bench this phase leans on cannot '
             + 'reach quorum among the seats a wet provider serves and a provider has named its return, '
             + 'the thirteenth class: Bedrock alone wet at the translate lane, Hyper held for its daily limit',
-          fn: async () => {
+          fn: async ctx => {
             const script = scriptedViews({
               views: [
                 BEDROCK_ALONE,
                 ALL_WET,
               ],
             },);
-            const seats = await readJudgeSeats({
-              client: viewClient({
-                providerDryness: script.read,
-                providerHolds: () => ({
-                  ...NO_HOLDS,
-                  hyper: 40,
-                }),
-              },),
-              phase: 'translate lane',
-              signal: new AbortController().signal,
-              l,
+            const seats = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readJudgeSeats({
+                  client: viewClient({
+                    providerDryness: script.read,
+                    providerHolds: () => ({
+                      ...NO_HOLDS,
+                      hyper: 40,
+                    }),
+                  },),
+                  phase: 'translate lane',
+                  signal,
+                  l,
+                  pollMs: 5,
+                },),
             },);
             expect(script.counter.reads,).toBe(2,);
             expect(seats.dry,).toEqual(ALL_WET,);
@@ -624,7 +631,8 @@ await describe({
 
     describe({
       name: `${readJudgeSeats.name} on the writing-bench floor`,
-      concurrency: DEFAULT_CONCURRENCY,
+      // SEQUENTIAL: a case of this suite fakes the process-wide timer function.
+      concurrency: 1,
       children: [
         it({
           name: 'STOPS THE ENTRY when a writing bench the phase leans on is below the pair a slate needs and no '
@@ -652,27 +660,33 @@ await describe({
           name: 'WAITS OUT THE HOLD ONCE and STOPS when a bench is still below the floor after it (the editors '
             + 'at the lanes, since Bedrock alone reaches a pair of translators from 2026-09-08), and SEATS when '
             + 'the wait brought the bench back',
-          fn: async () => {
+          fn: async ctx => {
             const stays = scriptedViews({
               views: [
                 BEDROCK_ALONE,
                 BEDROCK_ALONE,
               ],
             },);
-            await expect(readJudgeSeats({
-              client: viewClient({
-                providerDryness: stays.read,
-                providerHolds: holdsThatEnd({
-                  first: {
-                    ...NO_HOLDS,
-                    hyper: 40,
-                  },
-                },),
-              },),
-              phase: 'lanes',
-              signal: new AbortController().signal,
-              l,
+            await expect(readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readJudgeSeats({
+                  client: viewClient({
+                    providerDryness: stays.read,
+                    providerHolds: holdsThatEnd({
+                      first: {
+                        ...NO_HOLDS,
+                        hyper: 40,
+                      },
+                    },),
+                  },),
+                  phase: 'lanes',
+                  signal,
+                  l,
+                  pollMs: 5,
+                },),
             },),).rejects.toThrow('writing bench unreachable at lanes: editors',);
             expect(stays.counter.reads,).toBe(2,);
 
@@ -682,18 +696,24 @@ await describe({
                 ALL_WET,
               ],
             },);
-            const seats = await readJudgeSeats({
-              client: viewClient({
-                providerDryness: returns.read,
-                providerHolds: () => ({
-                  ...NO_HOLDS,
-                  hyper: 40,
-                }),
-              },),
-              phase: 'lanes',
-              signal: new AbortController().signal,
-              l,
+            const seats = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readJudgeSeats({
+                  client: viewClient({
+                    providerDryness: returns.read,
+                    providerHolds: () => ({
+                      ...NO_HOLDS,
+                      hyper: 40,
+                    }),
+                  },),
+                  phase: 'lanes',
+                  signal,
+                  l,
+                  pollMs: 5,
+                },),
             },);
             expect(returns.counter.reads,).toBe(2,);
             expect(seats.translators,).toEqual(RUN_TRANSLATORS,);
@@ -778,7 +798,8 @@ await describe({
     },),
     describe({
       name: `${readPhaseSeats.name} for a phase that goes on without its writers`,
-      concurrency: DEFAULT_CONCURRENCY,
+      // SEQUENTIAL: cases of this suite fake the process-wide timer function.
+      concurrency: 1,
       children: [
         it({
           name: 'GOES ON WHEN THE WRITING BENCH IS BELOW ITS FLOOR AND NO PROVIDER HAS NAMED ITS RETURN: one error line '
@@ -848,18 +869,24 @@ await describe({
         it({
           name: 'STILL WAITS OUT A NAMED HOLD ONCE, then goes on without the writers when the bench is still below its floor, '
             + 'saying so after the wait in one error line that does not say the entry stops',
-          fn: async () => {
+          fn: async ctx => {
             const stays = scriptedViews({ views: [ALL_DRY, ALL_DRY,], },);
             const lines: string[] = [];
-            const { unreachableWriters, } = await readPhaseSeats({
-              client: viewClient({
-                providerDryness: stays.read,
-                providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
-              },),
-              phase: 'page consistency',
-              signal: new AbortController().signal,
-              l: levelCapturingLogger({ lines, },),
+            const { unreachableWriters, } = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readPhaseSeats({
+                  client: viewClient({
+                    providerDryness: stays.read,
+                    providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
+                  },),
+                  phase: 'page consistency',
+                  signal,
+                  l: levelCapturingLogger({ lines, },),
+                  pollMs: 5,
+                },),
             },);
             expect({
               reads: stays.counter.reads,
@@ -883,18 +910,24 @@ await describe({
         },),
         it({
           name: 'SEATS THE WRITERS WHEN THE WAIT BROUGHT THE BENCH BACK, handing back no bench and writing no error line',
-          fn: async () => {
+          fn: async ctx => {
             const returns = scriptedViews({ views: [ALL_DRY, ALL_WET,], },);
             const lines: string[] = [];
-            const { unreachableWriters, seats, } = await readPhaseSeats({
-              client: viewClient({
-                providerDryness: returns.read,
-                providerHolds: () => ({ ...NO_HOLDS, hyper: 40, }),
-              },),
-              phase: 'page consistency',
-              signal: new AbortController().signal,
-              l: levelCapturingLogger({ lines, },),
+            const { unreachableWriters, seats, } = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readPhaseSeats({
+                  client: viewClient({
+                    providerDryness: returns.read,
+                    providerHolds: () => ({ ...NO_HOLDS, hyper: 40, }),
+                  },),
+                  phase: 'page consistency',
+                  signal,
+                  l: levelCapturingLogger({ lines, },),
+                  pollMs: 5,
+                },),
             },);
             expect({
               reads: returns.counter.reads,
@@ -910,7 +943,7 @@ await describe({
           name: 'KEEPS WAITING WHILE A HOLD STILL RUNS: a rate-limit hold that ends first leaves the editors bench '
             + 'short, and the lanes wait goes on for the hold behind it (the NeuralWatt return) instead of stopping '
             + 'the entry short of it',
-          fn: async () => {
+          fn: async ctx => {
             const script = scriptedViews({
               views: [
                 BEDROCK_ALONE,
@@ -938,22 +971,30 @@ await describe({
               NO_HOLDS,
             ];
             const lines: string[] = [];
-            const seats = await readJudgeSeats({
-              client: viewClient({
-                providerDryness: script.read,
-                providerHolds: () => {
-                  const asked = holdsByAsk[Math.min(
-                    asks.count,
-                    holdsByAsk.length - 1,
-                  )] ?? NO_HOLDS;
-                  asks.count += 1;
-                  return asked;
-                },
-              },),
-              phase: 'lanes',
-              signal: new AbortController().signal,
-              l: levelCapturingLogger({ lines, },),
+            // The two waits (the rate-limit hold of 10 ms, then the return's 20 ms) are slept on a fake clock the call ticks
+            // past.
+            const seats = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 30,
               pollMs: 5,
+              reading: async ({ signal, },) =>
+                await readJudgeSeats({
+                  client: viewClient({
+                    providerDryness: script.read,
+                    providerHolds: () => {
+                      const asked = holdsByAsk[Math.min(
+                        asks.count,
+                        holdsByAsk.length - 1,
+                      )] ?? NO_HOLDS;
+                      asks.count += 1;
+                      return asked;
+                    },
+                  },),
+                  phase: 'lanes',
+                  signal,
+                  l: levelCapturingLogger({ lines, },),
+                  pollMs: 5,
+                },),
             },);
             expect(script.counter.reads,).toBe(3,);
             expect(seats.translators,).toEqual(RUN_TRANSLATORS,);
@@ -1071,21 +1112,27 @@ await describe({
         it({
           name: 'ENDS THE RUN WITH THE EVERY-PROVIDER-DRY REFUSAL when every provider still reads dry after the one wait '
             + 'for the shortest hold, as it does when none was held',
-          fn: async () => {
+          fn: async ctx => {
             /**
              What the seat reading stopped with.
              */
-            const refusal = await rejectionOf({
-              promise: readPhaseSeats({
-                client: viewClient({
-                  providerDryness: scriptedViews({ views: [ALL_DRY, ALL_DRY,], },).read,
-                  providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
+            const refusal = await readOnFakeClock({
+              sinon: ctx.sinon,
+              holdMs: 40,
+              pollMs: 5,
+              reading: async ({ signal, },) =>
+                await rejectionOf({
+                  promise: readPhaseSeats({
+                    client: viewClient({
+                      providerDryness: scriptedViews({ views: [ALL_DRY, ALL_DRY,], },).read,
+                      providerHolds: holdsThatEnd({ first: { ...NO_HOLDS, hyper: 40, }, },),
+                    },),
+                    phase: 'lanes',
+                    signal,
+                    l: levelCapturingLogger({ lines: [], },),
+                    pollMs: 5,
+                  },),
                 },),
-                phase: 'lanes',
-                signal: new AbortController().signal,
-                l: levelCapturingLogger({ lines: [], },),
-                pollMs: 5,
-              },),
             },);
             expect(refusal,).toBeInstanceOf(EveryProviderDryError,);
           },
