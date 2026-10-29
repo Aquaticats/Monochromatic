@@ -45,11 +45,12 @@ Owner follow-ups the same day:
    two `appearance_portal` tests fail with `XDG_RUNTIME_DIR is not set`
    since `45cec40b27` made the private D-Bus need it;
    the container task never sets it (fails on Fedora too).
-  With `--tmpfs /xdg --env XDG_RUNTIME_DIR=/xdg`, 279 of 279 tests pass.
+  Fixed in `de17d1f557` (owner approved): `containerCargo` mounts a private tmpfs at `/run/user/0` as `XDG_RUNTIME_DIR`;
+   `test:container` then printed `279 tests run: 279 passed, 0 skipped`.
 - `test-fixture/file-enforcer-perf` `perf:constrained`:
    `StalenessManifestPersistenceError` (staleness manifest lock timeout) from file-enforcer-core,
-   reproduced on the host outside any container.
-- `test-fixture/file-enforcer-perf/TODO.md` asks to pin Node, which conflicts with the "latest" decision.
+   reproduced on the host outside any container; filed as issue #1813 (owner chose an issue over a fix now).
+- `test-fixture/file-enforcer-perf/TODO.md` asked to pin Node, against the "latest" decision; removed in `c1444df68b`.
 - The first p-memoize mutation run failed building its image:
    `pnpmfile hook 'updateConfig' timed out after 30 seconds` at load average 58;
    rerun as unit `mutation-p-memoize-2`.
