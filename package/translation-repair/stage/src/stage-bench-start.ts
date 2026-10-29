@@ -22,7 +22,7 @@ export class StageBenchStartError extends Error {
   /**
    Builds the report from the start that was pinned and the size of the bench it was pinned on.
 
-   @param start - the pinned start, as it was given
+   @param start - pinned start, as it was given
 
    @param benchSize - seats on the bench the rotation was asked for
    */
@@ -51,7 +51,7 @@ export class StageBenchStartError extends Error {
 /**
  Refuses a pinned start that names no seat of the bench.
 
- @param start - the pinned start
+ @param start - pinned start
 
  @param benchSize - seats on the bench
 

@@ -144,7 +144,7 @@ const RAW_PREVIEW_CHARS = 120;
 
  @param rawText - verbatim model text
 
- @returns The first grapheme clusters of the text with its line breaks replaced by spaces
+ @returns First grapheme clusters of the text with its line breaks replaced by spaces
 
  @example
  ```ts
@@ -338,7 +338,7 @@ export function isRequestFault({ error, }: { readonly error: unknown; },): boole
 
  @param l - logger of the calling stage
 
- @param decision - the stage's ballot as a typed question, for a decision
+ @param decision - stage's ballot as a typed question, for a decision
  seat on the bench; absent on a stage that has none, which loses that
  seat's voice rather than asking it for prose
 

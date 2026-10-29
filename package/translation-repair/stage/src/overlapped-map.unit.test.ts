@@ -202,7 +202,7 @@ const NAPPING_BUY_LINE = 'warn twin memo: the buy for a shared key was abandoned
 
  @param row - item and its position
 
- @returns The item as a cat's name
+ @returns Item as a cat's name
 
  @example
  ```ts

@@ -195,7 +195,7 @@ type DefinitionBlockPair = {
 
  @param index - block a pair names
 
- @returns The block
+ @returns Block
 
  @throws Error when the index names no block, which would mean the pair was
  read against some other chunk
@@ -225,7 +225,7 @@ function blockAt(
 /**
  The label a definition block opens with.
 
- @param node - a footnote definition block
+ @param node - footnote definition block
 
  @returns Its label
 
@@ -259,7 +259,7 @@ function openingLabel({ node, }: { readonly node: DocumentNode; },): string {
 
  @param targetNodes - archive side of the chunk
 
- @returns The split
+ @returns Split
 
  @example
  ```ts
@@ -340,7 +340,7 @@ export function splitDefinitionPairs(
 
  @param pairIndex - aligned chunk
 
- @returns The line, in the block-pairing findings' wording
+ @returns Line, in the block-pairing findings' wording
 
  @example
  ```ts

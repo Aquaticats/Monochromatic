@@ -141,7 +141,7 @@ function scriptedClient(
 
  @param unreadableSeat - seat whose re-ask stays unreadable, or none
 
- @returns The round's outcomes, each seat's asks, and the recovery lines it
+ @returns Round's outcomes, each seat's asks, and the recovery lines it
  logged
 
  @example

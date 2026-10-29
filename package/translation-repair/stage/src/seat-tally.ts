@@ -184,7 +184,7 @@ export type SeatTally = {
    content on their way are not asks, so they neither count toward `minAsks`
    nor break a run of failures.
 
-   @param args - the number of asks a seat must have been given before it counts
+   @param args - number of asks a seat must have been given before it counts
 
    @returns Counts of the withheld seats, in first-asked order
    */

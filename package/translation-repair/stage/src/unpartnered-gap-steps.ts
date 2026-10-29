@@ -106,7 +106,7 @@ function interiorGaps(
  Reads one gap as a merge where it holds bare steps on both sides, else as it
  is.
 
- @param bare - the gap's steps
+ @param bare - gap's steps
 
  @returns Steps the gap contributes
 

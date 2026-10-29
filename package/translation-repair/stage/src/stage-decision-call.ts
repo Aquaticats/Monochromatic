@@ -62,13 +62,13 @@ export type StageDecision = {
 
  @param modelId - decision seat to ask
 
- @param decision - the stage's question, absent when the stage has none
+ @param decision - stage's question, absent when the stage has none
 
  @param signal - caller abort honored by the exchange
 
  @param exchangeTimeoutMs - deadline for the exchange
 
- @param validate - the stage's own guard over the read answer
+ @param validate - stage's own guard over the read answer
 
  @param stage - stage label for logging
 

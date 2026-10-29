@@ -226,7 +226,7 @@ function routerRefusingClient(): ModelClient {
 
    @param modelId - seat the call names
 
-   @returns The router's refusal
+   @returns Router's refusal
 
    @example
    ```ts
@@ -259,7 +259,7 @@ function routerRefusingClient(): ModelClient {
 
  @param call - call to run
 
- @returns The thrown value, or `undefined`
+ @returns Thrown value, or `undefined`
 
  @example
  ```ts
@@ -286,7 +286,7 @@ async function thrownBy(call: () => Promise<unknown>,): Promise<unknown> {
 
  @param signal - signal the call is made with
 
- @returns The thrown value, or `undefined`
+ @returns Thrown value, or `undefined`
 
  @example
  ```ts

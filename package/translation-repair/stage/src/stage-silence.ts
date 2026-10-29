@@ -32,7 +32,7 @@ export const STAGE_QUORUM_UNMET_PREFIX = 'stage-quorum-unmet (';
 
  @param where - place the stage ran in when it runs once for each of several, such as a panel packet's cluster
 
- @returns The label, such as `critic 2/6` or `panel 0/6 (cluster/abc)`
+ @returns Label, such as `critic 2/6` or `panel 0/6 (cluster/abc)`
 
  @example
  ```ts
@@ -82,7 +82,7 @@ export function stageQuorumUnmetFinding(
 
  @param findings - findings a settlement carries
 
- @returns The quorum-unmet findings, in order, empty when every stage was heard
+ @returns Quorum-unmet findings, in order, empty when every stage was heard
 
  @example
  ```ts
@@ -106,9 +106,9 @@ export function silentStagesOf(
  {@link silentStagesOf} cannot see it: XingZ6018 slice 85 was cached with a panel that heard nobody, for that reason.
  Such a stage gives its shortfall as a label in `silentStages` as well.
 
- @param record - the settlement's findings and the silent stages it carries as data
+ @param record - settlement's findings and silent stages it carries as data
 
- @returns The labels of the data, then the findings that read as quorum-unmet, empty when every stage was heard
+ @returns Labels of the data, then the findings that read as quorum-unmet, empty when every stage was heard
 
  @example
  ```ts
@@ -137,9 +137,9 @@ export function silentStagesOfRecord(
  before it resumes, so a record the reader would discard is never written, and a write that the reader would discard
  never counts as the entry gaining a record.
 
- @param settlement - the refinement's outcome and the findings it contributed
+ @param settlement - refinement's outcome and findings it contributed
 
- @returns The silent stages in order, empty when every stage was heard
+ @returns Silent stages in order, empty when every stage was heard
 
  @example
  ```ts
@@ -166,7 +166,7 @@ export function silentStagesOfSettlement(
 /**
  Whether a refinement settlement may be kept and resumed: no stage it names fell short of quorum.
 
- @param settlement - the refinement's outcome and the findings it contributed
+ @param settlement - refinement's outcome and findings it contributed
 
  @returns Whether the refine cache may write it and a resumed run may trust it
 

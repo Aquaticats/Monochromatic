@@ -137,7 +137,7 @@ export type RoundOutcome<ValueT,> = {
 
  @param pending - promises of the asks still to settle, each settling to its ask's position
 
- @param signal - the caller's abort, whose reason replaces an ask's rejection
+ @param signal - caller's abort, whose reason replaces an ask's rejection
  so the round's failure does not depend on which ask ended first
 
  @returns Position of the ask that settled first
@@ -269,7 +269,7 @@ function freshRefusalTick(): RefusalTick {
 
  @param refusals - router refusals this round has seen
 
- @param signal - the caller's abort, whose reason is what the round rejects
+ @param signal - caller's abort, whose reason is what the round rejects
  with when an ask rejects, whichever ask ended first
 
  @returns Voices the round needed when the wait ended

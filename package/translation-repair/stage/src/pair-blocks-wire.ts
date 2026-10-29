@@ -59,7 +59,7 @@ export class BlockPairingError extends Error {
 
  @param error - what the catch caught
 
- @returns The refusal
+ @returns Refusal
 
  @throws The caught value unchanged when it is anything but a pairing
  refusal, an unexpected state that must keep propagating
@@ -361,7 +361,7 @@ const NO_FREE_ORDER: FreeOrderBlocks = {
 
  @param freeOrder - definition indices, empty when the caller named none
 
- @returns The class
+ @returns Class
 
  @example
  ```ts

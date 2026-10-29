@@ -284,7 +284,7 @@ async function withTheCallersReason(signal: AbortSignal,): Promise<never> {
 
  @param failure - that failure as a log line renders it
 
- @returns The seat's line, as the round writes it
+ @returns Seat's line, as the round writes it
 
  @example
  ```ts
@@ -390,7 +390,7 @@ async function stoppedRound(
 
  @param sinon - calling case's own sandbox, which stubs `fetch` until it is restored
 
- @returns The provider's refusal, its key masked by the transport
+ @returns Provider's refusal, its key masked by the transport
 
  @throws Error when the client raised something other than an error
 

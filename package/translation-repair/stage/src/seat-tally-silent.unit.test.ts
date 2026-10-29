@@ -78,7 +78,7 @@ function throwingClient({ failure, }: { readonly failure: unknown; },): ModelCli
 /**
  Signal the round's grace cut aborted, as `runGatherRound` aborts it.
 
- @returns A signal already aborted with the straggler cut's reason
+ @returns Signal already aborted with the straggler cut's reason
 
  @example
  ```ts

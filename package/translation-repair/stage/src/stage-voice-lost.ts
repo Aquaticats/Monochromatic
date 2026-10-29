@@ -35,7 +35,7 @@ import {
 
  @param stage - stage the gather ran for, such as `critic`
 
- @param seated - the roster the stage seated, in roster order
+ @param seated - roster the stage seated, in roster order
 
  @param asked - models the gather asked at least once
 
@@ -95,7 +95,7 @@ export function lostVoiceFindings(
 
  @param asked - models the gather asked at least once
 
- @returns The one shortfall finding, or none
+ @returns One shortfall finding, or none
 
  @example
  ```ts

@@ -62,7 +62,7 @@ export type RoundLineQuorum =
  @param quorum - time either side of the instant quorum stood, or the count
  needed where it never did
 
- @returns The line `runGatherRound` logs
+ @returns Line `runGatherRound` logs
 
  @example
  ```ts

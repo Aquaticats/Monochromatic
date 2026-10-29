@@ -22,9 +22,9 @@ import {
 /**
  What checking one start of a bench of seven comes to.
 
- @param start - the start checked
+ @param start - start checked
 
- @returns The error thrown, none when the start names a seat
+ @returns Error thrown, none when the start names a seat
  */
 function refusalOf({ start, }: { readonly start: number; },): unknown {
   try {
