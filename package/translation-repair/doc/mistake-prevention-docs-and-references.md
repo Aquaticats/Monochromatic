@@ -112,6 +112,12 @@ or a numbered batch of a section),
 never by a name a writer made for it.
 Open work goes in the ledger,
 not only on a task list.
+A queued item in the handover is written with its definition:
+what is run,
+on what,
+and what it answers.
+"Haiku cap reading" stood in the queue twice with no brief or note that defined it,
+and was defined only when the lead looked for what it meant (ledger M316).
 A GitHub issue is cited only after `gh issue view` shows it is the one meant,
 and is added to the guard's list in the same commit.
 Before a citation is rewritten,

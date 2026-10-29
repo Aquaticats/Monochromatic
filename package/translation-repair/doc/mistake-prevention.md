@@ -40,12 +40,14 @@ named for that subject and listed here.
   - [How an agent waits](mistake-prevention-shell-edits-commits-and-agents.md#how-an-agent-waits)
   - [Briefs and hand-backs](mistake-prevention-shell-edits-commits-and-agents.md#briefs-and-hand-backs)
 - [Preventing mistakes: questions to the owner and rulings](mistake-prevention-questions-to-the-owner-and-rulings.md):
-  Rules for what is put to the owner:
+  Rules for what is put to the owner and how an answer is read:
   questions that are measured before they are asked,
   choices decided for quality,
-  and rulings kept in the design commitments.
+  rulings kept in the design commitments,
+  and the work a ruling reaches.
   Sections:
   - [Questions to the owner](mistake-prevention-questions-to-the-owner-and-rulings.md#questions-to-the-owner)
+  - [Rulings read for the work they reach](mistake-prevention-questions-to-the-owner-and-rulings.md#rulings-read-for-the-work-they-reach)
 - [Preventing mistakes: tasks, builds and bulk output](mistake-prevention-tasks-builds-and-bulk-output.md):
   Rules for running the repository's tasks and builds:
   where a task runs from,
@@ -233,12 +235,25 @@ named for that subject and listed here.
   - [File names derived from an input](mistake-prevention-stored-files-and-cached-decisions.md#file-names-derived-from-an-input)
   - [Facts a cache gate reads](mistake-prevention-stored-files-and-cached-decisions.md#facts-a-cache-gate-reads)
 - [Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md):
-  Rules for two checks that are made once and then relied on:
+  Rules for checks that are made once and then relied on:
   which commits a branch holds,
-  and the figures one session tells another.
+  the hashes given to commands,
+  and the figures,
+  causes and tool behaviours that one session tells another.
   Sections:
   - [Which commits a branch holds](mistake-prevention-commit-checks-and-figures-told-to-others.md#which-commits-a-branch-holds)
+  - [Hashes given to a command](mistake-prevention-commit-checks-and-figures-told-to-others.md#hashes-given-to-a-command)
   - [Figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#figures-told-to-others)
+  - [Causes and tool behaviours told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#causes-and-tool-behaviours-told-to-others)
+- [Preventing mistakes: merging and landing rounds](mistake-prevention-merging-and-landing-rounds.md):
+  Rules for what the merge of a round keeps,
+  carries and breaks,
+  and for the tree a round lands from.
+  Sections:
+  - [Lines a merge keeps or drops](mistake-prevention-merging-and-landing-rounds.md#lines-a-merge-keeps-or-drops)
+  - [Constants that tests print](mistake-prevention-merging-and-landing-rounds.md#constants-that-tests-print)
+  - [Behaviour a merge carries outside its conflicts](mistake-prevention-merging-and-landing-rounds.md#behaviour-a-merge-carries-outside-its-conflicts)
+  - [Landing a tree](mistake-prevention-merging-and-landing-rounds.md#landing-a-tree)
 
 ## Before a run launches
 

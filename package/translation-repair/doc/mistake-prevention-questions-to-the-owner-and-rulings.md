@@ -1,9 +1,10 @@
 # Preventing mistakes: questions to the owner and rulings
 
-Rules for what is put to the owner:
+Rules for what is put to the owner and how an answer is read:
 questions that are measured before they are asked,
 choices decided for quality,
-and rulings kept in the design commitments.
+rulings kept in the design commitments,
+and the work a ruling reaches.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
 which lists every file of this record.
@@ -54,3 +55,31 @@ so the approval names the command that runs (ledger M277).
 What enforces it:
 habit,
 and the commitments page.
+
+## Rulings read for the work they reach
+
+What happened:
+on 2026-10-29 (UTC) the owner answered where finished rounds should land with "Branch only",
+and added that merges between the branch and main are made only when the owner says.
+The lead read the answer as reaching rounds that had already merged main,
+measured the main commits each carried,
+planned to redo each round,
+and stopped a running gate and a running sweep.
+The owner said the rounds were not unmergeable,
+that the answer applied going forward,
+and that no work was to be abandoned.
+The plan was dropped and the gate and the sweep were started again (ledger M320).
+
+The rule:
+a ruling applies from the turn it is given.
+Work already done and work already running stay as they are
+until the owner says that the ruling reaches them.
+A reading that would stop a run,
+discard finished work or redo it is put to the owner in the same turn,
+with the work it would stop or discard named,
+and nothing is stopped before the answer.
+When a ruling can be read both ways,
+the narrower reading is carried out and the wider one is asked.
+
+What enforces it:
+habit.
