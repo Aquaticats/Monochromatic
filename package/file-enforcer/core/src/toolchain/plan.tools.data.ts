@@ -387,7 +387,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-mpm-shadow',
     request: { track: 'latest' },
-    version: '0.1.0',
+    version: '0.1.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-mpm-shadow',
