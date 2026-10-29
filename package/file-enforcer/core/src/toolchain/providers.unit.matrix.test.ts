@@ -34,7 +34,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { run, sha256File, } from './exec.ts';
-import { rebuildExposure, runPostinstallLinks, } from './exposure.ts';
+import {
+  rebuildExposure,
+  runPostinstallCommands,
+  runPostinstallLinks,
+} from './exposure.ts';
 import { hostPlatformId, } from './layout.ts';
 import {
   resolveToolchainPaths,
@@ -845,6 +849,147 @@ await describe({
             },);
             expect(readdirSync(linkDir,),)
               .toEqual(['git'],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: 'postinstall command',
+      children: [
+        it({
+          name: 'runs the bin from the worktree root with the exposure directory first on PATH, and skips link steps',
+          fn: async () => {
+            /**
+             Fixture with a recording bin installed.
+             */
+            const fixture = makeFixture();
+            /**
+             File the recording bin writes its arguments, working directory and PATH to.
+             */
+            const record = join(fixture.root, 'record.txt',);
+            const source = join(
+              fixture.paths.toolchainBinDir,
+              'recorder',
+            );
+            writeFileSync(
+              source,
+              `#!/bin/sh\nprintf '%s\\n%s\\n%s\\n' "$*" "$PWD" "$PATH" > '${record}'\n`,
+              'utf8',
+            );
+            chmodSync(
+              source,
+              0o755,
+            );
+            /**
+             Entry carrying a command step.
+             */
+            const entry = fixtureEntry({
+              id: 'cargo:recorder',
+              route: 'bin-sourced',
+              bins: ['recorder'],
+              options: {
+                postinstall: {
+                  when: 'always',
+                  run: {
+                    sourceBin: 'recorder',
+                    args: ['link', '.cache/dir'],
+                  },
+                },
+              },
+            },);
+            /**
+             Entry carrying a link step, which the command pass must leave alone.
+             */
+            const linkEntry = fixtureEntry({
+              id: 'cargo:linker',
+              route: 'bin-sourced',
+              bins: ['recorder'],
+              options: {
+                postinstall: {
+                  when: 'always',
+                  link: {
+                    sourceBin: 'recorder',
+                    linkName: 'unused',
+                  },
+                },
+              },
+            },);
+            /**
+             Result of the command pass.
+             */
+            const result = await runPostinstallCommands({
+              paths: fixture.paths,
+              env: { ...fixture.env, PATH: '/usr/bin', },
+              entries: [linkEntry, entry],
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
+            expect(result,)
+              .toEqual({
+                succeeded: ['cargo:recorder'],
+                failed: {},
+              },);
+            /**
+             Lines the bin recorded: arguments, working directory, PATH.
+             */
+            const [argumentsLine, workingDirectory, pathLine,] = readFileSync(
+              record,
+              'utf8',
+            )
+              .split('\n',);
+            expect(argumentsLine,)
+              .toBe('link .cache/dir',);
+            expect(workingDirectory,)
+              .toBe(fixture.paths.worktreeRoot,);
+            expect(pathLine?.startsWith(`${fixture.paths.exposureDir}:${fixture.paths.toolchainBinDir}:/usr/bin`,),)
+              .toBe(true,);
+          },
+        },),
+        it({
+          name: 'reports a failing command with its exit code and output instead of throwing',
+          fn: async () => {
+            /**
+             Fixture with a failing bin installed.
+             */
+            const fixture = makeFixture();
+            const source = join(
+              fixture.paths.toolchainBinDir,
+              'failing',
+            );
+            writeFileSync(
+              source,
+              '#!/bin/sh\necho broken >&2\nexit 3\n',
+              'utf8',
+            );
+            chmodSync(
+              source,
+              0o755,
+            );
+            const result = await runPostinstallCommands({
+              paths: fixture.paths,
+              env: fixture.env,
+              entries: [fixtureEntry({
+                id: 'cargo:failing',
+                route: 'bin-sourced',
+                bins: ['failing'],
+                options: {
+                  postinstall: {
+                    when: 'always',
+                    run: {
+                      sourceBin: 'failing',
+                      args: ['go'],
+                    },
+                  },
+                },
+              },)],
+              extraDirs: [fixture.paths.toolchainBinDir],
+            },);
+            expect(result.succeeded,)
+              .toEqual([],);
+            expect(result.failed['cargo:failing'],)
+              .toContain('exit code 3',);
+            expect(result.failed['cargo:failing'],)
+              .toContain('broken',);
           },
         },),
       ],

@@ -19,6 +19,7 @@ import { l, } from '../logger.ts';
 import { hostPlatformId, } from './layout.ts';
 import {
   rebuildExposure,
+  runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
   writeToolEnvFile,
@@ -398,6 +399,16 @@ export async function syncToolchain(
     paths,
     entries,
   },);
+
+  // Postinstall commands run last: they find the other tools through the rebuilt exposure directory.
+  const commands = await runPostinstallCommands({
+    paths,
+    entries,
+    env: e,
+    extraDirs: [paths.toolchainBinDir],
+  },);
+  for (const [id, output,] of Object.entries(commands.failed,))
+    failed[id] = output;
 
   return {
     unchanged,

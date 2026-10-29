@@ -218,10 +218,9 @@ await describe({
               .options.postinstall,)
               .toEqual({
                 when: 'always',
-                link: {
+                run: {
                   sourceBin: 'search-shadow',
-                  linkName: 'rg',
-                  linkDir: '.cache/search-shadow-bin',
+                  args: ['link', '.cache/search-shadow-bin',],
                 },
               },);
           },

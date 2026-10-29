@@ -11,11 +11,15 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import {
+  delimiter,
   dirname,
   isAbsolute,
   join,
 } from 'node:path';
-import { atomicSymlink, } from './exec.ts';
+import {
+  atomicSymlink,
+  run,
+} from './exec.ts';
 import { pathExists, } from './fs-probe.ts';
 import { findToolBin, } from './layout.ts';
 import type {
@@ -246,7 +250,7 @@ export function runPostinstallLinks(
      Postinstall link step of this entry, if any.
      */
     const { postinstall, } = entry.options;
-    if (postinstall === undefined)
+    if ((postinstall === undefined) || (!('link' in postinstall)))
       continue;
     /**
      Absolute source binary behind the step's `sourceBin`.
@@ -291,6 +295,107 @@ export function runPostinstallLinks(
       .linkName,);
   }
   return created;
+}
+
+/**
+ Runs the plan's postinstall command steps, after the exposure directory is
+ rebuilt: the command starts from the worktree root with the exposure
+ directory and the toolchain bin directory first on `PATH`, so a tool that
+ links other tools (`search-shadow link`) finds the locked ones.
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param entries - Plan entries whose postinstall steps run
+
+ @param env - Environment the command inherits and the bin search resolves manager homes from
+
+ @param extraDirs - Extra bin directories staged tools contribute
+
+ @returns Ids of the entries whose command exited with status zero, and for each other entry its command line with the output
+
+ @example
+ ```ts
+ await runPostinstallCommands({ paths, entries: ALL_TOOLS, env: process.env, },);
+ // { succeeded: ['cargo:monochromatic-search-shadow'], failed: {} }
+ ```
+ */
+export async function runPostinstallCommands(
+  {
+    paths,
+    entries,
+    env,
+    extraDirs,
+  }: {
+    readonly paths: ToolchainPaths;
+    readonly entries: readonly ToolPlanEntry[];
+    readonly env: PathEnv;
+    readonly extraDirs?: readonly string[];
+  },
+): Promise<{
+  readonly succeeded: readonly string[];
+  readonly failed: Readonly<Record<string, string>>;
+}> {
+  /**
+   Entry ids whose command succeeded.
+   */
+  const succeeded: string[] = [];
+  /**
+   Entry ids to the failing command line and its output.
+   */
+  const failed: Record<string, string> = {};
+  /**
+   `PATH` of the command: exposure directory, toolchain bin directory, then the inherited entries.
+   */
+  const commandPath = [
+    paths.exposureDir,
+    paths.toolchainBinDir,
+    ...(env.PATH === undefined ? [] : [env.PATH,]),
+  ].join(delimiter,);
+  /**
+   Environment of the command, without the undefined values `PathEnv` allows.
+   */
+  const commandEnv: Record<string, string> = { PATH: commandPath, };
+  for (const [name, text,] of Object.entries(env,)) {
+    if ((text !== undefined) && (name !== 'PATH'))
+      commandEnv[name] = text;
+  }
+  for (const entry of entries) {
+    /**
+     Postinstall step of this entry, if any.
+     */
+    const { postinstall, } = entry.options;
+    if ((postinstall === undefined) || (!('run' in postinstall)))
+      continue;
+    /**
+     Absolute bin behind the step's `sourceBin`.
+     */
+    const target = findToolBin({
+      entry,
+      name: postinstall.run.sourceBin,
+      paths,
+      env,
+      extraDirs,
+    },);
+    if (target === null)
+      continue;
+    // oxlint-disable-next-line no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time
+    const result = await run({
+      command: target,
+      args: postinstall.run.args,
+      env: commandEnv,
+      cwd: paths.worktreeRoot,
+    },);
+    if (result.code !== 0) {
+      failed[entry.id] = `postinstall command failed with exit code ${String(result.code,)}: `
+        + `${target} ${postinstall.run.args.join(' ',)}\n${result.stdout}${result.stderr}`;
+      continue;
+    }
+    succeeded.push(entry.id,);
+  }
+  return {
+    succeeded,
+    failed,
+  };
 }
 
 //endregion Postinstall

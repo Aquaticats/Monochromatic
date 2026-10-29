@@ -13,6 +13,8 @@ import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import {
   TOOL_ROUTES,
   type PostinstallLink,
+  type PostinstallRun,
+  type PostinstallStep,
   type ToolEnv,
   type ToolOptions,
   type ToolPlanEntry,
@@ -359,6 +361,79 @@ export function parseEnv(
 //region Options
 
 /**
+ The postinstall command step.
+
+ @param value - raw `options.postinstall.run`
+
+ @param fail - plan error reporter
+
+ @returns typed command step
+
+ @throws Error (through `fail`) when the shape is not `{ sourceBin, args }` with a non-empty `sourceBin` and a list of non-empty `args`
+
+ @example
+ ```ts
+ parsePostinstallRun({ value: { sourceBin: 'a', args: ['link', 'dir',], }, fail, });
+ ```
+ */
+function parsePostinstallRun(
+  {
+    value,
+    fail,
+  }: {
+    readonly value: unknown;
+    readonly fail: Fail;
+  },
+): PostinstallRun {
+  if ((!isRecord(value,)) || ((typeof value.sourceBin) !== 'string') || (value.sourceBin === '')
+    || (!isNameList(value.args,)))
+    return fail('options.postinstall.run must be { sourceBin, args: [names] }',);
+  return {
+    when: 'always',
+    run: {
+      sourceBin: value.sourceBin,
+      args: value.args,
+    },
+  };
+}
+
+/**
+ The postinstall step: a link or a command.
+
+ @param value - raw `options.postinstall`
+
+ @param fail - plan error reporter
+
+ @returns typed postinstall step
+
+ @throws Error (through `fail`) when the shape is neither `{ when: 'always', link: { sourceBin, linkName, linkDir? } }` nor `{ when: 'always', run: { sourceBin, args } }`
+
+ @example
+ ```ts
+ parsePostinstall({ value: { when: 'always', link: { sourceBin: 'a', linkName: 'b', }, }, fail, });
+ ```
+ */
+function parsePostinstall(
+  {
+    value,
+    fail,
+  }: {
+    readonly value: unknown;
+    readonly fail: Fail;
+  },
+): PostinstallStep {
+  if (isRecord(value,) && (value.when === 'always') && (value.run !== undefined) && (value.link === undefined))
+    return parsePostinstallRun({
+      value: value.run,
+      fail,
+    },);
+  return parsePostinstallLink({
+    value,
+    fail,
+  },);
+}
+
+/**
  The postinstall link step.
 
  @param value - raw `options.postinstall`
@@ -371,10 +446,10 @@ export function parseEnv(
 
  @example
  ```ts
- parsePostinstall({ value: { when: 'always', link: { sourceBin: 'a', linkName: 'b', }, }, fail, });
+ parsePostinstallLink({ value: { when: 'always', link: { sourceBin: 'a', linkName: 'b', }, }, fail, });
  ```
  */
-function parsePostinstall(
+function parsePostinstallLink(
   {
     value,
     fail,
@@ -392,7 +467,7 @@ function parsePostinstall(
     || ((typeof link.sourceBin) !== 'string')
     || ((typeof link.linkName) !== 'string')
     || ((link.linkDir !== undefined) && ((typeof link.linkDir) !== 'string')))
-    return fail('options.postinstall must be { when: always, link: { sourceBin, linkName, linkDir? } }',);
+    return fail('options.postinstall must be { when: always, link: { sourceBin, linkName, linkDir? } } or { when: always, run: { sourceBin, args } }',);
   return {
     when: 'always',
     link: {

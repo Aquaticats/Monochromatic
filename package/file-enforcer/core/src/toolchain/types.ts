@@ -84,6 +84,32 @@ export type PostinstallLink = {
 };
 
 /**
+ Command step run after the whole sync has installed every tool and rebuilt
+ the exposure directory (the `monochromatic-search-shadow` pattern: the tool
+ itself decides which links to create, from the tools it finds on `PATH`).
+ */
+export type PostinstallRun = {
+  readonly when: 'always';
+  readonly run: {
+    /**
+     Declared bin of this entry that the step starts.
+     */
+    readonly sourceBin: string;
+    /**
+     Arguments passed to the bin; run from the worktree root with the exposure
+     directory first on `PATH`.
+     */
+    readonly args: readonly string[];
+  };
+};
+
+/**
+ One postinstall step: a link made right after installs, or a command run
+ after the exposure directory is rebuilt.
+ */
+export type PostinstallStep = PostinstallLink | PostinstallRun;
+
+/**
  Provider options one tool carries
  (the decision doc's `provider options` column of `toolchain.lock.json`).
  */
@@ -124,9 +150,9 @@ export type ToolOptions = {
    */
   readonly androidPackages?: readonly string[];
   /**
-   Postinstall atomic link step.
+   Postinstall step: an atomic link or a command.
    */
-  readonly postinstall?: PostinstallLink;
+  readonly postinstall?: PostinstallStep;
   /**
    Extra exposure names that link the same target as another declared bin
    (`bunx` for `bun`, `pn`/`pnpx`/`pnx` for `pnpm`): alias name to primary
