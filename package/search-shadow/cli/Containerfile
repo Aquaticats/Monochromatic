@@ -6,8 +6,12 @@ FROM registry.fedoraproject.org/fedora:latest
 
 # --skip-unavailable keeps the build going when a package is missing from the repository; the test then reports which shadow
 # links were skipped for lack of a real tool. fdfind is the Debian name of fd and is expected to stay unlinked.
-RUN dnf install --assumeyes --setopt=install_weak_deps=False --skip-unavailable \
-      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux \
-    && dnf clean all
+# The openh264 repository holds none of these tools and answered at about 600 bytes per second, so it is disabled.
+# The cache mount keeps repository metadata and downloaded packages between builds (outside the image, so the image stays
+# small), which turns every build after the first from minutes into seconds on a slow mirror.
+RUN --mount=type=cache,target=/var/cache/libdnf5,sharing=locked \
+    dnf install --assumeyes --disablerepo=fedora-cisco-openh264 --setopt=keepcache=1 \
+      --setopt=install_weak_deps=False --skip-unavailable \
+      ripgrep grep findutils fd-find bfs tree coreutils ncdu tokei cloc the_silver_searcher ack ugrep util-linux
 
 COPY search-shadow /usr/local/bin/search-shadow

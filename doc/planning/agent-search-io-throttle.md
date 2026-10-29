@@ -235,17 +235,27 @@ The weight is applied and did no harm, but the check does not show that it prote
 
 ## The search-shadow package
 
-`package/search-shadow/cli`, crate `monochromatic-search-shadow` 0.1.0, binary `search-shadow` (Rust, `clap` builder API).
-Started as `rg`, `grep` or `find` it lowers its own disk priority with `ioprio_set` (best-effort level 7, the only `unsafe`
-code, in `src/priority.rs`) and replaces itself with the real tool, so it adds no process. Started as `search-shadow` it offers
-`link DIRECTORY`, which creates the three symlinks. For `rg` it refuses, with exit code 2 and an explanation:
+`package/search-shadow/cli`, crate `monochromatic-search-shadow` (0.1.1 published; the source on `main` is the many-tool
+version, not yet released), binary `search-shadow` (Rust, `clap` builder API).
+Started under one of seventeen names (`rg`; `grep`, `egrep`, `fgrep`, `ugrep`, `ug`, `ag`, `ack`; `find`, `fd`, `fdfind`,
+`bfs`, `tree`; `du`, `ncdu`, `tokei`, `cloc`) it lowers its own disk priority with `ioprio_set` (best-effort level 7, the only
+`unsafe` code, in `src/priority.rs`) and replaces itself with the real tool, so it adds no process. Started as `search-shadow`
+it offers `link DIRECTORY`, which links a name only when a real tool of that name is on `PATH`, and removes a link whose
+real tool is gone. With exit code 2 and an explanation it refuses:
 
-- the short `-r` flag anywhere (ripgrep's `--replace`; `rg -rl PATTERN` prints `l` in place of every match). No escape hatch.
-- `--hidden`, `--no-ignore*`, `-u` or `-.` with no search path and no piped input at a git repository root.
-  `SEARCH_SHADOW_ALLOW_WIDE=1` allows one deliberate full walk.
+- for `rg`, the short `-r` flag anywhere (ripgrep's `--replace`; `rg -rl PATTERN` prints `l` in place of every match). No escape hatch.
+- for `rg`, `--hidden`, `--no-ignore*`, `-u` or `-.` with no search path and no piped input at a git repository root.
+- for `grep`, `egrep` and `fgrep`, a recursive search with no path or a wide path (repository root, home, filesystem root).
+- for `find` and `bfs`, a wide start path without `-maxdepth` of 3 or less.
 
-Checks: `cargo clippy --deny warnings` clean; 29 nextest tests pass, including a process-level test in which the real tool
-reports `best-effort: prio 7` under the shadow and does not when run alone, and one that passes a non-UTF-8 argument through byte for byte.
+`SEARCH_SHADOW_ALLOW_WIDE=1` allows one deliberate wide walk (not the `rg -r` ban). The other tools are throttle-only, and `fd`
+is never refused. The owner decided on 2026-10-29 that breaking scripts which rely on plain GNU behavior is acceptable.
+
+Checks: `cargo clippy --deny warnings` clean; 45 nextest tests pass (unit tests for each policy plus process-level tests in
+which a fake real tool reports `best-effort: prio 7` under the shadow and does not when run alone, grep and find refusals,
+and a non-UTF-8 argument passed through byte for byte). `mise run //package/search-shadow/cli:test:container` builds a podman
+image holding the real tools this host lacks and checks each shadow against its real tool; see "Where each layer stands" for
+its state.
 
 Publication: the dry run passed (20 files, 38.5 KiB compressed). The first real attempt on 2026-10-29 was rejected with
 `403 Forbidden: authentication failed`, because the stored token in `~/.cargo/credentials.toml` no longer authorizes publishing
@@ -287,10 +297,15 @@ Checked through `mise exec` in the repository root:
 
 The agent's own Bash tool had inherited its `PATH` before the change, so only new shells (or `mise exec`) resolve the shadow.
 The toolchain's `cargo-binstall` provider runs `cargo binstall --no-confirm --version X CRATE` with no compile ban, so a
-source-only crate installs by compiling (about 9 seconds measured). A plan entry needs `postinstall.link` for `rg`
-(the schema allows one link per entry, so `grep` and `find` need an array), and the link directory must precede
-`.cache/toolchain-bin` in the generated PATH. Both live in `file-enforcer` code and `file-enforcer.config.ts`; another session
-had uncommitted edits in `package/file-enforcer/core/src/` when this was written.
+source-only crate installs by compiling (about 9 seconds measured). The plan entry currently carries one `postinstall.link`
+for `rg` (the schema allows one link per entry), and the link directory precedes `.cache/toolchain-bin` in the generated PATH.
+
+For the many-tool version the owner chose a `postinstall.run` kind that runs `search-shadow link .cache/search-shadow-bin`,
+so the crate owns the tool list. It needs a new schema variant, a runner in `exposure.ts` and a call in `sync.ts` after the
+exposure rebuild (`sync.ts` runs postinstall links before `rebuildExposure`, and `search-shadow link` needs the exposure
+directory on `PATH` to find the locked `rg`). On 2026-10-29 the working tree held another session's uncommitted edits to
+`exposure.ts`, `sync.ts`, `generate.ts` and about thirty other files under `package/file-enforcer/core/src/toolchain/`, so this
+change waits for them to land (concurrent work is not overwritten).
 
 ## Git wrapper UX review
 
@@ -333,10 +348,12 @@ Open:
 
 - Read caps on `/dev/nvme0n1`: the bandwidth cap throttles cold buffered reads, the IOPS cap was never verified at a value
   below the delivered rate, and nothing applies either to the agents yet. A cap on `/dev/dm-1` is silently dropped.
-- Shadows and policy for `grep` and `find`, which need several links per plan entry and, in Claude Code shells, do not help
-  because `grep` and `find` are shell functions running Claude's embedded `ugrep` and `bfs`.
+- The many-tool shadows: code and tests are on `main`; still to do are the container check against the real tools (running,
+  slowed by a Fedora mirror at about 78 KiB/s; the `Containerfile` now disables the unused openh264 repository and keeps the
+  dnf cache between builds), the 0.2.0 version bump and release, the `postinstall.run` schema change and the plan entry
+  (waiting for the other session's toolchain edits to land). In Claude Code shells `grep` and `find` are shell functions
+  running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
 - A Claude Code PreToolUse hook for the commands a `PATH` shadow cannot see (not built).
-- Revoking the `trusted-publishing` crates.io token and then `cargo logout`.
 - `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...`; whether that matches after
   the move to `Aquaticats` is untested.
 - Commit load: each commit runs a whole-worktree shadow `git commit`; the owner is improving the git wrapper separately.
