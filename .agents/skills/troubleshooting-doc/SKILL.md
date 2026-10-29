@@ -602,6 +602,11 @@ Run this whenever the user asks whether a draft is ready,
     Read its issue forms,
    template configuration,
    pull request template and contribution policy.
+    Apply the template to everything posted there,
+   not only new issues:
+   a pull request body, an edited issue body and a comment each follow the template or form that covers them,
+   with every section present in its order and only the items the template says to remove left out.
+    A body written before the template was read is rewritten, not defended.
     Note what is required,
    which fields only the poster can answer
    (a runtime version the reproduction never recorded is one),
