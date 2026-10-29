@@ -198,6 +198,35 @@ fn read_destination(
 }
 
 /// What:
+///  The arguments of a push that names its destination, when the plain `git push` of this branch cannot.
+/// Why:
+///   Under `push.default=simple` Git refuses to push a branch whose upstream has another name (a linked worktree
+///  branch created from `origin/main` is the usual case) before it contacts the remote, so no reconcile can start.
+///  The destination `read_destination` resolves is exactly where the person tracked the branch, so the push names it.
+///  A branch whose destination has its own name needs no such push, and nothing is returned for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function namedDestinationPush({ branchRef }): Promise<string[] | undefined>; // ['push', remote, `${branchRef}:${mergeRef}`]
+/// ```
+pub fn named_destination_push(
+    git: &PushGit,
+    branch_ref: &str,
+) -> Result<Option<Vec<String>>, SingleFlightError> {
+    let Some(destination) = read_destination(git, branch_ref)? else {
+        return Ok(None);
+    };
+    if destination.merge_ref == branch_ref {
+        return Ok(None);
+    }
+    return Ok(Some(vec![
+        String::from("push"),
+        destination.remote,
+        format!("{branch_ref}:{}", destination.merge_ref),
+    ]));
+}
+
+/// What:
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
 ///   `FETCH_HEAD` is shared by every fetch in the repository, so another process could replace it between the fetch

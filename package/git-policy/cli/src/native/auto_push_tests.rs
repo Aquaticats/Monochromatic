@@ -522,3 +522,84 @@ fn a_first_push_rejected_for_a_moved_remote_branch_publishes_no_merge() {
     );
     remove(&root);
 }
+
+/// The name of the branch a fixture repository has checked out.
+fn current_branch(repo: &Path) -> String {
+    return String::from_utf8_lossy(&git(repo, &["branch", "--show-current"]).stdout)
+        .trim()
+        .to_owned();
+}
+
+/// A repository whose `feature` branch tracks the remote's default branch under another name, as a linked worktree
+/// created from `origin/<default>` does; the default branch is returned with the repository and the remote.
+fn repo_with_differently_named_upstream(root: &Path) -> (PathBuf, PathBuf, String) {
+    let repo = root.join("repo");
+    let remote = root.join("remote.git");
+    bare_remote_with_hook(&remote);
+    init_repo_with_commit(&repo);
+    git(
+        &repo,
+        &["remote", "add", "origin", remote.to_str().expect("utf-8")],
+    );
+    let default = current_branch(&repo);
+    git(&repo, &["push", "--quiet", "--set-upstream", "origin", "HEAD"]);
+    git(
+        &repo,
+        &["checkout", "--quiet", "-b", "feature", "--track", &format!("origin/{default}")],
+    );
+    return (repo, remote, default);
+}
+
+/// A branch tracking a differently named remote branch is pushed to the tracked branch, not refused by Git.
+#[test]
+fn a_branch_with_a_differently_named_upstream_is_pushed_to_the_tracked_branch() {
+    let root = fixture("ap-renamed-upstream");
+    let (repo, remote, default) = repo_with_differently_named_upstream(&root);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    let (attempted, err) = run(&repo, &landed);
+    let result = attempted.expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    assert_eq!(
+        String::from_utf8_lossy(&git(&remote, &["rev-parse", &default]).stdout).trim(),
+        landed
+    );
+    let remote_refs = String::from_utf8_lossy(
+        &git(&remote, &["for-each-ref", "--format=%(refname)"]).stdout,
+    )
+    .into_owned();
+    assert!(
+        !remote_refs.contains("refs/heads/feature"),
+        "no branch named after the local one is created on the remote: {remote_refs}"
+    );
+    remove(&root);
+}
+
+/// A differently named upstream whose remote branch moved is reconciled with a merge on the tracked branch.
+#[test]
+fn a_differently_named_upstream_that_moved_is_reconciled_on_the_tracked_branch() {
+    let root = fixture("ap-renamed-upstream-moved");
+    let (repo, remote, default) = repo_with_differently_named_upstream(&root);
+    let other = root.join("other");
+    git(&root, &["clone", "--quiet", remote.to_str().expect("utf-8"), "other"]);
+    git(&other, &["config", "user.email", "cli-git@example.invalid"]);
+    git(&other, &["config", "user.name", "cli-git auto-push test"]);
+    std::fs::write(other.join("remote.txt"), "remote side\n").expect("remote file");
+    git(&other, &["add", "remote.txt"]);
+    git(&other, &["commit", "--quiet", "-m", "remote side", "remote.txt"]);
+    git(&other, &["push", "--quiet", "origin", "HEAD"]);
+    let remote_tip = head_oid(&other);
+    commit_change(&repo, "feature work\n");
+    let landed = head_oid(&repo);
+    let (attempted, err) = run(&repo, &landed);
+    let result = attempted.expect("auto-push");
+    assert_eq!(result.outcome, AutoPushOutcome::Pushed, "{err}");
+    let published = String::from_utf8_lossy(&git(&remote, &["rev-parse", &default]).stdout)
+        .trim()
+        .to_owned();
+    // `merge-base --is-ancestor` exits non-zero for an unreachable commit, and `git` requires success.
+    for ancestor in [&landed, &remote_tip] {
+        git(&remote, &["merge-base", "--is-ancestor", ancestor, &published]);
+    }
+    remove(&root);
+}
