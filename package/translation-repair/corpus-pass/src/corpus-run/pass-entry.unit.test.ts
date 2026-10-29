@@ -43,7 +43,14 @@ import {
   messageText,
 } from '@monochromatic-dev/translation-repair-provider';
 import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check';
-import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography';
+import {
+  contextRoot,
+  inEntryLogContext,
+} from '@monochromatic-dev/translation-repair-typography';
+import {
+  finishedEntryIds,
+  republishRunPages,
+} from '@monochromatic-dev/translation-repair-slice-cache';
 import { settleEntry, } from '../../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -719,6 +726,11 @@ type CoverageScript = 'lost' | 'absent' | 'full';
  ```
  */
 function renderingFor({ content, }: { readonly content: string; },): string {
+  // THE FOOTNOTE ENTRY'S SECTIONS keep their references, and the second carries the definitions of both.
+  if (content.includes('## 第一节',) && content.includes('[^1]',))
+    return `## Section one\n\n${FRESH}[^1]`;
+  if (content.includes('## 第二节',) && content.includes('[^2]',))
+    return `## Section two\n\n${BIRD_FRESH}[^2]\n\n[^1]: The cat note.\n\n[^2]: The bird note.`;
   if (content.includes('name: 猫猫',))
     return FRONT_MATTER_FRESH;
   if (content.includes('## 第一节',))
@@ -977,6 +989,7 @@ function entryClient(
   {
     served,
     failOnSchema,
+    failWhen,
     failWith = new Error('scripted provider failure',),
     activity,
     coverageScript = 'lost',
@@ -989,6 +1002,12 @@ function entryClient(
   }: {
     readonly served: string[];
     readonly failOnSchema?: string;
+
+    /**
+     Failure for the one call this picks out by its schema and everything it sent, where `failOnSchema` fails every
+     call of a schema.
+     */
+    readonly failWhen?: (call: { readonly schema: string; readonly content: string; },) => boolean;
     readonly failWith?: Error;
     readonly activity?: PassConcurrency;
     readonly coverageScript?: CoverageScript;
@@ -1037,6 +1056,11 @@ function entryClient(
           return messageText({ message, },);
         },)
         .join('\n',);
+      if (failWhen?.({
+        schema,
+        content,
+      },) === true)
+        throw failWith;
       sheets?.push({
         schema,
         content,
@@ -1130,9 +1154,11 @@ function entryClient(
  */
 async function throwawayDirs(): Promise<
   {
+    readonly runsDir: string;
     readonly artifactsDir: string;
     readonly publishDir: string;
     readonly declinedDir: string;
+    readonly interimDir: string;
     readonly sliceCacheDir: string;
   } & AsyncDisposable
   > {
@@ -1140,9 +1166,11 @@ async function throwawayDirs(): Promise<
   return await scratchDirWith({
     prefix: 'pass-entry-',
     setup: async function seeded({ path: root, },): Promise<{
+      readonly runsDir: string;
       readonly artifactsDir: string;
       readonly publishDir: string;
       readonly declinedDir: string;
+      readonly interimDir: string;
       readonly sliceCacheDir: string;
     }> {
       /**
@@ -1176,11 +1204,18 @@ async function throwawayDirs(): Promise<
       );
 
       return {
+        runsDir: root,
         artifactsDir,
         publishDir,
         declinedDir: join(
           root,
           'declined',
+        ),
+        // Read only here: `settleEntry` is handed no such directory and finds it beside the artifacts, as the pass's
+        // layout names it.
+        interimDir: join(
+          root,
+          'interim',
         ),
         sliceCacheDir: join(
           root,
@@ -1447,6 +1482,191 @@ async function capturedLines(
   // Read after the body so a case cannot assert on a capture still installed;
   // disposal at return puts the real logger back.
   return capture.lines;
+}
+
+/**
+ Entry whose two sections each cite a footnote, the definitions standing at the end of the page.
+ */
+const FOOTNOTE_ENTRY = {
+  id: 'CatEntryFootnotes',
+  sourceText: '## 第一节\n\n猫猫在窗台上打盹。[^1]\n\n## 第二节\n\n窗台上有一只鸟。[^2]\n\n'
+    + '[^1]: 猫猫的注释。\n\n[^2]: 鸟的注释。\n',
+  targetText: '## Section one\n\nThe cat is doing the sleeping on the windowsill throughout the quiet afternoon.[^1]\n\n'
+    + '## Section two\n\nOn the windowsill there is being a bird that is watching the garden for a long time.[^2]\n\n'
+    + '[^1]: The cat note.\n\n[^2]: The bird note.\n',
+};
+
+/**
+ Entry whose archive holds no English at all, so no slice has text to stand on.
+ */
+const NO_ARCHIVE_ENTRY = {
+  id: 'CatEntryNoArchive',
+  sourceText: SOURCE_TEXT,
+  targetText: '',
+};
+
+/**
+ The note a run of untranslated slices carries before the original, as the page spells it.
+ */
+const UNTRANSLATED_NOTE = '> This passage has not been translated yet. The original text follows.';
+
+/**
+ Overlap that settles the slices of a document one after another, so which slice a scripted failure meets is fixed.
+ */
+const ONE_AT_A_TIME = {
+  overlap: 1,
+  source: 'fallback',
+} as const;
+
+/**
+ Fails the consolidation of the second section alone, so the first section settles and the second does not.
+ */
+function consolidationOfSectionTwo({ schema, content, }: { readonly schema: string; readonly content: string; },): boolean {
+  return (schema === 'translation_report') && content.includes(CONSOLIDATION_MARK,) && content.includes('## 第二节',);
+}
+
+/**
+ What the interim record of a stopped entry says.
+ */
+type InterimRecordRead = {
+  readonly id: string;
+  readonly reason: string;
+  readonly settledSlices: number;
+  readonly archiveSlices: number;
+  readonly sourceSlices: number;
+  readonly pageSha256: string;
+};
+
+/**
+ Reads the interim record a stopped entry left.
+
+ @param dirs - directories of the case
+ @param entryId - entry stopped
+
+ @returns The record
+
+ @example
+ ```ts
+ const record = await interimRecordOf({ dirs, entryId: ENTRY.id, },);
+ ```
+ */
+async function interimRecordOf(
+  {
+    dirs,
+    entryId,
+  }: {
+    readonly dirs: Awaited<ReturnType<typeof throwawayDirs>>;
+    readonly entryId: string;
+  },
+): Promise<InterimRecordRead> {
+  return JSON.parse(await readFile(
+    join(
+      dirs.interimDir,
+      `${entryId}.json`,
+    ),
+    'utf8',
+  ),) as InterimRecordRead;
+}
+
+/**
+ Settles one entry on the case's directories, one slice at a time, and keeps what it printed.
+
+ @param dirs - directories of the case
+ @param entry - entry to settle
+ @param client - scripted client
+
+ @returns The outcome and the lines printed
+
+ @example
+ ```ts
+ const { outcome, lines, } = await settledCaptured({ dirs, entry: ENTRY, client: entryClient({ served: [], },), },);
+ ```
+ */
+async function settledCaptured(
+  {
+    dirs,
+    entry,
+    client,
+  }: {
+    readonly dirs: Awaited<ReturnType<typeof throwawayDirs>>;
+    readonly entry: { readonly id: string; readonly sourceText: string; readonly targetText: string; };
+    readonly client: RunClient;
+  },
+): Promise<{
+  readonly outcome: Awaited<ReturnType<typeof settleEntry>>;
+  readonly lines: readonly string[];
+}> {
+  /**
+   Entry outcome captured inside logger scope.
+   */
+  const result: { outcome?: Awaited<ReturnType<typeof settleEntry>>; } = {};
+  const lines = await capturedLines({
+    body: async () => {
+      result.outcome = await settleEntry({
+        attempt: ATTEMPT,
+        wallClock: fixedWallClock,
+        client,
+        entry,
+        artifactsDir: dirs.artifactsDir,
+        publishDir: dirs.publishDir,
+        declinedDir: dirs.declinedDir,
+        sliceCacheDir: dirs.sliceCacheDir,
+        tip: 'a'.repeat(40,),
+        pipelineDigest: DIGEST,
+        pin: ENTRY_PIN,
+        outsideReads: NO_OUTSIDE_READS,
+        pictureSources: NO_PICTURE_SOURCES,
+        hardCapMs: HANG_STOP_MS,
+        baseSignal: new AbortController().signal,
+        overlap: ONE_AT_A_TIME,
+        stageSettings: SCRIPTED_STAGE_SETTINGS,
+      },);
+    },
+    method: 'log',
+  },);
+  return {
+    outcome: nonNullishOrThrow(result.outcome,),
+    lines,
+  };
+}
+
+/**
+ The refusal every case here scripts for the moment the providers go dry.
+ */
+function dryRefusal(): EveryProviderDryError {
+  return new EveryProviderDryError({ measured: 'meters read every provider dry', },);
+}
+
+/**
+ Footnote references and definitions a page carries, by label.
+
+ @param page - page text
+
+ @returns Labels referenced and labels defined
+
+ @example
+ ```ts
+ const { referenced, defined, } = footnoteLabelsOf({ page, },);
+ ```
+ */
+function footnoteLabelsOf(
+  { page, }: { readonly page: string; },
+): {
+  readonly referenced: readonly string[];
+  readonly defined: readonly string[];
+} {
+  return {
+    referenced: [...page.matchAll(/\[\^([^\]\s]+)\](?!:)/gu,),]
+      .map(function labelOf(match,): string {
+        return nonNullishOrThrow(match[1],);
+      },)
+      .toSorted(),
+    defined: [...page.matchAll(/^\[\^([^\]\s]+)\]:/gmu,),]
+      .map(function labelOf(match,): string {
+        return nonNullishOrThrow(match[1],);
+      },)
+      .toSorted(),
+  };
 }
 
 await describe({
@@ -3601,7 +3821,7 @@ await describe({
       return it({
         name: `FILES THE EVERY-PROVIDER-DRY REFUSAL a ${schema} call meets as INCOMPLETE stopped work through the real `
           + 'settle chain, with no pass guard and no abort in play, so the scheduler queues no second attempt and '
-          + 'no artifact or page is written',
+          + 'no artifact is written and the archive ships as the interim page',
         fn: async () => {
           await using dirs = await throwawayDirs();
           /**
@@ -3643,7 +3863,13 @@ await describe({
           expect(served,).toContain(schema,);
           expect(result.outcome,).toEqual({ kind: 'stopped', },);
           expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
-          expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
+          expect(await readFile(
+            fixedPagePath({
+              publishDir: dirs.publishDir,
+              entryId: ENTRY.id,
+            },),
+            'utf8',
+          ),).toBe(TARGET_TEXT,);
           expect(lines.some(function incomplete(line,): boolean {
             return line.startsWith(`TALLY CatEntry1 status=INCOMPLETE ${STAMP} `,);
           },),).toBe(true,);
@@ -3703,6 +3929,316 @@ await describe({
         }
         expect(told.dry,).toEqual([dry,],);
         expect(told.other,).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE ARCHIVE AS AN INTERIM PAGE when every provider goes dry in the lanes, before any slice is settled, '
+        + 'and records the page as interim beside the artifacts, with the stop still INCOMPLETE and no artifact',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        const { outcome, lines, } = await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({
+            served: [],
+            failOnSchema: 'critic_report',
+            failWith: dryRefusal(),
+          },),
+        },);
+        const page = await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: ENTRY.id,
+          },),
+          'utf8',
+        );
+        const record = await interimRecordOf({
+          dirs,
+          entryId: ENTRY.id,
+        },);
+        expect({
+          outcome,
+          artifacts: await artifactNames({ artifactsDir: dirs.artifactsDir, },),
+          page,
+          record: {
+            id: record.id,
+            reason: record.reason,
+            settledSlices: record.settledSlices,
+            archiveSlices: record.archiveSlices,
+            sourceSlices: record.sourceSlices,
+          },
+          interimLine: lines.filter(function isInterim(line,): boolean {
+            return line.startsWith(`INTERIM ${ENTRY.id} `,);
+          },),
+          incomplete: lines.some(function isTally(line,): boolean {
+            return line.startsWith(`TALLY ${ENTRY.id} status=INCOMPLETE ${STAMP} `,);
+          },),
+        },).toEqual({
+          outcome: { kind: 'stopped', },
+          artifacts: [],
+          page: TARGET_TEXT,
+          record: {
+            id: ENTRY.id,
+            reason: 'dry-stop',
+            settledSlices: 0,
+            archiveSlices: 2,
+            sourceSlices: 0,
+          },
+          interimLine: [`INTERIM ${ENTRY.id} ${STAMP} settled=0 archive=2 source=0 reason=dry-stop`,],
+          incomplete: true,
+        },);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE SETTLED SLICES AND THE ARCHIVE FOR THE REST when every provider goes dry in the consolidation of '
+        + 'the last slice, so the first section carries its consolidated wording and the second keeps the archive',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        const { outcome, } = await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({
+            served: [],
+            failWhen: consolidationOfSectionTwo,
+            failWith: dryRefusal(),
+          },),
+        },);
+        const page = await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: ENTRY.id,
+          },),
+          'utf8',
+        );
+        const record = await interimRecordOf({
+          dirs,
+          entryId: ENTRY.id,
+        },);
+        expect(outcome,).toEqual({ kind: 'stopped', },);
+        expect(page,).toContain(FRESH,);
+        expect(page,).not.toContain(BIRD_FRESH,);
+        expect(page,).toContain(SEALED_PARAGRAPH,);
+        expect([record.settledSlices, record.archiveSlices, record.sourceSlices,],).toEqual([1, 1, 0,],);
+        expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE ORIGINAL UNDER ITS NOTE for a slice the archive lacks and nothing settled, beside the archive '
+        + 'text of the slice it has, when every provider goes dry in the lanes',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        await settledCaptured({
+          dirs,
+          entry: GAP_ENTRY,
+          client: entryClient({
+            served: [],
+            coverageScript: 'none',
+            failWhen: function inLanes({ schema, },): boolean {
+              return (schema === 'critic_report') || (schema === 'translation_report');
+            },
+            failWith: dryRefusal(),
+          },),
+        },);
+        const page = await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: GAP_ENTRY.id,
+          },),
+          'utf8',
+        );
+        const record = await interimRecordOf({
+          dirs,
+          entryId: GAP_ENTRY.id,
+        },);
+        expect(page,).toContain('The cat sleeps.',);
+        expect(page,).toContain(`${UNTRANSLATED_NOTE}\n\n猫猫最后的[记录](https://example.test/cat-record)说她去世时 26 岁。`,);
+        expect([record.settledSlices, record.archiveSlices, record.sourceSlices,],).toEqual([0, 1, 1,],);
+      },
+    },),
+
+    it({
+      name: 'SHIPS THE ORIGINAL OF EVERY SLICE UNDER ONE NOTE PER RUN when the archive holds no English at all and every '
+        + 'provider goes dry before any slice is consolidated',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        await settledCaptured({
+          dirs,
+          entry: NO_ARCHIVE_ENTRY,
+          client: entryClient({
+            served: [],
+            coverageScript: 'none',
+            // THE LANES FINISH here (a refusal inside the translate lane of an anchor costs that slice, not the entry),
+            // and the first consolidation is the first call that ends the entry, so no slice has a record.
+            failWhen: function inFirstConsolidation({ schema, content, },): boolean {
+              return (schema === 'translation_report') && content.includes(CONSOLIDATION_MARK,);
+            },
+            failWith: dryRefusal(),
+          },),
+        },);
+        const page = await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: NO_ARCHIVE_ENTRY.id,
+          },),
+          'utf8',
+        );
+        const record = await interimRecordOf({
+          dirs,
+          entryId: NO_ARCHIVE_ENTRY.id,
+        },);
+        expect(page.split(UNTRANSLATED_NOTE,).length - 1,).toBe(1,);
+        expect(page,).toContain('猫猫在窗台上打盹。',);
+        expect(page,).toContain('窗台上有一只鸟。',);
+        expect([record.settledSlices, record.archiveSlices,],).toEqual([0, 0,],);
+        expect(record.sourceSlices,).toBeGreaterThan(0,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS EVERY FOOTNOTE REFERENCE BESIDE ITS DEFINITION in an interim page that joins a settled slice and an '
+        + 'unsettled one',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        await settledCaptured({
+          dirs,
+          entry: FOOTNOTE_ENTRY,
+          client: entryClient({
+            served: [],
+            failWhen: consolidationOfSectionTwo,
+            failWith: dryRefusal(),
+          },),
+        },);
+        const page = await readFile(
+          fixedPagePath({
+            publishDir: dirs.publishDir,
+            entryId: FOOTNOTE_ENTRY.id,
+          },),
+          'utf8',
+        );
+        const { referenced, defined, } = footnoteLabelsOf({ page, },);
+        expect(page,).toContain(`${FRESH}[^1]`,);
+        expect(referenced,).toEqual(['1', '2',],);
+        expect(defined,).toEqual(referenced,);
+      },
+    },),
+
+    it({
+      name: 'LEAVES THE ENTRY OPEN after an interim ship: the pass still counts it unfinished, and the republish at the '
+        + 'start of a later pass neither rewrites its page nor writes it an artifact',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({
+            served: [],
+            failWhen: consolidationOfSectionTwo,
+            failWith: dryRefusal(),
+          },),
+        },);
+        const pagePath = fixedPagePath({
+          publishDir: dirs.publishDir,
+          entryId: ENTRY.id,
+        },);
+        const interimPage = await readFile(
+          pagePath,
+          'utf8',
+        );
+        await republishRunPages({
+          runsDir: dirs.runsDir,
+          artifactsDir: dirs.artifactsDir,
+          declinedDir: dirs.declinedDir,
+          publishDir: dirs.publishDir,
+          cloneDir: ENTRY_PIN.cloneDir,
+          l: contextRoot({ tag: 'republish', },),
+        },);
+        expect({
+          finished: [...await finishedEntryIds({
+            artifactsDir: dirs.artifactsDir,
+            declinedDir: dirs.declinedDir,
+          },),],
+          artifacts: await artifactNames({ artifactsDir: dirs.artifactsDir, },),
+          pageUnchanged: await readFile(
+            pagePath,
+            'utf8',
+          ) === interimPage,
+          pageIsInterim: interimPage.length > 0,
+          recordKept: await artifactNames({ artifactsDir: dirs.interimDir, },),
+        },).toEqual({
+          finished: [],
+          artifacts: [],
+          pageUnchanged: true,
+          pageIsInterim: true,
+          recordKept: [`${ENTRY.id}.json`,],
+        },);
+      },
+    },),
+
+    it({
+      name: 'REPLACES THE INTERIM PAGE WITH THE SETTLED ONE and retires its record when a later run completes the entry '
+        + 'on the same caches',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({
+            served: [],
+            failWhen: consolidationOfSectionTwo,
+            failWith: dryRefusal(),
+          },),
+        },);
+        /**
+         Where the entry's page stands.
+         */
+        const pagePath = fixedPagePath({
+          publishDir: dirs.publishDir,
+          entryId: ENTRY.id,
+        },);
+        // THE PAGE THE STOP LEFT is the interim one: the first section settled, the second still the archive's.
+        const interimPage = await readFile(
+          pagePath,
+          'utf8',
+        );
+        expect(interimPage,).toContain(FRESH,);
+        expect(interimPage,).not.toContain(BIRD_FRESH,);
+        const { outcome, } = await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({ served: [], },),
+        },);
+        const page = await readFile(
+          pagePath,
+          'utf8',
+        );
+        expect(outcome,).toEqual({ kind: 'settled', },);
+        expect(await artifactNames({ artifactsDir: dirs.artifactsDir, },),).toEqual([`${ENTRY.id}.json`,],);
+        expect(page,).toContain(FRESH,);
+        expect(page,).toContain(BIRD_FRESH,);
+        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([],);
+      },
+    },),
+
+    it({
+      name: 'SHIPS NO INTERIM PAGE when every provider goes dry before the slicing exists, since there is no slice to '
+        + 'ship and the archive stands as it is',
+      fn: async () => {
+        await using dirs = await throwawayDirs();
+        const { outcome, } = await settledCaptured({
+          dirs,
+          entry: ENTRY,
+          client: entryClient({
+            served: [],
+            failOnSchema: 'block_pairing',
+            failWith: dryRefusal(),
+          },),
+        },);
+        expect(outcome,).toEqual({ kind: 'stopped', },);
+        expect(await artifactNames({ artifactsDir: dirs.publishDir, },),).toEqual([],);
+        expect(await artifactNames({ artifactsDir: dirs.interimDir, },),).toEqual([],);
       },
     },),
   ],
