@@ -467,17 +467,15 @@ export function goesOnAsLazyText(
     return false;
   // A block of raw HTML is no paragraph, so a line without the marks of the container ends the container for a reader of
   // the source: it is no lazy line of the definition's paragraph, and the lines after it are no part of the footnote.
-  if (state.opensRawHtml) {
-    if (!carriesContainerIndentation({
-      source,
-      at: source.lastIndexOf(
-        '\n',
-        range.start - 1,
-      ) + 1,
-      pattern: state.prefix,
-    },))
-      return false;
-  }
+  if (state.opensRawHtml && (!carriesContainerIndentation({
+    source,
+    at: source.lastIndexOf(
+      '\n',
+      range.start - 1,
+    ) + 1,
+    pattern: state.prefix,
+  },)))
+    return false;
   return !opensFootnote({
     source,
     node,

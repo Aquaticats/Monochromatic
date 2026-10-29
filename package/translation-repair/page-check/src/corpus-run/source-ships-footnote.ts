@@ -102,6 +102,16 @@ export function hasFootnoteLabel(
 }
 
 /**
+ Types of the blocks of the plain reading that hold the lines of a paragraph: a paragraph, a heading made of its lines and an
+ underline, and a table, whose header may be the label line of a footnote definition.
+ */
+export const PARAGRAPH_LIKE: ReadonlySet<string> = new Set([
+  'paragraph',
+  'heading',
+  'table',
+],);
+
+/**
  How many columns a block under a footnote definition is indented by.
  */
 export const FOOTNOTE_INDENT = 4;
@@ -221,7 +231,7 @@ export function opensFootnote(
       source,
       node,
     },);
-  if ((node.type !== 'paragraph') && (node.type !== 'heading') && (node.type !== 'table'))
+  if (!PARAGRAPH_LIKE.has(node.type,))
     return false;
   if (!source.startsWith(
     '[^',

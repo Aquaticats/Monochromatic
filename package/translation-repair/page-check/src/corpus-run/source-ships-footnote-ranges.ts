@@ -293,6 +293,11 @@ export type FootnoteReadings = {
   readonly rawHtmlRegions: readonly RawHtmlRegion[];
 
   /**
+   Where a footnote definition starts, for the reader of the source and for the page.
+   */
+  readonly footnoteStarts: readonly number[];
+
+  /**
    Where the page starts a footnote definition and a reader of the source does not: a line indented four columns or more
    after a paragraph or a link reference definition, less the lines that follow a row of a table.
    */
@@ -349,6 +354,12 @@ export function footnoteReadingsOf(
         ...sourceFootnoteRanges,
         ...pageFootnoteRanges,
       ],
+    },),
+    footnoteStarts: [
+      ...sourceFootnoteRanges,
+      ...pageFootnoteRanges,
+    ].map(function startOf({ start, },): number {
+      return start;
     },),
     pageOnlyStarts: startsOffTables({
       source: readable,

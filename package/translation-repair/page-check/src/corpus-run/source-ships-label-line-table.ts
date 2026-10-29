@@ -27,17 +27,18 @@ const ROW_MARKS = '-:';
 
  @param node - node of the parse
 
- @returns Offset, none for a node without a position
+ @returns Offset, -1 for a node without a position
 
  @example
  ```ts
  const offset = startOffsetOf({ node, },);
  ```
  */
-function startOffsetOf({ node, }: { readonly node: TreeNode; },): number | undefined {
+function startOffsetOf({ node, }: { readonly node: TreeNode; },): number {
   return node.position
     ?.start
-    .offset;
+    .offset
+    ?? (-1);
 }
 
 /**
@@ -108,10 +109,52 @@ export function withoutLabelLineTable({ body, }: { readonly body: string; },): s
   if (!('children' in first))
     return body;
   /**
+   The first block, none when the body holds nothing.
+   */
+  const [block,] = first.children;
+  if (block === undefined)
+    return body;
+  /**
    Whether the block is a table that starts on the first line.
    */
-  const startsHere = (first.children[0]?.type === 'table') && (startOffsetOf({ node: first.children[0], },) === 0);
+  const startsHere = (block.type === 'table') && (startOffsetOf({ node: block, },) === 0);
   return startsHere ? withLetteredSecondLine({ body, },) : body;
+}
+
+/**
+ Whether the body of a footnote definition starts on the line that holds its label.
+
+ @param source - whole text
+
+ @param start - index of the first character of the body
+
+ @returns Whether the label's closing bracket and colon stand before the index on its line
+
+ @example
+ ```ts
+ const onLine = bodyStartsOnLabelLine({ source: '[^1]: a', start: 6, },); // true
+ ```
+ */
+export function bodyStartsOnLabelLine(
+  {
+    source,
+    start,
+  }: {
+    readonly source: string;
+    readonly start: number;
+  },
+): boolean {
+  /**
+   What stands before the body on its line.
+   */
+  const head = source.slice(
+    source.lastIndexOf(
+      '\n',
+      start - 1,
+    ) + 1,
+    start,
+  );
+  return head.includes(']:',);
 }
 
 //endregion Source ships label line table

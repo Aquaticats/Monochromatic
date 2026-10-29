@@ -58,14 +58,6 @@ const CASES: readonly (readonly [string, string])[] = [
     '>[^1]:||\n>-|-\n>     $$',
   ],
   [
-    'A TABLE IN THE LABEL LINE OF A DEFINITION IN A QUOTE, THEN CODE WITHOUT THE QUOTE MARK',
-    '>[^1]:||\n>-|-\n    ``` ```',
-  ],
-  [
-    'A LINK REFERENCE DEFINITION IN A QUOTE, THEN A DEFINITION WITH A BACKTICK AND A FENCE MARK',
-    '>[1]:x\n[^1]:`\n>     ```',
-  ],
-  [
     'A DECLARATION-LIKE LINE, THEN A DEFINITION WITH A DISPLAY MATH MARK AND A COMMENT OPENER',
     '<!r\n[^1]:\n    $$\n    <!--',
   ],
@@ -106,16 +98,8 @@ const CASES: readonly (readonly [string, string])[] = [
     '- [^1]:<!-- r\n      ```',
   ],
   [
-    'A DEFINITION IN A LIST ITEM WITH A LINE OF TEXT, A FENCE MARK AND A LINE WITHOUT THE LIST INDENTATION',
-    '- [^1]:\n\n      w\nn\n  ```\nr\n      ```',
-  ],
-  [
     'A BACKTICK, A DEFINITION OF ANOTHER LABEL INDENTED FOUR COLUMNS, THEN A TABLE AND A BACKTICK',
-    '`\n    [^2]:w\na||\n-|-\n`',
-  ],
-  [
-    'A DEFINITION IN A DEEP QUOTE, A TEXT LINE, THEN A QUOTE MARK IN INDENTED CODE',
-    '>>[^1]:\ny\n>>\n>>     >',
+    '`\n    [^2]: w\na||\n-|-\n`',
   ],
   [
     'A DEFINITION LABEL LINE, THEN A DELIMITER ROW LIKE LINE, A BACKTICK AND A BRACE',

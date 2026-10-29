@@ -11,10 +11,14 @@ import {
   footnoteBodyStart,
   footnoteStartInside,
   NO_FOOTNOTE_INSIDE,
+  PARAGRAPH_LIKE,
+  startLineOf,
 } from './source-ships-footnote.ts';
 import {
+  editsOnly,
   footnoteBodySpans,
   footnoteInParagraphSpans,
+  joinedSpans,
   type SpansReader,
 } from './source-ships-nested.ts';
 import { footnoteStartsInSpans, } from './source-ships-lines.ts';
@@ -27,6 +31,7 @@ import type {
   SourceSpans,
   TextRange,
 } from './source-ships-ranges.ts';
+import { separatingEdits, } from './source-ships-separation.ts';
 
 //region Source ships footnote spans
 // HOW A BLOCK THAT BELONGS TO A FOOTNOTE DEFINITION IS READ, which the spans reader asks of each block it walks: a
@@ -68,6 +73,53 @@ export type FootnoteRead = InAFootnote | NotInAFootnote;
  */
 const NOT_IN_A_FOOTNOTE: FootnoteRead = { kind: 'none', };
 
+/**
+ Whether the next block still to read is a table that starts on the line right after a node.
+
+ @param pending - nodes still to read, the next one on top
+
+ @param node - block read
+
+ @returns Whether the table follows with no blank line between
+
+ @example
+ ```ts
+ const follows = tableRightAfter({ pending, node, },);
+ ```
+ */
+function tableRightAfter(
+  {
+    pending,
+    node,
+  }: {
+    readonly pending: readonly Pending[];
+    readonly node: TreeNode;
+  },
+): boolean {
+  /**
+   The block that comes next in the text.
+   */
+  const next = pending.at(-1,);
+  if (next === undefined)
+    return false;
+  /**
+   The type of the block that comes next.
+   */
+  const { type, } = next.node;
+  if (type !== 'table')
+    return false;
+  /**
+   The line the node ends on, none when it carries no position.
+   */
+  const endLine = node.position
+    ?.end
+    .line
+    ?? 0;
+  return startLineOf({
+    node: next.node,
+    fallback: 0,
+  },) === (endLine + 1);
+}
 
 /**
  Reads a block as part of a footnote definition when it is one.
@@ -159,7 +211,7 @@ export function footnoteRead(
    Where a footnote definition starts inside the paragraph, or the heading made of its lines and a line of equals signs
    or hyphens, when one does on a line after its first, less the starts that join a span.
    */
-  const split = ((node.type === 'paragraph') || (node.type === 'heading') || (node.type === 'table'))
+  const split = PARAGRAPH_LIKE.has(node.type,)
     ? footnoteStartInside({
       footnotes: ranges.filter(function cuts({ start, },): boolean {
         return !joined.includes(start,);
@@ -172,12 +224,43 @@ export function footnoteRead(
      How many blocks are still to read, which falls when the footnote reaches blocks of the top.
      */
     const stillToRead = pending.length;
+    // A TABLE RIGHT AFTER THE PARAGRAPH, IN WHICH A FOOTNOTE STARTS ONLY THE PAGE READS, interrupts the paragraph for a
+    // reader of the source and is a lazy line of the footnote's paragraph on the page: the footnote is cut at the paragraph
+    // and the table is read on its own, with a blank line before it.
+    /**
+     Whether only the page reads the footnote.
+     */
+    const startsOnlyOnPage = pageOnlyStarts.includes(split,);
+    /**
+     Whether a table starts on the line right after the paragraph.
+     */
+    const tableFollows = tableRightAfter({
+      pending,
+      node,
+    },);
+    /**
+     Whether another footnote definition starts in the paragraph after this one, whose lines hold the table.
+     */
+    const hasLaterStart = ranges.some(function startsLater({ start, },): boolean {
+      return (start > split) && (start < range.end);
+    },);
+    /**
+     Whether the footnote is cut at the end of the paragraph.
+     */
+    const cutAtTable = startsOnlyOnPage && (tableFollows && (!hasLaterStart));
     /**
      How far the footnote reaches.
      */
     const reach = takeFootnote({
       pending,
-      footnotes: ranges,
+      footnotes: cutAtTable
+        ? ranges.map(function clipped(footnoteRange,): BlockRange {
+          return (footnoteRange.start === split) ? {
+            start: footnoteRange.start,
+            end: range.end,
+          } : footnoteRange;
+        },)
+        : ranges,
       source,
       node,
       range: {
@@ -191,29 +274,48 @@ export function footnoteRead(
      top, since the blocks after the paragraph in the container are read on their own.
      */
     const end = (isRootChild || (pending.length < stillToRead)) ? reach.end : range.end;
+    /**
+     The spans of the paragraph and of the footnote that starts in it.
+     */
+    const spans = isRootChild
+      ? footnoteInParagraphSpans({
+        source,
+        readable,
+        readSpans,
+        footnotes,
+        pageFootnotes,
+        range,
+        split,
+        end,
+      },)
+      : footnoteInContainerSpans({
+        source,
+        readable,
+        readSpans,
+        footnotes: pageFootnotes,
+        range,
+        split,
+        end,
+      },);
     return {
       kind: 'read',
       state: reach.state,
-      spans: isRootChild
-        ? footnoteInParagraphSpans({
-          source,
-          readable,
-          readSpans,
-          footnotes,
-          pageFootnotes,
-          range,
-          split,
-          end,
+      spans: cutAtTable
+        ? joinedSpans({
+          first: spans,
+          second: editsOnly({
+            edits: separatingEdits({
+              source,
+              readable,
+              range: {
+                start: range.end,
+                end: readable.length,
+              },
+              pageGoesOn: true,
+            },),
+          },),
         },)
-        : footnoteInContainerSpans({
-          source,
-          readable,
-          readSpans,
-          footnotes: pageFootnotes,
-          range,
-          split,
-          end,
-        },),
+        : spans,
     };
   }
   /**

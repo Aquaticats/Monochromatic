@@ -4,8 +4,15 @@ import {
   type TreeNode,
 } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { footnoteBodyStart, } from './source-ships-footnote.ts';
+import {
+  charactersAt,
+  endOfEdit,
+} from './source-ships-nested-text.ts';
 import { withoutContainerAndIndentation, } from './source-ships-footnote-container.ts';
-import { withoutLabelLineTable, } from './source-ships-label-line-table.ts';
+import {
+  bodyStartsOnLabelLine,
+  withoutLabelLineTable,
+} from './source-ships-label-line-table.ts';
 import { lazyUnderlinesBlanked, } from './source-ships-lazy.ts';
 import {
   isIndentedFourOrMore,
@@ -37,96 +44,6 @@ export type SpansReader = (
     readonly root: TreeNode;
   },
 ) => SourceSpans;
-
-/**
- The characters of a text at the indices.
-
- @param text - text
-
- @param indices - indices of the characters, in order
-
- @returns Characters joined
-
- @example
- ```ts
- const body = charactersAt({ text: 'abc', indices: [0, 2,], },);
- ```
- */
-function charactersAt(
-  {
-    text,
-    indices,
-  }: {
-    readonly text: string;
-    readonly indices: readonly number[];
-  },
-): string {
-  return indices
-    .map(function characterAt(at,): string {
-      return text.charAt(at,);
-    },)
-    .join('',);
-}
-
-/**
- Where an edit of a nested text ends in the whole text.
-
- An edit that takes a line ending away (a line joined to the one before it) takes with it what the nested text gave up at
- the start of the next line, the marks of a block quote and the indentation, which would otherwise stand in the middle of
- the joined line as characters of the text.
-
- @param source - whole text
-
- @param indices - indices of the whole text that make up the nested text, in order
-
- @param edit - edit at the offsets of the nested text
-
- @returns Offset in the whole text after the last character the edit replaces
-
- @example
- ```ts
- const end = endOfEdit({ source, indices: [4, 5, 8,], edit: { start: 1, end: 2, replacement: ' ', }, },);
- ```
- */
-function endOfEdit(
-  {
-    source,
-    indices,
-    edit,
-  }: {
-    readonly source: string;
-    readonly indices: readonly number[];
-    readonly edit: TextEdit;
-  },
-): number {
-  /**
-   Index of the last character the edit replaces.
-   */
-  const last = nonNullishOrThrow(indices[edit.end - 1],);
-  /**
-   Index of the first character of the nested text after it, absent at the end of the nested text.
-   */
-  const next = indices[edit.end];
-  /**
-   Whether the last character it replaces is a line ending.
-   */
-  const endsLine = source.charAt(last,) === '\n';
-  /**
-   What the edit writes in place of what it replaces.
-   */
-  const { replacement, } = edit;
-  /**
-   Whether it ends with a line ending of its own.
-   */
-  const writesBreak = replacement.endsWith('\n',);
-  /**
-   Whether the edit takes a line ending away and writes none in its place.
-   */
-  const takesBreak = endsLine && (!writesBreak);
-  if (takesBreak && (next !== undefined))
-    return next;
-  return last + 1;
-}
 
 /**
  Reads a block nested in another as a text of its own: the body of a footnote definition, or a block indented under one.
@@ -389,17 +306,6 @@ export function footnoteBodySpans(
     footnote.end,
   );
   /**
-   What stands on the body's first line before it: the container's marks, the label and the colon, when the body starts on
-   the label's line.
-   */
-  const lineHead = source.slice(
-    source.lastIndexOf(
-      '\n',
-      range.start - 1,
-    ) + 1,
-    range.start,
-  );
-  /**
    Spans of the footnote's own lines.
    */
   const body = nestedSpans({
@@ -421,7 +327,10 @@ export function footnoteBodySpans(
       prefix,
     },),
     asParagraph,
-    onLabelLine: lineHead.includes(']:',),
+    onLabelLine: bodyStartsOnLabelLine({
+      source,
+      start: range.start,
+    },),
   },);
   if ((footnote === undefined) || (footnote.end > range.end))
     return body;
