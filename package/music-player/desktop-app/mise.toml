@@ -438,10 +438,11 @@ arg "[args]" var=#true help="File or folder paths to enqueue"
 # session natively: no socket passthrough, no --userns=keep-id, and the .desktop
 # association + LauncherEntry taskbar progress work without the container's SASL
 # EXTERNAL uid juggling. A container-built binary links only against runtime libs
-# present on the host (verified with `ldd`). A binary runs on a host whose glibc is at least the container's. The container is
-# CachyOS, which ships the newest glibc: on 2026-10-29 its release binary needed GLIBC_2.44 (`sinh`, `cosh`) and did not
-# start on a Fedora 44 host with glibc 2.43 ("version `GLIBC_2.44' not found"), so on such a host the container
-# fallback of this task builds a binary that cannot run there.
+# present on the host (verified with `ldd`). The container is CachyOS, which ships the newest glibc: a plain `cargo build` there on
+# 2026-10-29 gave a binary that needed GLIBC_2.44 (`sinh`, `cosh`) and did not start on a Fedora 44 host with glibc 2.43
+# ("version `GLIBC_2.44' not found"). So the container fallback builds with cargo-zigbuild for x86_64-unknown-linux-gnu.2.39
+# (target/x86_64-unknown-linux-gnu/release/music-player), and the binary needs no glibc newer than 2.39. The run-quick and
+# run-debug tasks still build with plain cargo in the container.
 #
 # The host environment already provides WAYLAND_DISPLAY, XDG_RUNTIME_DIR, the
 # D-Bus session bus, PipeWire, and the XDG user dirs, so the empty-launch auto-load
@@ -460,7 +461,10 @@ run = """
 const { mkdirSync, copyFileSync } = await import('node:fs')
 const { join } = await import('node:path')
 const home = process.env.HOME ?? ''
-runCargo(['build', '--release'])
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39, so the binary starts on any host with glibc 2.39 or newer.
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--release', '--target', 'x86_64-unknown-linux-gnu.2.39']) } else { runCargo(['build', '--release']) }
+const releaseBinary = viaContainer ? 'target/x86_64-unknown-linux-gnu/release/music-player' : 'target/release/music-player'
 let bin
 if (process.platform !== 'linux') {
   bin = process.platform === 'win32' ? './target/release/music-player.exe' : './target/release/music-player'
@@ -470,10 +474,10 @@ if (process.platform !== 'linux') {
   copyFileSync('share/applications/monochromatic.music-player.desktop', join(appsDir, 'monochromatic.music-player.desktop'))
   const binDir = join(home, '.local/bin')
   mkdirSync(binDir, { recursive: true })
-  copyFileSync('target/release/music-player', join(binDir, 'music-player'))
+  copyFileSync(releaseBinary, join(binDir, 'music-player'))
   bin = join(binDir, 'music-player')
 } else {
-  bin = './target/release/music-player'
+  bin = './' + releaseBinary
 }
 const extras = parseUsageArgs(process.env.usage_args ?? '')
 execFileSync(bin, extras, { stdio: 'inherit' })
