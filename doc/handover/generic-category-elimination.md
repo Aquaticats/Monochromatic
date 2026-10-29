@@ -189,22 +189,44 @@ User decisions taken during execution
     Both now match `mise.no-env.toml`:
      pack `./package/$NPM_PACKAGE`,
      publish that one tarball with provenance.
-- `npm-release.yml` (changesets) fails in its `select-mode` step on every run,
-   including before the moves,
-   so it never reaches publishing;
-   `doc/decision/npm-publishing.md` and `doc/runbook/publish-npm-package-first-time.md` still describe it as the release path.
+- `npm-release.yml` (changesets) failed in `select-mode` on every run:
+   34 public `translation-repair-*` packages depend on ignored packages.
+  Fixed in `33b6a407a5` (one `@monochromatic-dev/translation-repair-*` glob in `.changeset/config.json`);
+   run 40864949257 passed `select-mode` and skipped version,
+    pack,
+    and publish (the local publish plan is empty).
+  `doc/decision/npm-publishing.md` now records `npm-publish.yml` as the release path the user directed,
+   and the npm runbook's repository owner is corrected to `Aquaticats`.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,
     `or-throw-core`).
-- `package/pnpm-override/shim-readable-stream/lib/*.js` are tracked but match the blanket `*.js` ignore,
-   which `doc/decision/gitignore-negations.md` already names;
-  explicit file pathspecs fail on them,
-   so stage that directory instead.
+- `package/pnpm-override/shim-readable-stream/lib/*.js` match the blanket `*.js` ignore,
+   which `doc/decision/gitignore-negations.md` already names.
+  The move commit `592d78b143` dropped them (deleted at the old path, never added at the new one);
+   restored byte-identical in `5cb4a779ff`.
+  Only `git commit --no-only -- <files>` from the repo root committed them:
+   a directory pathspec silently committed nothing and explicit paths failed in the guard's `git add --all`
+   (issue 1807);
+   running from a subdirectory was refused (issue 1808).
+- `file-enforcer/core`:
+   the TS7006 error is gone (fixed elsewhere; `lint:types` passes);
+   `55afe67909` makes the toolchain tests read the nightly and node versions from the plan,
+   so daily toolchain bumps no longer break them.
+- `dependency-catalog/cli-rust-update` `lint:types` passes now (fixed by its owning session).
+- The 80 stale `src/*.js` files naming old packages were a one-off `tsc` emit from 2026-10-03
+   (`noEmit` is set, so no build regenerates them; the earlier "regenerate on the next build" note was wrong).
+  Moved to `~/temp/agent/package-category-elimination/stale-js-backup/`;
+   `test:unit` passes for every affected package that has the task.
+- `~/.local/bin/spawn-claude` and `spawn-pi` now link to
+   `package/claude-code-plugin/source/src/cli/spawn-claude.ts` and `package/pi-plugin/spawn/dist/final/node/cli.mjs`;
+   both print their help.
+- In flight:
+   three subagents are fixing the `upstream-fork/{conf,p-map,p-memoize}.fuzz` parity failures
+   (upstream oracles float, for example `'p-memoize': '>=9.0.0'`);
+   check `git log -- package/upstream-fork` for their commits.
 - `56178d85ed` is mislabeled;
    corrective commit comment posted.
-- `~/.local/bin/spawn-pi` and `spawn-claude` were broken symlinks before this work
-   (old `packages/` layout and a plugin cache).
 
 ## Tooling
 
