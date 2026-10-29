@@ -149,7 +149,11 @@ Owner follow-ups the same day:
   The 22 are twins: one operator node yields two replacements in one family (`>` to `>=` and `<=`;
    forced `true` and `false`), one equivalent and one killed, so no line split can separate them.
   Removing them needs either a replacement filter on the directive in `mutation-test/cli`
-   or deleting guards (a design change); owner decision asked 2026-10-29.
+   or deleting guards (a design change).
+  Owner chose "Filter by replacement" (2026-10-29): the directive gains an optional exact replacement per family
+   (`equality:>=`), then p-map's directives narrow to it and one full run follows (target: ignored 61, all proven).
+  Precedent: cargo-mutants `exclude_re` matches the full mutant name, which includes the change
+   (`https://mutants.rs/filter_mutants.html`). In progress: subagent `a2a9f845fd4239c6f` resumed.
   Timeouts (12) are not suppressed: 8 runaway loops, 4 drop-path and spawn-loop conditionals.
 
 ## music-player `run`: zigbuild adopted for now
