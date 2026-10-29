@@ -243,3 +243,7 @@ Next action:
  the contract is a flagged choice;
 adoption waits for explicit acceptance and would reopen the vet
 for the chosen candidate.
+A Pants pilot (pantsbuild.org) runs as a fourth candidate after the user
+directed "Pilot and compare with Pants first";
+its measured comparison joins this ranking when the probe returns,
+and the contract question is asked again with all four candidates.
