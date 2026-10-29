@@ -344,11 +344,12 @@ fn a_commit_with_four_hooks_starts_four_hook_runners() {
     assert_eq!(starts_of(commands.as_slice(), "config"), 1, "{commands:#?}");
 }
 
-/// The budget of a commit with one configured hook: one runner, for the event that has the hook.
+/// The budget of a commit with one configured hook: the configuration defines a hook by name, so every commit event
+///  keeps its entry (three preparation events, one runner each) and `post-commit` runs once, four runners in all.
 #[test]
-fn a_commit_with_one_hook_starts_one_hook_runner() {
+fn a_commit_with_one_configured_hook_starts_a_runner_for_each_event() {
     let commands: Vec<String> = traced_commit("one", Shape::OneConfigHook);
-    assert_eq!(hook_runner_starts(commands.as_slice()), 1, "{commands:#?}");
+    assert_eq!(hook_runner_starts(commands.as_slice()), 4, "{commands:#?}");
 }
 
 /// The budget of a commit that has only traditional hooks: they are unsupported, so no runner starts for them.
@@ -357,4 +358,108 @@ fn a_commit_with_only_traditional_hooks_starts_no_hook_runner() {
     let commands: Vec<String> = traced_commit("traditional", Shape::AllTraditional);
     assert_eq!(hook_runner_starts(commands.as_slice()), 0, "{commands:#?}");
     assert_eq!(starts_of(commands.as_slice(), "config"), 1, "{commands:#?}");
+}
+
+/// The warning lines on standard error: each is one `configuration-warning` event with the traditional-hooks code.
+fn warning_lines(observed: &Observed) -> Vec<String> {
+    return stderr_of(observed)
+        .lines()
+        .filter(|line| { return line.contains("\"code\":\"traditional-hooks-unsupported\""); })
+        .map(String::from)
+        .collect();
+}
+
+/// A repository whose `core.hooksPath` names a directory that holds a hook, ready for a wrapped commit.
+fn repository_with_hooks_path(fixture: &Fixture, name: &str, log: &Path) -> PathBuf {
+    let repo: PathBuf = edited_repository(fixture, name);
+    install(repo.join("custom-hooks").as_path(), "pre-commit", log, 0);
+    git(fixture, repo.as_path(), &["config", "core.hooksPath", "custom-hooks"]);
+    return repo;
+}
+
+/// A configured `core.hooksPath` prints one non-blocking warning, the commit still lands, and the hook there is not run.
+#[test]
+fn a_configured_hooks_path_warns_once_and_does_not_block() {
+    let fixture: Fixture = fixture("hook-warning-set");
+    let log: PathBuf = fixture.root.join("traditional.log");
+    let repo: PathBuf = repository_with_hooks_path(&fixture, "repo", log.as_path());
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    let warnings: Vec<String> = warning_lines(&landed);
+    assert_eq!(warnings.len(), 1, "{}", stderr_of(&landed));
+    let line: &str = warnings[0].as_str();
+    assert!(line.contains("\"type\":\"configuration-warning\""), "{line}");
+    assert!(line.contains("\"path\":\"custom-hooks\""), "{line}");
+    assert!(line.contains("git cli-git doctor"), "{line}");
+    assert!(line.contains("unsupported") || line.contains("does not support"), "{line}");
+    assert!(!line.contains("core-finding"), "{line}");
+    assert_eq!(log_lines(log.as_path()), Vec::<String>::new(), "the traditional hook must not run");
+    assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "second");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// A commit with the setting given as a global `-c` option warns too, because the snapshot covers the command scope.
+#[test]
+fn a_hooks_path_given_with_a_global_option_warns() {
+    let fixture: Fixture = fixture("hook-warning-option");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let landed: Observed = run_commit(
+        &fixture,
+        repo.as_path(),
+        &["-c", "core.hooksPath=option-hooks", "commit", "--quiet", "--message=second", "--", "a.txt"],
+    );
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(warning_lines(&landed).len(), 1, "{}", stderr_of(&landed));
+    remove_settled(&fixture);
+}
+
+/// Without `core.hooksPath` the commit prints no warning.
+#[test]
+fn an_unset_hooks_path_prints_no_warning() {
+    let fixture: Fixture = fixture("hook-warning-unset");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--quiet", "--message=second", "--", "a.txt"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_eq!(warning_lines(&landed), Vec::<String>::new(), "{}", stderr_of(&landed));
+    assert!(!stderr_of(&landed).contains("configuration-warning"), "{}", stderr_of(&landed));
+    remove_settled(&fixture);
+}
+
+/// A commit that a policy blocks still carries the warning, and the warning does not change the exit status.
+#[test]
+fn a_blocked_commit_carries_the_warning_too() {
+    let fixture: Fixture = fixture("hook-warning-blocked");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    git(&fixture, repo.as_path(), &["config", "core.hooksPath", "custom-hooks"]);
+    git(&fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    let blocked: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=x"]);
+    assert_eq!(blocked.code, Some(1), "{}", stderr_of(&blocked));
+    assert!(stderr_of(&blocked).contains("commit-only/pathspec-required"), "{}", stderr_of(&blocked));
+    assert_eq!(warning_lines(&blocked).len(), 1, "{}", stderr_of(&blocked));
+    remove_settled(&fixture);
+}
+
+/// The warning starts no process: a commit with `core.hooksPath` set starts exactly the Git processes one without it
+///  starts, apart from nothing, and none of them is a hook runner or an extra configuration read.
+#[test]
+fn the_warning_starts_no_extra_process() {
+    let plain: Vec<String> = traced_commit("warning-baseline", Shape::NoHooks);
+    let fixture: Fixture = fixture("hook-warning-trace");
+    let log: PathBuf = fixture.root.join("traditional.log");
+    let repo: PathBuf = repository_with_hooks_path(&fixture, "wrapped", log.as_path());
+    let trace: PathBuf = fixture.root.join("trace2.txt");
+    let mut command = super::commit::wrapped_commit(
+        &fixture,
+        repo.as_path(),
+        &["commit", "--quiet", "--message=second", "--", "a.txt"],
+    );
+    command.env("GIT_TRACE2_PERF", trace.as_path());
+    let observed: Observed = observe(&mut command, b"");
+    assert_eq!(observed.code, Some(0), "{}", stderr_of(&observed));
+    let warned: Vec<String> = started_commands(trace.as_path());
+    remove_settled(&fixture);
+    assert_eq!(warned.len(), plain.len(), "warned: {warned:#?}\nplain: {plain:#?}");
+    assert_eq!(hook_runner_starts(warned.as_slice()), 0, "{warned:#?}");
+    assert_eq!(starts_of(warned.as_slice(), "config"), 1, "{warned:#?}");
 }
