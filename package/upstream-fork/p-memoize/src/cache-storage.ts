@@ -46,8 +46,10 @@ export type CacheWriteResult = Promise<unknown> | unknown;
  
  `.has(key)`, `.get(key)`, and `.set(key, value)` may run asynchronously by
  returning a promise, so database-backed caches work as well as `Map`.
- `delete(key)` is required and `clear()` is optional; `pMemoizeClear`
- reports a missing `clear` instead of calling it.
+ `delete(key)` and `clear()` are optional, as in upstream `p-memoize` 9.0.0
+ (the memoizer never calls `delete`; it is accepted so a cache that has one
+ still type-checks); `pMemoizeClear` reports a missing `clear` instead of
+ calling it.
  
  @typeParam KeyType - cache key type produced by the `cacheKey` function
  
@@ -90,9 +92,9 @@ export type CacheStorage<KeyType, ValueType> = {
     value: ValueType,
   ) => CacheWriteResult;
   /**
-   Removes the entry under a key.
+   Removes the entry under a key; never called by the memoizer.
    */
-  delete: (key: KeyType) => unknown;
+  delete?: (key: KeyType) => unknown;
   /**
    Drops every entry; absent on storages like `WeakMap` that cannot clear.
    */
@@ -144,10 +146,9 @@ export type ShouldCache<
 /**
  Reports whether a configured cache value enables caching.
  
- Upstream `p-memoize` gates cache access on truthiness (`if (cache && ...)`),
- so this guard keeps falsy untyped `cache` values disabling caching exactly
- like upstream while narrowing `cache: CacheStorage | false` for the type
- system.
+ Upstream `p-memoize` 9.0.0 gates cache access on `cache === false`, so only
+ the `false` sentinel disables caching; this guard narrows
+ `cache: CacheStorage | false` for the type system the same way.
  
  @typeParam KeyType - cache key type produced by the `cacheKey` function
  
@@ -167,7 +168,7 @@ export function isCacheEnabled<KeyType, ValueType>(
   // oxlint-disable-next-line no-restricted-syntax/no-optional-escape -- external-boundary mirror of upstream p-memoize's `Options.cache` union `CacheStorage | false`, whose truthiness this guard evaluates
   cache: CacheStorage<KeyType, ValueType> | false,
 ): cache is CacheStorage<KeyType, ValueType> {
-  return Boolean(cache);
+  return cache !== false;
 }
 
 //endregion Cache guard

@@ -163,7 +163,7 @@ await describe({
     },),
 
     it({
-      name: 'throws synchronously when the cacheKey function throws',
+      name: 'rejects instead of throwing synchronously when the cacheKey function throws',
       fn: async () => {
         /**
          Wrapped function that must never run for a broken cacheKey.
@@ -180,17 +180,86 @@ await describe({
           },
         });
 
+        /**
+         Promise the call handed back, obtained without throwing.
+         */
+        const pending = memoized({
+          args: ['a'],
+        },);
+
         let caught: unknown;
         try {
-          void memoized({
-            args: ['a'],
-          },);
+          await pending;
         }
         catch (error) {
           caught = error;
         }
         expect(caught,).toBeInstanceOf(Error,);
         expect((caught as Error).message,).toBe('key failure',);
+      },
+    },),
+
+    it({
+      name: 'gives the cacheKey function a copy so reordering it does not reorder the arguments',
+      fn: async () => {
+        /**
+         Arguments the wrapped function received.
+         */
+        const received: string[] = [];
+        /**
+         Wrapped function recording its arguments in order.
+         */
+        async function fixture(first: string, second: string,): Promise<string> {
+          received.push(first, second,);
+          return first;
+        }
+        const memoized = pMemoize({
+          fn: fixture,
+          options: {
+            cacheKey: function sortedKey(args: readonly string[],): string {
+              // oxlint-disable-next-line unicorn/no-array-sort -- in-place sorting of the received array is exactly what this test guards against
+              return (args as string[]).sort().join(',',);
+            },
+          },
+        });
+
+        await memoized({
+          args: [
+            'b',
+            'a',
+          ],
+        },);
+        expect(received,).toEqual(['b', 'a',],);
+      },
+    },),
+
+    it({
+      name: 'shares a key between a call with no arguments and an explicit undefined argument',
+      fn: async () => {
+        /**
+         Wrapped function counter.
+         */
+        const state = {
+          calls: 0,
+        };
+        /**
+         Wrapped function counting its runs.
+         */
+        async function fixture(_value?: undefined,): Promise<number> {
+          state.calls += 1;
+          return state.calls;
+        }
+        const memoized = pMemoize({
+          fn: fixture,
+        });
+
+        await memoized({
+          args: [],
+        },);
+        await memoized({
+          args: [undefined],
+        },);
+        expect(state.calls,).toBe(1,);
       },
     },),
   ],

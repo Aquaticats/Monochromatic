@@ -224,6 +224,31 @@ export async function promiseState(promise: PromiseLike<unknown>,): Promise<Prom
   return observation.state;
 }
 
+/**
+ Awaits a promise expected to reject and hands back its reason.
+
+ @param promise - Promise the test expects to reject.
+
+ @returns The rejection reason.
+
+ @throws Error when the promise fulfills instead.
+
+ @example
+ ```ts
+ const reason = await rejectionOf(Promise.reject(new Error('boom',),),);
+ ```
+ */
+export async function rejectionOf(promise: PromiseLike<unknown>,): Promise<unknown> {
+  try {
+    await promise;
+  }
+  catch (error) {
+    return error;
+  }
+
+  throw new Error('expected the promise to reject, but it fulfilled',);
+}
+
 //endregion Turns and promise state
 
 //region Spy cache
@@ -268,6 +293,10 @@ export type SpyCache<KeyType, ValueType> = {
    Storage to hand to a memoizer.
    */
   readonly cache: CacheStorage<KeyType, ValueType> & {
+    /**
+     Removes one entry; always present on the spy.
+     */
+    readonly delete: (key: KeyType) => unknown;
     /**
      Drops every entry; always present on the spy.
      */
