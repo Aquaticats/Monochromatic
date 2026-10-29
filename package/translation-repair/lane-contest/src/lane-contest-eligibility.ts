@@ -65,7 +65,7 @@ const CONTEST_CANDIDATES = [
 
  @param eligibility - deterministic readings of the three candidates
 
- @returns The ineligible candidates in contest order; empty when none is
+ @returns Ineligible candidates in contest order; empty when none is
 
  @example
  ```ts

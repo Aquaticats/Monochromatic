@@ -86,7 +86,7 @@ export function laneContestTenseGroups(
 
  @param subjectNames - names the translation declares for its subject
 
- @returns The same records, in order, each with its finding where one exists
+ @returns Same records, in order, each with its finding where one exists
 
  @throws {@link Error} when a slice that went to the roster has no comparison row, which the contest never produces
 
