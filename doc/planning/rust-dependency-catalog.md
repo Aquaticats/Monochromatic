@@ -906,13 +906,15 @@ Landed:
  the pinned-nightly build images (`8652ba7d7f`),
  and the contributor runbook `doc/runbook/rust-dependencies.md`.
 
-The first real dry run (systemd unit, throwaway worktree) failed in its first crate:
- outside a mise shell nothing sets `RUSTUP_TOOLCHAIN`,
- so rustup ran its default stable cargo,
- which rejects `-Zunstable-options`.
-Commit `8620661b05` makes the update run cargo under `RUSTUP_TOOLCHAIN` when set,
- else the nightly `toolchain.lock.json` pins;
- the failure restored every lockfile, as designed.
+The first real dry runs (systemd units, throwaway worktree) failed in their first crate
+ with "the `-Z` flag is only accepted on the nightly channel":
+ the host's systemd user manager exports `RUSTUP_TOOLCHAIN=1.98.1`
+ (`systemctl --user show-environment`; rustup's own default is nightly,
+ and neither `~/.config/environment.d`, the shell profiles, nor the global mise config set it,
+ so its origin is still unknown).
+Commit `8620661b05` first let an inherited `RUSTUP_TOOLCHAIN` win, which kept the stale stable pin;
+ the follow-up makes the `toolchain.lock.json` nightly pin win and logs a differing inherited value.
+Both failures restored every lockfile, as designed.
 
 Queued, waiting for another session's uncommitted package-rename batch,
  which holds edits to the files these steps touch
