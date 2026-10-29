@@ -453,6 +453,11 @@ overrides:
   # @libsql/isomorphic-ws, crossws). Patch-level bump is
   # range-compatible with every consumer's ^8.x constraint.
   'ws': '>=8.20.1'
+  # Patch GHSA-mrhx-c7xc-m3w5 / CVE-2023-54404: zod <4.6.6 can exhaust memory
+  # while validating oversized constrained collections. Transitive consumers
+  # (@anthropic-ai/sdk, openai, @earendil-works/pi-ai) resolved zod 4.4.3;
+  # every consumer accepts `^4` or `^3.25 || ^4`, so the floor stays in range.
+  'zod': '>=4.6.6'
 
 packageExtensions:
   # mitata calls `import('@mitata/counters')` at runtime to add hardware
