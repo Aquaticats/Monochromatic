@@ -238,6 +238,14 @@ export async function checkTrust(
    */
   const groups = [...groupByName(versions,),];
   log.info(`checking the trust policy for ${String(versions.length,)} versions of ${String(groups.length,)} crates`,);
+  await registry.prefetch(
+    new Set(groups.map(function toName([name,]: readonly [
+      string,
+      readonly string[],
+    ],): string {
+      return name;
+    },),),
+  );
   /**
    Problems found so far.
    */

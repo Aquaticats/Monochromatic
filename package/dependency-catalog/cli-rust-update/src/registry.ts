@@ -2,17 +2,20 @@
  crates.io data for the release-age and trust checks.
 
  Publish times come from the sparse index (`pubtime`), which crates.io serves
- without a rate limit. Version histories for the trust policy come from
- `https://crates.io/api/v1/crates/<name>/versions`, which returns every
- version in one response and allows at most one request per second with an
- identifying user agent; they are cached per crate under
- `.cache/rust-catalog-update/crates-io/` because published versions never change.
+ without a rate limit. Version histories for the trust policy are cached per
+ crate under `.cache/rust-catalog-update/crates-io/` because published
+ versions never change. A cold cache is filled from the crates.io database
+ dump (see `./dump.ts`); crates the dump cannot rate, and versions newer than
+ the dump, come from `https://crates.io/api/v1/crates/<name>/versions`, which
+ returns every version in one response and allows at most one request per
+ second with an identifying user agent.
  See `doc/planning/rust-dependency-catalog.md`.
 
  @module
  */
 
 import {
+  access,
   mkdir,
   readFile,
   writeFile,
@@ -22,15 +25,16 @@ import { join, } from 'node:path';
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { fillHistoriesFromDump, } from './dump.ts';
+import {
+  type FetchGunzipped,
+  type FetchText,
+  RegistryError,
+} from './http.ts';
 import { l, } from './logger.ts';
 import type { VersionRecord, } from './policy.ts';
 
 //region Constants
-
-/**
- User agent crates.io asks clients to send; names the repository, not a person.
- */
-export const USER_AGENT = 'Monochromatic rust-catalog-update (https://github.com/Aquaticat/Monochromatic)';
 
 /**
  Sparse index root.
@@ -43,9 +47,44 @@ const SPARSE_INDEX_URL = 'https://index.crates.io';
 const API_URL = 'https://crates.io/api/v1';
 
 /**
- crates.io's documented minimum spacing between API requests.
+ Spacing between crates.io API requests. The data-access policy allows "a
+ maximum of 1 request per second"; requests exactly 1000 ms apart got HTTP 429
+ after 657 requests (2026-10-29), so the client stays a margin under the limit.
  */
-export const API_MIN_INTERVAL_MS = 1_000;
+export const API_MIN_INTERVAL_MS = 1_100;
+
+/**
+ Attempts per API request when crates.io answers HTTP 429.
+ */
+const RATE_LIMIT_ATTEMPTS = 5;
+
+/**
+ Wait before retrying a 429 that names no `Retry-After`; it doubles per attempt.
+ */
+const RATE_LIMIT_BACKOFF_MS = 30_000;
+
+/**
+ HTTP status of a rate-limited request.
+ */
+const TOO_MANY_REQUESTS = 429;
+
+/**
+ Milliseconds per second, for `Retry-After`.
+ */
+const MS_PER_SECOND = 1_000;
+
+/**
+ crates.io database dump: every public table, rebuilt daily, served without a rate limit.
+ */
+export const DATABASE_DUMP_URL = 'https://static.crates.io/db-dump.tar.gz';
+
+/**
+ Fewest uncached crates for which reading the dump beats the API. The API
+ costs {@link API_MIN_INTERVAL_MS} per crate; the dump read took 22 s for all
+ locked crates (2026-10-29) plus a 2.1 GB download, so below about 100 crates
+ the API is as fast and moves far fewer bytes.
+ */
+export const DUMP_BREAKEVEN_CRATES = 100;
 
 /**
  Repo-relative cache directory for version histories.
@@ -71,129 +110,6 @@ const THREE_CHARACTER_NAME = 3;
 const PREFIX_SEGMENT = 2;
 
 //endregion Constants
-
-//region Errors
-
-/**
- Thrown when crates.io or the sparse index cannot answer.
-
- @example
- ```ts
- throw new RegistryError({ url: 'https://index.crates.io/an/yh/anyhow', status: 503, });
- ```
- */
-export class RegistryError extends Error {
-  /**
-   Requested URL.
-   */
-  readonly url: string;
-
-  /**
-   HTTP status, or 0 when the request never got a response.
-   */
-  readonly status: number;
-
-  /**
-   Builds the error.
-
-   @param url - requested URL
-
-   @param status - HTTP status, 0 without a response
-
-   @param cause - underlying failure
-   */
-  constructor({
-    url,
-    status,
-    cause,
-  }: {
-    readonly url: string;
-    readonly status: number;
-    readonly cause?: unknown
-  },) {
-    super(
-      status === 0
-        ? `Could not reach ${url}; check the network, then rerun.`
-        : `${url} answered HTTP ${String(status,)}; rerun later, or check https://status.crates.io.`,
-      { cause, },
-    );
-    this.name = 'RegistryError';
-    this.url = url;
-    this.status = status;
-  }
-}
-
-//endregion Errors
-
-//region Fetch
-
-/**
- Fetches a URL's body as text.
-
- @example
- ```ts
- const fetchText: FetchText = async (url) => 'body';
- ```
- */
-export type FetchText = (url: string,) => Promise<string>;
-
-/**
- Sends one GET with {@link USER_AGENT}.
-
- @param url - URL to fetch
-
- @returns response of any status
-
- @throws RegistryError with status 0 when no response arrives
-
- @example
- ```ts
- await fetchOrThrow('https://index.crates.io/it/oa/itoa');
- ```
- */
-async function fetchOrThrow(url: string,): Promise<Response> {
-  try {
-    return await fetch(
-      url,
-      { headers: { 'user-agent': USER_AGENT, }, },
-    );
-  } catch (error) {
-    throw new RegistryError({
-      url,
-      status: 0,
-      cause: error,
-    },);
-  }
-}
-
-/**
- Default {@link FetchText} over the global `fetch`, sending {@link USER_AGENT}.
-
- @param url - URL to fetch
-
- @returns response body
-
- @throws RegistryError when the request fails or the status is not 2xx
-
- @example
- ```ts
- await fetchTextWithUserAgent('https://index.crates.io/it/oa/itoa');
- ```
- */
-export async function fetchTextWithUserAgent(url: string,): Promise<string> {
-  /**
-   Response; a request that gets none becomes a RegistryError.
-   */
-  const response = await fetchOrThrow(url,);
-  if (!response.ok)
-    throw new RegistryError({
-      url,
-      status: response.status,
-    },);
-  return await response.text();
-}
-
-//endregion Fetch
 
 //region Parse
 
@@ -475,6 +391,10 @@ export type Registry = {
    Account ids of a crate's listed individual owners, fetched fresh because ownership changes.
    */
   readonly owners: (name: string,) => Promise<ReadonlySet<string>>;
+  /**
+   Fills the history cache from the database dump when many of these crates have no cache file yet.
+   */
+  readonly prefetch: (names: ReadonlySet<string>,) => Promise<void>;
 };
 
 /**
@@ -547,24 +467,36 @@ async function readCachedHistory(path: string,): Promise<readonly VersionRecord[
 
  @param fetchText - body fetcher
 
+ @param fetchDump - decompressed stream of the database dump
+
  @param minIntervalMs - spacing between crates.io API requests
+
+ @param rateLimitBackoffMs - first wait after a 429 without `Retry-After`
+
+ @param dumpBreakevenCrates - fewest uncached crates that make the dump worth reading
 
  @returns registry lookups
 
  @example
  ```ts
- const registry = createRegistry({ root: process.cwd(), fetchText: fetchTextWithUserAgent, });
+ const registry = createRegistry({ root: process.cwd(), fetchText: fetchTextWithUserAgent, fetchDump: fetchGunzippedWithUserAgent, });
  ```
  */
 export function createRegistry(
   {
     root,
     fetchText,
+    fetchDump,
     minIntervalMs = API_MIN_INTERVAL_MS,
+    rateLimitBackoffMs = RATE_LIMIT_BACKOFF_MS,
+    dumpBreakevenCrates = DUMP_BREAKEVEN_CRATES,
   }: {
     readonly root: string;
     readonly fetchText: FetchText;
-    readonly minIntervalMs?: number
+    readonly fetchDump: FetchGunzipped;
+    readonly minIntervalMs?: number;
+    readonly rateLimitBackoffMs?: number;
+    readonly dumpBreakevenCrates?: number;
   },
 ): Registry {
   /**
@@ -586,13 +518,14 @@ export function createRegistry(
     HISTORY_CACHE_DIR,
   );
   /**
-   Fetches a crates.io API URL no sooner than `minIntervalMs` after the previous one.
+   Fetches a crates.io API URL no sooner than `minIntervalMs` after the previous one,
+   retrying an HTTP 429 after its `Retry-After` (or a doubling backoff).
 
    @param url - API URL
 
    @returns response body
 
-   @throws RegistryError when the request fails
+   @throws RegistryError when the request fails, or still answers 429 after every attempt
 
    @example
    ```ts
@@ -600,17 +533,84 @@ export function createRegistry(
    ```
    */
   async function spacedApiGet(url: string,): Promise<string> {
-    /**
-     Time left before the next request is allowed.
-     */
-    const delay = (throttle.lastRequestAt + minIntervalMs) - Date.now();
-    if (delay > 0)
-      await wait(delay,);
-    throttle.lastRequestAt = Date.now();
-    log.info(`fetching ${url}`,);
-    return await fetchText(url,);
+    for (let attempt = 1; ; attempt += 1) {
+      /**
+       Time left before the next request is allowed.
+       */
+      const delay = (throttle.lastRequestAt + minIntervalMs) - Date.now();
+      if (delay > 0)
+        // oxlint-disable-next-line no-await-in-loop -- requests are spaced one at a time by design.
+        await wait(delay,);
+      throttle.lastRequestAt = Date.now();
+      log.info(`fetching ${url}`,);
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- one request at a time keeps under the rate limit.
+        return await fetchText(url,);
+      } catch (error) {
+        if ((!(error instanceof RegistryError)) || (error.status !== TOO_MANY_REQUESTS)
+          || (attempt >= RATE_LIMIT_ATTEMPTS))
+          throw error;
+        /**
+         Wait the server asked for, else the doubling backoff.
+         */
+        const pause = error.retryAfterSeconds > 0 ? error.retryAfterSeconds * MS_PER_SECOND : rateLimitBackoffMs * (2 ** (attempt - 1));
+        log.warn(`${url} answered HTTP 429 (attempt ${String(attempt,)} of ${String(RATE_LIMIT_ATTEMPTS,)}); retrying in ${String(pause,)} ms`,);
+        // oxlint-disable-next-line no-await-in-loop -- the retry must wait for the server's window.
+        await wait(pause,);
+      }
+    }
+  }
+
+  /**
+   Whether a crate already has a cache file.
+
+   @param name - crate name
+
+   @returns whether its history file exists
+
+   @example
+   ```ts
+   await isCached('anyhow');
+   ```
+   */
+  async function isCached(name: string,): Promise<boolean> {
+    try {
+      await access(join(
+        cacheDir,
+        `${name}.json`,
+      ),);
+      return true;
+    } catch (error) {
+      if (Error.isError(error,) && ('code' in error)
+        && (error.code === 'ENOENT'))
+        return false;
+      throw error;
+    }
   }
   return {
+    prefetch: async function prefetch(names: ReadonlySet<string>,): Promise<void> {
+      /**
+       Crates without a cache file.
+       */
+      const uncached = new Set((await Promise.all([...names,].map(async function check(name: string,): Promise<readonly string[]> {
+        return (await isCached(name,)) ? [] : [name,];
+      },),)).flat(),);
+      if (uncached.size < dumpBreakevenCrates) {
+        log.info(`${String(uncached.size,)} crates lack a cached history (below ${String(dumpBreakevenCrates,)}); using the crates.io API for them`,);
+        return;
+      }
+      log.info(`${String(uncached.size,)} crates lack a cached history; reading ${DATABASE_DUMP_URL}`,);
+      /**
+       Fill outcome.
+       */
+      const result = await fillHistoriesFromDump({
+        tarChunks: await fetchDump(DATABASE_DUMP_URL,),
+        names: uncached,
+        cacheDir,
+      },);
+      log.info(`dump: ${String(result.found,)} found, ${String(result.written,)} written, ${String(result.kept,)} already cached, ${String(result.leftToApi
+        .length,)} left to the API (possible Trusted Publishing releases)`,);
+    },
     owners: async function owners(name: string,): Promise<ReadonlySet<string>> {
       return parseOwnerIds(await spacedApiGet(`${API_URL}/crates/${encodeURIComponent(name,)}/owners`,),);
     },

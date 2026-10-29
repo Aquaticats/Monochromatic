@@ -15,9 +15,10 @@
 
 import { createSpawnCargo, } from './cargo.ts';
 import {
-  createRegistry,
+  fetchGunzippedWithUserAgent,
   fetchTextWithUserAgent,
-} from './registry.ts';
+} from './http.ts';
+import { createRegistry, } from './registry.ts';
 import {
   type UpdateReport,
   updateRustLockfiles,
@@ -224,6 +225,7 @@ export async function main(args: readonly string[],): Promise<void> {
   const registry = createRegistry({
     root,
     fetchText: fetchTextWithUserAgent,
+    fetchDump: fetchGunzippedWithUserAgent,
   },);
   if (mode === 'verify') {
     /**
