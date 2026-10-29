@@ -271,6 +271,199 @@ Research reports:
   `cli/wg-quicker` to `wg/cli-quicker`,
   `cli/wg-quicker-exempt` to `wg/cli-quicker-exempt`.
 
+### `shim` and `stub` (settled 2026-10-29)
+
+All seven are owned by one mechanism (workspace dependency overrides),
+ so they form one family:
+`shim/<name>` to `pnpm-override/shim-<name>`
+ (`katex`,
+ `node-domexception`,
+ `proper-lockfile`,
+ `readable-stream`,
+ `ungap-structured-clone`)
+and `stub/<name>` to `pnpm-override/stub-<name>` (`silent`,
+ `throwing`).
+The `link:` overrides in `pnpm-workspace.yaml` and the names in `.pnpmfile.mjs`,
+ `.pnpmfile.policies.json`,
+ and `.changeset/config.json` move in the same commit.
+After the move,
+ tell the translation-repair session so it can annotate its katex ledger lines.
+
+Published names (`shim-node-domexception`,
+ `shim-ungap-structured-clone`,
+ `stub-silent`,
+ `stub-throwing`)
+rename with their paths.
+The user first said the task is only to move,
+ then confirmed (2026-10-29) that deprecating the old names on npm is fine.
+So:
+ after the user's manual first publish of each new name
+ (trusted publishing needs it,
+ `doc/decision/npm-publishing.md`),
+ the old names get `npm deprecate` pointing to the new ones;
+ the user runs the npm-authenticated steps.
+Nothing is paused.
+
+### `webapp-productivity`,
+ `desktop-daemon`,
+ `build-tool` (settled 2026-10-29)
+
+- `webapp-productivity/done` to `done/app`;
+  `webapp-productivity/done-postcss` to `done/variant-postcss`.
+- `webapp-productivity/doodle-widget` to `doodle-widget/app`.
+- `webapp-productivity/rss` to `rss/app`
+  (`module/async-iter` and `module/memoize` may join `rss` in the `module` round).
+- `webapp-productivity/syllable-break-demo` to `syllable-break-demo/app`.
+- `webapp-productivity/wc` to `wc/app`
+  (the user's Polypane state keeps the old live path;
+   nothing breaks).
+- `desktop-daemon/hall-monitor` to `hall-monitor/daemon`.
+- `build-tool/css` to `css/cli`
+  (`module/css-edit` and `test-fixture/css-*` may join `css` later).
+
+### `git` (settled 2026-10-29)
+
+`git/executable` to `git-executable/core`:
+ nothing in `git-policy` imports it,
+ and finding the real git binary is useful to any repo tool.
+
+### `module` and `rust-module` (settled 2026-10-29)
+
+Rules the user set in this round:
+
+- No limit on top-level categories;
+  generic family names (for example `diagnostics`) are rejected.
+- Place a library by its potential consumers,
+  not by today's sole consumer.
+- A category groups libraries only when one is built on another,
+  or when parts exist only for one product;
+  otherwise each library is its own product.
+  Being used by many (as `logger`,
+   `or-throw`,
+   `caught-value` are) does not group anything.
+- Leaves:
+   an all-library family uses the library name;
+   a category mixing roles uses role prefixes;
+   a single-library product uses `core`.
+
+Mapping (sidecars follow their subject,
+ for example `logger.fuzz` to `logger/core.fuzz`):
+
+- Own products with leaf `core`:
+   `logger`,
+   `or-throw`,
+   `throws`,
+   `array-at`,
+   `caught-value`,
+   `async-time`,
+   `async-iter`,
+   `const`,
+   `numeric-format`,
+   `pipe`,
+   `function-arity`,
+   `fs-path`,
+   `fs-id`,
+   `toml-edit`,
+   `zip-writer`,
+   `hyperscript`,
+   `dom`,
+   `observable`,
+   `i18n-compose`,
+   `env-local-json`.
+- `jsonc-edit/core-ts` (from `module/jsonc-edit`,
+   with `.bench`,
+   `.conformance`,
+   `.fuzz`)
+  and `jsonc-edit/core-rust` (from `rust-module/jsonc-edit`,
+   with `.fuzz`;
+   crate name unchanged).
+- `cache/kv-store` and `cache/memoize`.
+- `llm/llm-type`,
+   `llm/token-count`,
+   `llm/image-diff`.
+- `css/core-edit` (from `module/css-edit`,
+   with its three sidecars),
+  beside `css/cli`.
+- `test-harness/core` (from `module/test`),
+   `core-diagnostic`,
+   `core-expect`,
+   `core-sandbox`,
+   `core-matrix`.
+- `upstream-fork/<name>` with `<name>.fuzz` for the eight `*-fork` packages;
+  `module/deepmerge-ts.fuzz` to `upstream-fork/deepmerge-ts.fuzz`.
+- `module/wg-allowedips` moves with the `cli` batch (`wg/core-allowedips`).
+- `rust-module/forbidden-regex` moves with the `cli` batch (`forbidden-strings/core`).
+- `rust-module/rust-linter-core` and `rust-linter-pattern` are untracked build output:
+   list with `git clean --dry-run -d -X`,
+   then remove.
+- Pending the `dev-script` round:
+   `module/pnpm-workspace-catalog` and `module/rust-catalog`
+  (joint with `catalog-tighten`,
+   `deps-cube`,
+   `deps-update`;
+   `rust-catalog` is held by `monochromatic-fb`).
+
+Publishing consequences:
+
+- `module-logger` and `module-fs-path` are on npmjs:
+   they rename with their paths,
+   and the old names get `npm deprecate` after the new names' first publish,
+   as for the shims.
+- `mise.toml`,
+   `mise.no-env.toml`,
+   and `.github/workflows/npm-publish.yml` assume `module-$NPM_MODULE` and `//package/module/$NPM_MODULE`;
+  the workflow input becomes a package path.
+- `Aquaticat/labwc-config` imports `module-logger` and `module-test` in `deno.json`
+  (and `module-or-throw` per `doc/decision/private-npm-registry.md`,
+   possibly transitively);
+  the user will update it,
+   tracked by [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3).
+
+### `dev-script` (settled 2026-10-29)
+
+- `dependency-catalog` product:
+   `module/pnpm-workspace-catalog` to `dependency-catalog/core-pnpm`,
+   `module/rust-catalog` to `dependency-catalog/core-rust`,
+   `dev-script/catalog-tighten` (+ `.matrix`) to `dependency-catalog/cli-tighten` (+ `cli-tighten.matrix`),
+   `dev-script/deps-cube` to `dependency-catalog/cli-cube`,
+   `dev-script/rust-catalog-update` to `dependency-catalog/cli-rust-update`.
+  `catalog-tighten` is built on both catalog libraries.
+  Held by `monochromatic-fb` until released.
+- `dev-script/deps-update` to `deps-update/cli` (shares no code with the catalogs).
+- `monorepo-task` product (user-chosen name;
+   `task` alone is too generic):
+   `dev-script/task-cli` to `monorepo-task/cli`,
+   `dev-script/task-util` to `monorepo-task/core-exec`.
+  The 20 `package/*/*/task.ts` imports keep the same depth.
+- `dev-script/backup-path` to `backup-path/cli`.
+- `dev-script/claude-cpu-cap` to `claude-cpu-cap/daemon`;
+  right after the move commit,
+   re-point `~/.config/systemd/user/claude-cpu-watch.service`,
+   fix the in-repo unit,
+   run `systemctl --user daemon-reload`,
+   restart the unit,
+   and confirm it is active (user-approved).
+- `dev-script/file-enforcer` to `file-enforcer/core` (held by `monochromatic-fb`).
+- `dev-script/page-weight` to `page-weight/cli`.
+- `dev-script/vm-builder` to `vm-builder/cli` (built on `file-enforcer`,
+   not `mvm`).
+- `dev-script/watch-restart` to `watch-restart/cli`.
+
+### `desktop-app` (settled 2026-10-29)
+
+- `desktop-app/electron-infra` to `electron-infra/core`;
+  `desktop-app/electron-counter` to `electron-infra/app-counter` (a demo built on it).
+- `desktop-app/file-manager` to `file-manager/app`;
+  `-gtk-sticky`,
+   `-qt`,
+   `-electron` to `file-manager/variant-gtk-sticky`,
+   `variant-qt`,
+   `variant-electron`.
+- `desktop-app/ide` to `ide/app` and `desktop-app/terminal` to `terminal/app`,
+  after `monochromatic-ec` releases them.
+
+These batches run after the `cli` batch lands.
+
 The uncommitted toolchain refactor in main
  (`file-enforcer/src/toolchain`,
  `toolchain.lock.json`,
@@ -328,6 +521,40 @@ Its notes for crate moves:
 
 ## Next action
 
-Collect the per-package research,
-propose each category's mapping,
-and move the first unblocked category once the user settles it.
+Every category's mapping is settled.
+Execution queue,
+ in order:
+
+1.   `cli` batch:
+     staged in the main worktree index
+     (pathspec lists in `~/temp/agent/package-category-elimination/pathspec.txt` and `add-pathspec.txt`,
+      message in `cli-commit-msg.txt`);
+     commit once the guard skips blobs already in a parent tree,
+     then `mise run //:sync:files`,
+      `mise run //:prepare:pnpm:install`,
+      file-enforcer `--check`,
+      `cargo metadata --locked --offline` for moved crates,
+      `lint:types` for moved packages and direct dependents,
+      and a follow-up commit;
+     remove `package/cli/markdown-lint` after `git clean --dry-run -d -X`;
+     message `monochromatic-fb`.
+2.   Batch 2 (`~/temp/agent/package-category-elimination/batch2-moves.json`):
+      `shim`,
+      `stub`,
+      `webapp-productivity`,
+      `desktop-daemon`,
+      `build-tool`,
+      `git`,
+      unheld `desktop-app` and `dev-script`;
+     then the systemd re-point for `claude-cpu-cap`,
+      and tell translation-repair the katex shim moved.
+3.   `module` and `rust-module/jsonc-edit` batch,
+     in a window agreed with `monochromatic-fb` (it rewrites imports inside `file-enforcer`).
+4.   Held moves as peers release them:
+      `file-enforcer` and the `dependency-catalog` members (`monochromatic-fb`),
+      `ide`,
+      `terminal`,
+      `nested-wayland-session` (`monochromatic-ec`).
+5.   After each publishable rename:
+      the user's first publish of new npm names,
+      then `npm deprecate` of the old names.

@@ -18,6 +18,7 @@ import {
   FEEDBACK_PREFIX,
 } from './continuation-depth.ts';
 import { createStopRemindersHandler, } from './index.ts';
+import { questionLead, } from './reminder-lead.ts';
 import {
   LUNA_MODEL,
   LunaKeyMissingError,
@@ -269,6 +270,57 @@ async function records(logPath: string,): Promise<readonly Record<string, unknow
  */
 function verdictReply(situation: Situation, probability = 0.9,): Response {
   return new Response(gatewayBody({ situation, probability, },),);
+}
+
+/**
+ Gateway reply for an explicit distribution over the six labels.
+
+ @param scores - probability per label; the largest is the chosen label
+
+ @returns response the fake gateway returns
+
+ @example
+ ```ts
+ distributionReply({ ...none, waits_on_user: 0.54, leaves_open_work: 0.37 });
+ ```
+ */
+function distributionReply(scores: Readonly<Record<Situation, number>>,): Response {
+  /**
+   Label with the largest probability, the one the fake gateway reports as chosen.
+   */
+  const choice = SITUATIONS.reduce((best, label,) => ((scores[label] > scores[best]) ? label : best));
+  return Response.json({
+    model: LUNA_MODEL,
+    answers: [
+      {
+        type: 'choice',
+        name: 'situation',
+        choice,
+        confidence: 0.5,
+        probabilities: SITUATIONS.map((value,) => ({ value, probability: scores[value], }),),
+      },
+    ],
+    usage: { input_tokens: 1, output_tokens: 0, },
+  },);
+}
+
+/**
+ Transcript line for the feedback record Claude Code writes when this hook blocks on a trailing question.
+
+ @param sentence - the question sentence the reminder named
+
+ @returns one JSONL line
+
+ @example
+ ```ts
+ questionFeedback('Want me to commit?');
+ ```
+ */
+function questionFeedback(sentence: string,): string {
+  return JSON.stringify({
+    type: 'user',
+    message: { content: `${FEEDBACK_PREFIX}:\n${questionLead(sentence,)} Use the AskUserQuestion tool.`, },
+  },);
 }
 
 /**
@@ -759,14 +811,168 @@ await describe({
       ],
     },),
     describe({
+      name: 'split verdicts',
+      children: [
+        it({
+          name: 'blocks a verdict split between blocking labels that together reach 0.9, with the largest label\'s reason',
+          fn: async () => {
+            const h = await harness({
+              lines: OPEN,
+              reply: distributionReply({
+                announces_own_next_step: 0.04,
+                leaves_open_work: 0.37,
+                waits_on_background_work: 0.02,
+                waits_on_user: 0.54,
+                pauses_for_handoff: 0.02,
+                work_closed: 0.01,
+              },),
+            },);
+
+            const output = await h.run({ last_assistant_message: 'I haven\'t started on that.', },);
+
+            expect(output.decision,).toBe('block',);
+            expect(output.reason,).toContain('AskUserQuestion',);
+            const [record,] = await records(h.logPath,);
+            expect(record?.action,).toBe('block',);
+            expect(String(record?.detail,),).toContain('blocking labels together 0.95',);
+            expect(String(record?.detail,),).toContain('largest waits_on_user',);
+          },
+        },),
+        it({
+          name: 'uses the open-work reason when that label is the largest of the split',
+          fn: async () => {
+            const h = await harness({
+              lines: OPEN,
+              reply: distributionReply({
+                announces_own_next_step: 0.02,
+                leaves_open_work: 0.5,
+                waits_on_background_work: 0.03,
+                waits_on_user: 0.4,
+                pauses_for_handoff: 0.03,
+                work_closed: 0.02,
+              },),
+            },);
+
+            const output = await h.run();
+
+            expect(output.decision,).toBe('block',);
+            expect(output.reason,).toContain('Do them now',);
+          },
+        },),
+        it({
+          name: 'releases a split verdict whose blocking labels reach only 0.85',
+          fn: async () => {
+            const h = await harness({
+              lines: OPEN,
+              reply: distributionReply({
+                announces_own_next_step: 0.05,
+                leaves_open_work: 0.3,
+                waits_on_background_work: 0.05,
+                waits_on_user: 0.5,
+                pauses_for_handoff: 0.05,
+                work_closed: 0.05,
+              },),
+            },);
+
+            const output = await h.run();
+
+            expect(output.decision,).toBeUndefined();
+          },
+        },),
+        it({
+          name: 'counts the combined level in whole percent, so three labels at 0.3 reach 0.9',
+          fn: async () => {
+            const h = await harness({
+              lines: OPEN,
+              reply: distributionReply({
+                announces_own_next_step: 0.3,
+                leaves_open_work: 0.3,
+                waits_on_background_work: 0.05,
+                waits_on_user: 0.3,
+                pauses_for_handoff: 0.03,
+                work_closed: 0.02,
+              },),
+            },);
+
+            expect((await h.run()).decision,).toBe('block',);
+          },
+        },),
+        it({
+          name: 'does not count a label that releases toward the combined level',
+          fn: async () => {
+            const h = await harness({
+              lines: OPEN,
+              reply: distributionReply({
+                announces_own_next_step: 0.02,
+                leaves_open_work: 0.2,
+                waits_on_background_work: 0.03,
+                waits_on_user: 0.2,
+                pauses_for_handoff: 0,
+                work_closed: 0.55,
+              },),
+            },);
+
+            expect((await h.run()).decision,).toBeUndefined();
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'wording checks inside a chain',
+      children: [
+        it({
+          name: 'blocks a trailing question the first time without asking Luna',
+          fn: async () => {
+            const h = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
+
+            const output = await h.run({ stop_hook_active: true, last_assistant_message: 'Done. Do you want me to?', },);
+
+            expect(output.decision,).toBe('block',);
+            expect(output.reason,).toContain('ends with a question to the user',);
+            expect(h.requests,).toHaveLength(0,);
+          },
+        },),
+        it({
+          name: 'asks Luna once that question was already raised in this turn',
+          fn: async () => {
+            const h = await harness({
+              lines: [HUMAN, questionFeedback('Do you want me to?',), TOOL,],
+              reply: verdictReply('work_closed',),
+            },);
+
+            const output = await h.run({ stop_hook_active: true, last_assistant_message: 'Done. Do you want me to?', },);
+
+            expect(output.decision,).toBeUndefined();
+            expect(h.requests,).toHaveLength(1,);
+          },
+        },),
+        it({
+          name: 'adds the hedge reminder to a Luna release',
+          fn: async () => {
+            const h = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
+
+            const output = await h.run({ stop_hook_active: true, last_assistant_message: 'It is probably done.', },);
+
+            expect(output.decision,).toBe('block',);
+            expect(output.reason,).toContain('uncertain language',);
+            expect(h.requests,).toHaveLength(1,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'turn history',
       children: [
         it({
-          name: 'sends the earlier stops of the turn on a repeated stop',
+          name: 'sends the earlier stops of the turn on a repeated stop while a task runs',
           fn: async () => {
             const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
 
-            await h.run({ stop_hook_active: true, last_assistant_message: 'Final words.', },);
+            await h.run({
+              stop_hook_active: true,
+              last_assistant_message: 'Final words.',
+              background_tasks: [{ id: '1', type: 'shell', status: 'running', },],
+            },);
 
             const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
             expect(input,).toContain('[stop 1] earlier stop words',);
@@ -774,11 +980,41 @@ await describe({
           },
         },),
         it({
-          name: 'sends the final message alone on a first stop',
+          name: 'sends the final message alone on a repeated stop when no task runs',
           fn: async () => {
             const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
 
-            await h.run({ stop_hook_active: false, last_assistant_message: 'Final words.', },);
+            await h.run({ stop_hook_active: true, last_assistant_message: 'Final words.', },);
+
+            const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
+            expect(input,).toBe('Final words.',);
+          },
+        },),
+        it({
+          name: 'sends the final message alone on a repeated stop when only a finished task is listed',
+          fn: async () => {
+            const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
+
+            await h.run({
+              stop_hook_active: true,
+              last_assistant_message: 'Final words.',
+              background_tasks: [{ id: '1', type: 'shell', status: 'completed', },],
+            },);
+
+            const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
+            expect(input,).toBe('Final words.',);
+          },
+        },),
+        it({
+          name: 'sends the final message alone on a first stop even while a task runs',
+          fn: async () => {
+            const h = await harness({ lines: HISTORY, reply: verdictReply('work_closed',), },);
+
+            await h.run({
+              stop_hook_active: false,
+              last_assistant_message: 'Final words.',
+              background_tasks: [{ id: '1', type: 'shell', status: 'running', },],
+            },);
 
             const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
             expect(input,).toBe('Final words.',);
@@ -789,7 +1025,11 @@ await describe({
           fn: async () => {
             const h = await harness({ lines: OPEN, reply: verdictReply('work_closed',), },);
 
-            await h.run({ stop_hook_active: true, last_assistant_message: 'Final words.', },);
+            await h.run({
+              stop_hook_active: true,
+              last_assistant_message: 'Final words.',
+              background_tasks: [{ id: '1', type: 'shell', status: 'running', },],
+            },);
 
             const { input, } = JSON.parse(h.requests[0] ?? '{}',) as { input: string };
             expect(input,).toBe('Final words.',);

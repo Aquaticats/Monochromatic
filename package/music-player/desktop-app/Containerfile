@@ -8,10 +8,10 @@
 FROM registry.fedoraproject.org/fedora@sha256:893f7eeffce8e3e2bb2bc62786ba5603fb1e0bd6ba07091acb892266b95bafdf
 
 # Build toolchain:
-#   rustup-installed stable  Rust compiler + cargo + clippy. NOT Fedora's `rust`
+#   rustup-installed nightly Rust compiler + cargo + clippy. NOT Fedora's `rust`
 #                          package: Slint 1.17.0 declares rust-version 1.92,
-#                          while Fedora 41 ships 1.91.1. rustup gives the
-#                          current stable toolchain (see the rustup RUN below).
+#                          while Fedora 41 ships 1.91.1. rustup installs the
+#                          nightly toolchain.lock.json pins (see the rustup RUN below).
 #   gcc                    cc for building C dependencies (libopus is compiled
 #                          from source by opusic-sys, the opus crate's -sys
 #                          backend; see the opus pin in Cargo.toml)
@@ -58,10 +58,14 @@ RUN dnf install -y \
 # at run time. If CARGO_HOME were /cargo here, the run-time volume mount would
 # shadow the proxies. `--profile minimal` plus the clippy component keeps the
 # layer small while still providing `cargo clippy`.
+# The toolchain is the nightly toolchain.lock.json pins (`.tools.rust.version`), as in Containerfile.windows-gnu;
+# the build context is this package directory, so this default is kept in sync with that key, and
+# `--build-arg RUST_TOOLCHAIN=` overrides it.
+ARG RUST_TOOLCHAIN=nightly-2026-10-29
 ENV RUSTUP_HOME=/rustup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
       | env CARGO_HOME=/usr/local sh -s -- -y --no-modify-path --profile minimal \
-          --default-toolchain stable --component clippy
+          --default-toolchain "${RUST_TOOLCHAIN}" --component clippy
 
 # cargo-nextest is the test runner the `test` mise task invokes
 # (`cargo nextest run`). Install the prebuilt binary from get.nexte.st into

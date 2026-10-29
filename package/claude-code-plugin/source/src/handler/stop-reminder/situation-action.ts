@@ -146,7 +146,80 @@ const ACTIONS: Readonly<Record<Situation, (state: { readonly backgroundTasks: re
 };
 
 /**
+ Labels that block whatever the background state, in the order a tie is broken.
+ */
+const BLOCKING_LABELS = [
+  'announces_own_next_step',
+  'leaves_open_work',
+  'waits_on_user',
+] as const satisfies readonly Situation[];
+
+/**
+ One of the labels that block whatever the background state.
+ */
+type BlockingLabel = (typeof BLOCKING_LABELS)[number];
+
+/**
+ Block reason per always-blocking label, for a verdict split between them.
+ */
+const BLOCKING_REASONS: Readonly<Record<BlockingLabel, readonly string[]>> = {
+  announces_own_next_step: ANNOUNCED_REASON,
+  leaves_open_work: OPEN_WORK_REASON,
+  waits_on_user: WAITS_ON_USER_REASON,
+};
+
+/**
+ Combined probability of the always-blocking labels at which a split verdict blocks.
+
+ Chosen by the owner on 2026-10-29. A stop scored `waits_on_user` 0.54 and `leaves_open_work` 0.37: neither label
+ reached the cutoff, yet 0.95 of the mass said block. In the 832 logged released stops that have all six scores,
+ a level of 0.9 fired never and 0.8 fired three times, so 0.9 adds no measured block.
+ */
+const SPLIT_BLOCK_PROBABILITY = 0.9;
+
+/**
+ Whole-percent value of a probability, so a sum such as 0.8999999999999999 compares as the 0.9 it stands for.
+
+ @param probability - probability between zero and one
+
+ @returns the probability as a whole percent
+
+ @example
+ ```ts
+ wholePercent(0.3 + 0.3 + 0.3); // 90
+ ```
+ */
+function wholePercent(probability: number,): number {
+  return Math.round(probability * 100,);
+}
+
+/**
+ Finds the always-blocking label with the largest probability.
+
+ @param probabilities - Luna's probability for every label
+
+ @returns the largest of the always-blocking labels, the first of them on a tie
+
+ @example
+ ```ts
+ largestBlockingLabel({ ...scores, waits_on_user: 0.54, leaves_open_work: 0.37 }); // 'waits_on_user'
+ ```
+ */
+function largestBlockingLabel(probabilities: SituationVerdict['probabilities'],): BlockingLabel {
+  return BLOCKING_LABELS.reduce(function larger(
+    best,
+    label,
+  ) {
+    return (probabilities[label] > probabilities[best]) ? label : best;
+  },);
+}
+
+/**
  Chooses the action for one verdict.
+
+ A verdict whose top label is under the cutoff releases, unless the always-blocking labels together reach
+ {@link SPLIT_BLOCK_PROBABILITY}: Luna is then sure the stop is premature and only unsure which kind, so the stop
+ blocks with the reason of the largest of those labels.
 
  @param verdict - validated Luna reading
 
@@ -169,6 +242,29 @@ function situationAction(
   },
 ): SituationAction {
   if (verdict.probability < ACT_PROBABILITY) {
+    /**
+     Combined probability of the labels that block whatever the background state.
+     */
+    const blockingMass = BLOCKING_LABELS.reduce(
+      function sum(
+        running,
+        label,
+      ) {
+        return running + verdict.probabilities[label];
+      },
+      0,
+    );
+    if (wholePercent(blockingMass,) >= wholePercent(SPLIT_BLOCK_PROBABILITY,)) {
+      /**
+       Label whose reason the split verdict borrows.
+       */
+      const largest = largestBlockingLabel(verdict.probabilities,);
+      return {
+        kind: 'block',
+        why: `blocking labels together ${blockingMass.toFixed(2,)} with none at ${String(ACT_PROBABILITY,)}; largest ${largest}`,
+        reason: BLOCKING_REASONS[largest],
+      };
+    }
     return {
       kind: 'release',
       why: `probability ${String(verdict.probability,)} for ${verdict.situation} is below ${String(ACT_PROBABILITY,)}`,
@@ -181,5 +277,6 @@ export type { SituationAction, };
 
 export {
   ACT_PROBABILITY,
+  SPLIT_BLOCK_PROBABILITY,
   situationAction,
 };

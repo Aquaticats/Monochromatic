@@ -10,6 +10,11 @@ import {
 
 import type { Agent, } from '@deepseek-ai/dsh-agent';
 
+import {
+  Session,
+  SessionId,
+} from '@deepseek-ai/dsh-session';
+
 import type { WorkingDirectoryService, } from '@deepseek-ai/dsh-working-directory';
 
 import { toDshAdvisorAgentSurface, } from '../dist/final/node/index.mjs';
@@ -25,13 +30,10 @@ await describe({
     it({
       name: 'projects session, cwd, and route identity onto the surface',
       fn: async () => {
-        const appended: unknown[] = [];
-        const session = {
-          deriveMessages: () => [],
-          append: (type: string, data: unknown): void => {
-            appended.push([type, data,],);
-          },
-        };
+        const session = Session
+          .create(
+          SessionId('session-agent-surface-append-test'),
+          );
         const surface = toDshAdvisorAgentSurface({
           agent: {
             session,
@@ -52,7 +54,7 @@ await describe({
         surface.appendOperationRecord({
           id: 'op-1',
         } as unknown as Parameters<typeof surface.appendOperationRecord>[0],);
-        expect(appended.length,).toBe(1,);
+        expect(session.seq,).toBe(1,);
       },
     },),
     it({

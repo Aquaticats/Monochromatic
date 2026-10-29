@@ -1,0 +1,174 @@
+# Handover: generic package category elimination
+
+Updated 2026-10-29 by session `monochromatic-db`.
+Decisions,
+ mappings,
+ peer holds,
+ and the execution queue live in
+[the plan](../planning/generic-category-elimination.md);
+this file records in-flight state the plan does not.
+
+## Goal
+
+Eliminate the `package/` categories `cli`,
+ `module`,
+ `shim`,
+ `stub`,
+ `build-tool`,
+ `dev-script`,
+ `desktop-app`,
+ `desktop-daemon`,
+ `rust-module`,
+ `webapp-productivity`,
+ and `git`,
+moving every member under a product category,
+ with npm names following paths (`AGENTS.md` rule SGD).
+The user executes per category as soon as each mapping settles,
+ coordinating with peer sessions.
+
+## State right now
+
+No package has moved on `main` yet.
+
+### `cli` batch:
+ staged,
+ not committed
+
+- The main worktree index holds the whole `cli` batch
+  (`git mv` of every `cli` package except `nested-wayland-session` and `markdown-lint`,
+   plus `rust-module/forbidden-regex{,.bench,.fuzz}` and `module/wg-allowedips`,
+   plus path and name rewrites in about 250 files).
+  Do not reset,
+   stash,
+   or bulk-stage in the main worktree.
+- Commit inputs in `~/temp/agent/package-category-elimination/`:
+   `pathspec.txt` (commit pathspec),
+   `add-pathspec.txt` (stage pathspec;
+    the guard rejects `git add --all`),
+   `cli-commit-msg.txt`.
+  Command:
+  `git add --pathspec-from-file=<add-pathspec.txt> && git commit --file=<cli-commit-msg.txt> --pathspec-from-file=<pathspec.txt>`.
+- `package/dev-script/file-enforcer/src/cargo/catalog/types.ts` is excluded:
+   `monochromatic-fb` committed it in `d1477a13ba`.
+- Working-tree content that must land with the batch:
+  `monochromatic-fb`'s re-synced `[dependencies]` tables in
+   `package/forbidden-strings/cli/Cargo.toml` and `package/forbidden-strings/core/Cargo.toml`,
+  and the nightly toolchain switch in `package/forbidden-strings/core/mutants.Containerfile`
+  (user directive relayed by `monochromatic-fb`;
+   other images switched in `8652ba7d7f`).
+- Ignored build output (`target/`,
+   corpora) moved along with `git mv`;
+  `package/cli/` still holds `markdown-lint` (untracked debris) and `nested-wayland-session` (held).
+
+### Why it is blocked
+
+The commit guard's `security/forbidden-strings` policy rescans renamed files,
+ and the scanner's own data self-matches
+ (`data/builtin-rules.txt:118`,
+ vendored `data/betterleaks-default-config.toml`,
+ `src/port-betterleaks-relaxations.ts:141`).
+The installed guard (`~/.cargo/bin/cli-git-native` 0.2.9) exempts those files only at their old paths
+ (`SCANNER_SELF_MATCH_PATHS` in `package/git-policy/cli/src/native/scanner_selection.rs`).
+User decision:
+ the guard skips scanning blobs a parent commit's tree already holds.
+That change landed on `origin/main` (`27dfc042ed`,
+ `c89ea7f7a6`,
+ `bc3b7f698a`,
+ `ef07e496e4`)
+but is not installed yet.
+
+### Guard release 0.2.10:
+ in progress
+
+User approved cutting release 0.2.10 (publishes to crates.io through `cargo-publish.yml`).
+
+- Release worktree:
+   `~/temp/agent/guard-release-wt` (detached at `24551685eb`).
+  `package/git-policy/cli/Cargo.toml` is bumped to `0.2.10`;
+  `cargo metadata --offline` was running to regenerate
+   `package/git-policy/cli/Cargo.lock` and `package/git-policy/cli.fuzz/Cargo.lock`.
+- Next:
+  confirm each lockfile diff is only the version line
+  (shape of release commit `00c4e28af4`),
+  commit `chore(git-policy/cli): release 0.2.10: skip forbidden-strings scans of content a parent tree already holds`
+   with pathspecs for the three files,
+  `git push origin HEAD:main` (rebase onto `origin/main` and retry on a race),
+  remove the worktree.
+- Do not cut the release from the main worktree:
+   its `git-policy/cli/Cargo.toml` carries the staged batch's path rewrite.
+- After `cargo-publish.yml` succeeds:
+   `mise run toolchain:update`,
+   `mise run toolchain:sync`,
+   confirm `cli-git-native --version` reports 0.2.10,
+   then commit the `cli` batch.
+
+## After the `cli` batch commits
+
+1.   `mise run //:sync:files`,
+     `mise run //:prepare:pnpm:install`,
+     `node package/dev-script/file-enforcer/src/cli.ts --check`,
+     `cargo metadata --locked --offline` for each moved crate,
+     `lint:types` for moved npm packages and direct dependents
+     (`mcp/mvm`,
+      `pi-plugin/ask-user-question`,
+      `pi-plugin/morph-compact`,
+      `config/tofu`).
+     Known preexisting failure:
+      `file-enforcer` TS7006 at `src/toolchain/update.ts:632-633` (user defers it).
+     Commit the regenerated files.
+2.   `git clean --dry-run -d -X package/cli/markdown-lint`,
+     then remove it.
+3.   Message `monochromatic-fb` that the batch landed (it holds off `file-enforcer` lint cleanup until then).
+4.   Release 0.2.11 of the guard,
+     so edits to the three scanner data files at their new paths are exempt again.
+5.   Continue the plan's execution queue
+     (batch 2 mapping:
+      `~/temp/agent/package-category-elimination/batch2-moves.json`).
+
+## Tooling
+
+- Move script:
+   `~/temp/agent/package-category-elimination/cli-batch.ts`,
+  `node cli-batch.ts <repoRoot> dry|list|apply [moves.json]`.
+  It rewrites `package/<from>`,
+   `../<from>`,
+   bare `<from>`,
+   and `@monochromatic-dev/<from with - >` forms with a sidecar-aware boundary,
+  recomputes sibling-relative paths inside moved dirs,
+  skips `doc/**/*.json{,l}` evidence and three planning docs,
+  and gives historical Markdown (`doc/audit`,
+   `doc/handover`,
+   `HANDOVER*`,
+   `CHANGELOG*`) one dated note instead of rewriting (user decision,
+   `AGENTS.md` WR6).
+- Before applying a batch,
+   compare `git status` against the script's change list:
+  other sessions edit the main worktree concurrently,
+   so exclude files the script did not produce.
+- Pre-scan staged files with
+  `package/forbidden-strings/cli/target/release/forbidden-strings --builtin-rules --rules .cache/forbidden-strings.rules.txt <files>`
+  before committing.
+
+## Peer coordination
+
+- `monochromatic-fb`:
+   window agreed for the `module` batch (message first,
+   it commits and pauses `file-enforcer`);
+  `module/rust-catalog` and the catalog tools stay held.
+- `monochromatic-ec`:
+   holds `desktop-app/ide`,
+   `desktop-app/terminal`,
+   `cli/nested-wayland-session` until its IDE 0.1.3 release.
+- Translation-repair session:
+   holds released;
+   the katex shim and its `pnpm-workspace.yaml` `link:` override move in one commit,
+   then tell it so it can annotate its ledger lines.
+
+## Open follow-ups
+
+- `56178d85ed` is mislabeled;
+   corrective commit comment posted.
+- [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) tracks the renamed npm names there.
+- After publishable renames:
+   the user first-publishes new npm names,
+   then `npm deprecate` the old ones.

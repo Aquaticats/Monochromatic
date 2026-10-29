@@ -6,9 +6,9 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 import { stopRemindersDecision, } from './index.ts';
 import {
-  alreadyRaised,
   findParkedDecision,
   PARKED_DECISION_REMINDER_PREFIX,
+  parkedDecisionLead,
   parkedDecisionReminder,
 } from './parked-decision.ts';
 import { NO_MATCH, } from './uncertainty.ts';
@@ -110,80 +110,25 @@ await describe({
       ],
     },),
     describe({
-      name: parkedDecisionReminder.name,
+      name: parkedDecisionLead.name,
       children: [
         it({
-          name: 'opens with the prefix the transcript scan looks for and names the question tool',
+          name: 'is the prefix, the phrase in parentheses and a full stop',
           fn: async () => {
-            const lines = parkedDecisionReminder('say so if',);
-            expect(lines[0],).toBe(`${PARKED_DECISION_REMINDER_PREFIX} ("say so if").`,);
-            expect(lines.join(' ',),).toContain('AskUserQuestion',);
+            expect(parkedDecisionLead('say so if',),).toBe(`${PARKED_DECISION_REMINDER_PREFIX} ("say so if").`,);
           },
         },),
       ],
     },),
     describe({
-      name: alreadyRaised.name,
+      name: parkedDecisionReminder.name,
       children: [
         it({
-          name: 'is false with no transcript',
+          name: 'opens with the lead the transcript scan looks for and names the question tool',
           fn: async () => {
-            expect(alreadyRaised({ phrase: 'say so if', transcriptLines: [], },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'is true when this phrase was raised since the last human turn',
-          fn: async () => {
-            expect(alreadyRaised({
-              phrase: 'say so if',
-              transcriptLines: [HUMAN_LINE, reminderLine('say so if',), '{"type":"assistant"}',],
-            },),).toBe(true,);
-          },
-        },),
-        it({
-          name: 'is false when the reminder belongs to an earlier turn',
-          fn: async () => {
-            expect(alreadyRaised({
-              phrase: 'say so if',
-              transcriptLines: [reminderLine('say so if',), HUMAN_LINE, '{"type":"assistant"}',],
-            },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'is false when only a different phrase was raised',
-          fn: async () => {
-            expect(alreadyRaised({
-              phrase: 'say so if',
-              transcriptLines: [HUMAN_LINE, reminderLine('tell me if you',),],
-            },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'is false for a record that only quotes the reminder',
-          fn: async () => {
-            const quoted = JSON.stringify({
-              type: 'user',
-              toolUseResult: { stdout: 'x', },
-              message: { content: `Stop hook feedback:\n${parkedDecisionReminder('say so if',).join(' ',)}`, },
-            },);
-            const assistantQuote = JSON.stringify({
-              type: 'assistant',
-              message: { content: `${PARKED_DECISION_REMINDER_PREFIX} ("say so if")`, },
-            },);
-
-            expect(alreadyRaised({
-              phrase: 'say so if',
-              transcriptLines: [HUMAN_LINE, quoted, assistantQuote,],
-            },),).toBe(false,);
-          },
-        },),
-        it({
-          name: 'skips a truncated line',
-          fn: async () => {
-            expect(alreadyRaised({
-              phrase: 'say so if',
-              transcriptLines: [HUMAN_LINE, reminderLine('say so if',), `{"type":"user","message":{"content":"${PARKED_DECISION_REMINDER_PREFIX}`,],
-            },),).toBe(true,);
+            const lines = parkedDecisionReminder('say so if',);
+            expect(lines[0],).toBe(parkedDecisionLead('say so if',),);
+            expect(lines.join(' ',),).toContain('AskUserQuestion',);
           },
         },),
       ],

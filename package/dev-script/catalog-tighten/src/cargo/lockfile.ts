@@ -9,96 +9,12 @@
  */
 
 import {
-  parseTomlEdit,
-  tomlGetValue,
-} from '@monochromatic-dev/module-toml-edit/ts';
-
-//region Types
-
-/**
- One `[[package]]` entry of a lockfile.
- */
-type LockedPackage = {
-  readonly name: string;
-  readonly version: string;
-  readonly source: string;
-  readonly dependencies: readonly string[];
-};
-
-//endregion Types
+  isRegistryPackage,
+  type LockedPackage,
+  parseCargoLock,
+} from '@monochromatic-dev/module-rust-catalog/ts';
 
 //region Parse
-
-/**
- Whether `value` is a plain table.
-
- @param value - materialized TOML value
-
- @returns whether it is a non-array object
-
- @example
- ```ts
- isTable({}); // true
- ```
- */
-function isTable(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null)
-    && (!Array.isArray(value,));
-}
-
-/**
- Reads every `[[package]]` entry.
-
- @param source - `Cargo.lock` text
-
- @returns locked packages in file order
-
- @throws TomlEditError when the lockfile is not valid TOML
-
- @example
- ```ts
- lockedPackages(source);
- ```
- */
-function lockedPackages(source: string,): readonly LockedPackage[] {
-  /**
-   Whole lockfile as plain values.
-   */
-  const root = tomlGetValue({
-    edit: parseTomlEdit({ source, },),
-    path: [],
-  },);
-  /**
-   Raw package entries.
-   */
-  const raw = isTable(root,) && Array.isArray(root.package,) ? root.package : [];
-  /**
-   Packages with the fields this tool reads.
-   */
-  const packages: LockedPackage[] = [];
-  for (const entry of raw) {
-    if ((!isTable(entry,)) || ((typeof entry.name) !== 'string')
-      || ((typeof entry.version) !== 'string'))
-      continue;
-    /**
-     Dependency strings such as `anyhow` or `syn 2.0.110`.
-     */
-    const dependencies: string[] = [];
-    if (Array.isArray(entry.dependencies,)) {
-      for (const dependency of entry.dependencies) {
-        if ((typeof dependency) === 'string')
-          dependencies.push(dependency,);
-      }
-    }
-    packages.push({
-      name: entry.name,
-      version: entry.version,
-      source: (typeof entry.source) === 'string' ? entry.source : '',
-      dependencies,
-    },);
-  }
-  return packages;
-}
 
 /**
  Versions a crate's own package depends on directly, by package name.
@@ -132,7 +48,7 @@ export function directDependencyVersions(
   /**
    Every locked package.
    */
-  const packages = lockedPackages(source,);
+  const packages = parseCargoLock(source,);
   /**
    The crate itself.
    */
@@ -154,9 +70,7 @@ export function directDependencyVersions(
      Locked registry versions of that name.
      */
     const candidates = packages.filter(function isNamed(entry: LockedPackage,): boolean {
-      return (entry.name === name)
-        && entry.source
-          .startsWith('registry+',);
+      return (entry.name === name) && isRegistryPackage(entry,);
     },);
     /**
      The version this crate uses: the stated one, or the only one.
