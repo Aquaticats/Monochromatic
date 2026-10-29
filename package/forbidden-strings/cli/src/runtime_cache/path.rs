@@ -93,7 +93,7 @@ pub(super) fn current_environment() -> CacheEnvironment {
 pub(super) fn current_environment() -> CacheEnvironment {
     return CacheEnvironment {
         override_root: Some(
-            std::env::temp_dir()
+            crate::test_scratch::scratch_root()
                 .join(format!("forbidden-strings-unit-cache-{}", std::process::id()))
                 .into_os_string(),
         ),

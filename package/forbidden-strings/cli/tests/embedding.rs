@@ -76,7 +76,7 @@ fn native_rule_path(_root: &Path) {}
 ///  not just an early-returning probe.
 #[test]
 fn public_embedding_runs_without_real_user_state() {
-    let root: PathBuf = std::env::temp_dir().join(format!("scanner-embedded-{}", std::process::id()));
+    let root: PathBuf = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("scanner-embedded-{}", std::process::id()));
     std::fs::create_dir(&root).expect("fresh disposable fixture");
     std::fs::write(root.join("rules.txt"), "EMBEDDED_NEEDLE_LONG\n").expect("runtime rules");
     let executable: PathBuf = std::env::current_exe().expect("test consumer executable");
