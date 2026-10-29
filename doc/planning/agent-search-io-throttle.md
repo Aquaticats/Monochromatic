@@ -152,6 +152,20 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   that route was not exercised. APST also could not matter during agent bursts here, because the other sessions kept
   the drive busy far below the 100 ms idle that starts a power-state transition.
 
+- APST toggled through the driver's own PM QoS file (`/sys/class/nvme/nvme0/power/pm_qos_latency_tolerance_us`, initial
+  value 100000, equal to the module default). Writing `0` made the drive report `APSTE=Disabled` with no idle-timer entries
+  (`nvme get-feature` 0x0c); writing `100000` back restored a report identical to the original, verified in a `finally` block.
+  Latency effect, raw 4 KiB direct reads on `nvme0n1p6` (72 of 72 reads proved by `/proc/diskstats` to reach the drive),
+  four arms (default, disabled, default, disabled), six reads per gap: medians 0.22 to 0.31 ms in every arm and gap,
+  maximum 2.18 ms. The 500 ms gaps were nearly idle (0 to 33 other reads) and showed no 10 ms penalty with APST enabled,
+  so the 100 ms transition to the 10 ms-exit state costs nothing measurable here. The 3000 ms gaps were busy (174 to 14,320
+  other reads), so the 2000 ms transition to the 60 ms-exit state was not exercised and remains untested.
+  An earlier run of the same comparison through a file on `/var/home` read 0.02 to 0.04 ms and is discarded: it had no
+  evidence the reads reached the drive and ran about seven times faster than the raw reads, so they were likely cache hits.
+- `cryptsetup refresh` on an active mapping updates it without unmounting; flags set without `--persistent` are not stored in
+  the LUKS2 header (`cryptsetup-refresh(8)`), and refreshing with no optional flags restores defaults, so a refresh must repeat
+  `--allow-discards`, which the live table currently has, or TRIM passthrough would be dropped.
+
 Implication for the I/O limit: a broad search by an agent produces exactly the spread-out cold-read pattern that is
 slowest on this drive, and concurrent readers multiply the wait for everyone, so bounding the agents' read rate
 (the bandwidth cap on `/dev/nvme0n1` is shown to work) addresses the actual bottleneck.
