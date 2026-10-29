@@ -4,7 +4,9 @@
  */
 import type { Plant } from './planted-table.ts';
 
-/** Linter output, event path and configuration defects, one per invariant. */
+/**
+ Linter output, event path and configuration defects, one per invariant.
+ */
 export const markdownPlants: readonly Plant[] = [
   {
     name: 'a linter record of another severity is accepted',

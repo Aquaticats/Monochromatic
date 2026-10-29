@@ -34,9 +34,13 @@ import { targets } from './fuzz-options.ts';
  Run `cargo vendor` and map the vendored directory to its path inside the build image.
 
  @param context - build context directory
+ 
  @returns the Cargo source configuration for the image
  */
 async function vendoredConfig(context: string): Promise<string> {
+  /**
+   Result of `cargo vendor`, whose standard output is the source configuration for the host path.
+   */
   const vendor = await runCommand({
     command: 'cargo',
     args: [
@@ -51,6 +55,9 @@ async function vendoredConfig(context: string): Promise<string> {
     ],
     capture: true,
   });
+  /**
+   The configuration rewritten to the vendor directory inside the image.
+   */
   const config = vendor.stdout
     .replaceAll(
     JSON.stringify(join(
@@ -69,7 +76,7 @@ async function vendoredConfig(context: string): Promise<string> {
 
  @param context - build context directory holding the copied inputs
  */
-async function buildImageFrom(context: string) {
+async function buildImageFrom(context: string): Promise<void> {
   await writeFile(
     join(
       context,
@@ -113,7 +120,10 @@ async function buildImageFrom(context: string) {
 
  @param compilerMount - `podman run` options that mount the read-only compiler
  */
-async function proveGeneratorControls(compilerMount: readonly string[]) {
+async function proveGeneratorControls(compilerMount: readonly string[]): Promise<void> {
+  /**
+   The `podman run` arguments both proof steps share, up to `cargo`.
+   */
   const prefix = [
     'run',
     '--rm',
@@ -151,15 +161,26 @@ async function proveGeneratorControls(compilerMount: readonly string[]) {
 /**
  Build the AddressSanitizer targets in a container and copy their binaries into the context.
 
- @param request - the build context,
-   the evidence directory receiving the container state, and the read-only compiler mount
- @throws {NativeVerificationError} when the instrumented build exits nonzero
+ @param context - the build context
+
+ @param evidence - the evidence directory receiving the container state
+
+ @param compilerMount - the read-only compiler mount
+
+ @throws NativeVerificationError when the instrumented build exits nonzero
  */
 async function compileTargets({
   context,
   evidence,
   compilerMount,
-}: { context: string, evidence: string, compilerMount: readonly string[] }) {
+}: {
+  readonly context: string;
+  readonly evidence: string;
+  readonly compilerMount: readonly string[];
+}): Promise<void> {
+  /**
+   The build container, kept until its binaries are copied out and then removed.
+   */
   await using container = await createContainer({
     args: [
       'create',
@@ -179,6 +200,9 @@ async function compileTargets({
       '/work/build',
     ],
   });
+  /**
+   Outcome of the instrumented build, whose failure is reported after the container state is retained.
+   */
   const built = await runCommand({
     command: 'podman',
     args: [
@@ -188,6 +212,9 @@ async function compileTargets({
     ],
     allowFailure: true,
   });
+  /**
+   The container's state, kept as evidence whether or not the build passed.
+   */
   const state = await runCommand({
     command: 'podman',
     args: [
@@ -206,7 +233,7 @@ async function compileTargets({
     state.stdout,
   );
   if (built.status !== 0)
-    throw new NativeVerificationError(`Instrumented build exited ${String(built.status)}; container state retained in ${evidence}.`);
+    throw new NativeVerificationError(`Instrumented build exited ${String(built.status ?? 'without a status')}; container state retained in ${evidence}.`);
   await mkdir(
     join(
       context,
@@ -233,15 +260,30 @@ async function compileTargets({
 /**
  Copy the inputs, build the image, prove the controls and compile the instrumented binaries into `<context>/bin`.
 
- @param request - this package's
-   directory, the build context, the evidence directory and the compiler sysroot to mount read-only
+ @param source - this package's directory
+
+ @param context - the build context
+
+ @param evidence - the evidence directory
+
+ @param compiler - the compiler sysroot to mount read-only
+
+ @example
+ ```ts
+ await buildInstrumentedTargets({ source, context, evidence, compiler });
+ ```
  */
 export async function buildInstrumentedTargets({
   source,
   context,
   evidence,
   compiler,
-}: { source: string, context: string, evidence: string, compiler: string }): Promise<void> {
+}: {
+  readonly source: string;
+  readonly context: string;
+  readonly evidence: string;
+  readonly compiler: string;
+}): Promise<void> {
   await copyInputs({
     source,
     context,
@@ -271,6 +313,9 @@ export async function buildInstrumentedTargets({
   await buildImageFrom(context);
   // Compiler files retain their host labels. Do not relabel a shared Rust installation with :Z.
   // Only build containers disable label isolation; fuzz execution has no host mounts and keeps it enabled.
+  /**
+   `podman run` options that mount the read-only compiler without relabeling it.
+   */
   const compilerMount = [
     '--security-opt',
     'label=disable',

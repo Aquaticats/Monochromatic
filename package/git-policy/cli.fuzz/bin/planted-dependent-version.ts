@@ -4,7 +4,9 @@
  */
 import type { Plant } from './planted-table.ts';
 
-/** A nested key is rewritten, a subpath import is missed, and an escaped quote ends a string literal. */
+/**
+ A nested key is rewritten, a subpath import is missed, and an escaped quote ends a string literal.
+ */
 export const dependentVersionPlants: readonly Plant[] = [
   {
     name: 'a nested version key is rewritten',

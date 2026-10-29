@@ -22,17 +22,53 @@ import {
   NativeVerificationError,
   runCommand,
 } from '../../cli/bin/native-verification-process.ts';
-import { plants } from './planted-table.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
-import type { Plant } from './planted-table.ts';
+import {
+  type Plant,
+  plants,
+} from './planted-table.ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy-fuzz');
-makeScratchBase(scratchBase, { recursive: true });
+/**
+ Parent of every scratch directory this script creates.
+ */
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy-fuzz'
+);
+await mkdir(
+  scratchBase,
+  { recursive: true }
+);
 
+/**
+ What the generator controls reported for one run; `status` is absent when a signal ended the run.
+ */
+type ControlsOutcome = {
+  readonly status?: number;
+  readonly failed: readonly string[];
+  readonly passed: number;
+  readonly output: string;
+};
 
-/** Repository-relative inputs the helper library needs to build. */
+/**
+ What the controls observed for one planted defect.
+ */
+type PlantObservation = {
+  readonly name: string;
+  readonly file: string;
+  readonly edits: Plant['edits'];
+  readonly status?: number;
+  readonly failed: readonly string[];
+  readonly noticed: boolean;
+};
+
+/**
+ Repository-relative inputs the helper library needs to build.
+ */
 const inputs = [
   'package/git-policy/cli/Cargo.toml',
   'package/git-policy/cli/Cargo.lock',
@@ -63,13 +99,19 @@ const inputs = [
  nextest prints `FAIL [ 0.012s] ( 3/38) <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a
  child process behind, and repeats each failure in its closing recap; the test name ends the line.
 
- @param request - the run's combined output and the result kind
+ @param output - the run's combined output
+
+ @param keyword - the result kind
+
  @returns trimmed lines that start with the keyword and hold a `[`
  */
 function resultLines({
   output,
   keyword,
-}: { output: string, keyword: 'FAIL' | 'PASS' }): string[] {
+}: {
+  readonly output: string;
+  readonly keyword: 'FAIL' | 'PASS';
+}): string[] {
   return output.split('\n')
     .map(function trimmed(line) {
       return line.trim();
@@ -82,11 +124,17 @@ function resultLines({
 /**
  Run the generator controls in the disposable sidecar; report status and the failing control names.
 
- @param request - the disposable copy of the repository inputs
+ @param root - the disposable copy of the repository inputs
+
  @returns exit status,
    the distinct failing test names, the number of passing tests and the combined output
  */
-async function controls({ root }: { root: string }): Promise<{ status: number | null, failed: string[], passed: number, output: string }> {
+async function controls({ root, }: {
+  readonly root: string;
+},): Promise<ControlsOutcome> {
+  /**
+   The nextest run of the generator controls, whose failure is evidence the caller inspects.
+   */
   const run = await runCommand({
     command: 'cargo',
     args: [
@@ -110,7 +158,13 @@ async function controls({ root }: { root: string }): Promise<{ status: number | 
       ),
     },
   });
+  /**
+   Both streams of the run.
+   */
   const output = `${run.stdout}\n${run.stderr}`;
+  /**
+   Name of every failure line's test, repeated where nextest repeats a failure in its recap.
+   */
   const failedNames = resultLines({
     output,
     keyword: 'FAIL',
@@ -119,7 +173,7 @@ async function controls({ root }: { root: string }): Promise<{ status: number | 
       return line.slice(line.lastIndexOf(' ') + 1);
     });
   return {
-    status: run.status,
+    ...(run.status === undefined ? {} : { status: run.status, }),
     failed: [...new Set(failedNames)],
     passed: resultLines({
       output,
@@ -133,20 +187,30 @@ async function controls({ root }: { root: string }): Promise<{ status: number | 
 /**
  Apply one plant's edits to its file text, refusing an edit that does not match exactly once.
 
- @param request - the plant and its file's text
+ @param plant - the plant
+
+ @param original - its file's text
+
  @returns the edited text
- @throws {NativeVerificationError} when an edit matches anything but exactly once
+
+ @throws NativeVerificationError when an edit matches anything but exactly once
  */
 function planted({
   plant,
   original,
-}: { plant: Plant, original: string }): string {
+}: {
+  readonly plant: Plant;
+  readonly original: string;
+}): string {
   return plant.edits
     .reduce(
     function applyEdit(
       text,
       edit
     ) {
+      /**
+       How many times the edit's text occurs, which must be exactly once.
+       */
       const occurrences = text.split(edit.from)
         .length
         - 1;
@@ -164,8 +228,14 @@ function planted({
 /**
  Plant one defect, run the controls, and put the file back.
 
- @param request -
-   the disposable copy, the evidence directory, the defect and its position, which names its log
+ @param root - the disposable copy
+
+ @param evidence - the evidence directory
+
+ @param plant - the defect
+
+ @param index - the defect's position, which names its log
+
  @returns what the controls observed
  */
 async function runPlant({
@@ -173,11 +243,22 @@ async function runPlant({
   evidence,
   plant,
   index,
-}: { root: string, evidence: string, plant: Plant, index: number }): Promise<{ name: string, file: string, edits: unknown, status: number | null, failed: string[], noticed: boolean }> {
+}: {
+  readonly root: string;
+  readonly evidence: string;
+  readonly plant: Plant;
+  readonly index: number;
+}): Promise<PlantObservation> {
+  /**
+   The planted file inside the disposable copy.
+   */
   const path = join(
     root,
     plant.file,
   );
+  /**
+   The file's text before the plant, written back afterwards.
+   */
   const original = await readFile(
     path,
     'utf8',
@@ -189,12 +270,18 @@ async function runPlant({
       original,
     }),
   );
+  /**
+   What the generator controls reported with the defect planted.
+   */
   const run = await controls({ root });
   await writeFile(
     path,
     original,
   );
   // A compile error is not an observation: the plant must build and a named control must fail.
+  /**
+   Whether the controls failed and named at least one failing test.
+   */
   const noticed = (run.status !== 0) && (run.failed
     .length
     > 0);
@@ -211,7 +298,7 @@ async function runPlant({
     name: plant.name,
     file: plant.file,
     edits: plant.edits,
-    status: run.status,
+    ...(run.status === undefined ? {} : { status: run.status, }),
     failed: run.failed,
     noticed,
   };
@@ -221,13 +308,19 @@ async function runPlant({
  Plant each defect in table order. Each one starts after the previous one returned and restored its file,
  because every plant edits the same disposable copy.
 
- @param request - the disposable copy and the evidence directory
+ @param root - the disposable copy
+
+ @param evidence - the evidence directory
+
  @returns one observation per defect
  */
 async function* observations({
   root,
   evidence,
-}: { root: string, evidence: string }): AsyncGenerator<Awaited<ReturnType<typeof runPlant>>> {
+}: {
+  readonly root: string;
+  readonly evidence: string;
+}): AsyncGenerator<PlantObservation> {
   for (const [
     index,
     plant,
@@ -242,14 +335,23 @@ async function* observations({
 }
 
 // Copy the inputs, prove the unplanted controls pass, then require every plant to fail a control.
+/**
+ The repository root, which the inputs are copied from.
+ */
 const repository = resolve(
   import.meta.dirname,
   '../../../..',
 );
+/**
+ The disposable copy of the repository inputs that every plant edits.
+ */
 await using root = await mkdtempDisposable(join(
   scratchBase,
   'cli-git-fuzz-planted-',
 ));
+/**
+ Directory under the package's `target/` that keeps the evidence of every run.
+ */
 const evidenceRoot = join(
   process.cwd(),
   'target',
@@ -259,6 +361,9 @@ await mkdir(
   evidenceRoot,
   { recursive: true },
 );
+/**
+ Evidence directory of this run.
+ */
 const evidence = await mkdtemp(join(
   evidenceRoot,
   'planted-',
@@ -276,6 +381,9 @@ await Promise.all(inputs.map(function copyInput(input) {
     { recursive: true },
   );
 }));
+/**
+ The controls on the unplanted copy, which must pass for a plant's failure to mean anything.
+ */
 const baseline = await controls({ root: root.path });
 if ((baseline.status !== 0) || (baseline.passed === 0)) {
   await writeFile(
@@ -288,7 +396,10 @@ if ((baseline.status !== 0) || (baseline.passed === 0)) {
   throw new NativeVerificationError(`Unplanted generator controls did not pass; inspect ${evidence}.`);
 }
 console.log(`Unplanted controls: ${baseline.passed} passed`);
-const results: Awaited<ReturnType<typeof runPlant>>[] = [];
+/**
+ One observation per planted defect.
+ */
+const results: PlantObservation[] = [];
 for await (const result of observations({
   root: root.path,
   evidence,
@@ -309,6 +420,9 @@ await writeFile(
   )}\n`,
 );
 console.log(`Planted-control evidence: ${evidence}`);
+/**
+ Defects that no control noticed.
+ */
 const unnoticed = results.filter(function isUnnoticed(result) {
   return !result.noticed;
 });

@@ -7,7 +7,14 @@ import { markdownPlants } from './planted-markdown.ts';
 /**
  One defect: its name, the file it edits and the edits, each of which must match exactly once.
  */
-export type Plant = { name: string, file: string, edits: readonly { from: string, to: string }[] };
+export type Plant = {
+  readonly name: string;
+  readonly file: string;
+  readonly edits: readonly {
+    readonly from: string;
+    readonly to: string;
+  }[];
+};
 
 /**
  Defects with observable behavior, one per invariant family.

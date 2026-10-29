@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-/** Build instrumented targets with a read-only compiler, then fuzz without host mounts. */
+/**
+ Build instrumented targets with a read-only compiler, then fuzz without host mounts.
+ */
 import {
   cp,
   mkdir,
@@ -21,28 +23,46 @@ import {
   runImage,
 } from './fuzz-images.ts';
 import {
+  type FuzzTarget,
   parseOptions,
   targets,
 } from './fuzz-options.ts';
-import { fuzzTarget } from './fuzz-run.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
-import type { FuzzTarget } from './fuzz-options.ts';
+import {
+  fuzzTarget,
+  type FuzzOutcome,
+} from './fuzz-run.ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy-fuzz');
-makeScratchBase(scratchBase, { recursive: true });
-
+/**
+ Parent of every scratch directory this campaign creates.
+ */
+const scratchBase = join(
+  import.meta.dirname,
+  '..',
+  'node_modules',
+  '.monochromatic',
+  'git-policy-fuzz'
+);
+await mkdir(
+  scratchBase,
+  { recursive: true }
+);
 
 /**
  Build the run image holding only the instrumented binaries, corpus and dictionaries.
 
- @param request - this package's directory and the build context
+ @param source - this package's directory
+
+ @param context - the build context
  */
 async function buildRunImage({
   source,
   context,
-}: { source: string, context: string }) {
+}: {
+  readonly source: string;
+  readonly context: string;
+}): Promise<void> {
   await cp(
     join(
       source,
@@ -113,14 +133,23 @@ async function buildRunImage({
  Fuzz each selected target in turn. A failed target is recorded and the campaign goes on,
  so one finding never hides the targets after it.
 
- @param request - the targets, the evidence directory and the seconds each runs
+ @param selected - the targets
+
+ @param evidence - the evidence directory
+
+ @param secondsPerTarget - the seconds each runs
+
  @returns one outcome per target: what went wrong, or nothing
  */
 async function* fuzzOutcomes({
   selected,
   evidence,
   secondsPerTarget,
-}: { selected: readonly FuzzTarget[], evidence: string, secondsPerTarget: number }): AsyncGenerator<string | undefined> {
+}: {
+  readonly selected: readonly FuzzTarget[];
+  readonly evidence: string;
+  readonly secondsPerTarget: number;
+}): AsyncGenerator<FuzzOutcome> {
   for (const target of selected) {
     yield fuzzTarget({
       target,
@@ -130,13 +159,22 @@ async function* fuzzOutcomes({
   }
 }
 
+/**
+ The validated command line: whether to stop after the build, the seconds per target and the targets to fuzz.
+ */
 const {
   buildOnly,
   secondsPerTarget,
   selectedTargets,
 } = parseOptions(process.argv
   .slice(2));
+/**
+ This package's directory, where the task runs.
+ */
 const source = process.cwd();
+/**
+ The host Rust sysroot, mounted read-only into the build containers.
+ */
 const compiler = (await runCommand({
   command: 'rustc',
   args: [
@@ -146,6 +184,9 @@ const compiler = (await runCommand({
   capture: true,
 })).stdout
   .trim();
+/**
+ The compiler version, recorded in the manifest and required to be a nightly.
+ */
 const compilerVersion = (await runCommand({
   command: 'rustc',
   args: ['--version'],
@@ -154,10 +195,16 @@ const compilerVersion = (await runCommand({
   .trim();
 if (!compilerVersion.includes('nightly'))
   throw new NativeVerificationError('Fuzz instrumentation requires the repository-managed nightly Rust toolchain.');
+/**
+ Disposable build context that holds the copied inputs and the instrumented binaries.
+ */
 await using context = await mkdtempDisposable(join(
   scratchBase,
   'git-policy-cli-fuzz-',
 ));
+/**
+ Directory under the package's `target/` that keeps the evidence of every campaign.
+ */
 const outputRoot = join(
   source,
   'target',
@@ -167,6 +214,9 @@ await mkdir(
   outputRoot,
   { recursive: true },
 );
+/**
+ Evidence directory of this campaign.
+ */
 const evidence = await mkdtemp(join(
   outputRoot,
   'campaign-',
@@ -221,8 +271,11 @@ else {
     context: context.path,
   });
   console.log(`Fuzz evidence: ${evidence}`);
+  /**
+   What went wrong for each target that failed.
+   */
   const failedTargets: string[] = [];
-  for await (const failure of fuzzOutcomes({
+  for await (const { failure, } of fuzzOutcomes({
     selected: selectedTargets,
     evidence,
     secondsPerTarget,
