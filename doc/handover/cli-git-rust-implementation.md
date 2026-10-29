@@ -3416,3 +3416,15 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   container (`019d433cc9`).
 - Stale text in earlier blocks: the "slice J report" lines about torn snapshots, silent inconsistency and the message UX item
   are superseded by the recovery agent's block; the `core.hooksPath` removal queue block is done.
+
+## Update at 2026-10-29 (issue 1811: silent waits before the commit lands)
+
+- Issue 1811 (opened by the user): concurrent commits wait for minutes with no output. Comment narrows it: the push-lock
+  wait already announces itself (`auto_push.rs`); the pre-commit waits (index lock, replay reservation, owner lock,
+  worktree copy lock, Markdown check stage) must print the same kind of notice, repeat it at an interval, and end at a bound
+  with a diagnostic. Existing pieces: `live_lock.rs` (`HolderNotice`, one line after `SLOW_WAIT` of 5 s, never repeats),
+  `index_lock_wait.rs` (report effect), `replay_reservation.rs`, `worktree_copy_lock.rs`.
+- Agent `a367b2612f424f68c` (isolated worktree) inventories every wait on the commit path by measurement, fixes them with
+  one shared mechanism, adds permanent tests shown failing, and updates README/SPEC. Parent merges its branch after reading
+  the diff, then verifies (clippy, host, binary) and includes it in the next gate and release.
+- Queue position: this joins the open items after the merge agent's branch and the two finished branches.
