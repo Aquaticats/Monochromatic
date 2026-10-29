@@ -3,6 +3,11 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/git/executable` is now `package/git-executable/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
 > `package/rust-module/jsonc-edit` is now `package/jsonc-edit/core-rust`.
 
@@ -2938,3 +2943,20 @@ not a regression. Attempt 2 reruns the same four files; logs `~/temp/agent/m1804
 `src/native` while it runs.
 Queued decision for the user: the auto-push merge push runs no push-time policy.
 Unread yet: `manual_push_probe.rs` and `manual_push_range.rs` (policy input range for a merge).
+Flakiness is to be fixed at its cause, not rerun around (user, 05:3x). Findings:
+- `owner_lock` tests were wall-clock races (a helper holding the lock for a fixed 300 or 400 ms, a notice bounded below
+  390 ms); fixed in `7fffca336a` by ending each wait on an event (release file, kill after the slow notice). The
+  slow-notice test fails with the once-only guard removed (21 notices).
+- The two 5-second binary failures: the same commands took 16 ms (`cli-git check`, 8 real-git processes) and 37 ms
+  (mixed `reset`, 5 execs, no blocking syscall over 5 ms) on the host, so wrapper work does not explain a 5-second kill.
+  The user chose to reproduce the stall in the container (no bound change). Method: one full run split with
+  `nextest --partition count:i/12` into 12 gate-capped containers (`~/temp/agent/partition-run.ts`, unit
+  `cli-git-partition-run`, logs `partition-m1804-<i>of12.log`); the tests are the only load.
+- Commit path speed (user chose to cut it, task 67): a wrapped commit takes about 180 ms and starts 48 real-git
+  processes (the amend about 42; an earlier "90" double-counted an appended trace file), against 1 process and 0
+  fsyncs for direct git. The wrapper's own process makes 38 fsync calls per commit (77 ms), plus 11 `git config`, about
+  10 `rev-parse`, a scratch `git init`, 2 `findmnt` and a `git version`. Scripts: `measure-commit-commands.ts`,
+  `measure-fsync.ts`, `attribute-commit.ts`, `trace-histogram.ts` in `~/temp/agent`. Keep any fsync that guards crash
+  recovery and document why.
+- The mutation campaign script now reruns a baseline that fails (up to 8 attempts) and logs per attempt; it waits
+  until the flakiness work lands and `src/native` is quiet.
