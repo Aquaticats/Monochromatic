@@ -183,7 +183,11 @@ Raw-log catalog,
    the workspace,
    or the compression format.
 3. After the envelope repair below,
-   the repaired log validates cleanly with its 662 events and the ledger payload intact.
+   the repaired log validates cleanly with its 662 events and the ledger payload intact;
+   its 317 Zstandard frames keep the original layout
+   (header frame byte-identical,
+   one payload frame changed),
+   and the file mode stays `0600`.
 
 ## Verified workarounds
 
@@ -221,9 +225,19 @@ Raw-log catalog,
    })
    ```
 
-   Recompress with `zstd`,
-   validate the candidate with `validateStoredEvents` BEFORE it replaces the original,
-   and keep a backup of the original.
+   Rebuild the artifact FRAME-FAITHFULLY:
+   the persistence reader requires the independent first Zstandard frame to
+   contain exactly one header line
+   (`assertZstdHeaderFrame`,
+   `dsh-session-persistence-jsonl@0.2.1-rc.4/lib/index.js:2298`),
+   so a whole-file recompression makes every read and every session listing
+   fail before the first record parses.
+   Copy every untouched frame byte-identical,
+   recompress only the frame carrying the rewritten line,
+   keep the original file mode (`0600`),
+   and validate the candidate (frame contract plus `validateStoredEvents`)
+   BEFORE it replaces the original.
+   Keep a backup of the original.
    This mirrors the harness's own v3-to-v4 normalization for unknown ignorable events
    (`@deepseek-ai/dsh-session-format-v3-to-v4@0.2.1-rc.4/lib/index.js:1302`:
 
@@ -261,6 +275,19 @@ Raw-log catalog,
    This is a product boundary,
    not a fault;
    the human holding the terminal confirms the banner is gone by reopening the session.
+5. **Whole-file recompression of a repaired log.**
+   The first repair attempt of this incident rewrote the JSONL and compressed it
+   as ONE Zstandard frame.
+   Content validation passed,
+   but `assertZstdHeaderFrame` requires the first frame to be exactly one header
+   line,
+   so the backend failed before parsing any record and the session disappeared
+   from the GUI session list entirely
+   (a worse symptom than the original banner).
+   "Session missing from the list" is not an obvious consequence of a framing
+   change,
+   so the chain is recorded here;
+   the frame-faithful rebuild in the workaround above restores it.
 
 ## Adjacent false alarm (corrected on 2026-10-29)
 
