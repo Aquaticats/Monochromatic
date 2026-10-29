@@ -742,7 +742,7 @@ The cat also likes sunbathing.
         /**
          Byte order mark a page may open with.
          */
-        const mark = String.fromCodePoint(0xFEFF,);
+        const mark = String.fromCodePoint(0xFE_FF,);
         for (
           const [targetText, offset,] of [
             ['', 0,],
@@ -766,9 +766,13 @@ The cat also likes sunbathing.
             },);
 
             expect(body.length,).toBeGreaterThanOrEqual(2,);
-            expect(slices.map(function toAnchoredOffset(slice,): number | undefined {
-              return isInsertionChunk(slice.target,) ? slice.target.startOffset : undefined;
-            },),).toEqual(slices.map(function toOffset(): number {
+            expect(slices.every(function isAnchor(slice,): boolean {
+              return isInsertionChunk(slice.target,);
+            },),).toBe(true,);
+            expect(slices.map(function toOffset(slice,): number {
+              return slice.target
+                .startOffset;
+            },),).toEqual(slices.map(function toExpected(): number {
               return offset;
             },),);
             // EVERY NODE OF THE ORIGINAL'S BODY IS IN A SLICE, or a passage would be dropped from the page.

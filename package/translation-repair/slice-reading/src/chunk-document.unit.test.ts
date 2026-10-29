@@ -457,7 +457,7 @@ await describe({
             /**
              Byte order mark a page may open with.
              */
-            const mark = String.fromCodePoint(0xFEFF,);
+            const mark = String.fromCodePoint(0xFE_FF,);
             /**
              The front matter an archive may open with and carry no body after.
              */
