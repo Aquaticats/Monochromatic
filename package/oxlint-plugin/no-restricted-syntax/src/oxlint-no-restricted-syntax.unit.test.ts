@@ -555,6 +555,34 @@ await describe({
             ].join('\n',),);
           },
         },),
+        it({
+          name: 'keeps the type annotation by swapping only the arrow for a named function expression',
+          fn: async () => {
+            const source = [
+              'const fetcher: Fetcher = async (url, init) => request(url, init);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'const fetcher: Fetcher = async function fetcher(url, init) { return request(url, init) };',
+              '',
+            ].join('\n',),);
+          },
+        },),
+        it({
+          name: 'keeps the export and annotation of an exported typed arrow',
+          fn: async () => {
+            const source = [
+              'export const handler: Handler = event => handle(event);',
+              '',
+            ].join('\n',);
+            const fixed = await fixGeneratedSource({ source, },);
+            expect(fixed,).toBe([
+              'export const handler: Handler = function handler(event) { return handle(event) };',
+              '',
+            ].join('\n',),);
+          },
+        },),
       ],
     },),
     describe({

@@ -20,7 +20,9 @@ import { extractParamsText, } from './arrow-function-params.ts';
  Auto-fix handles the common `const name = (...) => ...` pattern by converting
  it to a `function name(...) { ... }` declaration, extracting the parameter
  list via {@link extractParamsText}. `export const` is similarly converted
- to `export function`. Other contexts (callbacks, object properties)
+ to `export function`. A type-annotated `const name: Type = (...) => ...` keeps
+ its declaration and annotation and only the arrow becomes a named function
+ expression, so contextual parameter types survive. Other contexts (callbacks, object properties)
  are reported but not auto-fixed because naming them requires human judgment.
  
  @example
@@ -168,24 +170,43 @@ export const noArrowFunction: CreateOnceRule = {
             .getText(node.body,);
 
         /**
+         Function head and body shared by the declaration and the named function expression forms.
+         */
+        const functionText =
+          `${asyncPrefix}function ${name}${typeParamsText}${paramsText}${returnTypeText} ${bodyText}`;
+
+        /**
+         True when the variable carries a type annotation (`const name: Type = ...`).
+
+         A function declaration cannot hold that annotation, and dropping it would
+         strip the contextual types of unannotated parameters, so the arrow alone is
+         swapped for a named function expression and the declaration stays intact.
+         */
+        const isAnnotated = (parent.id
+          .typeAnnotation
+          !== null)
+          && (parent.id
+            .typeAnnotation
+            !== undefined);
+
+        /**
          Export keyword prefix.
          */
         const exportPrefix = isExported ? 'export ' : '';
-
-        /**
-         Assembled function declaration.
-         */
-        const replacement =
-          `${exportPrefix}${asyncPrefix}function ${name}${typeParamsText}${paramsText}${returnTypeText} ${bodyText}`;
 
         context.report({
           node,
           messageId: 'forbidden',
           fix(fixer: ForeignBorrowed<Fixer>,) {
-            return fixer.replaceText(
-              replaceNode,
-              replacement,
-            );
+            return isAnnotated
+              ? fixer.replaceText(
+                node,
+                functionText,
+              )
+              : fixer.replaceText(
+                replaceNode,
+                `${exportPrefix}${functionText}`,
+              );
           },
         },);
       },
