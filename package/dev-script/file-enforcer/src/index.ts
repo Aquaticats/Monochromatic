@@ -4,6 +4,11 @@ export {
   RustCatalogSyncError,
   syncRustCatalog,
 } from './cargo/catalog/sync.ts';
+export type {
+  ManifestFile,
+  SyncIssue,
+  SyncResult,
+} from './cargo/catalog/types.ts';
 export { manageCargoManifests, } from './cargo/manage-cargo-manifests.ts';
 export type {
   CanonicalTomlValue,

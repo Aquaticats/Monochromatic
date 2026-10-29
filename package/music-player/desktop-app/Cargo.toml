@@ -25,7 +25,7 @@ path = "src/main.rs"
 
 [dependencies]
 # `anyhow` carries application-level startup and Slint event-loop errors.
-anyhow = "1"
+anyhow = { workspace = true }
 # Slint 1.17.0 is the first crates.io release with Flickable mouse-wheel
 # animation (slint-ui/slint#11338, fixing #11312), so this package no longer
 # needs the former master-revision pin. Slint is now on 1.18.1. Keep slint, i-slint-backend-winit, and
@@ -35,8 +35,8 @@ anyhow = "1"
 # struct declare the `--start-playing` flag and the file/folder positionals via
 # `#[derive(Parser)]`, replacing hand-rolled argv scanning and generating
 # `--help` / `--version` for free. 4.x is the current major line.
-clap = { version = "4", features = ["derive"] }
-directories = "6"
+clap = { workspace = true, features = ["derive"] }
+directories = { workspace = true }
 # Same Slint release family as the slint dependency in this file: the winit
 # backend is constructed explicitly (not via the default backend selector) so a
 # window-attributes hook can set the Wayland app_id, which KDE needs to attach
@@ -46,7 +46,7 @@ directories = "6"
 # "1.18.1" here is Cargo's default caret requirement (">=1.18.1, <2.0.0"), not an
 # exact pin: unlike pnpm, where a bare version string pins the exact release,
 # Cargo already lets `cargo update` move to any newer 1.x release past 1.18.1.
-i-slint-backend-winit = "1.18.1"
+i-slint-backend-winit = { workspace = true }
 # Not called from our code: a feature-unification shim. icu_provider reaches the
 # tree transitively (slint -> parley -> icu_segmenter -> icu_provider). With its
 # `logging` feature OFF, a DEBUG build routes ICU's internal `warn!` to a raw
@@ -63,14 +63,14 @@ i-slint-backend-winit = "1.18.1"
 # RUST_LOG cannot suppress it (the eprintln shim ignores log filtering). The
 # version must stay compatible with the transitive pin so cargo unifies, not
 # duplicates. See doc/troubleshooting/slint-parley-icu-cjk-segmentation.md.
-icu_provider = { version = "2", features = ["logging"] }
+icu_provider = { workspace = true, features = ["logging"] }
 # Recursive Source Root file watcher (src/watch.rs). debouncer-mini coalesces raw
 # notify events into a debounced batch; we ignore the event details and just send
 # Command::Rescan (the queue is re-derived by scanning the root), so the mini
 # debouncer (no rename pairing / file-id cache) is sufficient. Cross-platform:
 # inotify on Linux, FSEvents on macOS, ReadDirectoryChangesW on Windows. Pulls
 # notify as a transitive dep.
-notify-debouncer-mini = "0.7"
+notify-debouncer-mini = { workspace = true }
 # The crates.io 0.4.0 release (2026-08-23) is the opus-rs backend that replaced
 # audiopus_sys. The former 0.3.1 release depended on audiopus_sys 0.2.2, whose BUNDLED
 # libopus (commit 7b05f44) declares cmake_minimum_required(VERSION 3.1); CMake 4.x removed
@@ -86,15 +86,15 @@ notify-debouncer-mini = "0.7"
 # bump commits became v0.4.0), so src/opus.rs and error.rs need no edits. This replaces
 # the former git revision pin; the committed Cargo.lock records the resolved registry source.
 # See ../../../doc/troubleshooting/audiopus-cmake4-libopus-min-version.md.
-opus = "0.4"
-rfd = "0.17"
-ringbuf = "0.5"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+opus = { workspace = true }
+rfd = { workspace = true }
+ringbuf = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 # "1.18.1" here is Cargo's default caret requirement (">=1.18.1, <2.0.0"), not an
 # exact pin, the same as i-slint-backend-winit and slint-build in this file.
-slint = { version = "1.18.1", features = [ "backend-winit", "renderer-femtovg", "renderer-software", ], }
-symphonia = { version = "0.6", features = ["all"] }
+slint = { workspace = true, features = [ "backend-winit", "renderer-femtovg", "renderer-software", ] }
+symphonia = { workspace = true, features = ["all"] }
 # Drives the Turso cache async API from the cache-service actor thread
 # (src/peakcache.rs). The actor owns ONE current-thread runtime
 # (`Builder::new_current_thread().enable_all()`), the only async surface in the
@@ -105,20 +105,20 @@ symphonia = { version = "0.6", features = ["all"] }
 # handle blocks on), `macros` (`select!` to bias reads ahead of a cold sweep's
 # queued writes). NOT `rt-multi-thread`: one actor thread is enough and the spike
 # confirmed a current-thread runtime drives Turso's local futures.
-tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tokio = { workspace = true, features = ["rt", "sync", "macros"] }
 # Unicode normalization for search and folder collation (src/folder_rail.rs, src/search_matcher.rs,
 # src/non_spacing_mark.rs). NFD decomposition plus the combining-mark test let accented and
 # decomposed names sort and match the same way the Kotlin app does, so the search page and the
 # folder rail agree on which tracks match a query.
-unicode-normalization = "0.1"
+unicode-normalization = { workspace = true }
 # The logging facade and its subscriber (src/logging.rs). tracing mirrors the shared
 # truepeak-core logging; tracing-subscriber installs the stderr sink with an env-filter
 # (RUST_LOG, default `info`). Both already resolve transitively (turso -> tracing), so this
 # only promotes them to direct deps. We deliberately do NOT bridge the `log` facade (no
 # tracing-log init): ICU's `log`-routed CJK-segmentation warnings must stay silent, exactly
 # as today with no subscriber (see the icu_provider note below).
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 # Shared true-peak core: the Catmull-Rom meter and attenuate-only normalization gain
 # (src/truepeak.rs), plus, behind the `service` feature, the whole persistent decision
 # cache (`DecisionCache`) and the policy resolvers (`resolve_decision`, `resolve_full_scan`)
@@ -135,9 +135,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # `track_fingerprint` (XXH3-64 through `twox-hash`, run-time AVX2/SSE2/NEON selection, no
 # `-C target-feature` flag) that src/peakcache.rs calls; see
 # ../../../doc/decision/music-player-fingerprint-hash.md.
-truepeak-core = { path = "../truepeak-core", features = ["service", "fingerprint"] }
-trash = "5"
-arboard = "3"
+truepeak-core = { path = "../truepeak-core", features = ["service", "fingerprint"], version = "=0.2.0" }
+trash = { workspace = true }
+arboard = { workspace = true }
 
 # Linux-only native backends. PipeWire (audio) and zbus (KDE taskbar progress)
 # have no macOS equivalent, so cargo compiles them only when target_os = linux;
@@ -150,17 +150,17 @@ arboard = "3"
 # `.data`/`.size` access.
 # `v0_3_49` exposes `Buffer::requested()`, the quantum the graph asks each callback for;
 # the underrun meter in src/output_pipewire.rs compares it with the frames it fills.
-pipewire = { version = "0.10", features = ["v0_3_49"] }
+pipewire = { workspace = true, features = ["v0_3_49"] }
 # Already in the tree transitively (Slint's color-scheme watcher; rfd 0.17 no longer
 # uses it for its portal picker). Used directly to emit the com.canonical.Unity.LauncherEntry `Update`
 # signal that drives the KDE taskbar progress. Default features include the
 # blocking API and async-io backend. macOS has no D-Bus session bus, so it is
 # gated to Linux alongside the launcher integration it powers.
-zbus = "5"
+zbus = { workspace = true }
 # ALSA fallback for Linux (src/output_linux.rs), OPTIONAL and compiled only with the `alsa-fallback` feature below.
 # cpal drives ALSA on Linux and links libasound, so a default Linux build, which needs only PipeWire, gets no new
 # link-time or run-time dependency. Same 0.18 line as the non-Linux table, so Cargo.lock holds one cpal.
-cpal = { version = "0.18", optional = true }
+cpal = { workspace = true, optional = true }
 
 # Non-Linux native backend. cpal drives the OS audio engine (src/output_cpal.rs):
 # CoreAudio on macOS, WASAPI on Windows, the counterpart to the PipeWire path. One
@@ -178,7 +178,7 @@ cpal = { version = "0.18", optional = true }
 # BY VALUE (handled in output_cpal.rs) and unified cpal's error types (we only
 # Debug-print them, so no change needed there).
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-cpal = "0.18"
+cpal = { workspace = true }
 
 # libc is used for two native thread-scheduling syscalls, so it is pulled only on
 # the two targets that call them, not on Windows (which uses the `windows` crate
@@ -190,7 +190,7 @@ cpal = "0.18"
 #   class.
 # std exposes no thread scheduling-class API, so this is raw FFI either way.
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-libc = "0.2"
+libc = { workspace = true }
 
 # Windows-only runtime bindings. Four Windows features need the Win32 API:
 # - src/measure.rs lowers the background sweep thread with SetThreadPriority /
@@ -211,7 +211,7 @@ libc = "0.2"
 # machinery; the same crate also exposes the threading call, so one dependency
 # covers both. The same crate builds for both Windows ABIs (MSVC and GNU).
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 # `alsa-fallback` makes the Linux output try PipeWire first and the default ALSA device second (src/output_linux.rs).
 # Alpine Linux and other minimal installs run no sound server by default, so the Alpine build turns it on
@@ -230,14 +230,14 @@ alsa-fallback = ["dep:cpal"]
 # This crate is "preliminary" and does NOT follow semver, so it MUST be pinned with
 # `=` to the exact slint release family (1.18.1) it is versioned against.
 [dev-dependencies]
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = { workspace = true }
 
 [build-dependencies]
 # Must match the `slint` release family used for this crate's slint and
 # i-slint-backend-winit dependencies because the compiler and runtime are
 # versioned together. "1.18.1" here is Cargo's default caret requirement
 # (">=1.18.1, <2.0.0"), not an exact pin.
-slint-build = "1.18.1"
+slint-build = { workspace = true }
 
 # Windows-only build dependency: embeds asset/music-player.ico into the .exe so
 # Explorer, the taskbar, and Alt-Tab show the app icon (the macOS icon lives in
@@ -248,7 +248,7 @@ slint-build = "1.18.1"
 # the Windows SDK's rc.exe (MSVC targets) or MinGW-w64's windres (GNU target). A
 # Linux cross-compile of the GNU target skips the icon (see build.rs). winresource is the maintained successor to the winres crate.
 [target.'cfg(windows)'.build-dependencies]
-winresource = "0.1"
+winresource = { workspace = true }
 
 [profile.release]
 # strip: drop the ~8.5 MB .symtab/.strtab symbol table (never loaded at runtime;
@@ -267,3 +267,37 @@ codegen-units = 1
 # Standalone crate: its own workspace root, so no ancestor Cargo.toml can absorb it.
 # Enforced by file-enforcer (doc/planning/cargo-toml-file-enforcer.md).
 [workspace]
+
+# Named catalogs this crate selects from rust-catalog.toml (doc/decision/rust-dependency-catalog.md).
+[package.metadata.rust-catalog.catalogs]
+i-slint-backend-testing = "pinned"
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+anyhow = ">=1"
+arboard = ">=3"
+clap = ">=4"
+cpal = ">=0.18"
+directories = ">=6"
+i-slint-backend-testing = "=1.18.1"
+i-slint-backend-winit = ">=1.18.1"
+icu_provider = ">=2"
+libc = ">=0.2"
+notify-debouncer-mini = ">=0.7"
+opus = ">=0.4"
+pipewire = ">=0.10"
+rfd = ">=0.17"
+ringbuf = ">=0.5"
+serde = ">=1"
+serde_json = ">=1"
+slint = ">=1.18.1"
+slint-build = ">=1.18.1"
+symphonia = ">=0.6"
+tokio = ">=1.50"
+tracing = ">=0.1"
+tracing-subscriber = ">=0.3"
+trash = ">=5"
+unicode-normalization = ">=0.1"
+windows = ">=0.62"
+winresource = ">=0.1"
+zbus = ">=5.19.0"

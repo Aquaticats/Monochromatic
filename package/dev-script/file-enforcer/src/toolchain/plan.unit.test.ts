@@ -128,18 +128,18 @@ await describe({
              */
             const filtered = TOOLS
               .filter(
-                (entry,) => entry.os !== null,
+              (entry,) => entry.os !== null,
               )
               .map(
-                (entry,) => entry.id,
+              (entry,) => entry.id,
               )
               .sort();
             expect(filtered,)
               .toEqual(
-                [
-                  'cargo:monochromatic-git-policy-cli',
-                  'conda:bubblewrap',
-                ],
+              [
+                'cargo:monochromatic-git-policy-cli',
+                'conda:bubblewrap',
+              ],
               );
           },
         },),
@@ -149,12 +149,12 @@ await describe({
             expect(toolById('rust',)
               .options.rustComponents,)
               .toEqual(
-                ['clippy', 'rust-src', 'llvm-tools', 'rustc-dev'],
+              ['clippy', 'rust-src', 'llvm-tools', 'rustc-dev'],
               );
             expect(toolById('rust',)
               .options.rustTargets,)
               .toEqual(
-                ['aarch64-linux-android', 'x86_64-linux-android'],
+              ['aarch64-linux-android', 'x86_64-linux-android'],
               );
           },
         },),
@@ -182,12 +182,12 @@ await describe({
             expect(toolById('android-sdk',)
               .options.androidPackages,)
               .toEqual(
-                [
-                  'platforms/android-37.0',
-                  'build-tools/37.0.0',
-                  'ndk/29.0.13846066',
-                  'platform-tools',
-                ],
+              [
+                'platforms/android-37.0',
+                'build-tools/37.0.0',
+                'ndk/29.0.13846066',
+                'platform-tools',
+              ],
               );
           },
         },),
@@ -247,7 +247,7 @@ await describe({
               },);
             expect(BIN_BOOTSTRAP.artifacts['linux-x64']?.sha256,)
               .toBe(
-                'f7a179a813675bde2d8cf0ad3b4ae1d7bb1c6732daf623fb8deeba9f5f4782a7',
+              'f7a179a813675bde2d8cf0ad3b4ae1d7bb1c6732daf623fb8deeba9f5f4782a7',
               );
           },
         },),
@@ -269,8 +269,8 @@ await describe({
               (entry,) => entry.id,
             )
               .slice(
-                0,
-                2,
+              0,
+              2,
               ),)
               .toEqual(['bin', 'mpm'],);
           },

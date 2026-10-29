@@ -35,7 +35,7 @@ await describe({
               renderArtifacts({ tools: ALL_TOOLS, },)['toolchain.lock.json'],
             )
               .toBe(
-                renderArtifacts({ tools: ALL_TOOLS, },)['toolchain.lock.json'],
+              renderArtifacts({ tools: ALL_TOOLS, },)['toolchain.lock.json'],
               );
           },
         },),
@@ -47,11 +47,11 @@ await describe({
                 .sort(),
             )
               .toEqual(
-                [
-                  'mpm.managers.toml',
-                  'mpm.packages.toml',
-                  'toolchain.lock.json',
-                ],
+              [
+                'mpm.managers.toml',
+                'mpm.packages.toml',
+                'toolchain.lock.json',
+              ],
               );
           },
         },),
@@ -71,7 +71,7 @@ await describe({
               .toBe(1,);
             expect(lock.generatedFrom,)
               .toBe(
-                'package/dev-script/file-enforcer/src/toolchain/plan.ts',
+              'package/dev-script/file-enforcer/src/toolchain/plan.ts',
               );
           },
         },),
@@ -91,18 +91,18 @@ await describe({
             for (const tool of Object.values(parsed.tools,)) {
               expect(Object.keys(tool,),)
                 .toEqual(
-                  [
-                    'request',
-                    'version',
-                    'route',
-                    'manager',
-                    'packageId',
-                    'bins',
-                    'os',
-                    'env',
-                    'options',
-                    'artifacts',
-                  ],
+                [
+                  'request',
+                  'version',
+                  'route',
+                  'manager',
+                  'packageId',
+                  'bins',
+                  'os',
+                  'env',
+                  'options',
+                  'artifacts',
+                ],
                 );
             }
             expect(Object.keys(parsed.tools,)
@@ -123,9 +123,9 @@ await describe({
             ) as { tools: Record<string, unknown>; };
             expect(Object.keys(parsed.tools,),)
               .toEqual(
-                ALL_TOOLS.map(
-                  (entry,) => entry.id,
-                ),
+              ALL_TOOLS.map(
+                (entry,) => entry.id,
+              ),
               );
           },
         },),
@@ -158,17 +158,17 @@ await describe({
             const sections = renderMpmPackagesToml({ tools: ALL_TOOLS, },)
               .split('\n',)
               .filter(
-                (line,) => line.startsWith('[',),
+              (line,) => line.startsWith('[',),
               );
             expect(sections,)
               .toEqual(
-                [
-                  '[cargo]',
-                  '[conda]',
-                  '[pnpm]',
-                  '[rustup]',
-                  '[uvx]',
-                ],
+              [
+                '[cargo]',
+                '[conda]',
+                '[pnpm]',
+                '[rustup]',
+                '[uvx]',
+              ],
               );
           },
         },),
@@ -200,7 +200,7 @@ await describe({
               if (!line.includes(' = ',))
                 continue;
               /**
-               * Declaration key of the line.
+               Declaration key of the line.
                */
               const key = line.split(' = ', 1)[0] ?? '';
               expect(/@v?\d/u.test(key,),)
@@ -222,7 +222,7 @@ await describe({
             const headers = renderMpmManagersToml({ tools: ALL_TOOLS, },)
               .split('\n',)
               .filter(
-                (line,) => line.startsWith('[mpm.overrides.'),
+              (line,) => line.startsWith('[mpm.overrides.'),
               );
             expect(
               headers.filter(
@@ -295,15 +295,15 @@ await describe({
             expect(tomlString('plain',),)
               .toBe('"plain"',);
             expect(tomlString('say "hi"',),)
-              .toBe('"say \\"hi\\""',);
-            expect(tomlString('back\\slash',),)
-              .toBe('"back\\\\slash"',);
+              .toBe(String.raw`"say \"hi\""`,);
+            expect(tomlString(String.raw`back\slash`,),)
+              .toBe(String.raw`"back\\slash"`,);
             expect(tomlString('line\nbreak',),)
-              .toBe('"line\\nbreak"',);
+              .toBe(String.raw`"line\nbreak"`,);
             expect(tomlString('tab\there',),)
-              .toBe('"tab\\there"',);
+              .toBe(String.raw`"tab\there"`,);
             expect(tomlString('\u0001',),)
-              .toBe('"\\u0001"',);
+              .toBe(String.raw`"\u0001"`,);
           },
         },),
         it({
@@ -313,7 +313,7 @@ await describe({
               const hostile of [
                 '" = "pwned',
                 '\n[evil]\n',
-                '\\u0022, x = "',
+                String.raw`\u0022, x = "`,
                 'a] = 1\nb',
                 '${name}',
                 '`rm -rf /`',
@@ -335,8 +335,8 @@ await describe({
                 -1,
               )
                 .replaceAll(
-                  /\\./gu,
-                  '',
+                /\\./gu,
+                '',
                 );
               expect(unescaped.includes('"',),)
                 .toBe(false,);

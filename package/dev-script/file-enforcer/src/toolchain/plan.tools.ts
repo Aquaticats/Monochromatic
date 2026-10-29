@@ -26,7 +26,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'bin-sourced',
     manager: null,
     packageId: null,
-    bins: ['bun', 'bunx'],
+    bins: [
+      'bun',
+      'bunx'
+    ],
     os: null,
     options: { binAliases: { bunx: 'bun' } },
     env: {},
@@ -35,13 +38,22 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'pnpm',
     request: { track: 'latest' },
-    version: '12.15.0',
+    version: '12.16.1',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
-    bins: ['pn', 'pnpm', 'pnpx', 'pnx'],
+    bins: [
+      'pn',
+      'pnpm',
+      'pnpx',
+      'pnx'
+    ],
     os: null,
-    options: { binAliases: { pn: 'pnpm', pnpx: 'pnpm', pnx: 'pnpm' } },
+    options: { binAliases: {
+      pn: 'pnpm',
+      pnpx: 'pnpm',
+      pnx: 'pnpm'
+    } },
     env: {},
     artifacts: artifacts('pnpm'),
   },
@@ -105,11 +117,15 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'node',
     request: { track: 'latest' },
-    version: '26.12.1',
+    version: '26.13.0',
     route: 'archive',
     manager: null,
     packageId: null,
-    bins: ['node', 'npm', 'npx'],
+    bins: [
+      'node',
+      'npm',
+      'npx'
+    ],
     os: null,
     options: {},
     env: {},
@@ -148,7 +164,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'archive',
     manager: null,
     packageId: null,
-    bins: ['uv', 'uvx'],
+    bins: [
+      'uv',
+      'uvx'
+    ],
     os: null,
     options: {},
     env: {},
@@ -232,10 +251,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rust',
     request: { channel: 'nightly' },
-    version: 'nightly-2026-10-28',
+    version: 'nightly-2026-10-29',
     route: 'rustup-toolchain',
     manager: 'rustup',
-    packageId: 'nightly-2026-10-28',
+    packageId: 'nightly-2026-10-29',
     bins: [
       'cargo',
       'cargo-clippy',
@@ -251,10 +270,18 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     ],
     os: null,
     options: {
-      rustComponents: ['clippy', 'rust-src', 'llvm-tools', 'rustc-dev'],
-      rustTargets: ['aarch64-linux-android', 'x86_64-linux-android'],
+      rustComponents: [
+        'clippy',
+        'rust-src',
+        'llvm-tools',
+        'rustc-dev'
+      ],
+      rustTargets: [
+        'aarch64-linux-android',
+        'x86_64-linux-android'
+      ],
     },
-    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-28' },
+    env: { RUSTUP_TOOLCHAIN: 'nightly-2026-10-29' },
     artifacts: {},
   },
   {
@@ -286,7 +313,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:cargo-dylint',
     request: { track: 'latest' },
-    version: '6.2.0',
+    version: '6.3.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-dylint',
@@ -299,7 +326,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:dylint-link',
     request: { track: 'latest' },
-    version: '6.2.0',
+    version: '6.3.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'dylint-link',
@@ -392,7 +419,13 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'archive',
     manager: null,
     packageId: null,
-    bins: ['ccmake', 'cmake', 'cmake-gui', 'cpack', 'ctest'],
+    bins: [
+      'ccmake',
+      'cmake',
+      'cmake-gui',
+      'cpack',
+      'ctest'
+    ],
     os: null,
     options: {},
     env: {},
@@ -474,7 +507,10 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'archive',
     manager: null,
     packageId: null,
-    bins: ['taplo', 'taplo-linux-x86_64'],
+    bins: [
+      'taplo',
+      'taplo-linux-x86_64'
+    ],
     os: null,
     options: {
       // The gzip payload installs as `taplo`; the asset-name bin resolves
@@ -487,7 +523,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'tombi',
     request: { track: 'latest' },
-    version: '1.9.6',
+    version: '1.9.7',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -513,7 +549,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'rumdl',
     request: { track: 'latest' },
-    version: '0.3.1',
+    version: '0.3.2',
     route: 'bin-sourced',
     manager: null,
     packageId: null,
@@ -770,7 +806,13 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'socket',
-    bins: ['socket', 'socket-npm', 'socket-npx', 'socket-pnpm', 'socket-yarn'],
+    bins: [
+      'socket',
+      'socket-npm',
+      'socket-npx',
+      'socket-pnpm',
+      'socket-yarn'
+    ],
     os: null,
     options: {},
     env: {},
@@ -779,11 +821,15 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:wrangler',
     request: { track: 'latest' },
-    version: '4.154.0',
+    version: '4.155.0',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'wrangler',
-    bins: ['cf-wrangler', 'wrangler', 'wrangler2'],
+    bins: [
+      'cf-wrangler',
+      'wrangler',
+      'wrangler2'
+    ],
     os: null,
     options: {},
     env: {},
@@ -909,7 +955,12 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-ndk',
-    bins: ['cargo-ndk', 'cargo-ndk-env', 'cargo-ndk-runner', 'cargo-ndk-test'],
+    bins: [
+      'cargo-ndk',
+      'cargo-ndk-env',
+      'cargo-ndk-runner',
+      'cargo-ndk-test'
+    ],
     os: null,
     options: {},
     env: {},
@@ -1007,7 +1058,10 @@ export const MPM_BOOTSTRAP: ToolPlanEntry = {
   route: 'mpm-uvx',
   manager: 'uvx',
   packageId: 'meta-package-manager',
-  bins: ['mpm', 'meta-package-manager'],
+  bins: [
+    'mpm',
+    'meta-package-manager'
+  ],
   os: null,
   options: {
     bootstrap: {

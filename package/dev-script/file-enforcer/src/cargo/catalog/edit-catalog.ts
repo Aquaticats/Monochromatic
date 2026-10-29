@@ -9,6 +9,7 @@ import type { RustCatalogEntry, } from '@monochromatic-dev/module-rust-catalog/t
 import {
   childPairs,
   type LocatedDocument,
+  type LocatedPair,
   pathKey,
 } from './locate.ts';
 import {
@@ -21,7 +22,15 @@ import {
   type Splice,
 } from './text-splice.ts';
 
-//region Inserts
+//region Shared
+
+/**
+ One added catalog line with the name it sorts by.
+ */
+type AddedLine = {
+  readonly name: string;
+  readonly line: string;
+};
 
 /**
  Offset just past the line holding `end - 1`.
@@ -34,19 +43,119 @@ import {
 
  @example
  ```ts
- nextLine({ source, end: node.range[1], });
+ nextLine({ source, end: pair.range.end, });
  ```
  */
-function nextLine({ source, end, }: { readonly source: string; readonly end: number; },): number {
-  return lineEndInclusive({ source, offset: Math.max(end - 1, 0,), },);
+function nextLine({
+  source,
+  end,
+}: {
+  readonly source: string;
+  readonly end: number
+},): number {
+  return lineEndInclusive({
+    source,
+    offset: Math.max(
+      end - 1,
+      0,
+    ),
+  },);
 }
 
 /**
- Splices that add new `[catalog]` entries, each before the first existing entry that sorts after it.
+ Code-point order of two names, for deterministic catalog ordering.
+
+ @param left - name
+
+ @param right - name
+
+ @returns negative, zero, or positive
+
+ @example
+ ```ts
+ compareNames({ left: 'a', right: 'b', }); // -1
+ ```
+ */
+function compareNames({
+  left,
+  right,
+}: {
+  readonly left: string;
+  readonly right: string
+},): number {
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+//endregion Shared
+
+//region Inserts
+
+/**
+ Offset where a new `[catalog]` entry named `name` goes: before the first entry sorting after it, else after the last.
 
  @param source - catalog text
 
- @param located - indexed catalog
+ @param headerEnd - end of the `[catalog]` header
+
+ @param existing - existing entries in source order
+
+ @param name - new entry name
+
+ @returns insertion offset
+
+ @example
+ ```ts
+ insertionOffset({ source, headerEnd, existing, name: 'clap', });
+ ```
+ */
+function insertionOffset(
+  {
+    source,
+    headerEnd,
+    existing,
+    name,
+  }: {
+    readonly source: string;
+    readonly headerEnd: number;
+    readonly existing: readonly LocatedPair[];
+    readonly name: string
+  },
+): number {
+  /**
+   First existing entry sorting after the new name.
+   */
+  const following = existing.find(function sortsAfter(pair: LocatedPair,): boolean {
+    return compareNames({
+      left: pair.path[1] ?? '',
+      right: name,
+    },) > 0;
+  },);
+  if (following !== undefined)
+    return leadingCommentStart({
+      source,
+      offset: following.range
+        .start,
+    },);
+  /**
+   Last existing entry.
+   */
+  const last = existing.at(-1,);
+  return last === undefined ? nextLine({
+    source,
+    end: headerEnd,
+  },) : nextLine({
+    source,
+    end: last.range
+      .end,
+  },);
+}
+
+/**
+ Splices that add new `[catalog]` entries in name order.
+
+ @param source - catalog text
+
+ @param located - projected catalog
 
  @param additions - entries to add
 
@@ -58,63 +167,92 @@ function nextLine({ source, end, }: { readonly source: string; readonly end: num
  ```
  */
 function additionSplices(
-  { source, located, additions, }: { readonly source: string; readonly located: LocatedDocument; readonly additions: ReadonlyMap<string, RustCatalogEntry>; },
+  {
+    source,
+    located,
+    additions,
+  }: {
+    readonly source: string;
+    readonly located: LocatedDocument;
+    readonly additions: ReadonlyMap<string, RustCatalogEntry>
+  },
 ): readonly Splice[] {
   if (additions.size === 0)
     return [];
   /**
-   The default catalog table.
-   */
-  const table = located.tables.get(pathKey(['catalog',],),);
-  /**
    Added lines in name order.
    */
-  const lines = [...additions.entries(),]
-    .toSorted(function byName([left,], [right,],): number {
-      return left < right ? -1 : (left > right ? 1 : 0);
-    },)
-    .map(function toLine([name, entry,],): readonly [string, string] {
-      return [name, `${name} = ${renderEntryValue(entry,)}\n`,];
+  const lines: AddedLine[] = [];
+  for (const [name, entry,] of additions)
+    lines.push({
+      name,
+      line: `${name} = ${renderEntryValue(entry,)}\n`,
     },);
+  lines.sort(function byName(
+    left: AddedLine,
+    right: AddedLine,
+  ): number {
+    return compareNames({
+      left: left.name,
+      right: right.name,
+    },);
+  },);
+  /**
+   The default catalog table.
+   */
+  const table = located.tables
+    .get(pathKey(['catalog',],),);
   if (table === undefined) {
     /**
      Separator so the new table starts after one blank line.
      */
     const separator = source.length === 0 ? '' : (source.endsWith('\n',) ? '\n' : '\n\n');
-    return [{ start: source.length, end: source.length, text: `${separator}[catalog]\n${lines.map(function toText([, line,],): string {
-      return line;
-    },).join('',)}`, },];
+    return [{
+      start: source.length,
+      end: source.length,
+      text: `${separator}[catalog]\n${lines.map(function toText(added: AddedLine,): string {
+      return added.line;
+    },)
+        .join('',)}`,
+    },];
   }
   /**
-   Existing single-key entries in source order.
+   Existing entries in source order.
    */
-  const existing = childPairs({ located, prefix: ['catalog',], },);
+  const existing = childPairs({
+    located,
+    prefix: ['catalog',],
+  },);
   /**
-   Lines grouped by insertion offset.
+   Lines grouped by insertion offset, kept in name order.
    */
-  const byOffset = new Map<number, string[]>();
-  for (const [name, line,] of lines) {
-    /**
-     First existing entry sorting after the new name.
-     */
-    const following = existing.find(function sortsAfter(pair,): boolean {
-      return (pair.path[1] ?? '') > name;
-    },);
-    /**
-     Last existing entry, after which unmatched names go.
-     */
-    const last = existing.at(-1,);
+  const byOffset = new Map<number, string>();
+  for (const added of lines) {
     /**
      Where this line goes.
      */
-    const offset = following === undefined
-      ? (last === undefined ? nextLine({ source, end: table.key.range[1], },) : nextLine({ source, end: last.node.range[1], },))
-      : leadingCommentStart({ source, offset: following.node.range[0], },);
-    byOffset.set(offset, [...(byOffset.get(offset,) ?? []), line,],);
+    const offset = insertionOffset({
+      source,
+      headerEnd: table.headerEnd,
+      existing,
+      name: added.name,
+    },);
+    byOffset.set(
+      offset,
+      `${byOffset.get(offset,) ?? ''}${added.line}`,
+    );
   }
-  return [...byOffset.entries(),].map(function toSplice([offset, group,],): Splice {
-    return { start: offset, end: offset, text: group.join('',), };
-  },);
+  /**
+   One splice per insertion point.
+   */
+  const splices: Splice[] = [];
+  for (const [offset, text,] of byOffset)
+    splices.push({
+      start: offset,
+      end: offset,
+      text,
+    },);
+  return splices;
 }
 
 //endregion Inserts
@@ -124,7 +262,7 @@ function additionSplices(
 /**
  Splices that raise existing `[catalog]` floors.
 
- @param located - indexed catalog
+ @param located - projected catalog
 
  @param floorRaises - dependency name to new `>=` requirement
 
@@ -136,29 +274,50 @@ function additionSplices(
  ```
  */
 function floorRaiseSplices(
-  { located, floorRaises, }: { readonly located: LocatedDocument; readonly floorRaises: ReadonlyMap<string, string>; },
+  {
+    located,
+    floorRaises,
+  }: {
+    readonly located: LocatedDocument;
+    readonly floorRaises: ReadonlyMap<string, string>
+  },
 ): readonly Splice[] {
-  return [...floorRaises.entries(),].flatMap(function toSplices([name, requirement,],): readonly Splice[] {
+  /**
+   Splices collected per raised entry.
+   */
+  const splices: Splice[] = [];
+  for (const [name, requirement,] of floorRaises) {
     /**
-     The entry and, for table entries, its `version` member.
+     Paths that hold the version string: the entry itself or its `version` member.
      */
-    const candidates = located.pairs.filter(function isTarget(pair,): boolean {
-      /**
-       Joined path of this pair.
-       */
-      const key = pathKey(pair.path,);
-      return (key === pathKey(['catalog', name,],)) || (key === pathKey(['catalog', name, 'version',],));
-    },);
+    const targets = new Set([
+      pathKey([
+        'catalog',
+        name,
+      ],),
+      pathKey([
+        'catalog',
+        name,
+        'version',
+      ],),
+    ],);
     /**
      The string-valued pair to rewrite.
      */
-    const target = candidates.find(function isString(pair,): boolean {
-      return pair.node.value.type === 'TOMLValue';
-    },);
-    if (target === undefined)
-      return [];
-    return [{ start: target.node.value.range[0], end: target.node.value.range[1], text: renderString(requirement,), },];
-  },);
+    const target = located.pairs
+      .find(function isTarget(pair: LocatedPair,): boolean {
+        return targets.has(pathKey(pair.path,),) && (pair.valueKind === 'string');
+      },);
+    if (target !== undefined)
+      splices.push({
+        start: target.valueRange
+          .start,
+        end: target.valueRange
+          .end,
+        text: renderString(requirement,),
+      },);
+  }
+  return splices;
 }
 
 /**
@@ -166,7 +325,7 @@ function floorRaiseSplices(
 
  @param source - catalog text
 
- @param located - indexed catalog
+ @param located - projected catalog
 
  @param prunes - entry paths such as `['catalog', 'anyhow']` or `['catalogs', 'pinned', 'salsa']`
 
@@ -178,20 +337,38 @@ function floorRaiseSplices(
  ```
  */
 function pruneSplices(
-  { source, located, prunes, }: { readonly source: string; readonly located: LocatedDocument; readonly prunes: readonly (readonly string[])[]; },
+  {
+    source,
+    located,
+    prunes,
+  }: {
+    readonly source: string;
+    readonly located: LocatedDocument;
+    readonly prunes: readonly (readonly string[])[]
+  },
 ): readonly Splice[] {
   /**
    Joined paths to prune.
    */
-  const targets = new Set(prunes.map(pathKey,),);
+  const targets = new Set<string>();
+  for (const path of prunes)
+    targets.add(pathKey(path,),);
   return located.pairs
-    .filter(function isPruned(pair,): boolean {
+    .filter(function isPruned(pair: LocatedPair,): boolean {
       return targets.has(pathKey(pair.path,),);
     },)
-    .map(function toSplice(pair,): Splice {
+    .map(function toSplice(pair: LocatedPair,): Splice {
       return {
-        start: leadingCommentStart({ source, offset: pair.node.range[0], },),
-        end: nextLine({ source, end: pair.node.range[1], },),
+        start: leadingCommentStart({
+          source,
+          offset: pair.range
+            .start,
+        },),
+        end: nextLine({
+          source,
+          end: pair.range
+            .end,
+        },),
         text: '',
       };
     },);
@@ -202,7 +379,7 @@ function pruneSplices(
 
  @param source - catalog text
 
- @param located - indexed catalog
+ @param located - projected catalog
 
  @param additions - new default entries
 
@@ -233,9 +410,20 @@ export function catalogSplices(
   },
 ): readonly Splice[] {
   return [
-    ...additionSplices({ source, located, additions, },),
-    ...floorRaiseSplices({ located, floorRaises, },),
-    ...pruneSplices({ source, located, prunes, },),
+    ...additionSplices({
+      source,
+      located,
+      additions,
+    },),
+    ...floorRaiseSplices({
+      located,
+      floorRaises,
+    },),
+    ...pruneSplices({
+      source,
+      located,
+      prunes,
+    },),
   ];
 }
 

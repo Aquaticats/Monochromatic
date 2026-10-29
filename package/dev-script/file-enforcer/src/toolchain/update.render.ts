@@ -159,7 +159,7 @@ export function patchPlanVersions(
       `(id: '${
         id.replaceAll(
           /[.*+?^${}()|[\]\\]/gu,
-          '\\\\$&',
+          String.raw`\\$&`,
         )
       }',[\\s\\S]*?\\n  \\},)`,
       'u',
@@ -174,12 +174,12 @@ export function patchPlanVersions(
     /**
      Resolved version the entry pins before this update.
      */
-    const versionMatch = match[0].match(/version: '([^']*)'/u,);
+    const versionMatch = /version: '([^']*)'/u.exec(match[0]);
     if (versionMatch === null) {
       throw new Error(`no version field found for plan entry ${id}`,);
     }
     const oldVersion = versionMatch[1];
-    if (oldVersion === undefined || oldVersion === '') {
+    if ((oldVersion === undefined) || (oldVersion === '')) {
       throw new Error(`no version field found for plan entry ${id}`,);
     }
     /**
@@ -190,15 +190,22 @@ export function patchPlanVersions(
      */
     const moved = match[0]
       .split('\n',)
-      .map((line,) => line.trimStart().startsWith('//',)
+      .map((line,) => line.trimStart()
+        .startsWith('//',)
         ? line
-        : line.replaceAll(`${
+        : line.replaceAll(
+          `${
           oldVersion
-        }'`, `${
+        }'`,
+          `${
           version
-        }'`,),)
+        }'`,
+        ),)
       .join('\n',);
-    patched = patched.replace(pattern, () => moved,);
+    patched = patched.replace(
+      pattern,
+      () => moved,
+    );
   }
   return patched;
 }

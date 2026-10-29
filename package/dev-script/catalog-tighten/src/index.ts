@@ -51,6 +51,7 @@ import {
 import {
   rewriteCatalogRanges,
 } from './yaml-rewrite.ts';
+import { tightenRustCatalog, } from './cargo/run.ts';
 
 
 
@@ -295,7 +296,10 @@ const catalogEntries = Object.entries(catalog,);
  Classifies and processes each catalog entry for tightening.
  */
 const entrySummaries = await Promise.all(catalogEntries.map(
-  async function processEntry([name, value,],): Promise<CatalogSummary> {
+  async function processEntry([name, value,]: readonly [
+    string,
+    string,
+  ],): Promise<CatalogSummary> {
     /**
      Parsed range prefix and version, or `NOT_A_RANGE` if not a `>=` range.
      */
@@ -496,5 +500,15 @@ console.info(`  Undeclared (in store, not tightened): ${String(summary.undeclare
 console.info(`  Not installed: ${String(summary.notFoundCount,)}`,);
 
 //endregion Summary
+
+//region Cargo catalog
+
+// The Rust catalog (rust-catalog.toml) is tightened by the same command; see src/cargo/run.ts.
+await tightenRustCatalog({
+  root: monorepoRoot,
+  dryRun,
+},);
+
+//endregion Cargo catalog
 
 //endregion Main

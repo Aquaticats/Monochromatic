@@ -44,16 +44,16 @@ export function tomlString(value: string,): string {
      */
     const code = ch.codePointAt(0,) ?? 0;
     if (ch === '\\')
-      out += '\\\\';
+      out += String.raw`\\`;
     else if (ch === '"')
-      out += '\\"';
+      out += String.raw`\"`;
     else if (ch === '\n')
-      out += '\\n';
+      out += String.raw`\n`;
     else if (ch === '\r')
-      out += '\\r';
+      out += String.raw`\r`;
     else if (ch === '\t')
-      out += '\\t';
-    else if (code < 0x20 || code === 0x7f)
+      out += String.raw`\t`;
+    else if ((code < 0x20) || (code === 0x7F))
       out += `\\u${code.toString(16,)
         .padStart(
           4,
@@ -101,14 +101,17 @@ export function renderMpmPackagesToml(
    */
   const byManager = new Map<string, ToolPlanEntry[]>();
   for (const entry of tools) {
-    if (entry.manager === null || entry.packageId === null)
+    if ((entry.manager === null) || (entry.packageId === null))
       continue;
     /**
      Existing bucket for this manager, or a fresh one.
      */
     const bucket = byManager.get(entry.manager,);
     if (bucket === undefined)
-      byManager.set(entry.manager, [entry],);
+      byManager.set(
+        entry.manager,
+        [entry],
+      );
     else
       bucket.push(entry,);
   }
@@ -149,12 +152,12 @@ function managerSlug(id: string,): string {
     : id;
   return bare.toLowerCase()
     .replaceAll(
-      /[^a-z0-9]+/g,
-      '-',
+    /[^a-z0-9]+/g,
+    '-',
     )
     .replaceAll(
-      /^-+|-+$/g,
-      '',
+    /^-+|-+$/g,
+    '',
     );
 }
 
@@ -190,7 +193,9 @@ function installArgs(entry: ToolPlanEntry,): readonly string[] {
     '--version',
     entry.version,
   ];
-  for (const feature of entry.options.cargoFeatures ?? []) {
+  for (const feature of entry.options
+    .cargoFeatures
+    ?? []) {
     args.push(
       '--features',
       feature,
@@ -204,7 +209,10 @@ function installArgs(entry: ToolPlanEntry,): readonly string[] {
  CLI arguments for the definition `remove` operation.
  */
 function removeArgs(): readonly string[] {
-  return ['uninstall', '{package_id}'];
+  return [
+    'uninstall',
+    '{package_id}'
+  ];
 }
 
 /**
@@ -241,31 +249,31 @@ export function renderMpmManagersToml(
      Local manager id for this pin-expressing definition.
      */
     const managerId = `${entry.route}-${managerSlug(entry.id,)}`;
-    lines.push(`[mpm.overrides.${tomlKey(managerId,)}]`,);
-    lines.push(`name = ${tomlString(`${entry.route} ${entry.packageId ?? entry.id} ${entry.version}`,)}`,);
     lines.push(
+      `[mpm.overrides.${tomlKey(managerId,)}]`,
+      `name = ${tomlString(`${entry.route} ${entry.packageId ?? entry.id} ${entry.version}`,)}`,
       `platforms = [${
         (entry.os ?? []).includes('linux',)
           ? tomlString('linux',)
           : tomlString('all_platforms',)
       }]`,
-    );
-    lines.push(`cli_names = [${tomlString('cargo',)}]`,);
-    lines.push('',);
-    lines.push(`[mpm.overrides.${tomlKey(managerId,)}.operations.install]`,);
-    lines.push(`args = [${
+      `cli_names = [${tomlString('cargo',)}]`,
+      '',
+      `[mpm.overrides.${tomlKey(managerId,)}.operations.install]`,
+      `args = [${
       installArgs(entry,)
         .map(tomlString,)
         .join(', ',)
-    }]`,);
-    lines.push('',);
-    lines.push(`[mpm.overrides.${tomlKey(managerId,)}.operations.remove]`,);
-    lines.push(`args = [${
+    }]`,
+      '',
+      `[mpm.overrides.${tomlKey(managerId,)}.operations.remove]`,
+      `args = [${
       removeArgs()
         .map(tomlString,)
         .join(', ',)
-    }]`,);
-    lines.push('',);
+    }]`,
+      ''
+    );
   }
   return lines.join('\n',);
 }

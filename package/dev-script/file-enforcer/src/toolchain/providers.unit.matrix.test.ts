@@ -171,10 +171,10 @@ function readCliLog(fixture: Fixture,): readonly (readonly string[])[] {
   )
     .split('\n',)
     .filter(
-      (line,) => line.trim() !== '',
+    (line,) => line.trim() !== '',
     )
     .map(
-      (line,) => JSON.parse(line,) as string[],
+    (line,) => JSON.parse(line,) as string[],
     );
 }
 
@@ -236,10 +236,10 @@ await describe({
                 'const pattern = args[4] ?? \'\';',
                 "if (!pattern.includes('/**/')) process.exit(1);",
                 "const path = require('node:path');",
-                "fs.writeFileSync(" + JSON.stringify(join(
+                `fs.writeFileSync(${  JSON.stringify(join(
                   fixture.paths.toolchainBinDir,
                   'alpha',
-                ),) + ", '#!/bin/sh\\n');",
+                ),)  }, '#!/bin/sh\\n');`,
                 'process.exit(0);',
               ].join('\n',),
             },);
@@ -283,17 +283,17 @@ await describe({
               3,
             ),)
               .toEqual(
-                [
-                  '--force',
-                  'https://github.com/example/demo/releases/tag/v1.2.3',
-                ],
+              [
+                '--force',
+                'https://github.com/example/demo/releases/tag/v1.2.3',
+              ],
               );
             expect(log[0]?.slice(
               3,
               5,
             ),)
               .toEqual(
-                ['--name', 'demo.tar.gz/**/alpha'],
+              ['--name', 'demo.tar.gz/**/alpha'],
               );
             expect(
               existsSync(join(
@@ -327,7 +327,7 @@ await describe({
                 'const rename = args[5];',
                 "if (rename === undefined) process.exit(1);",
                 "const path = require('node:path');",
-                "fs.writeFileSync(path.join(path.dirname(process.argv[1]), rename), '#!/bin/sh\\n');",
+                String.raw`fs.writeFileSync(path.join(path.dirname(process.argv[1]), rename), '#!/bin/sh\n');`,
                 'process.exit(0);',
               ].join('\n',),
             },);
@@ -358,30 +358,30 @@ await describe({
             const log = readCliLog(fixture,);
             expect(log,)
               .toEqual(
+              [
                 [
-                  [
-                    'install',
-                    '--force',
-                    'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '--name',
-                    'demo-linux-amd64/**/rawbin',
-                  ],
-                  [
-                    'install',
-                    '--force',
-                    'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '--name',
-                    'demo-linux-amd64/rawbin',
-                  ],
-                  [
-                    'install',
-                    '--force',
-                    'https://github.com/example/demo/releases/tag/v2.0.0',
-                    '--name',
-                    'demo-linux-amd64',
-                    'rawbin',
-                  ],
+                  'install',
+                  '--force',
+                  'https://github.com/example/demo/releases/tag/v2.0.0',
+                  '--name',
+                  'demo-linux-amd64/**/rawbin',
                 ],
+                [
+                  'install',
+                  '--force',
+                  'https://github.com/example/demo/releases/tag/v2.0.0',
+                  '--name',
+                  'demo-linux-amd64/rawbin',
+                ],
+                [
+                  'install',
+                  '--force',
+                  'https://github.com/example/demo/releases/tag/v2.0.0',
+                  '--name',
+                  'demo-linux-amd64',
+                  'rawbin',
+                ],
+              ],
               );
           },
         },),
@@ -551,8 +551,8 @@ await describe({
                */
               const message = await outcome
                 .catch(
-                  (error: unknown,) => (error as Error)
-                    .message,
+                (error: unknown,) => (error as Error)
+                  .message,
                 );
               expect(message,)
                 .toContain('SHA-256 mismatch',);
@@ -564,14 +564,14 @@ await describe({
                   fixture.paths.toolchainRoot,
                   'downloads',
                 ),)
-                  && readdirSync(join(
+                  && (readdirSync(join(
                     fixture.paths.toolchainRoot,
                     'downloads',
                   ),)
                     .filter(
-                      (name,) => name.endsWith('.download',),
+                    (name,) => name.endsWith('.download',),
                     )
-                    .length === 0,
+                    .length === 0),
               )
                 .toBe(true,);
             } finally {
@@ -629,17 +629,17 @@ await describe({
             }
             expect(readCliLog(fixture,),)
               .toEqual(
+              [
                 [
-                  [
-                    'binstall',
-                    '--no-confirm',
-                    '--version',
-                    '9.9.9',
-                    '--features=unix',
-                    '--features=extra',
-                    'fixture-crate',
-                  ],
+                  'binstall',
+                  '--no-confirm',
+                  '--version',
+                  '9.9.9',
+                  '--features=unix',
+                  '--features=extra',
+                  'fixture-crate',
                 ],
+              ],
               );
           },
         },),
@@ -697,15 +697,19 @@ await describe({
               .toEqual(['demo', 'demo-tool'],);
             expect(report.missing,)
               .toEqual([],);
-            expect(readlinkSync(join(
-              fixture.paths.exposureDir,
-              'demo-tool',
-            ),),)
+            expect(
+              readlinkSync(join(
+                fixture.paths.exposureDir,
+                'demo-tool',
+              ),),
+            )
               .toBe(target,);
-            expect(readlinkSync(join(
-              fixture.paths.exposureDir,
-              'demo',
-            ),),)
+            expect(
+              readlinkSync(join(
+                fixture.paths.exposureDir,
+                'demo',
+              ),),
+            )
               .toBe(target,);
             /**
              No temporary link names may survive the atomic replace.
@@ -713,7 +717,7 @@ await describe({
             expect(
               readdirSync(fixture.paths.exposureDir,)
                 .filter(
-                  (name,) => name.includes('.tmp',),
+                (name,) => name.includes('.tmp',),
                 ),
             )
               .toEqual([],);
@@ -802,10 +806,12 @@ await describe({
               entries: [entry],
               extraDirs: [fixture.paths.toolchainBinDir],
             },);
-            expect(readlinkSync(join(
-              linkDir,
-              'git',
-            ),),)
+            expect(
+              readlinkSync(join(
+                linkDir,
+                'git',
+              ),),
+            )
               .toBe(source,);
             expect(readdirSync(linkDir,),)
               .toEqual(['git'],);
@@ -883,7 +889,7 @@ async function createArchiveServer(
    Address the server bound to (port is ephemeral).
    */
   const address = server.address();
-  if (address === null || typeof address === 'string')
+  if ((address === null) || ((typeof address) === 'string'))
     throw new Error('archive fixture server did not bind a TCP port',);
   return {
     url: `http://127.0.0.1:${

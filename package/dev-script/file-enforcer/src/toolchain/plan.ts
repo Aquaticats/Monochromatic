@@ -17,7 +17,12 @@ import {
 } from './plan.tools.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
-export { ALL_TOOLS, BIN_BOOTSTRAP, MPM_BOOTSTRAP, TOOLS, };
+export {
+  ALL_TOOLS,
+  BIN_BOOTSTRAP,
+  MPM_BOOTSTRAP,
+  TOOLS,
+};
 export { ARTIFACTS, } from './plan.artifacts.ts';
 export type {
   ArtifactRow,
@@ -42,8 +47,14 @@ export type {
  */
 export const TOOLS_BY_ID: ReadonlyMap<string, ToolPlanEntry> = new Map(
   ALL_TOOLS.map(
-    function byId(entry,): [string, ToolPlanEntry] {
-      return [entry.id, entry];
+    function byId(entry,): [
+      string,
+      ToolPlanEntry
+    ] {
+      return [
+        entry.id,
+        entry
+      ];
     },
   ),
 );
@@ -82,12 +93,17 @@ export function toolPlanInstallableNames(): ReadonlySet<string> {
    */
   const names = new Set<string>();
   for (const entry of ALL_TOOLS) {
-    names.add(entry.id.toLowerCase(),);
+    names.add(entry.id
+      .toLowerCase(),);
     /**
      Portion of the tool id after its backend prefix, or the whole id.
      */
-    const bare = (entry.id.includes(':',)
-      ? entry.id.slice(entry.id.indexOf(':',) + 1,)
+    const bare = (entry.id
+      .includes(':',)
+      ? entry.id
+        .slice(entry.id
+          .indexOf(':',)
+          + 1,)
       : entry.id);
     names.add(bare.toLowerCase(),);
     if (bare.includes('/',)) {
@@ -98,7 +114,8 @@ export function toolPlanInstallableNames(): ReadonlySet<string> {
       names.add(repo.toLowerCase(),);
     }
     if (entry.packageId !== null)
-      names.add(entry.packageId.toLowerCase(),);
+      names.add(entry.packageId
+        .toLowerCase(),);
   }
   return names;
 }

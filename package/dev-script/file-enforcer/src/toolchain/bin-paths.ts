@@ -47,11 +47,17 @@ import type { ToolPlanEntry, } from './types.ts';
  The `bin-paths.ts` JSON contract.
  */
 export type BinPathsOutput = {
-  /** Worktree-relative exposure directory, always `.cache/toolchain-bin`. */
+  /**
+   Worktree-relative exposure directory, always `.cache/toolchain-bin`.
+   */
   readonly exposureDir: '.cache/toolchain-bin';
-  /** Absolute PATH directories that exist right now. */
+  /**
+   Absolute PATH directories that exist right now.
+   */
   readonly pathDirs: readonly string[];
-  /** Declared binary name to its absolute exposure symlink path. */
+  /**
+   Declared binary name to its absolute exposure symlink path.
+   */
   readonly bins: Readonly<Record<string, string>>;
 };
 
@@ -117,9 +123,9 @@ export function buildBinPathsOutput(
     env,
   },)
     .filter(
-      function exists(dir,): boolean {
-        return existsSync(dir,);
-      },
+    function exists(dir,): boolean {
+      return existsSync(dir,);
+    },
     );
 
   return {
@@ -147,7 +153,8 @@ export async function main(): Promise<void> {
       paths: resolveToolchainPaths(),
       env: process.env,
     },);
-    process.stdout.write(`${
+    process.stdout
+      .write(`${
       JSON.stringify(
         output,
         null,
@@ -155,8 +162,9 @@ export async function main(): Promise<void> {
       )
     }\n`,);
   } catch (error) {
-    process.stderr.write(`bin-paths: ${
-      error instanceof Error
+    process.stderr
+      .write(`bin-paths: ${
+      Error.isError(error,)
         ? error.message
         : String(error,)
     }\n`,);

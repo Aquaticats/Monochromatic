@@ -137,7 +137,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "12.15.0",
+      "version": "12.16.1",
       "route": "bin-sourced",
       "manager": null,
       "packageId": null,
@@ -158,20 +158,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-arm64.tar.gz",
-          "sha256": "d7ce93a2c7d847d3a34bd3f559b60c14f578b1320c17cc352a2c5c5fdf956117"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64.tar.gz",
+          "sha256": "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-arm64-musl.tar.gz",
-          "sha256": "1188ef8a57bfc5786f3f739a98067242e531a4636e3f52e9e9ddc75564ea804d"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-arm64-musl.tar.gz",
+          "sha256": "1bb5df66cef8ec77089167e52111ce4515ea36c465ca3068e1ac96fe0338bcc1"
         },
         "linux-x64": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-x64.tar.gz",
-          "sha256": "55b5ed0092bd11176c1669598e231ae52e7cedac59de6efd0d415730f37d0598"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64.tar.gz",
+          "sha256": "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/pnpm/pnpm/releases/download/v12.15.0/pnpm-linux-x64-musl.tar.gz",
-          "sha256": "d33802cc987dcfbe02a991473764ba25ad1b2344189e2097a2570baed66f008a"
+          "url": "https://github.com/pnpm/pnpm/releases/download/v12.16.1/pnpm-linux-x64-musl.tar.gz",
+          "sha256": "2ce798ca1565730137fb9b1871b17297e195a06383de69f3d76041b64a4c4e72"
         }
       }
     },
@@ -260,7 +260,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "26.12.1",
+      "version": "26.13.0",
       "route": "archive",
       "manager": null,
       "packageId": null,
@@ -274,20 +274,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://nodejs.org/dist/v26.12.1/node-v26.12.1-linux-arm64.tar.gz",
-          "sha256": "a6c01af459dd8972ab3fb08ee5da81244d26ba8c4944a62d5bbba8c597ae154f"
+          "url": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-arm64.tar.gz",
+          "sha256": "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791"
         },
         "linux-arm64-musl": {
-          "url": "https://unofficial-builds.nodejs.org/download/release/v26.12.1/node-v26.12.1-linux-arm64-musl.tar.gz",
-          "sha256": "c3694551f6cb888fe0befb4cb2e13ffe45b0bb2528ec141e7c3a29a7d7974d13"
+          "url": "https://unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-arm64-musl.tar.gz",
+          "sha256": "f3dda772ba0c1f2cd6fec46f6ec24687584767f2c3f9117a47edf191e7786720"
         },
         "linux-x64": {
-          "url": "https://nodejs.org/dist/v26.12.1/node-v26.12.1-linux-x64.tar.gz",
-          "sha256": "0fd1eb7770598f52a21995edf6ed35fc690400fa437c2386af329519e9143132"
+          "url": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-x64.tar.gz",
+          "sha256": "5848553868b402d3fabb5b09270649977780a390f832155721025a08b5104455"
         },
         "linux-x64-musl": {
-          "url": "https://unofficial-builds.nodejs.org/download/release/v26.12.1/node-v26.12.1-linux-x64-musl.tar.gz",
-          "sha256": "8bf9cc0e7f8e3c7ec5368dca19242cad651b6b09d35bcdcf290ac3f80925e8dd"
+          "url": "https://unofficial-builds.nodejs.org/download/release/v26.13.0/node-v26.13.0-linux-x64-musl.tar.gz",
+          "sha256": "c6c738fe564c3eb053172bfd4ca1166eec8bc076f84231a2ea70165e316f5809"
         }
       }
     },
@@ -566,10 +566,10 @@
       "request": {
         "channel": "nightly"
       },
-      "version": "nightly-2026-10-28",
+      "version": "nightly-2026-10-29",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-10-28",
+      "packageId": "nightly-2026-10-29",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -585,7 +585,7 @@
       ],
       "os": null,
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-10-28"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-10-29"
       },
       "options": {
         "rustComponents": [
@@ -654,7 +654,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "6.2.0",
+      "version": "6.3.0",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "cargo-dylint",
@@ -670,7 +670,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "6.2.0",
+      "version": "6.3.0",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "dylint-link",
@@ -968,7 +968,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "1.9.6",
+      "version": "1.9.7",
       "route": "bin-sourced",
       "manager": null,
       "packageId": null,
@@ -980,20 +980,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "e29f2af283d9c090c7da16468406ffa5b7183d06cefeae19da40ac6d70ffc42c"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "45c14f2aadc1f8122735dd55961b383ea554979d0ba0f3ee3f3c44cd3a5aaeae"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "e29f2af283d9c090c7da16468406ffa5b7183d06cefeae19da40ac6d70ffc42c"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "45c14f2aadc1f8122735dd55961b383ea554979d0ba0f3ee3f3c44cd3a5aaeae"
         },
         "linux-x64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "a845f9275c83ee8ce408cc16fee11a7dbe5009214a4b92f2bbac5c0aa3afafe3"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "4bab30c956cc2defa5966f78e199c4c0a57e9795964142fdd6c007596519787e"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.6/tombi-cli-1.9.6-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "a845f9275c83ee8ce408cc16fee11a7dbe5009214a4b92f2bbac5c0aa3afafe3"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.9.7/tombi-cli-1.9.7-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "4bab30c956cc2defa5966f78e199c4c0a57e9795964142fdd6c007596519787e"
         }
       }
     },
@@ -1034,7 +1034,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.3.1",
+      "version": "0.3.2",
       "route": "bin-sourced",
       "manager": null,
       "packageId": null,
@@ -1046,20 +1046,20 @@
       "options": {},
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.1/rumdl-v0.3.1-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "e25e70e6d0dd5f437ccbba4d252201f4ca1163831d0b26138d586fe0eb8d4eb4"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "bdfca7a602f893fbe5d73d5e38f73b31f45a21d3bcf385b6ea819997d0449ec3"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.1/rumdl-v0.3.1-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "70b0a54dd74f1f06550b936cadc2a55256b0ec8c7f7d7ba5a3b13b1b108b1a16"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "afc6dd91f1c4f2a8cf4a40ab99f8e52e06e6dddfc5334f1c1db8b158d353d143"
         },
         "linux-x64": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.1/rumdl-v0.3.1-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "068dc9cbe3377af0adca8580d135e8fa3a5a6ce127ada6849fd47ee13f86b4d0"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "f527d1374765d826c1627ceab3d1f46e548268731a495b5b12a3af529b3d79e8"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.1/rumdl-v0.3.1-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "81a389a894f3e22233b9e94f385d784744362ee7ed3fffde532ea6f1c9b392fd"
+          "url": "https://github.com/rvben/rumdl/releases/download/v0.3.2/rumdl-v0.3.2-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "395c4061041c5a25301c7b3564a93c4a661ed4df93427a77b6fc9e426ec8a13a"
         }
       }
     },
@@ -1492,7 +1492,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "4.154.0",
+      "version": "4.155.0",
       "route": "mpm-pnpm",
       "manager": "pnpm",
       "packageId": "wrangler",

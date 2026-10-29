@@ -1,6 +1,6 @@
 [package]
 name = "ide"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "LGPL-3.0-or-later"
 publish = false
@@ -21,54 +21,54 @@ default = ["gui"]
 gui = []
 
 [dependencies]
-anyhow = "1"
+anyhow = { workspace = true }
 # Ripgrep JSON encodes non-UTF-8 paths and source lines as base64 rather than replacing their bytes.
-base64 = "0.23"
-clap = { version = "4", features = ["derive"] }
+base64 = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 # Keep all Helix crates on one revision: their internal interfaces and runtime
 # grammar/query configuration form one integration, not independent releases.
-helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
-helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
-helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
+helix-core = { workspace = true }
+helix-lsp = { workspace = true }
+helix-loader = { workspace = true }
 # helix-lsp's public interface names both crates without re-exporting them: `Registry::new` takes
 # `Arc<ArcSwap<Loader>>`, and `Registry::incoming` is a stream read with `StreamExt::next`.
 # Both already resolve through helix-lsp; these lines add direct edges only.
-arc-swap = "1"
-futures-util = { version = "0.3", default-features = false, features = ["std"] }
+arc-swap = { workspace = true }
+futures-util = { workspace = true, default-features = false, features = ["std"] }
 # Helix's syntax crate, the same 0.4 release and features helix-core resolves to (Helix-owned, preapproved).
 # Highlighting drives it with the application's own loader, so grammars and queries come only from the
 # application's runtime and never from helix-loader's directory search, where a file below
 # $XDG_CONFIG_HOME/helix/runtime takes precedence. This line adds a direct edge only.
-tree-house = { version = "0.4", default-features = false }
+tree-house = { workspace = true, default-features = false }
 # Slint's winit backend, the release slint already resolves to (no new package). As in the sibling
 # terminal and music player, the application installs it explicitly with a window-attributes hook that
 # stamps the Wayland app id before the window exists; Slint's default backend selection sets none.
-i-slint-backend-winit = "1.18.1"
+i-slint-backend-winit = { workspace = true }
 # Protocol file-watcher globs (`src/language/watched_files.rs`): helix-lsp already resolves globset 0.4,
 # so this line adds a direct edge only; helix-lsp's own handler drops relative patterns and kinds.
-globset = "0.4"
+globset = { workspace = true }
 # Gitignore matching that dims ignored tree entries (`src/git_ignore.rs`; user-approved 2026-10-14). ripgrep's own
 # crate: only its `gitignore` module is used (`Gitignore`, `GitignoreBuilder`), never its directory walk. The crate
 # has one feature, `simd-accel`, which is not needed. Its dependencies (globset, regex-automata, walkdir, same-file,
 # crossbeam-deque, log, memchr) already resolve in Cargo.lock, so this line adds one package.
-ignore = "0.4"
+ignore = { workspace = true }
 # OS file-change notifications for shown directories and the displayed file (user-approved 2026-10-05).
 # The code names `INotifyWatcher` directly; `default-features = false` drops the macOS FSEvents
 # backend, and no polling backend is used, so a non-Linux build fails instead of silently polling.
-notify = { version = "8.2.0", default-features = false }
+notify = { workspace = true, default-features = false }
 # Reuse the text-layout stack already present through Slint.
 # Native pixel geometry replaces terminal-column assumptions for fallback fonts.
-parley = "0.11"
+parley = { workspace = true }
 # Draws the code view on the GPU: Parley layouts become a Vello scene that is rendered into a wgpu texture on Slint's own
 # device (src/gpu_tile.rs, doc/planning/ide-vello-text.md design C). Version 0.11 is the release built on wgpu 30, the
 # major that Slint's wgpu feature uses, so both share one device. `wgpu` is its only feature: the crate's default
 # features enable wgpu's own defaults, which the IDE already gets through Slint. Vello brings kurbo and peniko,
 # re-exported as `vello::kurbo` and `vello::peniko`.
-vello = { version = "0.11", default-features = false, features = ["wgpu"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-toml = "1.1"
-tokio = { version = "1.50", features = ["rt-multi-thread", "sync", "time", "process", "io-util", "macros"] }
+vello = { workspace = true, default-features = false, features = ["wgpu"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time", "process", "io-util", "macros"] }
 # Match the compiler/runtime release family used by the sibling native apps. No `renderer-software`: nothing in the IDE
 # paints on the CPU, tests included (owner decision of 2026-10-19, doc/planning/ide-gpu-snapshot-harness.md). Slint's
 # `default` feature set contains `renderer-software`, so default features are off and the rest of that set is listed:
@@ -80,24 +80,24 @@ tokio = { version = "1.50", features = ["rt-multi-thread", "sync", "time", "proc
 # `unstable-wgpu-30` exposes `WGPUConfiguration` and the wgpu 30 types for the one device the launcher opens.
 # `unstable-winit-030` is the `BackendSelector` hook that stamps the Wayland app id while that device is handed over
 # (`src/launcher.rs`). Both flags are semver-exempt and add no package.
-slint = { version = "1.18.1", default-features = false, features = ["std", "backend-default", "backend-winit", "renderer-femtovg-wgpu", "unstable-wgpu-30", "unstable-winit-030", "accessibility", "compat-1-2", "system-tray"] }
-tracing = "0.1"
+slint = { workspace = true, default-features = false, features = ["std", "backend-default", "backend-winit", "renderer-femtovg-wgpu", "unstable-wgpu-30", "unstable-winit-030", "accessibility", "compat-1-2", "system-tray"] }
+tracing = { workspace = true }
 # The `log` facade helix-lsp writes through and its conversion to `tracing` events, used to re-label
 # helix-lsp records (`src/logging/relabel.rs`). tracing-subscriber already builds this exact crate with
 # the same features; this line adds a direct edge only.
-tracing-log = { version = "0.2", default-features = false }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-log = { workspace = true, default-features = false }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 # Slint's element handles let the native tests read roles, labels, values, and states and invoke
 # accessible actions, as an assistive tool would. The crate is internal to Slint and has no semver
 # guarantee; its README requires an exact `=` version equal to the resolved `slint` version (1.18.1).
 # Raise both together.
-i-slint-backend-testing = "=1.18.1"
+i-slint-backend-testing = { workspace = true }
 
 [build-dependencies]
-slint-build = "1.18.1"
+slint-build = { workspace = true }
 
 [lints.clippy]
 complexity = { level = "allow", priority = -1 }
@@ -126,3 +126,36 @@ opt-level = 2
 [lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = ["cfg(dylint_lib, values(any()))"]
+
+# Named catalogs this crate selects from rust-catalog.toml (doc/decision/rust-dependency-catalog.md).
+[package.metadata.rust-catalog.catalogs]
+i-slint-backend-testing = "pinned"
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+anyhow = ">=1"
+arc-swap = ">=1"
+base64 = ">=0.23"
+clap = ">=4"
+futures-util = ">=0.3"
+globset = ">=0.4"
+helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
+helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
+helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
+i-slint-backend-testing = "=1.18.1"
+i-slint-backend-winit = ">=1.18.1"
+ignore = ">=0.4"
+notify = ">=8.2.0"
+parley = ">=0.11"
+serde = ">=1"
+serde_json = ">=1"
+slint = ">=1.18.1"
+slint-build = ">=1.18.1"
+tempfile = ">=3"
+tokio = ">=1.50"
+toml = ">=1.1"
+tracing = ">=0.1"
+tracing-log = ">=0.2"
+tracing-subscriber = ">=0.3"
+tree-house = ">=0.4"
+vello = ">=0.11"

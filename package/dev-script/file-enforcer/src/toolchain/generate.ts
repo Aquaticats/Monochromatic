@@ -13,7 +13,11 @@
  ```
  */
 
-import { mkdirSync, readFileSync, writeFileSync, } from 'node:fs';
+import {
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, } from 'node:path';
 import {
   renderToolchainLockJson,
@@ -61,9 +65,13 @@ export function renderArtifacts(
  Outcome of one generation run.
  */
 export type GenerateReport = {
-  /** Files whose content changed and were written. */
+  /**
+   Files whose content changed and were written.
+   */
   readonly written: readonly string[];
-  /** Files already byte-identical to the rendered content. */
+  /**
+   Files already byte-identical to the rendered content.
+   */
   readonly unchanged: readonly string[];
 };
 
@@ -159,7 +167,8 @@ export async function main(): Promise<void> {
   /**
    Whether this run targets the machine-global scope.
    */
-  const global = process.argv.includes('--global',);
+  const global = process.argv
+    .includes('--global',);
   /**
    Resolved scope paths.
    */
@@ -176,9 +185,11 @@ export async function main(): Promise<void> {
     paths,
   },);
   for (const name of report.written)
-    process.stdout.write(`wrote ${name}\n`,);
+    process.stdout
+      .write(`wrote ${name}\n`,);
   for (const name of report.unchanged)
-    process.stdout.write(`unchanged ${name}\n`,);
+    process.stdout
+      .write(`unchanged ${name}\n`,);
 }
 
 //endregion CLI

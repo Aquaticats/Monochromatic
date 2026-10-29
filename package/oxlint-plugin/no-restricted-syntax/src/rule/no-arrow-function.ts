@@ -7,6 +7,7 @@ import type {
 } from '@oxlint/plugins';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import { readsEnclosingBinding, } from './arrow-enclosing-binding.ts';
 import { extractParamsText, } from './arrow-function-params.ts';
 
 /**
@@ -20,7 +21,12 @@ import { extractParamsText, } from './arrow-function-params.ts';
  Auto-fix handles the common `const name = (...) => ...` pattern by converting
  it to a `function name(...) { ... }` declaration, extracting the parameter
  list via {@link extractParamsText}. `export const` is similarly converted
- to `export function`. Other contexts (callbacks, object properties)
+ to `export function`. A type-annotated `const name: Type = (...) => ...` keeps
+ its declaration and annotation and only the arrow becomes a named function
+ expression, so contextual parameter types survive; so does a `const` outside a
+ statement list such as a `for` head. Arrows reading an enclosing `this`, `arguments`, `super`,
+ or `new.target`, and `let`/`var` bindings, are reported without a fix (see {@link readsEnclosingBinding}).
+ Other contexts (callbacks, object properties)
  are reported but not auto-fixed because naming them requires human judgment.
  
  @example
@@ -86,6 +92,25 @@ export const noArrowFunction: CreateOnceRule = {
               .declarations
               .length
               !== 1)
+        ) {
+          context.report({
+            node,
+            messageId: 'forbidden',
+          },);
+          return;
+        }
+
+        /**
+         Arrows that read an enclosing `this`, `arguments`, `super`, or `new.target`, and
+         `let`/`var` bindings, have no behavior-preserving rewrite: a `function` rebinds the
+         former, and a named function expression binds its own name, which changes
+         calls through a reassigned `let`/`var`. They are reported without a fix.
+         */
+        if (
+          readsEnclosingBinding(node,)
+            || (parent.parent
+              .kind
+              !== 'const')
         ) {
           context.report({
             node,
@@ -168,24 +193,64 @@ export const noArrowFunction: CreateOnceRule = {
             .getText(node.body,);
 
         /**
+         Function head and body shared by the declaration and the named function expression forms.
+         */
+        const functionText =
+          `${asyncPrefix}function ${name}${typeParamsText}${paramsText}${returnTypeText} ${bodyText}`;
+
+        /**
+         True when the variable carries a type annotation (`const name: Type = ...`).
+
+         A function declaration cannot hold that annotation, and dropping it would
+         strip the contextual types of unannotated parameters, so the arrow alone is
+         swapped for a named function expression and the declaration stays intact.
+         */
+        const isAnnotated = (parent.id
+          .typeAnnotation
+          !== null)
+          && (parent.id
+            .typeAnnotation
+            !== undefined);
+
+        /**
+         Node that lists the statements holding the declaration, past an `export` wrapper.
+
+         A function declaration is only valid in a statement list, so a `const` in a
+         `for` head keeps its declaration and receives a named function expression too.
+         */
+        const statementListOwner = isExported ? grandparent.parent : grandparent;
+
+        /**
+         True when the declaration sits where a function declaration may stand.
+         */
+        const isInStatementList = (statementListOwner.type === 'Program')
+          || (statementListOwner.type === 'BlockStatement')
+          || (statementListOwner.type === 'StaticBlock')
+          || (statementListOwner.type === 'TSModuleBlock');
+
+        /**
+         True when the fix keeps the surrounding declaration and swaps only the arrow.
+         */
+        const replacesArrowOnly = isAnnotated || (!isInStatementList);
+
+        /**
          Export keyword prefix.
          */
         const exportPrefix = isExported ? 'export ' : '';
-
-        /**
-         Assembled function declaration.
-         */
-        const replacement =
-          `${exportPrefix}${asyncPrefix}function ${name}${typeParamsText}${paramsText}${returnTypeText} ${bodyText}`;
 
         context.report({
           node,
           messageId: 'forbidden',
           fix(fixer: ForeignBorrowed<Fixer>,) {
-            return fixer.replaceText(
-              replaceNode,
-              replacement,
-            );
+            return replacesArrowOnly
+              ? fixer.replaceText(
+                node,
+                functionText,
+              )
+              : fixer.replaceText(
+                replaceNode,
+                `${exportPrefix}${functionText}`,
+              );
           },
         },);
       },
