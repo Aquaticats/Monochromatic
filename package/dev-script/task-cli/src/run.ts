@@ -357,7 +357,8 @@ function parseUsageSpec(usage: string | undefined): readonly UsageOption[] {
     const kind = match[1] === 'flag' ? 'flag' : 'arg';
     const body = match[2];
     if (body === undefined) { continue; }
-    const nameMatch = /^(?<name>[^\s<]+)/u.exec(body);
+    // A flag's name stops before its `<value>`; an arg's name is its whole first word, `<cache>` included.
+    const nameMatch = (kind === 'arg' ? /^(?<name>\S+)/u : /^(?<name>[^\s<]+)/u).exec(body);
     if (nameMatch === null) { continue; }
     // Flags drop their dashes; positional args drop the `[ ]` or `< >` that mark them optional or required.
     const name = nameMatch.groups?.['name']?.replace(/^-+/u, '').replace(/^[[<]|[\]>]$/gu, '');
