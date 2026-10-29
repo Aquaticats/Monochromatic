@@ -523,7 +523,8 @@ fn a_commit_waiting_behind_a_long_push_repeats_its_notice() {
     let shown = shared.text();
     let holder = format!("waiting for process {} to finish pushing {branch}", std::process::id());
     let lines: Vec<&str> = shown.lines().filter(|line| { return line.contains(holder.as_str()); }).collect();
-    assert_eq!(lines.len(), 3, "the start and two repeats: {shown}");
+    // The wait ends on the third notice, but the lock is taken one attempt later, so a late tick may add a fourth.
+    assert!(lines.len() >= 3, "the start and two repeats: {shown}");
     assert!(!lines[0].contains("seconds so far"), "{shown}");
     // The repeats name the time waited, which only grows; its exact value depends on the host's speed.
     let waited = |line: &str| -> u64 {

@@ -901,7 +901,9 @@ fn a_long_wait_repeats_its_slow_notice_at_every_interval() {
         3,
     );
     assert_eq!(counter.waiting, 1);
-    assert_eq!(counter.slow.len(), 3, "{:?}", counter.slow);
+    // The wait ends on the third notice, but one more attempt is needed to see the dead holder, and a tick may fall
+    // in that gap on a slow host: the count is a lower bound, and the times are lower bounds that no schedule breaks.
+    assert!(counter.slow.len() >= 3, "{:?}", counter.slow);
     assert!(counter.slow[0] >= Duration::from_millis(60), "{:?}", counter.slow);
     assert!(counter.slow[1] >= Duration::from_millis(120), "{:?}", counter.slow);
     assert!(counter.slow[2] >= Duration::from_millis(180), "{:?}", counter.slow);
@@ -917,6 +919,8 @@ fn a_notice_that_announces_at_start_hears_the_first_repeat_one_interval_later() 
         true,
         1,
     );
-    assert_eq!(counter.slow.len(), 1, "{:?}", counter.slow);
+    // The first repeat comes at the interval, not at the grace of 20 ms; a later tick may fall before the holder is
+    // seen dead, so the count is a lower bound.
+    assert!(!counter.slow.is_empty(), "{:?}", counter.slow);
     assert!(counter.slow[0] >= Duration::from_millis(150), "{:?}", counter.slow);
 }
