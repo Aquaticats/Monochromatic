@@ -162,11 +162,10 @@ User decisions taken during execution
    npm printed `+ @monochromatic-dev/logger-core@0.4.6` and `+ @monochromatic-dev/fs-path-core@0.2.2`,
    a signed provenance statement for each (Sigstore log indexes 3565726298 and 3565721940),
    and "Your package is being processed".
-  At this update the registry did not list 0.4.6 or 0.2.2 yet;
-   a check was waiting up to 15 minutes.
-  Next:
-   confirm both versions and their provenance on the registry.
-  A successful trusted publish also keeps npm from expiring the trusted-publisher setup (2-day rule).
+  Verified on the registry the same day:
+   `logger-core` latest 0.4.6 and `fs-path-core` latest 0.2.2,
+   each with a provenance attestation.
+  These successful trusted publishes keep npm from expiring the trusted-publisher setup (2-day rule).
 - Three CI breakages surfaced on the way,
    each fixed and pushed:
   - `09b320f9c5`:
