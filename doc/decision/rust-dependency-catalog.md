@@ -67,7 +67,7 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 
 ### Update and tightening
 
-- A new `package/dev-script` package bin,
+- A new package bin (now `package/dependency-catalog/cli-rust-update`),
    run by a thin mise task,
    runs `cargo update` in every crate root
    (the `pnpm -r --no-save update` counterpart),
