@@ -74,6 +74,16 @@ export type ChunkVerdict = {
    apart from a slice where the archive simply won on the measurements.
    */
   readonly droppedDeclaredNames: readonly string[];
+
+  /**
+   What the patch lost on where the archive won it, absent when it won, or tied the archive on everything the ranking
+   reads.
+
+   `integrity` is the first rank, so a patch that resolved every accepted issue still loses there when the chunk's
+   grammar or footnote findings rose above the archive's (XingZ6022 slice 44); `regression` is the third, reached
+   when integrity held and no high-severity issue was resolved.
+   */
+  readonly patchLostOn?: 'integrity' | 'regression';
 };
 
 /**
@@ -91,6 +101,8 @@ export type ChunkVerdict = {
 
  @param refused - whether the winning patch was refused for a declared name
 
+ @param patchLostOn - what the patch lost on where the archive won it, absent when the line has nothing to add
+
  @returns State phrase the line opens with
 
  @example
@@ -103,10 +115,12 @@ function settlementState(
     changed,
     patchSelected,
     refused,
+    patchLostOn,
   }: {
     readonly changed: boolean;
     readonly patchSelected: boolean;
     readonly refused: boolean;
+    readonly patchLostOn?: ChunkVerdict['patchLostOn'];
   },
 ): string {
   if (changed)
@@ -115,7 +129,35 @@ function settlementState(
     return 'unchanged, the patch won and was refused for dropping a declared name';
   if (patchSelected)
     return 'unchanged, the patch won and wrote nothing';
+  if (patchLostOn === 'integrity') {
+    return 'unchanged, the archive won (the patch lost on integrity: the chunk\'s grammar or footnote findings rose '
+      + 'above the archive\'s)';
+  }
+  if (patchLostOn === 'regression')
+    return 'unchanged, the archive won (the patch lost on regressions: it made an accepted issue worse)';
   return 'unchanged, the archive won';
+}
+
+/**
+ What a patch the archive beat lost on, read off its measurements in the order the ranking reads them.
+
+ @param measurements - what the checks measured about the patched wording
+
+ @returns The rank it lost on, absent when it tied the archive on everything the ranking reads
+
+ @example
+ ```ts
+ const patchLostOn = lostOnOf({ measurements, },);
+ ```
+ */
+function lostOnOf(
+  { measurements, }: { readonly measurements: CandidateMeasurements; },
+): { readonly patchLostOn?: 'integrity' | 'regression'; } {
+  if (!measurements.integrityOk)
+    return { patchLostOn: 'integrity', };
+  if ((measurements.regressedKnownIssues > 0) && (measurements.resolvedHighSeverity === 0))
+    return { patchLostOn: 'regression', };
+  return {};
 }
 
 /**
@@ -230,6 +272,7 @@ export function settleChunkVerdict(
       incumbentText,
     },),
     droppedDeclaredNames,
+    ...(patchSelected ? {} : lostOnOf({ measurements, },)),
   };
 }
 
@@ -365,6 +408,10 @@ export function settleChunkFromChecks(
  @param refused - whether the winning patch was refused for dropping a
  declared name
 
+ @param patchLostOn - what the patch lost on where the archive won it, so a
+ chunk that served accepted issues all resolved and still closed unchanged
+ says why
+
  @param resolvedCount - accepted issues the checkers found resolved
 
  @param creditableCount - accepted issues an applied envelope actually served
@@ -388,6 +435,7 @@ export function describeChunkSettlement(
     changed,
     patchSelected,
     refused,
+    patchLostOn,
     resolvedCount,
     creditableCount,
     acceptedCount,
@@ -397,6 +445,7 @@ export function describeChunkSettlement(
     readonly changed: boolean;
     readonly patchSelected: boolean;
     readonly refused: boolean;
+    readonly patchLostOn?: ChunkVerdict['patchLostOn'];
     readonly resolvedCount: number;
     readonly creditableCount: number;
     readonly acceptedCount: number;
@@ -407,6 +456,7 @@ export function describeChunkSettlement(
     changed,
     patchSelected,
     refused,
+    ...((patchLostOn === undefined) ? {} : { patchLostOn, }),
   },)}, ${
     String(resolvedCount,)
   }/${String(creditableCount,)} served accepted ${

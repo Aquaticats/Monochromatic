@@ -135,6 +135,7 @@ export function settleShippedPatch(
     refused: settled.droppedDeclaredNames
       .length
       > 0,
+    ...((settled.patchLostOn === undefined) ? {} : { patchLostOn: settled.patchLostOn, }),
     resolvedCount: settled.resolvedIssueIds
       .length,
     creditableCount: appliedEnvelopes.creditableIssues
