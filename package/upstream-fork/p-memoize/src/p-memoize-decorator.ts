@@ -66,10 +66,9 @@ function findMethod(
     );
 
     if (descriptor !== undefined)
-      // mutation-test-disable-next-line conditional -- equivalent: an accessor descriptor has no `value` property, so reading `descriptor.value` on it also yields `undefined`, the same result the `: undefined` branch returns
-      return ('value' in descriptor)
-        ? descriptor.value as unknown
-        : undefined;
+      // An accessor descriptor has no `value` property, so this read yields
+      // `undefined` for it, which is the documented answer for an accessor.
+      return descriptor.value as unknown;
   }
 
   return undefined;
