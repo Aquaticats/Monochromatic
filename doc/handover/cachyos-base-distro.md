@@ -115,14 +115,22 @@ Owner follow-ups the same day:
   Correction (2026-10-29): the report's survivor entries carry no field saying whether tests ran,
    so an earlier claim here that every survivor ran against its own tests had no basis;
    p-memoize's `memoized-cache-store.ts` had no stem-matching test file, so its 5 survivors were never tested.
-  Every p-map file with survivors does have a stem-matching `*.unit.test.ts`.
+  A second claim, that every p-map file with survivors had a stem-matching test, was also wrong:
+   it was checked after the survivor agent had added `p-map-stop.unit.test.ts`, and several p-map survivors
+   came from tests living under another stem (the agent's report lists them).
   Owner chose "Kill or justify all": one subagent per package adds killing tests or justified
    `mutation-test-disable` suppressions, then reruns `test:mutation`
    (units `pmap-survivors-final`, `pmemoize-survivors-final`; report copies in `~/temp/agent/mutation-survivors/`).
   p-memoize done: final run killed 151, survived 0, compileError 210, ignored 11 (`6fb171e256`, `d511882404`);
    new `memoized-cache-store.unit.test.ts`, clear-thenable and decorator-receiver tests,
    one suppression at `p-memoize-decorator.ts:69` with an equivalence proof. No fork bug against upstream 9.0.0.
-  p-map: in flight.
+  p-map: final run killed 253, survived 0, timeout 9, compileError 247, ignored 114, no infrastructure errors
+   (`f8dd9b3f07`, `d89c8ce63a`, `3245bea575`, `d47af933c6`, `15e29d6f63`, `2911e59e01`, `f38fcf5656`, `0f1b7e349e`);
+   no fork bug found.
+  Gap: suppression directives work per line and mutation family, so proofs for equivalent mutants also hide killable
+   ones on the same line (p-map ignored 58 to 114, p-memoize 9 to 11).
+  Owner chose "Split lines in source": both agents resumed to isolate each proven-equivalent mutant on its own line
+   and family, kill what reappears, and rerun.
 
 ## music-player `run`: zigbuild adopted for now
 
