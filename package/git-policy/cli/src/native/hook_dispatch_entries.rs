@@ -13,8 +13,8 @@
 
 /// Debug logging of an omitted entry.
 use super::diagnostic_log::debug;
-/// Whether a user hook may exist for an event.
-use super::hook_presence::event_may_have_user_hook;
+/// The name of the absent hooks directory, shared with the shadow commands.
+use super::shadow_git::NO_HOOKS_DIRECTORY;
 /// Plan spelling shared with the reader.
 use super::hook_dispatch_plan::{
     HookDispatchPlan, PLAN_FILENAME, PREPARATION_HOOK_EVENTS, encode_hook_dispatch_plan,
@@ -69,6 +69,21 @@ pub fn hook_entry_name(event: &str) -> String {
 }
 
 /// What:
+///  The hooks directory that is deliberately absent, beside the transaction's dispatcher directory.
+/// Why:
+///   The dispatcher's inner `git hook run` and the post-commit run point `core.hooksPath` here, so Git finds no
+///  traditional hook (unsupported) and never starts the dispatcher entries again.
+///  The directory is never created, because Git treats a missing hooks directory as holding no hook.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// join(transactionDirectory, 'no-hooks')
+/// ```
+pub fn transaction_no_hooks_directory(transaction_directory: &Path) -> PathBuf {
+    return transaction_directory.join(NO_HOOKS_DIRECTORY);
+}
+
+/// What:
 ///  Write one entry that starts `executable` under its event's name.
 /// Why:
 ///   Unix symbolic links keep the start name as `argv[0]`;
@@ -98,8 +113,8 @@ fn write_entry(executable: &Path, entry: &Path) -> std::io::Result<()> {
 /// Why:
 ///   The incumbent's `writeHookShim`, with native entries instead of a Node program:
 ///  `post-commit` has no entry, so it never runs during preparation.
-///  An event with no user hook has no entry either: Git then finds nothing to start for it, which is what the
-///  entry would have done after re-entering this executable, taking the hook lock and running `git hook run`.
+///  A configuration that defines no hook by name gets no entry at all: Git then finds nothing to start, which is what
+///  an entry would have done after re-entering this executable, taking the hook lock and running `git hook run`.
 ///  The directory must not exist, so nothing half-written is reused.
 ///
 /// In TS you'd write (pseudocode):
@@ -125,11 +140,11 @@ pub fn write_hook_dispatch(
             plan_path.display()
         ))
     })?;
+    if !plan.named_hooks_possible {
+        debug("writeHookDispatch", "the configuration defines no hook by name; no entry is written");
+        return Ok(());
+    }
     for event in PREPARATION_HOOK_EVENTS {
-        if !event_may_have_user_hook(plan, event) {
-            debug("writeHookDispatch", format!("no user hook for {event}; the entry is omitted").as_str());
-            continue;
-        }
         let entry: PathBuf = hooks_directory.join(hook_entry_name(event));
         write_entry(executable, entry.as_path()).map_err(|error| {
             return HookEntryError(format!(

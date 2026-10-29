@@ -617,8 +617,11 @@ pub mod hook_dispatch_entries;
 /// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
 pub mod hook_dispatch;
 
-/// Whether a commit event can have a user hook, so an event without one needs no dispatcher entry.
-pub mod hook_presence;
+/// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
+pub mod traditional_hook_warning;
+
+/// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
+pub mod doctor;
 
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;

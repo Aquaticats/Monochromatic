@@ -18,7 +18,7 @@ use super::hook_dispatch_plan::{
     PREPARATION_HOOK_EVENTS, WORK_TREE_VARIABLE, parse_hook_dispatch_plan,
 };
 /// The hook entry naming rule on Windows.
-use super::hook_dispatch_entries::hook_entry_name;
+use super::hook_dispatch_entries::{hook_entry_name, transaction_no_hooks_directory};
 /// Lock acquisition and release shared with the other owner locks.
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
@@ -202,7 +202,12 @@ pub fn run_hook_dispatch(
             Err(error) => return dispatch_failure(error.to_string().as_str()),
         }
     };
-    let status: i32 = run_git_hook(&plan, target.event, arguments, child_environment.as_slice());
+    // The transaction directory is the parent of the `hooks` directory the entry started from.
+    let no_hooks: PathBuf = match target.hooks_directory.parent() {
+        Some(transaction) => transaction_no_hooks_directory(transaction),
+        None => return dispatch_failure("the hooks directory has no transaction directory"),
+    };
+    let status: i32 = run_git_hook(&plan, target.event, no_hooks.as_path(), arguments, child_environment.as_slice());
     if let Some(held) = lock
         && let Err(error) = held.release()
     {
@@ -215,21 +220,28 @@ pub fn run_hook_dispatch(
 ///  Start Git's hook runner for one event with the plan's paths, and wait for it.
 /// Why:
 ///   The incumbent's `spawn` with `stdio: 'inherit'`; a missing status (a signal or a failure to start) is 1.
+///  `core.hooksPath` names the absent directory, so Git runs only the hooks the configuration defines by name:
+///  traditional hooks are unsupported, and the transaction's own entries must not start themselves again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// spawn(plan.gitPath, ['-c', `hook.${event}.enabled=true`, '-c', `core.hooksPath=${plan.hooksPath}`, 'hook', 'run', '--ignore-missing', event, '--', ...args], { stdio: 'inherit', env });
+/// spawn(plan.gitPath, ['-c', `hook.${event}.enabled=true`, '-c', `core.hooksPath=${noHooks}`, 'hook', 'run', '--ignore-missing', event, '--', ...args], { stdio: 'inherit', env });
 /// ```
 fn run_git_hook(
     plan: &HookDispatchPlan,
     event: &str,
+    no_hooks: &Path,
     arguments: &[OsString],
     environment: &[(OsString, OsString)],
 ) -> i32 {
     let enabled: String = format!("hook.{event}.enabled=true");
-    let hooks_path: String = format!("core.hooksPath={}", plan.hooks_path);
+    // Built from raw OS text, so a transaction directory that is not UTF-8 stays exact.
+    let mut hooks_path: OsString = OsString::from("core.hooksPath=");
+    hooks_path.push(no_hooks.as_os_str());
     let status = Command::new(plan.git_path.as_str())
-        .args(["-c", enabled.as_str(), "-c", hooks_path.as_str(), "hook", "run", "--ignore-missing", event, "--"])
+        .args(["-c", enabled.as_str()])
+        .args([OsStr::new("-c"), hooks_path.as_os_str()])
+        .args(["hook", "run", "--ignore-missing", event, "--"])
         .args(arguments)
         .env_clear()
         .envs(environment.iter().map(|(name, value)| { return (name.clone(), value.clone()); }))

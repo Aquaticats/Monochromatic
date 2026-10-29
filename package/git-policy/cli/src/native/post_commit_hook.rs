@@ -14,7 +14,6 @@
 use super::diagnostic_log::debug;
 use super::forwarding::git_command;
 use super::hook_dispatch_plan::HookDispatchPlan;
-use super::hook_presence::event_may_have_user_hook;
 use super::start_retry::RetryStart;
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
@@ -75,13 +74,15 @@ pub struct PostCommitHookRequest<'a> {
     pub landed_oid: &'a str,
     /// Dispatch plan holding the disabled events and the hook lock.
     pub plan: &'a HookDispatchPlan,
+    /// Absent directory the run names as `core.hooksPath`, so no traditional hook starts.
+    pub no_hooks_directory: &'a Path,
 }
 
 /// What:
 ///  Run `post-commit` once for a landed commit.
 /// Why:
 ///   The order matches the incumbent: disabled check, author lookup, hook lock, hook run, lock release;
-///  an event with no user hook (looked up now, after the landing) runs none of them.
+///  a configuration that defines no hook by name runs none of them, because traditional hooks are unsupported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,8 +100,8 @@ pub fn run_post_commit_hook(
         );
         return Ok(PostCommitHookOutcome::Disabled);
     }
-    if !event_may_have_user_hook(request.plan, "post-commit") {
-        debug("runPostCommitHook", "no user post-commit hook; nothing to run");
+    if !request.plan.named_hooks_possible {
+        debug("runPostCommitHook", "the configuration defines no hook by name; nothing to run");
         return Ok(PostCommitHookOutcome::Absent);
     }
     let mut environment: Vec<(OsString, OsString)> =
@@ -116,7 +117,7 @@ pub fn run_post_commit_hook(
     } else {
         Some(acquire_hook_lock(request.plan.hook_lock_path.as_str())?)
     };
-    let status: i32 = run_hook(request.context, request.worktree, environment.as_slice())?;
+    let status: i32 = run_hook(request.context, request.worktree, request.no_hooks_directory, environment.as_slice())?;
     if let Some(held) = lock {
         held.release()
             .map_err(|error| return PostCommitHookError(error.to_string()))?;
@@ -199,14 +200,20 @@ fn read_author_environment(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await runTransactionGit({ gitPath, cwd, args: [...globalArgs, 'hook', 'run', '--ignore-missing', 'post-commit'], environment, stdio: 'inherit', allowFailure: true });
+/// await runTransactionGit({ gitPath, cwd, args: [...globalArgs, '-c', `core.hooksPath=${noHooks}`, 'hook', 'run', '--ignore-missing', 'post-commit'], environment, stdio: 'inherit', allowFailure: true });
 /// ```
 fn run_hook(
     context: &GitContext,
     worktree: &Path,
+    no_hooks_directory: &Path,
     environment: &[(OsString, OsString)],
 ) -> Result<i32, PostCommitHookError> {
     let mut arguments: Vec<OsString> = context.global_prefix.clone();
+    // Traditional hooks are unsupported, so the run looks for hooks in a directory that holds none.
+    let mut hooks_path: OsString = OsString::from("core.hooksPath=");
+    hooks_path.push(no_hooks_directory.as_os_str());
+    arguments.push(OsString::from("-c"));
+    arguments.push(hooks_path);
     arguments.extend(
         ["hook", "run", "--ignore-missing", "post-commit"]
             .into_iter()

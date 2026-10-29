@@ -111,6 +111,8 @@ pub struct LoopInput<'a, F: RepositoryFacts> {
     pub global_args: &'a [String],
     /// Whether interactive or include selection forbids automatic patches.
     pub read_only_selection: bool,
+    /// Whether the dispatch plan wrote hook entries, so a replay has a `pre-commit` entry to re-run.
+    pub named_hooks_possible: bool,
     /// The paths an explicit-path commit carries.
     pub committed_paths: Vec<Vec<u8>>,
     /// The policy-added paths.
@@ -320,6 +322,7 @@ fn replay_candidate<F: RepositoryFacts>(
             read_only_selection: input.read_only_selection,
             global_args: input.global_args,
             no_verify: input.options.no_verify,
+            named_hooks_possible: input.named_hooks_possible,
         };
         revalidate_replay(
             &context,

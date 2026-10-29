@@ -281,6 +281,7 @@ pub fn conclude_commit_transaction<F: RepositoryFacts>(
         options: &options,
         global_args: global_args.as_slice(),
         read_only_selection: selection.read_only,
+        named_hooks_possible: plan.named_hooks_possible,
         committed_paths: committed_paths.clone(),
         added_paths: Vec::new(),
         worktree_records: prepared_records.clone(),

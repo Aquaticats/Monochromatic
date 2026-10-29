@@ -18,6 +18,7 @@
 //! ```
 
 use super::diagnostic_log::{debug, warn};
+use super::hook_dispatch_entries::transaction_no_hooks_directory;
 use super::hook_dispatch_plan::HookDispatchPlan;
 use super::landed_disposal::{LandedTransactionPaths, dispose_landed_transaction};
 use super::config_snapshot::ConfigSnapshot;
@@ -209,6 +210,7 @@ pub fn complete_landed_transaction(
         real_index: landed.real_index.as_path(),
         landed_oid: landed.landed_oid.as_str(),
         plan: request.plan,
+        no_hooks_directory: transaction_no_hooks_directory(landed.directory.as_path()).as_path(),
     })
     .map_err(PostLandingError::Hook)?;
     return Ok(PostLandingOutcome {

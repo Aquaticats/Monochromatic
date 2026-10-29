@@ -29,7 +29,6 @@ fn logging_git(root: &std::path::Path, config_exit: u8) -> (PathBuf, PathBuf) {
 fn plan(lock: &std::path::Path, disabled: &[&str]) -> HookDispatchPlan {
     return HookDispatchPlan {
         git_path: String::from(crate::test_support::REAL_GIT),
-        hooks_path: String::new(),
         disabled_events: disabled
             .iter()
             .map(|name| return String::from(*name))
@@ -427,9 +426,13 @@ fn an_undecodable_maintenance_config_is_skipped_and_the_hook_still_runs() {
 fn a_failing_hook_never_fails_the_landed_commit() {
     let scene: Scene = Scene::new("post-landing-hook-exits", false);
     std::fs::create_dir_all(scene.shadow.join("objects")).expect("shadow");
-    executable(
-        scene.git_dir.join("hooks").join("post-commit").as_path(),
-        b"#!/bin/sh\nexit 3\n",
+    // A hook defined by name in the configuration; a traditional hook in the hooks directory is unsupported.
+    let script: PathBuf = scene.git_dir.join("failing-hook.sh");
+    executable(script.as_path(), b"#!/bin/sh\nexit 3\n");
+    crate::test_support::git(scene.repo.as_path(), &["config", "hook.failing.event", "post-commit"]);
+    crate::test_support::git(
+        scene.repo.as_path(),
+        &["config", "hook.failing.command", script.to_str().expect("UTF-8")],
     );
     let context = git_context();
     let lock: PathBuf = scene.git_dir.join("cli-git").join("hook.lock");

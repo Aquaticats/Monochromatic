@@ -31,7 +31,6 @@ fn config_without_extensions_has_the_fixed_layout() {
         concat!(
             "[core]\n",
             "\trepositoryformatversion = \"0\"\n",
-            "\thooksPath = \"/r/.git/hooks\"\n",
             "[include]\n",
             "\tpath = \"/r/.git/config\"\n",
             "[core]\n",
