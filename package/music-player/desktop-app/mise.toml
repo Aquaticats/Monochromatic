@@ -442,8 +442,8 @@ arg "[args]" var=#true help="File or folder paths to enqueue"
 # 2026-10-29 gave a binary that needed GLIBC_2.44 (`sinh`, `cosh`) and did not start on a Fedora 44 host with glibc 2.43
 # ("version `GLIBC_2.44' not found"). So the container fallback builds with cargo-zigbuild for x86_64-unknown-linux-gnu.2.39
 # (target/x86_64-unknown-linux-gnu/release/music-player), and the binary needs no glibc newer than 2.39. The run-quick and
-# run-debug tasks still build with plain cargo in the container. Zig is a stopgap here, used only on this build path: issue #1814
-# tracks replacing it (candidates without Zig: polyfill-glibc, obggcc).
+# run-debug tasks do the same with their own profile, flags and target directory. Zig is a stopgap, used only on these build
+# paths: issue #1814 tracks replacing it (candidates without Zig: polyfill-glibc, obggcc).
 #
 # The host environment already provides WAYLAND_DISPLAY, XDG_RUNTIME_DIR, the
 # D-Bus session bus, PipeWire, and the XDG user dirs, so the empty-launch auto-load
@@ -504,9 +504,11 @@ run = """
 const { join } = await import('node:path')
 process.env.CARGO_PROFILE_RELEASE_LTO = 'off'
 process.env.CARGO_TARGET_DIR = join(process.cwd(), 'target', 'quick')
-runCargo(['build', '--release'])
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39 (issue #1814 tracks replacing Zig), keeping this task's LTO setting and target directory.
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--release', '--target', 'x86_64-unknown-linux-gnu.2.39'], { env: ['-e', 'CARGO_PROFILE_RELEASE_LTO=off', '-e', 'CARGO_TARGET_DIR=/work/target/quick'] }) } else { runCargo(['build', '--release']) }
 const extras = parseUsageArgs(process.env.usage_args ?? '')
-const bin = process.platform === 'win32' ? './target/quick/release/music-player.exe' : './target/quick/release/music-player'
+const bin = process.platform === 'win32' ? './target/quick/release/music-player.exe' : viaContainer ? './target/quick/x86_64-unknown-linux-gnu/release/music-player' : './target/quick/release/music-player'
 execFileSync(bin, extras, { stdio: 'inherit' })
 """
 
@@ -523,9 +525,11 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.cargo_dispatch}}
 {{vars.parse_usage_args}}
-runCargo(['build'])
+// Off the host build, the container builds with cargo-zigbuild for glibc 2.39 (issue #1814 tracks replacing Zig).
+const viaContainer = process.platform === 'linux' && !hostOk
+if (viaContainer) { containerCargo(['zigbuild', '--target', 'x86_64-unknown-linux-gnu.2.39']) } else { runCargo(['build']) }
 const extras = parseUsageArgs(process.env.usage_args ?? '')
-const bin = process.platform === 'win32' ? './target/debug/music-player.exe' : './target/debug/music-player'
+const bin = process.platform === 'win32' ? './target/debug/music-player.exe' : viaContainer ? './target/x86_64-unknown-linux-gnu/debug/music-player' : './target/debug/music-player'
 execFileSync(bin, extras, { stdio: 'inherit' })
 """
 
