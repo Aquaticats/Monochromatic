@@ -180,6 +180,60 @@ file-enforcer writes `.cache/forbidden-strings.rules.txt` only,
 and forbidden-strings compiles from that text when its cache is missing or stale
 (`package/forbidden-strings/cli/src/runtime_cache/warning_tests.rs:23`).
 
+### Crates: core-rust library and cli binary
+
+Asked 2026-10-29 how to split crates so meow can embed the engine;
+the user chose "core-rust lib + cli bin".
+
+- `package/file-enforcer/core-rust`:
+  library `monochromatic-file-enforcer`,
+  the engine and rule kinds,
+  no clap.
+- `package/file-enforcer/cli`:
+  binary `file-enforcer`,
+  clap,
+  JSON-lines output,
+  exit codes.
+- `package/file-enforcer/core` (TypeScript) is deleted at cutover.
+
+### Config schema: generated and self-enforced
+
+Asked 2026-10-29 whether the config gets a JSON Schema;
+the user chose "Generated, self-enforced".
+
+- The schema is derived from the Rust config types with `schemars`,
+  which needs a choosing-technology vet.
+- `file-enforcer.schema.json` is committed and kept current by a file-enforcer rule,
+  so `check` fails when it is stale;
+  the config's `"$schema"` key points at it.
+- Unverified:
+  JetBrains support for `$schema` in `.jsonc` files.
+
+### mise task-header quoting: not normalized
+
+Asked 2026-10-29;
+the user chose "Drop it".
+Both `[tasks.'x']` and `[tasks."x"]` stay as written,
+since nothing reads the spelling and Mise is due to be removed.
+
+### Root mise.toml PATH: existence-based, as today
+
+Asked 2026-10-29 how `_.path` (`mise.toml:1262`) lists `package/*/*/node_modules/.bin` directories;
+the user chose "Keep existence-based",
+noting:
+"The existence of option 1 means you don't understand how pnpm, mise, node_modules, path works."
+
+- The rule globs the `node_modules/.bin` directories that exist and sorts them,
+  as the TypeScript generator does (`file-enforcer.config.ts:722-745`).
+- Retracted:
+  my option 1 listed `node_modules/.bin` for every package with a `package.json`.
+  pnpm creates a package's `.bin` only when that package depends on something exposing a bin,
+  as the lockfile determines,
+  so that list named directories no install ever creates.
+- Accepted tradeoff:
+  issue #335 records the list changing between checkouts after filtered or stale installs,
+  so `check` reports `mise.toml` drift on such a machine until a full `pnpm install` runs.
+
 ### Adopted from the request and repository rules
 
 - Rust is approved for this tool by the request itself;
