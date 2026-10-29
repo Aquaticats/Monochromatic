@@ -170,7 +170,7 @@ fn run_push_command(git: &PushGit, arguments: &[&str]) -> Result<PushAttempt, Si
     let argv: Vec<OsString> = arguments.iter().map(OsString::from).collect();
     let mut command = git_command(git, &argv);
     apply_low_speed_defaults(&mut command, &git.environment);
-    return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE);
+    return run_bounded_push(command, push_deadline(&git.environment), STOP_GRACE, git.environment.as_slice());
 }
 
 /// What:

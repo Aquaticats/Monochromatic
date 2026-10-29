@@ -217,23 +217,26 @@ fn helper_auto_pushes() {
     let repo = PathBuf::from(std::env::var_os(HELPER_REPO).expect("repo"));
     let landed = std::env::var(HELPER_LANDED).expect("landed");
     let result = PathBuf::from(std::env::var_os(HELPER_RESULT).expect("result"));
+    let mut environment: Vec<(OsString, OsString)> = [
+        ("PATH", "/usr/bin:/bin"),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
+        ("GIT_AUTHOR_NAME", "Fixture"),
+        ("GIT_AUTHOR_EMAIL", "fixture@example.invalid"),
+        ("GIT_COMMITTER_NAME", "Fixture"),
+        ("GIT_COMMITTER_EMAIL", "fixture@example.invalid"),
+    ]
+    .iter()
+    .map(|(name, value)| {
+        return (OsString::from(name), OsString::from(value));
+    })
+    .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
     let git_context = PushGit {
         real_git: PathBuf::from("/usr/bin/git"),
         cwd: repo,
-        environment: [
-            ("PATH", "/usr/bin:/bin"),
-            ("GIT_CONFIG_NOSYSTEM", "1"),
-            ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
-            ("GIT_AUTHOR_NAME", "Fixture"),
-            ("GIT_AUTHOR_EMAIL", "fixture@example.invalid"),
-            ("GIT_COMMITTER_NAME", "Fixture"),
-            ("GIT_COMMITTER_EMAIL", "fixture@example.invalid"),
-        ]
-        .iter()
-        .map(|(name, value)| {
-            return (OsString::from(name), OsString::from(value));
-        })
-        .collect(),
+        environment,
     };
     std::fs::write(result.with_extension("started"), "").expect("announce start");
     let mut err: Vec<u8> = Vec::new();
@@ -448,6 +451,7 @@ fn skips_silently_without_an_upstream_or_an_origin_remote() {
                     OsString::from("GIT_CONFIG_GLOBAL"),
                     OsString::from("/nonexistent-global-config"),
                 ),
+                crate::test_support::scratch_environment().remove(0),
             ],
         },
         &landed,

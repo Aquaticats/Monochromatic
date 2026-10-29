@@ -189,3 +189,25 @@ fn preparing_a_directory_collects_what_a_killed_process_left() {
     assert!(!common.join("cli-git-scratch/cli-git-input-stale").exists());
     remove(root.as_path());
 }
+
+/// An anonymous scratch file is read and written, has no name in the per-user scratch directory, and without a home
+/// the failure names the variables instead of falling back to the system temporary directory.
+#[test]
+fn a_scratch_file_has_no_name_and_needs_a_home() {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let root: PathBuf = fixture("scratch-file");
+    let home: PathBuf = root.join("home");
+    std::fs::create_dir(&home).expect("home");
+    let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
+    let mut file: std::fs::File = scratch_file(env.as_slice()).expect("scratch file");
+    file.write_all(b"bytes").expect("write");
+    file.seek(SeekFrom::Start(0)).expect("seek");
+    let mut read: Vec<u8> = Vec::new();
+    file.read_to_end(&mut read).expect("read");
+    assert_eq!(read, b"bytes");
+    let scratch: PathBuf = home.join(".local/state/cli-git/scratch");
+    assert_eq!(std::fs::read_dir(&scratch).expect("scratch directory").count(), 0, "the file has no name");
+    let error: std::io::Error = scratch_file(&[]).expect_err("no home");
+    assert!(error.to_string().contains("never in the system temporary directory"), "{error}");
+    remove(root.as_path());
+}

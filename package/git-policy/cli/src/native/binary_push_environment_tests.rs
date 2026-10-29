@@ -161,6 +161,29 @@ fn an_auto_push_after_a_landed_commit_runs_git_with_the_invocation_environment()
     remove(&fixture);
 }
 
+/// The auto-push after a landed commit needs no system temporary directory: with `TMPDIR` naming a path that does not
+/// exist the commit lands, the push and its queries still run, and the per-user scratch directory is left empty.
+#[test]
+fn an_auto_push_needs_no_system_temporary_directory() {
+    let fixture: Fixture = fixture("push-env-auto-tmpdir");
+    let world: PushWorld = push_world(&fixture);
+    let unusable: PathBuf = fixture.root.join("no-such-tmpdir");
+    let landed: Observed = observe(
+        wrapped_with_marker(&fixture, world.repo.as_path(), &["commit", "--message=second", "a.txt"])
+            .env("TMPDIR", &unusable),
+        b"",
+    );
+    let stderr: String = stderr_of(&landed);
+    assert_eq!(landed.code, Some(0), "{stderr}");
+    assert!(!stderr.contains("auto-push to origin failed"), "{stderr}");
+    let head: String = git_head(&fixture, world.repo.as_path());
+    assert_eq!(git_head_of(&fixture, world.bare.as_path(), "refs/heads/main"), head, "the landed commit is on origin: {stderr}");
+    let directory: PathBuf = fixture.root.join("home").join(SCRATCH_RELATIVE);
+    assert_eq!(std::fs::read_dir(&directory).expect("the per-user scratch directory exists").count(), 0);
+    assert!(!unusable.exists(), "nothing created the unusable temporary directory");
+    remove(&fixture);
+}
+
 /// A manual push probes its updates, confirms them against the remote, and pushes, all with the invocation's environment.
 #[test]
 fn a_manual_push_probes_and_pushes_with_the_invocation_environment() {

@@ -130,6 +130,25 @@ pub fn prepare_user_scratch(environment: &[(OsString, OsString)]) -> Result<Path
 }
 
 /// What:
+///  An anonymous file (no name in the directory) in the per-user scratch directory of `environment`,
+///  open for reading and writing.
+/// Why:
+///   Child output goes to a file so that no reader thread can outlive a stopped child;
+///  the file has no name from the start (an unnamed temporary file where the system has them,
+///  otherwise a name removed at once),
+///  so a killed process leaves nothing to collect,
+///  and the system temporary directory is never used.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const handle = await open(await prepareUserScratch(env), 'wx+'); // unlinked at once
+/// ```
+pub fn scratch_file(environment: &[(OsString, OsString)]) -> std::io::Result<std::fs::File> {
+    let directory: PathBuf = prepare_user_scratch(environment).map_err(std::io::Error::other)?;
+    return tempfile::tempfile_in(directory);
+}
+
+/// What:
 ///  Create the repository scratch directory beside the common Git directory's other private storage,
 ///  check that it is private,
 ///  sweep its stale entries,

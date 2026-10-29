@@ -18,7 +18,7 @@ const LANDED_CONTENT: &str = "landed content\n";
 
 /// Environment every query of these fixtures runs with.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
-    return [
+    let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
         ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
@@ -32,6 +32,9 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         return (OsString::from(name), OsString::from(value));
     })
     .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
+    return environment;
 }
 
 /// A repository with a baseline commit (`stable.txt`) and one landed commit that adds `landed.txt`.

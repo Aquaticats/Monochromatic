@@ -22,7 +22,7 @@ struct Scenario {
 
 /// Environment of every Git child of the coordinator in these fixtures.
 fn fixture_environment() -> Vec<(OsString, OsString)> {
-    return [
+    let mut environment: Vec<(OsString, OsString)> = [
         ("PATH", "/usr/bin:/bin"),
         ("GIT_CONFIG_NOSYSTEM", "1"),
         ("GIT_CONFIG_GLOBAL", "/nonexistent-global-config"),
@@ -36,6 +36,9 @@ fn fixture_environment() -> Vec<(OsString, OsString)> {
         return (OsString::from(name), OsString::from(value));
     })
     .collect();
+    // The per-user scratch directory of the child runners is made under a home beside the fixtures.
+    environment.extend(crate::test_support::scratch_environment());
+    return environment;
 }
 
 /// Coordinator Git for a repository at `root`.
