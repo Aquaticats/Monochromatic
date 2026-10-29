@@ -230,6 +230,10 @@ noting:
   pnpm creates a package's `.bin` only when that package depends on something exposing a bin,
   as the lockfile determines,
   so that list named directories no install ever creates.
+  Measured 2026-10-29 in the main checkout:
+  223 `package/*/*/package.json`,
+  205 `package/*/*/node_modules`,
+  55 `package/*/*/node_modules/.bin`.
 - Accepted tradeoff:
   issue #335 records the list changing between checkouts after filtered or stale installs,
   so `check` reports `mise.toml` drift on such a machine until a full `pnpm install` runs.
