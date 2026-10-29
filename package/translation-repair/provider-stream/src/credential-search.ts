@@ -51,7 +51,7 @@ type State = {
 /**
  Makes a state with no transition, no fallback and no ending.
 
- @returns The empty state
+ @returns Empty state
 
  @example
  ```ts
@@ -69,11 +69,11 @@ function emptyState(): State {
 /**
  Reads a state of the automaton, which every index it holds names.
 
- @param states - the automaton's states
+ @param states - automaton's states
 
  @param at - index of the state
 
- @returns The state
+ @returns State
 
  @throws Error when no state has the index, which no transition leads to
 
@@ -167,7 +167,7 @@ function trieOf({ needles, }: { readonly needles: readonly string[]; },): State[
 /**
  Follows fallbacks from a state to the first that has a transition for a unit.
 
- @param states - the automaton's states
+ @param states - automaton's states
 
  @param from - state the unit was read in
 

@@ -107,7 +107,7 @@ const BYTE_MASK = 0xFF;
 
  @param text - text that may be base64
 
- @returns The text it spells, alone in a list, when every character is base64,
+ @returns Text it spells, alone in a list, when every character is base64,
  the length is one a base64 text can have and every byte is printable ASCII;
  an empty list otherwise
 
@@ -181,7 +181,7 @@ function wantsEveryUnit(): boolean {
 /**
  Lists the other forms a credential header's secret takes once decoded.
 
- @param secret - the secret as the header carried it
+ @param secret - secret as the header carried it
 
  @returns Forms that differ from it: what a base64 secret spells when that is
  printable text, each side of its first colon (a `Basic` pair), and the secret

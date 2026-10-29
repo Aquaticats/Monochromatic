@@ -189,7 +189,7 @@ function areHexDigits({ digits, }: { readonly digits: string; },): boolean {
 
  @param digits - hex digits of either case
 
- @returns The number they write
+ @returns Number they write
 
  @example
  ```ts
@@ -218,7 +218,7 @@ function numberOfHex({ digits, }: { readonly digits: string; },): number {
 
  @param at - index of a backslash
 
- @returns The unit and the width, or no unit for a backslash that begins no escape
+ @returns Unit and width, or no unit for a backslash that begins no escape
 
  @example
  ```ts
@@ -272,7 +272,7 @@ function jsonEscapeAt({
 
  @param at - index of a percent sign
 
- @returns The byte as one unit and the width, or no unit for a percent sign
+ @returns Byte as one unit and width, or no unit for a percent sign
  that begins no escape
 
  @example
@@ -341,7 +341,7 @@ const DECODERS: readonly Decoder[] = [
 
  @param wanted - whether a decoded unit is one a needle holds
 
- @returns The test, true also for a backslash and a percent sign
+ @returns Test, true also for a backslash and a percent sign
 
  @example
  ```ts
@@ -414,7 +414,7 @@ function hasWantedEscape(
  a further escape, so an escape that is not is left alone and a view with no
  escape that is gets no decoding
 
- @returns The decoded view in a list, or an empty list when no wanted escape was found
+ @returns Decoded view in a list, or an empty list when no wanted escape was found
 
  @example
  ```ts

@@ -417,7 +417,7 @@ function piecesThen(
 
  @mutates response - its body is drained and cannot be read again
 
- @returns The progress line's message, readings of elapsed time blanked
+ @returns Progress line's message, readings of elapsed time blanked
 
  @example
  ```ts
@@ -502,11 +502,11 @@ async function progressLineOf(
 
  @param contentChars - characters of generated answer text
 
- @param opening - the excerpt of that text the line shows
+ @param opening - excerpt of that text the line shows
 
- @param served - the `, served by "..."` part, empty for none
+ @param served - `, served by "..."` part, empty for none
 
- @returns The line's message
+ @returns Line's message
 
  @example
  ```ts
@@ -534,11 +534,11 @@ function cutLine(
 /**
  A response whose body delivers one piece and is then torn down, which is what an abort does to a fetch in production.
 
- @param delivered - the one piece, as the wire carries it
+ @param delivered - one piece, as the wire carries it
 
- @param steering - the caller's own steering, aborted when the body is torn down
+ @param steering - caller's own steering, aborted when the body is torn down
 
- @returns The response
+ @returns Response
 
  @example
  ```ts

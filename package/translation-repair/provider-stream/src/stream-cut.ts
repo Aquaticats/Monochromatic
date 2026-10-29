@@ -212,7 +212,7 @@ export class StreamCutShortError extends Error {
  slow finish can be pinned on one endpoint of a many-endpoint provider;
  empty, and left off the line, where the wire names none
 
- @returns The line that was logged
+ @returns Line that was logged
 
  @example
  ```ts

@@ -29,7 +29,7 @@ type GeneratedChars = {
 
  @param generatedChars - decoded characters of the answer and of the reasoning the watch counted, absent where the drain had none
 
- @returns The error a cut stream throws
+ @returns Error a cut stream throws
 
  @example
  ```ts

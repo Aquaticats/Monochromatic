@@ -150,7 +150,7 @@ export class QuotaShapeError extends Error {
 
    @param cause - underlying parse error when JSON itself failed
 
-   @param received - the keys the body held and the JSON type of each, or the type of a body that is no object, followed for a fault
+   @param received - keys the body held and JSON type of each, or type of a body that is no object, followed for a fault
    inside a block by that block's own keys and the JSON type of each, so a reader of the log sees what arrived without a value;
    absent when the body was no JSON
 
@@ -253,9 +253,9 @@ function jsonTypeOf({ value, }: { readonly value: unknown; },): string {
  A key name as a refusal prints it: printable ASCII only, each other character as a question mark, and cut to a bounded length, since a
  key is provider text that reaches a log.
 
- @param key - a top-level key of the refused body
+ @param key - top-level key of the refused body
 
- @returns The key name to print
+ @returns Key name to print
 
  @example
  ```ts
@@ -284,7 +284,7 @@ function boundedKeyOf({ key, }: { readonly key: string; },): string {
  Describes the keys of one JSON object without a value of it: each key name with the JSON type of its value. A key name is cut to a
  bounded length and keeps printable ASCII only, and the keys listed are bounded.
 
- @param record - a parsed JSON object, the body or one block of it
+ @param record - parsed JSON object, body or one block of it
 
  @returns `{}` for an empty object, `subscription:object, freeToolCalls:object` for keys, or the first twenty keys and a count of the rest
 
@@ -320,7 +320,7 @@ function describedKeysOf({ record, }: { readonly record: Readonly<Record<string,
  Describes what a refused body held without a value of it: the top-level key names with the JSON type of each, or the type of a
  body that is no object. A key name is cut to a bounded length and keeps printable ASCII only, and the keys listed are bounded.
 
- @param parsed - the parsed body
+ @param parsed - parsed body
 
  @returns `{}` for an empty object, `subscription:object, freeToolCalls:object` for keys, or the type name for any other value
 
@@ -354,9 +354,9 @@ type WeeklyBlockName = typeof WEEKLY_BLOCK_NAMES[number];
 
  @param detail - which expectation the body violated
 
- @param parsed - the parsed body, described by its keys and their types and never by a value
+ @param parsed - parsed body, described by its keys and their types and never by a value
 
- @returns The error to throw
+ @returns Error to throw
 
  @example
  ```ts
@@ -390,13 +390,13 @@ function shapeRefusal(
 
  @param detail - which expectation the block violated
 
- @param parsed - the parsed body, described by its keys and their types
+ @param parsed - parsed body, described by its keys and their types
 
- @param blockName - the key of the block at fault
+ @param blockName - key of the block at fault
 
- @param block - the block at fault, described by its keys and their types
+ @param block - block at fault, described by its keys and their types
 
- @returns The error to throw
+ @returns Error to throw
 
  @example
  ```ts
@@ -430,11 +430,11 @@ function blockRefusal(
 /**
  Validates the fields of a five-hour block and reads them out.
 
- @param parsed - the parsed body, described in a refusal
+ @param parsed - parsed body, described in a refusal
 
- @param block - the five-hour block of that body
+ @param block - five-hour block of that body
 
- @returns The typed five-hour window
+ @returns Typed five-hour window
 
  @throws {@link QuotaShapeError} when a field is missing or mistyped
 
@@ -501,13 +501,13 @@ function fiveHourWindowOf(
 /**
  Validates the fields of a weekly block and reads them out.
 
- @param parsed - the parsed body, described in a refusal
+ @param parsed - parsed body, described in a refusal
 
- @param blockName - the key the block was found under, named in a refusal
+ @param blockName - key the block was found under, named in a refusal
 
- @param block - the weekly block of that body
+ @param block - weekly block of that body
 
- @returns The typed weekly window, with no `nextRegenAt` where the block's value was no instant as the logger writes one
+ @returns Typed weekly window, with no `nextRegenAt` where the block's value was no instant as the logger writes one
 
  @throws {@link QuotaShapeError} when `percentRemaining` is missing or not a number
 
@@ -558,7 +558,7 @@ function weeklyWindowOf(
 
  The tag stays `weeklyWindowOf`, the reader whose window lacks the return, so a reader of the log finds it under that name.
 
- @param blockName - the key of the block whose return reads unreadable
+ @param blockName - key of the block whose return reads unreadable
 
  @example
  ```ts
@@ -603,7 +603,7 @@ type WeeklyReading = {
 
  Used where the blocks do not disagree on the return, so each such block is its own cause.
 
- @param readings - the blocks of the body, each with the window read from it
+ @param readings - blocks of the body, each with the window read from it
 
  @example
  ```ts
@@ -630,9 +630,9 @@ function warnUnreadableReturnsOf(
  differ in `percentRemaining`. A key that is missing or `null` counts as absent; a key that holds anything else but an object is refused. A body with
  no usable key is refused naming both.
 
- @param parsed - the parsed body
+ @param parsed - parsed body
 
- @returns The typed weekly window
+ @returns Typed weekly window
 
  @throws {@link QuotaShapeError} when no key holds a block, a key holds a value that is neither `null` nor an object,
  `percentRemaining` is missing or mistyped, or the two blocks of a body that carries both differ in `percentRemaining`

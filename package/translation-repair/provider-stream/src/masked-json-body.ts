@@ -22,7 +22,7 @@ import {
  @param headers - headers the request carried, which name the credentials the
  body must not repeat
 
- @returns The parsed body, read from text with every credential of the request
+ @returns Parsed body, read from text with every credential of the request
  masked out of it
 
  @throws SyntaxError when the masked text is not JSON, unchanged

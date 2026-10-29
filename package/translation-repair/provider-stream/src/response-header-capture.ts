@@ -51,11 +51,11 @@ function isWantedHeader(
 /**
  Picks the headers a caller asked for off a response.
 
- @param headers - the response's headers
+ @param headers - response's headers
 
  @param wanted - names, or prefixes ending in an asterisk, the caller asked for
 
- @returns The matching headers by lower-case name, none where nothing matched
+ @returns Matching headers by lower-case name, none where nothing matched
 
  @example
  ```ts

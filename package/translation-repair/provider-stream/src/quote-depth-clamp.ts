@@ -115,7 +115,7 @@ export function quoteDepth({ text, }: { readonly text: string; },): number {
 
  @param endOffset - where the region ends
 
- @param sourceText - the original, empty where the caller has none
+ @param sourceText - original, empty where the caller has none
 
  @returns Deepest allowed marker count
 
@@ -166,7 +166,7 @@ export function quoteDepthBound(
  A replacement whose lines quote no deeper than the bound, each over-deep
  line's markers rewritten to the bound in the plain `> ` form.
 
- @param replacement - an edit's new text for its region
+ @param replacement - edit's new text for its region
 
  @param bound - deepest allowed marker count, from {@link quoteDepthBound}
 
@@ -174,7 +174,7 @@ export function quoteDepthBound(
    not, the replacement's first line continues a line whose markers lie
    outside it
 
- @returns The replacement with over-deep lines clamped
+ @returns Replacement with over-deep lines clamped
 
  @example
  ```ts

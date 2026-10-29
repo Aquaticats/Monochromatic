@@ -33,7 +33,7 @@ export class TransportRequestFailedError extends Error {
 
    @param label - what the call was for, a model id or an endpoint name
 
-   @param cause - the runtime's rejection, kept for a reader who owns the
+   @param cause - runtime's rejection, kept for a reader who owns the
    process and may read it
 
    @example

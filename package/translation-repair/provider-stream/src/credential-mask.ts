@@ -266,11 +266,11 @@ function base64UnitsBeside(
 
  @param text - text the find is in
 
- @param find - the find
+ @param find - find
 
- @param needle - the needle found
+ @param needle - needle found
 
- @returns The find's span, widened and cut to the text
+ @returns Find's span, widened and cut to the text
 
  @example
  ```ts
@@ -449,7 +449,7 @@ function spansOfNeedles(
  @param credentials - secrets the request carried; one holding fewer than the
  minimum units, or none, is left unmasked
 
- @returns The text with every copy masked, the very same string when none was found
+ @returns Text with every copy masked, the very same string when none was found
 
  @example
  ```ts
@@ -575,7 +575,7 @@ function trailingHeadUnits(
  @param credentials - secrets the request carried; one holding fewer than the
  minimum units, or none, is left unmasked
 
- @returns The text with every copy masked and any ending that is at least the
+ @returns Text with every copy masked and any ending that is at least the
  minimum head of a credential masked too, the very same string when neither
  was found
 

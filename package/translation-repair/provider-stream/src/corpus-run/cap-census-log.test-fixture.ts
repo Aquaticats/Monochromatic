@@ -24,7 +24,7 @@ import {
 
  @param content - content characters delivered
 
- @returns The line
+ @returns Line
 
  @example
  ```ts
@@ -74,7 +74,7 @@ export function streamLine(
 
  @param tail - fields after the marker
 
- @returns The line
+ @returns Line
 
  @example
  ```ts

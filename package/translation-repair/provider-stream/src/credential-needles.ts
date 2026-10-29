@@ -59,7 +59,7 @@ const ALIGNMENTS: readonly number[] = [
 
  @param bytes - bytes to write
 
- @returns The standard-alphabet text without `=` padding
+ @returns Standard-alphabet text without `=` padding
 
  @example
  ```ts
@@ -79,7 +79,7 @@ function base64Of({ bytes, }: { readonly bytes: Uint8Array; },): string {
 
  @param text - standard-alphabet text
 
- @returns The same text with `-` for `+` and `_` for `/`
+ @returns Same text with `-` for `+` and `_` for `/`
 
  @example
  ```ts
@@ -171,7 +171,7 @@ function base64NeedlesOf({ credential, }: { readonly credential: string; },): re
 
  @param needles - needles, some of them repeated
 
- @returns The needles with each kind once, in the order first met
+ @returns Needles with each kind once, in the order first met
 
  @example
  ```ts

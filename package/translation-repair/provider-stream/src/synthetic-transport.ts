@@ -165,11 +165,11 @@ export type ModelTransport = (
 
  @param label - what the call is for, named by the failure
 
- @param dependentSignal - the signal the request carries, whose abort is steering or a stall
+ @param dependentSignal - signal the request carries, whose abort is steering or a stall
 
  @param init - request init handed to `fetch`
 
- @returns The platform response, headers read and body unread
+ @returns Platform response, headers read and body unread
 
  @throws {@link TransportRequestFailedError} when the runtime rejects the request
  and no abort stands, the rejection as its cause; an abort's rejection passes on

@@ -155,7 +155,7 @@ type TimedBody = {
 
  @param body - windows and chunks of the body
 
- @returns The drained body text
+ @returns Drained body text
 
  @throws {@link StreamCutShortError} when the guard cut the stream
 
@@ -191,7 +191,7 @@ async function drainTimed(
 
  @param body - windows and chunks of the body
 
- @returns The cut the drain raised
+ @returns Cut the drain raised
 
  @throws {@link Error} when the body ended whole, which is the failure under test
 
@@ -217,7 +217,7 @@ async function cutOf(body: TimedBody,): Promise<StreamCutShortError> {
 
  @param cut - cut whose cause is read
 
- @returns The stall's message
+ @returns Stall's message
 
  @throws {@link Error} when the cause is not a stall
 

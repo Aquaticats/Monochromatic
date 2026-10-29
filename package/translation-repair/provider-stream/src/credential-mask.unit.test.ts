@@ -43,7 +43,7 @@ const RESERVED_KEY = 'cat/key+odd=7421:meow';
 
  @param padded - whether the `=` padding is kept
 
- @returns The encoded text
+ @returns Encoded text
 
  @example
  ```ts
@@ -84,7 +84,7 @@ function base64Of(
 
  @param lower - whether the hex digits are lower case
 
- @returns The text with every unit escaped
+ @returns Text with every unit escaped
 
  @example
  ```ts
@@ -123,7 +123,7 @@ function percentAll(
 
  @param lower - whether the hex digits are lower case
 
- @returns The text with every unit escaped
+ @returns Text with every unit escaped
 
  @example
  ```ts
@@ -160,7 +160,7 @@ function unicodeAll(
 
  @param text - reply text
 
- @returns The reply with every spelling of the key the mask reads masked
+ @returns Reply with every spelling of the key the mask reads masked
 
  @example
  ```ts

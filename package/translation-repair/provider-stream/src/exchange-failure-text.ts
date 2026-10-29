@@ -26,7 +26,7 @@ import { jsonLine, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 
  @param error - caught value, of unknown type by construction
 
- @returns A marked class's own sentence, `refused by <class> from <provider> with HTTP <status>` for an
+ @returns Marked class's own sentence, `refused by <class> from <provider> with HTTP <status>` for an
  unmarked provider status failure, and the class name alone for anything else
 
  @example

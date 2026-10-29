@@ -85,7 +85,7 @@ const RENAMED_WEEKLY_SHAPE = JSON.stringify({
 
  @param bodyText - raw body handed to the parser
 
- @returns The refusal message, `not a shape error` for any other failure, empty when the body was accepted
+ @returns Refusal message, `not a shape error` for any other failure, empty when the body was accepted
  */
 function refusalOf({ bodyText, }: { readonly bodyText: string; },): string {
   try {
