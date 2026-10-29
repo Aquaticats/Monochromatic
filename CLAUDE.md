@@ -627,6 +627,15 @@ ATH:
  then `chmod 700`
  (trust checks reject group/other bits).
 
+XTD:
+ Never use `/tmp` for scratch,
+ fixtures,
+ or caches:
+ which device backs it is unknowable (tmpfs,
+ quota,
+ slow disk).
+Use `${HOME}/temp/agent` or the build directory.
+
 CLN:
  Investigating package source:
  `gh repo clone <repo> "${HOME}/temp/agent/<name>-<date>" -- --depth 1`,
