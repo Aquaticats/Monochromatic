@@ -40,7 +40,7 @@ const HTTP_UNAUTHORIZED = 401;
 
  @param provider - provider that refused
 
- @returns The failure the router catches
+ @returns Failure the router catches
 
  @example
  ```ts

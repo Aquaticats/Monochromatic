@@ -148,7 +148,7 @@ export type ReachPastBoundHolds = {
 
  @param modelId - model being routed
 
- @param holds - the router's stream bound holds
+ @param holds - router's stream bound holds
 
  @returns Reach past the holds, and the longest hold taken out
 

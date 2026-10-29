@@ -168,13 +168,13 @@ export type NeuralWattPlanSpend =
 /**
  Reads an optional field of a subscription as the value it holds.
 
- @param record - the subscription object
+ @param record - subscription object
 
  @param field - its field
 
- @param kind - the type the field must have when it is not null
+ @param kind - type the field must have when it is not null
 
- @returns The value in a list of one, or an empty list for null or absent
+ @returns Value in a list of one, or an empty list for null or absent
 
  @throws {@link NeuralWattQuotaShapeError} when the field has another type
 
@@ -213,9 +213,9 @@ function fieldValuesOf(
 /**
  Reads the subscription object of a quota reply.
 
- @param subscription - the object
+ @param subscription - object
 
- @returns The subscription, each absent field left out
+ @returns Subscription, each absent field left out
 
  @throws {@link NeuralWattQuotaShapeError} when a field has the wrong type
 
@@ -291,7 +291,7 @@ function subscriptionOf(
 
  @param bodyText - body of a 200 reply
 
- @returns The reading
+ @returns Reading
 
  @throws {@link NeuralWattQuotaShapeError} when the body is not the documented shape
 
@@ -362,7 +362,7 @@ export function parseNeuralWattQuota({ bodyText, }: { readonly bodyText: string;
 
  @param after - reading at its end
 
- @returns The difference, or why the readings cannot be compared
+ @returns Difference, or why the readings cannot be compared
 
  @example
  ```ts

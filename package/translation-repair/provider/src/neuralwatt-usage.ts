@@ -80,7 +80,7 @@ export class NeuralWattUsageShapeError extends Error {
 /**
  Names the requested models whose energy counts against the free energy: each served id of a card and its flex lane.
 
- @returns The names as a set
+ @returns Names as a set
 
  @example
  ```ts
@@ -100,11 +100,11 @@ function coveredNames(): ReadonlySet<string> {
 /**
  One end of the echoed period.
 
- @param period - the reply's `period` object
+ @param period - reply's `period` object
 
  @param field - `start` or `end`
 
- @returns The instant
+ @returns Instant
 
  @throws {@link NeuralWattUsageShapeError} when the field is not an instant
 
@@ -140,11 +140,11 @@ function echoedAt({
  Whether a usage row is for a call that counts against the free energy: a covered model's name or its flex twin, or
  an alias of one.
 
- @param row - a `products[]` row
+ @param row - `products[]` row
 
- @param covered - the covered models' names with their flex twins
+ @param covered - covered models' names with their flex twins
 
- @param aliases - the tracking aliases, or that they could not be told
+ @param aliases - tracking aliases, or that they could not be told
 
  @returns Whether the row counts
 
@@ -184,9 +184,9 @@ function rowIsCovered(
 
  @param bodyText - body of a 200 reply
 
- @param asked - the window the request named
+ @param asked - window the request named
 
- @param aliases - the tracking aliases that point at a covered model, or that the listing could not say
+ @param aliases - tracking aliases that point at a covered model, or that the listing could not say
 
  @returns Watt-hours the covered models' rows add up to
 

@@ -100,7 +100,7 @@ export type ReachPastCredentialHolds = {
 
  @param reach - providers that serve the model
 
- @param holds - the router's credential holds
+ @param holds - router's credential holds
 
  @returns Reach past the holds, and the serving providers taken out
 
@@ -173,9 +173,9 @@ export type SeatOutlook = {
 
  @param modelId - model whose call met the refusal
 
- @param outlook - the providers still serving the model, by what each can do now
+ @param outlook - providers still serving the model, by what each can do now
 
- @returns The sentence for the line
+ @returns Sentence for the line
 
  @example
  ```ts
@@ -230,9 +230,9 @@ function seatSentence(
 
  @param error - what the call threw, whose words the line quotes
 
- @param outlook - the providers still serving the model, by what each can do now
+ @param outlook - providers still serving the model, by what each can do now
 
- @returns The warn line
+ @returns Warn line
 
  @example
  ```ts
@@ -286,14 +286,14 @@ export function credentialRefusalLine(
 
  @param reach - providers that serve the model, before any hold
 
- @param holds - the router's credential holds
+ @param holds - router's credential holds
 
- @param boundHolds - the router's stream bound holds, which also close a
+ @param boundHolds - router's stream bound holds, which also close a
  provider to the model the line names the seat's next provider from
 
- @param budgets - the router's budget view, read for which providers are dry
+ @param budgets - router's budget view, read for which providers are dry
 
- @param signal - the call's abort signal, which the budget read honours
+ @param signal - call's abort signal, which the budget read honours
 
  @example
  ```ts
@@ -370,7 +370,7 @@ export async function holdOnCredentialRefusal(
  Performs one provider call, holding the provider out when it answers that its
  credential was refused, and rethrowing every failure unchanged.
 
- @param call - the provider call to perform
+ @param call - provider call to perform
 
  @param hold - everything `holdOnCredentialRefusal` needs but the failure
 
@@ -414,11 +414,11 @@ export async function callHoldingRefusedCredential<ReplyT,>(
  Bedrock meter stayed wet through the run its token expired in, so a bench read
  from the meters alone counted its seats within reach until each was asked.
 
- @param dry - the budget view as the meters and refusal holds read it
+ @param dry - budget view as the meters and refusal holds read it
 
- @param holds - the router's credential holds
+ @param holds - router's credential holds
 
- @returns The view with each held provider read dry
+ @returns View with each held provider read dry
 
  @example
  ```ts

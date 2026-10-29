@@ -179,7 +179,7 @@ function servedIdFor({ modelId, }: { readonly modelId: RosterModelId; },): strin
  and the schema is already stated in the system prompt by the shared client. The
  word "json" the documentation requires is in that text.
 
- @returns The JSON-mode member
+ @returns JSON-mode member
 
  @example
  ```ts
@@ -204,7 +204,7 @@ function jsonObjectFormat(): Readonly<Record<string, unknown>> {
 
  @param completedAt - instant the reply completed at, the other of the two
 
- @returns The cost and cache fields the spend line carries, each absent where the stream reported nothing
+ @returns Cost and cache fields the spend line carries, each absent where the stream reported nothing
 
  @example
  ```ts
@@ -249,7 +249,7 @@ function deepSeekSpendFields(
 
  @param baseUrl - API base address, overridable for tests
 
- @returns The route the shared client calls
+ @returns Route the shared client calls
 
  @example
  ```ts

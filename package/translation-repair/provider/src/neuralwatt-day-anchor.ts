@@ -57,11 +57,11 @@ export type NeuralWattDayAnchor =
 /**
  Reads the quota afresh for a later attempt, saying nothing of a failure: the outage was warned about at the first one.
 
- @param quota - the client's quota session
+ @param quota - client's quota session
 
  @param signal - abort signal for the read
 
- @returns The reading, or that none was taken
+ @returns Reading, or that none was taken
 
  @example
  ```ts
@@ -97,9 +97,9 @@ async function freshReading(
 /**
  Decides where the run's day starts.
 
- @param quota - the client's quota session, whose baseline carries `current_period_start`
+ @param quota - client's quota session, whose baseline carries `current_period_start`
 
- @param setting - the day-start setting, empty where the owner set none
+ @param setting - day-start setting, empty where the owner set none
 
  @param now - clock, for naming the day the anchor places now
 
@@ -109,7 +109,7 @@ async function freshReading(
 
  @param warn - whether to warn that the day start is unknown, which is done once for an outage
 
- @returns The anchor, or that none could be learned
+ @returns Anchor, or that none could be learned
 
  @example
  ```ts

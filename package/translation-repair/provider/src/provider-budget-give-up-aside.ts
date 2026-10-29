@@ -78,9 +78,9 @@ const NO_WRITING_PROVIDER_LEFT = 'no writing provider can be asked';
 /**
  The floor of a caller that knows no roster of benches: some writing provider can still be asked.
 
- @param writing - the providers whose wet reading keeps the run going
+ @param writing - providers whose wet reading keeps the run going
 
- @returns A floor source that finds the one floor unmet while every writing provider is dry
+ @returns Floor source that finds the one floor unmet while every writing provider is dry
 
  @example
  ```ts
@@ -215,7 +215,7 @@ function dryBeforeAnyReading(): boolean {
 /**
  The decision of a provider that has none logged.
 
- @returns The name of no decision
+ @returns Name of no decision
 
  @example
  ```ts
@@ -229,19 +229,19 @@ function nothingLoggedYet(): GiveUpVerdictKind | 'none' {
 /**
  Builds the give-up decision of one budget layer.
 
- @param unmetFloors - the bench floors the entry's stages need
+ @param unmetFloors - bench floors the entry's stages need
 
- @param writing - the providers whose wet reading keeps the run going
+ @param writing - providers whose wet reading keeps the run going
 
- @param given - the providers the entry has given up, read live
+ @param given - providers the entry has given up, read live
 
  @param left - how much longer a refusal holds a provider out
 
- @param entryWords - the entry the decision is for, worded for a log line
+ @param entryWords - entry the decision is for, worded for a log line
 
  @param l - logger the decision is written to
 
- @returns A decision that sets a give-up aside only when the given-up provider is the only writing provider not dry or
+ @returns Decision that sets a give-up aside only when the given-up provider is the only writing provider not dry or
  its return would leave no floor unmet where without it one is
 
  @example
@@ -279,7 +279,7 @@ export function createGiveUpAside(
   /**
    The providers a call can still go to: not given up, not dry by the last reading, not held by a refusal.
 
-   @returns The providers left, in spending order
+   @returns Providers left, in spending order
    */
   function providersLeft(): readonly ProviderName[] {
     return PROVIDER_ORDER.filter(function isLeft(provider,): boolean {
@@ -292,7 +292,7 @@ export function createGiveUpAside(
   /**
    The bench floors that stay unmet when only some providers can be asked.
 
-   @param wet - the providers that can be asked
+   @param wet - providers that can be asked
 
    @returns One clause per unmet floor; none when every floor is met
    */
@@ -407,9 +407,9 @@ export function createGiveUpAside(
 
    @param provider - provider the decision is about
 
-   @param verdict - the decision
+   @param verdict - decision
 
-   @returns The reason, which names the condition that set the give-up aside or the floors that stay unmet with the
+   @returns Reason, which names the condition that set the give-up aside or the floors that stay unmet with the
    provider back
    */
   function reasonOf(
@@ -454,7 +454,7 @@ export function createGiveUpAside(
   /**
    The providers given up, in spending order.
 
-   @returns The given-up providers
+   @returns Given-up providers
    */
   function givenInOrder(): readonly ProviderName[] {
     return PROVIDER_ORDER.filter(function isGiven(provider,): boolean {

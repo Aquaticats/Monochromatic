@@ -134,7 +134,7 @@ function budgetsWhereBedrockComesFirst(
 
  @param credentialHolds - holds shared with another router, a fresh set when none are given
 
- @param decide - the decisions endpoint, absent for none
+ @param decide - decisions endpoint, absent for none
 
  @returns Router, the calls asked, and the log lines written
 
@@ -254,7 +254,7 @@ function ask(
 
  @param provider - provider that refused
 
- @returns The failure and the provider's words, as the warn renders them
+ @returns Failure and provider's words, as the warn renders them
 
  @example
  ```ts

@@ -177,9 +177,9 @@ function servedIdFor({ modelId, }: { readonly modelId: RosterModelId; },): strin
 
  THE SCHEMA THROUGH UNCHANGED: json_schema with strict was accepted live.
 
- @param responseFormat - the call's schema, borrowed from the caller
+ @param responseFormat - call's schema, borrowed from the caller
 
- @returns The same member, for the wire
+ @returns Same member, for the wire
 
  @example
  ```ts
@@ -199,7 +199,7 @@ function schemaUnchanged(
 
  @param bodyText - whole drained stream, whose usage block names the cached count
 
- @returns The cost and cache fields the spend line carries, each absent where the stream reported nothing
+ @returns Cost and cache fields the spend line carries, each absent where the stream reported nothing
 
  @example
  ```ts
@@ -242,7 +242,7 @@ function xiaomiSpendFields(
 
  @param baseUrl - API base address, overridable for tests
 
- @returns The route the shared client calls
+ @returns Route the shared client calls
 
  @example
  ```ts
@@ -264,7 +264,7 @@ function xiaomiRoute({ baseUrl, }: { readonly baseUrl: string; },): DirectRoute 
 
  @param signal - abort signal honored for the read
 
- @returns The priced spend
+ @returns Priced spend
 
  @throws The signal's reason when it has already aborted
 
@@ -339,7 +339,7 @@ export function createXiaomiClient(
 
    @param exchange - request the retry ladder is sending
 
-   @returns The transport's reply
+   @returns Transport's reply
 
    @example
    ```ts

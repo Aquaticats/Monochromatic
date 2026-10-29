@@ -282,7 +282,7 @@ export function createHyperClient(
 
    @param exchange - request the retry ladder is sending
 
-   @returns The transport's reply
+   @returns Transport's reply
 
    @example
    ```ts

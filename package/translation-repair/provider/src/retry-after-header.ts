@@ -27,7 +27,7 @@ export const RETRY_AFTER_HEADER = 'retry-after';
  and a hex or exponent spelling is refused rather than read by `Number`. An unreadable value names no wait, which
  leaves the ladder on its own jitter.
 
- @param headers - the reply's captured headers, absent where none were
+ @param headers - reply's captured headers, absent where none were
 
  @returns Milliseconds the header asks the caller to wait, or zero
 

@@ -13,7 +13,7 @@ import type { NeuralWattLedgerEntry, } from './neuralwatt-ledger-entry.ts';
 /**
  Whether the day takes no call at all, however small: its start is unknown, or the key's cap is blocked.
 
- @param day - the day a call is made in
+ @param day - day a call is made in
 
  @returns Whether every reservation is refused
 
@@ -29,9 +29,9 @@ export function dayIsClosed({ day, }: { readonly day: NeuralWattDay; }): boolean
 /**
  Whether a ledger line falls in the day: from its start up to but not including 24 hours after it.
 
- @param entry - the line
+ @param entry - line
 
- @param day - the day, anchored
+ @param day - day, anchored
 
  @returns Whether the line counts
 
@@ -62,13 +62,13 @@ export function entryIsInDay(
 /**
  The day's reading from the lines inside it, the account's figure and the holds as they stand NOW.
 
- @param entries - the ledger lines inside the day
+ @param entries - ledger lines inside the day
 
  @param reservedWh - watt-hours held by calls in flight
 
  @param dailyWh - free energy the day holds
 
- @param day - the day
+ @param day - day
 
  @returns Reading; for a day with no known start, one with nothing left and no start named
 

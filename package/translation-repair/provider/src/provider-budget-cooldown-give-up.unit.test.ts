@@ -38,7 +38,7 @@ const COOLDOWN_MS = 300_000;
 
  @param clock - clock the case moves
 
- @returns The budgets
+ @returns Budgets
 
  @example
  ```ts

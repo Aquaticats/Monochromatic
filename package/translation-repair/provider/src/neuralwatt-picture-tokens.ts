@@ -95,7 +95,7 @@ export function pictureTokensOfSize(
 /**
  Tokens one picture part stands for.
 
- @param url - the part's `image_url.url`: a data URI or a remote address
+ @param url - part's `image_url.url`: a data URI or a remote address
 
  @returns Patch tokens when the inline file's header gives a size, else the ceiling
 
@@ -133,7 +133,7 @@ export function pictureTokensOfUrl({ url, }: { readonly url: string; },): number
 
  @param messages - conversation the body carries
 
- @returns The `image_url.url` of each picture part
+ @returns `image_url.url` of each picture part
 
  @example
  ```ts
@@ -156,7 +156,7 @@ function pictureUrlsOf({ messages, }: { readonly messages: ChatTextRequest['mess
 /**
  Sum of some numbers.
 
- @param values - the numbers
+ @param values - numbers
 
  @returns Their sum, zero for none
 

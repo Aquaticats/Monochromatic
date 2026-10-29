@@ -326,11 +326,11 @@ function sizeOf(
 /**
  Four characters of a header, read as text.
 
- @param bytes - the file
+ @param bytes - file
 
  @param offset - where the code starts
 
- @returns The code, shorter when the file ends first
+ @returns Code, shorter when the file ends first
 
  @example
  ```ts
@@ -356,11 +356,11 @@ function fourccAt(
 /**
  One 24-bit canvas size of an extended WebP header, which stores it less one.
 
- @param bytes - the file
+ @param bytes - file
 
  @param offset - where the 24 bits start
 
- @returns The size in pixels
+ @returns Size in pixels
 
  @example
  ```ts
@@ -385,7 +385,7 @@ function canvasSizeAt(
 /**
  Whether a file opens with a PNG signature: a high byte, then `PNG`.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns True for a PNG
 
@@ -408,7 +408,7 @@ function pngSignatureOf({ bytes, }: { readonly bytes: Buffer; },): boolean {
 /**
  Size of a lossy WebP frame.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns Size read, or unsized when the frame's start code is absent
 
@@ -433,7 +433,7 @@ function lossySizeOf({ bytes, }: { readonly bytes: Buffer; },): ImagePixelSize {
 /**
  Size of a lossless WebP header.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns Size read, or unsized when the signature byte is absent
 
@@ -459,7 +459,7 @@ function losslessSizeOf({ bytes, }: { readonly bytes: Buffer; },): ImagePixelSiz
 /**
  Size of a WebP file, in any of its three codings.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns Size read off the first chunk, or unsized
 
@@ -506,7 +506,7 @@ function webpSizeOf({ bytes, }: { readonly bytes: Buffer; },): ImagePixelSize {
 /**
  Size of a PNG file, off its header chunk.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns Size read, or unsized
 
@@ -551,7 +551,7 @@ function isFrameMarker({ marker, }: { readonly marker: number; },): boolean {
 /**
  Offset of the segment after the one at an offset, in a JPEG file.
 
- @param bytes - the file
+ @param bytes - file
 
  @param offset - start of the segment under inspection
 
@@ -608,7 +608,7 @@ function jpegSegmentAfter(
 /**
  Size of a JPEG file, off the first frame header.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns Size read, or unsized
 
@@ -651,7 +651,7 @@ function jpegSizeOf({ bytes, }: { readonly bytes: Buffer; },): ImagePixelSize {
 /**
  Pixel size of a picture, by the format its first bytes name.
 
- @param bytes - the file as it sits in the corpus
+ @param bytes - file as it sits in the corpus
 
  @returns Size read off the header, or unsized for a format or a header this
  does not read

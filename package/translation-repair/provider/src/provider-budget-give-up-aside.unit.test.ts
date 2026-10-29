@@ -97,12 +97,12 @@ function writesExceptXiaomi(provider: ProviderName,): boolean {
 /**
  A decision over sets and times the case moves, and the lines it writes.
 
- @param writing - the providers whose wet reading keeps the run going (default: every provider)
+ @param writing - providers whose wet reading keeps the run going (default: every provider)
 
- @param unmetFloors - the floor source the decision asks, none where the case asks for the writing roster's rule
+ @param unmetFloors - floor source the decision asks, none where the case asks for the writing roster's rule
 
- @returns The decision, the providers given up, the milliseconds each provider is still held out, the entry's words and
- the lines written
+ @returns Decision, providers given up, milliseconds each provider is still held out, entry's words and
+ lines written
 
  @example
  ```ts

@@ -66,7 +66,7 @@ const SERVED = 'deepseek-v4.1-flash';
 
  @param exchanges - everything the transport saw
 
- @returns The prompt tokens of its body and the watt-hours held for them
+ @returns Prompt tokens of its body and watt-hours held for them
 
  @example
  ```ts

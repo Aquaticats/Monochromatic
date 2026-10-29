@@ -37,13 +37,13 @@ function unexpectedQuotas(): never {
  What one seat's call comes to: the router's refusal for a refused seat, the
  scripted reply for every other.
 
- @param request - the stage's call, whose guard the reply must pass
+ @param request - stage's call, whose guard the reply must pass
 
  @param reply - JSON every seat that answers gives
 
  @param refused - seats the router refuses for want of a wet provider
 
- @returns The answering seat's outcome
+ @returns Answering seat's outcome
 
  @throws NoProviderForModelError for a refused seat, as the router raises it
 

@@ -21,9 +21,9 @@ export const RATE_LIMIT_HEADER_PREFIX = 'anthropic-ratelimit-';
 /**
  Builds the reader that logs the rate-limit headers the first reply carries and no later one.
 
- @param tag - the logger tag the line is written under, the client's own name
+ @param tag - logger tag the line is written under, client's own name
 
- @returns A function to hand every attempt's reply to: it logs the limits of the first reply that states any, and does
+ @returns Function to hand every attempt's reply to: it logs the limits of the first reply that states any, and does
  nothing for a reply that states none or for any reply after the logged one
 
  @example

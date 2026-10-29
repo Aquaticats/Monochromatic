@@ -38,7 +38,7 @@ import type { ProviderBudgets, } from './provider-budget.ts';
 
  @param budgets - shared budget view every call is routed by
 
- @param credentialHolds - the router's credential holds, whose OpenRouter entry
+ @param credentialHolds - router's credential holds, whose OpenRouter entry
  the one credential of chat and decisions shares
 
  @param l - logger the credential line goes to

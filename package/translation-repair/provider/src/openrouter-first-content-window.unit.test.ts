@@ -59,7 +59,7 @@ const MESSAGES = [{ role: 'user', content: 'Where does the cat nap?', },] as con
 
  @param modelId - seat asked
 
- @returns The exchange the transport was handed
+ @returns Exchange the transport was handed
 
  @throws {@link Error} when the client sent nothing
 

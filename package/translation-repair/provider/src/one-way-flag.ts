@@ -9,7 +9,7 @@
  CARRIED BY AN ABORT CONTROLLER, whose signal goes aborted once and stays: raising again changes nothing, and nothing
  here grows or rebinds.
 
- @returns The flag's reader and its raiser
+ @returns Flag's reader and its raiser
 
  @example
  ```ts

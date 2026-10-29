@@ -103,7 +103,7 @@ export function shortestHold(
 
  @param ms - hold left to wait out
 
- @param signal - the call's abort, which ends the wait with its reason
+ @param signal - call's abort, which ends the wait with its reason
 
  @param pollMs - how often the abort is checked
 
@@ -401,7 +401,7 @@ async function readAfterHolds(
 
  @param modelId - model being routed, for the log line
 
- @param signal - the call's abort
+ @param signal - call's abort
 
  @param refused - provider that has just refused this call, which counts as
  dry for the first reading unless it is the only provider left and was held

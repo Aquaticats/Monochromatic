@@ -226,7 +226,7 @@ function foldStart(
 
  @param field - field the text rides in
 
- @returns The fragment, empty only where the provider sent it empty
+ @returns Fragment, empty only where the provider sent it empty
 
  @throws {@link MalformedCompletionError} when the field is absent or not a string
 

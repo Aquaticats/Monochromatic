@@ -52,7 +52,7 @@ export class ClaudePrefillError extends Error {
 /**
  Builds the whole body of one Messages call.
 
- @param card - the Claude card the call is for, whose wire model the body carries
+ @param card - Claude card the call is for, whose wire model the body carries
 
  @param messages - conversation as the caller built it, system message included
 

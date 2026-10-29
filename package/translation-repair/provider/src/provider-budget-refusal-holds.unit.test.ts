@@ -39,9 +39,9 @@ const COOLDOWN_MS = 300_000;
 
  @param wet - providers the meter reading found wet (default: NeuralWatt, Synthetic and Hyper)
 
- @param writing - the providers whose wet reading keeps the run going (default: every provider)
+ @param writing - providers whose wet reading keeps the run going (default: every provider)
 
- @returns The holds, the clock that stamps them and the lines written
+ @returns Holds, clock that stamps them and lines written
 
  @example
  ```ts

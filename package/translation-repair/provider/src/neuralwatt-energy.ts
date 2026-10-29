@@ -143,9 +143,9 @@ export type NeuralWattEnergy = {
 
  @param estimateWh - energy the call would have held
 
- @param energy - the day's reading the refusal rests on
+ @param energy - day's reading the refusal rests on
 
- @returns The sentence
+ @returns Sentence
 
  @example
  ```ts
@@ -221,7 +221,7 @@ export class NeuralWattAllowanceError extends StatedRefusalError {
 
    @param estimateWh - energy the call would have held
 
-   @param energy - the day's reading the refusal rests on
+   @param energy - day's reading the refusal rests on
 
    @example
    ```ts

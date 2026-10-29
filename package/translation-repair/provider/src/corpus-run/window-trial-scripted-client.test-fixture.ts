@@ -86,7 +86,7 @@ function sheetOf<ValueT,>({ request, }: { readonly request: ChatJsonRequest<Valu
 
  @param request - request a model is asked
 
- @returns The schema's name, empty where the request names none
+ @returns Schema's name, empty where the request names none
 
  @example
  ```ts
@@ -140,7 +140,7 @@ type TrialRig = {
 
  @param wideBallot - candidate every judge votes for on a sheet with it
 
- @returns The client and what it served
+ @returns Client and what it served
 
  @example
  ```ts

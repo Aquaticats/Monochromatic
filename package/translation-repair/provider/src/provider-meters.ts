@@ -258,7 +258,7 @@ export const UNCONFIGURED_METER: MeterRecord = {
 
  @param xiaomi - Xiaomi's spend reader, absent when unconfigured
 
- @param anthropic - the Claude key's spend reader, absent when unconfigured
+ @param anthropic - Claude key's spend reader, absent when unconfigured
 
  @param openrouter - fourth provider's credits reader, absent when unconfigured
 

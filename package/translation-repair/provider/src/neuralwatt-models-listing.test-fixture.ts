@@ -16,11 +16,11 @@ export const KIMI_LISTED_AS = 'moonshotai/Kimi-K3';
 /**
  One entry of the `GET /v1/models` listing, with the fields these cases read.
 
- @param id - the name a request uses
+ @param id - name a request uses
 
  @param listedAs - its `metadata.huggingface_id`
 
- @returns The entry
+ @returns Entry
 
  @example
  ```ts
@@ -82,9 +82,9 @@ export const LISTED_MODELS: readonly Readonly<Record<string, unknown>>[] = [
 /**
  A `GET /v1/models` reply listing the given entries.
 
- @param entries - the listing
+ @param entries - listing
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts

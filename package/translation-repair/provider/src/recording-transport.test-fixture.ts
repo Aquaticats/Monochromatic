@@ -56,7 +56,7 @@ export function keepingTransport(
  Awaits a call whose failure is expected, since the transport records and
  refuses every body.
 
- @param call - the call to settle
+ @param call - call to settle
 
  @example
  ```ts

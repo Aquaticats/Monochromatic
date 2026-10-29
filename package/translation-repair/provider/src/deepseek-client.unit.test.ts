@@ -66,7 +66,7 @@ const FRESH_MS = 1_000;
 
  @param exchange - request the client sent
 
- @returns The balance on a GET, a 402 on anything else
+ @returns Balance on a GET, 402 on anything else
 
  @example
  ```ts
@@ -108,7 +108,7 @@ const UNAVAILABLE_REPLY = { status: 503, bodyText: '{"error":{"message":"Server 
  @param nowFor - builds the clock the client reads the request's instants from, given the exchanges the transport has
  been handed so far, which lets a clock answer by how far the call has got
 
- @param replies - the transport's script; one finished stream where the case says nothing
+ @param replies - transport's script; one finished stream where the case says nothing
 
  @returns USD the run spend meter gained for DeepSeek
 
@@ -146,7 +146,7 @@ async function bookedUsdOfCallOn(
 
  @param afterReply - instant every read once the last reply has arrived returns
 
- @param replies - the transport's script; one finished stream where the case says nothing
+ @param replies - transport's script; one finished stream where the case says nothing
 
  @returns USD the run spend meter gained for DeepSeek, and how many times the clock was read
 
@@ -192,7 +192,7 @@ async function callOnClockTurningAtReply(
 
  @param instantAfterExchanges - instant every read returns once that many exchanges have been handed to the transport
 
- @param replies - the transport's script, one reply per attempt
+ @param replies - transport's script, one reply per attempt
 
  @returns USD the run spend meter gained for DeepSeek, and how many times the clock was read
 

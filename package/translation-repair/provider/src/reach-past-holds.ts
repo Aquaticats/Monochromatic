@@ -81,9 +81,9 @@ function closedEverywhere({ reach, }: { readonly reach: ModelReach; },): boolean
 
  @param modelId - model being routed
 
- @param credentialHolds - the router's credential holds
+ @param credentialHolds - router's credential holds
 
- @param boundHolds - the router's stream bound holds
+ @param boundHolds - router's stream bound holds
 
  @returns Providers serving the model that hold nothing against it
 

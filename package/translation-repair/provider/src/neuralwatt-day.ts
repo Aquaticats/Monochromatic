@@ -101,11 +101,11 @@ export class NeuralWattDayStartOverrideError extends StatedRefusalError {
 /**
  Reads the two digits of an hour or a minute within a bound.
 
- @param text - the digits as written
+ @param text - digits as written
 
  @param limit - exclusive upper bound
 
- @returns The number in a list of one, or an empty list where the text is not two digits below the bound
+ @returns Number in a list of one, or an empty list where the text is not two digits below the bound
 
  @example
  ```ts
@@ -134,7 +134,7 @@ function twoDigitsBelow({
 
  @param env - process environment
 
- @returns The time of day, or nothing where the variable is absent or blank
+ @returns Time of day, or nothing where the variable is absent or blank
 
  @throws {@link NeuralWattDayStartOverrideError} when the variable holds something that is not `HH:MM`
 
@@ -181,7 +181,7 @@ export function neuralWattDayStartFrom({ env, }: { readonly env: Readonly<NodeJS
 
  @param instant - ISO 8601 instant, such as the quota's `current_period_start`
 
- @returns The time of day, or nothing where the text is not an instant
+ @returns Time of day, or nothing where the text is not an instant
 
  @example
  ```ts
@@ -201,7 +201,7 @@ export function neuralWattDayStartOfInstant({ instant, }: { readonly instant: st
 /**
  The start of the day that contains an instant: the latest instant at or before it with the given UTC time of day.
 
- @param now - the instant
+ @param now - instant
 
  @param msOfDay - milliseconds after 00:00 UTC the day starts at
 
@@ -277,7 +277,7 @@ export function neuralWattDayAfter({ start, }: { readonly start: Date; },): Date
 
  @param msOfDay - milliseconds after 00:00 UTC
 
- @returns The time as `HH:MM:SS.sss`
+ @returns Time as `HH:MM:SS.sss`
 
  @example
  ```ts
@@ -334,11 +334,11 @@ export const NEURALWATT_QUOTA_RETRY_SECONDS = 60;
 /**
  An instant some seconds after another.
 
- @param from - the instant
+ @param from - instant
 
  @param seconds - how many seconds later
 
- @returns The later instant
+ @returns Later instant
 
  @example
  ```ts

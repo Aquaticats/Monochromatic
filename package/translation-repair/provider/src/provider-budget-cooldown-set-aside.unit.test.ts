@@ -92,9 +92,9 @@ type World = {
 
  @param xiaomi - whether the budgets have a Xiaomi meter
 
- @param writing - the providers that keep the run going while they read wet; every provider where absent
+ @param writing - providers that keep the run going while they read wet; every provider where absent
 
- @returns The budgets
+ @returns Budgets
 
  @example
  ```ts

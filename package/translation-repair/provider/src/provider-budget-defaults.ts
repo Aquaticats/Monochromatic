@@ -152,7 +152,7 @@ export function beforeAnyReading(): ReadingCache {
 
  @param meters - every meter's record, keyed by provider
 
- @returns The state of each meter
+ @returns State of each meter
 
  @example
  ```ts
@@ -179,7 +179,7 @@ export function meterStatesOf(
 
  @param meters - every meter's record, keyed by provider
 
- @returns The joined numbers of each meter
+ @returns Joined numbers of each meter
 
  @example
  ```ts
@@ -204,7 +204,7 @@ export function meterLevelsOf(
 /**
  What the run knows of NeuralWatt's day, without asking the client to decide it.
 
- @param neuralwatt - the NeuralWatt meter, absent where the run has no NeuralWatt key
+ @param neuralwatt - NeuralWatt meter, absent where the run has no NeuralWatt key
 
  @returns Off without a meter, unanchored where the client has decided no day start, else the day start as a time of day
 

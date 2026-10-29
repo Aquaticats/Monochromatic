@@ -190,7 +190,7 @@ export type NeuralWattClient = ModelCaller & {
 /**
  The system clock, the client's time outside a test.
 
- @returns The current instant
+ @returns Current instant
 
  @example
  ```ts
@@ -246,7 +246,7 @@ function servedIdFor({ modelId, }: { readonly modelId: RosterModelId; },): Neura
 
  @param now - clock the day is placed by; the system clock outside a test
 
- @param dayStartSetting - the owner's `TRANSLATION_REPAIR_NEURALWATT_DAY_START`
+ @param dayStartSetting - owner's `TRANSLATION_REPAIR_NEURALWATT_DAY_START`
  (`neuralWattDayStartFrom`), used where the quota does not give the day's start
 
  @returns Client surface with chatText, chatJson, energy and planSpend
@@ -572,7 +572,7 @@ export function createNeuralWattClient(
 
    @param signal - abort signal honored before the read
 
-   @returns The day's reading, holds in flight included
+   @returns Day's reading, holds in flight included
 
    @throws {@link import('./neuralwatt-ledger-config.ts').NeuralWattLedgerShapeError} on a ledger line that will not read
 

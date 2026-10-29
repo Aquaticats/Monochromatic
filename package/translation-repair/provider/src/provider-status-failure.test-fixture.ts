@@ -97,7 +97,7 @@ export const ECHOED_KEY: string = WHISKER_KEY;
 
  @param status - HTTP status the invented provider answered
 
- @returns The failure's text as a log line carries it
+ @returns Failure's text as a log line carries it
 
  @example
  ```ts
@@ -194,7 +194,7 @@ export function refusedClient(
 
  @param status - HTTP status the invented provider answers
 
- @returns The `ProviderHttpError` the exchange raised
+ @returns `ProviderHttpError` the exchange raised
 
  @throws Error when the exchange did not fail
 

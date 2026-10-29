@@ -439,7 +439,7 @@ async function attemptExchange(
 /**
  Wait a refused reply asks for, from its body or its `retry-after` header, whichever is longer.
 
- @param reply - the refused attempt's reply
+ @param reply - refused attempt's reply
 
  @returns Milliseconds the reply asks the caller to wait, or zero
 

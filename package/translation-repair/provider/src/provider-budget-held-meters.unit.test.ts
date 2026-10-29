@@ -51,7 +51,7 @@ const WET_METERS = {
 
  @param lines - everything the case logged
 
- @returns The `METERS` lines in order
+ @returns `METERS` lines in order
 
  @example
  ```ts
@@ -67,7 +67,7 @@ function metersLines({ lines, }: { readonly lines: readonly string[]; },): reado
 /**
  Budgets over the wet meters, reading on a clock the case moves by hand.
 
- @param clock - the clock's reading, which the case advances
+ @param clock - clock's reading, which the case advances
 
  @returns Budgets whose readings are trusted for {@link FRESH_MS} and whose rate-limit hold is as long
 

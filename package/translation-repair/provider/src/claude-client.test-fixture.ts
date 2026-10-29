@@ -62,11 +62,11 @@ export const PLAIN_USAGE: ClaudeStreamUsage = {
 /**
  Body of a whole Messages stream: a thinking block, a text block, and the terminator.
 
- @param text - the answer the text block carries, empty for none
+ @param text - answer the text block carries, empty for none
 
  @param stopReason - why the model stopped
 
- @param stopDetails - the `stop_details` object the closing frame carries, absent for none
+ @param stopDetails - `stop_details` object the closing frame carries, absent for none
 
  @param usage - counts the stream reports
 
@@ -204,11 +204,11 @@ export function claudeModelClientOver({ transport, }: { readonly transport: Mode
  A success reply that carries response headers, typed as the status-and-body pair the shared script helper takes so
  the extra member passes through it unchanged.
 
- @param bodyText - the whole stream
+ @param bodyText - whole stream
 
  @param headers - response headers by lower-case name
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts

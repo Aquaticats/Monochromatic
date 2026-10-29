@@ -48,9 +48,9 @@ const ECHO = {
 /**
  A listing body for the given entries.
 
- @param entries - the listing
+ @param entries - listing
 
- @returns The body text
+ @returns Body text
  */
 function listingOf({ entries, }: { readonly entries: Parameters<typeof modelsReply>[0]['entries']; },): string {
   return modelsReply({ entries, },).bodyText;
@@ -59,9 +59,9 @@ function listingOf({ entries, }: { readonly entries: Parameters<typeof modelsRep
 /**
  A by-model body for the given rows.
 
- @param products - the rows
+ @param products - rows
 
- @returns The body text
+ @returns Body text
  */
 function usageOf({ products, }: { readonly products: readonly unknown[]; },): string {
   return JSON.stringify({ period: ECHO, models: [], products, },);

@@ -120,7 +120,7 @@ function quotaReply({ kwhUsed, }: { readonly kwhUsed: number; },): TransportRepl
 
  @param dir - directory the ledger file lives in
 
- @param dailyWh - the day's allowance
+ @param dailyWh - day's allowance
 
  @param chat - replies to chat completions, in order, the last repeating, or a function answering each
 

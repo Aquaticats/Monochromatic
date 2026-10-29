@@ -41,9 +41,9 @@ export type NeuralWattAnchorKeeper = {
 /**
  Builds the anchor keeper of one client.
 
- @param quota - the client's quota session, whose baseline carries the first attempt
+ @param quota - client's quota session, whose baseline carries the first attempt
 
- @param setting - the day-start setting, empty where the owner set none
+ @param setting - day-start setting, empty where the owner set none
 
  @param now - clock, injected so that tests wait for nothing
 
@@ -80,7 +80,7 @@ export function createNeuralWattAnchorKeeper(
 
    @param signal - abort signal for the quota read
 
-   @returns The anchor, or that it is unknown
+   @returns Anchor, or that it is unknown
    */
   async function anchorFor({ signal, }: { readonly signal: AbortSignal; },): Promise<NeuralWattDayAnchor> {
     if (state.known !== undefined)
@@ -127,7 +127,7 @@ export function createNeuralWattAnchorKeeper(
   /**
    The anchor already learned, without learning one.
 
-   @returns The kept anchor's time of day, without the fresh quota a retried anchor carries, or that none is known yet
+   @returns Kept anchor's time of day, without the fresh quota a retried anchor carries, or that none is known yet
    */
   function decided(): NeuralWattDayAnchor {
     /**

@@ -83,7 +83,7 @@ type FirstAnswer<ValueT,> = {
  @param ask - performs the nudged exchange, through whatever claims and
  stores the caller keeps
 
- @returns The re-ask's outcome when it is usable, else the first outcome
+ @returns Re-ask's outcome when it is usable, else the first outcome
 
  @throws the re-ask's error when the caller's own signal aborted it
 

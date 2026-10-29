@@ -115,7 +115,7 @@ const allDry = {
 
  @param dry - which providers read dry, budget and wire taken together
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @throws Error when the reading leaves a provider buyable, so no refusal is raised
 

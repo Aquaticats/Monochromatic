@@ -165,7 +165,7 @@ export type RefusalHolds = {
   /**
    Starts an entry: forgets every provider an entry that ended had given up on, and names the entry for the log.
 
-   @param entryId - the entry that starts
+   @param entryId - entry that starts
 
    @mutates refusals - clears the providers given up on
    */
@@ -175,7 +175,7 @@ export type RefusalHolds = {
 /**
  The hold before any refusal: a cooldown that ended at the beginning of time.
 
- @returns A hold that has run out and waits for nothing
+ @returns Hold that has run out and waits for nothing
 
  @example
  ```ts
@@ -207,14 +207,14 @@ function neverServed(): number {
 /**
  Builds the refusal holds of one budget layer.
 
- @param now - the layer's clock, which the holds and the service are stamped on
+ @param now - layer's clock, which the holds and the service are stamped on
 
  @param l - logger the decision to give a provider up, and the end of that decision, are written to
 
- @param writing - the providers whose wet reading keeps the run going, which decide whether a given-up provider is the
+ @param writing - providers whose wet reading keeps the run going, which decide whether a given-up provider is the
  only writing provider not dry (default: every provider)
 
- @param unmetFloors - the bench floors the entry's stages need, which decide whether a given-up provider's return would
+ @param unmetFloors - bench floors the entry's stages need, which decide whether a given-up provider's return would
  leave none unmet where without it one is (default: some writing provider can be asked)
 
  @returns Holds that give no provider up until a refusal right after a cooldown does

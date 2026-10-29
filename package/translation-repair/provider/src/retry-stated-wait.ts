@@ -246,7 +246,7 @@ type WaitPart = Readonly<{
 
  @param at - offset of the part's first digit
 
- @returns The part, or nothing where no number and known unit stand there
+ @returns Part, or nothing where no number and known unit stand there
 
  @example
  ```ts

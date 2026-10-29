@@ -48,7 +48,7 @@ const ECHO = {
 
  @param products - its rows
 
- @returns The body text
+ @returns Body text
  */
 function bodyOf({ period, products, }: { readonly period: unknown; readonly products: unknown },): string {
   return JSON.stringify({ period, products, },);

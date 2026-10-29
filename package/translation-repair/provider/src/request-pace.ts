@@ -231,7 +231,7 @@ export function createRequestPace(
   /**
    Hands a reserved place back when its caller gave up.
 
-   @param at - the place's start time
+   @param at - place's start time
    */
   function release(at: number,): void {
     /**

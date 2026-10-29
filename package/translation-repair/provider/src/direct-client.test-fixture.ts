@@ -75,7 +75,7 @@ export const XIAOMI_USAGE_CHUNK: string = `data: ${JSON.stringify({
 /**
  Body of a whole stream, comment lines and reasoning included.
 
- @param usageChunk - the closing usage chunk
+ @param usageChunk - closing usage chunk
 
  @param done - whether the stream ends on its `[DONE]` sentinel
 
@@ -187,7 +187,7 @@ export function scripted(
 
  @param modelId - roster model addressed
 
- @returns The pending reply
+ @returns Pending reply
 
  @example
  ```ts
@@ -223,7 +223,7 @@ const CAUSE_CHAIN_LIMIT = 16;
 
  @param error - caught value, of unknown type by construction
 
- @returns The texts joined, so one assertion covers the whole chain
+ @returns Texts joined, so one assertion covers the whole chain
 
  @example
  ```ts
@@ -249,7 +249,7 @@ export function errorChainText({ error, }: { readonly error: unknown; },): strin
 
  @param exchanges - what the transport saw
 
- @returns The JSON body of the first exchange
+ @returns JSON body of the first exchange
 
  @example
  ```ts

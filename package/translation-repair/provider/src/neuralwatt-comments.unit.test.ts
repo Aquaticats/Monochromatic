@@ -43,7 +43,7 @@ const CLOSING = 'data: {"id":"chatcmpl-whiskers","choices":[{"index":0,"delta":{
 
  @param lines - body lines in order
 
- @returns The body text
+ @returns Body text
 
  @example
  ```ts

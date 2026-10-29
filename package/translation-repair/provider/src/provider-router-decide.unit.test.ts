@@ -60,7 +60,7 @@ const UNUSED_CALLER = {
 
  @param openrouterDry - whether the OpenRouter meter reads dry
 
- @returns The budgets, the refusals marked without their signals, and the providers reported as having served
+ @returns Budgets, refusals marked without their signals, and providers reported as having served
  */
 function budgetsReading({ openrouterDry, }: { readonly openrouterDry: boolean; },) {
   /**
@@ -121,9 +121,9 @@ function budgetsReading({ openrouterDry, }: { readonly openrouterDry: boolean; }
 
  @param budgets - budgets the router reads
 
- @param decide - the decisions endpoint, absent for none
+ @param decide - decisions endpoint, absent for none
 
- @returns The router
+ @returns Router
  */
 function routerWith(
   {

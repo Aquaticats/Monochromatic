@@ -37,17 +37,17 @@ export type ClaudeAttemptAsk = {
 /**
  The part of the retry ladder's options that tells a caller before each attempt, for a client given an admit.
 
- @param admitAttempt - the caller's admit, absent where the caller asked to be told of nothing
+ @param admitAttempt - caller's admit, absent where the caller asked to be told of nothing
 
- @param label - the card the call is named by
+ @param label - card the call is named by
 
- @param prices - the card's prices
+ @param prices - card's prices
 
  @param requestBodyBytes - size of the body every attempt of the call sends
 
  @param maxTokens - `max_tokens` the body carries
 
- @returns The ladder's `beforeAttempt`, which throws what the admit throws, and nothing at all where there is no admit,
+ @returns Ladder's `beforeAttempt`, which throws what the admit throws, and nothing at all where there is no admit,
  so the ladder is given nothing different from before
 
  @example

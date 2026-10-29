@@ -64,7 +64,7 @@ const DAY = { kind: 'anchored', start: new Date('2026-10-20T00:00:00.000Z',), } 
 
  @param accountWh - covered energy the account reports for the day, absent when it was not read
 
- @returns The day
+ @returns Day
  */
 function dayAt(
   {

@@ -95,9 +95,9 @@ async function settledNow<ValueT,>(
  @param holdsByAsk - what successive asks for the holds report, the last repeating, in place of `holds`, for holds that
  end while a wait goes on
 
- @param neuralwatt - the NeuralWatt day the budgets report to a refusal that ends the run
+ @param neuralwatt - NeuralWatt day the budgets report to a refusal that ends the run
 
- @param neuralwattAfter - the day the budgets report once this many reads have happened, in place of `neuralwatt`, for a
+ @param neuralwattAfter - day the budgets report once this many reads have happened, in place of `neuralwatt`, for a
  day that changes while a hold is waited out
 
  @param neuralwattHoldIsReturn - whether a NeuralWatt hold stands for a spent day's return, which the budgets then
@@ -268,7 +268,7 @@ const NO_HOLDS: ProviderRecord<number> = {
  @param holdMs - total of the waits the reading takes
  @param options - what the case names of the reading: the budgets, the refusal and the rest
 
- @returns The view, and the fake milliseconds the reading slept before it returned
+ @returns View, and the fake milliseconds the reading slept before it returned
 
  @example
  ```ts
@@ -314,7 +314,7 @@ async function viewAfterHolds(
  @param holdMs - total of the waits the reading takes before it refuses
  @param options - what the case names of the reading: the budgets, the refusal and the rest
 
- @returns The thrown value, and the fake milliseconds the reading slept before it threw
+ @returns Thrown value, and the fake milliseconds the reading slept before it threw
 
  @throws Error when the read returned instead of throwing
 

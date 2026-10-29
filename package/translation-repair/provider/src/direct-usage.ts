@@ -47,11 +47,11 @@ export type DeepSeekCacheSplit = {
 /**
  Reads one count off a usage block, refusing anything but a whole number.
 
- @param usage - the usage block
+ @param usage - usage block
 
  @param name - field wanted
 
- @returns The count, or {@link NOT_REPORTED} where the field is absent or mistyped
+ @returns Count, or {@link NOT_REPORTED} where the field is absent or mistyped
 
  @example
  ```ts
@@ -86,7 +86,7 @@ function wholeCountAt(
 
  @param bodyText - whole drained `text/event-stream` body
 
- @returns The split, with a field absent where no block named it
+ @returns Split, with a field absent where no block named it
 
  @example
  ```ts
@@ -141,7 +141,7 @@ export function deepSeekCacheSplitOf({ bodyText, }: { readonly bodyText: string;
 
  @param bodyText - whole drained `text/event-stream` body
 
- @returns The last non-empty fingerprint a chunk carried, or {@link NOT_REPORTED}
+ @returns Last non-empty fingerprint a chunk carried, or {@link NOT_REPORTED}
 
  @example
  ```ts

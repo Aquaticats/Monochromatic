@@ -180,7 +180,7 @@ function wholeMessage(attemptReply: TransportReply,): void {
 
  @param modelId - roster model the caller addressed
 
- @returns The card, whose wire model is one of the two the key is granted for
+ @returns Card, whose wire model is one of the two the key is granted for
 
  @throws {@link ClaudeModelNotServedError} when the model is not one of the eight Claude cards
 
@@ -279,7 +279,7 @@ export function createClaudeClient(
 
    @param signal - abort signal of the reading
 
-   @returns The priced spend and the billing flag
+   @returns Priced spend and billing flag
 
    @example
    ```ts
@@ -303,7 +303,7 @@ export function createClaudeClient(
 
    @param exchange - request the retry ladder is sending
 
-   @returns The transport's reply
+   @returns Transport's reply
 
    @example
    ```ts
@@ -361,7 +361,7 @@ export function createClaudeClient(
 
    @param label - what the call is named by in logs
 
-   @returns The reply the ladder ended on
+   @returns Reply the ladder ended on
 
    @throws The ladder's own failure, after the billing flag has read it
 

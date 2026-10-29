@@ -22,9 +22,9 @@ import {
  Builds a client's JSON exchange: one text exchange carrying every field of
  the request but its validator, read as JSON against that validator.
 
- @param chatText - the client's own text exchange
+ @param chatText - client's own text exchange
 
- @returns The client's `chatJson`
+ @returns Client's `chatJson`
 
  @example
  ```ts

@@ -34,9 +34,9 @@ import {
 
  @param retryPolicy - transient-retry pacing
 
- @param asked - the window: the day's start to now
+ @param asked - window: the day's start to now
 
- @param aliases - the tracking aliases whose calls count too
+ @param aliases - tracking aliases whose calls count too
 
  @param signal - abort signal for the read
 
@@ -119,7 +119,7 @@ export async function readAccountCoveredWh(
 
  @param signal - abort signal for the read
 
- @returns The aliases, or why the listing gave none
+ @returns Aliases, or why the listing gave none
 
  @throws {@link ProviderHttpError} on a non-success status
 
@@ -183,7 +183,7 @@ async function readAliasNames(
 
  @param signal - abort signal for the read
 
- @returns The aliases, or why the listing gave none
+ @returns Aliases, or why the listing gave none
 
  @example
  ```ts

@@ -39,7 +39,7 @@ export type ClaudeSpend = {
 
  @param billingRefused - whether the reading client has met a billing error
 
- @returns The priced spend and the flag
+ @returns Priced spend and flag
 
  @example
  ```ts

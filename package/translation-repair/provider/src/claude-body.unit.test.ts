@@ -45,11 +45,11 @@ import {
 
  @param withSchema - whether the call states the nap schema
 
- @param schema - a schema of the caller's own, which replaces the nap schema
+ @param schema - schema of the caller's own, which replaces the nap schema
 
  @param extra - loose members the request carries beyond its declared ones, as a caller might add
 
- @returns The first exchange's body, parsed
+ @returns First exchange's body, parsed
 
  @example
  ```ts

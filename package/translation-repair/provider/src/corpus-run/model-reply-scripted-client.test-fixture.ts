@@ -94,9 +94,9 @@ function unexpectedQuotas(): never {
 
  @param reply - what the model was scripted to do
 
- @param request - the live request, whose guard an `ok` text must satisfy
+ @param request - live request, whose guard an `ok` text must satisfy
 
- @returns The outcome
+ @returns Outcome
 
  @throws The scripted error of a `throws` reply
 

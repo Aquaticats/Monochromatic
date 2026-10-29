@@ -38,7 +38,7 @@ const DAY: Extract<NeuralWattDay, { readonly kind: 'anchored'; }> = {
 
  @param estimated - whether the figure is an estimate
 
- @returns The line
+ @returns Line
  */
 function lineOf(
   {
@@ -86,7 +86,7 @@ await describe({
             /**
              Whether a line stamped at an instant counts.
 
-             @param at - the stamp
+             @param at - stamp
 
              @returns Whether it is inside
              */

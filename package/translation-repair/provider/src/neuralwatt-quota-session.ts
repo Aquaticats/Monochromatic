@@ -115,7 +115,7 @@ export type NeuralWattQuotaSession = {
 /**
  Says what the plan had charged in a reading, for the line that names the baseline.
 
- @param quota - the reading
+ @param quota - reading
 
  @returns Plain phrase
  */
@@ -187,7 +187,7 @@ export function createNeuralWattQuotaSession(
 
    @param signal - abort signal for the read
 
-   @returns The reading
+   @returns Reading
 
    @throws {@link ProviderHttpError} on a non-success status
 
@@ -224,9 +224,9 @@ export function createNeuralWattQuotaSession(
 
    A reading taken after a failed attempt is a late start, and is logged as one.
 
-   @param quota - the reading
+   @param quota - reading
 
-   @returns The reading kept as the starting one, which is the first kept where two arrive together
+   @returns Reading kept as the starting one, which is the first kept where two arrive together
    */
   function takeBaseline({ quota, }: { readonly quota: NeuralWattQuota; },): NeuralWattQuota {
     if (state.baseline !== undefined)
@@ -271,7 +271,7 @@ export function createNeuralWattQuotaSession(
 
    @param signal - abort signal for the read
 
-   @returns The reading
+   @returns Reading
 
    @throws {@link ProviderHttpError} on a non-success status
 
@@ -292,7 +292,7 @@ export function createNeuralWattQuotaSession(
 
    @param signal - abort signal for the read
 
-   @returns The reading, or that none was taken
+   @returns Reading, or that none was taken
    */
   async function tryBaseline({ signal, }: { readonly signal: AbortSignal; },): Promise<BaselineOutcome> {
     /**
@@ -382,7 +382,7 @@ export function createNeuralWattQuotaSession(
 
    @param signal - abort signal for the read
 
-   @returns The difference, or why there is none
+   @returns Difference, or why there is none
    */
   async function planSpend({ signal, }: { readonly signal: AbortSignal; },): Promise<NeuralWattPlanSpend> {
     /**

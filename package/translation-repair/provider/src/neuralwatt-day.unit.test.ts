@@ -71,7 +71,7 @@ const MODEL = 'deepseek-v4.1-flash';
 
  @param client - client under test
 
- @returns The reading
+ @returns Reading
  */
 async function energyOf(
   { client, }: { readonly client: ReturnType<typeof scriptedClient>['client']; },

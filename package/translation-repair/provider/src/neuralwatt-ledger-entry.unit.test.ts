@@ -54,7 +54,7 @@ const GOOD = {
 
  @param text - whole file
 
- @returns The day's reading it gave
+ @returns Day's reading it gave
 
  @example
  ```ts
@@ -74,7 +74,7 @@ async function energyOf({ text, }: { readonly text: string; },) {
 
  @param bad - second line of the file, with its newline where it has one
 
- @returns The thrown value and the path of the file
+ @returns Thrown value and path of the file
 
  @example
  ```ts

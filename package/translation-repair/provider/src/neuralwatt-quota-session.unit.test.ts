@@ -76,7 +76,7 @@ const START = '2026-10-20T12:00:00.000Z';
 
  @param replies - what the quota route does on each read, in order, the last repeating
 
- @returns The session, the reads the transport saw and the clock
+ @returns Session, reads the transport saw and clock
 
  @example
  ```ts

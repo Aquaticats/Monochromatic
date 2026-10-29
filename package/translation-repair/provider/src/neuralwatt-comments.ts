@@ -114,7 +114,7 @@ function commentRecordsOf(
 
  @param field - field of its JSON to read
 
- @returns The numbers; empty when no comment of the name carried one
+ @returns Numbers; empty when no comment of the name carried one
 
  @example
  ```ts

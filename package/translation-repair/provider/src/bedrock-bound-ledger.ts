@@ -27,7 +27,7 @@ import {
  @param reckoning - why no reported usage prices it: abandoned before its
  end, or finished without a usage block
 
- @param ledger - the spend record the meter is read off
+ @param ledger - spend record the meter is read off
 
  @example
  ```ts

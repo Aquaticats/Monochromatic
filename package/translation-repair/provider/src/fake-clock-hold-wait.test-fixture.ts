@@ -21,7 +21,7 @@ import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts
 
  @param sinon - case's own sandbox, which restores the clock when the case ends
 
- @returns The clock, starting at one second so no reading sits at instant zero, and the disposal that removes it
+ @returns Clock, starting at one second so no reading sits at instant zero, and the disposal that removes it
 
  @example
  ```ts
@@ -118,7 +118,7 @@ export async function waitedOutOnFakeClock<ResultT,>(
   /**
    Runs the reading and notes the fake instant it returned at, which is before the tick that carries it moves on.
 
-   @returns The reading's result with the fake time it took
+   @returns Reading's result with the fake time it took
    */
   async function timedReading(): Promise<{
     readonly value: ResultT;

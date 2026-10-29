@@ -62,7 +62,7 @@ const INSTRUCTION = 'Transcribe every word visible in this image.';
 
  @param padding - bytes of stand-in pixel data
 
- @returns The file's bytes
+ @returns File's bytes
 
  @example
  ```ts
@@ -104,7 +104,7 @@ function lossyWebp(
 /**
  The data URI a picture travels as.
 
- @param bytes - the file's bytes
+ @param bytes - file's bytes
 
  @returns URI as the reading stage builds it
 
@@ -121,7 +121,7 @@ function dataUriOf({ bytes, }: { readonly bytes: Buffer; },): string {
  Sends one picture to the GLM seat with no energy comment in the reply, so the
  estimate stands in the ledger, and reads back what was held.
 
- @param uri - the picture's data URI
+ @param uri - picture's data URI
 
  @returns Prompt tokens the ledger line holds, the energy held, and the bytes
  of text around the picture

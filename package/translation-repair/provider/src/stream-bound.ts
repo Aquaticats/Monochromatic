@@ -79,7 +79,7 @@ export type StreamBound = Disposable & {
 
  @param signal - caller signal whose abort forwards into the call
 
- @param boundMs - the card's measured bound
+ @param boundMs - card's measured bound
 
  @param label - model the call goes to
 

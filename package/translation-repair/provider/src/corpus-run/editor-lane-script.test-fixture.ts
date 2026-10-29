@@ -239,7 +239,7 @@ function unscriptedQuotas(): never {
 
  @param request - exchange as the stage sent it
 
- @returns The scripted reply, which the stage's own guard has accepted
+ @returns Scripted reply, which the stage's own guard has accepted
 
  @example
  ```ts

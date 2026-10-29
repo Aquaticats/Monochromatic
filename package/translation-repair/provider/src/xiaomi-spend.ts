@@ -37,7 +37,7 @@ export type XiaomiSpend = {
 /**
  Reads the spend of this process on Xiaomi so far.
 
- @returns The priced spend
+ @returns Priced spend
 
  @example
  ```ts

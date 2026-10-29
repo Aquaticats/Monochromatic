@@ -34,9 +34,9 @@ const FRESH_MS = 1_000;
 /**
  Budgets whose Xiaomi spend is whatever the case's spend holder says now.
 
- @param clock - the clock's reading, which the case advances
+ @param clock - clock's reading, which the case advances
 
- @param spend - the spend the Xiaomi meter reports, which the case moves
+ @param spend - spend the Xiaomi meter reports, which the case moves
 
  @returns Budgets whose readings are trusted for {@link FRESH_MS}
 

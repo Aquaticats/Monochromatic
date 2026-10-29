@@ -165,7 +165,7 @@ await describe({
 
              @param dry - providers that read dry
 
-             @returns The choice
+             @returns Choice
              */
             const pick = (dry: readonly (typeof PROVIDER_ORDER)[number][]) => routeProviderFor({
               reach,

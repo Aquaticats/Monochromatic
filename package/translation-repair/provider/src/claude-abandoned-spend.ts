@@ -48,7 +48,7 @@ export type ClaudeAttemptBound = {
 /**
  The most one attempt could have been billed, off what it sent.
 
- @param prices - the card's prices, whose tier the prompt size picks
+ @param prices - card's prices, whose tier the prompt size picks
 
  @param requestBodyBytes - size of the body the attempt sent
 
@@ -95,9 +95,9 @@ export function claudeAttemptBound(
 /**
  Writes one attempt at the most it could have been billed, on the SPEND line and in the run meter.
 
- @param label - the card the call is named by, as the call's own SPEND line names it
+ @param label - card the call is named by, as the call's own SPEND line names it
 
- @param prices - the card's prices
+ @param prices - card's prices
 
  @param requestBodyBytes - size of the body the attempt sent
 

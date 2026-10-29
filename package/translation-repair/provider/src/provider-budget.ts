@@ -316,7 +316,7 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
 
  @param xiaomi - Xiaomi's spend meter, which is all this reads
 
- @param anthropic - the Claude key's spend meter, which is all this reads
+ @param anthropic - Claude key's spend meter, which is all this reads
 
  @param openrouter - fourth provider's credits meter, which is all this reads
 
@@ -337,11 +337,11 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
  credential; the `METERS` line prints such a provider as dry. It changes only the printed word, never the routed view
  or the states the budgets report (default: no provider is held out)
 
- @param writing - the providers whose wet reading keeps the run going (`WritingReach`): an entry's give-up of a provider
+ @param writing - providers whose wet reading keeps the run going (`WritingReach`): an entry's give-up of a provider
  is set aside when that provider is the only one of them not dry, since reading it dry would end the run, and they are
  the floor of the give-up where no `unmetFloors` is given (default: every provider counts)
 
- @param unmetFloors - the bench floors the entry's stages need: an entry's give-up of a provider is set aside when with
+ @param unmetFloors - bench floors the entry's stages need: an entry's give-up of a provider is set aside when with
  that provider back no floor would be left unmet while without it one is, since waiting is then what lets the entry
  finish, and holds otherwise (default: some writing provider of `writing` can be asked)
 
@@ -608,7 +608,7 @@ export function createProviderBudgets(
 
    @param signal - abort signal of the call forcing the read
 
-   @returns The fresh reading
+   @returns Fresh reading
 
    @example
    ```ts

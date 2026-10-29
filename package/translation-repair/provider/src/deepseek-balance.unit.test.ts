@@ -20,9 +20,9 @@ import {
 /**
  A balance body as DeepSeek writes it.
 
- @param total - the USD entry's `total_balance` text
+ @param total - USD entry's `total_balance` text
 
- @param available - the account's `is_available` flag
+ @param available - account's `is_available` flag
 
  @returns Body text
 
@@ -43,7 +43,7 @@ function balanceBody({ total, available = true, }: { readonly total: string; rea
 
  @param bodyText - body to parse
 
- @returns The thrown value
+ @returns Thrown value
 
  @example
  ```ts

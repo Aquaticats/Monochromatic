@@ -139,7 +139,7 @@ const FINGERPRINT_LOG_UNITS = 80;
 
  @param bodyText - whole drained stream
 
- @returns The note, empty where the stream named no build
+ @returns Note, empty where the stream named no build
 
  @example
  ```ts
@@ -175,7 +175,7 @@ export type DirectClient = ModelCaller;
  Builds one client over injected transport, speaking chat completions to the
  route it is given.
 
- @param route - the provider's endpoint, model lock, wire format and price
+ @param route - provider's endpoint, model lock, wire format and price
 
  @param apiKey - bearer token; never logged
 

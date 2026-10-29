@@ -209,7 +209,7 @@ export function quotaReply(
 
  @param resetAt - when the cap's window ends, or null
 
- @returns The object the reply carries under `key.allowance`
+ @returns Object the reply carries under `key.allowance`
 
  @example
  ```ts
@@ -258,7 +258,7 @@ type UsageScript = Error | TransportReply | ((exchange: TransportExchange,) => T
 
  @param instant - ISO 8601 instant
 
- @returns The echo spelling
+ @returns Echo spelling
 
  @example
  ```ts
@@ -283,9 +283,9 @@ function echoSpelling({ instant, }: { readonly instant: string; },): string {
  A by-model reply for the given rows whose `period` echoes the window the request asked for, as the route does when it
  honours its input.
 
- @param rows - the `products[]` rows
+ @param rows - `products[]` rows
 
- @param echo - a period to echo instead of the asked one: what the route answers when it falls back to its default
+ @param echo - period to echo instead of the asked one: what the route answers when it falls back to its default
  window
 
  @returns Script entry building the reply from the request
@@ -329,13 +329,13 @@ export function usageReply(
 /**
  One covered `products[]` row.
 
- @param requestedModel - the name the call used
+ @param requestedModel - name the call used
 
  @param kwh - energy consumed, in kWh
 
- @param servedModelId - the backend model that served it, as the route spells it
+ @param servedModelId - backend model that served it, as the route spells it
 
- @returns The row
+ @returns Row
 
  @example
  ```ts
@@ -365,7 +365,7 @@ export function usageRowOf({
 
  @param dir - directory the ledger file lives in
 
- @param dailyWh - the day's allowance
+ @param dailyWh - day's allowance
 
  @param chat - replies to chat completions, in order, the last repeating
 
@@ -517,7 +517,7 @@ export function scriptedClient(
 
  @param exchanges - everything the transport saw
 
- @returns The POSTs
+ @returns POSTs
 
  @example
  ```ts
@@ -537,7 +537,7 @@ export function chatExchangesOf(
 
  @param exchanges - everything the transport saw
 
- @returns The GETs
+ @returns GETs
 
  @example
  ```ts
@@ -559,7 +559,7 @@ export function quotaExchangesOf(
 
  @param exchanges - everything the transport saw
 
- @returns The GETs
+ @returns GETs
 
  @example
  ```ts
@@ -581,7 +581,7 @@ export function modelsExchangesOf(
 
  @param exchanges - everything the transport saw
 
- @returns The GETs of the by-model route
+ @returns GETs of the by-model route
 
  @example
  ```ts
@@ -603,7 +603,7 @@ export function usageExchangesOf(
 
  @param client - client under test
 
- @returns The reply
+ @returns Reply
 
  @example
  ```ts

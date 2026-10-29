@@ -63,7 +63,7 @@ export type NeuralWattKeyAllowanceReading = {
 /**
  Whether a value is a usable amount of money.
 
- @param value - the field
+ @param value - field
 
  @returns Whether it is a finite non-negative number
 
@@ -80,9 +80,9 @@ function isAmount(value: unknown,): value is number {
 /**
  Reads the allowance object of a quota reply's `key`.
 
- @param allowance - the object under `key.allowance`
+ @param allowance - object under `key.allowance`
 
- @returns The allowance, or why it will not read
+ @returns Allowance, or why it will not read
 
  @example
  ```ts
@@ -135,9 +135,9 @@ function allowanceFrom({ allowance, }: { readonly allowance: Readonly<Record<str
 /**
  Reads the allowance out of a parsed quota reply.
 
- @param key - the reply's `key` field, whatever it holds
+ @param key - reply's `key` field, whatever it holds
 
- @returns The allowance, or why it will not read; neither for a key with no cap
+ @returns Allowance, or why it will not read; neither for a key with no cap
 
  @example
  ```ts
@@ -164,11 +164,11 @@ export function keyAllowanceOf({ key, }: { readonly key: unknown; },): NeuralWat
 /**
  When a blocked cap lets requests through again: the cap's own `reset_at`, else the next day's anchor.
 
- @param allowance - the cap, read as blocked
+ @param allowance - cap, read as blocked
 
  @param start - first instant of the current day, the next day's anchor being a day after it
 
- @returns The instant
+ @returns Instant
 
  @example
  ```ts

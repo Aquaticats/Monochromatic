@@ -21,7 +21,7 @@ import {
 /**
  One event line for a chunk.
 
- @param chunk - the chunk's members
+ @param chunk - chunk's members
 
  @returns Event text, blank-line terminated
 

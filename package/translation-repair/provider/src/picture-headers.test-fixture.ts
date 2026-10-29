@@ -72,7 +72,7 @@ const START_CODE = Buffer.from(
 
  @param chunk - chunk payload
 
- @returns The file's bytes
+ @returns File's bytes
 
  @example
  ```ts
@@ -120,7 +120,7 @@ export function webpOf({
 
  @param height - pixels down
 
- @returns The file's bytes
+ @returns File's bytes
 
  @example
  ```ts
@@ -160,7 +160,7 @@ export function lossy({
 /**
  A base64 data URI around bytes.
 
- @param bytes - the file
+ @param bytes - file
 
  @returns URI as the reading stage builds it
 

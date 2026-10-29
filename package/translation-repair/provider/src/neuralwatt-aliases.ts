@@ -61,7 +61,7 @@ export type NeuralWattAliasMap =
 
  @param entry - one entry of the listing's `data`
 
- @returns The entry's `metadata.huggingface_id` in a list of one, or an empty list where it has none
+ @returns Entry's `metadata.huggingface_id` in a list of one, or an empty list where it has none
 
  @example
  ```ts
@@ -88,7 +88,7 @@ function pointerOf({ entry, }: { readonly entry: Readonly<Record<string, unknown
 
  @param bodyText - body of a 200 reply of `GET /v1/models`
 
- @returns The names, or why the listing gives none
+ @returns Names, or why the listing gives none
 
  @example
  ```ts
@@ -180,9 +180,9 @@ export function aliasNamesOf({ bodyText, }: { readonly bodyText: string; },): Ne
 /**
  Whether a usage row for a call made under a `nw-` name was served by a covered model, for the count that has no map.
 
- @param requestedModel - the name the call used
+ @param requestedModel - name the call used
 
- @param servedModelId - the backend model that served it, as the usage route spells it
+ @param servedModelId - backend model that served it, as the usage route spells it
 
  @returns Whether the row counts against the free energy
 

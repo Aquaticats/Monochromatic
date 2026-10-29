@@ -169,7 +169,7 @@ export class SyntheticRequestTooLargeError extends ProviderHttpError {
  in bytes: this corpus is Chinese, and character counts run about a third of
  the bytes their UTF-8 costs
 
- @param headers - the reply's captured headers, absent where none were asked for; a `retry-after` among them rides
+ @param headers - reply's captured headers, absent where none were asked for; a `retry-after` among them rides
  on the failure for the budget layer to read
 
  @returns Failure to throw, size-naming only where all four signals agree

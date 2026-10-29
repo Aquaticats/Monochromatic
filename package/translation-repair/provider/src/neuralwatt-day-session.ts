@@ -86,11 +86,11 @@ export type NeuralWattDaySession = {
 
  @param retryPolicy - transient-retry pacing
 
- @param quota - the client's quota session, whose baseline carries the anchor
+ @param quota - client's quota session, whose baseline carries the anchor
 
  @param now - clock
 
- @param anchors - the client's keeper of the day anchor, which learns it again while it is unknown; the client keeps
+ @param anchors - client's keeper of the day anchor, which learns it again while it is unknown; the client keeps
  the keeper itself so that it can report what was decided without reading anything
 
  @returns Session surface
@@ -153,7 +153,7 @@ export function createNeuralWattDaySession(
 
    @param signal - abort signal for the read
 
-   @returns The aliases, or that they could not be told
+   @returns Aliases, or that they could not be told
    */
   async function readAliases({ signal, }: { readonly signal: AbortSignal; },): Promise<NeuralWattAliasMap> {
     /**
@@ -254,7 +254,7 @@ export function createNeuralWattDaySession(
   /**
    Takes what the quota says about the key's cap into the session.
 
-   @param reading - a quota reading
+   @param reading - quota reading
 
    @param start - first instant of the day, the next day's anchor being a day after it
    */
@@ -441,7 +441,7 @@ export function createNeuralWattDaySession(
 
    @param refresh - whether to read the account figure and the cap first
 
-   @returns The day
+   @returns Day
    */
   async function dayFor(
     {

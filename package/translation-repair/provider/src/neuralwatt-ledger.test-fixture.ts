@@ -13,7 +13,7 @@ import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-st
 
  @param start - ISO 8601 instant the clock starts at
 
- @returns The clock and a way to set it
+ @returns Clock and way to set it
 
  @example
  ```ts
@@ -57,7 +57,7 @@ export const MIDNIGHT_DAY: {
 
  @param entry - fields of the line
 
- @returns The line with its newline
+ @returns Line with its newline
 
  @example
  ```ts
@@ -74,7 +74,7 @@ export function lineOf(entry: Readonly<Record<string, unknown>>,): string {
 
  @param text - JSON text
 
- @returns The object
+ @returns Object
 
  @throws {@link Error} when the text is not a JSON object
 
@@ -102,7 +102,7 @@ export function jsonRecordOf({ text, }: { readonly text: string; },): Readonly<R
 
  @param sinon - sandbox of the case that calls this
 
- @returns The lines, in order
+ @returns Lines, in order
 
  @example
  ```ts

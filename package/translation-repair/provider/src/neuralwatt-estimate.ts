@@ -319,7 +319,7 @@ export function promptTokensOfBody({ bodyBytes, }: { readonly bodyBytes: number;
 
  @param promptTokens - prompt tokens the call carries
 
- @returns The bucket's mean and the estimate held against the day
+ @returns Bucket's mean and estimate held against the day
 
  @throws {@link RangeError} when the count is negative or not a finite number
 

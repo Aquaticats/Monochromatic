@@ -158,7 +158,7 @@ function foldUsageInto(
 
  @param frame - parsed frame
 
- @returns The details object in a list of one, or an empty list where the frame carries none
+ @returns Details object in a list of one, or an empty list where the frame carries none
 
  @example
  ```ts
@@ -184,7 +184,7 @@ function stopDetailsOf(
 
  @param bodyText - whole drained `text/event-stream` body
 
- @returns The facts, each absent where the stream said nothing
+ @returns Facts, each absent where the stream said nothing
 
  @example
  ```ts

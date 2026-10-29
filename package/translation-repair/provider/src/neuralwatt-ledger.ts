@@ -218,7 +218,7 @@ export type NeuralWattLedger = {
 /**
  The system clock, the ledger's time outside a test.
 
- @returns The current instant
+ @returns Current instant
 
  @example
  ```ts
@@ -264,7 +264,7 @@ export function createNeuralWattLedger(
   /**
    Appends one line, creating the directory on the way.
 
-   @param entry - the call's line
+   @param entry - call's line
    */
   async function note(entry: NeuralWattLedgerEntry,): Promise<void> {
     await appendLedgerLine({
@@ -276,7 +276,7 @@ export function createNeuralWattLedger(
   /**
    The file's lines inside the day, in order.
 
-   @param day - the day the lines count in
+   @param day - day the lines count in
 
    @returns Entries stamped from the day's start up to but not including 24 hours after it; none for a day with no
    start
@@ -333,7 +333,7 @@ export function createNeuralWattLedger(
   /**
    Reads the energy of a day.
 
-   @param day - the day to read
+   @param day - day to read
 
    @returns Reading, holds in flight included
    */
@@ -386,9 +386,9 @@ export function createNeuralWattLedger(
 
    @param estimateWh - energy the call would hold
 
-   @param day - the day the call is made in
+   @param day - day the call is made in
 
-   @returns A reservation when the call fits, else the reading it was refused on
+   @returns Reservation when the call fits, else the reading it was refused on
    */
   async function reserve(
     {
@@ -461,7 +461,7 @@ export function createNeuralWattLedger(
 
      @param estimated - why they are an estimate, absent for a measurement
 
-     @returns The entry
+     @returns Entry
      */
     function entryFor(
       {

@@ -53,7 +53,7 @@ const SIGNAL = new AbortController().signal;
 
  @param remainingWh - what the day has left
 
- @returns The reading
+ @returns Reading
 
  @example
  ```ts
@@ -110,7 +110,7 @@ const NONE_FULL = NONE_DRY;
  its first call as too large for the energy left (an estimate of 120 Wh
  against 100 Wh) and takes every call after it.
 
- @returns The client and the providers it asked, in order
+ @returns Client and providers it asked, in order
 
  @example
  ```ts

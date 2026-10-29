@@ -242,7 +242,7 @@ function stubProviders(
 
  @param onHoldEnd - what a read after the holds were asked for does first
 
- @param neuralwatt - the NeuralWatt day the budgets report to a refusal that ends the run
+ @param neuralwatt - NeuralWatt day the budgets report to a refusal that ends the run
 
  @returns Budget view plus the providers marked as having refused us
 

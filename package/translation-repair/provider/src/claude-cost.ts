@@ -22,9 +22,9 @@ const PRICE_UNIT_TOKENS = 1_000_000;
 /**
  USD one completed Claude exchange cost.
 
- @param prices - the card's prices, whose tier the prompt size picks
+ @param prices - card's prices, whose tier the prompt size picks
 
- @param usage - the four counts the stream reported
+ @param usage - four counts the stream reported
 
  @returns Cost in USD
 
