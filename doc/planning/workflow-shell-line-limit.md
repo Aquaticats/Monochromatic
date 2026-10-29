@@ -384,7 +384,14 @@ Measured on 2026-10-29 with the debug build of the implementation.
 
 `toolchain.lock.json` pins `cargo:monochromatic-lint` at the published 0.3.0,
 which does not read YAML,
-and `package/linter/monochromatic-lint/Cargo.toml` is still 0.3.0 with these changes unpublished.
+and `package/linter/monochromatic-lint/Cargo.toml` is bumped to 0.4.0 (a new feature in a 0.x crate),
+together with its fuzz crate's `=0.4.0` dependency and both lockfiles,
+but unpublished.
+The lockfiles were refreshed by the new `lock:version` task,
+which updates only the crate's own entry;
+the existing `lock` task re-resolves the whole dependency graph offline and changed several hundred lockfile lines,
+so its output was discarded (saved as a patch in the session scratch directory,
+not kept in the repository).
 Until a release that contains them is published and pinned (`toolchain:update`,
 whose lock diff is the review),
 the repository's lint run does not check workflows.
