@@ -200,9 +200,93 @@ full report and raw data in `~/temp/agent/package-category-elimination/blast-rad
   per precedent the frozen tree is not re-laid out,
    only stale references swept.
 
+## Naming rules adopted during the `cli` round
+
+- npm names rename in lockstep with paths (`AGENTS.md` rule SGD);
+  this supersedes Rule 6 of the rebalance plan for this wave.
+  No `cli` package is published on npmjs,
+   and the pnpr list is generated,
+   so `cli` has no compatibility cost.
+- When one product holds two projects with the same role,
+  the qualifier follows the role:
+   `cli-allowedips`,
+   `core-allowedips`,
+   `cli-unused-export`
+  (same order as `plugin-*`,
+   `fixture-*`,
+   `variant-*`).
+- Sidecars keep sidecar form beside their subject:
+   `mutation-test/cli.fixture`,
+   `forbidden-strings/cli.fuzz`.
+- Bin names and Rust crate names stay unchanged.
+- The user does not own the WireGuard brand,
+  so no category is named `wireguard`;
+  `wg` is acceptable because WireGuard did not register it.
+
 ## Per-category mapping
 
-Pending research reports in `~/temp/agent/package-category-elimination/`.
+Research reports:
+ `~/temp/agent/package-category-elimination/` (`apps-and-tools.md`,
+ `modules.md`,
+ `blast-radius.md`).
+
+### `cli` (settled 2026-10-29)
+
+- `cli/android-exempt-unused` to `android-exempt-unused/cli`.
+- `cli/forbidden-strings` to `forbidden-strings/cli`;
+  `cli/forbidden-strings.fuzz` to `forbidden-strings/cli.fuzz`.
+  The regex engine joins the same product:
+  `rust-module/forbidden-regex` to `forbidden-strings/core`,
+  with `.bench` and `.fuzz` to `core.bench` and `core.fuzz`.
+  This reverses Phase 7 of the rebalance plan,
+  which assumed `cli` stayed.
+- `cli/fy` to `fy/cli` (zero consumers;
+   the user chose to move rather than pause it).
+- `cli/git-clone-size` to `git-clone-size/cli`.
+- `cli/markdown-lint`:
+   untracked build debris (source deleted in `5bc05682ec`);
+  list with `git clean --dry-run -d -X`,
+   then remove.
+- `cli/mutation-test` to `mutation-test/cli`;
+  `cli/mutation-test.fixture` to `mutation-test/cli.fixture`.
+- `cli/unused-export` to `mutation-test/cli-unused-export`,
+  because it imports `mutation-test` engine internals (shared code).
+- `cli/mvm` to `mvm/cli` now;
+  the `mvm/core` extraction becomes a later separate task,
+  deviating from the rebalance plan's core-first order by user decision.
+  `mcp/mvm` stays in `mcp` this wave and switches its import to the new name.
+- `cli/nested-wayland-session` to `nested-wayland-session/cli`,
+  after `monochromatic-ec` releases it.
+- `cli/open-code-review-issue` to `open-code-review-issue/cli`.
+- `cli/rgffplay` to `rgffplay/cli` (zero consumers;
+   moved by user choice).
+- `cli/terminal-exec` to `terminal-exec/cli`.
+- `cli/vmsync` to `vmsync/cli`:
+  its e2e drives `mvm` but it imports no `mvm` code.
+- `wg` family (the shared library has no single owner):
+  `module/wg-allowedips` to `wg/core-allowedips`,
+  `cli/wg-allowedips` to `wg/cli-allowedips`,
+  `cli/wg-quicker` to `wg/cli-quicker`,
+  `cli/wg-quicker-exempt` to `wg/cli-quicker-exempt`.
+
+The uncommitted toolchain refactor in main
+ (`file-enforcer/src/toolchain`,
+ `toolchain.lock.json`,
+ `mpm.*.toml`,
+ `.projenrc.ts`,
+ `pnpm-workspace.yaml`,
+ `pnpm-lock.yaml`,
+ two `dsh-plugin` manifests)
+belongs to the user,
+who allowed committing it as-is so the batch can regenerate the lockfile.
+
+`monochromatic-fb` released Rust crate moves after `fd0bd03540`.
+Its notes for crate moves:
+ `file-enforcer.config.ts` discovers crates via `package/*/*/Cargo.toml` and `package/*/*/*/Cargo.toml`;
+ rewrite relative `path` dependencies and let the catalog sync re-derive versions;
+ afterwards run `mise run sync:files`,
+ `node package/dev-script/file-enforcer/src/cli.ts --check`,
+ and `cargo metadata --locked --offline` per crate.
 
 ## Next action
 
