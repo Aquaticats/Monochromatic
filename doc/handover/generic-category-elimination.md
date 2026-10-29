@@ -110,6 +110,28 @@ Copy at `~/temp/agent/package-category-elimination/builtin-rules.rewritten.txt`.
    `node batch-scan.ts <repo> module-moves.json module-scan.out.txt -- $(cat module-commit-pathspec.txt)`,
    then `git add --pathspec-from-file=module-add-pathspec.txt`
    and `git commit --file=module-commit-msg.txt --pathspec-from-file=module-commit-pathspec.txt`.
+- Batch 2 is applied in the same worktree (user:
+   "Mixing is fine"):
+   `batch2-moves.json` (shim,
+   stub,
+   webapp-productivity,
+   desktop-daemon,
+   build-tool,
+   git,
+   desktop-app incl. `ide` and `terminal`,
+   the remaining dev-script tools,
+   `cli/nested-wayland-session`).
+  `combined-moves.json` drives `module-pathspec.ts` and `batch-scan.ts`;
+   one combined commit message (`module-commit-msg.txt`).
+  Excluded as other sessions' work:
+   `owner_lock_tests.rs` (issue 1804 session),
+   the task-slice docs.
+- `claude-cpu-watch.service` was re-pointed already
+   (the move broke its symlink):
+   `~/.config/systemd/user/claude-cpu-watch.service` now links to `package/claude-cpu-cap/daemon/systemd/`,
+   daemon-reloaded,
+   restarted,
+   running from the new `src/cpu-watch.ts`.
 - This handover is excluded from the batch;
    after it lands,
    remove `package/rust-module/rust-linter-{core,pattern}` (untracked build output),
