@@ -115,7 +115,7 @@ export function whereOf({ candidate, }: { readonly candidate: CoverageCandidate;
 
  @param answer - what the roster concluded
 
- @returns The row
+ @returns Row
 
  @example
  ```ts
@@ -173,7 +173,7 @@ export function answeredRow(
 
  @param error - what the call threw, of unknown type by construction
 
- @returns A row of kind `failed` with every count zero and the failure as its
+ @returns Row of kind `failed` with every count zero and the failure as its
  one finding
 
  @example

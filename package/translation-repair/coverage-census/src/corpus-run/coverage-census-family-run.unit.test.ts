@@ -81,7 +81,7 @@ type FamilyCalls = {
 
  @param directory - directory to write the members into
 
- @returns The family
+ @returns Family
 
  @example
  ```ts
@@ -157,7 +157,7 @@ async function writeCatFamily({ directory, }: { readonly directory: string; },):
  @param answers - what the suite of each member answers by member name; a
  member not named answers a clean suite of two passes
 
- @returns The steps and the calls they record
+ @returns Steps and calls they record
 
  @example
  ```ts

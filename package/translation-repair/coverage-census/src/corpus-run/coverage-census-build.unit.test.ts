@@ -40,7 +40,7 @@ const TASK = 'mise run //package/translation-repair/coverage-census:coverage-cen
 
  @param distDirectory - build directory to check
 
- @returns The thrown value
+ @returns Thrown value
 
  @throws Error where the check refused nothing
 

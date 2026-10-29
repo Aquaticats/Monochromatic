@@ -187,7 +187,7 @@ function opensWithInvariantMessage(
 
  @param from - offset one past the word `throw`
 
- @returns The class thrown and where its arguments close, or that what is
+ @returns Class thrown and where its arguments close, or that what is
  thrown is anything else
 
  @example
@@ -377,7 +377,7 @@ function* itemsOf({ text, }: { readonly text: string; },): Generator<StretchItem
  @param text - bundle text between the stretch's offsets, as the unminified
  coverage build wrote it
 
- @returns The classes thrown where every statement of the stretch is an
+ @returns Classes thrown where every statement of the stretch is an
  invariant throw, each `if` head in it standing before one; cold for
  anything else, a stretch holding no throw among them
 

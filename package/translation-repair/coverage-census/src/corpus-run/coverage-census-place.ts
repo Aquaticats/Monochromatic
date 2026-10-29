@@ -195,8 +195,8 @@ export async function readMappedBundles<const Reading,>(
 
  @param entryFiles - sources the build names as runner entries
 
- @returns The cold stretches, the invariant throws apart from them, the
- uncalled functions and the sources, placed
+ @returns Cold stretches, invariant throws apart from them,
+ uncalled functions and sources, placed
 
  @throws StatedRefusalError where the coverage names a bundle the build
  does not hold, finds code no test ran in a bundle with no map, or finds a

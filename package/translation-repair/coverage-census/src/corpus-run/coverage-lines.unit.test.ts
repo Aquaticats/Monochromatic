@@ -49,9 +49,9 @@ const BUNDLE_TEXT = 'x\ny\nz';
  A map whose bundle line 0 has no segment and whose lines 1 and 2 map to
  source lines 0 and 1 (0-based) of its one source.
 
- @param source - the source as the map writes it
+ @param source - source as the map writes it
 
- @returns The map file's text
+ @returns Map file's text
  */
 function mapText({ source, }: { readonly source: string; },): string {
   return JSON.stringify({
@@ -65,7 +65,7 @@ function mapText({ source, }: { readonly source: string; },): string {
 /**
  The fixture bundle's lines, its map naming the given source.
 
- @param source - the source as the map writes it
+ @param source - source as the map writes it
 
  @returns What sourceLineAt reads
  */

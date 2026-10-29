@@ -433,7 +433,7 @@ function stretchesOf(
 
  @param sites - uncalled functions sorted by bundle, then start, enclosing ones first
 
- @returns The same, each marked
+ @returns Same, each marked
 
  @example
  ```ts

@@ -121,7 +121,7 @@ type EntryOwner = {
 
  @param lists - each package's list by the package's name
 
- @returns The union, as one list named every runner before the split
+ @returns Union, as one list named every runner before the split
 
  @throws FamilyEntryConflictError where two lists name one entry at two paths
 

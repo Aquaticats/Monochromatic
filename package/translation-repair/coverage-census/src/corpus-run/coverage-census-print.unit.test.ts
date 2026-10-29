@@ -38,7 +38,7 @@ import { recorded, } from './coverage-census.test-fixture.ts';
 
  @param nested - whether it sits inside another uncalled function
 
- @returns The mapped function
+ @returns Mapped function
  */
 function uncalledAt({
   source,

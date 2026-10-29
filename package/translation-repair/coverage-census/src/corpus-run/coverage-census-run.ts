@@ -175,7 +175,7 @@ export async function readBaselines(
 
  @param logPath - its log
 
- @returns The refusal
+ @returns Refusal
 
  @example
  ```ts
@@ -233,7 +233,7 @@ type MemberSuite = {
 /**
  Runs one member's suite.
 
- @param run - the member's run
+ @param run - member's run
 
  @param reportDirectory - where the member's log goes
 
@@ -241,7 +241,7 @@ type MemberSuite = {
 
  @param runSuite - runs one suite, passed in so a case scripts it
 
- @returns The run beside its log and what its suite answered
+ @returns Run beside its log and what its suite answered
 
  @example
  ```ts
@@ -341,7 +341,7 @@ async function* memberSuites(
 
  @param runSuite - runs one suite, passed in so a case scripts it
 
- @returns The passing markers the suite printed
+ @returns Passing markers the suite printed
 
  @throws StatedRefusalError where the suite failed or printed no pass marker
 
@@ -408,7 +408,7 @@ async function runPackageSuite(
  Runs the unit suite of every member of the family, or of the members the named
  test files stand in, and adds up their passes.
 
- @param family - the family
+ @param family - family
 
  @param testFiles - test files named, none for every member's whole suite
 
@@ -418,7 +418,7 @@ async function runPackageSuite(
 
  @param runSuite - runs one suite, passed in so a case scripts it
 
- @returns The passing markers the suites printed between them
+ @returns Passing markers the suites printed between them
 
  @throws StatedRefusalError where a test file named stands in no member, a
  member's suite failed, or no suite printed a pass marker
@@ -484,17 +484,17 @@ async function runFamilySuites(
  Returns nothing: the report on stdout IS the output, and the census file it
  names is the record.
 
- @param line - the census's command line, read whole by `reportingRefusals`
+ @param line - census's command line, read whole by `reportingRefusals`
 
  @param packageDirectory - package directory, where the mise task runs and
  whose `dist/final/node` the tests import
 
- @param family - the family of packages beside this one that the census
+ @param family - family of packages beside this one that the census
  measures with it, none where the package is measured alone
 
  @param env - environment the cache directory is read from
 
- @param steps - the steps that touch git, the suite, the coverage and the
+ @param steps - steps that touch git, suite, coverage and
  build
 
  @param l - logger the progress lines go to, apart from the report on stdout

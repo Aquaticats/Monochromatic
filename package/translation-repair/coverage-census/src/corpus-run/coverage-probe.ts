@@ -23,7 +23,7 @@ import { readStageSettings, } from '@monochromatic-dev/translation-repair-stage/
 /**
  Digest over the built output this entry sits in, read at the start of a run.
 
- @returns The digest, which moves whenever anything that ran changed
+ @returns Digest, which moves whenever anything that ran changed
 
  @example
  ```ts

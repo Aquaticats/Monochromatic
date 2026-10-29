@@ -81,7 +81,7 @@ const CLOSURE = {
 
  @param kind - verdict kind
 
- @returns A roster answer whose counts follow the kind
+ @returns Roster answer whose counts follow the kind
 
  @example
  ```ts
@@ -207,7 +207,7 @@ type Ran = {
 
  @param stageFor - what the stage does for the nth passage asked, from zero
 
- @param sinon - the case's own sandbox
+ @param sinon - case's own sandbox
 
  @returns What the run did
 
@@ -258,7 +258,7 @@ async function runOver(
 
    @param input - what the run handed the stage
 
-   @returns The scripted answer, or a throw where the script says so
+   @returns Scripted answer, or a throw where the script says so
 
    @example
    ```ts

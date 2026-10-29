@@ -102,7 +102,7 @@ export type CensusArguments = {
 /**
  Reads the census's command line.
 
- @param line - the census's command line, read whole by `reportingRefusals`,
+ @param line - census's command line, read whole by `reportingRefusals`,
  which refuses an unknown flag or a flag written without its value
 
  @returns Test files, baseline and sources asked for
@@ -478,7 +478,7 @@ export function readBaselineCensus(
 
  @param path - file read, named in the refusal
 
- @returns The file's contents
+ @returns File's contents
 
  @throws CensusBaselineError where the read fails, with the failure as its cause
 

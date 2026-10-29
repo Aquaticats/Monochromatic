@@ -52,7 +52,7 @@ const BLOCK = {
 
  @param line - 1-based line
 
- @returns The line
+ @returns Line
  */
 function at({
   source,

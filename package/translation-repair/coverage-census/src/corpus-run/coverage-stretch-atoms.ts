@@ -406,7 +406,7 @@ function afterName(
 
  @param closed - where it closes, or that it cannot be read for certain
 
- @returns The token, or that the text cannot be read for certain
+ @returns Token, or that the text cannot be read for certain
 
  @example
  ```ts
@@ -440,7 +440,7 @@ function closedAtom(
 
  @param from - offset to read from
 
- @returns The token with its offsets, the end of the text, or that the text
+ @returns Token with its offsets, end of the text, or that the text
  cannot be read for certain from there
 
  @example

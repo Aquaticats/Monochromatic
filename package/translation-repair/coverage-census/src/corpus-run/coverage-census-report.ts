@@ -223,7 +223,7 @@ export function isUnmappedSource({ source, }: { readonly source: string; },): bo
 
  @param stretch - stretch split into its pieces
 
- @returns The census records, in bundle order
+ @returns Census records, in bundle order
 
  @example
  ```ts

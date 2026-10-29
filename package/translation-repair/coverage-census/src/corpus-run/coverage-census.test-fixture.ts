@@ -16,7 +16,7 @@ import type { CensusStretch, } from '../../dist/final/node/index.mjs';
 
  @param endLine - last line
 
- @returns The stretch
+ @returns Stretch
 
  @example
  ```ts

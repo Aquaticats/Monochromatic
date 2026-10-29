@@ -249,7 +249,7 @@ export async function* coverageReadings(
 
  @param isBundleName - whether a script under that prefix is a bundle, asked of its name; every one is where absent
 
- @returns The painted tally
+ @returns Painted tally
 
  @throws CoverageFileError where a file does not read as V8 writes one
 

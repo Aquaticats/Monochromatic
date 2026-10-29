@@ -57,7 +57,7 @@ const USAGE = 'Usage: coverage-census [--baseline <census.json>] [--source <src/
 
  @param packageDirectory - package directory the command stands in
 
- @returns The build directory the command reads
+ @returns Build directory the command reads
 
  @example
  ```ts
@@ -79,7 +79,7 @@ function distOf({ packageDirectory, }: { readonly packageDirectory: string; },):
  @param packageDirectory - scratch directory the command stands in, which
  also holds the cache home it would write its census under
 
- @param args - the command's arguments
+ @param args - command's arguments
 
  @returns Exit code and both streams
 

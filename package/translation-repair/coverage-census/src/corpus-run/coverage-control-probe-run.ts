@@ -39,14 +39,14 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 /**
  Runs the control and reports what it found.
 
- @param line - the control's command line, read whole by `reportingRefusals`
+ @param line - control's command line, read whole by `reportingRefusals`
 
  @param pin - corpus clone and commit every read resolves against
 
  @param newClient - builds the client every call goes through, called before
  the entry filter is read, so a missing key is refused first
 
- @param holds - the control itself: asks the roster, deletes what it anchored
+ @param holds - control itself: asks the roster, deletes what it anchored
  on, and asks again
 
  @param roster - models asked

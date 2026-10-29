@@ -51,7 +51,7 @@ const SCRATCH_PREFIX = 'translation-repair-census-test-';
 
  @param napRanges - ranges of function nap as `[start, end, count]`, whole extent first
 
- @returns The file's text
+ @returns File's text
  */
 function coverageText({
   prefix,
@@ -101,7 +101,7 @@ const PREFIX = 'file:///cattery/dist/final/node/';
 
  @param label - text after it
 
- @returns A statement printing `[<marker>] <label>`
+ @returns Statement printing `[<marker>] <label>`
  */
 function printMarker({
   marker,

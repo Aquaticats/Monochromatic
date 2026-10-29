@@ -152,7 +152,7 @@ const LIST_HEADING = 'invariant throws by source and line (each stretch nothing 
 
  @param rows - invariant throws of the census, in report order
 
- @returns The heading, then one line per invariant throw: its source, lines,
+ @returns Heading, then one line per invariant throw: its source, lines,
  the kind of its source and the classes it throws
 
  @example

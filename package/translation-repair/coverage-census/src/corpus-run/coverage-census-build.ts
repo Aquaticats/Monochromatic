@@ -65,7 +65,7 @@ async function builtFilesOf({ distDirectory, }: { readonly distDirectory: string
 
  @param readText - reads one bundle's text, passed in so a case scripts which of two bundles' reads ends first
 
- @returns The build's bundles, split by whether a map stands beside each
+ @returns Build's bundles, split by whether a map stands beside each
 
  @throws StatedRefusalError where the directory cannot be listed, holds no
  bundle, holds none with a map beside it, or holds a minified build

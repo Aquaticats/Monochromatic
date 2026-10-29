@@ -73,14 +73,14 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
 /**
  Asks the roster about every unpaired passage it is given, up to the cap.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
 
  @param pin - corpus clone and commit every read resolves against
 
  @param newClient - builds the client for every exchange, called after the
  command line is read, so a bad flag is refused before a key is asked for
 
- @param stage - the roster's answer about one passage
+ @param stage - roster's answer about one passage
 
  @param roster - models asked
 
@@ -95,7 +95,7 @@ import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage
  @param resolveRunsDir - directory the answers are kept under, resolved when
  they are kept
 
- @param now - the present instant as ISO 8601, read when the run begins and
+ @param now - present instant as ISO 8601, read when the run begins and
  when it ends
 
  @param log - logger every progress line goes to

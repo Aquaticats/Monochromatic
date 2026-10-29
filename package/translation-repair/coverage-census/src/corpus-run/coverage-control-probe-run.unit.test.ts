@@ -135,7 +135,7 @@ async function runOver(
 
    @param input - what the run handed the control
 
-   @returns A result of one damaged case that held
+   @returns Result of one damaged case that held
 
    @example
    ```ts

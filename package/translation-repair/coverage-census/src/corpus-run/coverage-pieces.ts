@@ -188,7 +188,7 @@ function* charactersOf(
 
  @param place - where the run maps
 
- @param entry - the character's entry
+ @param entry - character's entry
 
  @returns Whether the two name one source
 
@@ -219,7 +219,7 @@ function continuesRun(
 
  @param entry - entry of a character that continues it
 
- @returns The place with the character's line counted
+ @returns Place with the character's line counted
 
  @example
  ```ts
@@ -253,7 +253,7 @@ function widenedPlace(
 /**
  Where a run opened by a character maps.
 
- @param entry - the character's entry
+ @param entry - character's entry
 
  @returns Its source and line as the run's lines, or no source
 
@@ -281,7 +281,7 @@ function openedPlace({ entry, }: { readonly entry: SourceEntry; },): RunPlace {
 
  @param stretch - stretch in that bundle
 
- @returns The stretch with its pieces in bundle order
+ @returns Stretch with its pieces in bundle order
 
  @throws where the stretch holds no character, which the tally never yields
 

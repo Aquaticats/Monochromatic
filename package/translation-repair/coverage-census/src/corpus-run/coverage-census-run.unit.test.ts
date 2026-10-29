@@ -75,7 +75,7 @@ type StepCalls = {
 
  @param clean - whether the scripted git says the files match it
 
- @returns The steps and the calls they record
+ @returns Steps and calls they record
 
  @example
  ```ts
@@ -173,7 +173,7 @@ async function isPresent({ path, }: { readonly path: string; },): Promise<boolea
 /**
  A package directory whose build the census can read.
 
- @returns The package, with one unminified bundle and its map
+ @returns Package, with one unminified bundle and its map
 
  @example
  ```ts

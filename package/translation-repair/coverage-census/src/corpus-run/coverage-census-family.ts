@@ -174,7 +174,7 @@ export type CensusScope =
 
  @param packageDirectory - directory the census runs from
 
- @returns The family of the packages beside it where the package has a
+ @returns Family of the packages beside it where the package has a
  coverage build config, else the directory alone
 
  @example
@@ -246,7 +246,7 @@ export async function censusScopeOf(
  Reads every member's coverage build and refuses one the census cannot read,
  before any suite runs.
 
- @param family - the family
+ @param family - family
 
  @param l - logger the progress lines go to
 
@@ -286,7 +286,7 @@ export async function requireFamilyCoverageBuild(
 
        @param bundle - bundle in the member's build directory
 
-       @returns The path
+       @returns Path
        */
         function namedFromFamily(bundle: string,): string {
           return posix.join(
@@ -333,7 +333,7 @@ export async function requireFamilyCoverageBuild(
  Groups the test files a command line named by the member whose suite runs
  them, or lists every member's whole suite where none is named.
 
- @param family - the family
+ @param family - family
 
  @param testFiles - test files named, each by absolute path or from the family
  directory

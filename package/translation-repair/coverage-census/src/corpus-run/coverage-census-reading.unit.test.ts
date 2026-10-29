@@ -41,7 +41,7 @@ const DIST_DIRECTORY = '/cats/package/dist/final/node';
  A placed tally with one cold stretch in a library source and one in a
  runner's entry file.
 
- @returns The placed tally
+ @returns Placed tally
 
  @example
  ```ts

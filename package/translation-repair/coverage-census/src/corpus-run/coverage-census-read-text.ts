@@ -21,7 +21,7 @@ export type ReadText = (input: { readonly path: string; },) => Promise<string>;
  source file, read whole because the census reads its lines: a bundle's to
  refuse a minified build, a source's to count them
 
- @returns The file's text, decoded as UTF-8 since the build writes its
+ @returns File's text, decoded as UTF-8 since the build writes its
  bundles and the package keeps its sources in UTF-8
 
  @throws The filesystem's own failure, unchanged, where the file cannot be read

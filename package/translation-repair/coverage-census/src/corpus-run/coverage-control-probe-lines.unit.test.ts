@@ -66,7 +66,7 @@ const LEFT_NOTHING = {
 
  @param changes - fields to set
 
- @returns The result
+ @returns Result
 
  @example
  ```ts

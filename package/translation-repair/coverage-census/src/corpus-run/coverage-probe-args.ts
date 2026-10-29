@@ -26,7 +26,7 @@ export const DEFAULT_CANDIDATE_CAP = 12;
 /**
  Reads the entry filter and cap from the command line.
 
- @param line - the probe's command line, read whole by `reportingRefusals`
+ @param line - probe's command line, read whole by `reportingRefusals`
  and passed in so this is testable without a subprocess
 
  @returns Entry ids to probe, empty for every entry, and the candidate cap

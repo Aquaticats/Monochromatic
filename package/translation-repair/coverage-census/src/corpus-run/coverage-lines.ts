@@ -171,7 +171,7 @@ const SOURCE_MAP_VERSION = 3;
 
  @param text - its contents
 
- @returns The map, and the sources it names as written in it
+ @returns Map, and the sources it names as written in it
 
  @throws SourceMapFileError where the file is not JSON (a write cut short
  leaves one), or is not a version 3 map with named sources and mappings; the
@@ -354,7 +354,7 @@ export function bundleLineAt(
 
  @param column - 0-based column on it
 
- @returns The source as written and its 1-based line, or that none is named
+ @returns Source as written and its 1-based line, or that none is named
 
  @example
  ```ts
@@ -492,7 +492,7 @@ export function sourceLineAt(
 
  @param uncalled - function in that bundle
 
- @returns The function with its line
+ @returns Function with its line
 
  @example
  ```ts

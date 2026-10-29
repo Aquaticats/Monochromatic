@@ -37,7 +37,7 @@ const PREFIX = 'file:///cattery/dist/final/node/';
 
  @param functions - each function's name and ranges as `[start, end, count]`, whole extent first
 
- @returns The script
+ @returns Script
  */
 function scriptOf(
   {
@@ -66,7 +66,7 @@ function scriptOf(
 
  @param processes - each process's scripts
 
- @returns The painted tally
+ @returns Painted tally
  */
 function tallied({ processes, }: { readonly processes: readonly (readonly BundleScript[])[]; },) {
   const tally = createCoverageTally();

@@ -81,7 +81,7 @@ type FixtureBundle = {
 
  @param bundles - bundles the build holds
 
- @returns The package, its build directory and coverage directory, and the
+ @returns Package, its build directory and coverage directory, and the
  build's URL prefix
  */
 async function fixturePackage(

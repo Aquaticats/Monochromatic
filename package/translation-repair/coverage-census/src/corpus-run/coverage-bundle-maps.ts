@@ -56,7 +56,7 @@ export type BundleMaps = {
 
  @param distDirectory - build directory, named by the refusal
 
- @returns The bundles with a map and those without
+ @returns Bundles with a map and those without
 
  @throws {@link StatedRefusalError} when the directory holds no bundle, which
  no build wrote, or no bundle has a map, which is the normal build and not
