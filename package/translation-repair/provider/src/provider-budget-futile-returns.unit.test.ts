@@ -82,7 +82,7 @@ function refuse(
     entryStartedAt,
   },);
   return {
-    marks: futile.all(),
+    marks: futile.current(),
     lines,
   };
 }
@@ -213,16 +213,16 @@ await describe({
             entryStartedAt: 0,
           },);
         }
-        expect([...futile.all().keys(),],).toEqual([
+        expect([...futile.current().keys(),],).toEqual([
           'synthetic',
           'hyper',
         ],);
 
         futile.served({ provider: 'synthetic', },);
-        expect([...futile.all().keys(),],).toEqual(['hyper',],);
+        expect([...futile.current().keys(),],).toEqual(['hyper',],);
 
         futile.forgetAll();
-        expect(futile.all().size,).toBe(0,);
+        expect(futile.current().size,).toBe(0,);
       },
     },),
   ],

@@ -410,14 +410,14 @@ await describe({
           },
         },);
         await consoleLinesDuring({
-          run: async function refuse(): Promise<void> {
+          run: async function refuseWhereTheReturnCuresAFloor(): Promise<void> {
             await refuseAgainAfterTheHold({
               budgets,
               clock,
               holdMs: COOLDOWN_MS,
             },);
             expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
-            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
+            expect(budgets.futileReturns().size,).toBe(0,);
           },
           sinon: ctx.sinon,
         },);

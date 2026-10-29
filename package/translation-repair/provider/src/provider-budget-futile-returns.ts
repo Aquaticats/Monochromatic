@@ -103,7 +103,7 @@ export type FutileReturns = {
 
    @returns Each marked provider with what its last return was, live (copy it before keeping it)
    */
-  readonly all: () => ReadonlyMap<ProviderName, FutileReturn>;
+  readonly current: () => ReadonlyMap<ProviderName, FutileReturn>;
 
   /**
    Forgets a provider's mark, which a call it answered ends.
@@ -151,7 +151,7 @@ export function createFutileReturns(
   const marks = new Map<ProviderName, FutileReturn>();
 
   return {
-    all: function all(): ReadonlyMap<ProviderName, FutileReturn> {
+    current: function current(): ReadonlyMap<ProviderName, FutileReturn> {
       return marks;
     },
 

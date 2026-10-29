@@ -81,6 +81,14 @@ const FROZEN_COPIES: readonly {
     ],
     reason: 'nested inside the frozen copy of uniqueFindings',
   },
+  {
+    locations: [
+      'run/corpus-run/run-seats-cooldown-repeat.unit.test.ts#refuseAndRead',
+      'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseAndRead',
+    ],
+    reason: 'the two rigs differ in the client they hand the seat reader: the cooldown cases must not hand it the '
+      + 'futile returns, since they pin the give-up alone, and the futile-return cases must (ledger B1010)',
+  },
 ];
 
 /**

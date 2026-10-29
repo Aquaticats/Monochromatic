@@ -231,7 +231,7 @@ export async function readDrynessPastShortBench(
   const benches = benchesOf({ seats: judgeSeatsFor({ dry: first, },), },);
   /**
    How long each provider's refusal still holds it out, as the pass allows it to be waited for, without the holds of
-   providers whose last return served nothing, which are said below when a bench is short.
+   providers whose last return served nothing, which are said once a bench is found short.
    */
   const {
     held: running,

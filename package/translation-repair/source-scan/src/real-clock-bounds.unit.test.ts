@@ -745,6 +745,51 @@ const LISTED: Readonly<Record<string, ListedBound>> = {
     bound: 'other',
     reason: SCRIPTED_CLOCK,
   },
+  'provider/provider-budget-futile-return.unit.test.ts#refuse: statedWaitMs: STATED_MS': {
+    count: 3,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'provider/provider-budget-futile-return.unit.test.ts#refuseAgainAfterTheHold: statedWaitMs: statedWaitMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseAndRead: statedWaitMs: statedWaitMs': {
+    count: 1,
+    bound: 'other',
+    reason: HANDED_ON,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseAndServe: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseServeAndRefuse: statedWaitMs: STATED_MS': {
+    count: 3,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseTwice: statedWaitMs: STATED_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseTwiceThenState: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseWithNobodyElse: statedWaitMs: STATED_MS': {
+    count: 2,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
+  'run/corpus-run/run-seats-futile-return.unit.test.ts#refuseWithoutServing: statedWaitMs: STATED_MS': {
+    count: 1,
+    bound: 'other',
+    reason: SCRIPTED_CLOCK,
+  },
   'run/corpus-run/run-seats-payment-hold.unit.test.ts#readsAfterRefusal: statedWaitMs: STATED_HOLD_MS': {
     count: 1,
     bound: 'other',

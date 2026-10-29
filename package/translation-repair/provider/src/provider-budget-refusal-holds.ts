@@ -429,7 +429,7 @@ export function createRefusalHolds(
        The marks that stand: the providers whose wait would not make the entry finishable.
        */
       const standing = new Map<ProviderName, FutileReturn>();
-      for (const [provider, mark,] of futile.all()) {
+      for (const [provider, mark,] of futile.current()) {
         // THE MARK YIELDS WHERE WAITING IS WHAT LETS THE ENTRY FINISH, as the give-up does.
         if (!aside.waitingHelps({ provider, },))
           standing.set(
