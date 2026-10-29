@@ -70,7 +70,7 @@ Keep each body as the same argv plus inline TypeScript
 
 ### The acceptance boundary
 
-`package/dev-script/task-util/src/build-and-test.unit.test.ts`
+`package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
  (moved 2026-10-29 by concurrent work to
  `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`,
  staged and not yet committed)

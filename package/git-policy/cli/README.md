@@ -362,6 +362,11 @@ The last four run only where the file lists them.
 - `final-newline`:
    default `warn`.
   Text files end with exactly one line feed.
+  A file whose Git `text` attribute is unset (`-text`, which `binary` includes) keeps its exact bytes,
+  so a package declares its exact-byte inputs, such as fuzz seeds, with `seed/** -text` in its own `.gitattributes`.
+  The attribute is read from the commit or index being checked, never from the worktree.
+  Fixed paths still exempt: `package/forbidden-strings/core.fuzz/seed/`, `package/test-fixture/toml-edit/src/`,
+  and files below `dist/final/node/` or `bundle/node/`.
 - `markdown/autofix`:
    default `warn`.
   Runs `monochromatic-lint --fix` over staged Markdown inside the commit.

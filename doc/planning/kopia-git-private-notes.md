@@ -225,7 +225,7 @@ The requested v1 scope is the full surface:
 
 Per repository conventions:
 
-- A Node CLI package under `package/cli/<name>/`,
+- A Node CLI package under `package/<name>/cli/`,
   bin with a `#!/usr/bin/env node` shebang.
 - `mise.toml` task definitions mirroring a sibling CLI package.
 - TSDoc on declarations,

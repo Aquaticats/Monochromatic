@@ -20,7 +20,7 @@ The package is large,
  and ships a parallel class hierarchy that breaks `instanceof` identity against `node:stream` for any consumer that
  happens to mix the two.
 
-The workspace already has a precedent for replacing userland mirrors of platform APIs with a `link:package/shim/<name>`
+The workspace already has a precedent for replacing userland mirrors of platform APIs with a `link:package/pnpm-override/shim-<name>`
 override (see `package/pnpm-override/shim-node-domexception/`).
 The same mechanism applies cleanly here:
  a single workspace package that re-exports `node:stream`,

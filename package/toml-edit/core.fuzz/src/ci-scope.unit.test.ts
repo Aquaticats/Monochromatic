@@ -185,11 +185,11 @@ await describe({
     }, },)),
     ...[
       'unrelated.txt',
-      'package/module/toml-editor/file.ts',
-      'package/module/toml-edit.fuzzier/file.ts',
+      'package/toml-edit/core-editor/file.ts',
+      'package/toml-edit/core.fuzzier/file.ts',
       'doc/decision/toml-edit-fuzzing.md.bak',
       '.github/workflows/toml-edit-fuzz.yml.bak',
-      'unrelated\npackage/module/toml-edit/fake.ts',
+      'unrelated\npackage/toml-edit/core/fake.ts',
     ].map(path => it({ name: `skips only a successful irrelevant comparison: ${JSON.stringify(path,)}`, fn: async () => {
       using state = fixture();
       state.put(path,);

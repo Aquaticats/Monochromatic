@@ -89,7 +89,8 @@ const COMMANDS: readonly GuardedCommand[] = [
     before: {
       code: 0,
       stdout: [
-        'cap-census: 0 logs, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable; '
+        'cap-census: 0 logs, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable, '
+          + '0 dangling links with no log name passed over; '
           + 'lines left out for a stamp the logger did not write: 0',
         'A rule reading can differ from a card for reasons that are not the model: a narrower log scope than the '
           + '2026-09-09 table, calls from before the caps, or calls the cap itself cut. Read each provider\'s cut '

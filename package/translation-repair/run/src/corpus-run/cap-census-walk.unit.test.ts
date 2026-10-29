@@ -11,6 +11,7 @@
 import {
   chmod,
   mkdir,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, } from 'node:path';
@@ -164,6 +165,7 @@ await describe({
         expect({
           logs: textsInCodePointOrder({ texts: found.logs, },),
           unreadable: found.unreadable,
+          danglingLinks: found.danglingLinks,
         },).toEqual({
           logs: [
             join(
@@ -177,6 +179,7 @@ await describe({
             ),
           ],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -207,6 +210,7 @@ await describe({
         },),).toEqual({
           logs: [log,],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -238,6 +242,7 @@ await describe({
         expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
           logs: [kept,],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -272,6 +277,7 @@ await describe({
         expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
           logs: [reached,],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -303,6 +309,7 @@ await describe({
         },),).toEqual({
           logs: [log,],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -312,6 +319,7 @@ await describe({
         expect(await capCensusLogsUnder({ roots: [], },),).toEqual({
           logs: [],
           unreadable: 0,
+          danglingLinks: 0,
         },);
       },
     },),
@@ -346,6 +354,7 @@ await describe({
         },),).toEqual({
           logs: [log,],
           unreadable: 1,
+          danglingLinks: 0,
         },);
         expect(stderr.args,).toEqual([[
           `cap-census: cannot read ${missing}: Error: ENOENT: no such file or directory, stat '${missing}'`,
@@ -382,6 +391,7 @@ await describe({
         expect(found,).toEqual({
           logs: [log,],
           unreadable: 2,
+          danglingLinks: 0,
         },);
         expect(textsInCodePointOrder({
           texts: stderr.args.map(function lineOf([line,],): string {
@@ -392,6 +402,161 @@ await describe({
             return `cap-census: cannot read ${dir}: Error: EACCES: permission denied, scandir '${dir}'`;
           },),
         },),);
+      },
+    },),
+    it({
+      name: 'PASSES OVER A DANGLING LINK WHOSE NAME IS NO LOG\'S, one for each, counting it apart from the unreadable '
+        + 'paths and saying nothing of it on stderr, since a link to nothing holds no log (ledger B991)',
+      fn: async (ctx) => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-walk-', },);
+        const stderr = ctx.sinon.stub(
+          console,
+          'error',
+        );
+
+        /**
+         A log, and two links in a nested directory whose targets are not there.
+         */
+        const log = join(
+          scratch.path,
+          'nap.log',
+        );
+        await touch({ path: log, },);
+        await mkdir(join(
+          scratch.path,
+          'profile',
+        ),);
+        await symlink(
+          join(
+            scratch.path,
+            'no-such-nest',
+          ),
+          join(
+            scratch.path,
+            'profile',
+            'SingletonLock',
+          ),
+        );
+        await symlink(
+          join(
+            scratch.path,
+            'no-such-hearth',
+          ),
+          join(
+            scratch.path,
+            'profile',
+            'SingletonCookie',
+          ),
+        );
+
+        expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
+          logs: [log,],
+          unreadable: 0,
+          danglingLinks: 2,
+        },);
+        expect(stderr.args,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'STILL REPORTS A DANGLING LINK NAMED LIKE A LOG, as unreadable with the error it met, since the log it '
+        + 'stands for could not be read (ledger B991)',
+      fn: async (ctx) => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-walk-', },);
+        const stderr = ctx.sinon.stub(
+          console,
+          'error',
+        );
+
+        /**
+         A link named like a log whose target is not there.
+         */
+        const broken = join(
+          scratch.path,
+          'broken.log',
+        );
+        await symlink(
+          join(
+            scratch.path,
+            'no-such-nest',
+          ),
+          broken,
+        );
+
+        expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
+          logs: [],
+          unreadable: 1,
+          danglingLinks: 0,
+        },);
+        expect(stderr.args,).toEqual([[
+          `cap-census: cannot read ${broken}: Error: ENOENT: no such file or directory, stat '${broken}'`,
+        ],],);
+      },
+    },),
+    it({
+      name: 'STILL REPORTS A DIRECTORY IT CANNOT LIST beside a dangling link, since the directory may hold a log '
+        + 'and the link cannot (ledger B991)',
+      fn: async (ctx) => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-walk-', },);
+        const stderr = ctx.sinon.stub(
+          console,
+          'error',
+        );
+        await symlink(
+          join(
+            scratch.path,
+            'no-such-nest',
+          ),
+          join(
+            scratch.path,
+            'SingletonLock',
+          ),
+        );
+        await using sealed = await sealDirectories({
+          parent: scratch.path,
+          names: ['sealed-one',],
+        },);
+
+        expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
+          logs: [],
+          unreadable: 1,
+          danglingLinks: 1,
+        },);
+        expect(stderr.args,).toEqual([[
+          `cap-census: cannot read ${sealed.paths[0]}: Error: EACCES: permission denied, scandir '${sealed.paths[0]}'`,
+        ],],);
+      },
+    },),
+    it({
+      name: 'STILL ENTERS A LINK TO A DIRECTORY and takes the log inside it, so the pass over dangling links costs '
+        + 'no log a link leads to (ledger B991)',
+      fn: async () => {
+        await using scratch = await scratchDir({ prefix: 'cap-census-walk-', },);
+        await using elsewhere = await scratchDir({ prefix: 'cap-census-walk-target-', },);
+        await touch({
+          path: join(
+            elsewhere.path,
+            'purr.log',
+          ),
+        },);
+        await symlink(
+          elsewhere.path,
+          join(
+            scratch.path,
+            'tabby',
+          ),
+        );
+
+        expect(await capCensusLogsUnder({ roots: [scratch.path,], },),).toEqual({
+          logs: [
+            join(
+              scratch.path,
+              'tabby',
+              'purr.log',
+            ),
+          ],
+          unreadable: 0,
+          danglingLinks: 0,
+        },);
       },
     },),
   ],

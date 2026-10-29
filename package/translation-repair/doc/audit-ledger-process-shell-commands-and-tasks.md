@@ -7,7 +7,9 @@ tasks run from the wrong place,
 scratch output without bound,
 a worktree added without the flag that stops the copy of ignored files (M224),
 a prescribed command changed and run from the wrong folder (M256),
-and the breaks that agents listed in their own notes (M272 and M273).
+the breaks that agents listed in their own notes (M272 and M273),
+two Edit calls to one file in one block (M306),
+and a search with no file filter and a misread line offset (M311).
 
 Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
@@ -872,3 +874,50 @@ and anything longer than three steps goes in a scratch `.ts` file.
 An edit and the command that reads it go in separate calls.
 `mistake-prevention-shell-edits-commits-and-agents.md`,
 "Shell commands".
+
+## M306: the lead sent two Edit calls to one file in the same block
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+The lead sent two Edit calls to one file in one block.
+Parallel calls may apply in any order,
+so the second edit may meet the file before the first has changed it,
+or the first may meet the file the second changed.
+That is why the rule sends edits to one file one per call.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Shell commands":
+never send parallel edits to one file,
+whatever their text,
+and an edit that follows another edit of the same file waits for the next call.
+
+Recurrence:
+M282,
+where the lead sent an edit and the command that read the edited file in one batch,
+and M189 to M197,
+where agents sent two or three edits to one file in one batch.
+
+## M311: a search with no file filter printed more than could be read, and a line offset was misread
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes,
+two small slips of the lead's filed as one entry.
+
+- A broad `rg` with no file filter returned output too large to read.
+- A range read with `sed` was misread by its line offset once.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Shell commands":
+a search that may match widely is a count first and a listing second,
+with a file filter or a directory that bounds it,
+and a number taken from a range read is the line number printed beside the line,
+never an offset counted from the start of the range.
+
+Recurrence:
+M132,
+listings of several hundred file names printed where a count would have done,
+and M117,
+where a line range was counted off a print whose first line the tool had trimmed.

@@ -68,8 +68,8 @@ await describe({
       },
     },),
     it({
-      name: 'RESOLVES a card naming a pooled percentile to that one pooled figure, the 99th above the 90th, so a '
-        + 'model with no calls of its own is capped like every other such model',
+      name: 'RESOLVES every card naming the pooled 90th to that one floor, and finds no card on the pooled 99th, '
+        + 'since a seat the cap census reads calls for carries its own measured cap (ledger B990)',
       fn: async () => {
         /**
          Caps of the cards naming each pool.
@@ -77,8 +77,15 @@ await describe({
         const p90 = capsNaming({ pool: 'pooled-p90', },);
         const p99 = capsNaming({ pool: 'pooled-p99', },);
         expect(p90,).toHaveLength(1,);
-        expect(p99,).toHaveLength(1,);
-        expect(p99[0],).toBeGreaterThan(p90[0] ?? Number.POSITIVE_INFINITY,);
+        expect(p99,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'CARRIES THE MEASURED CAP of the Xiaomi checker seat, the census rule\'s reading of 2026-10-29 over 293 '
+        + 'Xiaomi calls and 1,362 OpenRouter calls, and not the pooled 99th it rode before',
+      fn: async () => {
+        expect(MODEL_CARDS['xiaomi/mimo-v2.6-flash'].completionCap,).toBe(5_098,);
+        expect(COMPLETION_CAP['xiaomi/mimo-v2.6-flash'],).toBe(5_098,);
       },
     },),
   ],
