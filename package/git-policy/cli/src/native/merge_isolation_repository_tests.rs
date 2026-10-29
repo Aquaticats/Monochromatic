@@ -225,6 +225,36 @@ fn a_range_in_place_of_a_commit_is_native_gits() {
     remove(parent.as_path());
 }
 
+/// A branch with no history in common is merged only when `--allow-unrelated-histories` says so; without it the
+/// command is native Git's, which refuses with its own words.
+#[test]
+fn unrelated_histories_are_merged_only_when_allowed() {
+    let parent: PathBuf = fixture("merge-attempt-unrelated");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("u.txt"), b"u.txt base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "u.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--orphan", "other"]);
+    std::fs::write(repo.join("o.txt"), b"o.txt other\n").expect("file");
+    git(repo.as_path(), &["add", "--", "o.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=other root"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("u.txt"), b"u.txt staged by another session\n").expect("file");
+    git(repo.as_path(), &["add", "--", "u.txt"]);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let refused: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "other"], &[]);
+    assert_eq!(refused, IsolatedMerge::Forward { notice: None });
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
+    let allowed: IsolatedMerge =
+        attempted(repo.as_path(), Route::Direct, &["merge", "--no-edit", "--allow-unrelated-histories", "other"], &[]);
+    assert!(is_completed(&allowed), "{allowed:?}");
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD^1"]), head);
+    assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD^2"]), git_text(repo.as_path(), &["rev-parse", "other"]));
+    assert_eq!(std::fs::read(repo.join("o.txt")).expect("the other branch's file"), b"o.txt other\n");
+    assert_eq!(git_text(repo.as_path(), &["status", "--porcelain=v1"]), "M  u.txt", "the staged work stayed staged");
+    remove(parent.as_path());
+}
+
 /// `--no-edit` settles the question of the editor whatever `GIT_MERGE_AUTOEDIT` says, and without it the variable
 /// decides: `yes` forwards with the notice, `no` completes the merge.
 #[test]
