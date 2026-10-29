@@ -81,13 +81,15 @@ export function renderGeneratedTable(entries: ReadonlyMap<string, RustCatalogEnt
   /**
    Entry lines in name order.
    */
-  const lines = [...entries.entries(),]
-    .toSorted(function byName([left,], [right,],): number {
-      return left < right ? -1 : (left > right ? 1 : 0);
-    },)
-    .map(function toLine([name, entry,],): string {
-      return `${name} = ${renderEntryValue(entry,)}\n`;
-    },);
+  const lines: string[] = [];
+  for (const name of [...entries.keys(),].toSorted()) {
+    /**
+     Entry for this name; always present because the name came from the map.
+     */
+    const entry = entries.get(name,);
+    if (entry !== undefined)
+      lines.push(`${name} = ${renderEntryValue(entry,)}\n`,);
+  }
   return `${GENERATED_TABLE_HEADER}\n${lines.join('',)}`;
 }
 

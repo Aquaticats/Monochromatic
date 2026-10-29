@@ -793,6 +793,18 @@ Owner decisions:
    they now also carry this autofix's formatting and are left as they are.
 Later autofix runs snapshot `src/` first and copy every file outside the catalog work back byte for byte.
 
+The autofix also changed meaning in one of the 25 files:
+ `src/toolchain/update.ts` had a typed arrow `const fetcher: ... = async (url, init) => ...`,
+ rewritten as `async function fetcher(url, init)`,
+ so `mise run //package/dev-script/file-enforcer:lint:types` fails with TS7006 at `update.ts:632` and `:633`.
+Told this,
+ the owner still chose to leave all 25 files as they are.
+Type-checking the catalog code therefore reads that task's output for errors in `src/cargo/catalog/`,
+`src/check-mode.ts`,
+`src/cli.ts`,
+and `src/index.ts`,
+ which report none.
+
 ## Rejected
 
 - Repository-root Cargo workspace:

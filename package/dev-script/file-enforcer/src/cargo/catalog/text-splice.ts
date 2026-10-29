@@ -42,8 +42,17 @@ export type Splice = {
  lineStart({ source: 'a\nbc', offset: 3, }); // 2
  ```
  */
-export function lineStart({ source, offset, }: { readonly source: string; readonly offset: number; },): number {
-  return source.lastIndexOf('\n', offset - 1,) + 1;
+export function lineStart({
+  source,
+  offset,
+}: {
+  readonly source: string;
+  readonly offset: number
+},): number {
+  return source.lastIndexOf(
+    '\n',
+    offset - 1,
+  ) + 1;
 }
 
 /**
@@ -60,12 +69,21 @@ export function lineStart({ source, offset, }: { readonly source: string; readon
  lineEndInclusive({ source: 'a\nbc', offset: 0, }); // 2
  ```
  */
-export function lineEndInclusive({ source, offset, }: { readonly source: string; readonly offset: number; },): number {
+export function lineEndInclusive({
+  source,
+  offset,
+}: {
+  readonly source: string;
+  readonly offset: number
+},): number {
   /**
    Position of the newline ending this line.
    */
-  const newline = source.indexOf('\n', offset,);
-  return newline === -1 ? source.length : newline + 1;
+  const newline = source.indexOf(
+    '\n',
+    offset,
+  );
+  return newline === (-1) ? source.length : newline + 1;
 }
 
 /**
@@ -82,17 +100,34 @@ export function lineEndInclusive({ source, offset, }: { readonly source: string;
  leadingCommentStart({ source: '# why\nx = 1\n', offset: 6, }); // 0
  ```
  */
-export function leadingCommentStart({ source, offset, }: { readonly source: string; readonly offset: number; },): number {
+export function leadingCommentStart({
+  source,
+  offset,
+}: {
+  readonly source: string;
+  readonly offset: number
+},): number {
   /**
    Start of the line currently being extended upward.
    */
-  let start = lineStart({ source, offset, },);
+  let start = lineStart({
+    source,
+    offset,
+  },);
   while (start > 0) {
     /**
      Start of the line above.
      */
-    const above = lineStart({ source, offset: start - 1, },);
-    if (!source.slice(above, start,).trimStart().startsWith('#',))
+    const above = lineStart({
+      source,
+      offset: start - 1,
+    },);
+    if (!source.slice(
+      above,
+      start,
+    )
+      .trimStart()
+      .startsWith('#',))
       break;
     start = above;
   }
@@ -119,11 +154,20 @@ export function leadingCommentStart({ source, offset, }: { readonly source: stri
  applySplices({ source: 'a = "1"', splices: [{ start: 4, end: 7, text: '">=1"', },], }); // 'a = ">=1"'
  ```
  */
-export function applySplices({ source, splices, }: { readonly source: string; readonly splices: readonly Splice[]; },): string {
+export function applySplices({
+  source,
+  splices,
+}: {
+  readonly source: string;
+  readonly splices: readonly Splice[]
+},): string {
   /**
    Splices from last to first, so earlier offsets stay valid while applying.
    */
-  const ordered = splices.toSorted(function byStartDescending(left, right,): number {
+  const ordered = splices.toSorted(function byStartDescending(
+    left,
+    right,
+  ): number {
     return (right.start - left.start) || (right.end - left.end);
   },);
   /**
@@ -140,7 +184,10 @@ export function applySplices({ source, splices, }: { readonly source: string; re
         `Overlapping catalog edits at offsets ${String(splice.start,)}..${String(splice.end,)} and ${String(previousStart,)}; this is a file-enforcer bug.`,
       );
     }
-    result = `${result.slice(0, splice.start,)}${splice.text}${result.slice(splice.end,)}`;
+    result = `${result.slice(
+      0,
+      splice.start,
+    )}${splice.text}${result.slice(splice.end,)}`;
     previousStart = splice.start;
   }
   return result;

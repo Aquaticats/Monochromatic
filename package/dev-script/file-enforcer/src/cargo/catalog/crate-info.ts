@@ -7,13 +7,9 @@
 import { posix, } from 'node:path';
 
 import {
-  getStaticTOMLValue,
-  parseTOML,
-} from 'toml-eslint-parser';
-
-import {
   type LocatedDocument,
-  locateDocument,
+  type LocatedPair,
+  locateSource,
   pathKey,
 } from './locate.ts';
 import {
@@ -70,18 +66,34 @@ export type CrateInfo = {
  ```
  */
 function readSelections(
-  { manifestPath, value, issues, }: { readonly manifestPath: string; readonly value: Readonly<Record<string, unknown>>; readonly issues: SyncIssue[]; },
+  {
+    manifestPath,
+    value,
+    issues,
+  }: {
+    readonly manifestPath: string;
+    readonly value: Readonly<Record<string, unknown>>;
+    readonly issues: SyncIssue[]
+  },
 ): ReadonlyMap<string, string> {
   /**
    Selection table, empty when the crate selects nothing.
    */
-  const table = tableAt({ manifest: value, path: ['package', 'metadata', 'rust-catalog', 'catalogs',], },);
+  const table = tableAt({
+    manifest: value,
+    path: [
+      'package',
+      'metadata',
+      'rust-catalog',
+      'catalogs',
+    ],
+  },);
   /**
    Selections accepted so far.
    */
   const selections = new Map<string, string>();
   for (const [name, catalogName,] of Object.entries(table,)) {
-    if (typeof catalogName !== 'string') {
+    if ((typeof catalogName) !== 'string') {
       issues.push({
         file: manifestPath,
         location: `package.metadata.rust-catalog.catalogs.${name}`,
@@ -90,7 +102,10 @@ function readSelections(
       },);
       continue;
     }
-    selections.set(name, catalogName,);
+    selections.set(
+      name,
+      catalogName,
+    );
   }
   return selections;
 }
@@ -111,30 +126,37 @@ function readSelections(
  const info = readCrateInfo({ manifest: { path: 'package/a/b/Cargo.toml', source, }, issues, });
  ```
  */
-export function readCrateInfo({ manifest, issues, }: { readonly manifest: ManifestFile; readonly issues: SyncIssue[]; },): CrateInfo {
+export function readCrateInfo({
+  manifest,
+  issues,
+}: {
+  readonly manifest: ManifestFile;
+  readonly issues: SyncIssue[]
+},): CrateInfo {
   /**
-   Parsed document with source ranges.
+   Projected document with source ranges and the plain value.
    */
-  const program = parseTOML(manifest.source,);
-  /**
-   Plain value of the whole manifest.
-   */
-  const raw: unknown = getStaticTOMLValue(program,);
+  const located = locateSource(manifest.source,);
   /**
    Manifest value as a table.
    */
-  const value = isTable(raw,) ? raw : {};
+  const value = isTable(located.value,) ? located.value : {};
   /**
    `[package]` table.
    */
-  const pkg = tableAt({ manifest: value, path: ['package',], },);
-  /**
-   Indexed document for the editors.
-   */
-  const located = locateDocument(program,);
-  if (!located.tables.has(pathKey(['workspace', 'dependencies',],),) && located.pairs.some(function isWorkspaceDependency(pair,): boolean {
-    return (pair.path[0] === 'workspace') && (pair.path[1] === 'dependencies');
-  },)) {
+  const pkg = tableAt({
+    manifest: value,
+    path: ['package',],
+  },);
+  if ((!located.tables
+    .has(pathKey([
+      'workspace',
+      'dependencies',
+    ],),))
+    && located.pairs
+      .some(function isWorkspaceDependency(pair: LocatedPair,): boolean {
+        return (pair.path[0] === 'workspace') && (pair.path[1] === 'dependencies');
+      },)) {
     issues.push({
       file: manifest.path,
       location: 'workspace.dependencies',
@@ -145,18 +167,33 @@ export function readCrateInfo({ manifest, issues, }: { readonly manifest: Manife
   /**
    Every classified use site.
    */
-  const sites = dependencyTables(value,).flatMap(function sitesOf(table,): readonly UseSite[] {
-    return Object.entries(tableAt({ manifest: value, path: table, },),).flatMap(function classify([name, entry,],): readonly UseSite[] {
-      return classifySite({ manifestPath: manifest.path, table, name, value: entry, issues, },);
+  const sites = dependencyTables(value,)
+    .flatMap(function sitesOf(table,): readonly UseSite[] {
+      return Object.entries(tableAt({
+        manifest: value,
+        path: table,
+      },),)
+        .flatMap(function classify([name, entry,],): readonly UseSite[] {
+          return classifySite({
+            manifestPath: manifest.path,
+            table,
+            name,
+            value: entry,
+            issues,
+          },);
+        },);
     },);
-  },);
   return {
     manifest,
     located,
     crateDir: posix.dirname(manifest.path,),
-    packageName: typeof pkg.name === 'string' ? pkg.name : '',
-    packageVersion: typeof pkg.version === 'string' ? pkg.version : '',
-    selections: readSelections({ manifestPath: manifest.path, value, issues, },),
+    packageName: (typeof pkg.name) === 'string' ? pkg.name : '',
+    packageVersion: (typeof pkg.version) === 'string' ? pkg.version : '',
+    selections: readSelections({
+      manifestPath: manifest.path,
+      value,
+      issues,
+    },),
     sites,
   };
 }

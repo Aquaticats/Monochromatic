@@ -15,9 +15,11 @@ import {
   parseRustCatalog,
   type RustCatalogEntry,
 } from '@monochromatic-dev/module-rust-catalog/ts';
-import { parseTOML, } from 'toml-eslint-parser';
 
-import { planAdoption, siteLocation, } from './adopt.ts';
+import {
+  planAdoption,
+  siteLocation,
+} from './adopt.ts';
 import {
   type CrateInfo,
   readCrateInfo,
@@ -28,8 +30,11 @@ import {
   inheritSplices,
   pathVersionSplices,
 } from './edit-manifest.ts';
-import { locateDocument, } from './locate.ts';
-import { applySplices, type Splice, } from './text-splice.ts';
+import { locateSource, } from './locate.ts';
+import {
+  applySplices,
+  type Splice,
+} from './text-splice.ts';
 import type {
   ManifestFile,
   SyncIssue,
@@ -88,7 +93,13 @@ export class RustCatalogSyncError extends Error {
  namedKey({ catalogName: 'pinned', name: 'salsa', });
  ```
  */
-function namedKey({ catalogName, name, }: { readonly catalogName: string; readonly name: string; },): string {
+function namedKey({
+  catalogName,
+  name,
+}: {
+  readonly catalogName: string;
+  readonly name: string
+},): string {
   return `${catalogName}\u0000${name}`;
 }
 
@@ -127,10 +138,16 @@ function resolveCrate(
     readonly defaultCatalog: ReadonlyMap<string, RustCatalogEntry>;
     readonly namedCatalogs: ReadonlyMap<string, ReadonlyMap<string, RustCatalogEntry>>;
     readonly internal: ReadonlyMap<string, CrateInfo>;
-    readonly usage: { readonly defaultNames: Set<string>; readonly namedNames: Set<string>; };
+    readonly usage: {
+      readonly defaultNames: Set<string>;
+      readonly namedNames: Set<string>
+    };
     readonly issues: SyncIssue[];
   },
-): { readonly entries: ReadonlyMap<string, RustCatalogEntry>; readonly splices: readonly Splice[]; } {
+): {
+  readonly entries: ReadonlyMap<string, RustCatalogEntry>;
+  readonly splices: readonly Splice[]
+} {
   /**
    Generated entries for this crate.
    */
@@ -148,35 +165,50 @@ function resolveCrate(
       /**
        First-party crate the path points at.
        */
-      const target = internal.get(posix.normalize(posix.join(info.crateDir, site.path,),),);
+      const target = internal.get(
+        posix.normalize(posix.join(
+          info.crateDir,
+          site.path,
+        ),),
+      );
       if ((target === undefined) || (target.packageVersion === '')) {
         issues.push({
-          file: info.manifest.path,
+          file: info.manifest
+            .path,
           location: siteLocation(site,),
           problem: `path ${JSON.stringify(site.path,)} does not point at a first-party crate with a package.version`,
           remedy: 'point `path` at a crate directory under package/ that declares `version`, or depend on a registry release instead',
         },);
         continue;
       }
-      splices.push(...pathVersionSplices({ source: info.manifest.source, located: info.located, site, version: target.packageVersion, },),);
+      splices.push(...pathVersionSplices({
+        source: info.manifest
+          .source,
+        located: info.located,
+        site,
+        version: target.packageVersion,
+      },),);
       continue;
     }
     catalogNames.add(site.name,);
     /**
      Named catalog this crate selects for the dependency, if any.
      */
-    const catalogName = info.selections.get(site.name,);
+    const catalogName = info.selections
+      .get(site.name,);
     /**
      Resolved entry.
      */
-    const entry = catalogName === undefined ? defaultCatalog.get(site.name,) : namedCatalogs.get(catalogName,)?.get(site.name,);
+    const entry = catalogName === undefined ? defaultCatalog.get(site.name,) : namedCatalogs.get(catalogName,)
+      ?.get(site.name,);
     // A literal without an entry already failed adoption, which reported why;
     // a second "missing entry" issue would blame crates that are not at fault.
     if ((entry === undefined) && (site.kind === 'literal'))
       continue;
     if (entry === undefined) {
       issues.push({
-        file: info.manifest.path,
+        file: info.manifest
+          .path,
         location: siteLocation(site,),
         problem: catalogName === undefined
           ? `uses \`workspace = true\` but rust-catalog.toml [catalog] has no ${site.name} entry`
@@ -186,24 +218,41 @@ function resolveCrate(
       continue;
     }
     if (catalogName === undefined)
-      usage.defaultNames.add(site.name,);
+      usage.defaultNames
+        .add(site.name,);
     else
-      usage.namedNames.add(namedKey({ catalogName, name: site.name, },),);
-    entries.set(site.name, entry,);
+      usage.namedNames
+        .add(namedKey({
+          catalogName,
+          name: site.name,
+        },),);
+    entries.set(
+      site.name,
+      entry,
+    );
     if (site.kind === 'literal')
-      splices.push(...inheritSplices({ source: info.manifest.source, located: info.located, site, },),);
+      splices.push(...inheritSplices({
+        source: info.manifest
+          .source,
+        located: info.located,
+        site,
+      },),);
   }
   for (const [name, catalogName,] of info.selections) {
     if (!catalogNames.has(name,)) {
       issues.push({
-        file: info.manifest.path,
+        file: info.manifest
+          .path,
         location: `package.metadata.rust-catalog.catalogs.${name}`,
         problem: `selects catalog "${catalogName}" for ${name}, which this crate does not depend on`,
         remedy: 'remove the selection',
       },);
     }
   }
-  return { entries, splices, };
+  return {
+    entries,
+    splices,
+  };
 }
 
 //endregion Resolve
@@ -244,7 +293,10 @@ export function syncRustCatalog(
   /**
    Validated catalog.
    */
-  const document = parseRustCatalog({ source: catalogSource, sourcePath: catalogPath, },);
+  const document = parseRustCatalog({
+    source: catalogSource,
+    sourcePath: catalogPath,
+  },);
   /**
    Problems across every file.
    */
@@ -253,13 +305,22 @@ export function syncRustCatalog(
    Parsed manifests.
    */
   const crates = manifests.map(function read(manifest,): CrateInfo {
-    return readCrateInfo({ manifest, issues, },);
+    return readCrateInfo({
+      manifest,
+      issues,
+    },);
   },);
   /**
    First-party crates by directory.
    */
-  const internal = new Map(crates.map(function byDir(info,): readonly [string, CrateInfo] {
-    return [info.crateDir, info,];
+  const internal = new Map(crates.map(function byDir(info,): readonly [
+    string,
+    CrateInfo
+  ] {
+    return [
+      info.crateDir,
+      info,
+    ];
   },),);
   /**
    Adoption of literal versions.
@@ -269,38 +330,77 @@ export function syncRustCatalog(
     sites: crates.flatMap(function sitesOf(info,) {
       return info.sites;
     },),
-    selections: new Map(crates.map(function selectionsOf(info,): readonly [string, ReadonlyMap<string, string>] {
-      return [info.manifest.path, info.selections,];
+    selections: new Map(crates.map(function selectionsOf(info,): readonly [
+      string,
+      ReadonlyMap<string, string>
+    ] {
+      return [
+        info.manifest
+          .path,
+        info.selections,
+      ];
     },),),
     issues,
   },);
   /**
    Catalog entries referenced by any crate.
    */
-  const usage = { defaultNames: new Set<string>(), namedNames: new Set<string>(), };
+  const usage = {
+    defaultNames: new Set<string>(),
+    namedNames: new Set<string>(),
+  };
   /**
    Per-crate resolution.
    */
   const resolved = crates.map(function resolve(info,) {
-    return { info, ...resolveCrate({ info, defaultCatalog: adoption.defaultCatalog, namedCatalogs: document.catalogs, internal, usage, issues, },), };
+    return {
+      info,
+      ...resolveCrate({
+        info,
+        defaultCatalog: adoption.defaultCatalog,
+        namedCatalogs: document.catalogs,
+        internal,
+        usage,
+        issues,
+      },),
+    };
   },);
 
   /**
    Unused entry paths.
    */
   const unused = [
-    ...[...adoption.defaultCatalog.keys(),].filter(function isUnused(name,): boolean {
-      return !usage.defaultNames.has(name,);
-    },).map(function toPath(name,): readonly string[] {
-      return ['catalog', name,];
-    },),
-    ...[...document.catalogs.entries(),].flatMap(function unusedNamed([catalogName, catalog,],): readonly (readonly string[])[] {
-      return [...catalog.keys(),].filter(function isUnused(name,): boolean {
-        return !usage.namedNames.has(namedKey({ catalogName, name, },),);
-      },).map(function toPath(name,): readonly string[] {
-        return ['catalogs', catalogName, name,];
-      },);
-    },),
+    ...[...adoption.defaultCatalog
+      .keys(),].filter(function isUnused(name,): boolean {
+        return !usage.defaultNames
+          .has(name,);
+      },)
+      .map(function toPath(name,): readonly string[] {
+        return [
+          'catalog',
+          name,
+        ];
+      },),
+    ...[...document.catalogs
+      .keys(),].flatMap(function unusedNamed(catalogName: string,): readonly (readonly string[])[] {
+        return [...(document.catalogs
+          .get(catalogName,)
+          ?.keys()
+          ?? []),].filter(function isUnused(name: string,): boolean {
+            return !usage.namedNames
+              .has(namedKey({
+                catalogName,
+                name,
+              },),);
+          },)
+          .map(function toPath(name,): readonly string[] {
+            return [
+              'catalogs',
+              catalogName,
+              name,
+            ];
+          },);
+      },),
   ];
   if (issues.length > 0)
     throw new RustCatalogSyncError({ issues, },);
@@ -313,25 +413,46 @@ export function syncRustCatalog(
    Crate directories whose generated table changed.
    */
   const affectedCrates: string[] = [];
-  for (const { info, entries, splices, } of resolved) {
+  for (const {
+    info,
+    entries,
+    splices,
+  } of resolved) {
     /**
      Splice for the generated table.
      */
-    const tableSplices = generatedTableSplices({ source: info.manifest.source, located: info.located, entries, },);
+    const tableSplices = generatedTableSplices({
+      source: info.manifest
+        .source,
+      located: info.located,
+      entries,
+    },);
     if (tableSplices.length > 0)
       affectedCrates.push(info.crateDir,);
-    manifestTexts.set(info.manifest.path, applySplices({ source: info.manifest.source, splices: [...splices, ...tableSplices,], },),);
+    manifestTexts.set(
+      info.manifest
+        .path,
+      applySplices({
+        source: info.manifest
+          .source,
+        splices: [
+          ...splices,
+          ...tableSplices,
+        ],
+      },),
+    );
   }
   /**
    Pruned paths when pruning is on; otherwise they become warnings.
    */
-  const prunes = document.settings.catalogPrune ? unused : [];
+  const prunes = document.settings
+    .catalogPrune ? unused : [];
   return {
     catalog: applySplices({
       source: catalogSource,
       splices: catalogSplices({
         source: catalogSource,
-        located: locateDocument(parseTOML(catalogSource,),),
+        located: locateSource(catalogSource,),
         additions: adoption.additions,
         floorRaises: adoption.floorRaises,
         prunes,
@@ -339,9 +460,10 @@ export function syncRustCatalog(
     },),
     manifests: manifestTexts,
     affectedCrates,
-    warnings: document.settings.catalogPrune ? [] : unused.map(function toWarning(path,): string {
-      return `${catalogPath}: ${path.join('.',)} is used by no crate; set catalogPrune = true to remove unused entries on sync`;
-    },),
+    warnings: document.settings
+      .catalogPrune ? [] : unused.map(function toWarning(path,): string {
+        return `${catalogPath}: ${path.join('.',)} is used by no crate; set catalogPrune = true to remove unused entries on sync`;
+      },),
   };
 }
 

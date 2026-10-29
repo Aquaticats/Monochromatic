@@ -50,7 +50,10 @@ const LITERAL_SITE_KEYS: ReadonlySet<string> = new Set([
 /**
  Placeholder literal for sites that are not literals.
  */
-const NO_LITERAL: RustCatalogEntry = { kind: 'registry', version: '', };
+const NO_LITERAL: RustCatalogEntry = {
+  kind: 'registry',
+  version: '',
+};
 
 //endregion Rules
 
@@ -69,7 +72,8 @@ const NO_LITERAL: RustCatalogEntry = { kind: 'registry', version: '', };
  ```
  */
 export function isTable(value: unknown,): value is Readonly<Record<string, unknown>> {
-  return ((typeof value) === 'object') && (value !== null) && !Array.isArray(value,);
+  return ((typeof value) === 'object') && (value !== null)
+    && (!Array.isArray(value,));
 }
 
 /**
@@ -99,14 +103,18 @@ export function dependencyTables(manifest: Readonly<Record<string, unknown>>,): 
   /**
    Platform-specific tables.
    */
-  const target = manifest.target;
+  const {target} = manifest;
   if (isTable(target,)) {
     for (const [cfg, body,] of Object.entries(target,)) {
       if (!isTable(body,))
         continue;
       for (const table of DEPENDENCY_TABLES) {
         if (isTable(body[table],))
-          paths.push(['target', cfg, table,],);
+          paths.push([
+            'target',
+            cfg,
+            table,
+          ],);
       }
     }
   }
@@ -128,15 +136,27 @@ export function dependencyTables(manifest: Readonly<Record<string, unknown>>,): 
  ```
  */
 export function tableAt(
-  { manifest, path, }: { readonly manifest: Readonly<Record<string, unknown>>; readonly path: readonly string[]; },
+  {
+    manifest,
+    path,
+  }: {
+    readonly manifest: Readonly<Record<string, unknown>>;
+    readonly path: readonly string[]
+  },
 ): Readonly<Record<string, unknown>> {
   /**
    Value reached so far.
    */
-  let current: unknown = manifest;
-  for (const segment of path)
-    current = isTable(current,) ? current[segment] : undefined;
-  return isTable(current,) ? current : {};
+  const reached = path.reduce< unknown>(
+    function step(
+      current: unknown,
+      segment: string,
+    ): unknown {
+      return isTable(current,) ? current[segment] : undefined;
+    },
+    manifest,
+  );
+  return isTable(reached,) ? reached : {};
 }
 
 //endregion Helpers
@@ -181,15 +201,35 @@ export function classifySite(
   /**
    Dotted location used in diagnostics.
    */
-  const location = [...table, name,].join('.',);
+  const location = [
+    ...table,
+    name,
+  ].join('.',);
   /**
    Fields shared by every site of this entry.
    */
-  const base = { manifestPath, table, name, };
-  if (typeof value === 'string')
-    return [{ ...base, kind: 'literal', literal: { kind: 'registry', version: value, }, path: '', },];
+  const base = {
+    manifestPath,
+    table,
+    name,
+  };
+  if ((typeof value) === 'string')
+    return [{
+      ...base,
+      kind: 'literal',
+      literal: {
+        kind: 'registry',
+        version: value,
+      },
+      path: '',
+    },];
   if (!isTable(value,)) {
-    issues.push({ file: manifestPath, location, problem: 'is neither a version string nor a table', remedy: 'write `name = "1.2"` or `name = { workspace = true }`', },);
+    issues.push({
+      file: manifestPath,
+      location,
+      problem: 'is neither a version string nor a table',
+      remedy: 'write `name = "1.2"` or `name = { workspace = true }`',
+    },);
     return [];
   }
 
@@ -197,29 +237,37 @@ export function classifySite(
     /**
      Keys Cargo rejects beside `workspace = true`.
      */
-    const extra = Object.keys(value,).filter(function isExtra(key,): boolean {
-      return !INHERITED_SITE_KEYS.has(key,);
-    },);
+    const extra = Object.keys(value,)
+      .filter(function isExtra(key,): boolean {
+        return !INHERITED_SITE_KEYS.has(key,);
+      },);
     if (extra.length > 0) {
       issues.push({
         file: manifestPath,
         location,
         problem: `declares ${extra.map(function quote(key,): string {
           return `\`${key}\``;
-        },).join(', ',)} beside \`workspace = true\``,
+        },)
+          .join(', ',)} beside \`workspace = true\``,
         remedy: 'move version, git, rev, and package into rust-catalog.toml; keep only features, optional, and default-features here',
       },);
       return [];
     }
-    return [{ ...base, kind: 'catalog', literal: NO_LITERAL, path: '', },];
+    return [{
+      ...base,
+      kind: 'catalog',
+      literal: NO_LITERAL,
+      path: '',
+    },];
   }
 
   /**
    Keys the catalog cannot move or keep.
    */
-  const unsupported = Object.keys(value,).filter(function isUnsupported(key,): boolean {
-    return !LITERAL_SITE_KEYS.has(key,);
-  },);
+  const unsupported = Object.keys(value,)
+    .filter(function isUnsupported(key,): boolean {
+      return !LITERAL_SITE_KEYS.has(key,);
+    },);
   if (unsupported.length > 0) {
     issues.push({
       file: manifestPath,
@@ -233,19 +281,53 @@ export function classifySite(
   /**
    Optional rename target.
    */
-  const rename = typeof value.package === 'string' ? { package: value.package, } : {};
-  if (typeof value.path === 'string')
-    return [{ ...base, kind: 'path', literal: NO_LITERAL, path: value.path, },];
-  if (typeof value.git === 'string') {
-    if (typeof value.rev !== 'string') {
-      issues.push({ file: manifestPath, location, problem: 'git dependency has no `rev`', remedy: 'pin it with `rev = "<full commit hash>"`', },);
+  const rename = (typeof value.package) === 'string' ? { package: value.package, } : {};
+  if ((typeof value.path) === 'string')
+    return [{
+      ...base,
+      kind: 'path',
+      literal: NO_LITERAL,
+      path: value.path,
+    },];
+  if ((typeof value.git) === 'string') {
+    if ((typeof value.rev) !== 'string') {
+      issues.push({
+        file: manifestPath,
+        location,
+        problem: 'git dependency has no `rev`',
+        remedy: 'pin it with `rev = "<full commit hash>"`',
+      },);
       return [];
     }
-    return [{ ...base, kind: 'literal', literal: { kind: 'git', git: value.git, rev: value.rev, ...rename, }, path: '', },];
+    return [{
+      ...base,
+      kind: 'literal',
+      literal: {
+        kind: 'git',
+        git: value.git,
+        rev: value.rev,
+        ...rename,
+      },
+      path: '',
+    },];
   }
-  if (typeof value.version === 'string')
-    return [{ ...base, kind: 'literal', literal: { kind: 'registry', version: value.version, ...rename, }, path: '', },];
-  issues.push({ file: manifestPath, location, problem: 'has no version, git, path, or `workspace = true`', remedy: 'add a version, or `workspace = true` with a catalog entry', },);
+  if ((typeof value.version) === 'string')
+    return [{
+      ...base,
+      kind: 'literal',
+      literal: {
+        kind: 'registry',
+        version: value.version,
+        ...rename,
+      },
+      path: '',
+    },];
+  issues.push({
+    file: manifestPath,
+    location,
+    problem: 'has no version, git, path, or `workspace = true`',
+    remedy: 'add a version, or `workspace = true` with a catalog entry',
+  },);
   return [];
 }
 
