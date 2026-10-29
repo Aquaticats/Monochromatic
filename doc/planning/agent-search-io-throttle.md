@@ -313,8 +313,12 @@ Verified on 2026-10-29 with `mise run toolchain:sync` (3 installed, 59 unchanged
 nine links (`du`, `egrep`, `fd`, `fgrep`, `find`, `grep`, `rg`, `tokei`, `tree`; only tools whose real binary was on `PATH`).
 Through `mise exec` in the repository root, `rg`, `grep`, `find` and `fd` resolve to those links; `rg -rl foo package`,
 `grep -rn foo` and `find . -name x` exit 2 with their explanations; `find . -maxdepth 1 -name package` runs; `find --version`
-prints GNU findutils 4.10.0. The two new runner tests in `providers.unit.matrix.test.ts` have not run, because the container
-task `test:container:toolchain` fails first on `chmod -R a+rX .../package/module`, a path the category rename removed.
+prints GNU findutils 4.10.0. The two new runner tests in `providers.unit.matrix.test.ts` first could not run, because the
+container task `test:container:toolchain` failed on `chmod -R a+rX .../package/module`, a path the category rename removed;
+commit `37ea4d8fec` fixed that, and the session that owns the toolchain files reported (second hand, quoting the result
+lines) that both cells, ubuntu root and ubuntu user, passed the `postinstall command` suite ("2 cells passed").
+The sync also installed `monochromatic-lint` 0.4.0 and `monochromatic-git-policy-cli` 0.2.13, because a third session's
+version bumps were in the working tree when it ran.
 
 ## Git wrapper UX review
 
@@ -365,7 +369,7 @@ Open:
   defect, fixed before the release: `find --version` with a wide working directory was refused. The `postinstall.run`
   step and the plan entry at 0.2.0 are in place and verified (see "Activation, as verified"). In Claude Code shells `grep`
   and `find` are shell functions running Claude's embedded `ugrep` and `bfs`, so a `PATH` shadow does not reach them.
-  Still open: the stale `package/module` chmod that blocks the toolchain container matrix, and the matrix tests for the runner.
+  The runner's matrix tests pass in the toolchain container matrix (reported by the owning session).
 - `/tmp` is a 16 GiB tmpfs with a per-user quota of about 13 GiB that was 98 percent used on 2026-10-29 (hundreds of
   `native-binary-*` directories of about 95 MB and `monochromatic-lint-stub-cargo-*` of 5 MB left by test runs of other
   sessions), which made `git commit` fail with `Disk quota exceeded` while writing its signing buffer. Setting
