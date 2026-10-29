@@ -471,6 +471,7 @@ which lists every file of this record.
 - [B991, the cap census naming every dangling link under the agent root and burying its summary](audit-ledger-the-cap-census-and-the-xiaomi-cap.md)
 - [B995, two 40 ms sleeps behind a scan that could not see polls, elapsed readings or clockless budgets](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [B996, the hold-wait cases still on the real clock, and eight of ten that passed with the wait removed](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
+- [B1030, Qwen3.8-27B as the late voice on the wide benches and the checker order](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
