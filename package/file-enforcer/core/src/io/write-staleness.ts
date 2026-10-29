@@ -3,6 +3,7 @@ import {
   reads,
   type TrackedGlob,
 } from '../tracker.ts';
+import type { TrackedGlobEntry, } from '../tracker-capture.ts';
 import {
   rememberFreshStalenessEntry,
   stalenessKeyForDest,
@@ -22,7 +23,7 @@ import type { GlobDestination, } from './write-each-destinations.ts';
  */
 function currentTrackedGlobs(): readonly TrackedGlob[] {
   return [...globs.entries(),]
-    .map(function toTrackedGlob(entry,): TrackedGlob {
+    .map(function toTrackedGlob(entry: TrackedGlobEntry,): TrackedGlob {
       /**
        Glob pattern and matched paths tuple.
        */

@@ -17,6 +17,14 @@ export type TrackedGlob = {
 };
 
 /**
+ Glob pattern paired with its matched paths, as a tracked-glob map yields them.
+ */
+export type TrackedGlobEntry = readonly [
+  string,
+  readonly string[],
+];
+
+/**
  Function shape used by source capture.
  */
 export type SourceCaptureCallback<TResult,> = () => TResult | Promise<TResult>;
@@ -122,7 +130,7 @@ export function recordGlobInActiveCapture(
  */
 function capturedGlobs(globs: ReadonlyMap<string, readonly string[]>,): readonly TrackedGlob[] {
   return [...globs.entries(),]
-    .map(function toTrackedGlob(entry,): TrackedGlob {
+    .map(function toTrackedGlob(entry: TrackedGlobEntry,): TrackedGlob {
       /**
        Glob pattern and paths tuple.
        */

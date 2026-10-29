@@ -206,7 +206,7 @@ export function stalenessKeyForDest(dest: string,): string {
  
  @example
  ```ts
- const key = stalenessKeyForDestGlob('./out/*​/*.md');
+ const key = stalenessKeyForDestGlob('./out/*\/*.md');
  ```
  */
 export function stalenessKeyForDestGlob(destGlob: string,): string {

@@ -170,8 +170,8 @@ function captureSegments(
  @example
  ```ts
  mirrorGlobPath({
-   sourcePattern: 'package/*​/src/*.ts',
-   destPattern: 'temp/*​/src/*.ts',
+   sourcePattern: 'package/*\/src/*.ts',
+   destPattern: 'temp/*\/src/*.ts',
    sourcePath: 'package/foo/src/index.ts',
  });
  ```

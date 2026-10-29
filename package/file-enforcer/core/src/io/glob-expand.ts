@@ -55,13 +55,13 @@ async function readGlobFiles(
  produce relative paths, absolute patterns produce absolute paths.
  Uses {@link readdirGlob} for matching, which includes dot files.
  
- @param pattern - Glob pattern such as `./packages/*​/src/*.ts`.
+ @param pattern - Glob pattern such as `./packages/*\/src/*.ts`.
  
  @returns Array of matched paths with same prefix style as input pattern.
  
  @example
  ```ts
- const tsFiles = await expandGlob('./src/**​/*.ts');
+ const tsFiles = await expandGlob('./src/**\/*.ts');
  ```
  */
 export async function expandGlob(pattern: string,): Promise<readonly string[]> {

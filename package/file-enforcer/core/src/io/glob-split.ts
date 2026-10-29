@@ -57,7 +57,7 @@ export function firstGlobMetaIndex(s: string,): number {
  @example
  ```ts
  splitGlob('/tmp/foo/*.ts');
- splitGlob('./src/a/**​/*.md');
+ splitGlob('./src/a/**\/*.md');
  ```
  */
 export function splitGlob(pattern: string,): GlobSplit {
