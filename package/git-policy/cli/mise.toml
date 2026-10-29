@@ -3,7 +3,7 @@ description = "Run native wrapper tests and Clippy in bounded Git 2.56.0 contain
 run = "node bin/test-native-container.ts"
 
 [tasks."native:interop"]
-description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- <driver> [arguments]` from native-interop/ in it (the driver is old-format-fixtures)"
+description = "Build the image holding Git 2.56.0, Node and the release native wrapper, then run `-- <driver> [arguments]` from native-interop/ in it (the driver is old-format-driver)"
 run = "node bin/interop-native-container.ts"
 
 [tasks."native:mutation"]

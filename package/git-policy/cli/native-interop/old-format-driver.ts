@@ -23,13 +23,13 @@
 import {
   checkIdentityBoundPhase,
   checkRestorablePhase,
+  type StoredPhase,
 } from './old-format-phase-checks.ts';
 import {
   checkCompleted,
   checkDeadHookLock,
 } from './old-format-state-checks.ts';
 import { createMatrix } from './support.ts';
-import type { StoredPhase } from './old-format-phase-checks.ts';
 
 /**
  Phases whose records hold no identity of a file that a copy cannot reproduce.
@@ -66,6 +66,9 @@ const IDENTITY_BOUND_PHASES: readonly StoredPhase[] = [
   },
 ];
 
+/**
+ Recorder of the driver's checks, finished once all of them ran.
+ */
 const matrix = createMatrix();
 
 /* oxlint-disable no-await-in-loop -- every phase restores below the same absolute location and runs the wrapper against it, so the phases must not overlap */
@@ -84,4 +87,4 @@ await checkCompleted({ matrix });
 await checkDeadHookLock({ matrix });
 
 matrix.finish();
-console.log('old-format-fixtures passed');
+console.log('old-format-driver passed');

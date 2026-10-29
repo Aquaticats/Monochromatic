@@ -37,6 +37,9 @@ const KEEP_SUFFIX = '.keep';
  @returns whether losing the file is housekeeping
  */
 function isHousekeeping(line: string): boolean {
+  /**
+   The path part of the line, before the size.
+   */
   const path = line.slice(
     0,
     line.lastIndexOf(':'),
@@ -47,16 +50,23 @@ function isHousekeeping(line: string): boolean {
 /**
  The stored files that a later fingerprint no longer shows, apart from housekeeping.
 
- @param request - fingerprints taken before and after
- 
+ @param before - fingerprint taken before
+
+ @param after - fingerprint taken after
+
  @returns lines of files that were lost or resized
+
+ @example
+ ```ts
+ const lost = lostEntries({ before, after });
+ ```
  */
 export function lostEntries({
   before,
   after,
 }: {
-  before: readonly string[];
-  after: readonly string[]
+  readonly before: readonly string[];
+  readonly after: readonly string[];
 }): string[] {
   return before.filter(function wasLost(line) {
     return (!after.includes(line)) && (!isHousekeeping(line));
@@ -66,48 +76,60 @@ export function lostEntries({
 /**
  Names and sizes of every file below the given directories of a repository's `.git`.
 
- @param request - repository and the directories below
-   `.git` to describe
- 
+ @param repository - repository to describe
+
+ @param subdirectories - the directories below `.git` to describe
+
  @returns one `directory/name:size` line per file, in no particular order, none for a directory that is absent
+
+ @example
+ ```ts
+ const lines = await fingerprintOf({ repository, subdirectories: STORED_STATE_DIRECTORIES });
+ ```
  */
 export async function fingerprintOf({
   repository,
   subdirectories,
 }: {
-  repository: string;
-  subdirectories: readonly string[]
+  readonly repository: string;
+  readonly subdirectories: readonly string[];
 }): Promise<string[]> {
+  /**
+   One list of lines per described directory.
+   */
   const groups = await Promise.all(subdirectories.map(async function describeDirectory(subdirectory) {
+    /**
+     The directory below `.git`.
+     */
     const base = join(
       repository,
       '.git',
       subdirectory,
     );
     try {
+      /**
+       Every path below the directory, files and directories alike.
+       */
       const names = await readdir(
         base,
         { recursive: true },
       );
-      const entries = await Promise.all(names.map(async function describeEntry(name) {
+      /**
+       One line per file and none per directory, each path described from its status.
+       */
+      const lines = await Promise.all(names.map(async function describeEntry(name): Promise<readonly string[]> {
+        /**
+         Status of the path, read without following a symbolic link.
+         */
         const entry = await lstat(join(
           base,
           name,
         ));
-        return {
-          name,
-          entry,
-        };
+        if (entry.isDirectory())
+          return [];
+        return [`${subdirectory}/${name}:${String(entry.size)}`];
       }));
-      return entries
-        .filter(function isFile(described) {
-          return !described.entry
-            .isDirectory();
-        })
-        .map(function describeFile(described) {
-          return `${subdirectory}/${described.name}:${String(described.entry
-            .size)}`;
-        });
+      return lines.flat();
     }
     catch (error) {
       if (isMissingPath(error))

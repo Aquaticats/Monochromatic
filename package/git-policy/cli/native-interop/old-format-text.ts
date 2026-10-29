@@ -1,12 +1,12 @@
 /**
- Text and process helpers shared by the checks of `old-format-fixtures.ts`.
+ Text and process helpers shared by the checks of `old-format-driver.ts`.
  */
 import {
   REAL_GIT,
   run,
   runEnvironment,
+  type RunOutcome,
 } from './support.ts';
-import type { RunOutcome } from './support.ts';
 
 /**
  Longest excerpt of a status or fsck output that a check message carries.
@@ -20,16 +20,23 @@ export const LONG_EXCERPT = 400;
 /**
  The start of a text, trimmed, for a check message.
 
- @param request - text and the longest excerpt wanted
- 
+ @param text - text to excerpt
+
+ @param limit - the longest excerpt wanted
+
  @returns the excerpt
+
+ @example
+ ```ts
+ const shown = excerpt({ text: output, limit: SHORT_EXCERPT });
+ ```
  */
 export function excerpt({
   text,
   limit,
 }: {
-  text: string;
-  limit: number
+  readonly text: string;
+  readonly limit: number;
 }): string {
   return text
     .trim()
@@ -45,6 +52,11 @@ export function excerpt({
  @param text - text to split
  
  @returns the non-empty lines
+
+ @example
+ ```ts
+ const lines = linesOf('a\n\nb');
+ ```
  */
 export function linesOf(text: string): string[] {
   return text
@@ -60,10 +72,15 @@ export function linesOf(text: string): string[] {
  @param fixture - restored fixture
  
  @returns the outcome
+
+ @example
+ ```ts
+ const outcome = await fsckOf(fixture);
+ ```
  */
 export function fsckOf(fixture: {
-  repository: string;
-  home: string
+  readonly repository: string;
+  readonly home: string;
 }): Promise<RunOutcome> {
   return run({
     command: REAL_GIT,

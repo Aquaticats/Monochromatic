@@ -1,5 +1,5 @@
 /**
- Restores the plain-file fixtures the retired incumbent wrapper left, for `old-format-fixtures.ts`.
+ Restores the plain-file fixtures the retired incumbent wrapper left, for `old-format-driver.ts`.
 
  The fixtures under `native-interop/fixture/` store every `.git` directory as `dot-git`,
  and list the symbolic links the incumbent's shadow repositories hold in the fixture's `links.tsv`
@@ -70,23 +70,33 @@ const INDEX_SUFFIX = '.idx';
  One restored fixture.
  */
 export type RestoredFixture = {
-  root: string;
-  repository: string;
-  home: string
+  readonly root: string;
+  readonly repository: string;
+  readonly home: string;
+};
+
+/**
+ One symbolic link the fixture's manifest lists.
+ */
+type FixtureLink = {
+  readonly path: string;
+  readonly target: string;
 };
 
 /**
  Restore one stored directory tree, renaming `dot-git` entries back to `.git` and applying private modes.
 
- @param request - stored directory and destination
+ @param from - stored directory
+
+ @param to - destination
  */
 async function restoreTree({
   from,
   to,
 }: {
-  from: string;
-  to: string
-}) {
+  readonly from: string;
+  readonly to: string;
+}): Promise<void> {
   await mkdir(
     to,
     {
@@ -98,17 +108,29 @@ async function restoreTree({
     to,
     PRIVATE_EXECUTABLE_MODE,
   );
+  /**
+   Entries of the stored directory.
+   */
   const entries = await readdir(
     from,
     { withFileTypes: true },
   );
   // Every entry lands at its own destination, so the copies do not depend on each other.
   await Promise.all(entries.map(async function restoreEntry(entry) {
+    /**
+     Name the entry takes in the restored tree.
+     */
     const name = entry.name === STORED_GIT_NAME ? '.git' : entry.name;
+    /**
+     Stored path of the entry.
+     */
     const source = join(
       from,
       entry.name,
     );
+    /**
+     Restored path of the entry.
+     */
     const destination = join(
       to,
       name,
@@ -137,19 +159,19 @@ async function restoreTree({
  @param text - manifest text, one `path<TAB>target` pair per line
  
  @returns the links to create
- 
- @throws {InteropError} when a line is not exactly a path and a target
+
+ @throws InteropError when a line is not exactly a path and a target
  */
-function parseLinks(text: string): {
-  path: string;
-  target: string
-}[] {
+function parseLinks(text: string): FixtureLink[] {
   return text
     .split('\n')
     .filter(function isNonEmpty(line) {
       return line.length > 0;
     })
     .map(function parseLink(line) {
+      /**
+       The line's tab-separated fields, of which exactly a path and a target are valid.
+       */
       const [path, target, ...rest] = line.split('\t');
       if ((path === undefined) || (target === undefined)
         || (rest.length > 0)
@@ -169,13 +191,10 @@ function parseLinks(text: string): {
  @param manifest - manifest path
  
  @returns the links to create, none when the manifest is absent
- 
- @throws {Error} when the manifest cannot be read for any reason other than being absent, or is malformed
+
+ @throws Error when the manifest cannot be read for any reason other than being absent, or is malformed
  */
-async function readLinks(manifest: string): Promise<{
-  path: string;
-  target: string
-}[]> {
+async function readLinks(manifest: string): Promise<FixtureLink[]> {
   try {
     return parseLinks(await readFile(
       manifest,
@@ -197,17 +216,26 @@ async function readLinks(manifest: string): Promise<{
 
  @param fixture - restored fixture
  
- @throws {InteropError} when Git cannot index a pack
+ @throws InteropError when Git cannot index a pack
  */
 async function rebuildPackIndexes(fixture: {
-  repository: string;
-  home: string
-}) {
+  readonly repository: string;
+  readonly home: string;
+}): Promise<void> {
+  /**
+   Directory that holds the fixture's packs.
+   */
   const packDirectory = join(
     fixture.repository,
     '.git/objects/pack',
   );
+  /**
+   Names of the files in the pack directory.
+   */
   const names = await namesIn(packDirectory);
+  /**
+   Packs that have no index beside them.
+   */
   const unindexed = names.filter(function lacksIndex(name) {
     return name.endsWith(PACK_SUFFIX)
       && (!names.includes(`${name.slice(
@@ -216,6 +244,9 @@ async function rebuildPackIndexes(fixture: {
       )}${INDEX_SUFFIX}`));
   });
   await Promise.all(unindexed.map(async function indexPack(name) {
+    /**
+     The finished `git index-pack` run for this pack.
+     */
     const outcome = await run({
       command: REAL_GIT,
       args: [
@@ -229,7 +260,7 @@ async function rebuildPackIndexes(fixture: {
       env: runEnvironment({ home: fixture.home }),
     });
     if (outcome.status !== 0)
-      throw new InteropError(`git index-pack ${name} exited ${String(outcome.status)}: ${outcome.stderr}`);
+      throw new InteropError(`git index-pack ${name} exited ${String(outcome.status ?? 'without a status')}: ${outcome.stderr}`);
   }));
 }
 
@@ -237,10 +268,18 @@ async function rebuildPackIndexes(fixture: {
  Restore one fixture and the empty directories a repository needs but a stored tree cannot hold.
 
  @param name - fixture name
- 
+
  @returns the restored fixture
+
+ @example
+ ```ts
+ const fixture = await restoreFixture('completed');
+ ```
  */
 export async function restoreFixture(name: string): Promise<RestoredFixture> {
+  /**
+   Absolute location the fixture was captured at and is restored to.
+   */
   const root = join(
     FIXTURE_TARGET,
     name,
@@ -252,10 +291,16 @@ export async function restoreFixture(name: string): Promise<RestoredFixture> {
     ),
     to: root,
   });
+  /**
+   The fixture's repository.
+   */
   const repository = join(
     root,
     'repository',
   );
+  /**
+   The fixture's disposable home.
+   */
   const home = join(
     root,
     'home',
@@ -264,10 +309,16 @@ export async function restoreFixture(name: string): Promise<RestoredFixture> {
     home,
     { recursive: true },
   );
+  /**
+   The fixture's list of symbolic links to recreate.
+   */
   const manifest = join(
     root,
     'links.tsv',
   );
+  /**
+   The symbolic links the manifest lists, none for a fixture without any.
+   */
   const links = await readLinks(manifest);
   await Promise.all(links.map(async function restoreLink(link) {
     await symlink(
@@ -308,8 +359,16 @@ export async function restoreFixture(name: string): Promise<RestoredFixture> {
  @param fixture - restored fixture
  
  @returns the last allocated sequence
+
+ @example
+ ```ts
+ const sequence = await captureSequence(fixture);
+ ```
  */
 export async function captureSequence(fixture: RestoredFixture): Promise<number> {
+  /**
+   Content of the sequence file.
+   */
   const text = await readFile(
     join(
       fixture.repository,

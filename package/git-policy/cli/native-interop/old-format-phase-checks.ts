@@ -1,5 +1,5 @@
 /**
- The per-phase checks of `old-format-fixtures.ts`: the stored incumbent transaction phases.
+ The per-phase checks of `old-format-driver.ts`: the stored incumbent transaction phases.
  */
 import {
   readFile,
@@ -28,15 +28,15 @@ import {
   runEnvironment,
   runThrough,
   REAL_GIT,
+  type createMatrix,
 } from './support.ts';
-import type { createMatrix } from './support.ts';
 
 /**
  A stored phase and whether the incumbent's commit had landed when it died.
  */
 export type StoredPhase = {
-  phase: string;
-  landed: boolean
+  readonly phase: string;
+  readonly landed: boolean;
 };
 
 /**
@@ -72,6 +72,9 @@ const EXPECTED_DEAD_TRANSACTIONS = 1;
  @returns true when any telltale word occurs
  */
 function reportsUnreadableRecord(output: string): boolean {
+  /**
+   The output in lower case, so the telltale words match whatever case the wrapper printed.
+   */
   const lowered = output.toLowerCase();
   return UNREADABLE_RECORD_WORDS.some(function mentioned(word) {
     return lowered.includes(word);
@@ -81,17 +84,33 @@ function reportsUnreadableRecord(output: string): boolean {
 /**
  Check a phase whose records name identities that a copy cannot reproduce.
 
- @param request - stored phase and the recorder of the driver's checks
+ @param phase - stored phase
+
+ @param matrix - recorder of the driver's checks
+
+ @example
+ ```ts
+ await checkIdentityBoundPhase({ phase: 'prepared', matrix });
+ ```
  */
 export async function checkIdentityBoundPhase({
   phase,
   matrix,
 }: {
-  phase: string;
-  matrix: Matrix
+  readonly phase: string;
+  readonly matrix: Matrix;
 }): Promise<void> {
+  /**
+   Fixture name and message prefix of this phase.
+   */
   const name = `phase-${phase}`;
+  /**
+   The restored fixture of this phase.
+   */
   const fixture = await restoreFixture(name);
+  /**
+   HEAD before the wrapper runs, which a refusal must leave alone.
+   */
   const base = await realGit({
     fixture,
     args: [
@@ -99,10 +118,16 @@ export async function checkIdentityBoundPhase({
       'HEAD'
     ],
   });
+  /**
+   Stored state before the wrapper runs.
+   */
   const before = await fingerprintOf({
     repository: fixture.repository,
     subdirectories: STORED_STATE_DIRECTORIES,
   });
+  /**
+   The native `git status`, which recovers the stored records or refuses on identity.
+   */
   const status = await runThrough({
     wrapper: 'native',
     fixture,
@@ -111,6 +136,9 @@ export async function checkIdentityBoundPhase({
       '--porcelain'
     ],
   });
+  /**
+   Both streams of the status run, searched for refusal wording.
+   */
   const output = status.stderr + status.stdout;
   matrix.check({
     condition: (status.status === 0) || output.includes('identity changed'),
@@ -123,6 +151,9 @@ export async function checkIdentityBoundPhase({
     condition: !reportsUnreadableRecord(output),
     message: `${name}: no stored record was reported unreadable`,
   });
+  /**
+   HEAD after the wrapper ran.
+   */
   const head = await realGit({
     fixture,
     args: [
@@ -134,10 +165,16 @@ export async function checkIdentityBoundPhase({
     // A refusal keeps every stored object, reference and transaction record (it may retire a dead holder's lock
     // record and a pack's keep marker). The landed commit of a late phase exists only in the incumbent's shadow
     // repository, so `git log` and `git fsck` cannot judge the repository after a refusal.
+    /**
+     Stored state after the wrapper refused.
+     */
     const after = await fingerprintOf({
       repository: fixture.repository,
       subdirectories: STORED_STATE_DIRECTORIES,
     });
+    /**
+     Stored files that a refusal lost beyond housekeeping.
+     */
     const lost = lostEntries({
       before,
       after,
@@ -157,6 +194,9 @@ export async function checkIdentityBoundPhase({
     });
     return;
   }
+  /**
+   Subjects of the commits above the base.
+   */
   const log = await realGit({
     fixture,
     args: [
@@ -165,11 +205,17 @@ export async function checkIdentityBoundPhase({
       `${base}..HEAD`
     ],
   });
+  /**
+   Subjects of the landed commits, as lines.
+   */
   const subjects = linesOf(log);
   matrix.check({
     condition: (head === base) || (subjects.join('|') === `change at ${phase}`),
     message: `${name}: HEAD is at the base or at the incumbent's landed commit (${subjects.join('|') || 'base'})`,
   });
+  /**
+   Real Git's integrity check of the repository after a successful recovery.
+   */
   const fsck = await fsckOf(fixture);
   matrix.check({
     condition: fsck.status === 0,
@@ -183,16 +229,33 @@ export async function checkIdentityBoundPhase({
 /**
  Check a phase the native wrapper must recover completely, then land a follow-up commit.
 
- @param request - stored phase, whether the incumbent's commit had landed, and the
-   recorder of the driver's checks
+ @param matrix - recorder of the driver's checks
+
+ @param phase - stored phase
+
+ @param landed - whether the incumbent's commit had landed
+
+ @example
+ ```ts
+ await checkRestorablePhase({ matrix, phase: 'landed', landed: true });
+ ```
  */
 export async function checkRestorablePhase({
   matrix,
   phase,
   landed,
-}: StoredPhase & { matrix: Matrix }): Promise<void> {
+}: StoredPhase & { readonly matrix: Matrix; }): Promise<void> {
+  /**
+   Fixture name and message prefix of this phase.
+   */
   const tag = `phase-${phase}`;
+  /**
+   The restored fixture of this phase.
+   */
   const fixture = await restoreFixture(tag);
+  /**
+   HEAD before the wrapper runs, the point the incumbent's commit may sit above.
+   */
   const base = await realGit({
     fixture,
     args: [
@@ -200,10 +263,16 @@ export async function checkRestorablePhase({
       'HEAD'
     ],
   });
+  /**
+   Entries of the stored transaction directory.
+   */
   const stored = await namesIn(join(
     fixture.repository,
     '.git/cli-git-transactions',
   ));
+  /**
+   Stored transaction directories left by the dead incumbent, as opposed to lock directories.
+   */
   const dead = stored.filter(function isTransaction(entry) {
     return !entry.endsWith('.lock');
   });
@@ -211,6 +280,9 @@ export async function checkRestorablePhase({
     condition: dead.length === EXPECTED_DEAD_TRANSACTIONS,
     message: `${tag}: the stored incumbent transaction directory is present (${dead.join(', ')})`,
   });
+  /**
+   The native `git status`, which must recover the stored transaction.
+   */
   const status = await runThrough({
     wrapper: 'native',
     fixture,
@@ -226,6 +298,9 @@ export async function checkRestorablePhase({
       limit: LONG_EXCERPT,
     })})`,
   });
+  /**
+   Subjects of the commits above the base, which show whether the incumbent's commit landed.
+   */
   const log = await realGit({
     fixture,
     args: [
@@ -240,6 +315,9 @@ export async function checkRestorablePhase({
       === landed,
     message: `${tag}: the commit ${landed ? 'landed whole' : 'did not land'}`,
   });
+  /**
+   Real Git's comparison of the index with HEAD for the edited file.
+   */
   const cached = await run({
     command: REAL_GIT,
     args: [
@@ -256,6 +334,9 @@ export async function checkRestorablePhase({
     condition: cached.status === 0,
     message: `${tag}: the real index equals HEAD for a.txt`,
   });
+  /**
+   Content of the edited file, which recovery must leave in the worktree.
+   */
   const edit = await readFile(
     join(
       fixture.repository,
@@ -267,6 +348,9 @@ export async function checkRestorablePhase({
     condition: edit === 'second\n',
     message: `${tag}: the worktree keeps the edit`,
   });
+  /**
+   Real Git's integrity check of the repository after recovery.
+   */
   const fsck = await fsckOf(fixture);
   matrix.check({
     condition: fsck.status === 0,
@@ -275,6 +359,9 @@ export async function checkRestorablePhase({
       limit: SHORT_EXCERPT,
     })})`,
   });
+  /**
+   What the wrapper left behind after recovery.
+   */
   const left = await leftovers({
     fixture,
     staleLocks: true,
@@ -290,6 +377,9 @@ export async function checkRestorablePhase({
     ),
     'follow-up\n',
   );
+  /**
+   The native follow-up commit of the new file.
+   */
   const follow = await runThrough({
     wrapper: 'native',
     fixture,
@@ -301,6 +391,9 @@ export async function checkRestorablePhase({
       'b.txt',
     ],
   });
+  /**
+   Subject of the newest commit, which must be the follow-up.
+   */
   const subject = await realGit({
     fixture,
     args: [

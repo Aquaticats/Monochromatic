@@ -29,26 +29,37 @@ export const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
  A driver step whose result contradicts what it proves.
  */
 export class InteropError extends Error {
+  /**
+   Stable class name that tells a contradicted driver step apart from an unrelated error in a log.
+   */
   override name = 'InteropError';
 }
 
 /**
  Environment of one run: no host configuration, fixed identities, the native wrapper first on `PATH` when asked.
 
- @param request -
-   disposable home, the directory whose `git` the run starts (none means real Git), and added variables
- 
+ @param home - disposable home
+
+ @param wrapperBin - the directory whose `git` the run starts (none means real Git)
+
+ @param extra - added variables
+
  @returns complete environment, nothing inherited from the container
+
+ @example
+ ```ts
+ const env = runEnvironment({ home: '/work/scratch/home', wrapperBin: NATIVE_BIN });
+ ```
  */
 export function runEnvironment({
   home,
   wrapperBin,
   extra = {},
 }: {
-  home: string;
-  wrapperBin?: string;
-  extra?: Record<string, string>
-}): Record<string, string> {
+  readonly home: string;
+  readonly wrapperBin?: string;
+  readonly extra?: Readonly<Record<string, string>>;
+}): Readonly<Record<string, string>> {
   return {
     HOME: home,
     PATH: wrapperBin === undefined ? SYSTEM_PATH : `${wrapperBin}:${SYSTEM_PATH}`,
@@ -67,19 +78,31 @@ export function runEnvironment({
  Outcome of one finished process.
  */
 export type RunOutcome = {
-  status: number | null;
-  signal: NodeJS.Signals | null;
-  stdout: string;
-  stderr: string
+  readonly status?: number;
+  readonly signal?: NodeJS.Signals;
+  readonly stdout: string;
+  readonly stderr: string;
 };
 
 /**
  Run one argument array without a shell and capture its output.
 
- @param request -
-   executable, arguments, working directory, complete environment and optional standard input
- 
+ @param command - executable to start
+
+ @param args - its arguments
+
+ @param cwd - working directory
+
+ @param env - complete environment
+
+ @param input - optional standard input
+
  @returns exit state and decoded output
+
+ @example
+ ```ts
+ const outcome = await run({ command: 'git', args: ['--version'], cwd: '/work/scratch', env });
+ ```
  */
 export async function run({
   command,
@@ -88,12 +111,15 @@ export async function run({
   env,
   input,
 }: {
-  command: string;
-  args: readonly string[];
-  cwd: string;
-  env: Record<string, string>;
-  input?: string
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly input?: string;
 }): Promise<RunOutcome> {
+  /**
+   The started process, whose pipes are drained below.
+   */
   const child = spawn(
     command,
     [...args],
@@ -107,7 +133,13 @@ export async function run({
       ],
     },
   );
+  /**
+   Chunks the process wrote to standard output.
+   */
   const out: Buffer[] = [];
+  /**
+   Chunks the process wrote to standard error.
+   */
   const err: Buffer[] = [];
   child.stdout
     .on(
@@ -115,7 +147,7 @@ export async function run({
     /**
      @param chunk - bytes the process wrote to standard output
      */
-    function collectStdout(chunk: Buffer) {
+    function collectStdout(chunk: Buffer): void {
       out.push(chunk);
     },
     );
@@ -125,7 +157,7 @@ export async function run({
     /**
      @param chunk - bytes the process wrote to standard error
      */
-    function collectStderr(chunk: Buffer) {
+    function collectStderr(chunk: Buffer): void {
       err.push(chunk);
     },
     );
@@ -145,8 +177,8 @@ export async function run({
     'close',
   );
   return {
-    status: child.exitCode,
-    signal: child.signalCode,
+    ...(child.exitCode === null ? {} : { status: child.exitCode, }),
+    ...(child.signalCode === null ? {} : { signal: child.signalCode, }),
     stdout: Buffer.concat(out)
       .toString('utf8'),
     stderr: Buffer.concat(err)
@@ -157,9 +189,20 @@ export async function run({
 /**
  Run `git` through the native wrapper in a fixture and return the outcome without judging it.
 
- @param request - wrapper, repository, Git arguments and added variables
- 
+ @param wrapper - which wrapper runs; only the native one exists in the image
+
+ @param fixture - repository and home of the fixture
+
+ @param args - Git arguments
+
+ @param extra - added variables
+
  @returns exit state and output
+
+ @example
+ ```ts
+ const outcome = await runThrough({ wrapper: 'native', fixture, args: ['status'] });
+ ```
  */
 export function runThrough({
   wrapper,
@@ -167,13 +210,13 @@ export function runThrough({
   args,
   extra = {},
 }: {
-  wrapper: 'native';
-  fixture: {
-    repository: string;
-    home: string
+  readonly wrapper: 'native';
+  readonly fixture: {
+    readonly repository: string;
+    readonly home: string;
   };
-  args: readonly string[];
-  extra?: Record<string, string>
+  readonly args: readonly string[];
+  readonly extra?: Readonly<Record<string, string>>;
 }): Promise<RunOutcome> {
   if (wrapper !== 'native')
     throw new InteropError(`Only the native wrapper exists in this image, not ${String(wrapper)}.`);
@@ -195,21 +238,30 @@ export function runThrough({
 /**
  Run real Git in a fixture and return its trimmed output.
 
- @param request -
-   repository and home, and the Git arguments
- 
+ @param fixture - repository and home of the fixture
+
+ @param args - the Git arguments
+
  @returns trimmed standard output
+
+ @example
+ ```ts
+ const head = await realGit({ fixture, args: ['rev-parse', 'HEAD'] });
+ ```
  */
 export async function realGit({
   fixture,
   args,
 }: {
-  fixture: {
-    repository: string;
-    home: string
+  readonly fixture: {
+    readonly repository: string;
+    readonly home: string;
   };
-  args: readonly string[]
+  readonly args: readonly string[];
 }): Promise<string> {
+  /**
+   The finished Git run, whose nonzero exit contradicts what the driver step proves.
+   */
   const outcome = await run({
     command: REAL_GIT,
     args,
@@ -218,7 +270,7 @@ export async function realGit({
   });
   if (outcome.status !== 0)
     throw new InteropError(
-      `${REAL_GIT} ${args.join(' ')} exited ${String(outcome.status)} (${String(outcome.signal)}):\n`
+      `${REAL_GIT} ${args.join(' ')} exited ${String(outcome.status ?? 'without a status')} (${outcome.signal ?? 'no signal'}):\n`
         + `${outcome.stdout}${outcome.stderr}`,
     );
   return outcome.stdout
@@ -231,9 +283,17 @@ export async function realGit({
  @param error - caught value
  
  @returns true for an `ENOENT` error
+
+ @example
+ ```ts
+ isMissingPath(new Error('boom'));
+ ```
  */
 export function isMissingPath(error: unknown): boolean {
   // `Object` wraps a primitive and turns `null` into an empty object, so any caught value can be asked for a code.
+  /**
+   The caught value's `code`, whatever its type.
+   */
   const code: unknown = Reflect.get(
     new Object(error),
     'code',
@@ -247,6 +307,11 @@ export function isMissingPath(error: unknown): boolean {
  @param directory - directory to list
  
  @returns entry names
+
+ @example
+ ```ts
+ const names = await namesIn('/work/scratch/repository/.git');
+ ```
  */
 export async function namesIn(directory: string): Promise<string[]> {
   try {
@@ -265,6 +330,11 @@ export async function namesIn(directory: string): Promise<string[]> {
  @param path - path to test
  
  @returns true when something is there
+
+ @example
+ ```ts
+ const present = await pathExists('/work/scratch/repository/.git/index.lock');
+ ```
  */
 export async function pathExists(path: string): Promise<boolean> {
   try {
@@ -285,23 +355,35 @@ export async function pathExists(path: string): Promise<boolean> {
  that never takes that lock (a `status`, an `add` that needs no landing) leaves them in place by design.
  `staleLocks` accepts them for such a command.
 
- @param request -
-   repository, and whether lock directories count as leftovers
- 
+ @param fixture - repository to inspect
+
+ @param staleLocks - whether lock directories count as leftovers
+
  @returns descriptions of each leftover, none when the repository is quiescent
+
+ @example
+ ```ts
+ const left = await leftovers({ fixture, staleLocks: true });
+ ```
  */
 export async function leftovers({
   fixture,
   staleLocks = false,
 }: {
-  fixture: { repository: string };
-  staleLocks?: boolean
+  readonly fixture: { readonly repository: string; };
+  readonly staleLocks?: boolean;
 }): Promise<string[]> {
+  /**
+   The repository's Git directory.
+   */
   const gitDir = join(
     fixture.repository,
     '.git',
   );
-  const found = [];
+  /**
+   Description of each leftover found, in the order the places are checked.
+   */
+  const found: string[] = [];
   for (const name of await namesIn(join(
     gitDir,
     'cli-git-transactions',
@@ -341,15 +423,28 @@ export async function leftovers({
  so one failing check never hides the others; the driver ends with `finish`.
 
  @returns recorder
+
+ @example
+ ```ts
+ const matrix = createMatrix();
+ matrix.check({ condition: true, message: 'the repository is clean' });
+ matrix.finish();
+ ```
  */
 export function createMatrix(): {
-  check: (request: {
-    condition: boolean;
-    message: string
+  readonly check: (request: {
+    readonly condition: boolean;
+    readonly message: string;
   }) => boolean;
-  finish: () => void
+  readonly finish: () => void;
 } {
+  /**
+   Messages of the failed checks.
+   */
   const failures: string[] = [];
+  /**
+   Messages of the passed checks.
+   */
   const passes: string[] = [];
   return {
     check({
