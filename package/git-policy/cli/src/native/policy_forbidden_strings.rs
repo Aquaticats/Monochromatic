@@ -24,10 +24,14 @@
 //! // const findings = await scanCandidates({ builtinRules, repositoryRoot, candidates });
 //! ```
 
+/// Import the candidates whose content a parent commit's tree already holds.
+use super::candidate_known_content::KnownContent;
 /// Import the immutable version type.
 use super::candidate_version::CandidateVersion;
 /// Import the validated options of this policy.
 use super::config_schema::{ForbiddenStringsOptions, PolicyConfig};
+/// Import the debug and warning diagnostics on standard error.
+use super::diagnostic_log::{debug, warn};
 /// Import the engine-failure codes.
 use super::diagnostics::EngineFailureCode;
 /// Import the event form of a pathname.
@@ -316,6 +320,79 @@ fn repository_root<F: RepositoryFacts>(facts: &mut F) -> Result<PathBuf, PolicyO
 }
 
 /// What:
+///  The candidates whose content a parent commit's tree already holds,
+///  or none when that cannot be
+///       determined.
+///  `&mut ContentState` lends the prepared candidates;
+///  `Option<&[u8]>` is the rules file's
+///       own pathname.
+/// Why:
+///   Skipping content is only ever a saving.
+///  When the parents cannot be listed,
+///  every candidate is
+///       scanned in full as it was before the rule existed,
+///  and the warning says why,
+///  so a Git failure
+///       can make the policy slower or stricter and never more permissive.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function knownContentOrNone(content, lifecycle, rulesPath): Promise<KnownContent>;
+/// ```
+fn known_content_or_none(
+    content: &mut ContentState,
+    lifecycle: &LifecycleContent,
+    rules_path: Option<&[u8]>,
+) -> KnownContent {
+    // Only a lifecycle with candidates has a request to take the parents from.
+    let LifecycleContent::Requested(request) = lifecycle else {
+        return KnownContent::default();
+    };
+    match content.known_content(request, rules_path) {
+        Ok(found) => return found,
+        Err(error) => {
+            warn(
+                "checkForbiddenStrings",
+                format!(
+                    "could not list the parent commits' files, so every candidate is scanned in full: {}",
+                    error.message
+                )
+                .as_str(),
+            );
+            return KnownContent::default();
+        }
+    }
+}
+
+/// What:
+///  Record each skipped candidate as a decision:
+///  its masked pathname,
+///  its blob and the parent commit that holds it.
+///       `&[CandidateScan]` borrows the scan results,
+///  whose identity is the candidate's position.
+/// Why:
+///   A skip changes what the policy reads,
+///  so the inputs that justify it are kept for whoever checks a verdict later.
+///       The pathname is the scanner's masked display,
+///  never the raw pathname,
+///  which may hold a secret.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function logKnownContent(scans: CandidateScan[], known: KnownContent): void;
+/// ```
+fn log_known_content(scans: &[CandidateScan], known: &KnownContent) {
+    for scan in scans {
+        if let Some(entry) = known.entry(scan.identity) {
+            debug(
+                "checkForbiddenStrings",
+                entry.describe(scan.display_path.as_str()).as_str(),
+            );
+        }
+    }
+}
+
+/// What:
 ///  Scan every candidate the scanner is given and report each match.
 ///       `&ScannerSettings` borrows where the rules come from;
 ///  `&mut ScannerState` lends
@@ -370,11 +447,16 @@ pub fn check_forbidden_strings<F: RepositoryFacts>(
         Ok(found) => found,
         Err(outcome) => return outcome,
     };
-    let scans: Vec<CandidateScan> = match content.scan(loaded, rules_path.as_deref()) {
-        Ok(found) => found,
-        // `.to_string()` renders the wrapped failure's message, which names no pathname.
-        Err(error) => return failed(scan_run_failure_code(&error), error.to_string().as_str()),
-    };
+    let known: KnownContent = known_content_or_none(content, lifecycle, rules_path.as_deref());
+    let scans: Vec<CandidateScan> =
+        match content.scan_skipping(loaded, rules_path.as_deref(), &known) {
+            Ok(found) => found,
+            // `.to_string()` renders the wrapped failure's message, which names no pathname.
+            Err(error) => {
+                return failed(scan_run_failure_code(&error), error.to_string().as_str());
+            }
+        };
+    log_known_content(&scans, &known);
     // Every result is checked for a failure before any match is reported.
     for scan in &scans {
         if let Some(outcome) = incomplete_scan(scan) {
