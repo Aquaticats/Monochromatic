@@ -30,6 +30,9 @@ enum Shape {
     ConfigCommands,
     /// `hook.<event>.enabled=false` for two events, with no hooks.
     DisabledWithoutHooks,
+    /// Configured hooks for `pre-commit`, `post-commit` and `commit-msg`, with `pre-commit` and `post-commit`
+    ///  disabled by `hook.<event>.enabled=false` and `commit-msg` left enabled.
+    DisabledConfigHooks,
     /// Configured hooks in the common configuration, committed from a linked worktree.
     LinkedWorktree,
     /// A configured `pre-commit` hook that fails.
@@ -123,6 +126,12 @@ fn build(fixture: &Fixture, side: &str, shape: Shape) -> Side {
         Shape::DisabledWithoutHooks => {
             git(fixture, repo.as_path(), &["config", "hook.pre-commit.enabled", "false"]);
             git(fixture, repo.as_path(), &["config", "hook.post-commit.enabled", "false"]);
+        }
+        Shape::DisabledConfigHooks => {
+            configure_script_hooks(fixture, repo.as_path(), log.as_path(), &["pre-commit", "post-commit", "commit-msg"], 0);
+            for event in ["pre-commit", "post-commit"] {
+                git(fixture, repo.as_path(), &["config", format!("hook.{event}.enabled").as_str(), "false"]);
+            }
         }
         Shape::LinkedWorktree => {
             // The base commit the linked worktree starts from carries the edit's baseline; the edit moves with a copy.
@@ -252,6 +261,13 @@ fn hooks_defined_in_the_configuration_run() {
 #[test]
 fn disabled_events_without_hooks_show_what_direct_git_shows() {
     assert_eq!(require_same("disabled", Shape::DisabledWithoutHooks), Vec::<String>::new());
+}
+
+/// A configured hook that its switch disables does not run, and one beside it that stays enabled does, as directly.
+#[test]
+fn a_disabled_configured_hook_is_skipped_as_it_is_directly() {
+    let log: Vec<String> = require_same("disabled-config-hooks", Shape::DisabledConfigHooks);
+    assert_eq!(log, vec![String::from("commit-msg 1")]);
 }
 
 /// Configured hooks in the common configuration run for a commit made in a linked worktree.

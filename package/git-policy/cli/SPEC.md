@@ -1623,10 +1623,13 @@ executable scripts in `.git/hooks` or in a `core.hooksPath` directory,
 are not supported.
 Any use of them with the wrapper is undefined behavior:
 nothing here promises their order, environment, locking or exit-status handling,
-and no requirement or test is written for them.
+and no user-facing requirement is written for them.
 Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-The shim below may still pass a traditional hook through as a side effect of `git hook run`;
-that is not a guarantee.
+The Git processes the wrapper starts on the commit path name a hooks directory that holds no hook
+(`<tx>/no-hooks`, below), so none of them starts a traditional hook;
+controls pin that because the dispatcher must never start its own entries again,
+and it is an implementation property, not a promise to users.
+`git cli-git doctor` lists the traditional hooks a repository holds.
 
 Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
 plus `-c hook.<event>.enabled=false` for each event.
@@ -3068,7 +3071,7 @@ so this suite is an inherent part of the transaction protocol.
   - a scenario catalog of concurrent agent behavior:
     shared-file edits with overlapping and non-overlapping hunks,
     interleaved index writers,
-    hookdir and config-based hooks,
+    config-based hooks,
     lint-staged-style stash hooks,
     `commit-msg` and `post-commit` hooks,
     SSH signing,
