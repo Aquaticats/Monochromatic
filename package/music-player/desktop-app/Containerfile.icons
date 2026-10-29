@@ -4,17 +4,20 @@
 # rare (regenerate only when asset/icon.svg changes), and its outputs
 # (asset/music-player.icns, asset/music-player.ico) are committed, so neither
 # the build nor the sign tasks need this image.
-#   librsvg2-tools  rsvg-convert: render asset/icon.svg to PNG at each size
-#   libicns-utils   png2icns: pack the PNGs into a macOS .icns
-#   icoutils        icotool: pack the PNGs into a Windows .ico
-#   ImageMagick     fallback rasteriser / format glue if needed
-# Pinned by digest (the multi-arch index of fedora:41, resolved 2026-10-18) so a moving tag cannot change the build
-# input. Refresh on purpose: skopeo inspect --raw docker://registry.fedoraproject.org/fedora:41 | sha256sum
-FROM registry.fedoraproject.org/fedora@sha256:893f7eeffce8e3e2bb2bc62786ba5603fb1e0bd6ba07091acb892266b95bafdf
-RUN dnf install -y \
-      librsvg2-tools \
-      libicns-utils \
+#   librsvg      rsvg-convert: render asset/icon.svg to PNG at each size
+#   libicns      png2icns: pack the PNGs into a macOS .icns
+#   icoutils     icotool: pack the PNGs into a Windows .ico
+#   imagemagick  fallback rasteriser / format glue if needed
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+      librsvg \
+      libicns \
       icoutils \
-      ImageMagick \
-    && dnf clean all
+      imagemagick \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 WORKDIR /work
