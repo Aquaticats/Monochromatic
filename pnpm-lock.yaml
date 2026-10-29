@@ -4518,6 +4518,9 @@ importers:
       '@monochromatic-dev/fs-path-core':
         specifier: workspace:*
         version: link:../../fs-path/core
+      '@monochromatic-dev/test-harness-core-matrix':
+        specifier: workspace:*
+        version: link:../../test-harness/core-matrix
       nano-spawn:
         specifier: 'catalog:'
         version: 2.1.0

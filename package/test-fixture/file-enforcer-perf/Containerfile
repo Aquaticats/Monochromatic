@@ -1,5 +1,7 @@
 ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
 FROM ${CACHYOS_IMAGE}
-RUN pacman --sync --refresh --sysupgrade --noconfirm --needed unzip sysbench nodejs \
+# --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot create, and without it
+# hooks such as the sysusers one that creates system users fail.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed unzip sysbench nodejs \
     && rm --recursive --force /var/cache/pacman/pkg/*
 WORKDIR /app

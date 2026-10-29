@@ -19,6 +19,7 @@
  * 4. Running file-enforcer benchmarks under natural CPU contention
  */
 
+import { cachyosBuildArguments, } from '@monochromatic-dev/test-harness-core-matrix/ts';
 import { resolve, } from 'node:path';
 
 import {
@@ -72,8 +73,13 @@ console.log(
 //region Container build
 
 console.log('\n=== CONTAINER BUILD ===',);
+/** `--build-arg CACHYOS_IMAGE=<image>` for the CachyOS image this host's CPU level supports (no Alpine variant exists) */
+const baseImageArgs = await cachyosBuildArguments({
+  imageName: IMAGE_NAME,
+  alpineVariant: false,
+},);
 await runInherit(
-  ['podman', 'build', '-t', IMAGE_NAME, '-f', CONTAINERFILE, MONOREPO_ROOT,],
+  ['podman', 'build', ...baseImageArgs, '-t', IMAGE_NAME, '-f', CONTAINERFILE, MONOREPO_ROOT,],
   'Building container image',
 );
 
