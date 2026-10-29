@@ -89,24 +89,26 @@ const READ_DIRS: readonly string[] = [
 // non-root cell can only read world-readable files. Agent tooling in this
 // worktree creates sources with mode 600; heal readability (read and traverse
 // bits only, never content) for the directories the test reads.
-for (const dir of READ_DIRS) {
-  await spawn(
-    'chmod',
-    [
-      '-R',
-      'a+rX',
-      join(
-        MONOREPO_ROOT,
-        dir
-      ),
-    ],
-  );
-}
+await Promise.all(READ_DIRS.map(
+  function healReadability(dir: string,): Promise<unknown> {
+    return spawn(
+      'chmod',
+      [
+        '-R',
+        'a+rX',
+        join(
+          MONOREPO_ROOT,
+          dir
+        ),
+      ],
+    );
+  },
+),);
 
 /**
- Number of cells that failed.
+ Labels of the cells that failed.
  */
-let failures = 0;
+const failedCells: string[] = [];
 
 for (const cell of CELLS) {
   /**
@@ -145,6 +147,7 @@ for (const cell of CELLS) {
   /**
    Bounded cell run: capped capture, capped wall clock, capped container.
    */
+  // oxlint-disable-next-line no-await-in-loop -- one cell at a time bounds the host load (AGENTS.md RXI)
   const result = await runContainerCell({
     image,
     command,
@@ -157,7 +160,7 @@ for (const cell of CELLS) {
     }\n`,);
     continue;
   }
-  failures += 1;
+  failedCells.push(`${cell.os} user=${cell.user}`,);
   console.error(
     `[toolchain-matrix] ${cell.os} user=${cell.user} failed (exit ${
       String(result.code,)
@@ -175,15 +178,15 @@ for (const cell of CELLS) {
 
 process.stdout
   .write(
-  failures === 0
+  failedCells.length === 0
     ? `[toolchain-matrix] ${
       CELLS.length
     } cells passed\n`
-    : `[toolchain-matrix] ${failures} of ${
+    : `[toolchain-matrix] ${failedCells.length} of ${
       CELLS.length
     } cells failed\n`,
   );
-if (failures > 0)
+if (failedCells.length > 0)
   process.exitCode = 1;
 
 //endregion Run
