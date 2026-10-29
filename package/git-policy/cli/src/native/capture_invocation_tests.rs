@@ -2,9 +2,22 @@
 //!  the layout, the symbolic `HEAD`, the conclusion, the ref backend and the base.
 
 use super::*;
+use crate::ref_files::tests::{Probe, probe};
 use crate::test_support::{fixture, git, git_context, git_text, repository, remove};
 #[cfg(unix)]
 use crate::recording_git::{recorded_starts, recording_context};
+
+/// The conclusion kind of the repository at `repo`, with the layout Git reports for it.
+fn conclusion_of(repo: &Path, amend: bool) -> Result<Conclusion, GitFailure> {
+    let found: Probe = probe(repo);
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: found.git_dir.as_path(),
+        common_dir: found.common_dir.as_path(),
+        ref_format: found.ref_format,
+        object_format: found.object_format.as_str(),
+    };
+    return resolve_conclusion_kind(&git_context(), repo, amend, &ref_files);
+}
 
 /// Git's empty tree under SHA-1, the object format of every fixture.
 const SHA1_EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
@@ -150,26 +163,25 @@ fn conclusion_markers_decide_the_kind() {
     let root: PathBuf = fixture("capture-invocation-conclusion");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let context = git_context();
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), true),
+        conclusion_of(repo.as_path(), true),
         Ok(Conclusion::Amend)
     );
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Merge)
     );
     std::fs::remove_file(repo.join(".git").join("MERGE_HEAD")).expect("fixture");
     std::fs::write(repo.join(".git").join("CHERRY_PICK_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::CherryPick)
     );
     std::fs::remove_file(repo.join(".git").join("CHERRY_PICK_HEAD")).expect("fixture");
     std::fs::write(repo.join(".git").join("REVERT_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Revert)
     );
     remove(root.as_path());
@@ -182,7 +194,7 @@ fn garbage_marker_is_not_a_conclusion() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), "not-an-object\n").expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&git_context(), repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::None)
     );
     remove(root.as_path());
@@ -199,7 +211,7 @@ fn a_marker_naming_a_missing_object_is_still_a_conclusion() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{}\n", "a".repeat(40))).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&git_context(), repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Merge)
     );
     remove(root.as_path());

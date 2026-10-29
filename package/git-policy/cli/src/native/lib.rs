@@ -711,6 +711,9 @@ pub mod empty_tree;
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;
 
+/// Proof, without a Git process, that a sequencer marker names nothing on the files ref storage.
+pub mod sequencer_marker;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;

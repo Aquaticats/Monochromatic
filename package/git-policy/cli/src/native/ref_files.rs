@@ -193,4 +193,4 @@ pub fn read_symbolic_head(layout: &RefFilesLayout<'_>) -> Option<SymbolicHead> {
 /// Files ref reader controls stay out of the release executable.
 #[cfg(test)]
 #[path = "ref_files_tests.rs"]
-mod tests;
+pub(crate) mod tests;

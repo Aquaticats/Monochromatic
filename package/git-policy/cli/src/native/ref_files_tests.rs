@@ -9,19 +9,19 @@ use std::process::Output;
 
 /// The places and formats of one fixture repository,
 ///  read from real Git.
-struct Probe {
+pub(crate) struct Probe {
     /// Absolute Git directory.
-    git_dir: PathBuf,
+    pub(crate) git_dir: PathBuf,
     /// Absolute common directory.
-    common_dir: PathBuf,
+    pub(crate) common_dir: PathBuf,
     /// Object format name.
-    object_format: String,
+    pub(crate) object_format: String,
     /// Ref storage backend.
-    ref_format: RefFormat,
+    pub(crate) ref_format: RefFormat,
 }
 
 /// Ask real Git for the layout of the repository or worktree at `directory`.
-fn probe(directory: &Path) -> Probe {
+pub(crate) fn probe(directory: &Path) -> Probe {
     let git_dir: String = git_text(directory, &["rev-parse", "--absolute-git-dir"]);
     let common: String = git_text(directory, &["rev-parse", "--path-format=absolute", "--git-common-dir"]);
     let reftable: bool = git_text(directory, &["rev-parse", "--show-ref-format"]) == "reftable";
@@ -35,7 +35,7 @@ fn probe(directory: &Path) -> Probe {
 
 /// What real Git answers for `symbolic-ref --quiet HEAD`:
 ///  the branch, detached, or an error code.
-fn oracle(directory: &Path) -> Result<SymbolicHead, Option<i32>> {
+pub(crate) fn oracle(directory: &Path) -> Result<SymbolicHead, Option<i32>> {
     let output: Output = git_output(directory, &["symbolic-ref", "--quiet", "HEAD"]);
     return match output.status.code() {
         Some(0) => Ok(SymbolicHead::Branch(

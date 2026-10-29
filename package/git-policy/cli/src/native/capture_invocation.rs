@@ -27,6 +27,8 @@ use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
 /// The files-backend `HEAD` reader and where one worktree's ref files live.
 use super::ref_files::{RefFilesLayout, read_symbolic_head};
+/// Proof that a sequencer marker names nothing, without a Git process.
+use super::sequencer_marker::markers_maybe_present;
 /// The empty tree's name per object format, known without a Git process.
 use super::empty_tree::empty_tree_name;
 /// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
@@ -221,6 +223,9 @@ fn pseudoref_exists(context: &GitContext, cwd: &Path, name: &str) -> Result<bool
 /// Why:
 ///   An amend always wins;
 ///  otherwise the first present marker in the incumbent's order decides.
+///  A marker whose every lookup place is empty on the files backend is absent without asking Git;
+///  any entry in any place, of any content, is resolved by `rev-parse --verify`,
+///  so a marker naming a missing object stays a conclusion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -230,18 +235,18 @@ pub fn resolve_conclusion_kind(
     context: &GitContext,
     cwd: &Path,
     amend: bool,
+    ref_files: &RefFilesLayout<'_>,
 ) -> Result<Conclusion, GitFailure> {
     if amend {
         return Ok(Conclusion::Amend);
     }
-    if pseudoref_exists(context, cwd, "MERGE_HEAD")? {
-        return Ok(Conclusion::Merge);
-    }
-    if pseudoref_exists(context, cwd, "CHERRY_PICK_HEAD")? {
-        return Ok(Conclusion::CherryPick);
-    }
-    if pseudoref_exists(context, cwd, "REVERT_HEAD")? {
-        return Ok(Conclusion::Revert);
+    let names: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+    let kinds: [Conclusion; 3] = [Conclusion::Merge, Conclusion::CherryPick, Conclusion::Revert];
+    let maybe_present: Vec<bool> = markers_maybe_present(ref_files, &names);
+    for ((name, kind), maybe) in names.into_iter().zip(kinds).zip(maybe_present) {
+        if maybe && pseudoref_exists(context, cwd, name)? {
+            return Ok(kind);
+        }
     }
     return Ok(Conclusion::None);
 }
@@ -392,7 +397,7 @@ pub fn capture_invocation_layout(
     return Ok(InvocationLayout {
         symbolic_head,
         target_ref,
-        conclusion: resolve_conclusion_kind(context, cwd, amend)?,
+        conclusion: resolve_conclusion_kind(context, cwd, amend, &ref_files)?,
         repository_root,
         git_dir,
         common_dir,
