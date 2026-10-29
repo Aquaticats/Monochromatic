@@ -1,4 +1,4 @@
-# pnpm 12.16.1: a plain `pnpm install` prints `Already up to date` and leaves a missing declared workspace link missing
+# pnpm 11.28.9 and 12.16.1: a plain `pnpm install` prints `Already up to date` and leaves a missing declared workspace link missing
 
 When the manifests and lockfile still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
 pnpm's repeat-install fast path returns before any linking.
@@ -174,6 +174,30 @@ step 2: after rm: absent
 step 3: install exit 0 | link: absent | output: Scope: all 3 workspace projects / Already up to date / Done in 20ms using pnpm v12.16.1
 step 4: install --force exit 0 | link: symlink -> ../../lib
 ```
+
+### Version matrix
+
+The reproduction repository's workflow runs the draft's steps on a clean `ubuntu-24.04` runner for each pnpm release,
+each downloaded from its GitHub release and checked against a pinned SHA-256
+(run [40911641893](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40911641893),
+2026-10-29):
+
+- 12.16.1:
+  the step named "Expected" fails,
+  so the link stays missing.
+- 12.16.1 with `PATH` limited to `/usr/bin:/bin` and the pnpm directory,
+  so that no Node.js is on `PATH`:
+  the same failure,
+  so Node.js is not involved.
+- 11.28.9:
+  the same failure,
+  so pnpm 11 is affected.
+- 10.34.9:
+  the job succeeds,
+  so pnpm 10 recreates the link and is not affected.
+
+The pnpm 11 and pnpm 10 source was not read;
+those two results are behavior only.
 
 ### Patterns that work
 
@@ -433,10 +457,14 @@ Before anyone posts it:
   which states the exemption this report asks to narrow;
   no `VOUCHED.td` exists in the root or `.github` of the default branch and no workflow is named for such a list;
   and the default branch still contains `is_dangling_link` and its comment.
+  Met since:
+  pnpm 11.28.9 and 12.16.1 reproduce and pnpm 10.34.9 does not (version matrix above),
+  and the reproduction needs no Node.js,
+  which answers the form's Node.js field.
   Not met:
   no human has re-run the reproduction;
-  pnpm 11 was not tested although the same check exists there;
-  the required Node.js version field has no answer;
+  the prototype patch covers only the Rust (pnpm 12) code,
+  and the pnpm 11 TypeScript code was not read or patched;
   the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change);
   and every live check above must be repeated on the day of posting.
 - Fill pnpm's bug form field by field;
@@ -447,9 +475,11 @@ Before anyone posts it:
   the numbered steps go in "Reproduction steps";
   the paragraphs before the steps go in "Describe the Bug";
   the sentence under "Expected" goes in "Expected Behavior".
-  The Node.js version is a required field that only the poster can answer,
-  because the Actions reproduction does not record one;
-  do not guess it.
+  The Node.js version is a required field.
+  The matrix run with no Node.js on `PATH` still reproduces,
+  so the answer is that Node.js is not used,
+  with that run as the evidence;
+  the poster confirms it before posting.
   "I verified that the issue exists in the latest pnpm release" was true for 12.16.1 on 2026-10-29,
   the latest release then,
   so re-check it on the day.
@@ -461,9 +491,8 @@ Before anyone posts it:
   and `issue-fix-intent.sh` comments to ask whether the author plans a pull request when the form's fix box is absent
   (read on 2026-10-29).
 - Know the limits of the evidence.
-  Only pnpm 12.16.1 was tested.
-  pnpm 11.28.9 was the latest 11.x release on 2026-10-29 and was not tested,
-  yet pnpm's contribution checklist says bug fixes go into every affected version,
+  The behavior was tested on pnpm 12.16.1 and 11.28.9 (affected) and 10.34.9 (not affected).
+  pnpm's contribution checklist says bug fixes go into every affected version,
   and the prototype patch changes only the Rust (pnpm 12) code.
   The check on links in pull request 15569 exists for both stacks,
   so a fix may need both.
@@ -471,7 +500,7 @@ Before anyone posts it:
   `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
 ~~~md
-Title: `pnpm install` reports "Already up to date" and leaves a declared `workspace:` dependency link missing (12.16.1)
+Title: `pnpm install` reports "Already up to date" and leaves a declared `workspace:` dependency link missing (11.28.9, 12.16.1)
 
 When manifests, lockfile and settings still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
 the repeat-install fast path returns before linking.
@@ -490,7 +519,7 @@ and its description states the exemption:
 This report asks to narrow that exemption for non-optional `workspace:` dependencies,
 which are always linked by the isolated linker and have no such reason to be absent.
 
-Reproduction (pnpm 12.16.1, default linker, no registry access needed):
+Reproduction (pnpm 12.16.1 and 11.28.9, default linker, no registry access needed; pnpm 10.34.9 recreates the link):
 
 ```text
 pnpm-workspace.yaml:   packages:
@@ -510,17 +539,18 @@ Expected: step 3 recreates `app/node_modules/lib`, as step 4 does.
 
 The same steps run as a GitHub Actions workflow in
 https://github.com/Aquaticat/pnpm-missing-workspace-link-repro
-(pnpm 12.16.1 installed from its release and checked against a pinned SHA-256).
-A red run means the bug reproduced:
+(each pnpm release installed from its GitHub release and checked against a pinned SHA-256).
+A red job means the bug reproduced:
 the step named "Expected" fails with `ls: cannot access 'app/node_modules/lib': No such file or directory`.
-Runs:
-[40909405945](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909405945) and
-[40909700195](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909700195).
+[Run 40911641893](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40911641893):
+12.16.1 and 11.28.9 fail at that step, 10.34.9 passes,
+and 12.16.1 still fails with no Node.js on `PATH`, so Node.js is not involved.
 
 Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
 entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
 install's scope holds every project.
-A prototype patch is attached (7 files, 120 insertions, 2 deletions).
+A prototype patch for the Rust code (pnpm 12) is attached (7 files, 120 insertions, 2 deletions);
+the pnpm 11 TypeScript code is not patched.
 Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
 and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
 and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
