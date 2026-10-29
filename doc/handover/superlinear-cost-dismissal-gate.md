@@ -341,9 +341,29 @@ so it needed the owner's authorization first.
 On 2026-10-29 the owner ruled thinking-block text off limits to external providers,
 even mere summaries,
 which blocks the replay-through-Luna shape as proposed.
-The direction stays open:
-the owner corrected a wider reading that day,
-and any detector it yields must keep thinking text on this machine.
+ The direction stays open:
+ the owner corrected a wider reading that day,
+ and any detector it yields must keep thinking text on this machine.
+
+### Local calibration, 2026-10-29
+
+The named experiment ran locally,
+in the shape the text rule allows
+(`dismissal-calibrate.ts` in the scratch directory):
+a rule detector flags a thinking block
+when one sentence carries both a cost term and a size-dismissal term.
+It caught both known dismissal blocks of session `73f0639e`
+(blocks 1201 and 1202),
+and flagged 128 of 48,252 thinking blocks
+across an 11-transcript negative sample
+(0.27 percent,
+an upper bound since flagged negatives are unreviewed).
+Scanning is local and stream-based;
+output carries session id,
+block index and pattern ids only,
+never thinking text,
+since any log lands in a pushed repository.
+Wiring a shadow trigger and any Luna leg over non-thinking text stay open.
 
 ## Scratch artifacts
 
@@ -454,6 +474,11 @@ and safe to delete:
   and nothing new gets built on it,
   which drops the third blind-review by-product
   rather than changing `readBinRow`'s parse contract.
+- Corrected by the owner 2026-10-29:
+  fixing the repository's other superlinear sites
+  was never requested work,
+  so the tier-3 hit list stays a research artifact
+  and no site gets fixed without a separate request.
 
 ## Shadow runs so far
 
