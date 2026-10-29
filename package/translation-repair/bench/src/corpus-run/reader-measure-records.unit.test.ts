@@ -17,7 +17,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { mkdir, writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 

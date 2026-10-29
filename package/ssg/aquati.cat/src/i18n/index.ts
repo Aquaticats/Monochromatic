@@ -1,7 +1,7 @@
 /**
  App-local i18n entry point for the Aquaticat site.
  
- Wraps `@monochromatic-dev/module-i18n-compose`: each locale spec is built
+ Wraps `@monochromatic-dev/i18n-compose-core`: each locale spec is built
  from a static label table (the site uses no grammar AST, nouns, verbs, or
  subjects, so those vocabulary records are empty). Consumers import `i18n`,
  `locales`, `Locale`, `isLocale`, and `assertLocale` from here; nothing
@@ -15,7 +15,7 @@ import {
   defineCatalanLocale,
   defineChineseLocale,
   defineEnglishLocale,
-} from '@monochromatic-dev/module-i18n-compose/ts';
+} from '@monochromatic-dev/i18n-compose-core/ts';
 
 import caLabels from './ca/index.ts';
 import enLabels from './en/index.ts';

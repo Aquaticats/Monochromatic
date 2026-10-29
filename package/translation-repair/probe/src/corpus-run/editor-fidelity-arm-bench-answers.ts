@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { Answer, } from './editor-fidelity-arm-answers.ts';
 import {
   type ArmFacts,

@@ -22,7 +22,7 @@ The rule under test is `prefer-readonly-parameter-type/prefer-readonly-parameter
 a JS plugin rule from `package/oxlint-plugin/prefer-readonly-parameter-type`,
 enabled as `'error'` in `package/config/oxlint/src/rule/restriction.ts:167`.
 The `lint:oxlint` task template (`mise.toml:590-597`) builds that shared config through `ensureOxlintConfig()`,
-then runs `package/dev-script/task-util/src/oxlint-wrapper.ts`,
+then runs `package/monorepo-task/core-exec/src/oxlint-wrapper.ts`,
 which forwards its arguments to `oxlint`;
 the root `oxlint.config.ts` spreads the shared config.
 
@@ -163,7 +163,7 @@ copyFileSync(
   join(WT, 'package/mcp/mvm/src/readonly-result-provenance-invalid.ts'),
 );
 for (const extra of [[], ['--allow', RULE], [`--allow=${RULE}`], ['-A', RULE], ['-W', RULE], ['-A', 'all']]) {
-  const result = spawnSync('node', [join(WT, 'package/dev-script/task-util/src/oxlint-wrapper.ts'), ...extra], {
+  const result = spawnSync('node', [join(WT, 'package/monorepo-task/core-exec/src/oxlint-wrapper.ts'), ...extra], {
     cwd: join(WT, 'package/mcp/mvm'),
     env: { ...process.env, OXLINT_THREADS: '1', PATH: `${join(WT, 'node_modules/.bin')}:${process.env.PATH}` },
     encoding: 'utf8',

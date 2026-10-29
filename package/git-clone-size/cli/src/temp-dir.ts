@@ -8,7 +8,7 @@ import { join, } from 'node:path';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 /**
  A scratch directory that removes itself when the enclosing `await using`

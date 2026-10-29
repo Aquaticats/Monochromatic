@@ -1,7 +1,7 @@
 # bubblewrap 0.12.0: replaced `/tmp`, `/run`, and `/dev` hide projects below them, and `--clearenv` drops the `PWD` spelling of the working directory
 
 The IDE's Language module runs every language server inside `/usr/bin/bwrap`
-(`package/desktop-app/ide/src/language/confine.rs`).
+(`package/ide/app/src/language/confine.rs`).
 Two path behaviors of bubblewrap shaped that launch,
 and a third showed up in the mount audit.
 
@@ -156,7 +156,7 @@ so registration is refused:
   - private state below `/tmp` (bound after `--bind STATE/tmp /tmp`):
     state write lands in the host directory;
   - the full application path:
-    `mise run //package/desktop-app/ide:inspect:language-confinement`
+    `mise run //package/ide/app:inspect:language-confinement`
     runs rust-analyzer and the TypeScript 7 server on projects below `/tmp` and `$XDG_RUNTIME_DIR`
     with build-script,
      proc-macro,
@@ -174,7 +174,7 @@ so registration is refused:
   at its canonical path and at Helix's spelling when that spelling lies below `/tmp`,
    `/run`,
    or `/dev`
-  (`package/desktop-app/ide/src/language/confine/project.rs`,
+  (`package/ide/app/src/language/confine/project.rs`,
    `project_binds`).
   Tradeoff:
   one more mount per server even for projects elsewhere;

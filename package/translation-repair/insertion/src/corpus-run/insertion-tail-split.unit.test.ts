@@ -16,7 +16,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { readUntranslatedTail, } from '@monochromatic-dev/translation-repair-archive';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';

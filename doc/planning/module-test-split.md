@@ -52,10 +52,10 @@ Package names follow their paths under `package/`,
 with the `@monochromatic-dev/` scope.
 New siblings retain the `test-` prefix to show their relationship to the harness.
 
-### package/module/test-expect
+### package/test-harness/core-expect
 
 Package name:
-`@monochromatic-dev/module-test-expect`.
+`@monochromatic-dev/test-harness-core-expect`.
 
 Owns runtime assertions and assertion tracking:
 
@@ -74,10 +74,10 @@ and Sinon where the current implementation uses them.
 The package is a responsibility split,
 not a dependency-purity redesign.
 
-### package/module/test-sandbox
+### package/test-harness/core-sandbox
 
 Package name:
-`@monochromatic-dev/module-test-sandbox`.
+`@monochromatic-dev/test-harness-core-sandbox`.
 
 Owns disposable Sinon construction,
 guarded operations,
@@ -95,10 +95,10 @@ the sandbox package must not import the runner.
 Do not invent a new standalone context executor or change ordinary Sinon behavior.
 Do not move timeout and test-attempt orchestration into the sandbox package.
 
-### package/module/test-diagnostic
+### package/test-harness/core-diagnostic
 
 Package name:
-`@monochromatic-dev/module-test-diagnostic`.
+`@monochromatic-dev/test-harness-core-diagnostic`.
 
 Owns test-error formatting,
 assertion-source inspection,
@@ -120,10 +120,10 @@ and diagnostic source or artifact path.
 Keep existing harness paths recognized where they still occur;
 renaming only the diagnostic path fragments would expose other harness frames.
 
-### package/module/test
+### package/test-harness/core
 
 Existing package:
-`@monochromatic-dev/module-test`.
+`@monochromatic-dev/test-harness-core`.
 
 Retains execution and integration:
 
@@ -165,7 +165,7 @@ not a runner plus another facade package.
 The existing runner remains the convenient assembly point.
 
 A tracked-source inventory assigns all 35 non-test,
-non-fixture TypeScript files under `package/module/test/src`:
+non-fixture TypeScript files under `package/test-harness/core/src`:
 
 - Assertions:
   4 existing files.
@@ -237,8 +237,8 @@ After confirmation and implementation:
 - Build the extracted packages and runner,
   then exercise the built interfaces through their tests.
 - Preserve both existing `Symbol.for` protocol keys:
-  `@monochromatic-dev/module-test/async-failure-runtime/v1`
-  and `@monochromatic-dev/module-test/method-ownership/v1`.
+  `@monochromatic-dev/test-harness-core/async-failure-runtime/v1`
+  and `@monochromatic-dev/test-harness-core/method-ownership/v1`.
 - Verify mixed source,
   neutral,
   and Node copies for attribution,
@@ -261,7 +261,7 @@ or library replacement is included.
 
 ### Source seams
 
-`package/module/test/src/index.ts` provides the root export inventory.
+`package/test-harness/core/src/index.ts` provides the root export inventory.
 `expect.ts` directly uses Sinon,
 and `expect-matchers.ts` integrates the current Chai plugins.
 `sinon.ts` provides ordinary disposable construction.
@@ -275,9 +275,9 @@ and `expect-matchers.ts` integrates the current Chai plugins.
 
 A read-only scan enumerated `git ls-files -z -- package`,
 parsed tracked package manifests,
-and inspected tracked TS/TSX text outside `package/module/test/` and `dist/`.
+and inspected tracked TS/TSX text outside `package/test-harness/core/` and `dist/`.
 
-- 131 manifests declare `@monochromatic-dev/module-test` in a dependency field.
+- 131 manifests declare `@monochromatic-dev/test-harness-core` in a dependency field.
 - 976 source files contain that package-name string.
   This is a reference count,
   not an executable-import count;

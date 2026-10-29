@@ -1,5 +1,10 @@
 # deepmerge-ts mutation testing, 2026-09-24
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`.
+
 Mutation pass of the deepmerge-ts widening pass
 (`doc/handover/deepmerge-ts-hardening.md`, section `Widening pass`).
 It measures how strongly upstream's Vitest suite and the sidecar

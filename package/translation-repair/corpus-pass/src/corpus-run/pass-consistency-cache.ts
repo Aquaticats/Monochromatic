@@ -1,6 +1,6 @@
 import { createHash, } from 'node:crypto';
 
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import {
   CONSISTENCY_CACHE_VERSION,

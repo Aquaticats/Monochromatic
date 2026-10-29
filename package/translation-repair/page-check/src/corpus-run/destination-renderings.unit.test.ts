@@ -18,7 +18,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   ARCHIVE_RENDERING_FINDING,
   BOTH_RENDERINGS_FINDING,

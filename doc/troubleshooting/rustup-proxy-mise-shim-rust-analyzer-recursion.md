@@ -22,7 +22,7 @@ Hover, definitions, and inlay hints for every Rust file are then missing.
 Before 2026-10-14 the window showed no cause at all;
 the lines above were only in the log (`language server process ended ... stderr_tail=[...]`).
 The window now states them in the reason of the failed start and in the `language support` entry
-(`package/desktop-app/ide/README.md`, "Why a feature is missing").
+(`package/ide/app/README.md`, "Why a feature is missing").
 
 ## Root cause
 
@@ -38,7 +38,7 @@ This is the chain the output shows, not a source trace of rustup or mise:
 5. rustup reports `infinite recursion detected` and exits.
 
 The IDE's confinement passes `RUSTUP_TOOLCHAIN`, `RUSTUP_HOME`, and `CARGO_HOME` into the sandbox
-(`package/desktop-app/ide/src/language/confine/recipe.rs`, `ALLOWED_ENVIRONMENT`),
+(`package/ide/app/src/language/confine/recipe.rs`, `ALLOWED_ENVIRONMENT`),
 so the server sees the same selection as the user's shell.
 An earlier reading blamed the sandbox (a `mise.toml` in the project that the sandbox does not trust);
 that message appeared only because the disposable project held a copy of the repository's `mise.toml`,
@@ -57,7 +57,7 @@ Measured output: the toolchains `nightly-2026-09-12`, `nightly-2026-09-16`, and 
 `stable`, `nightly`, `nightly-2026-09-11`, `nightly-2026-10-11`, `nightly-2026-10-12`, `nightly-2026-10-13`,
 and `1.98.1` print `error: unknown binary 'rust-analyzer'`.
 
-The same Rust file in a disposable copy of `package/rust-module/jsonc-edit`, through `ide-language-inspect`:
+The same Rust file in a disposable copy of `package/jsonc-edit/core-rust`, through `ide-language-inspect`:
 
 - `RUSTUP_TOOLCHAIN=1.98.1`: `FailedToStart`, 290 hover attempts all answered `no-server`, no hints.
 - `RUSTUP_TOOLCHAIN=nightly-2026-09-22-x86_64-unknown-linux-gnu`: `Ready` with every feature;

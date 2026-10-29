@@ -17,15 +17,15 @@
   },
   "dependencies": {
     "@monochromatic-dev/figma-kiwi": "workspace:*",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-zip-writer": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/zip-writer-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   }
 }

@@ -7,7 +7,7 @@ so future sessions don't repeat the same dead ends.
 
 ### Goal
 
-The owner's rule for `package/desktop-app/ide` was "No CPU painting of anything":
+The owner's rule for `package/ide/app` was "No CPU painting of anything":
 run Slint on FemtoVG over wgpu (Vulkan),
 draw the code view and the minimap with Vello,
 and delete the CPU pipeline.
@@ -84,7 +84,7 @@ one cadence matrix at load 123 was void and had to be redone.
   The orchestrator also left one of its own wait loops (`wait-quiet.mjs`) running.
 - Did not check the subagents' processes and units between reports,
 so the stress runs went unnoticed.
-- Did not check that `package/desktop-app/ide/Cargo.toml` is generated:
+- Did not check that `package/ide/app/Cargo.toml` is generated:
   `file-enforcer.config.ts` listed `slint` fleet-wide with the software renderer and OpenGL,
   so a sync would have undone the GPU-only features.
   This was found only while adding a rule.
@@ -109,7 +109,7 @@ the other had not).
   per GCA it was not amended,
 and a corrective commit comment was planned.
 - The MCP removal subagent made its first commit with `--no-verify` before any hook had refused it (reported by the agent).
-- The cadence-check subagent used the commit scope `desktop-app/ide` where the repo's scope is `desktop-app-ide`
+- The cadence-check subagent used the commit scope `ide/app` where the repo's scope is `desktop-app-ide`
   (package name minus `@monochromatic-dev/`).
 - A flake subagent left a polling loop for a file that appears only on failure,
 which kept its worktree locked.

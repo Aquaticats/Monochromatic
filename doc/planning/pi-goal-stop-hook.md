@@ -943,8 +943,8 @@ Create `package/pi-plugin/goal/` with:
 
 Expected workspace dependencies include:
 
-- `@monochromatic-dev/module-caught-value`
-- `@monochromatic-dev/module-logger`
+- `@monochromatic-dev/caught-value-core`
+- `@monochromatic-dev/logger-core`
 - `@monochromatic-dev/ownership-marker-foreign-borrowed`
 - `@monochromatic-dev/pi-shared-model-review`
 - `@monochromatic-dev/pi-shared-model-selection`
@@ -961,7 +961,7 @@ Development dependencies follow sibling built Pi packages:
 - Pi peer packages from the pnpm catalog
 - `@monochromatic-dev/config-tsdown`
 - `@monochromatic-dev/config-typescript`
-- `@monochromatic-dev/module-test`
+- `@monochromatic-dev/test-harness-core`
 - `@types/node`
 
 Add the normal package files:
@@ -1011,7 +1011,7 @@ Tests drive the same controller interface with in-memory adapters.
 
 ## Logging
 
-Use tagged loggers from `@monochromatic-dev/module-logger`.
+Use tagged loggers from `@monochromatic-dev/logger-core`.
 Log at module and function boundaries.
 
 Required debug or higher records include:
@@ -1048,7 +1048,7 @@ prefer identifiers and lengths over raw text.
 ## Test plan
 
 All behavior tests import built output from `dist/final/node/index.mjs` unless they are fixtures or test-only adapters.
-Use `@monochromatic-dev/module-test/ts`.
+Use `@monochromatic-dev/test-harness-core/ts`.
 Run builds and tests through package-scoped mise tasks.
 
 ### Command tests

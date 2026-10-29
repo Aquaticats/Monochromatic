@@ -3,6 +3,22 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
+> `package/module/test-sandbox` is now `package/test-harness/core-sandbox`;
+> `package/module/async-time` is now `package/async-time/core`;
+> `@monochromatic-dev/module-async-time` is now `@monochromatic-dev/async-time-core`;
+> `package/module/logger` is now `package/logger/core`;
+> `package/module/test` is now `package/test-harness/core`;
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
 

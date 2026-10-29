@@ -20,7 +20,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { RENDERING_GLOSSARY, } from '@monochromatic-dev/translation-repair-rendering-audit';
 import { HOUSE_POLICY_BLOCK, } from '@monochromatic-dev/translation-repair-house-rule';

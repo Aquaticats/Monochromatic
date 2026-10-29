@@ -10,8 +10,8 @@
  
  @module
  */
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { VM_PREFIX, } from '../../config.ts';
 import type { VmInfo, } from '../../list.ts';

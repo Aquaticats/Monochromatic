@@ -5,7 +5,7 @@
  * back as a glitter burst; combined with a few frames of camera shake
  * this covers the sensory gap where sound alone cannot carry the hit.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   AdditiveBlending,
   BufferAttribute,

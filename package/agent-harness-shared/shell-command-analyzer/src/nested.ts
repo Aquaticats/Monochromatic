@@ -11,7 +11,7 @@ import type {
   ParsedScript as UnbashScript,
 } from 'unbash';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   ShellCommandContext,
   ShellParseError,

@@ -50,7 +50,7 @@ an unsound incremental builder.
 
 `rememberFreshStalenessEntry` records `trackedReads`, which comes from the
 global `_reads` set populated by `trackRead`
-(`package/dev-script/file-enforcer/src/tracker.ts`). Only `cat()`,
+(`package/file-enforcer/core/src/tracker.ts`). Only `cat()`,
 `globResults()`, and `addWatchedPaths()` call `trackRead`. A builder that reads
 through `node:fs/promises` records nothing, so its entry lists only the config
 file, that entry stays fresh, and the next run skips the builder and returns
@@ -73,7 +73,7 @@ Measured on 2026-09-16:
 
 - `/var/home/user/Monochromatic/node_modules/.cache/file-enforcer/staleness-manifest.json`
   had mtime `Jul 15 01:30`, two months stale against a config last changed `Sep 14`.
-- `package/dev-script/file-enforcer/node_modules/.cache/file-enforcer/staleness-manifest.json`
+- `package/file-enforcer/core/node_modules/.cache/file-enforcer/staleness-manifest.json`
   had mtime `Sep 9 15:11`.
 - All 117 entries in the root manifest point at `/tmp/file-enforcer-integ-*`,
   the temporary directories of the package's own container and integration
@@ -87,9 +87,9 @@ time (0.920s) and still wrote `.browserslistrc.resolved.local.json`.
 
 The staleness gate runs only inside the lazy builders. `writeLazyIfChanged` and
 `writeLazyEach` call `freshStalenessEntryExists` and return early when the entry
-is fresh (`package/dev-script/file-enforcer/src/io/write-lazy.ts`). Eager writes
+is fresh (`package/file-enforcer/core/src/io/write-lazy.ts`). Eager writes
 go straight to `writeIfChanged` with no read of prior entries
-(`package/dev-script/file-enforcer/src/io/write.ts`).
+(`package/file-enforcer/core/src/io/write.ts`).
 
 All fifteen write call sites in the root config pass an already-computed
 `content` value: four `await cat(...)` calls, the rest template literals, and
@@ -143,7 +143,7 @@ symlink pointed at the live tree redirects them into the real manifest.
 
 ## Consequences
 
-`package/dev-script/file-enforcer/TODO.md` claims "the current in-memory cache
+`package/file-enforcer/core/TODO.md` claims "the current in-memory cache
 makes full re-runs fast (~2ms warm)". That figure is unreachable for this
 config, which has no lazy builder to consult a manifest.
 

@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { edgeFreeWordsOf, } from '../dist/final/node/index.mjs';
 import { longerRuns, } from '@monochromatic-dev/translation-repair-test-fixture/ts/runs-of-pieces.test-fixture.ts';

@@ -53,7 +53,7 @@ Windows native source `cb95cf6d78` failed test compilation before enumeration,
 which is a different boundary tracked in issue `#1061`.
 
 Trial commit `32a9250add` provides
-`//package/dev-script/task-util:trial:depot:native:nextest`
+`//package/monorepo-task/core-exec:trial:depot:native:nextest`
 on branch `trial/depot-complete-scanner-20261016`.
 It reads the selected historical task through `mise tasks info --json`,
 reads its dispatcher through `mise config get`,

@@ -17,7 +17,7 @@
  */
 
 import spawn from 'nano-spawn';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Logger root for rgffplay after removing the package log shim.

@@ -10,7 +10,7 @@
 
 import { spawn, } from 'node:child_process';
 import { once, } from 'node:events';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { buildCommand, } from './build-command.ts';
 import { resolveTerminal, } from './resolve.ts';

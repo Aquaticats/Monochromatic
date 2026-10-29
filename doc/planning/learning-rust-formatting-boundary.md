@@ -220,7 +220,7 @@ Of the 126 Stylelint-closure identities:
 - 110 are exclusive;
 - the exclusive installed footprint is 2,024 files and 7,845,733 bytes.
 
-The existing `package/module/css-edit/` foundation uses one zero-dependency tokenizer package,
+The existing `package/css/core-edit/` foundation uses one zero-dependency tokenizer package,
 `@csstools/css-tokenizer`.
 
 ## Verified combined prototype
@@ -265,7 +265,7 @@ No upstream issue has been filed.
 
 ### Repository-owned CSS formatter
 
-The second disposable formatter uses `package/module/css-edit/` for strict CSS structure and preserves surrounding
+The second disposable formatter uses `package/css/core-edit/` for strict CSS structure and preserves surrounding
 HTML through region offsets.
 Its external interface should remain deep:
 
@@ -416,7 +416,7 @@ The repository currently recommends:
 The repository also contains relevant owned precedents:
 
 - a full-buffer stdio diagnostics server in `package/linter/rust/src/lsp.rs`;
-- JetBrains LSP4IJ settings support under `package/dev-script/file-enforcer/src/jetbrains/`.
+- JetBrains LSP4IJ settings support under `package/file-enforcer/core/src/jetbrains/`.
 
 The CSS checker should publish diagnostics from unsaved CSS and HTML buffers through a standard LSP adapter while
 the CLI and editor share the same pure checking interface.
@@ -587,10 +587,10 @@ The 3 active migrations are:
   file-scoped function,
   property,
   and unit policy exemptions;
-- `package/dev-script/deps-cube/src/styles.css`:
+- `package/dependency-catalog/cli-cube/src/styles.css`:
   the same 3 file-scoped policy exemptions;
   discard its specificity exemption because that rule is dropped;
-- `package/webapp-productivity/done-postcss/src/client/styles.css`:
+- `package/done/variant-postcss/src/client/styles.css`:
   a subject-scoped duplicate-selector exemption for the intentionally repeated `:root` grouping.
 
 Paused packages stay outside discovery as they do today.

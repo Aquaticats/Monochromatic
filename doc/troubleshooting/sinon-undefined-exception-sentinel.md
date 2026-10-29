@@ -95,7 +95,7 @@ Use native abrupt completion for arbitrary foreign values,
 with a separate invocation spy that does not wrap the throwing operation:
 
 ```ts
-// package/module/logger/src/observe-callbacks.unit.test.ts
+// package/logger/core/src/observe-callbacks.unit.test.ts
 function* faultCarrier(): Generator<undefined> {
   yield;
 }

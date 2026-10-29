@@ -12,7 +12,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { writeCompactFile, } from './ipc-file.ts';
 import { handleSessionStartInject, } from './ipc-launch.ts';
 import {

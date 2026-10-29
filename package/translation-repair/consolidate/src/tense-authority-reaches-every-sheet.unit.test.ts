@@ -30,7 +30,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { CONTEST_POLICY, } from '@monochromatic-dev/translation-repair-lane-contest';
 import { buildTranslateMessages, } from '@monochromatic-dev/translation-repair-translate-floor';
 import {

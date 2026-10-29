@@ -22,7 +22,7 @@ integration.
 
 ## Test framework
 
-- TypeScript unit tests use `@monochromatic-dev/module-test/ts`,
+- TypeScript unit tests use `@monochromatic-dev/test-harness-core/ts`,
    a custom harness built on chai,
    sinon,
    and expect-type
@@ -42,7 +42,7 @@ integration.
 mise run buildAndTest  # alias: bt
 
 # Build, then run a specific unit test file
-mise run buildAndTest -- package/module/async-time/src/wait.unit.test.ts
+mise run buildAndTest -- package/async-time/core/src/wait.unit.test.ts
 
 # Run tests only when dist is already fresh
 mise run test          # alias: t
@@ -99,7 +99,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { wait, } from '../dist/final/neutral/index.mjs';
 
@@ -122,7 +122,7 @@ test / Jest:
 
 - Import `describe`,
    `it`,
-   `expect` from `@monochromatic-dev/module-test/ts` (not `bun:test`)
+   `expect` from `@monochromatic-dev/test-harness-core/ts` (not `bun:test`)
 - Import package code under test from built `dist`,
    not from sibling `src` files
 - Use `it` (not `test`)
@@ -432,7 +432,7 @@ descriptor mutation,
 captured references,
 call-sequence controllers,
 or callback ownership,
-read the [harness ownership contract](../../../package/module/test/README.md#stubs-and-spies)
+read the [harness ownership contract](../../../package/test-harness/core/README.md#stubs-and-spies)
 before choosing a fixture.
 
 ## Async error assertions
@@ -477,14 +477,14 @@ it({
 ## Type-level testing
 
 Use `expectTypeOf` from `expect-type`,
- re-exported by `@monochromatic-dev/module-test/ts`:
+ re-exported by `@monochromatic-dev/test-harness-core/ts`:
 
 ```ts
 import {
   describe,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { ChatRole, } from '../dist/final/neutral/index.mjs';
 
@@ -613,7 +613,7 @@ needed.
    set `MONOCHROMATIC_VERBOSE=true` or pass `--verbose` to surface.
 
 The logger's environment switch is verified against
-`package/module/logger/src/sink/console.ts:55` at source
+`package/logger/core/src/sink/console.ts:55` at source
 `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
 The isolated verbosity-only control retains ten debug lifecycle lines from a failing child.
 The subsequent both-stream capture passes an actual stdout/stderr positive control

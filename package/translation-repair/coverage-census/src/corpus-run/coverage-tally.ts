@@ -2,7 +2,7 @@ import {
   compareCodePoints,
   textsInCodePointOrder,
 } from '@monochromatic-dev/translation-repair-markup/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type {
   BundleScript,

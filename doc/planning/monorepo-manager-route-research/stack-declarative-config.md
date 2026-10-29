@@ -65,7 +65,7 @@ or scope was created.
      every clone is `AG/<name>-2026-09-16`,
      made with `gh repo clone <repo> <dir> -- --depth 1`.
   - `FEC` is the repository's `file-enforcer.config.ts`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
 - Clone heads used for citations:
    `opentofu/opentofu` `bd2df274b`,
    `hashicorp/hcl` `00057cf06`,
@@ -289,7 +289,7 @@ Source:
 `FEC` (2,329 lines),
 read in full this session,
 and the repository modules it imports:
-`@monochromatic-dev/dev-script-file-enforcer/ts`
+`@monochromatic-dev/file-enforcer-core/ts`
 (`FE/index.ts`,
 with `FE/cargo/*.ts` and `FE/jetbrains/lsp4ij*.ts` read)
 and `@monochromatic-dev/config-pnpr/ts`
@@ -796,7 +796,7 @@ locals {
   cargo_profile_by_dir = {
     "package/forbidden-strings/cli"             = "scanner"
     "package/forbidden-strings/core"       = "scanner"
-    "package/cli/nested-wayland-session"        = "overflow"
+    "package/nested-wayland-session/cli"        = "overflow"
     "package/linter/rust"                       = "linter"
     "package/forbidden-strings/core.bench" = "bench"
     "package/music-player/truepeak-core.bench"  = "bench"
@@ -1734,13 +1734,13 @@ so aarch64 static builds need only the Rust target
    (Verified: `wc`, `rg --files`, `git ls-files`,
    `src/config/load.rs:24`, `:148`, `:197`,
    `src/config/file.rs:35`, `:65`).
-  `package/module/toml-edit` is the TypeScript comment-preserving editor.
+  `package/toml-edit/core` is the TypeScript comment-preserving editor.
 - JSON and JSONC:
-   `package/module/jsonc-edit` (TypeScript, hand-written parser, comments as data),
+   `package/jsonc-edit/core-ts` (TypeScript, hand-written parser, comments as data),
    `package/config/dprint/index.json` with `"$schema": "https://dprint.dev/schemas/v0.json"`,
    `node.config.json`,
    and `package/config/typescript/tsconfig.options.json`
-   (Verified: `rg '"\$schema"'` and `package/module/jsonc-edit/README.md`).
+   (Verified: `rg '"\$schema"'` and `package/jsonc-edit/core-ts/README.md`).
 - YAML:
    `pnpm-workspace.yaml`,
    15 GitHub workflow files,
@@ -2913,7 +2913,7 @@ with JSONC after Turborepo and dprint;
 - Incumbents:
    dprint configuration,
    `tsconfig` files,
-   and `package/module/jsonc-edit`
+   and `package/jsonc-edit/core-ts`
    (Verified).
 
 #### Cons

@@ -16,7 +16,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 /**
  English of a place whose slice narrates its subject in the present tense.

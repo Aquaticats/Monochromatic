@@ -15,7 +15,7 @@ import { fileURLToPath, } from 'node:url';
 import {
   describe,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { VISUAL_VARIANTS, } from './layout.ts';
 import {

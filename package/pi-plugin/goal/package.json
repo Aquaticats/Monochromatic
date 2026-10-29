@@ -25,8 +25,8 @@
   ],
   "sideEffects": false,
   "dependencies": {
-    "@monochromatic-dev/module-caught-value": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/pi-shared-model-review": "workspace:*",
     "@monochromatic-dev/agent-harness-shared-model-selection": "workspace:*"
@@ -43,7 +43,7 @@
     "@earendil-works/pi-tui": "catalog:",
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typebox": "catalog:"
   }

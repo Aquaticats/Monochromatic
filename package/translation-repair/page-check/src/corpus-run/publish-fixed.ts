@@ -10,8 +10,8 @@ import {
 
 import type {
   Logger,
-} from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import { codePointLength, } from '@monochromatic-dev/translation-repair-markup/ts';

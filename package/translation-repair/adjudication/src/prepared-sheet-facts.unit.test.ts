@@ -14,7 +14,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { preparedSheetFactsOf, } from '@monochromatic-dev/translation-repair-corpus-source';
 import { prepareDocumentPair, } from '../dist/final/node/index.mjs';

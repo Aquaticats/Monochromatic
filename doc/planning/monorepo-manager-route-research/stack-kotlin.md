@@ -1139,7 +1139,7 @@ Ranked by severity.
   A Kotlin/Native core would carry every yike of Option 1
    except the file-enforcer port.
 - file-enforcer runs as ordinary daemon tasks:
-   `node package/dev-script/file-enforcer/src/cli.ts --evaluate <config>` in a task cgroup,
+   `node package/file-enforcer/core/src/cli.ts --evaluate <config>` in a task cgroup,
    placed with the same `pidfd_spawn` path.
 - The child writes typed NDJSON events on fd 3:
    `batchAccepted`,

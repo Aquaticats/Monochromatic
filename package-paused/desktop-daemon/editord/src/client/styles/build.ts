@@ -19,7 +19,7 @@ import { join, } from 'node:path';
 import {
   findRootCached,
   packageNamed,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 
 import { STYLES as CTX_MENU_STYLES, } from '../context-menu/context-menu.styles.ts';
 import { STYLES as TOAST_STYLES, } from '../toast/toast.styles.ts';

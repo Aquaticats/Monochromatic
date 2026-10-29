@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import { withoutTranslatorsNotes, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { CITED_REFERENCE_AUDIT_RULE, } from '@monochromatic-dev/translation-repair-slice-reading/ts';

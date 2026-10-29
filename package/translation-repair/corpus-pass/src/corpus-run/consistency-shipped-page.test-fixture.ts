@@ -12,7 +12,7 @@
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass';
 import { RUN_LATE_JUDGES, } from '@monochromatic-dev/translation-repair-run';

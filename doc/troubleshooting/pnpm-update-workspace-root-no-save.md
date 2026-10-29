@@ -271,7 +271,7 @@ importers:
         specifier: 'catalog:'
         version: 26.0.1
 
-  package/build-tool/css:
+  package/css/cli:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -305,7 +305,7 @@ The same throwaway run updated the lockfile catalog snapshot and package importe
 -      version: 26.0.0
 +      version: 26.0.1
 @@
-   package/build-tool/css:
+   package/css/cli:
 @@
        '@types/node':
          specifier: 'catalog:'

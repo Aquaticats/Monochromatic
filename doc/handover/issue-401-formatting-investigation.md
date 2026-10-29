@@ -3,6 +3,14 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/css-edit` is now `package/css/core-edit`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`.
 
 ## Status

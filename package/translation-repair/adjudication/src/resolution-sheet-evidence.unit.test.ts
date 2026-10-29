@@ -21,12 +21,12 @@
  @module
  */
 
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { messageText, } from '@monochromatic-dev/translation-repair-provider';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure';
 import type { AdjudicatedIssue, } from '@monochromatic-dev/translation-repair-shared-contract';

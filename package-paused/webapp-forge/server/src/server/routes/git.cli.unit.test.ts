@@ -28,12 +28,12 @@
  *   v2 first and rely on graceful fallback.
  */
 
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 import { randomBytes, } from 'node:crypto';
 import {
   mkdtemp,

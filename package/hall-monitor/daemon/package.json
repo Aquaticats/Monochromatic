@@ -1,0 +1,26 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/hall-monitor-daemon",
+  "description": "Local, privacy-first desktop productivity monitor using a local vision LLM.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/llm-llm-type": "workspace:*",
+    "nano-spawn": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/hall-monitor/daemon"
+  },
+  "sideEffects": true
+}

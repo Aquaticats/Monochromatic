@@ -15,7 +15,7 @@ A migration that creates an FTS5 virtual table throws:
 Error: failed to consume stmt: Parse error: no such module: fts5
 ```
 
-In `package/webapp-productivity/done` the migration runs as an import side effect
+In `package/done/app` the migration runs as an import side effect
 (`src/server.ts` side-effect-imports `./lib/db.ts`,
  whose module body calls
 `runMigrations` via top-level `await`),
@@ -103,7 +103,7 @@ Version under test:
 
 Minimal harness (run from a directory that resolves the package,
  e.g. inside
-`package/webapp-productivity/done`):
+`package/done/app`):
 
 ```js
 // probe.mjs
@@ -176,7 +176,7 @@ Fails:
 
 ## Verified workarounds
 
-The remediation landed in `package/webapp-productivity/done` and `done-postcss`.
+The remediation landed in `package/done/app` and `done-postcss`.
 
 1. Replace the FTS5 virtual table plus sync triggers plus backfill with one native
    index,
@@ -388,9 +388,9 @@ compat layer's explicit transaction;
 ### Exposure in this repo
 
 Not exposed today:
- `package/webapp-productivity/done` and `done-postcss` use the
+ `package/done/app` and `done-postcss` use the
 promise API and issue no transactions (`rg --ignore-case 'transaction|BEGIN'` over
-`package/webapp-productivity/done/src` matches nothing).
+`package/done/app/src` matches nothing).
  The hazard binds any future
 compat-API adoption,
  notably Drizzle's `better-sqlite3` driver route.

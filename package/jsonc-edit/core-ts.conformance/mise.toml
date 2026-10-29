@@ -1,0 +1,35 @@
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks."test:conformance"]
+description = "Run the curated JSONC conformance corpus (VS Code JSONC semantics)"
+run = "node src/jsonc.conformance.unit.test.ts"
+
+[tasks."test:shared-fixtures"]
+description = "Fail when the shared JSONC conformance fixture copies drift"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { createHash } = await import('node:crypto')
+const { readFile } = await import('node:fs/promises')
+const { resolve } = await import('node:path')
+const root = resolve(process.cwd(), '../../..')
+const canonical = resolve(root, 'package/jsonc-edit/core-ts.conformance/fixtures/jsonc-conformance.json')
+const copy = resolve(root, 'package/jsonc-edit/core-rust/fixtures/jsonc-conformance.json')
+const digest = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
+const canonicalDigest = await digest(canonical)
+const copyDigest = await digest(copy)
+if (canonicalDigest !== copyDigest) { throw new Error(`shared JSONC conformance fixture drift: ${canonicalDigest} != ${copyDigest}`) }
+console.log(`shared JSONC conformance fixture matches: ${canonicalDigest}`)
+"""

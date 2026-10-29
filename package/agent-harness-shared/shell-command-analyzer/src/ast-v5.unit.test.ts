@@ -10,7 +10,7 @@
  */
 
 import { analyzeShellCommand, } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
 await describe({
   name: '',

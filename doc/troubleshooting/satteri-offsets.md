@@ -359,7 +359,7 @@ repeat them:
    `text: "3.1.1 "`).
    The real cause is Bug B:
    the affected file
-  (`package/webapp-productivity/rss/TODO.index.md`) contains emoji,
+  (`package/rss/app/TODO.index.md`) contains emoji,
    and the
   node's `value` is correct (`"3.1.1 "`) while its `position` offset is 3 short
   (three emoji precede it).

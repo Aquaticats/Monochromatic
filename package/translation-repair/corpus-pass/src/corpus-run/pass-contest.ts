@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import type { DeclaredNamePair, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 
 import type { DocumentLanesResult, } from '@monochromatic-dev/translation-repair-translate-lane/ts';

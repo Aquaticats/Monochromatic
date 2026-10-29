@@ -132,11 +132,11 @@ this investigation does not extend issue 308 to cover it.
 No `continue-on-error` entries were found in `.github`.
 The error conversion in issue 308 happens inside the script instead.
 
-[`package/dev-script/file-enforcer/generator/entrypoint.sh`](../../package/dev-script/file-enforcer/generator/entrypoint.sh)
+[`package/file-enforcer/core/generator/entrypoint.sh`](../../package/file-enforcer/core/generator/entrypoint.sh)
 is repo-authored Bash that starts PostgreSQL,
 initializes a schema,
 and dispatches a Python program.
-Its [`Containerfile`](../../package/dev-script/file-enforcer/generator/Containerfile)
+Its [`Containerfile`](../../package/file-enforcer/core/generator/Containerfile)
 copies and selects that script as the entrypoint.
 It is another first-party scripting island,
 not automatically an externally imposed exception just because its commands are third-party programs.

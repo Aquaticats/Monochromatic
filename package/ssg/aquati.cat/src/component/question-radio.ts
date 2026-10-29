@@ -28,7 +28,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { fingerprint32, } from 'farmhashjs';
 

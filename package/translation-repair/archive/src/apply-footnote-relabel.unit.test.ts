@@ -11,7 +11,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { FootnoteRewriteError, } from '@monochromatic-dev/translation-repair-document-structure';
 import { applyFootnoteRelabel, } from '@monochromatic-dev/translation-repair-page-pass';
 import { documentLabels, } from '../dist/final/node/index.mjs';

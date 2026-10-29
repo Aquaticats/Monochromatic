@@ -14,11 +14,11 @@
  * (tsdown). The server logs a hint if the bundles are missing.
  */
 
-import { buildCss as buildCSS, } from '@monochromatic-dev/build-tool-css/ts';
+import { buildCss as buildCSS, } from '@monochromatic-dev/css-cli/ts';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   defineHandler,
   H3,

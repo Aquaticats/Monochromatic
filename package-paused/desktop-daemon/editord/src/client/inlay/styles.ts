@@ -10,7 +10,7 @@ import {
   cssNum,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Editor line height multiplier: 1.5 = (2 + 1) / 2.

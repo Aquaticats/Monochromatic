@@ -7,7 +7,7 @@
  ```
  */
 
-import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText as caughtErrorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 
 import {
   FIGMA_DOCUMENT_ABSENT,

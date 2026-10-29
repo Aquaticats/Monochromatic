@@ -1,0 +1,38 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/zip-writer-core",
+  "private": true,
+  "description": "Minimal STORE-only ZIP archive writer. Zero runtime implementation dependencies, write-only (no parser attack surface). Runtime-neutral (browser, Node, Bun, Deno, Workers).",
+  "type": "module",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "node": "./dist/final/node/index.mjs",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "nano-spawn": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/zip-writer/core"
+  }
+}

@@ -26,7 +26,7 @@ import {
   type LinkupToolDetails,
   type SearchFetchToolClient,
 } from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { TSchema, } from 'typebox';
 
 //region Logger

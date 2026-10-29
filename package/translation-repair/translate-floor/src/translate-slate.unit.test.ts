@@ -15,7 +15,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { Candidate, } from '@monochromatic-dev/translation-repair-house-rule';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure';

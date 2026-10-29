@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Table cell
 // ONE READ OF A CELL IN A TABLE BUILT TO ITS OWN BOUNDS. The alignment tables

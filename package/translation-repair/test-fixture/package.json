@@ -11,8 +11,8 @@
   "dependencies": {},
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "unified": "catalog:"

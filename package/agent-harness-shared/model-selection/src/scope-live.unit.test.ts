@@ -1,5 +1,5 @@
 /** Synchronous live-scope snapshots shared by selection and final dispatch gates. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { NO_LIVE_SCOPE, readLiveScope, } from '../dist/final/node/index.mjs';
 
 /** Complete structural model fixture. */

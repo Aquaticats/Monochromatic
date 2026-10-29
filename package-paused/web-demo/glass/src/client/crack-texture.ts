@@ -6,7 +6,7 @@
  * shards makes the collapse continuous: every crack line turns into a
  * real shard boundary.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   type PaneCell,

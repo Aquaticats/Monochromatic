@@ -1,5 +1,5 @@
 // oxlint-disable typescript/strict-boolean-expressions -- DOM string coercions and template-cloning indices
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 
 import { replicateElementAsContentOf, } from './client-replicate-element.ts';
 import type { ExaSearchResult, } from './exa-fetch.ts';

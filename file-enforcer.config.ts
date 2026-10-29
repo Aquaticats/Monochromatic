@@ -30,7 +30,7 @@ import {
   type CargoEnforcement,
   type CargoManifestPlan,
   type GlobResults,
-} from '@monochromatic-dev/dev-script-file-enforcer/ts';
+} from '@monochromatic-dev/file-enforcer-core/ts';
 
 import { isTypeScriptSourcePath, } from '@monochromatic-dev/config-pnpr/ts';
 import type browserslist from 'browserslist';
@@ -344,7 +344,7 @@ function licenseTextIdsForExpression(
  
  @example
  ```ts
- await packageJsonLicenseExpression({ manifestPath: './package/module/test/package.json' });
+ await packageJsonLicenseExpression({ manifestPath: './package/test-harness/core/package.json' });
  ```
  */
 async function packageJsonLicenseExpression(
@@ -1546,11 +1546,11 @@ const CARGO_WORKSPACE_BLOCK = `# Standalone crate: its own workspace root, so no
  
  @example
  ```ts
- console.log(CARGO_DYLINT_DIRS.includes('package/desktop-app/ide'));
+ console.log(CARGO_DYLINT_DIRS.includes('package/ide/app'));
  ```
  */
 const CARGO_DYLINT_DIRS: readonly string[] = new Set([
-  'package/desktop-app/ide',
+  'package/ide/app',
   'package/linter/monochromatic-lint',
 ]);
 
@@ -1717,7 +1717,7 @@ const CARGO_PROFILE_FUZZ: CargoProfileSpec = {
 const CARGO_PROFILE_BY_DIR: Record<string, CargoProfileSpec> = {
   'package/forbidden-strings/cli': CARGO_PROFILE_SCANNER,
   'package/forbidden-strings/core': CARGO_PROFILE_SCANNER,
-  'package/cli/nested-wayland-session': CARGO_PROFILE_OVERFLOW,
+  'package/nested-wayland-session/cli': CARGO_PROFILE_OVERFLOW,
   'package/linter/monochromatic-lint': CARGO_PROFILE_LINTER,
   'package/forbidden-strings/core.bench': CARGO_PROFILE_BENCH,
   'package/music-player/truepeak-core.bench': CARGO_PROFILE_BENCH,
@@ -1893,7 +1893,7 @@ function cargoProfileEnforcements(
  
  @example
  ```ts
- usesDylintAttributes({ manifestPath: 'package/desktop-app/ide/Cargo.toml' }); // true
+ usesDylintAttributes({ manifestPath: 'package/ide/app/Cargo.toml' }); // true
  ```
  */
 function usesDylintAttributes({ manifestPath, }: { readonly manifestPath: string; },): boolean {
@@ -1909,7 +1909,7 @@ function usesDylintAttributes({ manifestPath, }: { readonly manifestPath: string
  
  @example
  ```ts
- cargoDylintEnforcements({ manifestPath: 'package/desktop-app/ide/Cargo.toml' });
+ cargoDylintEnforcements({ manifestPath: 'package/ide/app/Cargo.toml' });
  ```
  */
 function cargoDylintEnforcements(
@@ -1943,7 +1943,7 @@ function cargoDylintEnforcements(
  
  @example
  ```ts
- cargoDylintBlocks({ manifestPath: 'package/desktop-app/ide/Cargo.toml' });
+ cargoDylintBlocks({ manifestPath: 'package/ide/app/Cargo.toml' });
  ```
  */
 function cargoDylintBlocks(
@@ -2170,10 +2170,10 @@ const PNPR_EXCLUDED_PACKAGES: Readonly<Record<string, string>> = {
   '@monochromatic-dev/claude-code-plugin-source':
     'exports only TypeScript source, which Node cannot load from node_modules, and no published package depends on it at runtime',
   // Owner decision 2026-09-15: apps exposing nothing importable are not meant to publish.
-  '@monochromatic-dev/desktop-daemon-hall-monitor':
+  '@monochromatic-dev/hall-monitor-daemon':
     'app exposing nothing importable; its build also runs `bun build --compile`, and the publish job installs only node and pnpm',
   // pnpr-publish run 34917976384: rolldown `Could not resolve 'canvg'` from jspdf 4.2.1.
-  '@monochromatic-dev/webapp-productivity-doodle-widget':
+  '@monochromatic-dev/doodle-widget-app':
     'app exposing nothing importable; its client build also cannot resolve the optional `canvg` import inside jspdf',
 };
 
@@ -2278,7 +2278,7 @@ function pnprManifestHasEntryPoint(
 
  @example
  ```ts
- assertPnprPackageName({ name: '@monochromatic-dev/module-or-throw' });
+ assertPnprPackageName({ name: '@monochromatic-dev/or-throw-core' });
  ```
  */
 function assertPnprPackageName({ name, }: { readonly name: string; },): void {

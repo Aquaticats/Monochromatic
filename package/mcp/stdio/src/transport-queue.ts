@@ -1,6 +1,6 @@
 // Serial request queue: frees the stdin read loop while tool execution stays one at a time.
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import type { JsonRpcId, } from './json-rpc.ts';
 

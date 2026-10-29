@@ -488,7 +488,7 @@ when the complete reachable value
   reflection,
   coercion,
   and formatting contracts;
-  `package/module/test` now passes type lint,
+  `package/test-harness/core` now passes type lint,
   Oxlint with no findings,
   build,
   and unit tests;
@@ -512,7 +512,7 @@ when the complete reachable value
   or root configuration writes;
   the host/provider and residual phases own those mixed boundaries;
 - the coercion phase centralizes arbitrary caught-value rendering in
-  `@monochromatic-dev/module-caught-value`;
+  `@monochromatic-dev/caught-value-core`;
   `caughtValueText` preserves `Error.message` and exact JavaScript string conversion,
   while `caughtValueStack` preserves available stack detail;
   both expose conversion hooks through one authoritative `@mutates` contract;
@@ -666,28 +666,28 @@ when the complete reachable value
   two-argument and three-argument `child_process.spawn` behavior is covered by the semantic fixture;
 - `3e1851bc7` and `a52f7ea13` remove the reverse development dependency from
   `module-caught-value` to `module-test`;
-  caught-value consumer tests now live in `package/module/test` and the caught-value package task delegates to those
+  caught-value consumer tests now live in `package/test-harness/core` and the caught-value package task delegates to those
   exact tests;
 - commits `c3a01aa05` through `f815b434b` make `prefer-caught-value-text` resolve global `Error` and `String`
   bindings before reporting and cover block-bodied arrow formatters without exceeding the source-line limit;
-- `package/dev-script/task-util`,
+- `package/monorepo-task/core-exec`,
   `package/oxlint-plugin/no-restricted-syntax`,
   `package/oxlint-plugin/prefer-readonly-parameter-type`,
   `package/oxlint-plugin/tsdoc`,
   `package/oxlint-plugin/stylistic`,
-  `package/module/or-throw`,
-  `package/dev-script/page-weight`,
-  `package/module/image-diff`,
+  `package/or-throw/core`,
+  `package/page-weight/cli`,
+  `package/llm/image-diff`,
   `package/mcp/stdio`,
   `package/mcp/mvm`,
-  `package/module/zip-writer`,
-  `package/module/pnpm-workspace-catalog`,
-  `package/module/fs-id`,
-  `package/module/dom`,
-  `package/module/test`,
-  `package/module/jsonc-edit`,
+  `package/zip-writer/core`,
+  `package/dependency-catalog/core-pnpm`,
+  `package/fs-id/core`,
+  `package/dom/core`,
+  `package/test-harness/core`,
+  `package/jsonc-edit/core-ts`,
   `package/mutation-test/cli`,
-  `package/dev-script/catalog-tighten`,
+  `package/dependency-catalog/cli-tighten`,
   `package/agent-harness-shared/terminal-title`,
   `package/git-clone-size/cli`,
   `package/pi-shared/model-selection`,
@@ -701,7 +701,7 @@ when the complete reachable value
   `package/typeface/aquaticat`,
   `package/android-exempt-unused/cli`,
   `package/terminal-exec/cli`,
-  and `package/webapp-productivity/wc` now pass package Oxlint under replacement rule with one JavaScript-plugin worker.
+  and `package/wc/app` now pass package Oxlint under replacement rule with one JavaScript-plugin worker.
 
 Final root semantic,
 consumer,
@@ -719,12 +719,12 @@ Verified package tasks:
 - `mise run //package/oxlint-plugin/tsdoc:lint:oxlint`;
 - `mise run //package/config/oxlint:lint:types`;
 - `mise run //package/config/oxlint:lint:oxlint`;
-- `mise run //package/dev-script/task-util:lint:oxlint`;
+- `mise run //package/monorepo-task/core-exec:lint:oxlint`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:lint:types`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:lint:oxlint`;
 - `mise run //package/oxlint-plugin/no-restricted-syntax:test:unit`;
-- `mise run //package/module/caught-value:buildAndTest`;
-- built-package consumer import and calls from `package/dev-script/page-weight`;
+- `mise run //package/caught-value/core:buildAndTest`;
+- built-package consumer import and calls from `package/page-weight/cli`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:build:js:node`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:types`;
 - `mise run //package/oxlint-plugin/prefer-readonly-parameter-type:lint:oxlint`;
@@ -739,11 +739,11 @@ Verified package tasks:
 - `mise run //package/pi-plugin/auto-mode:lint:oxlint`;
 - `mise run //package/pi-plugin/auto-mode:build:js:node`;
 - `mise run //package/pi-plugin/auto-mode:test:unit`;
-- `mise run //package/module/test:lint:types`;
-- `mise run //package/module/test:lint:oxlint`;
-- `mise run //package/module/test:buildAndTest`;
+- `mise run //package/test-harness/core:lint:types`;
+- `mise run //package/test-harness/core:lint:oxlint`;
+- `mise run //package/test-harness/core:buildAndTest`;
 - `mise run //package/mutation-test/cli:buildAndTest`;
-- `mise run //package/module/jsonc-edit:buildAndTest`;
+- `mise run //package/jsonc-edit/core-ts:buildAndTest`;
 - `mise run //package/git-policy/cli:build`;
 - `mise run //package/git-policy/cli:test:unit`;
 - `OXLINT_THREADS=1 mise run lint:oxlint` in stable root processes `proc_21` and `proc_26`.
@@ -822,7 +822,7 @@ A repository scan on 2026-07-12 found:
    comprising 190 TypeScript library names and 173 package type names;
 - 122 uses of `ReadonlyDeep` across the repository;
 - one output-level false-positive suppression in
-  `package/dev-script/task-util/src/oxlint-suppress.ts`.
+  `package/monorepo-task/core-exec/src/oxlint-suppress.ts`.
 
 The active disable reasons include external SDK types,
 mutable-by-design accumulators and caches,
@@ -1010,8 +1010,8 @@ Delete the obsolete dedicated configuration files:
 - `package/config/oxlint/src/rule/prefer-readonly-parameter-types.allow-pkg-unbash.ts`.
 
 Remove the obsolete output suppression and its dedicated test cases from
-`package/dev-script/task-util/src/oxlint-suppress.ts` and
-`package/dev-script/task-util/src/oxlint-suppress.unit.test.ts`.
+`package/monorepo-task/core-exec/src/oxlint-suppress.ts` and
+`package/monorepo-task/core-exec/src/oxlint-suppress.unit.test.ts`.
 
 ### Migrate source directives and explanatory types
 

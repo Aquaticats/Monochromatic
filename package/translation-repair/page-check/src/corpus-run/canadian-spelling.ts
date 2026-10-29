@@ -7,7 +7,7 @@ import {
 } from './canadian-spelling-capital.ts';
 import type { RootContent, } from 'mdast';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { codePointAt, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { isWordCharacter, } from './canadian-date-parts.ts';
 import {

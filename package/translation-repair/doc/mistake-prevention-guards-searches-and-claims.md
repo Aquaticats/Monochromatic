@@ -914,7 +914,7 @@ What happened:
 the first red run of two new scans printed `expected [ …(31) ] to deeply equal []` and `[ …(13) ]`,
 the count of their findings and none of the findings,
 and reading them took a second run of each file outside the runner (ledger B338).
-The assertion library under `@monochromatic-dev/module-test` is chai 6.3.0,
+The assertion library under `@monochromatic-dev/test-harness-core` is chai 6.3.0,
 which cuts any value longer than 40 characters to its length in a failure's message
 (`config.truncateThreshold`),
 and the test package neither sets that nor exports it (issue 610).

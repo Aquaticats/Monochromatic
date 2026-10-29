@@ -1,5 +1,14 @@
 # Handover: index-only /ts cross-package imports, and build every package
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/deps-cube` is now `package/dependency-catalog/cli-cube`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `@monochromatic-dev/module-fs-path` is now `@monochromatic-dev/fs-path-core`;
+> `package/module/logger` is now `package/logger/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
 Live progress for the refactor described in the approved plan at
 `/home/user/.claude/plans/make-all-imports-between-keen-piglet.md`.
  Read that plan first;

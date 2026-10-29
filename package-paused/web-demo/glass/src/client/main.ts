@@ -6,9 +6,9 @@
  * else reacts to two event streams: ball impacts (crack or collapse) and
  * pane shatter events (debris, sparks, sound, score).
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { Vector3, } from 'three/webgpu';
 
 import { createAudio, } from './audio.ts';

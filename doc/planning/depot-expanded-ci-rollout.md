@@ -75,9 +75,9 @@ The default-branch advisory run executes a fast static,
 build and unit subset.
 The static part is changed-path scoped.
 The first fast subset is five owning build tasks and their tests:
-`module/logger`,
-`module/p-map-fork`,
-`module/toml-edit`,
+`logger/core`,
+`upstream-fork/p-map`,
+`toml-edit/core`,
 `forbidden-strings/cli` and
 `linter/monochromatic-lint`.
 Desktop,

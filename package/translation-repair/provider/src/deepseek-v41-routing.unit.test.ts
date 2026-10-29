@@ -1,4 +1,4 @@
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { TransportExchange, } from '@monochromatic-dev/translation-repair-provider-stream';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import { HYPER_MESSAGES_URL, } from '@monochromatic-dev/translation-repair-shared-contract';

@@ -11,14 +11,14 @@
   "dependencies": {
     "@monochromatic-dev/mvm-cli": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
-    "@monochromatic-dev/module-caught-value": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "valibot": "catalog:"
   },
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-fs-path": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
     "nano-spawn": "catalog:",
     "typescript": "catalog:"

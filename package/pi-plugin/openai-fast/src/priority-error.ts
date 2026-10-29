@@ -1,7 +1,7 @@
 /**
  Priority request validation diagnostics without request data. @module
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 //region Diagnostics: keep rejected payloads and credentials out of errors and logs.
 

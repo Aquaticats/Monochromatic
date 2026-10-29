@@ -26,8 +26,8 @@ ten lines in eight files changed content rather than leading whitespace,
 for example `unicorn(no-useless-spread)` rewriting
 `return [...text.slice(0, index)].length + within;` to
 `return text.slice(0, index).length + within;` in
-`package/desktop-app/ide/bin/inspect-language-confinement.mjs:39`
-(now `package/desktop-app/ide/bin/inspect-language-confinement.ts`,
+`package/ide/app/bin/inspect-language-confinement.mjs:39`
+(now `package/ide/app/bin/inspect-language-confinement.ts`,
 renamed 2026-10-22),
 and `unicorn(prefer-string-starts-ends-with)` rewriting a regex `.test`
 call to `String.prototype.startsWith` in
@@ -122,17 +122,17 @@ node_modules/.pnpm/oxlint@1.89.0_oxlint-tsgolint@7.0.2004/node_modules/oxlint/bi
 # Default-category diagnostics on the eight files the sweep touched
 node_modules/.pnpm/oxlint@1.89.0_oxlint-tsgolint@7.0.2004/node_modules/oxlint/bin/oxlint \
   --config probe-rules-only.json \
-  package/desktop-app/ide/bin/inspect-language-confinement.mjs \
-  package/desktop-app/ide/bin/inspect-language-lifecycle.mjs \
-  package/desktop-app/ide/bin/inspect-language-mise.mjs \
-  package/desktop-app/ide/bin/inspect-language.mjs \
-  package/desktop-app/ide/design/wrap-annotation-shots.mjs \
+  package/ide/app/bin/inspect-language-confinement.mjs \
+  package/ide/app/bin/inspect-language-lifecycle.mjs \
+  package/ide/app/bin/inspect-language-mise.mjs \
+  package/ide/app/bin/inspect-language.mjs \
+  package/ide/app/design/wrap-annotation-shots.mjs \
   package/linter/monochromatic-lint/bin/test-container.mjs \
   package/music-player/design/template-editor-scenes-test.mjs \
   package/music-player/truepeak-core.bench/analysis/tags-sweep.mjs
 ```
 
-The `package/desktop-app/ide` files in that command were renamed on 2026-10-22
+The `package/ide/app` files in that command were renamed on 2026-10-22
 to TypeScript files of the same base names
 (`bin/inspect-language-confinement.ts`,
 `bin/inspect-language-lifecycle.ts`,

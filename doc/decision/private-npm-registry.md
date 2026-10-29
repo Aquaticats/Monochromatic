@@ -184,7 +184,7 @@ pnpm 11 and later delay fresh versions by `minimumReleaseAge`,
    It imports only Node built-ins and sibling source files,
     so the job needs no build step.
    Evidence (2026-09-15, disposable clone of `main`):
-    hand-bumping `@monochromatic-dev/module-or-throw` and running the runner planned 19 dependent bumps,
+    hand-bumping `@monochromatic-dev/or-throw-core` and running the runner planned 19 dependent bumps,
     and `git diff --shortstat` reported `20 files changed, 20 insertions(+), 20 deletions(-)`,
     version lines only.
 - No CI backstop catches commits that bypass cli-git.
@@ -267,9 +267,9 @@ Results on 2026-09-15 against `https://pnpr.c.aquati.cat`:
    `nonNullishOrThrow(42)` returned `42` and threw on `null`,
    `tsc` reported `TS2322` under the extended config,
    and oxlint reported the `tsdoc` rule.
-- `@monochromatic-dev/module-logger@0.4.0` installed from pnpr and logged through `tagged`.
+- `@monochromatic-dev/logger-core@0.4.0` installed from pnpr and logged through `tagged`.
 - An unauthenticated `PUT` returned
-   `Authentication required for package "@monochromatic-dev/module-or-throw" 401`,
+   `Authentication required for package "@monochromatic-dev/or-throw-core" 401`,
    and a forged GitHub-issuer token returned `401 Authentication required for OIDC credentials`.
 
 GitHub issue #521 tracks checking installability of the remaining published packages.

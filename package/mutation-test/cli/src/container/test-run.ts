@@ -10,7 +10,7 @@
 import { spawn as nodeSpawn, } from 'node:child_process';
 import { once, } from 'node:events';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Module logger for container-side test execution.

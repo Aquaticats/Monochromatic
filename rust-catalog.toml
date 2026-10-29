@@ -111,7 +111,7 @@ zbus_xml = ">=5"
 # Exact pins. Each one's reason sits beside the dependency in the crate that selects it.
 [catalogs.pinned]
 # Slint's testing backend has no semver guarantee and must equal the resolved slint release
-# (package/desktop-app/ide, package/music-player/desktop-app).
+# (package/ide/app, package/music-player/desktop-app).
 i-slint-backend-testing = "=1.18.1"
 # All rust-analyzer crates share one exact release (package/linter/monochromatic-lint and its fuzz sidecar).
 ra_ap_hir = "=0.0.336"
@@ -129,12 +129,12 @@ salsa = "=0.27.2"
 satteri-arena = "=0.3.1"
 satteri-ast = "=0.5.3"
 satteri-pulldown-cmark = "=0.6.3"
-# package/cli/nested-wayland-session.
+# package/nested-wayland-session/cli.
 smithay = "=0.7.0"
 # package/linter/monochromatic-lint: Unicode tables matching ra-ap-rustc_lexer.
 unicode-ident = "=1.0.24"
 unicode-properties = "=0.1.4"
 
-# package/desktop-app/file-manager stays on the windows 0.58 API; see the comment beside its windows dependency.
+# package/file-manager/app stays on the windows 0.58 API; see the comment beside its windows dependency.
 [catalogs.windows-legacy]
 windows = "0.58"

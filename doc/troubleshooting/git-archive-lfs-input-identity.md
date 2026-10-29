@@ -67,8 +67,8 @@ Full member inventories and retained logs are in the compressed raw receipts lin
 The research branch owns this runnable task:
 
 ```sh
-# Research branch package/dev-script/task-util/mise.toml, not the main checkout.
-mise run //package/dev-script/task-util:research:rust:corpus-audit
+# Research branch package/monorepo-task/core-exec/mise.toml, not the main checkout.
+mise run //package/monorepo-task/core-exec:research:rust:corpus-audit
 ```
 
 Its positive catalog comprises direct Git-blob matches and content-addressed LFS materializations.
@@ -88,7 +88,7 @@ The source-pinned task `research:rust:corpus-audit` is the runnable implementati
 The archive-writing correction in the executed benchmark harness is:
 
 ```js
-// package/dev-script/task-util/bin/rust-benchmarks.mjs, imports and context omitted.
+// package/monorepo-task/core-exec/bin/rust-benchmarks.mjs, imports and context omitted.
 run('archive-baked-frozen-public-source', 'git',
   ['archive', '--format=tar', '--output', archive, frozen]);
 const archiveHasher = createHash('sha256');

@@ -35,7 +35,7 @@ The repository already demanded the chosen shape:
 
 ## Decision
 
-`package/module/test-diagnostic` renders the difference between
+`package/test-harness/core-diagnostic` renders the difference between
  `AssertionError.actual` and `.expected`
  (chai sets both),
  one difference per line,

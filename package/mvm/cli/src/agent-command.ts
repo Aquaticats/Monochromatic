@@ -10,8 +10,8 @@
  @module
  */
 
-import { MS_PER_SECOND, } from '@monochromatic-dev/module-const/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { CommandFailedError, } from './spawn-errors.ts';
 import { virsh, } from './virsh.ts';

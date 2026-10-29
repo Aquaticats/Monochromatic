@@ -419,7 +419,7 @@ Measured 2026-10-20 in the repository worktree:
   the repository lint invocations do.
 
 This is not the dependency-drift class of `doc/troubleshooting/deps-update-api-drift.md`:
-no `package/dev-script/deps-update` bump is involved,
+no `package/deps-update/cli` bump is involved,
 and the consumer (the configuration) is ahead of the resolved binary,
 not behind a bumped dependency API.
 

@@ -1,11 +1,11 @@
 name: logger-fuzz
 
 # Runs the property-based fuzz smoke and the V8 line-coverage reachability
-# gate for @monochromatic-dev/module-logger on changes that touch the runtime
+# gate for @monochromatic-dev/logger-core on changes that touch the runtime
 # package, its fuzz sidecar, or the fuzzing decision doc. The same
 # *.property.unit.test.ts files run bounded in the sidecar's test:unit and as
 # a short per-property campaign through the sidecar fuzz task. See
-# package/module/logger.fuzz/README.md and doc/decision/logger-fuzzing.md.
+# package/logger/core.fuzz/README.md and doc/decision/logger-fuzzing.md.
 #
 # push and pull_request are path-filtered to the logger packages. merge_group
 # cannot be path-filtered (a GitHub limitation), so the Scope step below skips
@@ -16,8 +16,8 @@ on:
   pull_request:
     branches: ['main']
     paths:
-    - 'package/module/logger/**'
-    - 'package/module/logger.fuzz/**'
+    - 'package/logger/core/**'
+    - 'package/logger/core.fuzz/**'
     - 'doc/decision/logger-fuzzing.md'
     - '.github/workflows/logger-fuzz.yml'
   merge_group:
@@ -25,8 +25,8 @@ on:
   push:
     branches: ['main']
     paths:
-    - 'package/module/logger/**'
-    - 'package/module/logger.fuzz/**'
+    - 'package/logger/core/**'
+    - 'package/logger/core.fuzz/**'
     - 'doc/decision/logger-fuzzing.md'
     - '.github/workflows/logger-fuzz.yml'
 
@@ -57,7 +57,7 @@ jobs:
         run=true
         if [ "${{ github.event_name }}" = 'merge_group' ]; then
           changed=$(git diff --name-only --diff-filter=ACMRT origin/main...HEAD || true)
-          if ! printf '%s\n' "$changed" | grep -qE '^(package/module/logger(\.fuzz)?/|doc/decision/logger-fuzzing\.md|\.github/workflows/logger-fuzz\.yml)'; then
+          if ! printf '%s\n' "$changed" | grep -qE '^(package/logger/core(\.fuzz)?/|doc/decision/logger-fuzzing\.md|\.github/workflows/logger-fuzz\.yml)'; then
             run=false
             echo 'No logger files in the merge group; skipping the fuzz steps.'
           fi
@@ -71,29 +71,29 @@ jobs:
     - name: Build the runtime package
       if: steps.scope.outputs.run == 'true'
       # Build before type-check: the sidecar imports the built
-      # `@monochromatic-dev/module-logger` entry points, so their dist .d.mts
+      # `@monochromatic-dev/logger-core` entry points, so their dist .d.mts
       # must exist for tsgo to resolve them on a fresh checkout.
-      run: task-run //package/module/logger:build
+      run: task-run //package/logger/core:build
 
     - name: Type-check the sidecar
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/logger.fuzz:lint:types
+      run: task-run //package/logger/core.fuzz:lint:types
 
     - name: Unit suite (bounded property runs plus fake-sink and model tests)
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/logger.fuzz:test:unit
+      run: task-run //package/logger/core.fuzz:test:unit
 
     - name: Fuzz smoke (short per-property campaign)
       if: steps.scope.outputs.run == 'true'
       # A short per-property budget, not the 60s local default, keeps the smoke
       # bounded while still exploring well past the bounded-mode run count.
-      run: task-run //package/module/logger.fuzz:fuzz -- --budget 3000
+      run: task-run //package/logger/core.fuzz:fuzz -- --budget 3000
 
     - name: Coverage gate (no per-file src reachability regression)
       if: steps.scope.outputs.run == 'true'
       # The committed baseline is a V8-coverage artifact. This repo always tracks
       # the latest node, so a node release that shifts V8 coverage is handled by
       # refreezing the baseline with
-      # `task-run //package/module/logger.fuzz:fuzz:coverage -- --write`, not by
+      # `task-run //package/logger/core.fuzz:fuzz:coverage -- --write`, not by
       # pinning node.
-      run: task-run //package/module/logger.fuzz:fuzz:coverage
+      run: task-run //package/logger/core.fuzz:fuzz:coverage

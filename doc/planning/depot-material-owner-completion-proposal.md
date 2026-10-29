@@ -20,7 +20,7 @@ qualified](../audit/depot-kotlin-gradle-owner-join-2026-10-18.evidence.json) and
 
 ### `ide-full`
 
-Owner: `package/desktop-app/ide`. Task: `//package/desktop-app/ide:test`.
+Owner: `package/ide/app`. Task: `//package/ide/app:test`.
 
 Runner: `depot-ubuntu-24.04-4`; 30-minute job and 27-minute inner campaign. Four CPU, 16 GB documented memory
 and 130 GB documented disk. List rate USD0.012/minute; maximum nominal compute reservation USD0.36.
@@ -41,7 +41,7 @@ success from compilation alone.
 
 ### `ide-reader-lifecycle`
 
-Owner: `package/desktop-app/ide`. Task: `//package/desktop-app/ide:test:reader-lifecycle`.
+Owner: `package/ide/app`. Task: `//package/ide/app:test:reader-lifecycle`.
 
 Runner: `depot-ubuntu-24.04-4`; 30-minute job and 27-minute inner campaign. Four CPU, 16 GB documented memory
 and 130 GB documented disk. List rate USD0.012/minute; maximum nominal compute reservation USD0.36.
@@ -56,7 +56,7 @@ row as the full IDE owner.
 
 ### `terminal-release`
 
-Owner: `package/desktop-app/terminal`. Task: `//package/desktop-app/terminal:test:container`.
+Owner: `package/terminal/app`. Task: `//package/terminal/app:test:container`.
 
 Runner: `depot-ubuntu-24.04-4`; 30-minute job and 27-minute inner campaign. Four CPU, 16 GB documented memory
 and 130 GB documented disk. List rate USD0.012/minute; maximum nominal compute reservation USD0.36.
@@ -73,7 +73,7 @@ terminal GUI or compositor launch.
 
 ### `file-manager-gtk-release`
 
-Owner: `package/desktop-app/file-manager`. Task: `//package/desktop-app/file-manager:test`.
+Owner: `package/file-manager/app`. Task: `//package/file-manager/app:test`.
 
 Runner: `ubuntu-24.04`; 30-minute job and 27-minute inner campaign. Standard public GitHub compute has a
 nominal USD0 model. Actual CPU, memory and disk are probed before the owner.
@@ -89,8 +89,8 @@ inferred from pure model/filesystem tests.
 
 ### `file-manager-sticky-release`
 
-Owner: `package/desktop-app/file-manager-gtk-sticky`. Task:
-`//package/desktop-app/file-manager-gtk-sticky:test`.
+Owner: `package/file-manager/variant-gtk-sticky`. Task:
+`//package/file-manager/variant-gtk-sticky:test`.
 
 Runner: `ubuntu-24.04`; 30-minute job and 27-minute inner campaign. Standard public GitHub compute has a
 nominal USD0 model. Actual CPU, memory and disk are probed before the owner.
@@ -105,7 +105,7 @@ path-dependency tests as this owner.
 
 ### `file-manager-qt-release`
 
-Owner: `package/desktop-app/file-manager-qt`. Task: `//package/desktop-app/file-manager-qt:test`.
+Owner: `package/file-manager/variant-qt`. Task: `//package/file-manager/variant-qt:test`.
 
 Runner: `ubuntu-24.04`; 30-minute job and 27-minute inner campaign. Standard public GitHub compute has a
 nominal USD0 model. Actual CPU, memory and disk are probed before the owner.

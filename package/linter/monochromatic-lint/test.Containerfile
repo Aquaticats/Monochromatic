@@ -6,7 +6,7 @@ COPY cargo-config /work/.cargo
 COPY clippy.toml /work/clippy.toml
 # The registry guard test reads the repository configuration beside the work root.
 COPY monochromatic-lint.config.jsonc /work/monochromatic-lint.config.jsonc
-COPY jsonc-edit /work/package/rust-module/jsonc-edit
+COPY jsonc-edit /work/package/jsonc-edit/core-rust
 COPY monochromatic-lint /work/package/linter/monochromatic-lint
 WORKDIR /work/package/linter/monochromatic-lint
 # Semantic-backend consumer controls used symbol-free development builds under the same memory cap.

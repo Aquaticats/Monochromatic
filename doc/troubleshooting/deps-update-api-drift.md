@@ -1,6 +1,6 @@
 # Dependency drift after un-swept bumps: unbash 6.0.0, yuku-analyzer 0.19.0, and the pi-ai 2026-10-15 catalog
 
-`package/dev-script/deps-update` runs `pnpm update --recursive --no-save`
+`package/deps-update/cli` runs `pnpm update --recursive --no-save`
 and exits without a type sweep,
 so a dependency bump can land while consumers still compile against the previous dependency API.
 This file records the 2026-10-20 batch for the dependencies outside the Pi extension API.
@@ -16,9 +16,9 @@ and fixed on 2026-10-20 before this write-up.
 
 ## Root cause class
 
-`package/dev-script/deps-update` exists to run the real update
-(`package/dev-script/deps-update/README.md`),
-and no `lint:types` or `tsc` invocation exists anywhere under `package/dev-script/deps-update/src/`
+`package/deps-update/cli` exists to run the real update
+(`package/deps-update/cli/README.md`),
+and no `lint:types` or `tsc` invocation exists anywhere under `package/deps-update/cli/src/`
 (searched 2026-10-20).
 Nothing else runs the type sweep automatically either,
 so restored `lint:types` tasks only report drift when someone runs them.

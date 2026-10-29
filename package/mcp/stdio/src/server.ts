@@ -9,7 +9,7 @@ import {
   type JsonRpcRequest,
 } from './json-rpc.ts';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { DEFAULT_CACHE_HINT, } from './protocol.ts';
 

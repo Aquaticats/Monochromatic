@@ -1,5 +1,11 @@
 # Building the real GTK4 file manager (Niri column-strip UI) — handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/file-manager` is now `package/file-manager/app`.
+
 Live cross-session state for the implementation of the real file manager on GTK4,
  following the
 approved plan.

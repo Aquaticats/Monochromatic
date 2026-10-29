@@ -18,16 +18,16 @@ Measured on 2026-10-13 with `git grep` over tracked `*.rs` files.
 - 526 files contain a `#[path = ...]` attribute.
   Not every one is necessarily a test sidecar; the count is an upper bound on the sidecar convention.
 - Four files (455 lines in total, tests and source together) hold an inline `mod tests { ... }` block:
-  `package/cli/nested-wayland-session/src/notification_mode.rs`,
-  `package/desktop-app/file-manager-qt/src/cxxqt_object.rs`,
-  `package/desktop-app/ide/src/selection_paint.rs`
+  `package/nested-wayland-session/cli/src/notification_mode.rs`,
+  `package/file-manager/variant-qt/src/cxxqt_object.rs`,
+  `package/ide/app/src/selection_paint.rs`
   and `package/linter/monochromatic-lint/src/markdown_block_start.rs`.
 - Five files outside any `cfg(test)` module carry `#[test]` functions:
   the `package/linter/monochromatic-lint.fuzz/src` files `explicit_types.rs`, `lib.rs`, `markdown.rs`,
   `orchestration.rs` and `rust_style.rs`,
   plus the probe `doc/troubleshooting/slint-listview-random-seek-probe.rs`.
 - 101 tracked files sit under a `tests/` directory (integration test targets),
-  75 of them in `package/desktop-app/ide`.
+  75 of them in `package/ide/app`.
 
 ## What native Clippy can do
 
@@ -107,9 +107,9 @@ The two open questions were settled by what a rule can see, and the carve-outs f
 ## Migration
 
 Done on the branch, one commit per package: the inline test modules of
-`package/cli/nested-wayland-session/src/notification_mode.rs`,
-`package/desktop-app/file-manager-qt/src/cxxqt_object.rs`,
-`package/desktop-app/ide/src/selection_paint.rs`
+`package/nested-wayland-session/cli/src/notification_mode.rs`,
+`package/file-manager/variant-qt/src/cxxqt_object.rs`,
+`package/ide/app/src/selection_paint.rs`
 and `package/linter/monochromatic-lint/src/markdown_block_start.rs`
 moved to `<name>_tests.rs` sidecars declared with `#[cfg(test)] #[path = "<name>_tests.rs"] mod tests;`.
 Not compiled here: `file-manager-qt` (needs the Qt libraries) and, until the container run, `ide` and

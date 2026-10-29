@@ -4,7 +4,7 @@ helix-lsp at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc` starts every language se
 and never awaits the process handle.
 tokio collects the exit status of a dropped handle ("reaps" the process) only when one of its runtimes
 returns from parking after the kernel reported that a child ended.
-The Language worker of `package/desktop-app/ide` ended its runtime 50 ms after it dropped the handles,
+The Language worker of `package/ide/app` ended its runtime 50 ms after it dropped the handles,
 so a server that needed longer to end stayed in the process table as a zombie until the application exited.
 
 tokio documents this reaping as best effort, and the worker's ending was ours.
@@ -158,7 +158,7 @@ On commit `ec7bdc39b`, the worker's shutdown ended like this,
 and the worker thread, with its runtime, ended right after:
 
 ```rust
-// package/desktop-app/ide/src/language/worker.rs:324, commit ec7bdc39b
+// package/ide/app/src/language/worker.rs:324, commit ec7bdc39b
         // Dropping the session and the registry releases every client; helix-lsp kills on drop.
         drop(self.session);
         drop(self.registry);
@@ -231,8 +231,8 @@ the `localhost/monochromatic/ide` test container.
 One run of the failing test:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:test:language lifecycle::dropping_the_worker_leaves_no_child_process
+# package/ide/app
+mise run //package/ide/app:test:language lifecycle::dropping_the_worker_leaves_no_child_process
 ```
 
 The failure is rare in a single run, so the harness is a rate.
@@ -241,8 +241,8 @@ once as it is and once with the former fixed pause,
 and starts many test processes at a time inside one container bounded to two processors:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:inspect:language-reap-rate <target-cache> [cargo-home] [runs] [parallel] [rounds]
+# package/ide/app
+mise run //package/ide/app:inspect:language-reap-rate <target-cache> [cargo-home] [runs] [parallel] [rounds]
 ```
 
 It counts each failed run by what it left:
@@ -259,8 +259,8 @@ with a separate script and prebuilt binaries.
 The guard control removes the reaping call and expects a zombie from the test whose server must be killed:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:inspect:language-lifecycle-guards <target-cache> [cargo-home] [helix-clone] sources
+# package/ide/app
+mise run //package/ide/app:inspect:language-lifecycle-guards <target-cache> [cargo-home] [helix-clone] sources
 ```
 
 ### Measurements
@@ -365,10 +365,10 @@ What those processes waited for inside the kernel was not traced.
 
 ### Drop the runtime first, then reap on a second runtime until the kernel lists no child
 
-This is what `package/desktop-app/ide/src/language/worker.rs` and `src/language/reap.rs` do now:
+This is what `package/ide/app/src/language/worker.rs` and `src/language/reap.rs` do now:
 
 ```rust
-// package/desktop-app/ide/src/language/worker.rs, end of the worker thread
+// package/ide/app/src/language/worker.rs, end of the worker thread
             drop(runtime);
             reap::finish(REAP_GRACE);
 ```

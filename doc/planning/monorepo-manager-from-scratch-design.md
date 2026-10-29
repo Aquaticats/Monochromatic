@@ -487,15 +487,15 @@ Answered by the user on 2026-09-17:
 Asked where a detached daemon's stream should go,
 the user pointed at the repository's own logger:
 "In ts,
-we use our module/logger which logs to every available sink simultaneously."
+we use our logger/core which logs to every available sink simultaneously."
 Recommended,
 not yet accepted:
 meow writes a small Rust equivalent rather than choosing one destination.
 
-- Read from `@monochromatic-dev/module-logger` on 2026-09-17:
+- Read from `@monochromatic-dev/logger-core` on 2026-09-17:
    each sink carries a `verify` that probes its backend,
    the file sink writing a record and reading it back before it counts as available
-   (`package/module/logger/src/sink/file.ts:219-227`);
+   (`package/logger/core/src/sink/file.ts:219-227`);
    the logger keeps every sink that verifies and fans each record out to all of them
    (`src/default-sinks.node.ts`);
    and a logger whose sinks all fail verification raises "No logging backends available"
@@ -544,7 +544,7 @@ not separately stated:
 ### Modularity
 
 Stated by the user on 2026-09-17,
-answering whether meow should mirror `@monochromatic-dev/module-logger` inside its own binary
+answering whether meow should mirror `@monochromatic-dev/logger-core` inside its own binary
 or port it as a package:
 "Everything that could possibly be modular should be reusable package/library.
  This includes not just the ported logger."
@@ -704,8 +704,8 @@ Measured 2026-09-16 on the development machine:
    [`monorepo-manager-build-routes.md`](monorepo-manager-build-routes.md).
 - Heavy suites are test files whose names match `*.expensive.*.test.*`.
   Four files match today:
-  `package/dev-script/task-util/src/tsc-filter.expensive.unit.test.ts`,
-  `package/module/image-diff/src/client.expensive.unit.test.ts`,
+  `package/monorepo-task/core-exec/src/tsc-filter.expensive.unit.test.ts`,
+  `package/llm/image-diff/src/client.expensive.unit.test.ts`,
   `package/vmsync/cli/src/lifecycle.expensive.unit.test.ts`,
   and `package/mvm/cli/src/backend/hetzner/provision.expensive.unit.test.ts`.
   Suites that are heavy today only by task name,
@@ -974,7 +974,7 @@ Superseded by "Library-level results" and then by the single-file decision.
 
 The user challenged the ranking's basis:
 the Node research evaluated built-in `fs.watch` although the repository already uses `chokidar`
-in `package/dev-script/file-enforcer` and `package/dev-script/watch-restart`,
+in `package/file-enforcer/core` and `package/watch-restart/cli`,
 and the Rust research concluded that cgroup placement,
 the watcher,
 and JSON-RPC must be hand-written and `unsafe`
@@ -1284,12 +1284,12 @@ and release assets.
    and 56 test files with 11,126 lines.
 - The root `file-enforcer.config.ts` is 2,329 lines.
 - Consumers outside the package:
-   `package/dev-script/vm-builder` imports `exec` from the `/ts` subpath in two files;
+   `package/vm-builder/cli` imports `exec` from the `/ts` subpath in two files;
    `package/test-fixture/file-enforcer-perf` benchmarks the TypeScript implementation;
    a `prefer-readonly-parameter-type` unit test reads `cargo/apply-plan.ts` as a fixture;
    and the `sync:files` and `watch:sync:files` Mise tasks run the TypeScript CLI.
 - Recorded decision in conflict:
-   `package/dev-script/file-enforcer/DECISION.rust-migration.md`,
+   `package/file-enforcer/core/DECISION.rust-migration.md`,
    "Decision:
    no Rust migration for file-enforcer",
    whose reasons do not address single-file shipping;
@@ -1896,8 +1896,8 @@ verified before merging and filed for repair:
 - Three active tasks still use the `mise watch ... -- node ...` form
    that `doc/troubleshooting/mise-watch-runs-tasks-not-commands.md` documented:
    `package/kwin/key-helper/mise.toml:40`,
-   `package/desktop-daemon/hall-monitor/mise.toml:11`,
-   and `package/webapp-productivity/rss/mise.toml:21`.
+   `package/hall-monitor/daemon/mise.toml:11`,
+   and `package/rss/app/mise.toml:21`.
 - `mise.toml:308-312` justifies 85 lines of hand-written orchestration by citing an observation
    that `doc/handover/lint-fix-2026-06.md` does not contain;
    the claim is repeated in `doc/research/bazel-migration-dx.md:47` with no primary evidence,
@@ -2255,7 +2255,7 @@ Read from `doc/decision/cli-git-policies-platform.md` and
    `etcetera`,
    or `directories` crate in any manifest,
    and its only home-directory use in file-enforcer is a `??` fallback with no absolute or empty check
-   (`package/dev-script/file-enforcer/src/jetbrains/options-dir.ts:334-338`).
+   (`package/file-enforcer/core/src/jetbrains/options-dir.ts:334-338`).
 
 #### Correction this research forces
 
@@ -2298,7 +2298,7 @@ covering the four migration items the all-Rust decision record lists as conseque
 - The `prefer-readonly-parameter-type` fixture:
    "New fixture package".
   A new `package/test-fixture/prefer-readonly-parameter-type` holds a frozen copy of `apply-plan.ts`
-   and really depends on `@monochromatic-dev/module-toml-edit`,
+   and really depends on `@monochromatic-dev/toml-edit-core`,
    which keeps a genuine cross-package chain for the analyzer
    and keeps that module a dependency target after file-enforcer leaves.
   It also removes a fragility that exists today,
@@ -2308,11 +2308,11 @@ covering the four migration items the all-Rust decision record lists as conseque
 #### Recommended shape
 
 - `exec`:
-   vm-builder owns a private `package/dev-script/vm-builder/src/process.ts`
+   vm-builder owns a private `package/vm-builder/cli/src/process.ts`
    exporting `runInherited`,
    which is the inherit-stdio helper it already duplicates three times,
    and `runCaptured` over `nano-spawn`.
-  Its manifest drops `@monochromatic-dev/dev-script-file-enforcer` and gains `nano-spawn` from the catalog,
+  Its manifest drops `@monochromatic-dev/file-enforcer-core` and gains `nano-spawn` from the catalog,
    so the dependency count is unchanged
    and 72 file-enforcer source files leave vm-builder's type-check program.
 - `nano-spawn` rather than `node:util.promisify(execFile)`,
@@ -2323,7 +2323,7 @@ covering the four migration items the all-Rust decision record lists as conseque
    following `package/forbidden-strings/core.bench`.
 - The `prefer-readonly-parameter-type` fixture read:
    vendor `apply-plan.ts` into a new `package/test-fixture/prefer-readonly-parameter-type`
-   that really depends on `@monochromatic-dev/module-toml-edit`,
+   that really depends on `@monochromatic-dev/toml-edit-core`,
    because after file-enforcer is deleted that module has no other non-fuzz TypeScript consumer.
 - `sync:files`:
    both tasks disappear with `mise.toml` when Mise is removed,
@@ -2378,7 +2378,7 @@ attaching it to `task-util` > shelling out to meow's CLI > meow's RPC.
 
 #### Defects this research found
 
-- `package/dev-script/file-enforcer/README.md:134-197` documents `exec([...])` and
+- `package/file-enforcer/core/README.md:134-197` documents `exec([...])` and
    `exec('mise', ['use', 'git'])`,
    neither of which the implementation accepts,
    and `README.md:290` imports a subpath the manifest does not export.
@@ -2603,7 +2603,7 @@ the evidence and tradeoffs are in `doc/troubleshooting/jsonc-parser-json5-defaul
    the question said this matches today's Cargo manifests,
    but no tracked `Cargo.toml` contains an inline-table trailing comma
    (`git ls-files -z '*Cargo.toml' | xargs --null rg --multiline --count ',\s*\}'` matched 0 files on 2026-09-17);
-   the form comes from `module-toml-edit` (`package/module/toml-edit/src/toml-set.unit.test.ts:484`),
+   the form comes from `module-toml-edit` (`package/toml-edit/core/src/toml-set.unit.test.ts:484`),
    and taplo 0.14 rejects it.
   Asked again with the corrected premise on 2026-09-17,
    the user kept the TOML 1.1 style.
@@ -2743,7 +2743,7 @@ to the repeated cache key output question:
    meow hashes huge inputs,
    because every declared output gets a content hash
    and dependency output hashes feed downstream keys.
-  `package/dev-script/vm-builder/output/qcow2/disk.qcow2` is 3,966,238,720 bytes
+  `package/vm-builder/cli/output/qcow2/disk.qcow2` is 3,966,238,720 bytes
    and music-player debug binaries are 520 to 663 MB each,
    while the largest tracked source file is 22.9 MB.
   Tracked file sizes on 2026-09-17:
@@ -3265,7 +3265,7 @@ there is no cache-off flag or per-definition result-reuse toggle.
 - Cryptographic hashes were first excluded,
    reasoning that the cache is local only
    and that file-enforcer's SHA-256 uses,
-   the staleness manifest (`package/dev-script/file-enforcer/src/io/staleness-hash.ts:20`)
+   the staleness manifest (`package/file-enforcer/core/src/io/staleness-hash.ts:20`)
    and skill-mirror ownership digests (`file-enforcer.config.ts:1103`),
    detect change and ownership rather than defend against crafted input.
   The user made them eligible on 2026-09-17 ("non-crypto isn't a requirement").

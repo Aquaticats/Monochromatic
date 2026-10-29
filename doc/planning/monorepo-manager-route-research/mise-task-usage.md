@@ -34,7 +34,7 @@ mise tasks --all --hidden --json                 # 1,886,490 bytes, 1836 entries
 mise tasks --all --json                          # 1807 entries
 mise config ls
 mise task info '//:lint'
-mise task info '//package/module/jsonc-edit:lint:oxlint'
+mise task info '//package/jsonc-edit/core-ts:lint:oxlint'
 mise task info '//package/oxlint-plugin/no-restricted-syntax:build:js:node'
 hyperfine --warmup 1 --runs 5 'mise tasks --all --hidden --json'
 rg --files . --glob 'mise*.toml'
@@ -77,16 +77,16 @@ every package file contains only three kinds of table.
    1,788 headers.
 - `[vars]`:
    5 files
-   (`package/desktop-app/terminal/mise.toml:27`,
+   (`package/terminal/app/mise.toml:27`,
    `package/music-player/design/mise.toml:1`,
-   `package/cli/nested-wayland-session/mise.toml:10`,
+   `package/nested-wayland-session/cli/mise.toml:10`,
    `package/music-player/android-app/mise.toml:19`,
    `package/music-player/desktop-app/mise.toml:45`).
 - `[env]`:
    3 files
    (`package/music-player/desktop-app/mise.toml:32`,
-   `package/desktop-app/file-manager-qt/mise.toml:6`,
-   `package/desktop-app/terminal/mise.toml:16`).
+   `package/file-manager/variant-qt/mise.toml:6`,
+   `package/terminal/app/mise.toml:16`).
 
 No package file declares `[tools]`,
 `[settings]`,
@@ -133,7 +133,7 @@ all Verified from `mise tasks --all --hidden --json`:
    Only 35 lines in the whole tree set `dir` explicitly
    (`rg --count-matches 'dir = ' --glob 'mise*.toml' .`).
 
-Verified (`mise tasks --json` run from `package/module/jsonc-edit`):
+Verified (`mise tasks --json` run from `package/jsonc-edit/core-ts`):
 standing inside a package lists 56 tasks,
 the 41 visible root tasks plus that package's 15,
 and nothing from sibling packages.
@@ -177,8 +177,8 @@ Verified (`files.ts`):
    is a bare re-declaration of a template name.
 - 52 files contain nothing but bare `extends` blocks.
 - The heaviest are 14 bare extends each in
-   `package/module/zip-writer/mise.toml`
-   and `package/module/logger/mise.toml`.
+   `package/zip-writer/core/mise.toml`
+   and `package/logger/core/mise.toml`.
 
 Verified (`files.ts`,
  extends-target tally):
@@ -249,8 +249,8 @@ Verified (`analyze.ts` over `mise tasks --all --hidden --json`,
 1836 tasks):
 
 - `run` non-empty: 1835.
-   The exception is `//package/module/test:build:js`,
-   which is `depends`-only (`package/module/test/mise.toml:4-7`).
+   The exception is `//package/test-harness/core:build:js`,
+   which is `depends`-only (`package/test-harness/core/mise.toml:4-7`).
 - `shell` non-empty:
    1215,
    all of them the single string `node --input-type=module-typescript -e`.
@@ -371,7 +371,7 @@ over 181 active files excluding `mise.no-env.toml`):
 The heaviest are
 `mise.toml` at 339 of 1,331 lines,
 `package/music-player/desktop-app/mise.toml` at 229 of 541,
-`package/desktop-app/terminal/mise.toml` at 116 of 274,
+`package/terminal/app/mise.toml` at 116 of 274,
 `package/kwin/key-helper/mise.toml` at 71 of 130.
 
 Verified (`mise.toml:259-263`):
@@ -399,12 +399,12 @@ Verified:
 - Shell scripts:
    three `.sh` files,
    only one inside the active package tree
-   (`package/dev-script/file-enforcer/generator/entrypoint.sh`),
+   (`package/file-enforcer/core/generator/entrypoint.sh`),
    the others under `package-paused/` and `doc/audit/`.
 - CI:
    15 workflow files,
    9 of which reference Mise.
-- `package/dev-script/task-util`:
+- `package/monorepo-task/core-exec`:
    31 source files providing `depends`,
    `command`,
    `append`,
@@ -432,14 +432,14 @@ Verified:
    Corroborated at `doc/research/bazel-migration-dx.md:50-51`.
 - CI otherwise uses `mise install <tool>` plus `mise exec`,
    not `mise run`.
-- `package/dev-script/task-util/src/depends*.ts` is a make-style staleness checker,
+- `package/monorepo-task/core-exec/src/depends*.ts` is a make-style staleness checker,
    the capability Mise's own `sources` and `outputs` would provide.
    It is invoked from exactly one active place,
    `mise.toml:1030`,
    for the Playwright image build.
 - One test exercises the task graph itself:
-   `package/dev-script/task-util/src/build-and-test.unit.test.ts`,
-   described in `package/dev-script/task-util/README.md` as consuming the generated
+   `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`,
+   described in `package/monorepo-task/core-exec/README.md` as consuming the generated
    `mise.toml` "rather than a bundled TypeScript function:
    the configuration is the artifact under test."
 
@@ -542,7 +542,7 @@ it is the one already in use.
 
 ### Standing in a package narrows what you see
 
-Verified (`mise tasks --json` from `package/module/jsonc-edit`):
+Verified (`mise tasks --json` from `package/jsonc-edit/core-ts`):
 56 tasks,
 the 41 visible root tasks plus that package's 15.
 No sibling noise.
@@ -598,7 +598,7 @@ Counting header plus body,
 only to opt a package into a template it could have been selected for.
 
 Concretely,
-`package/module/jsonc-edit/mise.toml` opens with 13 consecutive blocks
+`package/jsonc-edit/core-ts/mise.toml` opens with 13 consecutive blocks
 of the form:
 
 ```toml
@@ -710,13 +710,13 @@ and running the real aggregate was out of scope for this study.
 Verified:
 `mise watch -w src -r -- ...` appears in
 `package/kwin/key-helper/mise.toml:40`,
-`package/desktop-daemon/hall-monitor/mise.toml:11`,
-`package/webapp-productivity/rss/mise.toml:21`,
+`package/hall-monitor/daemon/mise.toml:11`,
+`package/rss/app/mise.toml:21`,
 `package/ssg/aquati.cat/mise.toml:51`.
 `AGENTS.md` rule `LFF` requires long form.
 Two packages already migrated
-(`package/webapp-productivity/done/mise.toml:26`,
-`package/webapp-productivity/done-postcss/mise.toml:35`
+(`package/done/app/mise.toml:26`,
+`package/done/variant-postcss/mise.toml:35`
 both use `--watch` and `--restart`),
 so the tree is mid-migration with no tracking.
 
@@ -726,18 +726,18 @@ so the tree is mid-migration with no tracking.
 
 Verified:
 1,159 of 1,836 tasks (63.1 percent) have a `run` containing `{{vars.`.
-Verified (`mise task info '//package/module/jsonc-edit:lint:oxlint'`):
+Verified (`mise task info '//package/jsonc-edit/core-ts:lint:oxlint'`):
 
 ```text
 Run:
   {{vars.dispatch_workspace_node}}
   ensureOxlintConfig()
-  runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', [])
+  runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', [])
 ```
 
 The inspection command prints the template,
 unexpanded.
-To learn what `//package/module/jsonc-edit:lint:oxlint` does,
+To learn what `//package/jsonc-edit/core-ts:lint:oxlint` does,
 a reader must open `mise.toml`,
 find `[task_templates."lint:oxlint"]` at line 590,
 then read `vars.dispatch_workspace_node` at lines 358 to 420,
@@ -753,7 +753,7 @@ This is the finding that most directly justifies meow.
 ### Textual interpolation into one module scope, with no scoping rule
 
 Verified (`doc/troubleshooting/mise-inline-task-import-collision.md`):
-`//package/cli/nested-wayland-session:run` failed with
+`//package/nested-wayland-session/cli:run` failed with
 `SyntaxError: Identifier 'execFileSync' has already been declared`
 because a `vars` snippet imported `execFileSync`
 and the interpolating body imported it again.
@@ -837,11 +837,11 @@ and 15 of them run a native toolchain the glob cannot reach:
 
 ```text
 //package/forbidden-strings/cli:test            cargo nextest run --release
-//package/cli/nested-wayland-session:test       cargo nextest run
-//package/desktop-app/file-manager:test         cargo nextest run --release
-//package/desktop-app/file-manager-gtk-sticky:test
-//package/desktop-app/file-manager-qt:test
-//package/desktop-app/terminal:test
+//package/nested-wayland-session/cli:test       cargo nextest run
+//package/file-manager/app:test         cargo nextest run --release
+//package/file-manager/variant-gtk-sticky:test
+//package/file-manager/variant-qt:test
+//package/terminal/app:test
 //package/forbidden-strings/cli.fuzz:test           cargo nextest run --lib --release
 //package/linter/kotlin:test                    ./gradlew test --no-daemon --console=plain
 //package/linter/rust:test
@@ -878,9 +878,9 @@ still present in active packages:
 
 - `package/kwin/key-helper/mise.toml:40`
    `run = "mise watch -w src -r -- node src/index.ts"`
-- `package/desktop-daemon/hall-monitor/mise.toml:11`
+- `package/hall-monitor/daemon/mise.toml:11`
    same body.
-- `package/webapp-productivity/rss/mise.toml:21`
+- `package/rss/app/mise.toml:21`
    same body.
 
 The two packages named in the troubleshooting document were fixed;
@@ -924,7 +924,7 @@ both fan-out helpers enumerate with `--hidden`,
 so hidden tasks are still selected and still run.
 `hide` is presentation only.
 Verified:
-`package/module/logger/mise.toml:30-36` hides `lint:types` and `watch:lint:types`
+`package/logger/core/mise.toml:30-36` hides `lint:types` and `watch:lint:types`
 with no comment,
 and six other packages do the same.
 Nothing records why those packages hide a task the other 136 show.
@@ -1143,7 +1143,7 @@ There is no per-package tool pinning and no per-package settings to relocate.
 #### The one root file removes the relevance filter, and nothing replaces it
 
 Verified:
-from `package/module/jsonc-edit`,
+from `package/jsonc-edit/core-ts`,
 `mise tasks` lists 56 tasks:
 41 root plus that package's 15.
 The design settles target labels
@@ -1229,8 +1229,8 @@ the coverage ledger at
 "no cross-package build dependency is declared."
 Verified:
 that is not quite right today.
-`package/module/test/mise.toml:7` declares
-`depends = ["//package/module/test:build:js:node", "//package/module/test:build:js:client"]`,
+`package/test-harness/core/mise.toml:7` declares
+`depends = ["//package/test-harness/core:build:js:node", "//package/test-harness/core:build:js:client"]`,
 which is fully qualified but intra-package.
 All 41 are intra-package.
 
@@ -1279,7 +1279,7 @@ each turning on preference or authority rather than measurement.
 ### Question 1: what replaces standing in a directory?
 
 Today,
- `mise tasks` inside `package/module/jsonc-edit` shows 56 tasks
+ `mise tasks` inside `package/jsonc-edit/core-ts` shows 56 tasks
 instead of 1807.
 One root `meow.hcl` removes the mechanism that produces that.
 
@@ -1339,7 +1339,7 @@ and platform branching do not have an owner.
 
 Option A,
  repository packages with real `bin` entries,
-invoked as `command = ["node", "package/dev-script/task-util/src/dispatch.ts", ...]`.
+invoked as `command = ["node", "package/monorepo-task/core-exec/src/dispatch.ts", ...]`.
 
 - Pros:
    the code becomes lintable,

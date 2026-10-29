@@ -3,6 +3,19 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/desktop-app/ide` is now `package/ide/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/rust-module/jsonc-edit.fuzz` is now `package/jsonc-edit/core-rust.fuzz`;
+> `package/module/hyperscript` is now `package/hyperscript/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
 > `package/rust-module/forbidden-regex.fuzz` is now `package/forbidden-strings/core.fuzz`;
 > `package/cli/vmsync` is now `package/vmsync/cli`.

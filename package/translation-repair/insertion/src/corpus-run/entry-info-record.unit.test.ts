@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { parse as parseYaml, } from 'yaml';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';

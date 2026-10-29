@@ -39,7 +39,7 @@ table "Public Beta 0.1.7 (G)")
 gives a minimum size of 100 px for Lc 33.4 at weight 400,
 and 18 px for Lc 76.2.
 
-In `package/desktop-app/ide`,
+In `package/ide/app`,
 the source view's selected text was black on blue in the dark scheme until commit `ad6f7565f`.
 The file tree and project search rows still use `Palette.selection-foreground`
 (`ui/tree.slint:110` and `119`,
@@ -161,7 +161,7 @@ Versions under test:
 Slint `1.18.1`
 (`slint` checksum `15e477d5ff6fec20909100ff8f7062432ebfbda7a62a0f37d0252aa126f38c83`,
 `i-slint-compiler` checksum `f55d48ebef05e2bf09ba5a1fc67bcb11033b9e12a2a50ed3105c7d25e2b539d0`,
-from `package/desktop-app/ide/Cargo.lock`),
+from `package/ide/app/Cargo.lock`),
 and the tag `v1.18.1` (`372cf0ee5`) of `https://github.com/slint-ui/slint.git`,
 whose `internal/compiler/widgets/fluent/` is byte-identical to the crate's `widgets/fluent/`
 (`diff --recursive` printed nothing).
@@ -171,7 +171,7 @@ whose `internal/compiler/widgets/fluent/` is byte-identical to the crate's `widg
 A binary crate with the fluent style,
 no windowing backend,
 and Slint's software renderer drawing into a buffer.
-`src/InterVariable.ttf` is copied from `package/desktop-app/ide/asset/font/`,
+`src/InterVariable.ttf` is copied from `package/ide/app/asset/font/`,
 and the IDE's `Cargo.lock` seeds the versions.
 
 ```toml
@@ -378,8 +378,8 @@ its markup uses the same pair as `LineEdit`.
 ### IDE guard control
 
 The IDE's ink rule has its own guard:
-`package/desktop-app/ide/bin/inspect-source-guards.mjs`
-(now `package/desktop-app/ide/bin/inspect-source-guards.ts`,
+`package/ide/app/bin/inspect-source-guards.mjs`
+(now `package/ide/app/bin/inspect-source-guards.ts`,
 renamed 2026-10-22),
 guard `ink-white-first`,
 replaces the rule with "pick the higher WCAG 2 ratio" in a disposable copy.
@@ -394,13 +394,13 @@ right `[255, 255, 255, 255]`.
 
 ### Choose the ink from the fill in application code
 
-`package/desktop-app/ide/src/selection_ink.rs:92` to `100` (`main` at `f9d08ae79`)
+`package/ide/app/src/selection_ink.rs:92` to `100` (`main` at `f9d08ae79`)
 takes white while white reaches a WCAG 2 ratio of 3 against an opaque fill,
 black otherwise,
 and keeps the palette ink for a translucent fill:
 
 ```rust
-// package/desktop-app/ide/src/selection_ink.rs:92
+// package/ide/app/src/selection_ink.rs:92
 pub fn legible_ink(background: [u8; 4], palette: [u8; 4]) -> [u8; 4] {
     if background[3] != 255 {
         return palette;

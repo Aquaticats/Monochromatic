@@ -4,7 +4,7 @@
 and reports that cancellation as a failure:
 one line on standard error and exit status 1.
 A client that shuts the server down the way the protocol describes (`shutdown`, then `exit`) always gets both.
-The IDE's Language module (`package/desktop-app/ide/src/language`) does exactly that at window close,
+The IDE's Language module (`package/ide/app/src/language`) does exactly that at window close,
 and `helix-lsp` logs every standard-error line of a server at ERROR
 ([`helix-lsp-transport-error-level-records.md`](helix-lsp-transport-error-level-records.md)),
 so closing the IDE on a TypeScript project leaves an error in the application log.
@@ -191,8 +191,8 @@ node doc/troubleshooting/typescript-7-lsp-exit-context-canceled-probe.mjs
 Through the application, with the server confined:
 
 ```sh
-# package/desktop-app/ide
-mise run //package/desktop-app/ide:inspect:language-lifecycle
+# package/ide/app
+mise run //package/ide/app:inspect:language-lifecycle
 ```
 
 ### Sequences that end cleanly

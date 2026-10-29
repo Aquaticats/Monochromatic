@@ -203,7 +203,7 @@ Refuted hypotheses (do not re-derive these):
   `qt/qtdeclarative` tag `v6.11.1` (`qqmldelegatemodel.cpp` blob
   `52d9db5da0c5db0207f40bf4b3b6b1310d7cdc20`).
 - Harness:
-   `package/desktop-app/file-manager-qt/bench/strip-virtualization.qml`.
+   `package/file-manager/variant-qt/bench/strip-virtualization.qml`.
   Headless repro:
 
 ```sh
@@ -216,7 +216,7 @@ QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1 \
    `QT_QPA_PLATFORM=offscreen`,
    deterministic over 5
   runs each;
-   repro files in `package/desktop-app/file-manager-qt/bench/`):
+   repro files in `package/file-manager/variant-qt/bench/`):
   - Clean,
      `rc=0`:
      1-level single `ListView` + `reuseItems` + 100000 rows (`min1.qml`).

@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Title reference scope
 // THE PART OF A SLICE'S PAGE TEXT A TITLE SEARCH READS. A definitions tail

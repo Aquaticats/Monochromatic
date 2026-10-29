@@ -1,0 +1,35 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/pnpm-override-stub-throwing",
+  "description": "Throw-on-import stub for packages blocklisted by .pnpmfile.mjs (action: throw).",
+  "private": false,
+  "type": "commonjs",
+  "main": "./index.cjs",
+  "types": "./index.d.cts",
+  "exports": {
+    ".": {
+      "types": "./index.d.cts",
+      "default": "./index.cjs"
+    }
+  },
+  "files": [
+    "index.cjs",
+    "index.d.cts",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "typescript": "catalog:"
+  },
+  "dependencies": {},
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/pnpm-override/stub-throwing"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

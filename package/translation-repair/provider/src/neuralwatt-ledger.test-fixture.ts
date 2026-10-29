@@ -1,4 +1,4 @@
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 import { isJsonRecord, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
 //region NeuralWatt ledger test support

@@ -19,7 +19,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { FULL_PASS_PAIRS, } from './source-live-full-pass-pairs.test-fixture.ts';
 import { readPair, } from './source-live-pairs.test-fixture.ts';

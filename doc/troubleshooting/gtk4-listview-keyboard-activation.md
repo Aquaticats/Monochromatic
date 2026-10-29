@@ -5,7 +5,7 @@ Two stacked keyboard traps hit any GTK 4 app that expects "launch,
  first row
 activates" (the contract a browser list UI trivially provides and our nested-Wayland boundary
 tests encode).
-Found while building `package/desktop-app/file-manager-gtk-sticky`,
+Found while building `package/file-manager/variant-gtk-sticky`,
  whose boundary test sends
 `key enter` as its first input.
 
@@ -103,7 +103,7 @@ activated row 1.
 Environment:
  GTK 4.22.4,
  gtk4-rs 0.11,
- app hosted in `package/cli/nested-wayland-session`
+ app hosted in `package/nested-wayland-session/cli`
 (800x600),
  driven over its control socket,
  state observed via the app's mirrored JSON file.
@@ -112,8 +112,8 @@ Reproduction commands (from this repo,
  pre-fix commits of `file-manager-gtk-sticky`):
 
 ```sh
-mise run //package/cli/nested-wayland-session:build
-cargo build --release   # in package/desktop-app/file-manager-gtk-sticky
+mise run //package/nested-wayland-session/cli:build
+cargo build --release   # in package/file-manager/variant-gtk-sticky
 # host it, then over the control socket:
 #   key enter      -> trap A: state shows paneCount 0 (pane closed)
 # after close.set_focusable(false):
@@ -125,7 +125,7 @@ Works cleanly (both fixes in,
  current package state):
 
 - `key enter` as first input activates row 0 (boundary test step 2 passes,
-  `mise run //package/desktop-app/file-manager-gtk-sticky:test:wayland`).
+  `mise run //package/file-manager/variant-gtk-sticky:test:wayland`).
 - Down/Up move row focus,
    Enter activates the focused row,
    click activates with

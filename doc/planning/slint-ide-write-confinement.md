@@ -500,7 +500,7 @@ No new crate or helper binary is needed for this shape:
      so tools that ignore `TMPDIR` fail.
 - Using the missing rights would need an in-process applicator:
   the `landlock` crate (a new dependency) or raw `libc` system calls
-  (`libc` 0.2.190 is already in `package/desktop-app/ide/Cargo.lock` as a transitive package).
+  (`libc` 0.2.190 is already in `package/ide/app/Cargo.lock` as a transitive package).
   Because `helix-lsp` has no pre-exec hook,
    that shape depends on which thread spawns the server:
   measured with `landlock-thread.py`,

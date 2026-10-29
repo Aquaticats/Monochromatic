@@ -1,0 +1,28 @@
+{
+  "name": "@monochromatic-dev/rss-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RSS and OPML productivity web application.",
+  "module": "src/index.ts",
+  "keywords": [],
+  "license": "LGPL-3.0-or-later",
+  "type": "module",
+  "dependencies": {
+    "@monochromatic-dev/async-iter-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/kv-store-memoize": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
+    "h3": "catalog:",
+    "valibot": "catalog:",
+    "feedsmith": "catalog:",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
+    "type-fest": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

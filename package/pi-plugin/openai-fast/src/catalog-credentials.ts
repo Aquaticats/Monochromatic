@@ -2,7 +2,7 @@
  Credential-free metadata bootstrap with immutable read-only capabilities. @module
  */
 import type { CredentialStore, } from '@earendil-works/pi-ai';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { FastModelError, } from './fast-model-error.ts';
 
 //region Read-only native credential contract

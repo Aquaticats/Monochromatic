@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import type { ChunkRepairOutcome, } from './repair-contract.ts';

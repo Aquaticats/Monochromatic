@@ -1,5 +1,11 @@
 # Translation repair handover snapshot: 2026-09-06
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger` is now `package/logger/core`;
+> `package/module/test` is now `package/test-harness/core`.
+
 Part of the [current translation repair handover](translation-repair.md).
 The previous snapshot is
 [`translation-repair-handover-2026-09-04.md`](translation-repair-handover-2026-09-04.md).

@@ -2,7 +2,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { formatTimeContext, } from '@monochromatic-dev/agent-harness-shared-current-time-context';
 
 await describe({

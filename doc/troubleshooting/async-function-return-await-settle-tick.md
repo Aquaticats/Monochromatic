@@ -40,7 +40,7 @@ returns:
    function returns the resolved value,
    so the caller observes the rejection
    one microtask earlier than the adoption path.
-3. The port under review (`package/module/p-map-fork/src/p-map.ts`) had
+3. The port under review (`package/upstream-fork/p-map/src/p-map.ts`) had
    rewritten upstream `p-map`'s `return new Promise(executor)` shape into a
    `Promise.withResolvers` deferred plus `return await settlement.promise`,
    because repository lint's `require-await` rejects an `async` function with
@@ -51,7 +51,7 @@ The fix keeps upstream's adoption shape and suppresses the lint rule at the
 declaration with the reason recorded:
 
 ```ts
-// package/module/p-map-fork/src/p-map.ts
+// package/upstream-fork/p-map/src/p-map.ts
 /* oxlint-disable eslint/require-await -- `pMap` stays `async` so a destructuring failure rejects the caller's promise like upstream `p-map`'s `async` signature, and returning the deferred promise without awaiting it preserves upstream's promise-adoption tick (measured: an `await` here settles the caller one microtask early) */
 export async function pMap<Element, NewElement>(
   ...
@@ -90,7 +90,7 @@ fork with `return`: rejection 3, resolution 5
 ```
 
 The differential fuzz campaign
-(`mise run //package/module/p-map-fork.fuzz:fuzz`) cannot see this class of
+(`mise run //package/upstream-fork/p-map.fuzz:fuzz`) cannot see this class of
 difference: its traces are gate-controlled with macrotask separators,
  which
 never resolve sub-tick differences.

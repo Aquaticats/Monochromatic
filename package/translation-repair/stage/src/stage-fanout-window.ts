@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import { rosterQuorumSize, } from './roster-quorum-size.ts';
 import { assertBenchStart, } from './stage-bench-start.ts';

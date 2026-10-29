@@ -1,11 +1,11 @@
 name: ide-release
 
-# Releases the Slint IDE (package/desktop-app/ide, program monochromatic-ide) for Linux x86_64 and Linux ARM64
+# Releases the Slint IDE (package/ide/app, program monochromatic-ide) for Linux x86_64 and Linux ARM64
 # (aarch64) as a GitHub pre-release. Decision and rationale: doc/decision/ide-releases.md. How to cut a release:
 # doc/runbook/release-the-ide.md.
 # The structure follows .github/workflows/music-player-release.yml, whose decision is doc/decision/music-player-releases.md.
 #
-# - Trigger: a push to main that changes the product version in package/desktop-app/ide/Cargo.toml, or a manual
+# - Trigger: a push to main that changes the product version in package/ide/app/Cargo.toml, or a manual
 #   dispatch. The detect job compares the version before and after the push, exactly like music-player-release.yml.
 # - Dry run: the dispatch input dry-run defaults to true. A dry run builds, packages and verifies everything, uploads
 #   workflow artifacts for one day, and prints the release command and notes instead of running them. It skips
@@ -45,7 +45,7 @@ on:
     branches:
     - 'main'
     paths:
-    - 'package/desktop-app/ide/Cargo.toml'
+    - 'package/ide/app/Cargo.toml'
 
 permissions: {}
 
@@ -88,7 +88,7 @@ jobs:
         REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       run: |
         set -euo pipefail
-        manifest='package/desktop-app/ide/Cargo.toml'
+        manifest='package/ide/app/Cargo.toml'
         # The first `version = "..."` line of the [package] table.
         package_version() {
           awk -F'"' '/^\[/ { in_package = ($0 == "[package]") } in_package && /^version = / { print $2; exit }'
@@ -207,14 +207,14 @@ jobs:
       MACHINE: ${{ matrix.machine }}
       EXPECTED_NEEDED: ${{ matrix.needed }}
       # The runner has 4 vCPUs and 16 GB (as music-player-release.yml notes for its Alpine jobs, on both architectures).
-      # The task bound (package/desktop-app/ide/bin/container-bounds.ts) would take 90 percent of both; these leave the
+      # The task bound (package/ide/app/bin/container-bounds.ts) would take 90 percent of both; these leave the
       # runner room for podman and the runner processes. container-bounds.ts reads exactly these variable names.
       IDE_CONTAINER_CPUS: '4'
       IDE_CONTAINER_MEMORY: '12g'
       # One task at a time: build depends on runtime and notices, each starting a bounded container, and the
       # bound is per container, not per task graph.
       # The program prints the version of Cargo.toml and exits before it opens a display.
-      PROGRAM: package/desktop-app/ide/dist/monochromatic-ide
+      PROGRAM: package/ide/app/dist/monochromatic-ide
       # The newest glibc symbol version the executable may need: the glibc of Ubuntu 24.04, which INSTALL.txt names.
       # Both runners are Ubuntu 24.04. The ceiling is the same for both architectures; the executable usually needs
       # less, and the step that checks it prints the version it found.
@@ -274,16 +274,16 @@ jobs:
     # The IDE image is built FROM localhost/monochromatic/terminal, which only the terminal package's image task builds
     # (the ide tasks build the ide image on demand but not its base).
     - name: Build the base image (terminal)
-      run: task-run //package/desktop-app/terminal:image
+      run: task-run //package/terminal/app:image
 
     - name: Build the IDE build image
-      run: task-run //package/desktop-app/ide:image
+      run: task-run //package/ide/app:image
 
     # A bounded container with the same kinds of limits the tasks pass (CPU, memory, processes, open files), so a
     # runner that refuses one of them fails here and not an hour into the build. The Alpine jobs of
     # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit and --ulimit were not proven.
     # The compiler version goes to the release notes: the image installs the stable toolchain of the day it is built
-    # (package/desktop-app/terminal/Containerfile), so each leg records which one. A matrix job cannot hand a value to
+    # (package/terminal/app/Containerfile), so each leg records which one. A matrix job cannot hand a value to
     # a later job as an output (the legs would overwrite each other), so the line travels as a small artifact. Its name
     # does not start with asset-, so it is never released. The compiler must also be native for the runner: its host
     # triple is the target of this leg's build.
@@ -310,7 +310,7 @@ jobs:
     - name: Build and bundle the single executable
       run: |
         set -euo pipefail
-        task-run //package/desktop-app/ide:bundle
+        task-run //package/ide/app:bundle
         ls -l "$PROGRAM"
         df --human-readable /
 
@@ -319,7 +319,7 @@ jobs:
     - name: Check that the build left the tracked files unchanged
       run: |
         set -euo pipefail
-        git diff --exit-code -- package/desktop-app/ide/Cargo.lock
+        git diff --exit-code -- package/ide/app/Cargo.lock
         status=$(git status --porcelain --untracked-files=no)
         if [ -n "$status" ]; then
           echo "::error::The build changed tracked files:"
@@ -362,7 +362,7 @@ jobs:
         fi
 
     - name: Check that no software renderer is linked
-      run: task-run //package/desktop-app/ide:inspect:no-software-renderer
+      run: task-run //package/ide/app:inspect:no-software-renderer
 
     # The checks of inspect:bundle that need no window: the executable embeds every runtime file and license text byte
     # for byte (inventory, license-texts) and --licenses covers every linked crate (crate-licenses). The other checks
@@ -370,7 +370,7 @@ jobs:
     - name: Check the single executable
       run: |
         set -euo pipefail
-        task-run //package/desktop-app/ide:inspect:bundle \
+        task-run //package/ide/app:inspect:bundle \
           dist/monochromatic-ide target/release/runtime inventory,license-texts,crate-licenses
 
     # The notices file is what the verified executable prints. An empty environment is how the bundle check runs it.
@@ -393,7 +393,7 @@ jobs:
       id: pkg
       run: |
         set -euo pipefail
-        app='package/desktop-app/ide'
+        app='package/ide/app'
         assets="${RUNNER_TEMP}/ide-assets"
         stage_name="ide-${VERSION}-linux-${ARCH}"
         stage="${RUNNER_TEMP}/ide-stage/${stage_name}"

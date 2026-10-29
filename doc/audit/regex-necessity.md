@@ -3,6 +3,18 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-app/ide` is now `package/ide/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/deepmerge-ts.fuzz` is now `package/upstream-fork/deepmerge-ts.fuzz`;
+> `package/module/conf-fork.fuzz` is now `package/upstream-fork/conf.fuzz`;
+> `package/module/test-expect` is now `package/test-harness/core-expect`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/wg-quicker` is now `package/wg/cli-quicker`.
 
 Repo-wide audit of regex use against one criterion,

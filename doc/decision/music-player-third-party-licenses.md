@@ -73,7 +73,7 @@ whose crates declare
 Nothing in `package/music-player` chose one of the three before this decision.
 This decision uses Slint under **GPL-3.0-only**,
 the same default the IDE package chose on 2026-10-06
-(`package/desktop-app/ide/about.toml`),
+(`package/ide/app/about.toml`),
 open to the owner's veto.
 
 What GPL-3.0-only means for the releases:
@@ -137,7 +137,7 @@ and why they are not the default:
 - Rust crates (both apps):
   **cargo-about 0.9.2**,
   the tool the IDE package already uses
-  (`package/desktop-app/ide/about.toml`;
+  (`package/ide/app/about.toml`;
   its README records the vetting).
   It runs from the repository's mise tools (`cargo:cargo-about` in `mise.no-env.toml`,
   the version in `mise.lock`),
@@ -505,7 +505,7 @@ No GPL work remains in the program, so the GPL text appears only as the text the
   `desktop-app/Cargo.toml` and `truepeak-core/Cargo.toml`.
   The field names the license of the crate's own source,
   which the Slint license does not change; the Slint license covers Slint, not this code.
-  `file-enforcer.config.ts` manages these manifests, and running `node package/dev-script/file-enforcer/src/cli.ts`
+  `file-enforcer.config.ts` manages these manifests, and running `node package/file-enforcer/core/src/cli.ts`
   after this change produced no difference in them.
 - Android: the APK contains no Slint, so nothing changes there.
 

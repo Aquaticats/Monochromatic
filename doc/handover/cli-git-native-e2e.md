@@ -1,5 +1,10 @@
 # Native end-to-end lane: the incumbent's e2e suite against the native executable
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/caught-value` is now `package/caught-value/core`.
+
 Note,
  2026-10-14:
  the retirement of the TypeScript wrapper deleted the tasks `test:e2e:concurrent:native:surface`,

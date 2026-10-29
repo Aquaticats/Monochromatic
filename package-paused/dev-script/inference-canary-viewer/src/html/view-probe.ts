@@ -5,7 +5,7 @@
  * where each model's points use its vendor color, plus a per-model breakdown
  * with individual charts.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { renderScatterChart, } from '../chart/scatter.ts';
 import { vendorColor, } from '../data/model-colors.ts';

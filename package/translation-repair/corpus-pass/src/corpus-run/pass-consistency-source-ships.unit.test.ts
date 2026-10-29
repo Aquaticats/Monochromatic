@@ -14,13 +14,13 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source';
 import type { ProjectedLanes, } from '@monochromatic-dev/translation-repair-artifact';

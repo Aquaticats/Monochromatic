@@ -148,12 +148,12 @@ function detectScript(workflowPath: string, job: string): string {
 
 const root = mkdtempSync(join(process.env.HOME ?? '', 'temp/agent/linter-cutover-20261006/detect-sim-'));
 const work = join(root, 'work');
-mkdirSync(join(work, 'package/rust-module/jsonc-edit'), { recursive: true });
+mkdirSync(join(work, 'package/jsonc-edit/core-rust'), { recursive: true });
 mkdirSync(join(work, 'package/forbidden-strings/cli'), { recursive: true });
 git(root, ['init', '--quiet', '--initial-branch=main', work]);
 git(work, ['config', 'user.email', 'sim@example.invalid']);
 git(work, ['config', 'user.name', 'sim']);
-const subject = 'package/rust-module/jsonc-edit/Cargo.toml';
+const subject = 'package/jsonc-edit/core-rust/Cargo.toml';
 const bystander = 'package/forbidden-strings/cli/Cargo.toml';
 writeFileSync(join(work, subject), 'version = "0.1.0"\n');
 writeFileSync(join(work, bystander), 'version = "0.4.1"\n');

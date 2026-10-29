@@ -1,5 +1,13 @@
 # File manager sticky flow: how two prototypes replaced a layout engine
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-app/file-manager-gtk-sticky` is now `package/file-manager/variant-gtk-sticky`;
+> `package/desktop-app/file-manager-electron` is now `package/file-manager/variant-electron`;
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/file-manager` is now `package/file-manager/app`.
+
 This audit records how `package/desktop-app/file-manager-electron` and
 `package/desktop-app/file-manager-gtk-sticky` were derived from the original GTK file manager
 (`package/desktop-app/file-manager`),

@@ -3,7 +3,7 @@
 // every reader of the logs the package writes (ledger B73).
 //
 // `Date.parse` IS NOT THAT RULE. The logger stamps every line with
-// `Date.prototype.toISOString()` (`package/module/logger/src/sink/console.ts`),
+// `Date.prototype.toISOString()` (`package/logger/core/src/sink/console.ts`),
 // and `Date.parse` reads far more: a date-time without its zone as local time,
 // a date alone as midnight UTC, and spellings outside the ISO format by a
 // fallback the standard leaves to each engine. A stamp cut off part way reads

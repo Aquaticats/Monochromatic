@@ -4,7 +4,7 @@ import {
   expect,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { $ as Int, } from '@_/types/t number/t finite/t int/t/index.ts';
 import type { $ as Positive, } from '@_/types/t number/t positive/t/index.ts';

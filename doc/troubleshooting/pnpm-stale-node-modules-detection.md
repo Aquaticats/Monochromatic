@@ -334,7 +334,7 @@ All installs ran with `--offline` against the warm store.
 # throwaway worktree, after one full `pnpm install --frozen-lockfile --offline`
 node --eval 'const f="package/config/oxlint/package.json";const fs=require("fs");
   const j=JSON.parse(fs.readFileSync(f,"utf8"));
-  j.dependencies={"@monochromatic-dev/module-logger":"workspace:*",...j.dependencies};
+  j.dependencies={"@monochromatic-dev/logger-core":"workspace:*",...j.dependencies};
   fs.writeFileSync(f,JSON.stringify(j,null,2)+"\n")'
 pnpm --config.verify-deps-before-run=error exec true   # exit 1
 pnpm install --lockfile-only --offline                 # exit 0
@@ -347,7 +347,7 @@ only `pnpm-lock.yaml` changed (sha256 prefix `052f17012d7f` to `e85612613737`);
 `node_modules/.pnpm/lock.yaml`,
  `.modules.yaml`,
  and `.pnpm-workspace-state-v1.json` kept their hashes and mtimes,
-and `package/config/oxlint/node_modules/@monochromatic-dev/module-logger` stayed absent.
+and `package/config/oxlint/node_modules/@monochromatic-dev/logger-core` stayed absent.
 
 ### Check outcomes
 

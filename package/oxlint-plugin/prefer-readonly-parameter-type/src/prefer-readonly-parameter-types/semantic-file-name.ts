@@ -54,7 +54,7 @@ export function normalizeSemanticFileName(fileName: string,): string {
  
  @example
  ```ts
- semanticProjectRootKey('/repo/package/module/logger/tsconfig.json');
+ semanticProjectRootKey('/repo/package/logger/core/tsconfig.json');
  ```
  */
 export function semanticProjectRootKey(configFileName: string,): string {

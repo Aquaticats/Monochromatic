@@ -1,5 +1,16 @@
 # Monorepo manager handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-app/file-manager-qt` is now `package/file-manager/variant-qt`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/jsonc-edit` is now `package/jsonc-edit/core-ts`.
+
 ## Status
 
 Design research;

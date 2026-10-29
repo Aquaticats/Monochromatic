@@ -822,7 +822,7 @@ IMM:
  Prefer immutable patterns.
 
 UTL:
- Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/module-async-time`) before writing helpers.
+ Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/async-time-core`) before writing helpers.
 
 XNC:
  Name extracted concepts by role and boundary behavior,
@@ -893,7 +893,7 @@ Decision logs retain correlated inputs,
  and fallback reasons sufficient to reconstruct a verdict.
 
 TLG:
- Production code logs only via tagged loggers from `@monochromatic-dev/module-logger`;
+ Production code logs only via tagged loggers from `@monochromatic-dev/logger-core`;
  raw `console` only for exact terminal output (CLI output,
  prompts).
 
@@ -1106,7 +1106,7 @@ PP4:
  document with `@throws`.
 
 PP5:
- Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/module-or-throw`);
+ Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/or-throw-core`);
  build multi-line error messages with `dedent` (`string-dedent`).
 
 PP6:

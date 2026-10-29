@@ -6,7 +6,7 @@
  * Built at compile time into `dist/client/global.css`.
  */
 
-import { hCss as $, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hCss as $, } from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Dark theme (default) custom property values on `:root`.

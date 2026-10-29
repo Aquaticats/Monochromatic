@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { ExtractedCompletion, } from '@monochromatic-dev/translation-repair-provider-stream/ts';

@@ -166,7 +166,7 @@ fn script_inspection_bound_is_exact() {
     remove(root.as_path());
 }
 
-/// The bound is the incumbent's 64 KiB (`package/git/executable/src/self-shim.ts`):
+/// The bound is the incumbent's 64 KiB (`package/git-executable/core/src/self-shim.ts`):
 ///  a launcher
 /// padded to just under it,
 ///  with its marker in the last bytes,

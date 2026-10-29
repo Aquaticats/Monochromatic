@@ -1,6 +1,6 @@
 import { createHash, } from 'node:crypto';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type { DeepReadonlyData, } from './readonly-data.ts';
 import type { RootContent, } from 'mdast';

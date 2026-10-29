@@ -18,7 +18,7 @@ Foundation adoption was granted by the user on 2026-09-24 (option A):
 
 Progress since adoption:
 
-- `package/rust-module/jsonc-edit` holds the crate `monochromatic-jsonc-edit` 0.1.0:
+- `package/jsonc-edit/core-rust` holds the crate `monochromatic-jsonc-edit` 0.1.0:
    scanner,
    iterative depth-bounded parser,
    canonical emitter,
@@ -50,7 +50,7 @@ Progress since adoption:
 
 - Language-neutral fixtures are shared:
    `fixtures/jsonc-conformance.json` exists as byte-identical copies in
-   `package/module/jsonc-edit.conformance` and `package/rust-module/jsonc-edit`,
+   `package/jsonc-edit/core-ts.conformance` and `package/jsonc-edit/core-rust`,
    both suites read it,
    and a `test:shared-fixtures` task in each package fails on drift.
    The fixture covers accepted and rejected sources,
@@ -136,7 +136,7 @@ Progress since adoption:
 - The bootstrap token was revoked by the user after Trusted Publishing was configured,
    so the crate now publishes through the workflow's OIDC route only.
 - Property fuzzing exists for the Rust crate:
-   `package/rust-module/jsonc-edit.fuzz` holds four libFuzzer targets
+   `package/jsonc-edit/core-rust.fuzz` holds four libFuzzer targets
    (round-trip canonical stability and comment preservation,
    one-mutation rejection without panic or hang,
    the exact nesting envelope on both sides,
@@ -160,7 +160,7 @@ Progress since adoption:
    34 caught by timeout,
    52 unviable,
    and 2 survivors now excluded with measured proofs in
-   `package/rust-module/jsonc-edit/.cargo/mutants.toml`.
+   `package/jsonc-edit/core-rust/.cargo/mutants.toml`.
    Twenty-one of the original twenty-four survivors were real test gaps and are now covered by
    assertions that name the expected refusal message,
    indentation level or emission text.
@@ -179,11 +179,11 @@ or by dispatching `cargo-publish.yml` with **dry-run** unchecked.
 
 ## Existing boundaries
 
-- `package/module/jsonc-edit` is a TypeScript JSONC parser,
+- `package/jsonc-edit/core-ts` is a TypeScript JSONC parser,
    canonical emitter,
    immutable edit API,
    and attached-comment API.
-   Its public exports are in `package/module/jsonc-edit/src/index.ts`.
+   Its public exports are in `package/jsonc-edit/core-ts/src/index.ts`.
 - `doc/decision/jsonc-edit-parser-foundation.md` accepts the comment-as-data model,
    canonical serialization,
    and browser availability without WebAssembly for the TypeScript package.
@@ -204,7 +204,7 @@ or by dispatching `cargo-publish.yml` with **dry-run** unchecked.
    that the package could not be found in the registry;
    neither name is reserved by that probe.
    `cargo search serde_json --limit 2` returned results as a positive control for registry queries.
-- `scanString` uses `JSON.parse(raw)` in `package/module/jsonc-edit/src/scan.ts`,
+- `scanString` uses `JSON.parse(raw)` in `package/jsonc-edit/core-ts/src/scan.ts`,
    so escaped unpaired UTF-16 surrogates are accepted.
    A direct call through the existing neutral bundle parsed `{"s":"\uD800"}`
    and `{"s":"\uD800",} // c` as a string whose first code unit is 55296,
@@ -322,7 +322,7 @@ A port retains the documented identity of the TypeScript library:
 
 ## Implementation baseline for confirmation
 
-- Place the standalone crate in `package/rust-module/jsonc-edit`,
+- Place the standalone crate in `package/jsonc-edit/core-rust`,
    with package name `monochromatic-jsonc-edit`,
    using the repository's Rust package tasks and license precedent.
    Use `0.1.0` for its first release,
@@ -414,7 +414,7 @@ The delegated parser survey froze and ran its initial queries before source read
    and `Rust JSON with comments lexer preserve raw escape JSONC parser alternative`.
 - In-repo taxonomy:
    `doc/decision/jsonc-edit-parser-foundation.md`,
-   `package/module/jsonc-edit/src/`,
+   `package/jsonc-edit/core-ts/src/`,
    and `doc/planning/monorepo-manager-route-research/rust-structured-edits.md`.
 
 Later taxonomy terms are recorded without scheduling recursive expansion.

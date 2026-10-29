@@ -1,6 +1,6 @@
 import { isIP, } from 'node:net';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { parseCidr, } from 'cidr-tools';
 
 import { InputValidationError, } from './errors.ts';

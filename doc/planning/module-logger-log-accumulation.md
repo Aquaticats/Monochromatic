@@ -40,22 +40,22 @@ The option set in [Open questions](#open-questions) and the measurements stay he
 ## What the code does today
 
 - The default Node sink list contains the file sink
-  (`package/module/logger/src/default-sinks.node.ts:41`),
+  (`package/logger/core/src/default-sinks.node.ts:41`),
   so every Node process that logs anything writes a file.
 - One file per process and sink instance:
   `{timestamp}.{uuid}.log.jsonl`
-  (`package/module/logger/src/sink/file-open.ts:58-63`),
+  (`package/logger/core/src/sink/file-open.ts:58-63`),
   created and probe round-tripped at verification.
   The probe line `{"test":true,...}` is written into every file,
   so the 40 byte sample minimum shows probe-only files exist.
 - Destination order:
   explicit `createFileSink({ directory })`,
   else `MONOCHROMATIC_LOG_DIRECTORY`
-  (`package/module/logger/src/sink/file.ts:52-54`),
+  (`package/logger/core/src/sink/file.ts:52-54`),
   else the nearest ancestor `node_modules/.monochromatic`
-  (`package/module/logger/src/sink/file-destination.ts:52-77`),
+  (`package/logger/core/src/sink/file-destination.ts:52-77`),
   else verified user state
-  (`package/module/logger/src/sink/file-state.ts`).
+  (`package/logger/core/src/sink/file-state.ts`).
 - No retention,
   rotation,
   or disable switch exists.
@@ -64,7 +64,7 @@ The option set in [Open questions](#open-questions) and the measurements stay he
   but it bounds nothing:
   it only redirects where files accumulate.
 - `LogRecord` is `{level, message, timestamp}`
-  (`package/module/logger/src/types.ts:9-13`).
+  (`package/logger/core/src/types.ts:9-13`).
   Records carry no process identity,
   so a merged file would lose attribution.
 - `node_modules/.monochromatic/` also hosts the deliberate
@@ -78,7 +78,7 @@ The option set in [Open questions](#open-questions) and the measurements stay he
   cli-git's linked-worktree copy keeps zero repository-specific exclusions
   (behavior ledger section `Linked-worktree ignored-state copy`),
   so no copier-side filter is on offer.
-- `@monochromatic-dev/module-logger` 0.4.4 is published on npm
+- `@monochromatic-dev/logger-core` 0.4.4 is published on npm
   (`npm view` confirms 0.4.4),
   so default destination changes are compatibility-visible.
 - Incident docs cite individual log files as evidence,
@@ -111,7 +111,7 @@ Pros:
 - Survives `node_modules` reinstalls,
   which today destroy forensic history silently.
 - Matches the XDG "logs are persistent state" rule the fallback already cites
-  in `package/module/logger/doc/file-destinations.md`.
+  in `package/logger/core/doc/file-destinations.md`.
 - `MONOCHROMATIC_LOG_DIRECTORY` stays strict,
   so callers wanting a chosen directory
   (translation-repair child runs,
@@ -448,7 +448,7 @@ Landing order:
   day directories bound it even at the measured peak of 107,082 files in a day.
 - Windows and macOS layouts resolve through `file-state.ts`
   but are verified only through injected path catalogs here
-  (`package/module/logger/doc/file-destinations.md`),
+  (`package/logger/core/doc/file-destinations.md`),
   not on those hosts.
 - All counts in [Measurements (2026-10-22)](#measurements-2026-10-22)
   moved while read;

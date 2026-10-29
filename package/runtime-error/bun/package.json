@@ -6,8 +6,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@monochromatic-dev/module-async-time": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*"
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",

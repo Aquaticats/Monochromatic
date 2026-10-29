@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Stream degeneration
 // WHETHER A MODEL HAS STOPPED SAYING ANYTHING NEW, which is a different failure

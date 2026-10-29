@@ -1,6 +1,6 @@
 // Tool argument schemas: one valibot declaration drives both advertisement and validation.
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   type JsonSchema,
   toJsonSchema,

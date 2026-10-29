@@ -1,5 +1,10 @@
 # Expanded Depot execution on 2026-10-16
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger` is now `package/logger/core`.
+
 ## Purpose and scope
 
 This report records actual browser and native checks in an isolated trial branch,

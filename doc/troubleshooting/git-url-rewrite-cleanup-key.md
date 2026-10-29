@@ -11,7 +11,7 @@ No real credential was used.
 
 Application source is `e02be6c8b8fe9efb41a7f8f1a0b311c17796588a`.
 The tested generator is
-`package/dev-script/file-enforcer/generator/Containerfile`,
+`package/file-enforcer/core/generator/Containerfile`,
 SHA-256 `16c174c71e32066baa7e8cd9de77c774fe89f32ec8b450533ad00ca94e43f7ef`.
 The [compressed receipt][receipt] retains the full input,
 exact task body,
@@ -30,14 +30,14 @@ The excerpt is frozen source,
 not a proposed implementation:
 
 ```dockerfile
-# package/dev-script/file-enforcer/generator/Containerfile:45
+# package/file-enforcer/core/generator/Containerfile:45
 RUN --mount=type=secret,id=github_token \
     if [ -f /run/secrets/github_token ] && [ -s /run/secrets/github_token ]; then \
         TOKEN=$(cat /run/secrets/github_token) \
         && git config --global url."https://${TOKEN}@github.com/".insteadOf "https://github.com/" ; \
     fi
 
-# package/dev-script/file-enforcer/generator/Containerfile:72
+# package/file-enforcer/core/generator/Containerfile:72
 RUN git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
 ```
 

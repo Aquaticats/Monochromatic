@@ -1,5 +1,16 @@
 # Main merge into translation repair
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/git-executable` is now `@monochromatic-dev/git-executable-core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/toml-edit.fuzz` is now `package/toml-edit/core.fuzz`;
+> `@monochromatic-dev/module-fs-path` is now `@monochromatic-dev/fs-path-core`.
+
 ## Requested operation
 
 The user requests merging the main worktree into the repair worktree

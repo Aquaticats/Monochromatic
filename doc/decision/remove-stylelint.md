@@ -45,7 +45,7 @@ All 16 findings reached `braces` through stylelint only
   it existed only for stylelint's HTML custom syntax.
 - Kept:
   dprint formats CSS,
-  `@monochromatic-dev/build-tool-css` builds it,
+  `@monochromatic-dev/css-cli` builds it,
   and `@monochromatic-dev/hyperscript` type-checks CSS property,
   value,
   and at-rule names at the type level.

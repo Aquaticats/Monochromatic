@@ -47,7 +47,7 @@ app.all(
        */
       const contentType = mimeTypes[extname(pathname,)] ?? 'application/octet-stream';
       return new Response(
-        await readFile(`package/module/test/dist/${pathname.slice('/dist/module-test/'.length,)}`,),
+        await readFile(`package/test-harness/core/dist/${pathname.slice('/dist/module-test/'.length,)}`,),
         { headers: { 'content-type': contentType, }, },
       );
     }
@@ -60,7 +60,7 @@ app.all(
         ?? 'application/octet-stream';
       return new Response(
         await readFile(
-          `package/module/logger.fuzz/dist/${pathname.slice('/dist/module-logger.fuzz/'.length,)}`,
+          `package/logger/core.fuzz/dist/${pathname.slice('/dist/module-logger.fuzz/'.length,)}`,
         ),
         {
           headers: { 'content-type': contentType, },
@@ -76,7 +76,7 @@ app.all(
         ?? 'application/octet-stream';
       return new Response(
         await readFile(
-          `package/module/fs-path/dist/${pathname.slice('/dist/module-fs-path/'.length,)}`,
+          `package/fs-path/core/dist/${pathname.slice('/dist/module-fs-path/'.length,)}`,
         ),
         {
           headers: { 'content-type': contentType, },
@@ -92,7 +92,7 @@ app.all(
         ?? 'application/octet-stream';
       return new Response(
         await readFile(
-          `package/module/logger/dist/${pathname.slice('/dist/module-logger/'.length,)}`,
+          `package/logger/core/dist/${pathname.slice('/dist/module-logger/'.length,)}`,
         ),
         {
           headers: { 'content-type': contentType, },

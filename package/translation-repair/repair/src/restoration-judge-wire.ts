@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import type { JsonSchemaResponseFormat, } from '@monochromatic-dev/translation-repair-provider/ts';
 import { MEASUREMENT_POLICY_BLOCK, } from '@monochromatic-dev/translation-repair-house-rule/ts';

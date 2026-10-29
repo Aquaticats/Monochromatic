@@ -9,7 +9,7 @@ import {
   safeTerminalTitlePayload,
   terminalTitlePath,
 } from '@monochromatic-dev/agent-harness-shared-terminal-title/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ReadonlyDeep, } from 'type-fest';
 import { open, } from 'node:fs/promises';
 

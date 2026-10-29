@@ -327,7 +327,7 @@ work.
 
 `bun test` specifically:
  never substitute it for a missing mise task.
- The custom `@monochromatic-dev/module-test` harness runs tests as a side effect of import,
+ The custom `@monochromatic-dev/test-harness-core` harness runs tests as a side effect of import,
  so `bun test <file>` prints `PASS` log lines (from the harness)
  and then reports `0 pass / 0 fail` (bun's runner finds no `bun:test` registrations).
  The misleading summary suggests the run was broken when in fact every test passed.
@@ -451,9 +451,9 @@ Remediate a max-lines violation by splitting:
  constants to `constants.ts`,
  types to `types.ts`.
  Pattern examples:
- `package/module/hyperscript/src/index.ts` (76 lines,
+ `package/hyperscript/core/src/index.ts` (76 lines,
  pure re-exports),
- `package/module/image-diff/src/index.ts` (75 lines,
+ `package/llm/image-diff/src/index.ts` (75 lines,
  pure re-exports).
 
 #### Name the verification step: the inline-citation examples
@@ -800,7 +800,7 @@ The helper-shape allowlist suppresses the report when a function ends in `return
 Failure that shows why the config,
  not a plain-language rule,
  must decide:
- a redesign of `package/webapp-productivity/wc/src/styles-colors.ts` extracted five inline `l` channel values inside
+ a redesign of `package/wc/app/src/styles-colors.ts` extracted five inline `l` channel values inside
  `cssOklch({...})` calls (e.g. `l: 0.16,`) into standalone named constants (`L_BLACK`,
  `L_NEAR_BLACK`,
  `L_MID`,
@@ -899,7 +899,7 @@ A name-based reference (rule tag,
  because it does not depend on where the referenced content currently sits.
 The rule reaches TSDoc and code comments,
  not only markdown prose:
- this is the exact failure fixed in `package/desktop-app/terminal/Cargo.toml` and
+ this is the exact failure fixed in `package/terminal/app/Cargo.toml` and
 `package/music-player/desktop-app/Cargo.toml`,
  where "the slint dependency above" became "the slint dependency in this file".
 

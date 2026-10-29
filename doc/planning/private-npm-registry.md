@@ -10,7 +10,7 @@ Owner decisions are recorded here as they land;
 
 Publish `@monochromatic-dev/oxlint-plugin-tsdoc`,
  `@monochromatic-dev/config-typescript`,
- and `@monochromatic-dev/module-or-throw`
+ and `@monochromatic-dev/or-throw-core`
  somewhere another owner project can install them with pnpm.
 The owner judges them below public-release quality.
 The Hetzner server managed by Coolify is available but not a constraint.
@@ -24,7 +24,7 @@ Scope widened by the owner on 2026-09-14:
 - `Aquaticat/Monochromatic` is public on GitHub (`gh repo view`),
    so a separate registry buys unlisting and version freedom,
    not source confidentiality.
-- `@monochromatic-dev/module-logger` is already public on npmjs (`0.1.0` to `0.4.0`,
+- `@monochromatic-dev/logger-core` is already public on npmjs (`0.1.0` to `0.4.0`,
    maintainer `aquaticat`),
    released through changesets and trusted publishing per `doc/decision/npm-publishing.md`.
 - All three target packages are in the `ignore` list of `.changeset/config.json`.
@@ -63,9 +63,9 @@ Scope widened by the owner on 2026-09-14:
    `pnpm-workspace.yaml` declares `registries: { <url>: { prefix: <name> } }`
    and the manifest specifier is `<name>:@scope/pkg@<range>`.
    Probe:
-    `mirror:@monochromatic-dev/module-logger@^0.4.0` installed through `https://registry.npmmirror.com/`;
+    `mirror:@monochromatic-dev/logger-core@^0.4.0` installed through `https://registry.npmmirror.com/`;
     pointing the same prefix at `https://registry.invalid/` failed metadata fetch for that package only.
-   Lockfile keys become registry-qualified (`@monochromatic-dev/module-logger@mirror:0.4.0`).
+   Lockfile keys become registry-qualified (`@monochromatic-dev/logger-core@mirror:0.4.0`).
    Docs: https://pnpm.io/settings/dependency-resolution (`registries`, `prefix` since 11.23.0).
 - Workspace size (`pnpm list --recursive --depth -1 --json`):
    154 packages under `package/` plus the root;
@@ -90,7 +90,7 @@ Scope widened by the owner on 2026-09-14:
       `config-typescript` has 140 transitive dependents that way
        and `module-logger` has 130.
 - Daily commit counts on `main` that week peaked at 172 (2026-09-09).
-- `pnpm add 'mirror:@monochromatic-dev/module-logger@^0.4.0'` fails on `12.3.4` with `ERR_PNPM_INVALID_DEPENDENCY_NAME`
+- `pnpm add 'mirror:@monochromatic-dev/logger-core@^0.4.0'` fails on `12.3.4` with `ERR_PNPM_INVALID_DEPENDENCY_NAME`
    (`dependency with an invalid name: "mirror:"`),
    although the docs show `pnpm add work:@corp/lib@^2.0.0`;
    writing the specifier into `package.json` and running `pnpm install` works.

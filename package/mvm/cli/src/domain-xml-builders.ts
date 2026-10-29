@@ -5,7 +5,7 @@
  {@link domainXml} generator.
  */
 
-import { hXml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hXml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { OsFamily, } from './registry.ts';
 

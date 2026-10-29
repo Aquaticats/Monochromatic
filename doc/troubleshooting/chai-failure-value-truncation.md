@@ -3,7 +3,7 @@
 Scope note (issue 610):
  this records the diagnosis behind
 [`Aquaticat/Monochromatic#610`](https://github.com/Aquaticat/Monochromatic/issues/610),
- where `@monochromatic-dev/module-test`'s failing `toEqual` printed
+ where `@monochromatic-dev/test-harness-core`'s failing `toEqual` printed
 `expected [ …(31) ] to deeply equal []` and hid the compared values.
  The consumer-side fix choice for that issue is a separate decision;
  this file holds the chai-side mechanism,
@@ -133,12 +133,12 @@ So a finite "large" threshold does not buy reliable output:
 
 ### Why a consumer cannot fix this through module-test
 
-`@monochromatic-dev/module-test-expect` builds `expect` on chai
- (`package/module/test-expect/src/expect-matchers.ts:13`,
+`@monochromatic-dev/test-harness-core-expect` builds `expect` on chai
+ (`package/test-harness/core-expect/src/expect-matchers.ts:13`,
  plugin registration `:28`),
  and neither `module-test` nor `module-test-expect` re-exports chai's `config`
- (`package/module/test/src/index.ts:33`,
- `package/module/test-expect/src/index.ts:1`).
+ (`package/test-harness/core/src/index.ts:33`,
+ `package/test-harness/core-expect/src/index.ts:1`).
  chai's `expect` object carries no `config` property either
  (measured:
 `typeof expect.config === 'undefined'`),
@@ -146,7 +146,7 @@ So a finite "large" threshold does not buy reliable output:
  (measured:
 `TypeError: Cannot set property objDisplay of #<Object> which has only a getter`).
  The harness diagnostic printer
- (`package/module/test-diagnostic/src/format-error.ts:149`)
+ (`package/test-harness/core-diagnostic/src/format-error.ts:149`)
  reads `message`,
  `name`,
  `stack`,
@@ -299,9 +299,9 @@ The monotone part of the budget path also works as documented:
 
 ### Set the threshold to 0 at expect construction
 
-`package/module/test-expect` owns the single chai instance,
+`package/test-harness/core-expect` owns the single chai instance,
  so setting `chai.config.truncateThreshold = 0` beside the `use(...)` calls
- in `package/module/test-expect/src/expect-matchers.ts:28`
+ in `package/test-harness/core-expect/src/expect-matchers.ts:28`
  fixes every chai-backed matcher at once
  (harness `B` cases).
  Tradeoffs:
@@ -348,7 +348,7 @@ The monotone part of the budget path also works as documented:
   pointing at `Symbol('chai/inspect')` on the compared objects,
   which requires touching every value type under test.
 - Reading `AssertionError.actual` / `.expected` in the harness printer:
-  they exist but nothing in `module/test-diagnostic` reads or prints them,
+  they exist but nothing in `test-harness/core-diagnostic` reads or prints them,
   so a consumer cannot recover the values from the log as shipped.
 
 ## Upstream filing decision
@@ -527,5 +527,5 @@ The module-test-side fix choice for issue 610 is recorded as a proposal:
  The whole-value render options were rejected after a sizing correction
  (real findings are `174`-character sentences,
  so any cap hides the differing entry),
- leaving a difference-first structural diff in `package/module/test-diagnostic`.
+ leaving a difference-first structural diff in `package/test-harness/core-diagnostic`.
  The upstream draft stays local per the 2026-10-20 owner decision.

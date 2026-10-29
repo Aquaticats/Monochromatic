@@ -3,7 +3,7 @@
 Two behaviors of `helix-lsp` at revision `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`
 that are correct inside the Helix editor
 but break an embedder that keeps its own server lifecycle and uses resolved (canonical) paths,
-as the IDE's Language module in `package/desktop-app/ide/src/language` does.
+as the IDE's Language module in `package/ide/app/src/language` does.
 Neither is recorded in [the language-intelligence design](../planning/slint-ide-language-intelligence.md).
 
 ## Symptom
@@ -124,7 +124,7 @@ Version under test:
 `helix-core`,
 `helix-loader`,
 and `helix-stdx` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`,
-locked in `package/desktop-app/ide/Cargo.lock`.
+locked in `package/ide/app/Cargo.lock`.
 Harness:
 the package task `inspect:language-guards`
 copies the package to a disposable directory,
@@ -133,8 +133,8 @@ and runs one named test in the bounded build container
 against the scripted language server `ide-scripted-lsp`.
 
 ```sh
-# package/desktop-app/ide; CACHE is a disposable copy of target/ below ~/temp/agent
-mise run //package/desktop-app/ide:inspect:language-guards "$CACHE" '' root-spelling,stop-tombstone
+# package/ide/app; CACHE is a disposable copy of target/ below ~/temp/agent
+mise run //package/ide/app:inspect:language-guards "$CACHE" '' root-spelling,stop-tombstone
 ```
 
 Patterns that work:
@@ -168,7 +168,7 @@ Results are listed under "Evidence".
 
 - Never call `Registry::stop` for a server that may be needed again.
   Remove it with `Registry::remove_by_id(id)` and stop it with `Client::force_shutdown()`
-  (`package/desktop-app/ide/src/language/attach.rs`,
+  (`package/ide/app/src/language/attach.rs`,
    function `retire`).
   Tradeoff:
   nothing prevents the next `get` from starting the same server again,
@@ -178,7 +178,7 @@ Results are listed under "Evidence".
   resolve it,
   and respell every path below the resolved project root with Helix's spelling
   before handing it to `Registry::get` or building a document address
-  (`package/desktop-app/ide/src/language/root.rs`,
+  (`package/ide/app/src/language/root.rs`,
    type `RootView`).
   Compare documents and targets by resolved path everywhere else.
   Tradeoff:
@@ -254,7 +254,7 @@ Both behaviors are intended inside Helix. Recorded only so a future embedder-sup
 ## Evidence
 
 Measured on 2026-10-05 with
-`mise run //package/desktop-app/ide:inspect:language-guards "$CACHE" '' root-spelling,stop-tombstone`.
+`mise run //package/ide/app:inspect:language-guards "$CACHE" '' root-spelling,stop-tombstone`.
 Each control passed its unmodified baseline,
 failed with the mutation,
 and passed again after restoring

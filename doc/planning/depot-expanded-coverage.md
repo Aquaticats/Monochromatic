@@ -56,7 +56,7 @@ a green root test result is not repository-wide native or mobile evidence.
 
 Root package fanout discovers tasks by name and bounds parallel workers.
 It does not calculate reverse dependencies from a changed revision.
-The existing [`task-depends` implementation](../../package/dev-script/task-util/src/depends.ts)
+The existing [`task-depends` implementation](../../package/monorepo-task/core-exec/src/depends.ts)
 compares source/output staleness;
 that is a different responsibility from identifying affected consumers.
 Any eventual change-selection implementation should reuse existing task execution
@@ -81,7 +81,7 @@ The discovery check must compare matching test files with the selected configura
   `lint:oxlint`,
   and `test:unit`,
   where declared.
-  [`module/logger`](../../package/module/logger/mise.toml) is the initial representative.
+  [`logger/core`](../../package/logger/core/mise.toml) is the initial representative.
 - Trigger:
   newest relevant source change,
   shared package change,
@@ -289,7 +289,7 @@ The discovery check must compare matching test files with the selected configura
   The [suite requirements](../../package/music-player/desktop-e2e/README.md)
   require a parent Wayland session and the named utilities.
   Physical GPU hardware is not inherently required for desktop cloud execution:
-  the repository [compositor](../../package/cli/nested-wayland-session/README.md#choosing-the-gpu)
+  the repository [compositor](../../package/nested-wayland-session/cli/README.md#choosing-the-gpu)
   supports software rendering.
   This differs from the Android emulator's current launch constraint.
 - Output:
@@ -324,7 +324,7 @@ The discovery check must compare matching test files with the selected configura
   fs-path OPFS discovery,
   the test harness,
   and the wc page.
-  Existing end-to-end files are under [`module/dom`](../../package/module/dom/src).
+  Existing end-to-end files are under [`dom/core`](../../package/dom/core/src).
 - Trigger:
   selected browser package,
   DOM/shared helper,
@@ -356,7 +356,7 @@ The discovery check must compare matching test files with the selected configura
   Other selected browser packages remain unmeasured,
   and production routing remains unwired.
   [Expanded execution evidence](../audit/depot-expanded-execution-2026-10-16.md#browser-results)
-  The [`done` task file](../../package/webapp-productivity/done/mise.toml)
+  The [`done` task file](../../package/done/app/mise.toml)
   declares build/type/lint/unit tasks,
   and its discovered test file covers database migrations.
   No `done` browser or end-to-end test is selected by the current Playwright configuration.
@@ -366,18 +366,18 @@ The discovery check must compare matching test files with the selected configura
 ### Other native applications and desktop infrastructure
 
 - Tasks:
-  [`terminal`](../../package/desktop-app/terminal/mise.toml)
+  [`terminal`](../../package/terminal/app/mise.toml)
   `build`,
   `test`,
   `lint:clippy`,
   and `lint:slint`;
-  [`ide`](../../package/desktop-app/ide/mise.toml)
+  [`ide`](../../package/ide/app/mise.toml)
   `test`,
   `test:native`,
   `inspect:bundle`,
   `inspect:bundle-guards`,
   and the relevant language-lifecycle/confinement inspections.
-  The [nested compositor](../../package/cli/nested-wayland-session/mise.toml)
+  The [nested compositor](../../package/nested-wayland-session/cli/mise.toml)
   has native tests and explicit input,
   clipboard,
   rendering,

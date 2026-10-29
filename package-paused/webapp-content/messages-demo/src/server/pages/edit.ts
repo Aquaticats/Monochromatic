@@ -9,7 +9,7 @@
  * paginated for messages over 1 MB).
  */
 
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import {
   ABSENT,
@@ -27,7 +27,7 @@ import {
   renderSimplePage,
 } from './_layout.ts';
 
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core/ts';
 
 /**
  * Tier-3 character threshold: one mebibyte.

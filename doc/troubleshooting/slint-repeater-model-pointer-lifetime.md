@@ -20,11 +20,11 @@ corresponding to Slint v1.18.1 commit `372cf0ee5577c3dfec309a45e7b778ba4e81b734`
 The upstream checkout was also inspected;
 its separate ListView prototype edits do not supply the installed-source line numbers cited here.
 
-`package/desktop-app/ide/src/native/navigation/search/present.rs:61`
+`package/ide/app/src/native/navigation/search/present.rs:61`
 creates a new model allocation for every accepted result publication:
 
 ```rust
-// package/desktop-app/ide/src/native/navigation/search/present.rs
+// package/ide/app/src/native/navigation/search/present.rs
 window.set_search_entries(ModelRc::from(Rc::new(VecModel::from(rows))));
 ```
 
@@ -70,7 +70,7 @@ Neither is a guarantee about arbitrary in-place row mutation.
 
 ## Verification
 
-`package/desktop-app/ide/src/native/search_pointer_tests.rs:24`
+`package/ide/app/src/native/search_pointer_tests.rs:24`
 exercises the real `ProjectSearch` markup with native pointer events.
 It uses a fixed window size and a successful initial click to validate the hit coordinates.
 
@@ -98,9 +98,9 @@ not a guard success.
 The subsequent controls classify this as a toolkit lifecycle regression instead:
 
 ```sh
-# package/desktop-app/ide/mise.toml
-mise run //package/desktop-app/ide:test:native
-mise run //package/desktop-app/ide:inspect:search-guards -- "${HOME}/temp/agent/ide-tree-guard-zlIbRv/package/target"
+# package/ide/app/mise.toml
+mise run //package/ide/app:test:native
+mise run //package/ide/app:inspect:search-guards -- "${HOME}/temp/agent/ide-tree-guard-zlIbRv/package/target"
 ```
 
 The target-cache argument must resolve below the private `~/temp/agent` directory.

@@ -33,7 +33,7 @@ import {
   expect,
   it,
   type DisposableSandbox,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { BudgetView, } from '@monochromatic-dev/translation-repair-provider';
 import {

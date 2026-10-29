@@ -19,7 +19,7 @@
 import {
   HTTP_NOT_FOUND,
   HTTP_OK,
-} from '@monochromatic-dev/module-const';
+} from '@monochromatic-dev/const-core';
 import pLimit from 'p-limit';
 
 import type {

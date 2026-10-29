@@ -1,5 +1,5 @@
 /** Built-artifact checks for ledger immutability and available usage. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { createAdvisorOperationLedger, aggregateAdvisorUsage, copyAdvisorUsage, type AdvisorAttemptRecord, } from '../dist/final/node/index.mjs';
 
 /** Usage contains subset counters so accidental double-counting is observable. */

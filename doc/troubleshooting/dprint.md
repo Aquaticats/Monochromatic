@@ -485,7 +485,7 @@ not an upstream defect.
 
 ### Repository-owned CSS host probe
 
-A strict structural formatter over `package/module/css-edit/` was connected to the markup host seam through
+A strict structural formatter over `package/css/core-edit/` was connected to the markup host seam through
 `dprint-plugin-exec` 0.7.3.
 The markup adapter had to stop passing Malva-specific override keys to exec CSS requests;
 exec correctly rejected unknown configuration.

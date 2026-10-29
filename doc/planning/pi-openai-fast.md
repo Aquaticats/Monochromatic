@@ -622,7 +622,7 @@ This verifies the installed default catalog,
 
 The CLI startup fixture discovered both namespaces but also exposed the repository logger's warning:
 `3328 startup records dropped before a backend verified (buffer cap 10000)`.
-The exact emitter is `package/module/logger/src/create-logger.ts:393`.
+The exact emitter is `package/logger/core/src/create-logger.ts:393`.
 Its startup buffer holds records until asynchronous sink verification settles.
 The default extension factory now awaits its tagged logger's existing `flush()` before synchronous catalog registration.
 This retains logging rather than suppressing stderr or raising the buffer limit.

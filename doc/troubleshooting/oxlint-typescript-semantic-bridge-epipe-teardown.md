@@ -204,7 +204,7 @@ Two adjacent workarounds also landed:
 - The `lint:parse` gate dodge for the `.d.*` panic
   (`97e7252959`):
   declaration content is parsed under the matching non-declaration suffix
-  (`parseName` in `package/dev-script/task-util/mise.toml`),
+  (`parseName` in `package/monorepo-task/core-exec/mise.toml`),
   because the parse grammar is identical and parse diagnostics still report.
   Tradeoff:
   the parse probe never exercises emit for declaration file names,

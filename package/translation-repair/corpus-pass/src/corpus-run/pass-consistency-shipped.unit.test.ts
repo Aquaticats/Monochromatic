@@ -17,8 +17,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass';
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';

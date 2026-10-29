@@ -11,7 +11,7 @@ for automatic completion notifications,
 error messages.
  Separately,
  `bun test` misreports under this repo's custom
-`@monochromatic-dev/module-test` harness:
+`@monochromatic-dev/test-harness-core` harness:
  the harness runs tests as a side
 effect of module import,
  so `bun test <file>` prints `PASS` lines and then

@@ -1,0 +1,22 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/done-app",
+  "description": "AI-powered task aggregator that surfaces what to do next based on location and focus context, backed by Turso SQLite with its native full-text index. Client UI rendered via h-css and h-html.",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/llm-llm-type": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@tursodatabase/database": "catalog:",
+    "h3": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

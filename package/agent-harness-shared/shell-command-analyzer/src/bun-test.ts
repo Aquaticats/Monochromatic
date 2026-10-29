@@ -18,7 +18,7 @@ import { analyzeShellCommand, } from './analyzer.ts';
  */
 const BUN_TEST_BAN_REASON: string = [
   'Blocked: `bun test` invocations are banned in this repo.',
-  'The custom `@monochromatic-dev/module-test` harness runs tests as a side effect of module import,',
+  'The custom `@monochromatic-dev/test-harness-core` harness runs tests as a side effect of module import,',
   "so `bun test <file>` reports `0 pass / 0 fail` even when every test passed (the harness's `PASS`",
   "log lines are not measured by bun's test runner).",
   'Use `mise run //package/<path>:test:unit` instead. When no such task exists, add one to the',

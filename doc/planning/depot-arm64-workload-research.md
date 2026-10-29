@@ -68,7 +68,7 @@ and disposable databases;
 it does not require a paid provider or live audio.
 See the [Rust receipt](../audit/depot-rust-coverage-2026-10-18.evidence.json).
 
-The matched TypeScript owner is `//package/module/p-limit-fork:test:unit`.
+The matched TypeScript owner is `//package/upstream-fork/p-limit:test:unit`.
 Its unchanged AMD64 source passed in GitHub Actions run `39105587003`,
 with harness `b9c84e42b72f7e0abfa942a98a61029e4f3f252c`.
 The actual output identifies 11 passing runtime describe groups,

@@ -38,7 +38,7 @@ fflush(stdout);
 ```
 
 At the pre-fix repository commit `193dd7eab`,
- `package/module/logger/src/sink/console.ts:381-385` required a severity method,
+ `package/logger/core/src/sink/console.ts:381-385` required a severity method,
  not `console.log`,
  to verify:
 
@@ -48,7 +48,7 @@ if ((typeof testFn) !== 'function')
   return Promise.resolve(false,);
 ```
 
-The same pre-fix file at `package/module/logger/src/sink/console.ts:282-289`
+The same pre-fix file at `package/logger/core/src/sink/console.ts:282-289`
  only called the severity method when present;
  a missing method silently lost the record:
 
@@ -73,9 +73,9 @@ JS_CFUNC_DEF("queueMicrotask", 1, js_global_queueMicrotask ),
 ```
 
 Before the fix,
- `package/module/logger/src/create-logger.ts:351-358,560-565`
+ `package/logger/core/src/create-logger.ts:351-358,560-565`
  called `withTimeout` during verification and flush.
-The dependency `package/module/async-time/src/with-timeout.ts:56-61`
+The dependency `package/async-time/core/src/with-timeout.ts:56-61`
  requires a global timer even if the operation's promise has already resolved:
 
 ```ts
@@ -89,7 +89,7 @@ const timer = setTimeout(
 
 Every verification therefore failed in `qjs`,
  including a hypothetical console sink that accepted `console.log`.
-The pre-fix `package/module/logger/src/error-format.ts:40-42`
+The pre-fix `package/logger/core/src/error-format.ts:40-42`
  then assumed `console.warn` when reporting the caught error:
 
 ```ts
@@ -120,7 +120,7 @@ Observed:
 {"console":["log"],"timer":"undefined","microtask":"function","promiseResolvers":"function","errorIsError":"function","dispose":"symbol"}
 ```
 
-The committed regression test `package/module/logger/src/quickjs-compat.unit.test.ts`
+The committed regression test `package/logger/core/src/quickjs-compat.unit.test.ts`
  simulates a console with only `log`,
  absent timers,
  and absent reporting methods
@@ -129,19 +129,19 @@ Build and run it with:
 
 ```sh
 # From the Monochromatic repository root
-mise run buildAndTest -- package/module/logger/src/quickjs-compat.unit.test.ts
+mise run buildAndTest -- package/logger/core/src/quickjs-compat.unit.test.ts
 ```
 
 The test failed at `193dd7eab` in the three reported paths and passes after the fix.
 For a real end-user boundary check,
- place this source in a disposable `smoke.mjs` beside a `node_modules/@monochromatic-dev/module-logger`
+ place this source in a disposable `smoke.mjs` beside a `node_modules/@monochromatic-dev/logger-core`
  symlink to this package directory,
  then bundle it with Deno and run it with the release `qjs` executable:
 
 ```js
 // smoke.mjs
 import * as std from 'qjs:std';
-import { createLogger, logger, sinks, tagged } from '@monochromatic-dev/module-logger';
+import { createLogger, logger, sinks, tagged } from '@monochromatic-dev/logger-core';
 std.err.puts('imported\n');
 const l = tagged({ tag: 'qjs-smoke' });
 l.info('consumer info');
@@ -161,7 +161,7 @@ std.err.flush();
 
 ```sh
 # Paths here assume smoke.mjs and its node_modules symlink are in $scratch
-mise run //package/module/logger:build
+mise run //package/logger/core:build
 deno bundle --platform=browser --external=qjs:* --node-modules-dir=manual --output "$scratch/smoke.bundle.mjs" "$scratch/smoke.mjs"
 "$scratch/qjs-linux-x86_64" --module "$scratch/smoke.bundle.mjs" > "$scratch/stdout.txt" 2> "$scratch/stderr.txt"
 ```

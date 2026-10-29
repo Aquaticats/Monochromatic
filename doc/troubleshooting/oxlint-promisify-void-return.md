@@ -78,7 +78,7 @@ Allowing `any` does not describe `ChildProcess` and would not express the intend
 Specialize the adapter with Node's own declared input and output types:
 
 ```ts
-// package/module/toml-edit.fuzz/src/ci-scope-git.ts
+// package/toml-edit/core.fuzz/src/ci-scope-git.ts
 const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
 const executeFile = promisifyExecFile(execFile,);
 ```
@@ -103,8 +103,8 @@ The specialized binding passed the same task with no warnings or errors.
 
 ```sh
 # From the repository root
-mise run //package/module/toml-edit.fuzz:lint:scope
-mise run //package/module/toml-edit.fuzz:test:scope
+mise run //package/toml-edit/core.fuzz:lint:scope
+mise run //package/toml-edit/core.fuzz:test:scope
 ```
 
 The command's subprocess tests cover successful output,

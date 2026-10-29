@@ -13,7 +13,7 @@ import {
 } from 'node:fs/promises';
 import { posix, } from 'node:path';
 import { parse as parseYaml, } from 'yaml';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Module logger for workspace discovery.

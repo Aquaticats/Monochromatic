@@ -51,7 +51,7 @@ Its printed Node input ended with this shape:
 
 ```text
 # Relevant suffix of the inline task input.
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix']) package/pi-plugin/auto-mode/src/policy-data.ts
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix']) package/pi-plugin/auto-mode/src/policy-data.ts
 ```
 
 Node `26.11.1` reported `ERR_INVALID_TYPESCRIPT_SYNTAX`
@@ -95,7 +95,7 @@ Caused by:
 ```
 
 The affected invocation supplied compositor and child arguments after `--`,
-but `//package/cli/nested-wayland-session:run` launched its release executable with an empty array.
+but `//package/nested-wayland-session/cli:run` launched its release executable with an empty array.
 
 ## Cause
 
@@ -136,7 +136,7 @@ and empty arguments according to the repository's shared task encoding.
 Invoke the actual task with arguments that must reach the executable:
 
 ```sh
-mise run //package/cli/nested-wayland-session:run -- \
+mise run //package/nested-wayland-session/cli:run -- \
   --socket /tmp/nested.sock \
   --color-scheme dark \
   -- app

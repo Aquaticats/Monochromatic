@@ -10,7 +10,7 @@ import { rm, } from 'node:fs/promises';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import {
   archiveNoteReadingsOf,

@@ -310,7 +310,7 @@ A subsequent copy/process-inspection command also timed out.
 These are retained as separate observations,
 not proof that logging caused the preparation stop.
 The logger message is emitted by
-`package/module/logger/src/create-logger.ts:369`
+`package/logger/core/src/create-logger.ts:369`
 through `src/error-format.ts:56`.
 Do not conflate their failure boundaries without a matching trace.
 

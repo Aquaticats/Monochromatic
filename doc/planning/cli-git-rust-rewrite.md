@@ -145,7 +145,7 @@ No scanner replacement is requested.
 
 ## Local interface inspection
 
-- `package/rust-module/jsonc-edit/Cargo.toml` declares `monochromatic-jsonc-edit` 0.1.0 with no dependencies.
+- `package/jsonc-edit/core-rust/Cargo.toml` declares `monochromatic-jsonc-edit` 0.1.0 with no dependencies.
   `src/lib.rs` exports `parse_jsonc`,
   `emit_jsonc_value`,
   `parse_jsonc_edit`,

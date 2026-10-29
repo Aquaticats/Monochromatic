@@ -1,5 +1,5 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { levelCapturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
 import type { SliceCache, } from '@monochromatic-dev/translation-repair-translate-floor';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract';

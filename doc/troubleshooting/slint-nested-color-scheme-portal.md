@@ -144,7 +144,7 @@ That file documents version 2 of the interface.
 
 ## Isolated solution
 
-`package/cli/nested-wayland-session` supports a startup option and a runtime control command:
+`package/nested-wayland-session/cli` supports a startup option and a runtime control command:
 
 ```sh
 monochromatic-nested-wayland-session --socket /tmp/nws.sock --color-scheme dark -- app
@@ -166,7 +166,7 @@ the fixture:
 6.  Kills the private bus and removes its socket directory when the nested session ends.
 
 The `color-scheme dark|light` control command,
-implemented in `package/cli/nested-wayland-session/src/appearance_portal.rs` as `AppearancePortal::set_color_scheme`:
+implemented in `package/nested-wayland-session/cli/src/appearance_portal.rs` as `AppearancePortal::set_color_scheme`:
 
 1.  Replaces the served value first,
     so a client that re-reads when notified gets the announced value.
@@ -192,7 +192,7 @@ the fixture does not replace the child's session bus.
 ## Verification
 
 Versions under test,
-from `package/desktop-app/ide/Cargo.lock` and `package/cli/nested-wayland-session/Cargo.lock`:
+from `package/ide/app/Cargo.lock` and `package/nested-wayland-session/cli/Cargo.lock`:
 
 - `i-slint-backend-winit` 1.18.1,
   checksum `dae4fcf1b19e9cb109984d2af87d2b9485388c619265bff71dd523133888bee2`.
@@ -204,11 +204,11 @@ from `package/desktop-app/ide/Cargo.lock` and `package/cli/nested-wayland-sessio
 Harness:
 
 ```sh
-mise run //package/cli/nested-wayland-session:lint:rust
-mise run //package/cli/nested-wayland-session:lint:clippy
-mise run //package/cli/nested-wayland-session:test:all
-mise run //package/cli/nested-wayland-session:build
-mise run //package/cli/nested-wayland-session:inspect:color-scheme
+mise run //package/nested-wayland-session/cli:lint:rust
+mise run //package/nested-wayland-session/cli:lint:clippy
+mise run //package/nested-wayland-session/cli:test:all
+mise run //package/nested-wayland-session/cli:build
+mise run //package/nested-wayland-session/cli:inspect:color-scheme
 ```
 
 ### Passing cases
@@ -368,7 +368,7 @@ and only then installs the `--on` handlers:
 The appearance probe never noticed,
 because its first report comes from `changed scheme` once the portal value arrives,
 after the handlers exist.
-The scale probe in `inspect:scale` (`package/cli/nested-wayland-session/mise.toml`)
+The scale probe in `inspect:scale` (`package/nested-wayland-session/cli/mise.toml`)
 reports its starting state from a one-shot 50 ms `Timer` instead;
 timers run in the event loop,
 after `install_callbacks`.
@@ -402,7 +402,7 @@ and lists `<standard_session_servicedirs/>` as
 and `dbus-1/services` under each `XDG_DATA_DIRS` entry.
 
 The private daemon now starts with `--config-file` pointing at a file written beside its socket
-(`PRIVATE_BUS_CONFIG` in `package/cli/nested-wayland-session/src/appearance_portal.rs`):
+(`PRIVATE_BUS_CONFIG` in `package/nested-wayland-session/cli/src/appearance_portal.rs`):
 the stock session elements that make it a session bus
 (`<type>session</type>`,
 `<keep_umask/>`,
@@ -436,7 +436,7 @@ No path is interpolated into the file,
 so it needs no XML escaping.
 
 The guard is `private_bus_never_reads_service_files` in
-`package/cli/nested-wayland-session/src/appearance_portal_tests.rs`.
+`package/nested-wayland-session/cli/src/appearance_portal_tests.rs`.
 It re-executes itself with `XDG_DATA_HOME` and `XDG_DATA_DIRS` naming a disposable directory
 that holds one planted `.service` file,
 so it does not depend on which services the machine has installed.
@@ -473,11 +473,11 @@ The [current XDG Settings specification](https://flatpak.github.io/xdg-desktop-p
 still documents two variant layers for deprecated `Read`,
 and one for `ReadOne`.
 Before the trial correction,
-`package/cli/nested-wayland-session/src/appearance_portal.rs:177`
+`package/nested-wayland-session/cli/src/appearance_portal.rs:177`
 delegated directly to the same setting value used by `ReadOne`:
 
 ```rust
-// package/cli/nested-wayland-session/src/appearance_portal.rs, before the trial correction
+// package/nested-wayland-session/cli/src/appearance_portal.rs, before the trial correction
 fn read(&self, namespace: &str, key: &str) -> zbus::fdo::Result<OwnedValue> {
     return self.read_setting(namespace, key);
 }
@@ -519,7 +519,7 @@ The committed regression ran against the unchanged implementation using:
 
 ```sh
 # trial/depot-20261015 worktree
-mise run //package/cli/nested-wayland-session:test:all
+mise run //package/nested-wayland-session/cli:test:all
 ```
 
 The bounded package container ran 270 tests:
@@ -534,7 +534,7 @@ Trial implementation commit `dcaae7c673` adds the deprecated method's extra wrap
 The identical command then passed all 270 tests with no skipped tests.
 After the conversion-error callback was named in trial commit `294b0db534`,
 the same tests passed again,
-and `mise run //package/cli/nested-wayland-session:lint:clippy` passed.
+and `mise run //package/nested-wayland-session/cli:lint:clippy` passed.
 The final comment-only trial commit `d6deca5fa5` also passed scoped repository lint
 for `appearance_portal.rs`,
 `appearance_portal_tests.rs`,

@@ -637,7 +637,7 @@ It will turn `>=` in `package.json` into exact versions.
 `pnpm install` previously emitted `[WARN] 1 deprecated subdependencies found: node-domexception@1.0.0`.
 Install-time only;
  runtime was unaffected.
-The override `'node-domexception': 'link:package/shim/node-domexception'` in `pnpm-workspace.yaml`
+The override `'node-domexception': 'link:package/pnpm-override/shim-node-domexception'` in `pnpm-workspace.yaml`
 now substitutes the deprecated upstream package with a workspace shim whose `index.cjs` is the
 single line `module.exports = globalThis.DOMException`.
  The warning is gone;
@@ -733,10 +733,10 @@ read by pnpm at install time.
 
 #### Workaround applied
 
-`package/shim/node-domexception/` is the workspace shim package.
+`package/pnpm-override/shim-node-domexception/` is the workspace shim package.
 Files:
  `package.json` (private,
- name `@monochromatic-dev/shim-node-domexception`,
+ name `@monochromatic-dev/pnpm-override-shim-node-domexception`,
 CJS,
  exports `./index.cjs` and `./index.d.cts`),
  `index.cjs`
@@ -746,7 +746,7 @@ CJS,
 plus `mise.toml` and `README.md`.
 
 `pnpm-workspace.yaml`'s `overrides` block wires it in with
-`'node-domexception': 'link:package/shim/node-domexception'`.
+`'node-domexception': 'link:package/pnpm-override/shim-node-domexception'`.
  pnpm rewrites
 every transitive `node-domexception` edge to point at the workspace path;
  the
@@ -966,7 +966,7 @@ and both list no patched version.
 The pre-remediation dependency chain was:
 
 ```text
-@monochromatic-dev/dev-script-deps-cube
+@monochromatic-dev/dependency-catalog-cli-cube
 └── @deck.gl/mesh-layers@9.3.9
     └── @loaders.gl/gltf@4.4.4
         └── @loaders.gl/textures@4.4.4
@@ -1027,8 +1027,8 @@ The declaration therefore exists only to put the CLI on `npx`'s local search pat
 for the experimental `CompressedTextureWriter`.
 The workspace never names that writer or its encoder.
 Its only `@deck.gl/mesh-layers` imports are `SimpleMeshLayer` in
-`package/dev-script/deps-cube/src/deck-layers.ts:33` and
-`package/dev-script/deps-cube/src/deck-scatter.ts:31`.
+`package/dependency-catalog/cli-cube/src/deck-layers.ts:33` and
+`package/dependency-catalog/cli-cube/src/deck-scatter.ts:31`.
 A repository-wide search found no first-party
 `CompressedTextureWriter`,
 `encodeImageURLToCompressedTextureURL`,
@@ -1097,14 +1097,14 @@ The remediation was tested with pnpm 11.21.0 on 2026-08-12.
   moderate,
   high,
   or critical vulnerabilities across 718 resolved dependencies.
-- `mise run //package/dev-script/deps-cube:build`,
+- `mise run //package/dependency-catalog/cli-cube:build`,
   `:test:unit`,
   and `:lint:types` passed with the compressor absent.
 
-`mise run //package/dev-script/deps-cube:lint:oxlint` remains red on 50 errors
+`mise run //package/dependency-catalog/cli-cube:lint:oxlint` remains red on 50 errors
 and 445 warnings in untouched package source.
 The security commits contain no change under
-`package/dev-script/deps-cube/src`,
+`package/dependency-catalog/cli-cube/src`,
 and the lockfile already resolved the same
 `oxlint@1.78.0` before this remediation,
 so that baseline is not evidence against the dependency removal.
@@ -1112,9 +1112,9 @@ so that baseline is not evidence against the dependency removal.
 A disposable built-CLI fixture advanced through package loading and the npm probe,
 then hit an existing entry-path mismatch:
 `render-html` requests
-`package/dev-script/deps-cube/src/scripts/controller.ts`,
+`package/dependency-catalog/cli-cube/src/scripts/controller.ts`,
 while the tracked file is
-`package/dev-script/deps-cube/src/script/controller.ts`.
+`package/dependency-catalog/cli-cube/src/script/controller.ts`.
 The failed boundary probe does not exercise `texture-compressor` or `image-size`;
 build,
 unit,
@@ -1271,7 +1271,7 @@ Neither path uses the string-parser overload (`ms('2 days')`) or the
   replacement.
 - Silent stub (`POLICY` entry with `action: 'silent'` in `.pnpmfile.mjs`):
   the call returns the callable Proxy defined in
-  `package/stub/silent/index.cjs:3-19`.
+  `package/pnpm-override/stub-silent/index.cjs:3-19`.
   Embedding the result in a template literal (the consumer pattern at
   `logform/ms.js:15`) triggers primitive coercion.
   Every Proxy `get` returns the Proxy itself,
@@ -1283,7 +1283,7 @@ Neither path uses the string-parser overload (`ms('2 days')`) or the
   `pnpm-workspace.yaml`):
   the pattern works technically;
    the precedent is
-  `package/shim/node-domexception/`.
+  `package/pnpm-override/shim-node-domexception/`.
   The cost is one new workspace package (implementation,
    type declaration,
   tests,
@@ -1348,7 +1348,7 @@ of `@earendil-works/pi-coding-agent@0.74.0`:
 `proper-lockfile@4.1.2 → @earendil-works/pi-coding-agent → @monochromatic-dev/pi-plugin-auto-mode`.
 `pnpm why proper-lockfile` reproduces the chain.
 
-The override `'proper-lockfile': 'link:package/shim/proper-lockfile'` in
+The override `'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'` in
 `pnpm-workspace.yaml` substitutes the abandoned upstream with a workspace shim
 whose `index.cjs` implements `lockSync(path, options)` and
 `lock(path, options)` via `node:fs.mkdirSync` on a sibling `.<basename>.lock`
@@ -1382,7 +1382,7 @@ with `Cannot find package 'proper-lockfile'` before any first-party code runs.
 
 #### Why the silent stub does not work
 
-`package/stub/silent/index.cjs` is a `Proxy` over a no-op function whose
+`package/pnpm-override/stub-silent/index.cjs` is a `Proxy` over a no-op function whose
 `get` trap returns `module.exports` for every property.
  That makes the stub
 a thenable:
@@ -1534,7 +1534,7 @@ This is the one pre-emptive ban that has since entered the resolved graph.
  which pulls
 `convert-source-map` transitively.
  The `action: 'throw'` policy substitutes it with
-`@monochromatic-dev/stub-throwing`,
+`@monochromatic-dev/pnpm-override-stub-throwing`,
  so the canary in "Pre-emptive bans" above has
 fired for this one package.
  Mutation testing is unaffected:
@@ -1549,11 +1549,11 @@ package at runtime,
 └─┬ @stryker-mutator/core@9.6.1
   └─┬ @stryker-mutator/instrumenter@9.6.1
     └─┬ @babel/core@7.29.7
-      └── convert-source-map  (substituted: link:package/stub/throwing)
+      └── convert-source-map  (substituted: link:package/pnpm-override/stub-throwing)
 ```
 
 `@babel/core@7.29.7` is the sole consumer (`pnpm-lock.yaml:6129`,
-`convert-source-map: link:package/stub/throwing`).
+`convert-source-map: link:package/pnpm-override/stub-throwing`).
  No workspace package depends on
 `@babel/core` directly;
  it arrives only through the Stryker instrumenter.
@@ -1645,7 +1645,7 @@ plugin or reporter is added that transforms code.
 
 `grep convert-source-map pnpm-lock.yaml` shows only the `@babel/core` edge.
  A real
-mutation run (for example `mise run //package/dev-script/file-enforcer:test:mutation`)
+mutation run (for example `mise run //package/file-enforcer/core:test:mutation`)
 completes and reports killed and survived mutants without any `convert-source-map`
 error.
  See `doc/troubleshooting/stryker-container-runtime.md` for the Stryker runtime
@@ -1660,10 +1660,10 @@ transitively by `stylelint@17.6.0` through `cosmiconfig@9.0.1`.
  The workspace does
 not consume it:
  all YAML parsing uses the `yaml` package
-(`package/dev-script/deps-cube/src/catalog.ts`,
+(`package/dependency-catalog/cli-cube/src/catalog.ts`,
 `package/ssg/aquati.cat/src/lib/content.ts`).
  The `action: 'throw'` policy
-substitutes it with `@monochromatic-dev/stub-throwing`,
+substitutes it with `@monochromatic-dev/pnpm-override-stub-throwing`,
  removing the real js-yaml
 package,
  and the `argparse` edge it carried,
@@ -1674,7 +1674,7 @@ package,
 ```text
 stylelint@17.6.0
 └─┬ cosmiconfig@9.0.1
-  └── js-yaml  (substituted: link:package/stub/throwing)
+  └── js-yaml  (substituted: link:package/pnpm-override/stub-throwing)
 ```
 
 `cosmiconfig` is the sole consumer of js-yaml in the tree (verified against every
@@ -1754,7 +1754,7 @@ at `doc/dependency-blocklist.md`,
 
 #### Verification
 
-`rg js-yaml pnpm-lock.yaml` shows only the `link:package/stub/throwing` redirect
+`rg js-yaml pnpm-lock.yaml` shows only the `link:package/pnpm-override/stub-throwing` redirect
 under cosmiconfig,
  with no `js-yaml@4.1.1` resolution block.
  The argparse edge
@@ -1860,13 +1860,13 @@ and its latest release still asks for `katex: ^0.16.0`,
 so the fixed release cannot be reached in range.
 Removal alone broke every unbundled load of `remark-math`;
 the override now points at a shim,
-`'micromark-extension-math>katex': 'link:package/shim/katex'`,
+`'micromark-extension-math>katex': 'link:package/pnpm-override/shim-katex'`,
 whose every member throws and which never renders.
 
 #### Dependency chain
 
 ```text
-katex  (substituted: link:package/shim/katex)
+katex  (substituted: link:package/pnpm-override/shim-katex)
 └─┬ micromark-extension-math@3.1.0
   └─┬ remark-math@6.0.0
     └── @monochromatic-dev/translation-repair-document-structure  (src/parse-mdx.ts imports remark-math)
@@ -1905,15 +1905,15 @@ rested on the parent directory and not on the repository.
 
 #### Why a shim and not a stub
 
-`package/stub/throwing` throws when it is loaded,
+`package/pnpm-override/stub-throwing` throws when it is loaded,
 which is the wrong moment here:
 `lib/html.js` loads it on every import of `remark-math`.
-`package/shim/katex` loads cleanly and exposes `renderToString` and the other members as functions,
+`package/pnpm-override/shim-katex` loads cleanly and exposes `renderToString` and the other members as functions,
 so the read in `lib/html.js` succeeds and only a call (or `new ParseError()`) throws `KatexNotInstalledError`.
 The message names katex,
 the advisory,
 the override and the reason the shim exists.
-This follows the precedent of `package/shim/node-domexception`,
+This follows the precedent of `package/pnpm-override/shim-node-domexception`,
 except that the shim cannot be API-identical,
 because the real API is what the advisory rules out.
 
@@ -1934,16 +1934,16 @@ it type-checks.
   from a worktree with no `node_modules` in any parent directory and before the shim,
   one `document-structure` unit test file failed at load with the `ERR_MODULE_NOT_FOUND` above.
 - pnpm honours `link:` in a `parent>child` selector override:
-  `node_modules/.pnpm/micromark-extension-math@3.1.0/node_modules/katex` is a symlink to `package/shim/katex`.
+  `node_modules/.pnpm/micromark-extension-math@3.1.0/node_modules/katex` is a symlink to `package/pnpm-override/shim-katex`.
 - Green,
   the same file and the whole `document-structure` unit task pass in that worktree;
-  `package/shim/katex` has its own tests for the import and for every member.
+  `package/pnpm-override/shim-katex` has its own tests for the import and for every member.
 - The built `corpus-pass` bundle is byte-identical before and after the override:
   its pipeline digest and a hash over every output file are equal.
 
 Revisit when `micromark-extension-math` accepts a `katex` release outside the advisory range,
 or when the workspace needs `mathHtml`.
-See `package/shim/katex/README.md`.
+See `package/pnpm-override/shim-katex/README.md`.
 
 ## Why we do not file the policy entries upstream
 

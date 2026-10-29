@@ -115,7 +115,7 @@ then its output.
      min 19.0 ms,
      median 20.7 ms,
      max 21.7 ms.
-  - `node` importing `package/dev-script/file-enforcer/src/index.ts` without running a config:
+  - `node` importing `package/file-enforcer/core/src/index.ts` without running a config:
      min 143.3 ms,
      median 146.8 ms,
      max 160.0 ms.
@@ -966,7 +966,7 @@ As "Shared Rust core evidence",
 As "Shared Rust core evidence",
 "R5 hashing".
 FE09's destination SHA-256 checks
-(`package/dev-script/file-enforcer/src/io/staleness-destination-match.ts:30-76`, per the research doc)
+(`package/file-enforcer/core/src/io/staleness-destination-match.ts:30-76`, per the research doc)
 can move to BLAKE3 in a rewrite,
 which invalidates every existing manifest once (inference).
 
@@ -978,7 +978,7 @@ As "Shared Rust core evidence",
 ### R7 file-enforcer interop
 
 Rewrite scope,
-measured by `SCR/rust-fe-count.ts` over `package/dev-script/file-enforcer/src`.
+measured by `SCR/rust-fe-count.ts` over `package/file-enforcer/core/src`.
 Code lines exclude blank lines and comment-only lines by a line heuristic,
 so they are approximate.
 
@@ -1024,7 +1024,7 @@ so they are approximate.
    the file-enforcer API,
    and `@monochromatic-dev/config-pnpr/ts` (`file-enforcer.config.ts:1-34`, verified).
 - Other TypeScript consumers:
-   `package/dev-script/vm-builder/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`;
+   `package/vm-builder/cli/src/import.ts:9` and `src/build-and-import.ts:20` import `exec`;
    `package/test-fixture/file-enforcer-perf/src/perf.config.ts:21` imports the API (verified).
 - Configuration rules:
    `AD2` says "Switch from config-as-data to TypeScript when conf needs logic" (`AGENTS.md:1737-1740`, verified).
@@ -1158,7 +1158,7 @@ most severe first.
 - Each file-enforcer configuration evaluation is a task:
    `node <file-enforcer daemon entry> --config <absolute path> --events-fd 3`,
    spawned in its own task cgroup with `stdin` from `/dev/null`.
-- New TypeScript entry in `package/dev-script/file-enforcer`:
+- New TypeScript entry in `package/file-enforcer/core`:
    it sets the active config,
    imports the config,
    then writes the tracker's results as events on descriptor 3 and exits.
@@ -1185,7 +1185,7 @@ most severe first.
 - `stderr` carries tagged logs,
    which the daemon relays with a task prefix;
    the logger already writes to `stderr` in process runtimes
-   (`package/module/logger/src/sink/console.ts:226`, `:242`, verified).
+   (`package/logger/core/src/sink/console.ts:226`, `:242`, verified).
 - Descriptor 3 is created by `dup2` in the same `pre_exec` closure that joins the cgroup,
    avoiding `stdout` collisions with any library output.
 - The daemon's watcher subscribes to the union of tracked reads,

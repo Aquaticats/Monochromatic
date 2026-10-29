@@ -27,7 +27,7 @@ import { join, } from 'node:path';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { runCommand, } from './command.ts';
 import { compositorVersionProblem, } from './compositor-version.ts';

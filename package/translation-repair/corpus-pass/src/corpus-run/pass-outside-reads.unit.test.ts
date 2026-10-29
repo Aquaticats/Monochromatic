@@ -20,13 +20,13 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary';

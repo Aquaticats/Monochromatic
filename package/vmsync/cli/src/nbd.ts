@@ -11,7 +11,7 @@ import { access, } from 'node:fs/promises';
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { spawn, } from './spawn.ts';
 import type { QemuMapRegion, } from './types.ts';

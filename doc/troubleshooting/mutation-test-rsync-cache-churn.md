@@ -6,7 +6,7 @@ During a `toml-edit` mutation run on `src/set-replace.ts`,
  `package/mutation-test/cli` launched a disposable Podman shard and its source copy failed:
 
 ```text
-file has vanished: "/src-ro/package/module/deepmerge-ts.fuzz/.cache/typescript/tsconfig.tsbuildinfo"
+file has vanished: "/src-ro/package/upstream-fork/deepmerge-ts.fuzz/.cache/typescript/tsconfig.tsbuildinfo"
 rsync warning: some files vanished before they could be transferred (code 24)
 ```
 

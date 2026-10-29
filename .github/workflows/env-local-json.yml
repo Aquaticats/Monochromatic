@@ -8,8 +8,8 @@ on:
   pull_request:
     branches: ['main']
     paths:
-    - 'package/module/env-local-json/**'
-    - 'package/module/matrix/**'
+    - 'package/env-local-json/core/**'
+    - 'package/test-harness/core-matrix/**'
     - 'package/agent-harness-shared/search-fetch/**'
     - 'package/mcp/search-fetch/**'
     - 'package/pi-plugin/search-fetch/**'
@@ -22,8 +22,8 @@ on:
   push:
     branches: ['main']
     paths:
-    - 'package/module/env-local-json/**'
-    - 'package/module/matrix/**'
+    - 'package/env-local-json/core/**'
+    - 'package/test-harness/core-matrix/**'
     - 'package/agent-harness-shared/search-fetch/**'
     - 'package/mcp/search-fetch/**'
     - 'package/pi-plugin/search-fetch/**'
@@ -59,11 +59,11 @@ jobs:
         curl -fsSL "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" -o /usr/local/bin/sops
         sudo chmod +x /usr/local/bin/sops
     - name: Matrix runner unit tests
-      run: task-run //package/module/matrix:test
+      run: task-run //package/test-harness/core-matrix:test
     - name: Build the reader
-      run: task-run //package/module/env-local-json:build
+      run: task-run //package/env-local-json/core:build
     - name: Reader unit tests with real sops and age
-      run: task-run //package/module/env-local-json:test:unit
+      run: task-run //package/env-local-json/core:test:unit
     - name: Build search-fetch shared
       run: task-run //package/agent-harness-shared/search-fetch:build
     - name: Search-fetch shared unit tests
@@ -81,8 +81,8 @@ jobs:
     - name: Set up node, pnpm and the task CLI
       uses: ./.github/actions/task-cli-setup
     - name: Build the reader
-      run: task-run //package/module/env-local-json:build
+      run: task-run //package/env-local-json/core:build
     - name: Verify podman
       run: podman --version
     - name: Reader container matrix
-      run: task-run //package/module/env-local-json:test:container
+      run: task-run //package/env-local-json/core:test:container

@@ -119,13 +119,13 @@ The same walk was corrupting a diagnostic in a package that stores nothing into 
  binding,
  which is how a crash in one predicate reached code with no relation to it.
 
-`package/webapp-productivity/done/src/server.ts:224` calls `serveStatic` from `h3`.
+`package/done/app/src/server.ts:224` calls `serveStatic` from `h3`.
 Before the fix the report named the boundary as authored text and a source position;
  after it,
  by package identity:
 
 ```text
-before   serveStatic [/var/home/user/Monochromatic/package/webapp-productivity/done/src/server.ts:225]
+before   serveStatic [/var/home/user/Monochromatic/package/done/app/src/server.ts:225]
 after    h3@2.0.1-rc.26 . serveStatic
 ```
 

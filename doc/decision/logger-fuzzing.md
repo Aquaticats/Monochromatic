@@ -6,26 +6,26 @@ Campaign in progress.
 The Node orchestration layer,
  the Node sink boundary layer,
  the coverage-reachability gate,
- and the CI workflow landed on 2026-09-06 in the sidecar package `package/module/logger.fuzz`
+ and the CI workflow landed on 2026-09-06 in the sidecar package `package/logger/core.fuzz`
  and `.github/workflows/logger-fuzz.yml`.
-The toml-edit campaign moved into `package/module/toml-edit.fuzz` on 2026-09-06 (`doc/decision/toml-edit-fuzzing.md`,
+The toml-edit campaign moved into `package/toml-edit/core.fuzz` on 2026-09-06 (`doc/decision/toml-edit-fuzzing.md`,
  "Sidecar package").
 The Playwright browser layer landed the same day,
  so every deliverable of the campaign is on main.
 Plan,
  grill records,
  and landed commits:
- `package/module/logger/bulletproofing.plan.md`.
+ `package/logger/core/bulletproofing.plan.md`.
 Per-contract design rationale:
- `package/module/logger/DECISIONS.md`.
+ `package/logger/core/DECISIONS.md`.
 
-This document is the decision record for how `@monochromatic-dev/module-logger` is verified,
+This document is the decision record for how `@monochromatic-dev/logger-core` is verified,
 rewritten on 2026-09-06 from the June design-only record.
 The June contracts that the shipped code reversed are listed under "Superseded decisions" so the history stays readable.
 
 ## Context
 
-The goal is the verification bar `package/module/toml-edit` already meets:
+The goal is the verification bar `package/toml-edit/core` already meets:
 a budgeted property campaign,
  a reference-model oracle,
  a committed coverage-reachability gate,
@@ -44,7 +44,7 @@ and no colour or escape sequence flows through the logger today.
 
 ## Decision: sidecar package
 
-The campaign lives in `package/module/logger.fuzz`,
+The campaign lives in `package/logger/core.fuzz`,
  a private workspace package,
 the convention `jsonc-edit.fuzz` and `css-edit.fuzz` set.
 The runtime package's `src` stays pure production code and ships in the tarball;
@@ -61,7 +61,7 @@ The sidecar's `fuzz` task rebuilds the runtime package first for that reason.
 
 The toml-edit campaign,
  which still lives inside its runtime package under `src/fuzz/`,
-migrates into `package/module/toml-edit.fuzz` after the logger campaign,
+migrates into `package/toml-edit/core.fuzz` after the logger campaign,
  copying this layout.
 
 ## Decision: scheduler, not grammar
@@ -286,8 +286,8 @@ runs at all.
 ## Landed: CI workflow
 
 `.github/workflows/logger-fuzz.yml` mirrors `toml-edit-fuzz.yml`:
-path-filtered to `package/module/logger/**`,
- `package/module/logger.fuzz/**`,
+path-filtered to `package/logger/core/**`,
+ `package/logger/core.fuzz/**`,
  this document,
  and itself,
 with the merge-queue scope step,
@@ -306,7 +306,7 @@ the smoke takes about 25 seconds and the gate about 20 seconds on the developmen
 The browser-only backends are checked in real browsers rather than through stand-ins.
 `src/browser/properties.ts` is bundled by the sidecar's `bundle:browser-properties` task
 (rolldown's client flavor under the browser platform,
- so `@monochromatic-dev/module-logger` resolves to the neutral artifact and fast-check is inlined)
+ so `@monochromatic-dev/logger-core` resolves to the neutral artifact and fast-check is inlined)
 and served to the Playwright harness page from `/dist/module-logger.fuzz/client/properties.js`.
 The bundle installs a runner on the page;
  `src/browser/properties.browser.test.ts` loads it,
@@ -344,14 +344,14 @@ the sidecar ships nothing,
 which would reject every relative helper import in the sidecar's test files.
 No workflow runs the browser suite today;
 the layer is a local podman run
-(`mise run test:browser -- package/module/logger.fuzz/src/browser/properties.browser.test.ts`) until a browser CI job
+(`mise run test:browser -- package/logger/core.fuzz/src/browser/properties.browser.test.ts`) until a browser CI job
 exists.
 
 ## Superseded decisions
 
 The June record fixed several contracts at design time;
  the shipped code reversed them.
-Each is recorded in `package/module/logger/DECISIONS.md`.
+Each is recorded in `package/logger/core/DECISIONS.md`.
 
 - Failure stance:
    log calls never throw.
@@ -379,7 +379,7 @@ Each is recorded in `package/module/logger/DECISIONS.md`.
   Shipped:
    `STARTUP_BUFFER_CAP` is an exported constant (10000),
    dropping oldest with a marker record.
-- `@monochromatic-dev/module-async-time` promoted to a runtime dependency.
+- `@monochromatic-dev/async-time-core` promoted to a runtime dependency.
   Shipped:
    it stays a devDependency imported through its `/ts` subpath and inlined by the build;
   the published `dependencies` map is empty.

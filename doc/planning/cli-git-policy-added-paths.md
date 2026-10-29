@@ -265,7 +265,7 @@ The runner reads the worktree through `bump-dependents-worktree.ts`
  the module the policy also uses.
 `bump-dependents-worktree.unit.test.ts` covers a runtime and a bundled dependent in a disposable repository,
  plus the no-bump case.
-A disposable clone of `main` with `@monochromatic-dev/module-or-throw` hand-bumped planned 19 dependents
+A disposable clone of `main` with `@monochromatic-dev/or-throw-core` hand-bumped planned 19 dependents
  and changed only their version lines.
 The CI job itself has not run the ripple yet;
  the first Version Packages pull request after a pending changeset is its first real exercise.

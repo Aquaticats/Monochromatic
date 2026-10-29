@@ -11,7 +11,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { footnoteDefinitionRangesOf, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 
 import {

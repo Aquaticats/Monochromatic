@@ -1,6 +1,6 @@
 import type { Nodes, } from 'mdast';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { findDroppedDeclaredNames, } from './declared-name-survival.ts';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';

@@ -12,8 +12,8 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   CONFIG_FILENAME,

@@ -74,7 +74,7 @@ Both the sync and async lock paths are exercised during normal pi startup,
 
 ## Silent-stub semantics
 
-`package/stub/silent/index.cjs` is a `Proxy`
+`package/pnpm-override/stub-silent/index.cjs` is a `Proxy`
 over a no-op function whose `get` trap returns `module.exports` for every property;
  including `then`.
 That makes the stub a thenable:
@@ -98,7 +98,7 @@ Consequence for the pi-coding-agent chain:
    `release = await lockfile.lock(...)` hangs on the thenable trap.
   pi hangs on startup model lookup.
 
-A `then` carve-out in `package/stub/silent/` would fix this,
+A `then` carve-out in `package/pnpm-override/stub-silent/` would fix this,
  but the current implementation does not have one.
 Editing the silent stub to add the carve-out for one consumer weakens the stub contract for every other policy entry,
  and is out of scope here.
@@ -114,7 +114,7 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
    Both sync and async startup paths execute correctly,
     including `await release()`.
    Decoupled from the silent stub's thenable trap.
-   Matches the precedent at `package/shim/node-domexception/` and `package/shim/readable-stream/`.
+   Matches the precedent at `package/pnpm-override/shim-node-domexception/` and `package/pnpm-override/shim-readable-stream/`.
 
    - Pros:
       every existing call site keeps working;
@@ -166,12 +166,12 @@ Ranking:
 ## Shim package layout
 
 Package root:
- `package/shim/proper-lockfile/`.
+ `package/pnpm-override/shim-proper-lockfile/`.
 
 - `package.json`:
    private,
    `"type": "commonjs"`,
-   name `@monochromatic-dev/shim-proper-lockfile`,
+   name `@monochromatic-dev/pnpm-override-shim-proper-lockfile`,
    `main: "./index.cjs"`,
    `types: "./index.d.cts"`,
    LGPL-3.0-or-later (matches workspace shim precedent,
@@ -251,12 +251,12 @@ A single line in the `overrides` block:
 
 ```yaml
 overrides:
-  'proper-lockfile': 'link:package/shim/proper-lockfile'
+  'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'
 ```
 
 The `link:` protocol is path-based,
  so pnpm substitutes the symlinked path regardless of which version a transitive dependent declared,
- identical to how the existing `'node-domexception': 'link:package/shim/node-domexception'` line handles every upstream
+ identical to how the existing `'node-domexception': 'link:package/pnpm-override/shim-node-domexception'` line handles every upstream
  `node-domexception` request.
 No version-qualified entry is needed.
 
@@ -276,12 +276,12 @@ After wiring (`pnpm-workspace.yaml` override added,
 1. **Install reshapes the graph.
    **
    `mise run prepare:pnpm:install` outside sandbox.
-   `pnpm why proper-lockfile` should show resolution through `link:package/shim/proper-lockfile`,
+   `pnpm why proper-lockfile` should show resolution through `link:package/pnpm-override/shim-proper-lockfile`,
     not `proper-lockfile@4.1.2`.
    The `node_modules/.pnpm/proper-lockfile@*` directory should no longer exist.
 2. **Shim loads and exports the right shape.
    **
-   `node -e "const l = require('@monochromatic-dev/shim-proper-lockfile'); console.log(typeof l.lockSync, typeof l.lock);"` -> `function function`.
+   `node -e "const l = require('@monochromatic-dev/pnpm-override-shim-proper-lockfile'); console.log(typeof l.lockSync, typeof l.lock);"` -> `function function`.
 3. **Sync lock works and `release()` cleans up.
    **
    Probe:

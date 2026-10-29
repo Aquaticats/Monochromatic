@@ -1,5 +1,10 @@
 # Oxlint no-immediate-mutation handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/module-test` is now `@monochromatic-dev/test-harness-core`.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.

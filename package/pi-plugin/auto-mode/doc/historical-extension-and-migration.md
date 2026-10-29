@@ -472,7 +472,7 @@ commands with secret parameter references,
 
 Auto-mode also allows `read` tool access to existing files in linked git
 worktrees attached to the current repository.
-`@monochromatic-dev/git-executable` selects real Git with common-platform-path priority and caches successful executable
+`@monochromatic-dev/git-executable-core` selects real Git with common-platform-path priority and caches successful executable
 resolution.
 The worktree list remains fresh for each read event,
 and each candidate root is classified with `rev-parse` so the main worktree is not added to this cross-worktree
@@ -774,7 +774,7 @@ Its export does not activate the private native runtime or replace the installed
 
 ## Logging
 
-The package uses tagged loggers from `@monochromatic-dev/module-logger`.
+The package uses tagged loggers from `@monochromatic-dev/logger-core`.
 The root tag is `auto-mode`;
  each module composes a deeper tag
 (`auto-mode -> evaluate`,

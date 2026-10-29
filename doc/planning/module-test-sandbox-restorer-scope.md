@@ -11,17 +11,17 @@ No design questions or follow-up actions remain open.
 
 ## Evidence
 
-Before the fix, `mise run //package/module/test:lint` exited with status 1.
+Before the fix, `mise run //package/test-harness/core:lint` exited with status 1.
 Oxlint reported one warning and no errors across 68 files:
-`unicorn(consistent-function-scoping)` at `package/module/test/src/sandbox.ts:89:16`.
-The file moved on 2026-10-04 to `package/module/test-sandbox/src/sandbox.ts`.
+`unicorn(consistent-function-scoping)` at `package/test-harness/core/src/sandbox.ts:89:16`.
+The file moved on 2026-10-04 to `package/test-harness/core-sandbox/src/sandbox.ts`.
 The named callback `restoreOrdinarySandbox` contains only `raw.restore()`.
 Its captured `raw` belongs to `createOwnedSandbox`, not to `restore`.
 
-`package/module/test/src/sandbox-cleanup.ts` invokes each supplied callback
+`package/test-harness/core/src/sandbox-cleanup.ts` invokes each supplied callback
 and aggregates restoration failures.
-The file moved on 2026-10-04 to `package/module/test-sandbox/src/sandbox-cleanup.ts`.
-`package/module/test/src/sinon-cleanup.unit.test.ts` exercises automatic restoration,
+The file moved on 2026-10-04 to `package/test-harness/core-sandbox/src/sandbox-cleanup.ts`.
+`package/test-harness/core/src/sinon-cleanup.unit.test.ts` exercises automatic restoration,
 manual restoration and restubbing, completed-attempt guards, and combined body/cleanup failures
 through the public artifact.
 
@@ -45,9 +45,9 @@ the patch must preserve both explicitly.
 - The first build/unit run passed, but lint reported `stylistic(max-statements-per-line)`
   on the moved one-line declaration.
   `fd6dbba98` placed its body on a separate line without changing the method call.
-- Final `mise run //package/module/test:lint` exited successfully,
+- Final `mise run //package/test-harness/core:lint` exited successfully,
   including `lint:types`, with zero warnings and zero errors across 68 files.
-- Final `mise run //package/module/test:buildAndTest` exited successfully.
+- Final `mise run //package/test-harness/core:buildAndTest` exited successfully.
   It rebuilt the Node and neutral artifacts and browser fixture before running the package unit suite.
   Cleanup boundaries, attempt lifetime, ordinary timers, injected capabilities,
   installation failure handling, and mixed harness copies passed.

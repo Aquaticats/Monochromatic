@@ -1,12 +1,12 @@
 name: toml-edit-fuzz
 
 # Runs the property-based fuzz smoke, the toml-test conformance suite, and the
-# V8 line-coverage reachability gate for @monochromatic-dev/module-toml-edit on
+# V8 line-coverage reachability gate for @monochromatic-dev/toml-edit-core on
 # changes that touch the package, its fuzz sidecar, its shared fixtures, or the
 # fuzzing decision doc. The same *.property.unit.test.ts files run bounded in
 # the sidecar's test:unit and as a short per-property campaign through the
 # sidecar fuzz task. See
-# package/module/toml-edit.fuzz/HANDOVER.fuzzing.md and
+# package/toml-edit/core.fuzz/HANDOVER.fuzzing.md and
 # doc/decision/toml-edit-fuzzing.md.
 #
 # push and pull_request are path-filtered to toml-edit. merge_group cannot be
@@ -18,8 +18,8 @@ on:
   pull_request:
     branches: ['main']
     paths:
-    - 'package/module/toml-edit/**'
-    - 'package/module/toml-edit.fuzz/**'
+    - 'package/toml-edit/core/**'
+    - 'package/toml-edit/core.fuzz/**'
     - 'package/test-fixture/toml-edit/**'
     - 'doc/decision/toml-edit-fuzzing.md'
     - '.github/workflows/toml-edit-fuzz.yml'
@@ -28,8 +28,8 @@ on:
   push:
     branches: ['main']
     paths:
-    - 'package/module/toml-edit/**'
-    - 'package/module/toml-edit.fuzz/**'
+    - 'package/toml-edit/core/**'
+    - 'package/toml-edit/core.fuzz/**'
     - 'package/test-fixture/toml-edit/**'
     - 'doc/decision/toml-edit-fuzzing.md'
     - '.github/workflows/toml-edit-fuzz.yml'
@@ -63,7 +63,7 @@ jobs:
       run: |
         require('node:child_process').execFileSync(
           process.execPath,
-          ['package/module/toml-edit.fuzz/src/ci-scope.ts'],
+          ['package/toml-edit/core.fuzz/src/ci-scope.ts'],
           { stdio: 'inherit' },
         )
 
@@ -74,43 +74,43 @@ jobs:
     - name: Build the bundle
       if: steps.scope.outputs.run == 'true'
       # Build before type-check: the test, conformance, and sidecar files import
-      # the built `@monochromatic-dev/module-toml-edit`, so its dist .d.mts must
+      # the built `@monochromatic-dev/toml-edit-core`, so its dist .d.mts must
       # exist for tsgo to resolve them on a fresh checkout.
-      run: task-run //package/module/toml-edit:build
+      run: task-run //package/toml-edit/core:build
 
     - name: Type-check
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/toml-edit:lint:types
+      run: task-run //package/toml-edit/core:lint:types
 
     - name: Type-check the sidecar
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/toml-edit.fuzz:lint:types
+      run: task-run //package/toml-edit/core.fuzz:lint:types
 
     - name: Unit suite (fixtures)
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/toml-edit:test:unit
+      run: task-run //package/toml-edit/core:test:unit
 
     - name: Unit suite (sidecar, bounded property runs)
       if: steps.scope.outputs.run == 'true'
-      run: task-run //package/module/toml-edit.fuzz:test:unit
+      run: task-run //package/toml-edit/core.fuzz:test:unit
 
     - name: Fuzz smoke (short per-property campaign)
       if: steps.scope.outputs.run == 'true'
       # A short per-property budget, not the 60s local default, keeps the smoke
       # bounded while still exploring well past the bounded-mode run count.
-      run: task-run //package/module/toml-edit.fuzz:fuzz -- --budget 3000
+      run: task-run //package/toml-edit/core.fuzz:fuzz -- --budget 3000
 
     - name: Conformance (toml-test decode and encode for 1.0 and 1.1)
       if: steps.scope.outputs.run == 'true'
       # Follows the latest upstream toml-test runner through npx (a deliberate
       # moving oracle); the task logs the resolved runner version.
-      run: task-run //package/module/toml-edit:test:conformance
+      run: task-run //package/toml-edit/core:test:conformance
 
     - name: Coverage gate (no per-file src reachability regression)
       if: steps.scope.outputs.run == 'true'
       # The committed baseline is a V8-coverage artifact. This repo always tracks
       # the latest node, so a node release that shifts V8 coverage is handled by
       # refreezing the baseline with
-      # `task-run //package/module/toml-edit.fuzz:fuzz:coverage -- --write`, not by
+      # `task-run //package/toml-edit/core.fuzz:fuzz:coverage -- --write`, not by
       # pinning node.
-      run: task-run //package/module/toml-edit.fuzz:fuzz:coverage
+      run: task-run //package/toml-edit/core.fuzz:fuzz:coverage

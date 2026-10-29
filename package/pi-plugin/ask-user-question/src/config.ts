@@ -1,7 +1,7 @@
 import { readFile, } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { askUserQuestionConfigPath, } from './config-path.ts';
 import { validateAskUserQuestionConfig, } from './config-schema.ts';

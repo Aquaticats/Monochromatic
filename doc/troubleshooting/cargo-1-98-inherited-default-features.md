@@ -16,7 +16,7 @@ It blocked the IDE 0.1.3 release until commit `d1477a13ba`.
 The trigger is a member entry such as
 
 ```toml
-# package/desktop-app/ide/Cargo.toml (before d1477a13ba)
+# package/ide/app/Cargo.toml (before d1477a13ba)
 [dependencies]
 futures-util = { workspace = true, default-features = false, features = ["std"] }
 
@@ -30,11 +30,11 @@ The same manifest loads cleanly on cargo 1.99 and later, including nightly 1.101
 so a host-only check misses it.
 
 Affected crates at `fd0bd03540`, by site count:
-`package/desktop-app/ide` (7),
+`package/ide/app` (7),
 `package/music-player/truepeak-core` (5),
-`package/cli/nested-wayland-session` (3),
+`package/nested-wayland-session/cli` (3),
 `package/forbidden-strings/cli` (2),
-`package/desktop-app/terminal` (1),
+`package/terminal/app` (1),
 `package/linter/monochromatic-lint` (1),
 and `package/forbidden-strings/core` (1).
 All 24 first-party manifests declare `edition = "2024"`
@@ -109,12 +109,12 @@ on files under `node_modules/.monochromatic/`):
 
 ```sh
 # Reproduce on HEAD's old manifest (control) inside the cargo 1.98 image.
-git show d1477a13ba~1:package/desktop-app/ide/Cargo.toml > "${HOME}/temp/agent/ide-old-Cargo.toml"
+git show d1477a13ba~1:package/ide/app/Cargo.toml > "${HOME}/temp/agent/ide-old-Cargo.toml"
 podman run --rm --memory=2g --cpus=2 --security-opt label=disable \
   --volume "${PWD}:/work:ro" \
-  --volume "${HOME}/temp/agent/ide-old-Cargo.toml:/work/package/desktop-app/ide/Cargo.toml:ro" \
+  --volume "${HOME}/temp/agent/ide-old-Cargo.toml:/work/package/ide/app/Cargo.toml:ro" \
   localhost/monochromatic/ide \
-  sh -c 'cargo metadata --locked --format-version 1 --manifest-path /work/package/desktop-app/ide/Cargo.toml >/dev/null'
+  sh -c 'cargo metadata --locked --format-version 1 --manifest-path /work/package/ide/app/Cargo.toml >/dev/null'
 ```
 
 ### Fails on cargo 1.98.0
@@ -135,8 +135,8 @@ podman run --rm --memory=2g --cpus=2 --security-opt label=disable \
 ### Why this repository had cargo 1.98 at all
 
 The repository builds everything with the nightly `toolchain.lock.json` pins (owner, 2026-10-29).
-`package/desktop-app/terminal/Containerfile` installed floating `--default-toolchain stable` instead,
-and `package/desktop-app/ide/Containerfile` starts `FROM localhost/monochromatic/terminal`,
+`package/terminal/app/Containerfile` installed floating `--default-toolchain stable` instead,
+and `package/ide/app/Containerfile` starts `FROM localhost/monochromatic/terminal`,
 so the IDE image carried whatever stable was current when it was built (1.98.0).
 
 ## Verified workarounds
@@ -154,7 +154,7 @@ Tradeoff:
 
 ### Disable default features in the workspace entry (also adopted)
 
-`package/dev-script/file-enforcer/src/cargo/catalog/default-features.ts` renders
+`package/file-enforcer/core/src/cargo/catalog/default-features.ts` renders
 `default-features = false` into a crate's generated entry when every catalog site of that dependency
 in the crate writes `default-features = false`; sites keep their `features` lists.
 Tradeoffs:

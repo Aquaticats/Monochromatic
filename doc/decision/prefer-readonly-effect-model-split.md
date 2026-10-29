@@ -17,7 +17,7 @@ Evidence:
 
 `prefer-readonly-parameter-type/prefer-readonly-parameter-types` reports 1,661 findings across the workspace,
 almost all on ordinary ECMAScript intrinsics.
- `package/module/caught-value` is 38 lines whose only calls are
+ `package/caught-value/core` is 38 lines whose only calls are
 `Error.isError` and `String`,
  and it reports two.
 
@@ -412,7 +412,7 @@ every other cause clears too,
 What is verified directly is the mechanism,
  on real workspace code rather than fixtures.
  At
-`package/module/toml-edit/src/emit-value.ts:437` two `map` calls sit in one expression.
+`package/toml-edit/core/src/emit-value.ts:437` two `map` calls sit in one expression.
  The outer
 `body.map(...)`,
  whose receiver is `readonly TOMLKeyValue[]` and resolves to `ReadonlyArray.map`,
@@ -436,7 +436,7 @@ Argument-side findings are untouched by design.
  proxy traps or `toJSON`,
  so those findings are the rule being
 correct.
- `package/module/caught-value` still reports its two,
+ `package/caught-value/core` still reports its two,
  unchanged,
  and served as the control.
 
@@ -511,7 +511,7 @@ This retracts a third drafting error,
  which expected it to go clean.
 
 The measured provenance names exactly one surviving cause,
-`plan.enforcements.reduce [package/dev-script/file-enforcer/src/cargo/apply-plan.ts:154]`.
+`plan.enforcements.reduce [package/file-enforcer/core/src/cargo/apply-plan.ts:154]`.
  Its sibling
 `plan.blocks.filter(...)` discharged as predicted.
  The difference is `reduce`'s second argument:
@@ -540,7 +540,7 @@ not a gate this change inherits:
  Measured here before any edit,
  `//package/config/oxlint:lint:oxlint` runs warm in 923
 milliseconds over 14 files with no findings,
- and `//package/module/caught-value:lint:oxlint` reports two
+ and `//package/caught-value/core:lint:oxlint` reports two
 errors in 1.2 seconds.
  Those are the numbers this change is held to;
  closing the cold-path gap remains the
@@ -549,7 +549,7 @@ other incident's work.
 Measured after the change:
  `//package/config/oxlint:lint:oxlint` runs warm in 1.0 seconds over the same 14
 files with no findings,
- and `//package/module/caught-value:lint:oxlint` still reports two errors,
+ and `//package/caught-value/core:lint:oxlint` still reports two errors,
  in 739
 milliseconds.
  No regression.

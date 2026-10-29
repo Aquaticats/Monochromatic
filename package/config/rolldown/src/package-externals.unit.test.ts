@@ -10,7 +10,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   anchoredExternal,
@@ -62,7 +62,7 @@ await describe({
       name: 'matches scope prefixes, name prefixes, and exact names',
       fn: async function patternForms(): Promise<void> {
         expect(matchesBundlePattern({
-          name: '@monochromatic-dev/module-logger',
+          name: '@monochromatic-dev/logger-core',
           pattern: '@monochromatic-dev/**',
         },),).toBe(true,);
         expect(matchesBundlePattern({
@@ -124,7 +124,7 @@ await describe({
       fn: async function externalsComputation(): Promise<void> {
         using fixture = createManifestFixture(JSON.stringify({
           dependencies: {
-            '@monochromatic-dev/module-logger': 'workspace:*',
+            '@monochromatic-dev/logger-core': 'workspace:*',
             'toml-eslint-parser': '>=0.10.0',
           },
           peerDependencies: { oxlint: '>=1.0.0', },
@@ -156,7 +156,7 @@ await describe({
         expect(hits('node:path',),).toBe(true,);
         expect(hits('toml-eslint-parser',),).toBe(true,);
         expect(hits('oxlint/plugins',),).toBe(true,);
-        expect(hits('@monochromatic-dev/module-logger',),).toBe(false,);
+        expect(hits('@monochromatic-dev/logger-core',),).toBe(false,);
         expect(hits('undeclared-transitive',),).toBe(false,);
       },
     },),

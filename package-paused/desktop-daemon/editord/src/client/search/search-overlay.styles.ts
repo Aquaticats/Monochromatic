@@ -10,7 +10,7 @@ import {
   cssRem,
   cssVar,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import { DIALOG_STYLES, } from './dialog.styles.ts';
 

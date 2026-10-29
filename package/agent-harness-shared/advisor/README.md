@@ -280,7 +280,7 @@ Extraction follow-ups resolve copy disagreements by the grilling picks recorded 
   an approval round and report before/after per pick in the end-of-series report.
   Applied:
   the local `formatDuration` copy in `src/rendering-summary.ts` now follows
-  `@monochromatic-dev/module-numeric-format` precision rules (`DECIMAL_BELOW_MS`):
+  `@monochromatic-dev/numeric-format-core` precision rules (`DECIMAL_BELOW_MS`):
   one decimal below 10ms (`0.3ms`),
   whole milliseconds to 999ms (`51ms`),
   one decimal

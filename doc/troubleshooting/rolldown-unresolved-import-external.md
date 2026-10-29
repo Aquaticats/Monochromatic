@@ -68,7 +68,7 @@ Variants:
 - Either kind inside a `require` in a `try` block:
   externalized with no diagnostic at all.
 
-In issue #570 the unresolved bare specifier was `@monochromatic-dev/module-logger/ts`,
+In issue #570 the unresolved bare specifier was `@monochromatic-dev/logger-core/ts`,
 and the resulting `import` failed at lint time with `ERR_MODULE_NOT_FOUND`.
 
 ### Root cause

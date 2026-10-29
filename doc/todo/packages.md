@@ -159,7 +159,7 @@ This file tracks improvements needed across different packages in the monorepo,
        Decided 2026-09-07:
        public,
        delegating to `node:path/posix` under the `node` condition
-       (`package/module/fs-path/DECISIONS.md`)
+       (`package/fs-path/core/DECISIONS.md`)
 - [ ] Add `url.build()`:
        Build URLs with query parameters
 - [ ] Add `url.parse()`:
@@ -238,13 +238,13 @@ This file tracks improvements needed across different packages in the monorepo,
 - [ ] Add performance monitoring for documentation site
 - [ ] Create multi-language support for documentation
 
-### RSS Reader (package/webapp-productivity/rss)
+### RSS Reader (package/rss/app)
 
 **Note**:
  RSS package has comprehensive TODO files already.
  See:
 
-- [`package/webapp-productivity/rss/TODO.index.md`](../../package/webapp-productivity/rss/TODO.index.md) for overview
+- [`package/rss/app/TODO.index.md`](../../package/rss/app/TODO.index.md) for overview
 - Individual TODO files for testing,
    performance,
    caching,

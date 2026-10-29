@@ -13,7 +13,7 @@
 
 import { join, } from 'node:path';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
   caught,
@@ -21,7 +21,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
 import {

@@ -9,7 +9,7 @@ which keeps the decision ids and the interview question ids.
 Implementation started 2026-10-18.
 
 This single record consolidates the four areas the interview settled:
-the `@monochromatic-dev/module-env-local-json` package,
+the `@monochromatic-dev/env-local-json-core` package,
 the search-fetch integration,
 the one-time credential migration and host wiring,
 and the tests and CI that keep them honest.
@@ -43,8 +43,8 @@ without putting a secret in an environment variable that a child process inherit
 
 ### A generic store module owns reading and decryption (D1, D10)
 
-The mechanism ships as `@monochromatic-dev/module-env-local-json`
-under `package/module/env-local-json`.
+The mechanism ships as `@monochromatic-dev/env-local-json-core`
+under `package/env-local-json/core`.
 search-fetch is its first consumer,
 and the module stays generic:
 it knows the store file name and the sops/age identity chain,
@@ -86,7 +86,7 @@ The reader checks for `.env.local.json` at the nearest repository root,
 then at
 each outer repository root,
 using the existing
-`@monochromatic-dev/module-fs-path` root finder.
+`@monochromatic-dev/fs-path-core` root finder.
 If no repository root holds a store,
 the reader walks upward from
 `realpath(cwd)` to the nearest of three bounds:
@@ -284,7 +284,7 @@ No test reads the real store or commits key material.
 The plaintext rejection has a guard test that is shown to fail before it is
 trusted.
 The container matrix runs the reader in Ubuntu as root and as a non-root user
-through `@monochromatic-dev/module-matrix`,
+through `@monochromatic-dev/test-harness-core-matrix`,
 which installs the repository's Node
 version from the mounted config.
 

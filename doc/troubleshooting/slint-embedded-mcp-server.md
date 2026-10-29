@@ -257,7 +257,7 @@ MCP server,
 if std::env::var_os("SLINT_MCP_PORT").is_none() {
     // ... build the winit backend with the app-id hook and set_platform ...
 }
-// package/desktop-app/terminal/src/main.rs: install_backend() early-returns Ok(()) when the port is set.
+// package/terminal/app/src/main.rs: install_backend() early-returns Ok(()) when the port is set.
 ```
 
 Tradeoff:

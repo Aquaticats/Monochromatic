@@ -215,8 +215,8 @@ quotations are the user's words.
 ### Interface decisions (UI batch 2)
 
 Every option was shown as built screenshots:
-`package/desktop-app/ide/design/questions/2026-10-05-ui-batch-2.html`,
-with frames in `package/desktop-app/ide/design/screenshots/2026-10-05-ui-batch-2/`.
+`package/ide/app/design/questions/2026-10-05-ui-batch-2.html`,
+with frames in `package/ide/app/design/screenshots/2026-10-05-ui-batch-2/`.
 
 - The sidebar divider is a thin line with no strip (option B):
   "The 48px rule came from Android and focus on touch targets.
@@ -260,7 +260,7 @@ with frames in `package/desktop-app/ide/design/screenshots/2026-10-05-ui-batch-2
 
 The agent had placed hints in boxes after the end of their code line,
 because that placement moves no source text
-(frames in `package/desktop-app/ide/design/screenshots/2026-10-05-annotations-as-built/`).
+(frames in `package/ide/app/design/screenshots/2026-10-05-annotations-as-built/`).
 The user rejected it:
 "On inlay hints:
 Do not show them inline.
@@ -434,8 +434,8 @@ Quotations are the user's words.
 ### Interface decisions (UI batch 3)
 
 Asked on 2026-10-06 with built screenshots of every option
-(`package/desktop-app/ide/design/questions/2026-10-06-ui-batch-3.html`,
-frames in `package/desktop-app/ide/design/screenshots/2026-10-05-ui-batch-3/`).
+(`package/ide/app/design/questions/2026-10-06-ui-batch-3.html`,
+frames in `package/ide/app/design/screenshots/2026-10-05-ui-batch-3/`).
 Every answer matches what the hint-row build already ships.
 
 - Hint rows look as editord draws them:
@@ -471,8 +471,8 @@ and unit tests alone do not establish completion.
 [implementation]: ../planning/slint-ide-implementation.md
 ### Interface decisions (UI batch 3b)
 
-Asked on 2026-10-06 with the page `package/desktop-app/ide/design/questions/2026-10-06-ui-batch-3b.html`
-and the frames under `package/desktop-app/ide/design/screenshots/2026-10-06-ui-batch-3b/`.
+Asked on 2026-10-06 with the page `package/ide/app/design/questions/2026-10-06-ui-batch-3b.html`
+and the frames under `package/ide/app/design/screenshots/2026-10-06-ui-batch-3b/`.
 
 - The divider's pointer grab zone stays 5 px wide ("5 px").
 - Selected text in the find and search boxes takes the same ink as every other selection on that fill,

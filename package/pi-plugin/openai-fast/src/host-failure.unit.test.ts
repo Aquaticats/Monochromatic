@@ -4,7 +4,7 @@
  @module
  */
 import type { AgentSession, SessionBeforeCompactEvent, ProviderStreamEvent, } from '@earendil-works/pi-coding-agent';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { CODEX_API, CODEX_PROVIDER, registerOpenAIFast, } from '../dist/final/node/index.mjs';
 import { verifyHostAbort, } from './host-fixture-abort.ts';

@@ -10,7 +10,7 @@
  @module
  */
 
-import { describe, } from '@monochromatic-dev/module-test/ts';
+import { describe, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { readerEqualityCases, } from './source-reader-equality.test-fixture.ts';
 

@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { reportLines, } from './displacement-probe-report.ts';

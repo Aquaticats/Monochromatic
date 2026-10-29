@@ -1,7 +1,7 @@
 import { syncBuiltinESMExports, } from 'node:module';
 import timersPromises, { setTimeout as pause, } from 'node:timers/promises';
 
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 import { HANG_STOP_MS, } from './hang-stop.test-fixture.ts';
 
 //region Fake clock walk

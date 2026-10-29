@@ -5,8 +5,8 @@ import { join, } from 'node:path';
 import {
   findRootCached,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 /**
  Logger root for cli-fy after removing the package log shim.

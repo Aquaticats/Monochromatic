@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This plan records the accepted design for deepening `package/module/hyperscript`.
+This plan records the accepted design for deepening `package/hyperscript/core`.
 Do not implement it while reading this document.
 Use it as the source of truth for a future implementation pass.
 
@@ -58,19 +58,19 @@ Libvirt policy does not.
 
 Current public Modules live under:
 
-- `package/module/hyperscript/src/html/index.ts`
-- `package/module/hyperscript/src/dom/index.ts`
-- `package/module/hyperscript/src/xml/index.ts`
-- `package/module/hyperscript/src/css/index.ts`
-- `package/module/hyperscript/src/index.ts`
+- `package/hyperscript/core/src/html/index.ts`
+- `package/hyperscript/core/src/dom/index.ts`
+- `package/hyperscript/core/src/xml/index.ts`
+- `package/hyperscript/core/src/css/index.ts`
+- `package/hyperscript/core/src/index.ts`
 
 Current tests live under:
 
-- `package/module/hyperscript/src/html/index.unit.test.ts`
-- `package/module/hyperscript/src/xml/index.unit.test.ts`
-- `package/module/hyperscript/src/css/index.unit.test.ts`
+- `package/hyperscript/core/src/html/index.unit.test.ts`
+- `package/hyperscript/core/src/xml/index.unit.test.ts`
+- `package/hyperscript/core/src/css/index.unit.test.ts`
 
-There is currently no `hDom` test file in `package/module/hyperscript`.
+There is currently no `hDom` test file in `package/hyperscript/core`.
 Future implementation should add one.
 
 ## Plain-language model
@@ -132,7 +132,7 @@ not nested option objects.
 
 ## Cross-package documentation update
 
-The current `package/module/hyperscript/README.md` says each factory module has no sibling cross-dependencies.
+The current `package/hyperscript/core/README.md` says each factory module has no sibling cross-dependencies.
 Future implementation will likely need stable shared syntax primitives.
 For example,
 `hDom` should accept `HtmlFragment` for raw `innerHTML`.
@@ -1929,7 +1929,7 @@ Cover:
 
 Add DOM tests for `hDom`.
 Because `hDom` uses real `document`,
-prefer browser tests through the existing Playwright pattern used by `package/module/dom`.
+prefer browser tests through the existing Playwright pattern used by `package/dom/core`.
 Read that package before adding the task.
 
 Cover:
@@ -2245,18 +2245,18 @@ Expected checks after TypeScript edits:
 
 ```sh
 # doc/todo/hyperscript-stable-syntax-deepening.md
-mise run //package/module/hyperscript:lint:types
+mise run //package/hyperscript/core:lint:types
 ```
 
 Expected package lint:
 
 ```sh
 # doc/todo/hyperscript-stable-syntax-deepening.md
-mise run //package/module/hyperscript:lint
+mise run //package/hyperscript/core:lint
 ```
 
 For DOM browser tests,
-copy the existing Playwright task pattern from `package/module/dom`.
+copy the existing Playwright task pattern from `package/dom/core`.
 Do not invent a direct Playwright command if a mise task already exists.
 
 After docs edits,

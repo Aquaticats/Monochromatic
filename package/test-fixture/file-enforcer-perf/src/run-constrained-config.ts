@@ -6,7 +6,7 @@
 import {
   findRoot,
   MISE_MONOREPO,
-} from '@monochromatic-dev/module-fs-path/ts';
+} from '@monochromatic-dev/fs-path-core/ts';
 import spawn from 'nano-spawn';
 import { realpath, } from 'node:fs/promises';
 import { resolve, } from 'node:path';

@@ -33,14 +33,14 @@ const inputs = [
   'package/linter/monochromatic-lint.fuzz/Cargo.lock',
   'package/linter/monochromatic-lint.fuzz/src',
   'package/linter/monochromatic-lint.fuzz/fuzz_targets',
-  'package/rust-module/jsonc-edit/Cargo.toml',
-  'package/rust-module/jsonc-edit/Cargo.lock',
-  'package/rust-module/jsonc-edit/src',
-  'package/rust-module/jsonc-edit/fixtures',
-  'package/rust-module/jsonc-edit.fuzz/Cargo.toml',
-  'package/rust-module/jsonc-edit.fuzz/Cargo.lock',
-  'package/rust-module/jsonc-edit.fuzz/src',
-  'package/rust-module/jsonc-edit.fuzz/fuzz_targets',
+  'package/jsonc-edit/core-rust/Cargo.toml',
+  'package/jsonc-edit/core-rust/Cargo.lock',
+  'package/jsonc-edit/core-rust/src',
+  'package/jsonc-edit/core-rust/fixtures',
+  'package/jsonc-edit/core-rust.fuzz/Cargo.toml',
+  'package/jsonc-edit/core-rust.fuzz/Cargo.lock',
+  'package/jsonc-edit/core-rust.fuzz/src',
+  'package/jsonc-edit/core-rust.fuzz/fuzz_targets',
 ];
 
 /**

@@ -21,7 +21,7 @@
 import {
   describe,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { reportingRefusals, } from '@monochromatic-dev/translation-repair-run';
 import { BenchReportError, } from '../../dist/final/node/index.mjs';

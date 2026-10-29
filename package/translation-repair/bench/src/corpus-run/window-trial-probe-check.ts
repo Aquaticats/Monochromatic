@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { WindowTrialRow, } from './window-trial-ledger.ts';
 import { TRIAL_ARMS, } from './window-trial-report.ts';

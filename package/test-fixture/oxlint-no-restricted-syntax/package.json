@@ -6,7 +6,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@monochromatic-dev/module-caught-value": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "type-fest": "catalog:"
   },

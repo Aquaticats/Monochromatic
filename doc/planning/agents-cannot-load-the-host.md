@@ -52,7 +52,7 @@ so the share is not established.
    The delegating session's brief misquoted it ("systemd-run with a memory cap") and suggested `stress-ng` or busy loops.
    A rule that depends on the delegating agent quoting it correctly failed at the first mistake.
 2. **The CPU cap does not cover transient units.**
-   `claude-cpu-watch.service` (`package/dev-script/claude-cpu-cap`) writes `cpu.max` into the one `claude-code-bash`
+   `claude-cpu-watch.service` (`package/claude-cpu-cap/daemon`) writes `cpu.max` into the one `claude-code-bash`
    cgroup only (`doc/runbook/claude-cpu-cap.md`,
 "Known gaps":
 units started with `systemd-run --user` get their own cgroup
@@ -187,5 +187,5 @@ A + B > C > D > E alone.
    repeat with a denylisted command after layer A exists.
 3. Check the hook interface in the installed Claude Code (`claude-code-guide` agent or the installed type definitions)
    for an input-rewriting field before relying on prompt injection.
-4. Run layer C against a recorded high-temperature episode (`package/dev-script/claude-cpu-cap/src/analyze-episode.ts`)
+4. Run layer C against a recorded high-temperature episode (`package/claude-cpu-cap/daemon/src/analyze-episode.ts`)
    to see how often it would have frozen work on ordinary days.

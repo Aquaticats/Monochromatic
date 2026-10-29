@@ -7,14 +7,14 @@ The checksums are
 `i-slint-core` `ed2ea15059d70bc31b1a8b1eb4c34f2c5df04cb7e53f36179b43c0261231d646`,
 `i-slint-renderer-femtovg` `eb0de504d57cdadf80c2abf7bcb8b7135a3716aee1f41b6ebb90ea93e3649d7c`,
 and `i-slint-backend-winit` `dae4fcf1b19e9cb109984d2af87d2b9485388c619265bff71dd523133888bee2`
-(`package/desktop-app/ide/Cargo.lock`).
+(`package/ide/app/Cargo.lock`).
 Slint 1.18.1 is the newest release (published 2026-09-21),
 and the `master` branch of 2026-10-24 (`8be16937037c49ed2d7262a497399e704f65adab`) keeps the same order of steps.
 
 ## Symptom
 
 The IDE draws its code view and its minimap picture into its own wgpu textures
-inside the rendering notifier (`bind` in `package/desktop-app/ide/src/native/gpu_tile.rs`),
+inside the rendering notifier (`bind` in `package/ide/app/src/native/gpu_tile.rs`),
 and the window shows them through `Image` elements in `for` repeaters
 (`source-slices` in `ui/app.slint`,
 `slices` in `ui/minimap.slint`).
@@ -133,7 +133,7 @@ which the frame does show.
 
 ## Verification
 
-The probe is `src/native/repeater_frame_tests.rs` in `package/desktop-app/ide`:
+The probe is `src/native/repeater_frame_tests.rs` in `package/ide/app`:
 a window with `for shade in shades : Rectangle { background: shade }`
 whose model holds one red color,
 a rendering notifier that changes the model to blue inside the first frame after it is armed,
@@ -142,7 +142,7 @@ of the window's ask for another frame (`take_frame_wanted`,
 the harness adapter's `request_redraw`),
 and of the next frame.
 It runs on the hardware Vulkan device through
-`mise run //package/desktop-app/ide:test:native 'test(/repeater_frame_tests/)'`.
+`mise run //package/ide/app:test:native 'test(/repeater_frame_tests/)'`.
 
 Changes that work (the frame that holds them draws them):
 

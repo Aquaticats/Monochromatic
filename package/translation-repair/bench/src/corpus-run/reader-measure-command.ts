@@ -1,7 +1,7 @@
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';

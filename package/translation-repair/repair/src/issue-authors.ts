@@ -6,7 +6,7 @@
  @module
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { PatchOperation, } from '@monochromatic-dev/translation-repair-page-pass/ts';
 import {
   type IssueAuthorship,

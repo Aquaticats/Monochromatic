@@ -15,13 +15,13 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { allInInputOrder, } from '../dist/final/node/index.mjs';
 import { rejectionOf, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/rejection-of.test-fixture.ts';

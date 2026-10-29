@@ -2,14 +2,14 @@
 so a winit/Slint app's separately-bound drag-and-drop device never receives file drops
 
 A file dragged from Dolphin onto the Slint file-manager prototype
-(`package/desktop-app/file-manager/`) on a native KWin Wayland session does
+(`package/file-manager/app/`) on a native KWin Wayland session does
 nothing:
  no drop,
  and the drag cursor shows the "forbidden" (no-drop) icon while
 hovering the app.
  The identical app receives the same drag correctly under the
 project's Smithay-based nested compositor
-(`package/cli/nested-wayland-session`,
+(`package/nested-wayland-session/cli`,
  its `drop-file` command).
  The difference
 is not the app:
@@ -195,7 +195,7 @@ Under test:
    key logic
   re-confirmed at tag `v6.7.1`.
 - App:
-   `package/desktop-app/file-manager` debug build;
+   `package/file-manager/app` debug build;
    Slint 1.17.0 via
   `copypasta` -> `smithay-clipboard` 0.7.3;
    `smithay-client-toolkit` 0.19.2.
@@ -211,7 +211,7 @@ input on a multi-monitor session):
 mkdir -p /tmp/dnd-src && printf 'hello\n' > /tmp/dnd-src/hello.txt
 
 # 2. Run the app with Wayland protocol tracing + info logs.
-FM=package/desktop-app/file-manager/target/debug/monochromatic-file-manager
+FM=package/file-manager/app/target/debug/monochromatic-file-manager
 WAYLAND_DEBUG=1 RUST_LOG=info "$FM" > /tmp/fm.log 2>&1 &
 
 # 3. Open Dolphin on the folder, then drag hello.txt onto a file-manager pane.

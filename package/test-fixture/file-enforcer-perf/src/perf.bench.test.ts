@@ -18,7 +18,7 @@ import {
   trackDest,
   trackRead,
   trackWriteTime,
-} from '@monochromatic-dev/dev-script-file-enforcer/ts';
+} from '@monochromatic-dev/file-enforcer-core/ts';
 import {
   bench,
   boxplot,

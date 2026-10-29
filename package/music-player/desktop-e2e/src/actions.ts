@@ -13,7 +13,7 @@
  @packageDocumentation
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import type { MouseButton, } from './control.ts';
 import type { Session, } from './session.ts';

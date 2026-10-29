@@ -16,7 +16,7 @@ error: missing `return` statement
    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#implicit_return
 ```
 
-`package/desktop-app/terminal/Cargo.toml:9-12` and
+`package/terminal/app/Cargo.toml:9-12` and
 `package/music-player/desktop-app/Cargo.toml:9-12` keep the lint denied for package-owned Rust.
 The failure appears only when each binary includes Slint's generated bindings.
 
@@ -195,7 +195,7 @@ use slint_generated::*;
 ```
 
 The two crates apply it in their own shapes:
-`package/desktop-app/terminal/src/main.rs` keeps the boundary inline in `main.rs`
+`package/terminal/app/src/main.rs` keeps the boundary inline in `main.rs`
 with one wrapped `#[allow(...)]` listing all four lints,
 and `package/music-player/desktop-app` carries the boundary in the sibling module file
 `src/slint_generated.rs` with two stacked `#![allow(...)]` inner attributes.
@@ -244,7 +244,7 @@ rebinds its own helpers over each other
 `visitor`,
 `r#repeated_indices`),
 so the included `out/app.rs` failed the new policy exactly like it failed `implicit_return`.
-160 deduplicated generated findings sat behind `package/desktop-app/terminal/src/main.rs`.
+160 deduplicated generated findings sat behind `package/terminal/app/src/main.rs`.
 The `package/music-player/desktop-app` include fails the same way:
 a 2026-10-08 probe temporarily narrowed the boundary's shadow allowance
 and watched the bin compile fail with 1884 errors dominated by the same binding families,
@@ -258,7 +258,7 @@ surfaced only once the lib was clean.
 The private-module boundary absorbs these too:
 both include-based boundaries allow the same lint set,
 each in the shape its crate needs.
-`package/desktop-app/terminal/src/main.rs` keeps the inline `mod slint_generated`
+`package/terminal/app/src/main.rs` keeps the inline `mod slint_generated`
 with one wrapped `#[allow(...)]` listing all four lints.
 `package/music-player/desktop-app` carries the boundary in the sibling module file
 `src/slint_generated.rs` with two stacked `#![allow(...)]` inner attributes.
@@ -271,12 +271,12 @@ and AGENTS.md `MXL` prescribes splitting into sibling files over compressing cod
 after the split,
 `main.rs` measures 296 of 300 code lines.
 
-`package/desktop-app/ide/src/native.rs` needs no shadow allowance.
+`package/ide/app/src/native.rs` needs no shadow allowance.
 Since commit `8e471dba6` (2026-10-04) its `mod ui` uses the `slint::slint!` re-export macro
 instead of `slint::include_modules!()`,
 so the generated code reaches the crate as a procedural-macro expansion rather than an included file,
 and with Slint resolved at `1.18.1` in its `Cargo.lock`,
-the 2026-10-08 run of `mise run //package/desktop-app/ide:lint:clippy`
+the 2026-10-08 run of `mise run //package/ide/app:lint:clippy`
 reports no shadow findings in generated or maintained source.
 
 Verified with `rustc 1.100.0-nightly (1303417c4 2026-09-21)`:

@@ -7,7 +7,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source';

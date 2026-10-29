@@ -1,0 +1,24 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/done-variant-postcss",
+  "description": "PostCSS @apply variant of @monochromatic-dev/done-app, kept for side-by-side CSS framework comparison.",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@monochromatic-dev/css-cli": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/llm-llm-type": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@tursodatabase/database": "catalog:",
+    "h3": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@monochromatic-dev/rolldown-plugin-import-attributes": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,5 +1,5 @@
 /** Final operation rendering and metadata-only progress. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { type AdvisorTheme, createAdvisorOperationLedger, formatAdvisorProgress, NO_ADVISOR_OPERATION_SUMMARY, renderAdvisorOperationSummary, } from '../dist/final/node/index.mjs';
 
 /** Theme boundary returns text verbatim so content assertions ignore ANSI styling. */

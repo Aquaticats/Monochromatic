@@ -18,7 +18,7 @@ import type {
   Context,
   ESTree,
 } from '@oxlint/plugins';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { SemanticBridgeError, } from '@monochromatic-dev/oxlint-plugin-prefer-readonly-parameter-type/ts/prefer-readonly-parameter-types/semantic-bridge-error.ts';
 import {

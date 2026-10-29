@@ -1,7 +1,7 @@
 # First publication of a Rust crate to crates.io
 
 Use this when a crate in this repository has never been published,
-for example `monochromatic-jsonc-edit` 0.1.0 in `package/rust-module/jsonc-edit`.
+for example `monochromatic-jsonc-edit` 0.1.0 in `package/jsonc-edit/core-rust`.
 
 crates.io Trusted Publishing,
 the route `.github/workflows/cargo-publish.yml` already uses for `forbidden-strings`,
@@ -48,7 +48,7 @@ is agent work.
 - Version:
    `0.1.0`
 - Path:
-   `package/rust-module/jsonc-edit`
+   `package/jsonc-edit/core-rust`
 - Workflow:
    `.github/workflows/cargo-publish.yml`,
    jobs `je-detect` and `je-publish-crate`
@@ -72,7 +72,7 @@ each verifiable on a clean machine:
 1. A Linux host with this repository checked out and on `main`,
    at a commit that contains the version you intend to publish.
    Check with `git -C <repo> log --oneline -1` and
-   `grep '^version' <repo>/package/rust-module/jsonc-edit/Cargo.toml`.
+   `grep '^version' <repo>/package/jsonc-edit/core-rust/Cargo.toml`.
 2. The Rust toolchain this repository pins,
    installed by running `mise run toolchain:sync` from the repository root
    (`toolchain.lock.json` records the version).
@@ -135,7 +135,7 @@ TODO
    Expected outcome:
    the prompt returns with no `error:` line.
    Cargo stores the token in `~/.cargo/credentials.toml` with mode `600`.
-10. Run `cd package/rust-module/jsonc-edit && cargo publish --dry-run --no-verify`.
+10. Run `cd package/jsonc-edit/core-rust && cargo publish --dry-run --no-verify`.
     Expected outcome:
     `Packaged 31 files`,
     then `Uploading monochromatic-jsonc-edit v0.1.0`,
@@ -148,7 +148,7 @@ TODO
     verifies the crate on the registry,
     and builds a disposable consumer against the published version.
     If you prefer to publish yourself,
-    run `cargo publish --no-verify` in `package/rust-module/jsonc-edit`;
+    run `cargo publish --no-verify` in `package/jsonc-edit/core-rust`;
     expected outcome is `Uploading monochromatic-jsonc-edit v0.1.0` with no error line.
 12. Open <https://crates.io/crates/monochromatic-jsonc-edit/settings>.
     Expected outcome:
@@ -257,7 +257,7 @@ TODO
    and the registry still listed a single version afterwards.
 
    A later real version is published by bumping `version` in
-   `package/rust-module/jsonc-edit/Cargo.toml`,
+   `package/jsonc-edit/core-rust/Cargo.toml`,
    pushing to `main`,
    and letting the `je-detect` job notice the bump;
    or by dispatching the same workflow with **dry-run** unchecked once the version is new.
@@ -287,7 +287,7 @@ TODO
    which keeps the version downloadable for existing lockfiles while stopping new resolutions.
    Then bump the version in `Cargo.toml` and publish again.
 5. Local build state created by the checks lives in
-   `package/rust-module/jsonc-edit/target` and in the disposable consumer directory under
+   `package/jsonc-edit/core-rust/target` and in the disposable consumer directory under
    `~/temp/agent`.
    Both are untracked and safe to delete.
 
@@ -329,7 +329,7 @@ Unlike `monochromatic-jsonc-edit`,
 this crate ships release binaries.
 After the Trusted Publishing form is saved,
 the agent dispatches the workflow with dry-run off on a ref whose
-`package/linter/monochromatic-lint` and `package/rust-module/jsonc-edit` directories are byte-identical
+`package/linter/monochromatic-lint` and `package/jsonc-edit/core-rust` directories are byte-identical
 to the published commit:
 
 ```bash
@@ -392,7 +392,7 @@ using the jobs `nws-detect`,
 
 ### Cut the release
 
-1. Bump `version` in `package/cli/nested-wayland-session/Cargo.toml` and push to `main`,
+1. Bump `version` in `package/nested-wayland-session/cli/Cargo.toml` and push to `main`,
    or dispatch the workflow with **dry-run** unchecked for a version whose tag does not exist.
    `nws-detect` compares the version before and after the push,
    so a push that leaves it unchanged runs the detect job and nothing else.

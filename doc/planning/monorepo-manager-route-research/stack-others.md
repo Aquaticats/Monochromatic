@@ -231,7 +231,7 @@ verified).
 - **C++.**
   It reaches the kernel through the same libc calls as Rust,
    which additionally has `CommandExt::pre_exec` in its standard library,
-   while the repository has one C++ file (`package/desktop-app/file-manager-qt/src/qt_log.cpp`)
+   while the repository has one C++ file (`package/file-manager/variant-qt/src/qt_log.cpp`)
    and Rust lint infrastructure (`clippy.toml`, `package/linter/rust`);
    separately,
    the language's official documentation is a purchased ISO standard

@@ -1,5 +1,5 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type {

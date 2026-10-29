@@ -16,7 +16,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { RENDERING_GLOSSARY, } from '@monochromatic-dev/translation-repair-rendering-audit';
 import { validateTranslatedSlice, } from '../dist/final/node/index.mjs';

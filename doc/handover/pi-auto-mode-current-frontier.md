@@ -1,5 +1,10 @@
 # Auto-mode current frontier
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger` is now `package/logger/core`.
+
 ## Current work and next actions
 
 The latest user requirement supersedes whole-parallel-batch assessment:
@@ -323,7 +328,6 @@ Next action: continue architecture review from user answers without reopening bu
 ### Historical built-in proposal, contents deferred on 2026-10-19
 
 The catalogue in this historical entry is not active or accepted.
-
 
 The user reiterates that built-in rules are plural.
 The prior correction overemphasized reversibility and replaced general-agent checks with its subquestions.

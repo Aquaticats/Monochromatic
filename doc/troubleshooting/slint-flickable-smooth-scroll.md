@@ -204,10 +204,10 @@ io Slint 1.17.0 and
 renaming `FlexboxLayout.align-items` to `cross-axis-alignment`:
 
 - `mise run //package/music-player/desktop-app:lint` passes.
-- `mise run //package/desktop-app/terminal:lint` passes.
+- `mise run //package/terminal/app:lint` passes.
 - `mise run //package/music-player/desktop-app:test` passes,
    `78` tests.
-- `mise run //package/desktop-app/terminal:test` passes,
+- `mise run //package/terminal/app:test` passes,
    `16` tests.
 
 Trade-offs:

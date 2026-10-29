@@ -58,7 +58,7 @@ export function linterSnapshotEntries({ context }) {
       ],
     ],
     [
-      'rust-module/jsonc-edit',
+      'jsonc-edit/core-rust',
       [
         'Cargo.toml',
         'Cargo.lock',

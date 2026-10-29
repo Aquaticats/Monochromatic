@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { evaluateBashGuard, } from './bash-guard.ts';
 import { GUARDRAIL_NOT_BLOCKED, } from './types.ts';
 

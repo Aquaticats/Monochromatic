@@ -20,7 +20,7 @@ import readdir from 'tiny-readdir-glob';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { maybeConvert, } from './convert.ts';
 

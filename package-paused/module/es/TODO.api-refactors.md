@@ -252,7 +252,7 @@ export function complexFunction({
 
 ---
 
-## 3. Type Testing with `@monochromatic-dev/module-test`
+## 3. Type Testing with `@monochromatic-dev/test-harness-core`
 
 ### Overview
 
@@ -321,7 +321,7 @@ import {
   describe,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 
 describe('Function Type Testing', () => {
   test('identity preserves input type exactly', () => {

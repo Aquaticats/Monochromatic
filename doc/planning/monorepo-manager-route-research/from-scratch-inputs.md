@@ -57,14 +57,14 @@ the vet's frozen constraint HC5 still lists macOS and Windows CI runners
 #### Entry point and packaging
 
 - CLI is a top-level-await script, not a `bin`:
-  `package/dev-script/file-enforcer/src/cli.ts:21-53` parses `process.argv` by hand (`--watch` plus one positional),
+  `package/file-enforcer/core/src/cli.ts:21-53` parses `process.argv` by hand (`--watch` plus one positional),
   discovers `file-enforcer.config.ts` upward with `findRoot({ marker: fileNamed(...) })` (`:40-44`),
   then `await import(configPath)` and optionally `startWatching` (verified).
-- `package.json` has no `bin`, declares `"sideEffects": false` (`package/dev-script/file-enforcer/package.json:1-46`,
+- `package.json` has no `bin`, declares `"sideEffects": false` (`package/file-enforcer/core/package.json:1-46`,
 - verified),
   yet `src/io/staleness-manifest.ts:146-149` registers a `process.on('beforeExit')` hook at import time (verified).
 - Root tasks invoke source directly:
-  `sync:files` runs `node package/dev-script/file-enforcer/src/cli.ts` and `watch:sync:files` adds `--watch`
+  `sync:files` runs `node package/file-enforcer/core/src/cli.ts` and `watch:sync:files` adds `--watch`
   (`mise.no-env.toml:1120-1127`, verified).
 
 #### Watch loop (`src/watch/`)
@@ -99,7 +99,7 @@ the vet's frozen constraint HC5 still lists macOS and Windows CI runners
   (`src/watch/notify.ts:83-89`, verified).
   The macOS branch interpolates the path into an AppleScript string without escaping (`:135-143`, verified);
   irrelevant for Linux-only 0.x, but a syntax-boundary defect if reused (AGENTS.md `SYB`, line 1093).
-- Known gaps recorded by the package itself (`package/dev-script/file-enforcer/TODO.md`, verified):
+- Known gaps recorded by the package itself (`package/file-enforcer/core/TODO.md`, verified):
   no SIGINT/SIGTERM shutdown (`:28-32`), whole-config rerun on any change (`:41-50`),
   fixed debounce with burst splitting (`:24-27`), `exec()` without stdin, env, cwd (`:72-75`).
 
@@ -151,7 +151,7 @@ the vet's frozen constraint HC5 still lists macOS and Windows CI runners
 - Package manager and root detection memoized for the process (`src/package/manager.ts:92-94`, `:187-189`, verified).
 - Notification tool detection memoized (`src/watch/notify.ts:67`, verified).
 - `findRootCached` memoizes rejections for the process lifetime
-- (`package/module/fs-path/src/root-discovery.ts:293-315`, verified).
+- (`package/fs-path/core/src/root-discovery.ts:293-315`, verified).
 
 #### What changes for a long-lived daemon that reports activity
 
@@ -176,7 +176,7 @@ All conditional on keeping TypeScript on Node.
   watcher restart, watcher failure.
 - Logging is not an event bus:
   `LogRecord` is `{ level, message, timestamp }` with no tag or structured fields
-  (`package/module/logger/README.md:258-268`, verified),
+  (`package/logger/core/README.md:258-268`, verified),
   so recent activity cannot be reconstructed from logs.
 - Watcher ownership.
   Per-rerun teardown and recreation of every chokidar watcher (`watch.ts:91-92`) should become subscriptions
@@ -189,9 +189,9 @@ All conditional on keeping TypeScript on Node.
   with `StalenessManifestPersistenceError` (`staleness-manifest-lock.ts:165-172`, verified code path; the freeze
   scenario is inference).
 
-### `@monochromatic-dev/dev-script-watch-restart`
+### `@monochromatic-dev/watch-restart-cli`
 
-- Scope: watch paths, restart one child (`package/dev-script/watch-restart/README.md:5-16`, verified).
+- Scope: watch paths, restart one child (`package/watch-restart/cli/README.md:5-16`, verified).
 - Process-group ownership default:
   spawn `detached: true` and signal `-pid` (`src/child.ts:736-750`, verified);
   stop sends the configured signal, waits `stopTimeout`, escalates to `SIGKILL` (`src/child.ts:763-813`, verified).
@@ -200,10 +200,10 @@ All conditional on keeping TypeScript on Node.
 - In-memory content-hash filter pre-populated during initial scan (`README.md:368-373`, verified).
 - Reuse value (TS on Node): restart-driver semantics and filter composition for persistent tasks such as dev servers.
 
-### `@monochromatic-dev/dev-script-task-util`
+### `@monochromatic-dev/monorepo-task-core-exec`
 
 - Binaries: `task-command`, `task-append`, `task-depends`, `task-oxlint`, `task-pnpm`, `task-tsc`
-  (`package/dev-script/task-util/package.json:8-15`, verified).
+  (`package/monorepo-task/core-exec/package.json:8-15`, verified).
 - `task-depends` staleness is timestamp-based: `strategy(sources) > strategy(outputs)` with `sh:` timestamp commands
   (`README.md:258-307`, verified).
 - Mise's own `sources`/`outputs` default to hashing `(path, size)` plus mtime comparison
@@ -229,7 +229,7 @@ All conditional on keeping TypeScript on Node.
 - Reuse value: message validation guard (`src/json-rpc.ts:177-187`), line framing, backpressure-aware writer
 - (`src/transport.ts:70-101`).
 
-### `@monochromatic-dev/module-fs-path` root markers
+### `@monochromatic-dev/fs-path-core` root markers
 
 - `MISE_MONOREPO` matches a `mise.toml` containing a `[monorepo]` header line (`src/root-marker.ts:94-120`, verified).
 - Factories `fileNamed`, `directoryNamed`, `packageNamed`; `PNPM_WORKSPACE`, `GIT_REPOSITORY`
@@ -270,7 +270,7 @@ All conditional on keeping TypeScript on Node.
   `rolldown --watch ...`, the `test:unit` Node runner, or task-util wrappers.
 - `test:unit` template excludes files containing `.expensive.` unless `--all` (`mise.no-env.toml:549-579`, verified).
 - Policy comment: "never use depends or post depends, use run only" (`mise.no-env.toml:623-624`, verified).
-  The 41 `depends` lines are intra-package (for example `package/module/test/mise.toml:7`, verified);
+  The 41 `depends` lines are intra-package (for example `package/test-harness/core/mise.toml:7`, verified);
   no cross-package build dependency is declared.
 - Mise metadata reports no tasks with sources, outputs, post-dependencies, wait-for, or task-local tools
   (`doc/planning/mise-removal-coverage.md:86-92`, verified).

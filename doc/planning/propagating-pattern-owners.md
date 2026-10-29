@@ -84,10 +84,10 @@ Risks and what would falsify the design:
    so the base class needs a test that asserts the name after a built-artifact load.
 - Published `module/*` packages gain a dependency edge.
    Two ways out:
-   put the base in the existing `module/throws` package,
+   put the base in the existing `throws/core` package,
    which is already published and currently exports one function,
    or accept a new package under `AP1` and `SGD`.
-   Putting it in `module/throws` stretches that package's stated purpose,
+   Putting it in `throws/core` stretches that package's stated purpose,
    which its README describes as an expression-position throwing helper.
 - `PPX` prefers `#private` members.
    The base class has none,
@@ -201,7 +201,7 @@ Pattern:
 Measured:
  22 `attachShadow(` sites across 22 files,
 of 25 `extends HTMLElement` declarations.
-11 sites are in `webapp-productivity/done` and 11 in `done-postcss`,
+11 sites are in `done/app` and 11 in `done-postcss`,
 which the `done-*` pattern in `slopo.conf.yaml` excludes from indexing and #69 tracks as a
 deliberate fork.
 C305 is the cluster covering 9 of the `done` sites.
@@ -212,7 +212,7 @@ because the shadow root is stored in a `#private` field per `PPX` and `#private`
 inherited usefully.
 
 ```typescript
-// package/module/hyperscript/src/dom/define-shadow-element.ts
+// package/hyperscript/core/src/dom/define-shadow-element.ts
 /**
  Wraps a custom-element class so its shadow root exists before the first
  `connectedCallback`, with the mode stated once instead of per component.
@@ -227,7 +227,7 @@ export function defineShadowElement<
 ```
 
 The home is a design question this proposal does not settle:
-`module/hyperscript` owns the repository's UI primitives and already exports `escapeHtml`,
+`hyperscript/core` owns the repository's UI primitives and already exports `escapeHtml`,
 but it does not currently own DOM element lifecycle,
 and adding element bases changes what that package is.
 The alternative is a new `package/module/shadow-element`.

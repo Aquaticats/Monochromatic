@@ -3,7 +3,7 @@
 import {
   caughtValueStack,
   caughtValueText,
-} from '@monochromatic-dev/module-caught-value/ts';
+} from '@monochromatic-dev/caught-value-core/ts';
 
 /** Uses shared message formatter. */
 function message(error: unknown,): string {

@@ -5,7 +5,7 @@
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 //region Public API
 

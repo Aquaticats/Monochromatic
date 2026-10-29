@@ -402,7 +402,7 @@ as top-level:
    Five package.
   jsons swapped zod->valibot,
    two (`module/es`,
-   `module/image-diff`) had unused zod entries dropped.
+   `llm/image-diff`) had unused zod entries dropped.
    zod removed from catalog.
    PHILOSOPHY.
   `tool-choices.md` updated.

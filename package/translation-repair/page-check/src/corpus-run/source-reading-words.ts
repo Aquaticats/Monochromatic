@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Source reading words
 // THE WORDS OF A PAGE AND WHERE EACH STANDS: the runs of blocks of a source as the placing reads them, the places the blocks

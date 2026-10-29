@@ -53,7 +53,7 @@ Grilling session started 2026-09-25 from the request "optimize my `AGENTS.md`".
 Read-only subagent audit;
 working files lived in the session scratchpad,
 not committed.
-Token counts via `mise run //package/module/token-count:count` (Claude `count_tokens` endpoint).
+Token counts via `mise run //package/llm/token-count:count` (Claude `count_tokens` endpoint).
 
 - `AGENTS.md`:
    17431 tokens (`claude-opus-5-5`),
@@ -112,7 +112,7 @@ Token counts via `mise run //package/module/token-count:count` (Claude `count_to
    PXF,
    CXL.
 - Side finding:
-   `package/module/token-count` claims all current Claude models share one tokenizer;
+   `package/llm/token-count` claims all current Claude models share one tokenizer;
    Opus 5.5 and Sonnet 4.6 differ by 36% on the same file.
 
 ## Adopted without asking (from audit)
@@ -140,7 +140,7 @@ Token counts via `mise run //package/module/token-count:count` (Claude `count_to
 ## Rule walk
 
 Each batch is measured with a scratch script:
-RLM per rule plus `mise run //package/module/token-count:count -- --model claude-opus-5-5`.
+RLM per rule plus `mise run //package/llm/token-count:count -- --model claude-opus-5-5`.
 
 - Batch 1 (pre-response checklist and its absorbers):
    19 rules become 9,
@@ -1317,7 +1317,7 @@ IMM:
  Prefer immutable patterns.
 
 UTL:
- Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/module-async-time`) before writing helpers.
+ Reuse existing repo utilities (e.g. `wait()` from `@monochromatic-dev/async-time-core`) before writing helpers.
 
 XNC:
  Name extracted concepts by role and boundary behavior,
@@ -1407,7 +1407,7 @@ LOG:
  never remove logging to "clean up".
 
 TLG:
- Production code logs only via tagged loggers from `@monochromatic-dev/module-logger`;
+ Production code logs only via tagged loggers from `@monochromatic-dev/logger-core`;
  raw `console` only for exact terminal output (CLI output,
  prompts).
 
@@ -1564,7 +1564,7 @@ PP4:
  document with `@throws`.
 
 PP5:
- Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/module-or-throw`);
+ Replace `!` with `nonNullishOrThrow` (`@monochromatic-dev/or-throw-core`);
  build multi-line error messages with `dedent` (`string-dedent`).
 
 PP6:
@@ -2148,7 +2148,7 @@ only the #423-gated JCH follow-up remains (issue comment posted on #423).
 ### Walk totals
 
 Rule text only (no headings),
-Opus 5.5 tokens via `mise run //package/module/token-count:count`:
+Opus 5.5 tokens via `mise run //package/llm/token-count:count`:
 276 rules and 17192 tokens become 204 always-loaded rules and 12488 tokens.
 73 codes leave `AGENTS.md` (merged,
 deleted,
@@ -2338,7 +2338,7 @@ no Voyage request was made for this assessment.
   confirms instruction-following support,
   so a supplied sorting criterion is possible.
   Its retrieval evaluations do not measure adherence to this repository's instructions.
-- Existing Voyage use includes multimodal image embeddings in `package/module/image-diff/src/voyage.ts`
+- Existing Voyage use includes multimodal image embeddings in `package/llm/image-diff/src/voyage.ts`
   and separate guard-model experiments documented in `pi-auto-mode-voyage-fit.md`.
   Neither establishes whether sorting these rules improves adherence.
   The image provider's type-assertion suppression concerns API response types,

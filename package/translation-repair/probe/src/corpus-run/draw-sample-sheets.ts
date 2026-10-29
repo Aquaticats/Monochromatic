@@ -1,7 +1,7 @@
 import { writeFile, } from 'node:fs/promises';
 
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   DEFAULT_PRECISION_BAR,

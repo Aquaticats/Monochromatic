@@ -213,7 +213,7 @@ items.map(binary(render,),);
 ```
 
 Tradeoff:
- this relies on `@monochromatic-dev/module-function-arity` being available to the
+ this relies on `@monochromatic-dev/function-arity-core` being available to the
 consumer package,
  and it intentionally hides later extra iterator arguments from the wrapped
 function.

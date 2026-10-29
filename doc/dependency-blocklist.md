@@ -168,7 +168,7 @@ See `TROUBLESHOOTING.dependencies.md` for the audit trail behind each one.
 
 ## How to add an API-compatible shim
 
-Create a workspace package under `package/shim/<name>/` with five files (mirror `package/shim/node-domexception/`):
+Create a workspace package under `package/shim/<name>/` with five files (mirror `package/pnpm-override/shim-node-domexception/`):
 
 - `package.json`:
    private,
@@ -282,7 +282,7 @@ The upstream package is deprecated but its runtime behaviour on Node 17+
 and Bun is `module.exports = globalThis.DOMException`,
  which is trivially reproducible.
 
-The shim package lives at `package/shim/node-domexception/`.
+The shim package lives at `package/pnpm-override/shim-node-domexception/`.
 Its `index.cjs` is a single line:
 
 ```js
@@ -293,7 +293,7 @@ module.exports = globalThis.DOMException;
 
 ```yaml
 overrides:
-  'node-domexception': 'link:package/shim/node-domexception'
+  'node-domexception': 'link:package/pnpm-override/shim-node-domexception'
 ```
 
 After install,
@@ -312,7 +312,7 @@ Consumers (`fetch-blob`,
 Both versions exist purely for back-compat with retired Node releases;
  on Node 22+ the platform's `node:stream` module covers every API both versions expose.
 
-The shim at `package/shim/readable-stream/` re-exports `node:stream`:
+The shim at `package/pnpm-override/shim-readable-stream/` re-exports `node:stream`:
 
 ```js
 'use strict';
@@ -353,7 +353,7 @@ A single override entry covers both upstream versions because `link:` is a path 
 
 ```yaml
 overrides:
-  'readable-stream': 'link:package/shim/readable-stream'
+  'readable-stream': 'link:package/pnpm-override/shim-readable-stream'
 ```
 
 After install,
@@ -423,13 +423,13 @@ on `node:stream`'s classes directly) and makes the transitive `abort-controller`
    global removals,
    parent-scoped removals,
    and `link:` substitutions to workspace shims.
-- `package/stub/throwing/`:
+- `package/pnpm-override/stub-throwing/`:
    the workspace stub used by `action: 'throw'`.
-- `package/stub/silent/`:
+- `package/pnpm-override/stub-silent/`:
    the workspace stub used by `action: 'silent'`.
 - `package/shim/<name>/`:
    workspace shims for API-compatible substitution;
-   current entries are `package/shim/node-domexception/` and `package/shim/readable-stream/`.
+   current entries are `package/pnpm-override/shim-node-domexception/` and `package/pnpm-override/shim-readable-stream/`.
 - `TROUBLESHOOTING.dependencies.md`:
    the audit trail for the existing parent-scoped overrides;
    cross-link entries here when a substitution replaces or augments one of those overrides.

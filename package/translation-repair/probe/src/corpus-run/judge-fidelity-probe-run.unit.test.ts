@@ -24,13 +24,13 @@ import {
   join,
 } from 'node:path';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';

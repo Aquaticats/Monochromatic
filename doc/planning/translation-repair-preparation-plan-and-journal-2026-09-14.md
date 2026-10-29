@@ -452,7 +452,7 @@ No remediation or guard-removal proof is established at this checkpoint.
 
 ## Observable logger callback utility
 
-Task55 implements `observeLoggerCallbacks` in `package/module/logger`,
+Task55 implements `observeLoggerCallbacks` in `package/logger/core`,
 not a comparison-only public test entry.
 It retains lazy per-request lookup,
 original receivers,

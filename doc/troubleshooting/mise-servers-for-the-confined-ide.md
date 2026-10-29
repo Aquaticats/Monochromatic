@@ -2,7 +2,7 @@
 
 ## Symptom
 
-The Slint IDE (`package/desktop-app/ide`) started from its desktop entry reports its language servers as missing,
+The Slint IDE (`package/ide/app`) started from its desktop entry reports its language servers as missing,
 or as failed to start, for a project whose tools come from mise.
 
 - The launcher's `PATH` is the systemd user session's snapshot.
@@ -67,7 +67,7 @@ Measured with `hyperfine` (15 runs, 2 warmups), host load average about 60 to 80
 - The IDE's resolution (three commands, sandboxed, on the language thread): 179 to 639 ms over four runs of
   `inspect:language-mise` (179, 479, 545, 639), and 415 ms in the headless window run.
 
-`inspect:language-mise` (`package/desktop-app/ide/bin/inspect-language-mise.mjs`,
+`inspect:language-mise` (`package/ide/app/bin/inspect-language-mise.mjs`,
 now `inspect-language-mise.ts`,
 renamed 2026-10-22)
 passed 43 of 43 checks

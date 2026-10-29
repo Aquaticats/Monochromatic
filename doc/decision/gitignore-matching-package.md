@@ -14,7 +14,7 @@ Accepted,
 The workspace uses `ignore` for gitignore-style matching in three places:
 
 - `package/pi-plugin/guardrail/src/path-guard.ts` protects paths before pi edit/write tools run.
-- `package/dev-script/watch-restart/src/filters/gitignore.ts` filters watched file events.
+- `package/watch-restart/cli/src/filters/gitignore.ts` filters watched file events.
 - `package/cli/markdown-lint/src/walk-files.ts` applies nested `.gitignore` layers while walking Markdown files.
 
 The guardrail caller is the decision driver.

@@ -510,7 +510,7 @@ and omit it when not.
 One came out rather than a case:
 the fanout content ternary's structured arm,
 since `ChatMessage.content` is string-only
-(`package/module/llm-type/src/message.ts:44`)
+(`package/llm/llm-type/src/message.ts:44`)
 and the `JSON.stringify` arm was unreachable at the type level.
 The reach census (`~/temp/agent/mimo-trial/reach-stage3.log`)
 reads `ran 1, still cold 0, cold since then 0, not loaded 0`.

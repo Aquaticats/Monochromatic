@@ -14,7 +14,7 @@ what was not run is listed under "Not proven".
 
 ## Script names after the conversion to TypeScript
 
-The repository scripts this document names with an `.mjs` suffix under `package/desktop-app/ide/bin/`
+The repository scripts this document names with an `.mjs` suffix under `package/ide/app/bin/`
 (`inspect-source-guards`,
 `inspect-watch-scope`,
 `inspect-refresh-latency`,
@@ -149,11 +149,11 @@ in order:
   `GPU snapshot adapter: AMD Radeon RX 7600 (RADV NAVI33)`.
 
 So the hardware path needs three changes,
-all made in `package/desktop-app/ide`:
+all made in `package/ide/app`:
 
 - `Containerfile`:
   `dnf install vulkan-loader mesa-vulkan-drivers`.
-  The image has to be rebuilt once (`mise run //package/desktop-app/ide:image`);
+  The image has to be rebuilt once (`mise run //package/ide/app:image`);
   the new layer sits before the
   `cargo-about` install,
   which was rerun (49 s of compiling) and rebuilt the shared tag.
@@ -189,9 +189,9 @@ Effects to know about:
   (unrelated,
   reverted)
   and left
-  `package/desktop-app/ide/Cargo.toml` as edited.
+  `package/ide/app/Cargo.toml` as edited.
 - The application build is unchanged.
-  `mise run //package/desktop-app/ide:linked-crates` (`cargo tree` with `--edges normal,no-proc-macro`) lists 371 crates
+  `mise run //package/ide/app:linked-crates` (`cargo tree` with `--edges normal,no-proc-macro`) lists 371 crates
   and no `wgpu` entry;
   only the GL `femtovg` 0.27.0 and `i-slint-renderer-femtovg` it already had.
   `Cargo.lock` gained eight packages (`android-build`,
@@ -304,7 +304,7 @@ Against the nested compositor:
 
 ## What was built
 
-`package/desktop-app/ide/src/native/gpu_snapshot.rs`,
+`package/ide/app/src/native/gpu_snapshot.rs`,
 compiled only for tests,
 exposes:
 
@@ -375,21 +375,21 @@ and the result recorded.
 From the worktree,
 with the repository tasks:
 
-- `mise run //package/desktop-app/ide:lint:clippy`:
+- `mise run //package/ide/app:lint:clippy`:
   passes.
   Its first run caught the lint `implicit_return` in the harness closure;
   fixed.
-- `mise run //package/desktop-app/ide:lint:rustfmt`:
+- `mise run //package/ide/app:lint:rustfmt`:
   passes after `format:rust` (it reformatted only the harness).
-- `mise run //package/desktop-app/ide:lint:slint`:
+- `mise run //package/ide/app:lint:slint`:
   passes.
-- `mise run //package/desktop-app/ide:lint` stops at `monochromatic-lint` with errors in `src/native/pass_tests.rs`
+- `mise run //package/ide/app:lint` stops at `monochromatic-lint` with errors in `src/native/pass_tests.rs`
   (two) and
   `src/native/tile_pass.rs` (one),
   files this branch does not touch;
   the harness has none.
   The handover already records that this run exits 1 on `semantic-line-breaks` errors that were there before.
-- `mise run //package/desktop-app/ide:test:native`:
+- `mise run //package/ide/app:test:native`:
   214 tests run,
   214 passed,
   5 skipped,
@@ -673,7 +673,7 @@ in the container and fails when it prints anything):
   `Slint software renderer is linked:` and the tree):
   `i-slint-renderer-software` is reached through `i-slint-backend-testing` (selector feature `mcp`) and through
   `i-slint-backend-winit`.
-- `mise run //package/desktop-app/ide:linked-crates`:
+- `mise run //package/ide/app:linked-crates`:
   367 crates (371 before).
 - `i-slint-backend-testing` stays as a dev-dependency for the element handles of the accessible tests,
   with no features:
@@ -705,14 +705,14 @@ and why:
 
 Run on the final head of the branch:
 
-- `mise run //package/desktop-app/ide:lint:clippy` (`cargo clippy --all-targets -- --deny warnings`):
+- `mise run //package/ide/app:lint:clippy` (`cargo clippy --all-targets -- --deny warnings`):
   passes (`Finished dev profile ... in 4.40s`).
-- `mise run //package/desktop-app/ide:lint:rustfmt`:
+- `mise run //package/ide/app:lint:rustfmt`:
   passes,
   no output.
-- `mise run //package/desktop-app/ide:lint:slint`:
+- `mise run //package/ide/app:lint:slint`:
   passes.
-- `mise run //package/desktop-app/ide:lint` exits 1 at `monochromatic-lint` with three `markdown/semantic-line-breaks`
+- `mise run //package/ide/app:lint` exits 1 at `monochromatic-lint` with three `markdown/semantic-line-breaks`
   errors,
   all in files this branch does not touch:
   `src/native/tile_build/pass_tests.rs` (lines 11 and 29) and `src/native/tile_pass.rs` (line 87).
@@ -724,14 +724,14 @@ Run on the final head of the branch:
   so its last command,
   `lint:slint`,
   was run alone (above).
-- `mise run //package/desktop-app/ide:inspect:software-renderer`:
+- `mise run //package/ide/app:inspect:software-renderer`:
   `Slint software renderer is not linked into the application or the test builds`.
-- `mise run //package/desktop-app/ide:test:native`,
+- `mise run //package/ide/app:test:native`,
   twice in a row on `361756fd92`:
   `Summary [ 162.073s] 214 tests run: 214 passed (1 slow), 5 skipped` and
   `Summary [ 142.410s] 214 tests run: 214 passed (1 slow), 5 skipped`.
   Later runs of the same head that failed are under "Failures that came and went".
-- `mise run //package/desktop-app/ide:build` (release binary):
+- `mise run //package/ide/app:build` (release binary):
   `Finished release profile [optimized] target(s) in 49.00s`;
   the binary `target/release/monochromatic-ide` (82,956,968 bytes) contains no `i-slint-renderer-software` path
   string,
@@ -1937,7 +1937,7 @@ or frame cadence difference beyond the run-to-run spread.
 
 #### Reproduction in the application
 
-The release binary built from `origin/main` (`mise run //package/desktop-app/ide:build`) ran in the nested compositor
+The release binary built from `origin/main` (`mise run //package/ide/app:build`) ran in the nested compositor
 (`monochromatic-nested-wayland-session`,
 size 1147 by 2000,
 scale 1) over `/tmp/ide-gpu-fixture/code.rs`
@@ -2292,7 +2292,7 @@ which another change is rewriting.
 
 All from the branch head,
 from the worktree,
-with `mise run //package/desktop-app/ide:<task>`:
+with `mise run //package/ide/app:<task>`:
 
 - `lint`:
   clippy,
@@ -2538,7 +2538,7 @@ No second renderer exists, and the only memory the minimap adds beyond its textu
   `src/shaped_text/line.rs`,
   `src/native/minimap_dense_tests.rs`,
   and `tests/minimap_scene.rs`.
-- `rg "from_rgba8|SharedPixelBuffer|swash" package/desktop-app/ide` (target and lock file excluded) leaves:
+- `rg "from_rgba8|SharedPixelBuffer|swash" package/ide/app` (target and lock file excluded) leaves:
   Vello color constructors (`src/tile_scene/encode.rs`,
   `src/native/gpu_tile.rs` for the transparent base color),
   and `SharedPixelBuffer` as the type of GPU readbacks in test code only

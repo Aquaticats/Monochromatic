@@ -165,7 +165,7 @@ Harness: the IDE's real start path with a plan file.
 `extra_languages` adds variables to the server's environment or settings to its configuration.
 
 ```sh
-# package/desktop-app/ide, after any inspect:language task built target/debug/ide-language-inspect
+# package/ide/app, after any inspect:language task built target/debug/ide-language-inspect
 target/debug/ide-language-inspect plan.json 2> log.txt
 rg --count 'notify error' log.txt
 ```
@@ -217,7 +217,7 @@ No other handling is applied:
   `files.watcher = "client"` removes rust-analyzer's own watcher and with it the warning.
   Tradeoff: rust-analyzer then learns about changed files only from the client.
   The Language module reports only reloads of the displayed file
-  (`reload` in `package/desktop-app/ide/src/language/lifecycle.rs`),
+  (`reload` in `package/ide/app/src/language/lifecycle.rs`),
   so edits to other project files made outside the IDE would no longer reach rust-analyzer
   until the application forwards project-wide file events.
 

@@ -23,9 +23,9 @@
  * Tunable via `--blob-size=N`, `--burst-events=N`, `--burst-duration-ms=N`.
  */
 
-import { logger, } from '@monochromatic-dev/module-logger/logger';
-import { tagged, } from '@monochromatic-dev/module-logger/tagged';
-import { BYTES_PER_KIB, } from '@monochromatic-dev/module-const';
+import { logger, } from '@monochromatic-dev/logger-core/logger';
+import { tagged, } from '@monochromatic-dev/logger-core/tagged';
+import { BYTES_PER_KIB, } from '@monochromatic-dev/const-core';
 
 import {
   handleReceivePack,

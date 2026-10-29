@@ -166,20 +166,20 @@ New categories are created as needed when a hypothetical non-experiment package 
 - `@monochromatic-dev/test-css-imported-no-exports` -> `@monochromatic-dev/test-fixture-css-imported-no-exports`
 - `@monochromatic-dev/test-css-importing` -> `@monochromatic-dev/test-fixture-css-importing`
 - `@monochromatic-dev/test-css-importing-filepath` -> `@monochromatic-dev/test-fixture-css-importing-filepath`
-- `@monochromatic-dev/build-backup-path` -> `@monochromatic-dev/dev-script-backup-path`
-- `@monochromatic-dev/build-css` -> `@monochromatic-dev/build-tool-css`
+- `@monochromatic-dev/build-backup-path` -> `@monochromatic-dev/backup-path-cli`
+- `@monochromatic-dev/build-css` -> `@monochromatic-dev/css-cli`
 - `@monochromatic-dev/build-time` -> flagged for removal
 - `@monochromatic-dev/module-es` -> `@monochromatic-dev/library-es`
 - `@monochromatic-dev/style-monochromatic` -> `@monochromatic-dev/stylesheet-monochromatic`
 - `@monochromatic-dev/site-astro-test` -> `@monochromatic-dev/webapp-content-astro-test`
-- `@monochromatic-dev/site-done` -> `@monochromatic-dev/webapp-productivity-done`
+- `@monochromatic-dev/site-done` -> `@monochromatic-dev/done-app`
 - `@monochromatic-dev/site-exa-search` -> `@monochromatic-dev/webapp-search-exa-search`
-- `@monochromatic-dev/site-rss` -> `@monochromatic-dev/webapp-productivity-rss`
+- `@monochromatic-dev/site-rss` -> `@monochromatic-dev/rss-app`
 
 ### Packages to move (directory)
 
-- `build/backup-path` -> `dev-script/backup-path`
-- `build/css` -> `build-tool/css`
+- `build/backup-path` -> `backup-path/cli`
+- `build/css` -> `css/cli`
 - `build/ensure-dependencies` -> `dev-script/ensure-dependencies`
 - `build/time` -> remove
 - `fixture/test-css-imported` -> `test-fixture/css-imported`
@@ -191,9 +191,9 @@ New categories are created as needed when a hypothetical non-experiment package 
 - `site/ai-tree` -> `webapp-search/ai-tree`
 - `site/astro-test` -> `webapp-content/astro-test`
 - `site/bun-test` -> `webapp-productivity/bun-test`
-- `site/done` -> `webapp-productivity/done`
+- `site/done` -> `done/app`
 - `site/exa-search` -> `webapp-search/exa-search`
-- `site/rss` -> `webapp-productivity/rss`
+- `site/rss` -> `rss/app`
 - `style/monochromatic` -> `stylesheet/monochromatic`
 
 ### Fill in missing descriptions
@@ -205,13 +205,13 @@ Add meaningful `description` fields to the remaining packages listed above.
 ```text
 package/
   build-tool/
-    css                          @monochromatic-dev/build-tool-css
+    css                          @monochromatic-dev/css-cli
   config/
     dprint                       @monochromatic-dev/config-dprint
     tsdown                       @monochromatic-dev/config-tsdown
     typescript                   @monochromatic-dev/config-typescript
   dev-script/
-    backup-path                  @monochromatic-dev/dev-script-backup-path
+    backup-path                  @monochromatic-dev/backup-path-cli
     ensure-dependencies          @monochromatic-dev/dev-script-ensure-dependencies
   library/
     es                           @monochromatic-dev/library-es
@@ -228,8 +228,8 @@ package/
     astro-test                   @monochromatic-dev/webapp-content-astro-test
   webapp-productivity/
     bun-test                     @monochromatic-dev/webapp-productivity-bun-test
-    done                         @monochromatic-dev/webapp-productivity-done
-    rss                          @monochromatic-dev/webapp-productivity-rss
+    done                         @monochromatic-dev/done-app
+    rss                          @monochromatic-dev/rss-app
   webapp-search/
     ai-tree                      @monochromatic-dev/webapp-search-ai-tree
     exa-search                   @monochromatic-dev/webapp-search-exa-search

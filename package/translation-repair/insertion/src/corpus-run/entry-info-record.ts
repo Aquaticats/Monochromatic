@@ -1,5 +1,5 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
-import { errorOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
+import { errorOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { parse as parseYaml, } from 'yaml';
 
 import {

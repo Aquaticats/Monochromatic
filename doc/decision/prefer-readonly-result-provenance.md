@@ -210,7 +210,7 @@ all.
  `??` was the gap:
 
 ```ts
-// package/module/kv-store/src/create-sync-store.ts:111
+// package/kv-store/core/src/create-sync-store.ts:111
 const policies = config.eviction ?? [];
 const lruPolicy = policies.find(function isLru(p,) { /* ... */ },);
 ```
@@ -364,7 +364,7 @@ Four of that last group are a different diagnostic class and are not yet underst
 Bisected to the transparent-form handling,
  4 with it and 0 without,
  traced to
-`package/module/pipe/src/run.ts:51`,
+`package/pipe/core/src/run.ts:51`,
  `const callableArgs = args as RunCallableArgs`.
 That attribution is correct,
  so the finding is not a reason to revert it.
@@ -532,9 +532,9 @@ and semantic failures at 0.
    members whose observer cannot be resolved.
    Checked by reading three
   of them:
-   `groupRuns` in `package/module/logger/src/sink/console.ts`,
+   `groupRuns` in `package/logger/core/src/sink/console.ts`,
    the rebuild fold in
-  `package/module/css-edit/src/transform.ts`,
+  `package/css/core-edit/src/transform.ts`,
    and `readCandidate` in
   `package/agent-harness-shared/session-discovery/src/newest.ts` all pass an inline named function,
   which is owned source sitting at the call.
@@ -617,7 +617,7 @@ Why it changes nothing is the part to keep,
  The
 `reduce` findings do not survive because the member lacks a relation.
  `groupRuns` in
-`package/module/logger/src/sink/console.ts` seeds its fold with `[]`,
+`package/logger/core/src/sink/console.ts` seeds its fold with `[]`,
  so the relation applies,
  and it
 still reports because the observer hands the accumulator back holding the receiver's own records,
@@ -840,7 +840,7 @@ The seeded-fold open end is closed,
 
 With the relation applied,
  `records.reduce<Run[]>(appendToRuns, [],)` in
-`package/module/logger/src/sink/console.ts` never reached the observer derivation at all.
+`package/logger/core/src/sink/console.ts` never reached the observer derivation at all.
  Not cached,
 checked with a fresh cache root.
  It exits at `unobservedArgument`:
@@ -931,7 +931,7 @@ Applied together:
 That last number has held at 33 through every increment in this work and is the failure mode every
 matched pair has been watching for.
 
-The new offer is `buildToml` in `package/module/toml-edit/src/conformance/encode.ts`,
+The new offer is `buildToml` in `package/toml-edit/core/src/conformance/encode.ts`,
  whose body is
 `Object.entries(root,).reduce(applyEntry, emptyTomlEdit(),)`.
  Its own observer carries
@@ -977,7 +977,7 @@ one is the same provenance question this document is about,
 Superseded next step,
  kept because the instrumentation that replaced it is the method worth copying:
  starting with `records.reduce<Run[]>` in
-`package/module/logger/src/sink/console.ts` and the `filter` in
+`package/logger/core/src/sink/console.ts` and the `filter` in
 `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts`,
  both of which appear in the
 instrumented output and neither of which is exotic.
@@ -1045,7 +1045,7 @@ workspace source rather than `node_modules`,
  Resolving
 the offsets says otherwise.
  The largest single group,
- 50 in `package/module/i18n-compose`,
+ 50 in `package/i18n-compose/core`,
  points at
 declarations like `(phrase: NounPhrase<S, N>,) => string`:
  function *types* on parameters,
@@ -1320,7 +1320,7 @@ persists at seven.
  Where it persists,
  the reason is not `toSorted`.
 
-`orderedRoots` in `package/desktop-app/file-manager-electron/src/strip.ts` is the shape:
+`orderedRoots` in `package/file-manager/variant-electron/src/strip.ts` is the shape:
  it returns
 `panes.filter(rootLike,).toSorted(bySpawnOrder,)`.
  The chain looked like the explanation and is not.
@@ -1450,7 +1450,7 @@ So the mechanism is unestablished and no cause is claimed.
 accumulator shape,
  hold the member and the chain fixed,
  and the asymmetry appears and disappears with it.
-`path.slice(0, -1,).reduce(...)` in `package/module/toml-edit/src/value-materialize.ts` is the instance,
+`path.slice(0, -1,).reduce(...)` in `package/toml-edit/core/src/value-materialize.ts` is the instance,
 named by 21 findings,
  and it accumulates into exactly that kind of object.
 
@@ -1724,7 +1724,7 @@ Comparing findings by parameter name and source location rather than by message,
 opaque that was not opaque before.
  Two findings survived while naming one fewer parameter:
  `overwriteTomlKey`
-in `package/dev-script/file-enforcer/src/io/write-toml.ts` and its counterpart in `src/pipeline/toml.ts`
+in `package/file-enforcer/core/src/io/write-toml.ts` and its counterpart in `src/pipeline/toml.ts`
 each named `path` and `value` before and name only `value` now.
  `path.reduce` is the fold this change
 resolves;

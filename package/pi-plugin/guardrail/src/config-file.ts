@@ -6,7 +6,7 @@
 
 import { readFile, } from 'node:fs/promises';
 import { basename, } from 'node:path';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { FILE_NOT_FOUND_CODE, } from './constants.ts';
 

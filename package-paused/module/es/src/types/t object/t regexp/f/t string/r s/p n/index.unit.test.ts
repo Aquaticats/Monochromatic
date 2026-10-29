@@ -3,7 +3,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 const { $, } = types.object.regexp.from.string.sync.named;
 

@@ -38,7 +38,7 @@ combining: caret x by byte 0@0.00 1@12.00 2@24.00 3@36.00 4@42.00 6@48.00 7@60.0
 zwj-emoji: caret x by byte 0@0.00 1@12.00 5@19.20 8@26.40 12@33.60 15@40.80 19@48.00 20@60.00
 ```
 
-In `package/desktop-app/ide`,
+In `package/ide/app`,
 removing the snapping workaround from `src/shaped_row.rs` made
 `every_pixel_hits_the_nearest_grapheme_boundary` fail with
 `combining row 0: x 29.5 hit inside a grapheme at 4`:
@@ -148,12 +148,12 @@ this is a somewhat buggy state".
 Versions under test:
 `parley` 0.11.1 (checksum `22d2ff88bd3f7d68d1d9b09c7e6209f9a8e8c05088295140a2bcf2e9b17038c5`)
 with `harfrust` 0.12.0 (checksum `c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9`),
-both from `package/desktop-app/ide/Cargo.lock`.
+both from `package/ide/app/Cargo.lock`.
 
 ### Standalone probe
 
 The probe is a binary crate with these two files plus `src/JetBrainsMono-Variable.ttf`,
-copied from `package/desktop-app/ide/asset/font/`.
+copied from `package/ide/app/asset/font/`.
 Seeding it with the IDE's `Cargo.lock` keeps the same versions.
 
 ```toml
@@ -284,8 +284,8 @@ the equal split does not depend on what the glyphs look like.
 
 ### IDE guard control
 
-`package/desktop-app/ide/bin/inspect-source-guards.mjs`
-(now `package/desktop-app/ide/bin/inspect-source-guards.ts`,
+`package/ide/app/bin/inspect-source-guards.mjs`
+(now `package/ide/app/bin/inspect-source-guards.ts`,
 renamed 2026-10-22),
 guard `grapheme-snap`,
 replaces the snapped return in `ShapedRow::hit` with the raw Parley index in a disposable copy.
@@ -302,7 +302,7 @@ and snaps in `src/shaped_row.rs:91` to `111`
 (`main` at `f9d08ae79`):
 
 ```rust
-// package/desktop-app/ide/src/shaped_row.rs:91
+// package/ide/app/src/shaped_row.rs:91
     fn snapped(&self, local: usize, x: f32) -> usize {
         let mut before = 0;
         let mut after = self.source_len();

@@ -19,9 +19,9 @@ import {
 import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import nanoSpawn from 'nano-spawn';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ExecResult, } from '../../exec.ts';
 import {

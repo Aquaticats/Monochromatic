@@ -8,7 +8,7 @@
 import {
   MS_PER_SECOND,
   SECONDS_PER_MINUTE,
-} from '@monochromatic-dev/module-const/ts';
+} from '@monochromatic-dev/const-core/ts';
 
 import {
   l,

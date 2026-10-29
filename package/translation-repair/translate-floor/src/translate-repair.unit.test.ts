@@ -15,14 +15,14 @@
 
 import { setImmediate as turnOfTheLoop, } from 'node:timers/promises';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {

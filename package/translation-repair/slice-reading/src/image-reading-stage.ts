@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';

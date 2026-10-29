@@ -11,13 +11,13 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { InsertionAdmission, } from '@monochromatic-dev/translation-repair-corpus-source';
 import type { ArchiveDispute, } from '@monochromatic-dev/translation-repair-archive';

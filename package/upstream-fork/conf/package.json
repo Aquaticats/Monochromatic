@@ -1,0 +1,45 @@
+{
+  "license": "LGPL-3.0-or-later AND MIT",
+  "name": "@monochromatic-dev/upstream-fork-conf",
+  "private": true,
+  "description": "Fork of conf (by Sindre Sorhus, MIT) rewritten to this repository's TypeScript standards: JSON config file store with defaults, schema validation, dot-notation access, encryption, migrations, watching, and change events.",
+  "type": "module",
+  "version": "0.0.1",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "dot-prop": "catalog:",
+    "json-schema-typed": "catalog:",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/async-time-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/semver": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/upstream-fork/conf"
+  }
+}

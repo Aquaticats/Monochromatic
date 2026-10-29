@@ -311,7 +311,7 @@ The diagnostic names those operations and lists every supported remediation rath
 unknown external call.
 
 First narrow primitive branches and format nonprimitive values without coercion.
-`package/dev-script/page-weight/src/error-format.ts` returns `Error.message` for errors,
+`package/page-weight/cli/src/error-format.ts` returns `Error.message` for errors,
 returns thrown strings directly,
 and reports only runtime category for other values.
 Its regression test proves ordinary `toString`,

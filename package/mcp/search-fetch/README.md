@@ -92,7 +92,7 @@ which now holds only the blocklist.
 Provider keys come from `EXA_API_KEY` and `LINKUP_API_KEY` in the process
 environment,
 or from the repo's sops/age-encrypted `.env.local.json` through
-`@monochromatic-dev/module-env-local-json`.
+`@monochromatic-dev/env-local-json-core`.
 
 The reader locates the store in this order:
 

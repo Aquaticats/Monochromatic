@@ -1,0 +1,43 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/monorepo-task-core-exec",
+  "description": "CLI utilities for mise task orchestration: command executor with allowFailure support, file append helper, and make-style dependency checker.",
+  "type": "module",
+  "private": true,
+  "main": "src/command.ts",
+  "bin": {
+    "task-command": "dist/final/node/command.mjs",
+    "task-append": "dist/final/node/append.mjs",
+    "task-depends": "dist/final/node/depends.mjs",
+    "task-oxlint": "dist/final/node/oxlint-wrapper.mjs",
+    "task-pnpm": "dist/final/node/pnpm-filter.mjs",
+    "task-tsc": "dist/final/node/tsc-filter.mjs"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "string-dedent": "catalog:",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@optique/core": "catalog:",
+    "@optique/run": "catalog:",
+    "nano-spawn": "catalog:",
+    "tiny-readdir-glob": "catalog:",
+    "ts-pattern": "catalog:"
+  },
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/monorepo-task/core-exec"
+  },
+  "sideEffects": true,
+  "files": [
+    "dist/final",
+    "LICENSES"
+  ]
+}

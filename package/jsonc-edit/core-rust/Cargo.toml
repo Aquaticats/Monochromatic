@@ -1,0 +1,44 @@
+[package]
+name = "monochromatic-jsonc-edit"
+version = "0.1.1"
+authors = ["Aquaticat"]
+categories = ["parser-implementations", "encoding"]
+documentation = "https://docs.rs/monochromatic-jsonc-edit"
+edition = "2024"
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/jsonc-edit/core-rust"
+include = [
+  "src/**/*.rs",
+  "fixtures/*.json",
+  "Cargo.toml",
+  "Cargo.lock",
+  "README.md",
+  "LICENSES/*.txt",
+]
+keywords = ["jsonc", "json", "comments", "lossless", "parser"]
+license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
+description = "Comment-preserving JSONC parse, immutable edit, and canonical emit for Rust: every object key and value keeps one queryable attached comment, numbers compare by exact mathematical value while retaining their source spelling, and escaped unpaired UTF-16 surrogates survive as code units."
+
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+[lib]
+name = "monochromatic_jsonc_edit"
+path = "src/lib.rs"
+
+# No runtime dependencies by decision: doc/decision/jsonc-edit-rust-foundation.md records the
+# adopted foundation as an owned scanner, parser, emitter and exact-number identity, with no
+# third-party parser, syntax tree, decimal or bigint crate and no `unsafe` block. Anything added
+# here needs a fresh choosing-technology run, because the whole dependency surface is currently
+# the standard library.
+[dependencies]
+
+# Standalone crate: its own workspace root, so no ancestor Cargo.toml can absorb it.
+[workspace]

@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   TRANSLATE_FRONT_MATTER_CRITERIA,
   TRANSLATE_LINE_STRUCTURE_CRITERION,

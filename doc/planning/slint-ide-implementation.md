@@ -4,7 +4,7 @@
 
 The [0.x scope][scope] is accepted.
 The user reviewed the approach and explicitly requested implementation.
-Work has started in `package/desktop-app/ide`.
+Work has started in `package/ide/app`.
 The confirmed deliverable remains incomplete until every gate is verified.
 
 ## Implementation queue
@@ -129,7 +129,7 @@ UI polling applies completed work to the latest reading state.
 
 ## Architecture
 
-Propose a standalone Rust plus Slint application under `package/desktop-app/ide`.
+Propose a standalone Rust plus Slint application under `package/ide/app`.
 Follow the existing native application task and packaging conventions,
 without modifying the paused editor.
 
@@ -339,13 +339,13 @@ not permission to postpone required features to an unspecified later 0.x release
 
 ### Repository incumbents
 
-- `package/desktop-app/terminal/Cargo.toml`:
+- `package/terminal/app/Cargo.toml`:
   Rust/Slint 1.17 integration and renderer configuration.
-- `package/desktop-app/terminal/ui/app.slint`:
+- `package/terminal/app/ui/app.slint`:
   positioned text under a Slint `Flickable`.
   This is a rendering precedent,
   not proof of a complete selectable source view.
-- `package/desktop-app/terminal/mise.toml` and `package/music-player/desktop-app/mise.toml`:
+- `package/terminal/app/mise.toml` and `package/music-player/desktop-app/mise.toml`:
   scoped build/lint/test and Slint testing tasks.
 - `package-paused/desktop-daemon/editord/src/server/operations/search.ts`:
   concurrent file-path and content searches.

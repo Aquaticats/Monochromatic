@@ -28,7 +28,7 @@ The accepted ways to model an optional or absent value in this repo are exactly 
        Under `exactOptionalPropertyTypes` this already means "absent or `T`".
 2.    An `if`-guard that narrows before the value reaches the typed slot,
        so the slot only ever holds `T`.
-3.    Throwing at the boundary with `nonNullishOrThrow` from `@monochromatic-dev/module-or-throw`.
+3.    Throwing at the boundary with `nonNullishOrThrow` from `@monochromatic-dev/or-throw-core`.
 4.    A real,
        non-nullish,
        non-empty sentinel:
@@ -371,7 +371,7 @@ anything else is a fake-optionality escape hatch and is banned.
 
 1.    Optional property: `foo?: T`. Never `foo?: T | undefined`, never `foo: T | undefined`.
 2.    `if`-guard that narrows before the value reaches the typed slot, so the slot only holds `T`.
-3.    Throw at the boundary: `nonNullishOrThrow` from `@monochromatic-dev/module-or-throw`;
+3.    Throw at the boundary: `nonNullishOrThrow` from `@monochromatic-dev/or-throw-core`;
       `requireNonEmpty` / `requirePositive` for non-empty-string and non-zero boundaries.
 4.    Real sentinel: a unique `Symbol`, or a distinct meaningful domain value.
       Never `null`, `undefined`, `''`, `0`, or an empty array as a stand-in for "absent".
@@ -521,7 +521,7 @@ Ordered by value-to-effort,
        move `omitUndefined` into a
       shared `@monochromatic-dev/module-*` package with its own README and tests;
        add the two throwing
-      constructors to `@monochromatic-dev/module-or-throw`,
+      constructors to `@monochromatic-dev/or-throw-core`,
        each with the `NonEmpty<S>` template-literal
       brand from the type-system section.
 

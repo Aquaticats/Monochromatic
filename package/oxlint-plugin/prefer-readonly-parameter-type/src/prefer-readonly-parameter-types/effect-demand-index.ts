@@ -478,7 +478,7 @@ export function createDemandDrivenEffectIndex(
        * hint that used to gate it was recomputed after each expansion over whatever had been
        * reached, which made the answer a fact about which files the lint run happened to visit
        * first. Measured in one process with no threads: `stateMatches` in
-       * `package/desktop-app/electron-infra/src/wayland-state.ts` read `foreign=[]` before its
+       * `package/electron-infra/core/src/wayland-state.ts` read `foreign=[]` before its
        * siblings were expanded and `foreign=[0]` after, because `wayland-test.ts` declares the
        * marker and reaches it. Skipping is not the safe direction either, since foreign
        * ownership suppresses the readonly offer, so the unproven answer emits an offer the

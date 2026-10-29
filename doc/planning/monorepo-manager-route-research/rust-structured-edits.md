@@ -40,9 +40,9 @@ and the Biome JSON crates need three exact pins rather than seven.
   - `PR/` is `SE/probe/`.
   - `TGT/` is `~/temp/agent/structured-edits-target-2026-09-16/`.
   - `REG/` is `~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/`.
-  - `TE/` is `package/module/toml-edit/src/`.
-  - `JE/` is `package/module/jsonc-edit/src/`.
-  - `FE/` is `package/dev-script/file-enforcer/src/`.
+  - `TE/` is `package/toml-edit/core/src/`.
+  - `JE/` is `package/jsonc-edit/core-ts/src/`.
+  - `FE/` is `package/file-enforcer/core/src/`.
 - Case identifiers such as `t03` or `j07` name cases in `PR/cases.ts`.
 
 ## Probes run
@@ -143,7 +143,7 @@ and the Biome JSON crates need three exact pins rather than seven.
    and `json-five-probe corpus` run the `module-jsonc-edit.conformance` corpus
    (10 valid,
    11 invalid,
-   from `package/module/jsonc-edit.conformance/src/jsonc.conformance.unit.test.ts`).
+   from `package/jsonc-edit/core-ts.conformance/src/jsonc.conformance.unit.test.ts`).
 
 ### Sizes
 
@@ -209,7 +209,7 @@ TOML,
  from `module-toml-edit` and file-enforcer tests (Verified):
 
 - Unedited documents round-trip byte for byte (`TE/fixtures.unit.test.ts:75` over 91 fixtures),
-   except that CRLF becomes LF (`package/module/toml-edit/README.md:39-46`).
+   except that CRLF becomes LF (`package/toml-edit/core/README.md:39-46`).
 - An equal-value set is byte-identical,
    keeping literal quotes and hex spelling
    (`TE/toml-set.unit.test.ts:31`,
@@ -246,7 +246,7 @@ JSONC,
 - The write model is canonical,
    not splice:
    "This is not byte-identical splice;
-   whitespace between tokens is normalized" (`package/module/jsonc-edit/README.md:103-104`),
+   whitespace between tokens is normalized" (`package/jsonc-edit/core-ts/README.md:103-104`),
    "No source ranges are threaded through the parse" (`doc/decision/jsonc-edit-parser-foundation.md:64`).
 - Raw scalar tokens survive when unedited (`JE/stringify.unit.test.ts:64`);
    records emit with 2-space indentation and trailing commas (`:100`);
@@ -260,7 +260,7 @@ JSONC,
 - Idempotency is "a second round-trip equals the first" (`JE/stringify.unit.test.ts:34`),
    but the comment-safety property only requires a fixpoint from the second emission:
    "First emission may normalize placement"
-   (`package/module/jsonc-edit.fuzz/src/comment-safety.property.unit.test.ts:44`).
+   (`package/jsonc-edit/core-ts.fuzz/src/comment-safety.property.unit.test.ts:44`).
 - JSONC means VS Code semantics,
    JSON5 syntax and scalar roots rejected
    (`jsonc.conformance.unit.test.ts:2`,

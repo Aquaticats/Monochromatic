@@ -13,7 +13,7 @@
 
 import { readFile, } from 'node:fs/promises';
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
 
 import {
   chordKeys,

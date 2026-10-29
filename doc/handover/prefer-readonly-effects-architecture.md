@@ -1,5 +1,10 @@
 # Handover: `prefer-readonly-parameter-type` effect architecture
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/done-postcss` is now `package/done/variant-postcss`.
+
 Living record for the catalog-free,
 fail-closed effect architecture in
 `package/oxlint-plugin/prefer-readonly-parameter-type`.

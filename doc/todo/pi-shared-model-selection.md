@@ -216,7 +216,7 @@ Development dependencies:
 - `@earendil-works/pi-coding-agent: catalog:`.
 - `@monochromatic-dev/config-tsdown: workspace:*`.
 - `@monochromatic-dev/config-typescript: workspace:*`.
-- `@monochromatic-dev/module-test: workspace:*`.
+- `@monochromatic-dev/test-harness-core: workspace:*`.
 - `@types/bun: catalog:`.
 
 Consumer dependencies:

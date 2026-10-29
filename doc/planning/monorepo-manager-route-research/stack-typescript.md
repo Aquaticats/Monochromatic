@@ -154,7 +154,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
 - btrfs: `fs.statfs` for detection, `fs.copyFile(..., COPYFILE_FICLONE_FORCE)` for restore,
   `node:ffi` `ioctl` for `BTRFS_IOC_GET_SUBVOL_INFO` and subvolume or snapshot creation.
 - Hashing: `crypto.hash('sha256', ...)`.
-- file-enforcer: a child `node package/dev-script/file-enforcer/src/cli.ts` per evaluation, in its own task cgroup.
+- file-enforcer: a child `node package/file-enforcer/core/src/cli.ts` per evaluation, in its own task cgroup.
 
 ### R1: per-task cgroup placement, freeze, kill, pidfd
 
@@ -302,7 +302,7 @@ Nothing under `/var/home/user/Monochromatic` was modified
 - Types: `package/config/typescript/tsconfig.options.json:70-72` uses `"types": ["node"]`;
   `@types/node@26.4.1` ships `ffi.d.ts` (verified, measured `ls`),
   but lacks `getCurrentEventLoop` (added `v26.6.0`), which this design does not need (verified, `rg`).
-- `module-test` is runtime-neutral (`package/module/test/README.md:7`, `:30-31`, verified, source);
+- `module-test` is runtime-neutral (`package/test-harness/core/README.md:7`, `:30-31`, verified, source);
   tests run through the existing Node `test:unit` template.
 - `XRT` (`AGENTS.md:955-956`) prefers cross-runtime patterns;
   `node:ffi` code is Node-specific and Linux/glibc-specific,
@@ -495,7 +495,7 @@ The only published docs describe `1.4.x`.
 
 - `bun SCRATCH/fe-import-probe.ts` printed the same result as Node:
   `importOk:true`, 80 exports, `glob`, `AsyncLocalStorage`, and query re-import working (verified, measured).
-- `CM3` bans `bun test`, which misreports under `@monochromatic-dev/module-test` (`AGENTS.md:877-881`, verified,
+- `CM3` bans `bun test`, which misreports under `@monochromatic-dev/test-harness-core` (`AGENTS.md:877-881`, verified,
 - source);
   Bun-specific code would still be tested through Node tasks or `bun <file>`.
 
@@ -675,7 +675,7 @@ Ranked by severity, most severe first.
 ### R7: file-enforcer interop
 
 - With `--no-config`, import failed:
-  `Import "@monochromatic-dev/module-logger/ts" not a dependency` (verified, measured).
+  `Import "@monochromatic-dev/logger-core/ts" not a dependency` (verified, measured).
 - From the repository root with `deno run --no-lock --node-modules-dir=manual -A SCRATCH/fe-import-probe.ts`,
   the import succeeded with 80 exports and wrote no `deno.lock` or `node_modules/.deno` (verified, measured).
 - Prior repository experience: `doc/troubleshooting/browserslist-deno-root-read.md` records a Deno read prompt for `/`
@@ -693,7 +693,7 @@ Ranked by severity, most severe first.
   The daemon and `doctor` must run with `-A`, so Deno's sandbox brings no protection here.
 - No Deno runtime precedent for tools; the shared tsconfig lists only `node` types;
   `AP4` has no Deno shebang allowance; `Deno.*` APIs are runtime-specific under `XRT` (verified, source).
-- `module-test` is runtime-neutral (`package/module/test/README.md:7`, `:30-31`, verified, source).
+- `module-test` is runtime-neutral (`package/test-harness/core/README.md:7`, `:30-31`, verified, source).
 
 ### R9: documentation quality (culling triggers)
 

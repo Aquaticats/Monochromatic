@@ -5,7 +5,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 const { $, } = types.string.from.string.trim.with.object.regexp.global.sync.named;
 

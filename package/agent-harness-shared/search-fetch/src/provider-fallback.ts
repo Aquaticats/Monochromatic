@@ -4,7 +4,7 @@
  @module
  */
 
-import { caughtValueText as errorMessage, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText as errorMessage, } from '@monochromatic-dev/caught-value-core/ts';
 
 import type {
   FetchOptions,

@@ -178,7 +178,7 @@ so a workspace declaration reached through a `node_modules` symlink gets the gui
 which the ownership fix no longer masks;
 75 packages resolve none of their own imports in the scratch worktree (TS2307),
 so their programs were exercised only weakly;
-and `dev-script/watch-restart` logs an omission warning cold that its warm run drops.
+and `watch-restart/cli` logs an omission warning cold that its warm run drops.
 All three are closed (`83e43a4604` to `f931308964`):
 `workspaceOrigin` decides by path alone;
 building the 72 packages the 75 import cleared every TS2307,
@@ -813,7 +813,7 @@ so another memo kind cannot buy more than the 4,600 repeats listed.
   and cannot show a finding preserved.
 - To cover that,
   four packages outside the family were linted before and after:
-  `desktop-app/electron-infra`,
+  `electron-infra/core`,
   `pi-plugin/morph-compact`,
   `rolldown-plugin/import-attributes`
   and `claude-code-plugin/statusline`.

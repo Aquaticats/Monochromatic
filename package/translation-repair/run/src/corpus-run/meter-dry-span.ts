@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { MeterState, } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { ProviderName, } from '@monochromatic-dev/translation-repair-shared-contract/ts';

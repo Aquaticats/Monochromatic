@@ -18,7 +18,7 @@ import {
   type TruncationOptions,
   type TruncationResult,
 } from '@monochromatic-dev/agent-harness-shared-truncate/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { withFileMutationQueue, } from './file-mutation-queue.ts';
 import type {

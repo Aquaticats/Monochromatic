@@ -44,7 +44,7 @@ import {
   cssRem,
   type CssValue,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  Generates the `@font-face` declaration and `.material-symbols-outlined`

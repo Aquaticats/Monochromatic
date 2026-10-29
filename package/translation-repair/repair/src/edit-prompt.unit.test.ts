@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { messageText, } from '@monochromatic-dev/translation-repair-provider';
 import { MARKUP_ATOM_SHEET_NAMES, } from '@monochromatic-dev/translation-repair-markup';

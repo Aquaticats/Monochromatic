@@ -5,8 +5,8 @@
  * the spawn loop needs no uninitialized bindings and no try/catch of its
  * own when the pool is exhausted.
  */
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   type BatchedMesh,
   BufferAttribute,

@@ -1,4 +1,4 @@
-import { expect, } from '@monochromatic-dev/module-test/ts';
+import { expect, } from '@monochromatic-dev/test-harness-core/ts';
 
 //region Scan findings
 // How a scan over the package's own files fails: with every finding it made,

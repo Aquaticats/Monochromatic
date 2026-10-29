@@ -17,8 +17,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ModelCaller, } from '@monochromatic-dev/translation-repair-provider';
 import { SEAT_HYPER_TEXT_BEDROCK, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';

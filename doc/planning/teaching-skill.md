@@ -155,8 +155,8 @@ The confirmed default presentation requirements apply.
 
 Workspace discovery found relevant examples:
 
-- `package/module/async-time/src/index.ts`: waiting and timeout operations.
-- `package/module/async-iter/src/map-iterable-async.ts`:
+- `package/async-time/core/src/index.ts`: waiting and timeout operations.
+- `package/async-iter/core/src/map-iterable-async.ts`:
   starting asynchronous operations before collecting results with `Promise.all`.
 - `AGENTS.md`, `PP1` and `PP2`: implementation uses `async`/`await`
   and Promise combinators rather than callback chains or explicit Promise constructors.

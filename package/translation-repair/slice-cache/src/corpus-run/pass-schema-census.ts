@@ -13,7 +13,7 @@ import {
   requireArtifactParseRefusal,
 } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import { readArtifactSchemaVersion, } from '@monochromatic-dev/translation-repair-artifact/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 //region Pass schema census
 // Which artifact GENERATION each settled file belongs to, as a discriminated

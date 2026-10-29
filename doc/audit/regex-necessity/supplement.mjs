@@ -36,7 +36,7 @@ const FLIP_TO_UNNECESSARY = [
     splitNote: 'The enclosing `toRegExp` must return a `RegExp`, so the `RegExp(escapedPattern,)` construction at line 67 stays and no issue is filed for it. This site is the incidental escape pass that feeds it: replacing each metacharacter with a backslash-prefixed copy is a character walk over a 15-character alphabet, and it needs no pattern to do that.',
   },
   {
-    match: (finding) => (finding.repoPath === 'package/module/test-expect/src/expect-matchers-core.ts')
+    match: (finding) => (finding.repoPath === 'package/test-harness/core-expect/src/expect-matchers-core.ts')
       && (finding.line === 294),
     splitNote: 'The `.toMatch` contract is `string | RegExp`, and the RegExp branch genuinely needs chai\'s regex matcher. This site is the string branch: `new RegExp(expected,)` compiles the author\'s string so chai can match it. Jest documents a string argument to `toMatch` as substring inclusion, which `includes` answers directly, so the compilation is unnecessary and currently deviates from Jest for strings containing metacharacters (`toMatch(\'a.c\')` matches `\'abc\'` today). Changing the string branch is a behaviour change for exactly those inputs, so it needs an owner decision and a test that pins whichever semantics are wanted.',
   },

@@ -1,10 +1,10 @@
 /**
  Package tasks for `@monochromatic-dev/oxlint-plugin-prefer-readonly-parameter-type`,
  replacing the `mise.toml` tasks CI ran through `mise run` with node-native
- definitions for `@monochromatic-dev/dev-script-task-cli`.
+ definitions for `@monochromatic-dev/monorepo-task-cli`.
  */
 
-import type { PackageTaskFile, } from '../../dev-script/task-cli/src/types.ts';
+import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
 
 export default {
   'build': { extends: 'build', },

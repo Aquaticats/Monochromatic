@@ -210,7 +210,7 @@ captures/
 /package-paused/webapp-forge/*/data/
 
 # Package-specific generated files unsafe to generalize
-/package/desktop-daemon/hall-monitor/**/hall-monitor
+/package/hall-monitor/daemon/**/hall-monitor
 /package/kwin/key-helper/key-helper-service
 /package/music-player/android-app/build/
 **/app/build/

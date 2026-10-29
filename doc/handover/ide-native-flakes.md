@@ -1,5 +1,10 @@
 # Native suite flakes: state after the third flake session
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/desktop-app/ide` is now `package/ide/app`.
+
 The section "Third session" below is the third session (branch `worktree-agent-a4671ba160cf3feec`,
 2026-10-22);
 the sections after it are the second session (branch `worktree-agent-a5d7faec36a652c16`),

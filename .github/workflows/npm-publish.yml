@@ -5,22 +5,22 @@ name: npm-publish
 on:
   workflow_dispatch:
     inputs:
-      module:
-        description: 'Module to publish from the selected revision'
+      package:
+        description: 'Package path under package/ to publish from the selected revision'
         type: choice
         required: true
-        default: fs-path
+        default: fs-path/core
         options:
-          - fs-path
-          - logger
+          - fs-path/core
+          - logger/core
 
 permissions: {}
 
 env:
-  NPM_MODULE: ${{ inputs.module }}
+  NPM_PACKAGE: ${{ inputs.package }}
 
 concurrency:
-  group: npm-publish-module-${{ inputs.module }}
+  group: npm-publish-${{ inputs.package }}
   cancel-in-progress: false
 
 jobs:
@@ -34,14 +34,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Set up node, pnpm and the task CLI
         uses: ./.github/actions/task-cli-setup
-      - run: task-run "//package/module/$NPM_MODULE:build"
-      - run: task-run "//package/module/$NPM_MODULE:test:unit"
-      - run: task-run npm:module:pack
+      - run: task-run "//package/$NPM_PACKAGE:build"
+      - run: task-run "//package/$NPM_PACKAGE:test:unit"
+      - run: task-run npm:package:pack
         env:
           NPM_PACK_DIR: ${{ runner.temp }}/npm-pack
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: module-tarball
+          name: package-tarball
           path: ${{ runner.temp }}/npm-pack/*.tgz
           if-no-files-found: error
 
@@ -59,8 +59,8 @@ jobs:
           install-dependencies: 'false'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: module-tarball
+          name: package-tarball
           path: ${{ runner.temp }}/npm-pack
-      - run: task-run npm:module:publish
+      - run: task-run npm:package:publish
         env:
           NPM_PACK_DIR: ${{ runner.temp }}/npm-pack

@@ -88,7 +88,7 @@ TypeScript flags none of it,
 since both sides stay `number`.
 
 So `EffectSlot` and `ParameterIndex` become distinct brands before anything else moves,
-following the repo idiom in `package/module/fs-id/src/types.ts`.
+following the repo idiom in `package/fs-id/core/src/types.ts`.
 `ReadonlySet<EffectSlot>.has` then rejects a `ParameterIndex`,
 and every conversion becomes a compile error that has to be answered rather than a grep that
 has to be complete.
@@ -359,7 +359,7 @@ The precision it gives up is real but unexercised.
 **No offer was withdrawn.**
 That was the prediction that mattered,
 and it is the one a narrowing cannot survive breaking.
-All five added offers are in `package/module/toml-edit/src/emit-value.ts`,
+All five added offers are in `package/toml-edit/core/src/emit-value.ts`,
 and each is verified rather than assumed:
 
 - That file contains no mutation at all.

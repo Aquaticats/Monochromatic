@@ -39,7 +39,7 @@ experimental = true
 # Uncomment when debugging
 # verbose = true
 
-# Matches the package/*/* directory depth (e.g. package/module/logger = 3 segments).
+# Matches the package/*/* directory depth (e.g. package/logger/core = 3 segments).
 task.monorepo_depth = 3
 
 # Skip the extra Tera template pass that collects arg()/option()/flag() from run scripts.
@@ -395,7 +395,7 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', [])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', [])
 """
 [task_templates."format:oxlint"]
 description = "Auto-fix this package with Oxlint using its package-local tsconfig"
@@ -403,14 +403,14 @@ shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix'])
 """
 [task_templates."lint:types"]
 description = "TypeScript"
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
-runWorkspaceNode('package/dev-script/task-util', 'tsc-filter', ['--build'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'tsc-filter', ['--build'])
 """
 
 [task_templates."watch:lint:types"]
@@ -450,27 +450,27 @@ run = "slopo analyze"
 
 [tasks."toolchain:sync"]
 description = "Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)"
-run = "node package/dev-script/file-enforcer/src/toolchain/sync.ts"
+run = "node package/file-enforcer/core/src/toolchain/sync.ts"
 
 [tasks."toolchain:status"]
 description = "Print observed versus locked tool versions and exit non-zero on drift"
-run = "node package/dev-script/file-enforcer/src/toolchain/status.ts"
+run = "node package/file-enforcer/core/src/toolchain/status.ts"
 
 [tasks."toolchain:update"]
 description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing"
-run = "node package/dev-script/file-enforcer/src/toolchain/update.ts"
+run = "node package/file-enforcer/core/src/toolchain/update.ts"
 
 [tasks."toolchain:sync:global"]
 description = "Converge the machine-global tools to the versions its toolchain.lock.json records (doc/planning/mpm-global-toolchain-migration.md)"
-run = "node package/dev-script/file-enforcer/src/toolchain/sync.ts --global"
+run = "node package/file-enforcer/core/src/toolchain/sync.ts --global"
 
 [tasks."toolchain:status:global"]
 description = "Print observed versus locked versions of the machine-global tools and exit non-zero on drift"
-run = "node package/dev-script/file-enforcer/src/toolchain/status.ts --global"
+run = "node package/file-enforcer/core/src/toolchain/status.ts --global"
 
 [tasks."toolchain:update:global"]
 description = "Re-resolve the machine-global tools into their toolchain.lock.json; --check reports without writing"
-run = "node package/dev-script/file-enforcer/src/toolchain/update.ts --global"
+run = "node package/file-enforcer/core/src/toolchain/update.ts --global"
 
 #endregion Utility Tasks
 
@@ -913,7 +913,7 @@ description = "Build Playwright container image via podman"
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
-runWorkspaceNode('package/dev-script/task-util', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
+runWorkspaceNode('package/monorepo-task/core-exec', 'depends', ['--sources', 'sh:echo Infinity', '--outputs', 'sh:podman image exists monochromatic-playwright && echo Infinity || echo -Infinity', '--', 'podman', 'build', '-t', 'monochromatic-playwright', '-f', 'playwright.Dockerfile', '.'])
 """
 
 # Android SDK components and the rustup Android targets for
@@ -967,11 +967,11 @@ run = "caddy run --config Caddyfile --adapter caddyfile"
 [tasks."sync:files"]
 alias = "file-enforcer"
 description = "Sync derived files (CLAUDE.md, oxlint config, etc.) via file-enforcer"
-run = "node package/dev-script/file-enforcer/src/cli.ts"
+run = "node package/file-enforcer/core/src/cli.ts"
 
 [tasks."watch:sync:files"]
 description = "Watch source files and re-sync on changes"
-run = "node package/dev-script/file-enforcer/src/cli.ts --watch"
+run = "node package/file-enforcer/core/src/cli.ts --watch"
 
 #endregion File Enforcer
 
@@ -986,8 +986,8 @@ description = "Edit the age-encrypted secrets file (.env.local.json) via sops"
 #   mise run --raw secrets:edit
 # The --raw flag gives sops and the editor direct stdin/stdout/stderr passthrough.
 run = [
-  "mise run //package/module/env-local-json:build",
-  "node package/module/env-local-json/dist/final/node/bin.mjs edit .env.local.json",
+  "mise run //package/env-local-json/core:build",
+  "node package/env-local-json/core/dist/final/node/bin.mjs edit .env.local.json",
 ]
 
 [tasks."secrets:migrate"]
@@ -1009,7 +1009,7 @@ description = "Tighten catalog >=x.y.z ranges to match installed node_modules ve
 # No usage spec: mise appends post-`--` args as a real argv vector. The entry
 # reads `--dry-run` from argv itself (src/index.ts), matching the README's
 # documented `mise run catalog:tighten -- --dry-run`.
-run = "node package/dev-script/catalog-tighten/src/index.ts"
+run = "node package/dependency-catalog/cli-tighten/src/index.ts"
 
 #endregion Catalog Tighten
 
@@ -1019,11 +1019,11 @@ run = "node package/dev-script/catalog-tighten/src/index.ts"
 description = "Update every first-party Cargo.lock under rust-catalog.toml's release-age and trust policy (pnpm -r --no-save update)"
 # No usage spec: mise appends post-`--` args as a real argv vector, so
 # `mise run rust:update -- --dry-run` reaches the bin's own argument parser.
-run = "node package/dev-script/rust-catalog-update/src/cli.ts"
+run = "node package/dependency-catalog/cli-rust-update/src/cli.ts"
 
 [tasks."rust:verify"]
 description = "Check every locked Rust registry version against rust-catalog.toml's trust policy (CI)"
-run = "node package/dev-script/rust-catalog-update/src/cli.ts --verify"
+run = "node package/dependency-catalog/cli-rust-update/src/cli.ts --verify"
 
 #endregion Rust catalog update
 
@@ -1032,7 +1032,7 @@ run = "node package/dev-script/rust-catalog-update/src/cli.ts --verify"
 [tasks."deps:update"]
 description = "pnpm update --recursive --no-save; on a strict minimumReleaseAge refusal, report the too-new versions, when they mature, and who pulls them in"
 # Rationale: doc/troubleshooting/pnpm-update-no-save-strict-release-age.md.
-run = "node package/dev-script/deps-update/src/index.ts"
+run = "node package/deps-update/cli/src/index.ts"
 
 #endregion Deps Update
 
@@ -1042,7 +1042,7 @@ run = "node package/dev-script/deps-update/src/index.ts"
 description = "Report per-page transfer size (min, max, mean, median) for a dist directory"
 # No usage spec: mise appends the post-`--` dist path as a real argv vector. The
 # entry validates a missing dist arg itself (EXIT_USAGE in src/index.ts).
-run = "node package/dev-script/page-weight/src/index.ts"
+run = "node package/page-weight/cli/src/index.ts"
 
 #endregion Page Weight
 
@@ -1070,12 +1070,12 @@ execFileSync('pnpm', ['install'], { stdio: 'inherit' })
 
 #region Changesets -- versioning and npm publishing (doc/decision/npm-publishing.md)
 
-[tasks."npm:module:pack"]
-description = "Pack the selected module for the targeted npm trusted-publisher workflow"
-run = 'pnpm --filter "@monochromatic-dev/module-$NPM_MODULE" pack --pack-destination "$NPM_PACK_DIR"'
+[tasks."npm:package:pack"]
+description = "Pack the package at package/$NPM_PACKAGE for the targeted npm trusted-publisher workflow"
+run = 'pnpm --filter "./package/$NPM_PACKAGE" pack --pack-destination "$NPM_PACK_DIR"'
 
-[tasks."npm:module:publish"]
-description = "Publish the packed module release using npm trusted publishing"
+[tasks."npm:package:publish"]
+description = "Publish the packed package release using npm trusted publishing"
 run = 'npm publish "$NPM_PACK_DIR"/*.tgz --access public --provenance --registry=https://registry.npmjs.org'
 
 [tasks."changeset:add"]

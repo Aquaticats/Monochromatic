@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-This is the verified design for the Language module of `package/desktop-app/ide`,
+This is the verified design for the Language module of `package/ide/app`,
 the third gate of [the implementation plan](slint-ide-implementation.md).
 Nothing under `package/` was changed.
 Every claim is tied to the pinned Helix source
@@ -118,7 +118,7 @@ Decisions that are not mine to make are collected in "Decisions for the coordina
 - A current-thread runtime with `enable_all()` on one dedicated thread is sufficient.
   All real-server cases ran that way; case `fake-multi-thread` repeated the scripted session
   on the multi-thread runtime with identical results.
-- The `tokio` features already declared in `package/desktop-app/ide/Cargo.toml` suffice;
+- The `tokio` features already declared in `package/ide/app/Cargo.toml` suffice;
   `helix-lsp` itself enables the rest (`helix-lsp/Cargo.toml`).
 
 ### Workspace root resolution
@@ -205,7 +205,7 @@ Design consequences:
   and returns `None` without sending for `None` or absent sync capability (`client.rs:1091` to `:1117`).
 - The change set is `Reload::changes.changes()`:
   the transaction `Document::prepare_reload` already computes with `compare_ropes`
-  (`package/desktop-app/ide/src/document.rs:156`).
+  (`package/ide/app/src/document.rs:156`).
   The Language module needs the old rope, the new rope, and that change set for each accepted reload,
   so `Reload` must expose its transaction (it currently exposes only `text()`).
 - It panics on an uninitialized client (`client.rs:1088`).
@@ -552,7 +552,7 @@ Each state occurred in the spike and is observable as follows.
 
 ## Threading
 
-- One Language worker thread, built like `SearchWorker::new` (`package/desktop-app/ide/src/search_worker.rs:107`):
+- One Language worker thread, built like `SearchWorker::new` (`package/ide/app/src/search_worker.rs:107`):
   a current-thread runtime moved into a named thread that runs one loop.
 - The loop is a `tokio::select!` over the command receiver and `registry.incoming.next()`.
   With no server running the stream yields `None` and that branch is disabled until the next command.
@@ -595,7 +595,7 @@ Each state occurred in the spike and is observable as follows.
 
 ## Dependency delta
 
-- `helix-lsp` is declared in `package/desktop-app/ide/Cargo.toml` and locked in `Cargo.lock`
+- `helix-lsp` is declared in `package/ide/app/Cargo.toml` and locked in `Cargo.lock`
   with `arc-swap`, `futures-executor`, `futures-util`, `globset`, `helix-lsp-types`, `helix-stdx`, `log`,
   `parking_lot`, `slotmap`, `sonic-rs`, `thiserror`, `tokio`, `tokio-stream`.
 - It is compiled but not linked: `target/debug/deps/libhelix_lsp-*.rlib` exists,
@@ -684,7 +684,7 @@ The user confirmed the TypeScript 7 server choice on 2026-10-05.
 
 ## Proposed module layout
 
-All under `package/desktop-app/ide/src/`, each within the existing line budgets,
+All under `package/ide/app/src/`, each within the existing line budgets,
 with tests in sibling `_tests.rs` files.
 
 - `language.rs`: public surface for the native layer: `LanguageWorker` handle

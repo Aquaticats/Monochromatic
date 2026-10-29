@@ -13,7 +13,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { buildCss, } from '@monochromatic-dev/build-tool-css/ts';
+import { buildCss, } from '@monochromatic-dev/css-cli/ts';
 
 import { renderSvgSprite, } from './data/model-icons.ts';
 import { readArtifacts, } from './data/read-artifacts.ts';

@@ -3,7 +3,7 @@ import { AsyncLocalStorage, } from 'node:async_hooks';
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 //region Log context
 // WHICH ENTRY, ATTEMPT, LANE AND SLICE A LINE BELONGS TO, carried by the async

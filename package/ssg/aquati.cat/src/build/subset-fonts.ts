@@ -32,7 +32,7 @@ import { fileURLToPath, } from 'node:url';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import {
   init as initSubset,
   subset,

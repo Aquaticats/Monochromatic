@@ -8,8 +8,8 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   agentCommand,

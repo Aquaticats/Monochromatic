@@ -1,9 +1,9 @@
 /**
  * Package tasks translated from the matching `mise.toml` for
- * `@monochromatic-dev/dev-script-task-cli`.
+ * `@monochromatic-dev/monorepo-task-cli`.
  */
 
-import type { PackageTaskFile, } from '../../dev-script/task-cli/src/types.ts';
+import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
 
 export default {
   "build:native": {

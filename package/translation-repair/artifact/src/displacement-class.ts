@@ -5,7 +5,7 @@ import {
   sliceRatios,
   type SliceSize,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { isPlausibleSlice, } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 

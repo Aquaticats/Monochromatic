@@ -7,7 +7,7 @@
  * Shard motion integrates on the CPU through the pure physics module and
  * lands in per-instance matrices.
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   BatchedMesh,
   Matrix4,

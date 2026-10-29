@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFrom": "package/dev-script/file-enforcer/src/toolchain/plan.ts",
+  "generatedFrom": "package/file-enforcer/core/src/toolchain/plan.ts",
   "tools": {
     "bin": {
       "request": {
@@ -734,7 +734,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.2.11",
+      "version": "0.2.12",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-git-policy-cli",

@@ -1,0 +1,71 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/fs-path-core",
+  "description": "POSIX path operations and upward root discovery (findRoot with marker values: mise monorepo, Git repository, pnpm workspace, named package, file, or directory) for Node, Bun, and browsers over the origin private file system, with an in-memory filesystem for tests, plus Node-only directory and file helpers behind the ./node entry. No dynamic imports in either build.",
+  "type": "module",
+  "sideEffects": false,
+  "version": "0.2.1",
+  "module": "dist/final/neutral/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/neutral/index.d.mts",
+      "node": "./dist/final/node/index.mjs",
+      "default": "./dist/final/neutral/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/final/node/node.d.mts",
+      "default": "./dist/final/node/node.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "imports": {
+    "#posix-path": {
+      "node": "./src/posix-path.node.ts",
+      "default": "./src/posix-path.neutral.ts"
+    },
+    "#root-filesystem": {
+      "node": "./src/root-filesystem.node.ts",
+      "default": "./src/root-filesystem.neutral.ts"
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticats/Monochromatic.git",
+    "directory": "package/fs-path/core"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "exports": {
+      ".": {
+        "types": "./dist/final/neutral/index.d.mts",
+        "node": "./dist/final/node/index.mjs",
+        "default": "./dist/final/neutral/index.mjs"
+      },
+      "./node": {
+        "types": "./dist/final/node/node.d.mts",
+        "default": "./dist/final/node/node.mjs"
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 Choosing a Rust GUI toolkit for an app that needs OS drag-and-drop on a pure
 Wayland session (the file-manager prototype,
- `package/desktop-app/file-manager/`)
+ `package/file-manager/app/`)
 runs into a gap that is easy to misattribute to one toolkit.
  It is not
 Slint-specific:
@@ -59,7 +59,7 @@ second hand-rolled binding becomes the thing that breaks drops.
 
 One path in this doc is stale.
  The hand-rolled adapter it names,
-`package/desktop-app/file-manager/src/dnd_wayland.rs`,
+`package/file-manager/app/src/dnd_wayland.rs`,
  belonged to the retired Slint
 implementation;
  it was added as `packages/desktop-app/file-manager/src/dnd_wayland.rs`
@@ -68,7 +68,7 @@ in commit `0540a43a3`,
  The file
 manager is now GTK4,
  and its drag-and-drop wiring lives in
-`package/desktop-app/file-manager/src/dnd.rs`.
+`package/file-manager/app/src/dnd.rs`.
 
 For the Xilem/Masonry side,
  including the event-routing trace,
@@ -140,7 +140,7 @@ Because the toolkits delegate windowing to winit,
 
 The workaround every winit-based app must use is to drive the Wayland
 `wl_data_device` protocol by hand on the app's own connection (the file manager
-does this in `package/desktop-app/file-manager/src/dnd_wayland.rs`,
+does this in `package/file-manager/app/src/dnd_wayland.rs`,
  sharing
 winit's connection via `Backend::from_foreign_display`).
  That hand-rolled
@@ -190,7 +190,7 @@ compositor-integrated widget toolkits with first-class drag-and-drop:
   until the hand-rolled `wl_data_device` adapter is added,
    and that adapter works
   under a compositor that delivers drags correctly (verified via the Smithay
-  nested compositor's `drop-file` command in `package/cli/nested-wayland-session`).
+  nested compositor's `drop-file` command in `package/nested-wayland-session/cli`).
 
 ## Full framework survey: native Wayland OS file drag-and-drop
 

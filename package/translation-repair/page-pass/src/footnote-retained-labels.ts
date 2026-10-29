@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { RetainedArchiveFootnoteLabel, } from './footnote-label-rewrite.ts';
 
 //region Fresh archive-label allocation

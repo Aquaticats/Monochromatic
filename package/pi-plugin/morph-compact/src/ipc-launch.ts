@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, } from '@earendil-works/pi-coding-agent';
 import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   rm,
   unlink,

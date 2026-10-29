@@ -4,7 +4,7 @@ import {
 } from 'node:fs/promises';
 import { constants, } from 'node:os';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import type { ProgramRunner, } from '../dist/final/node/index.mjs';
 

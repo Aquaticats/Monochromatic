@@ -5,7 +5,7 @@
  */
 
 import type { Theme, } from '@earendil-works/pi-coding-agent';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { renderAdvisorResult, } from '../dist/final/node/index.mjs';
 
 //region Fixtures

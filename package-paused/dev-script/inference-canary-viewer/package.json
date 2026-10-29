@@ -7,7 +7,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-tsdown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
   "dependencies": {
@@ -15,12 +15,12 @@
     "@lezer/highlight": "catalog:",
     "@lezer/javascript": "catalog:",
     "@lobehub/icons-static-svg": "catalog:",
-    "@monochromatic-dev/build-tool-css": "workspace:*",
+    "@monochromatic-dev/css-cli": "workspace:*",
     "@monochromatic-dev/dev-script-inference-canary": "workspace:*",
     "micromark": "catalog:",
-    "@monochromatic-dev/module-hyperscript": "workspace:*",
-    "@monochromatic-dev/module-const": "workspace:*",
-    "@monochromatic-dev/module-fs-path": "workspace:*",
+    "@monochromatic-dev/hyperscript-core": "workspace:*",
+    "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/fs-path-core": "workspace:*",
     "nano-spawn": "catalog:",
     "string-dedent": "catalog:"
   },

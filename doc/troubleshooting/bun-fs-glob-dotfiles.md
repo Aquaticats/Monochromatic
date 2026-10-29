@@ -165,7 +165,7 @@ console.log(dotMatches,);
 
 Two files used `Bun.Glob`:
 
-- `package/dev-script/file-enforcer/src/io/glob.ts`:
+- `package/file-enforcer/core/src/io/glob.ts`:
   `expandGlob()` requires `dot: true` to match hidden files.
   **Cannot migrate** to `fs.glob` due to this bug.
    Kept on

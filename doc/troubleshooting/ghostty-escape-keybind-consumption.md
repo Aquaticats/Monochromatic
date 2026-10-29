@@ -297,7 +297,7 @@ import tty
 SCRATCH = Path.home() / "temp/agent"
 REPO = Path.cwd()
 COMPOSITOR = REPO / (
-    "package/cli/nested-wayland-session/target/release/"
+    "package/nested-wayland-session/cli/target/release/"
     "monochromatic-nested-wayland-session"
 )
 
@@ -404,7 +404,7 @@ Run the catalogs from the repository root:
 ```sh
 mkdir --parents "${HOME}/temp/agent"
 chmod 700 "${HOME}/temp/agent"
-mise run //package/cli/nested-wayland-session:build
+mise run //package/nested-wayland-session/cli:build
 
 python3 "${HOME}/temp/agent/ghostty-escape-probe.py" parent stock \
   --config-default-files=false --gtk-single-instance=false

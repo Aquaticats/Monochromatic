@@ -927,7 +927,7 @@ The message tail stays on this machine.
 
 ### Hazard found while building it
 
-`console.info` from `@monochromatic-dev/module-logger` writes to stdout,
+`console.info` from `@monochromatic-dev/logger-core` writes to stdout,
 which a hook reserves for its JSON output.
 An `info` line in the handler made the built bundle print `[info] ...` ahead of the JSON,
 and the bundle suite failed on it.

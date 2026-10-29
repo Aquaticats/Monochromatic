@@ -46,7 +46,7 @@ Emitting tool and message:
 Workaround:
  the sync pre-seeds `{"default_path": ..., "bins": {}}` at the configuration
  path `bin` resolves
- (`seedBinConfig` in `package/dev-script/file-enforcer/src/toolchain/providers.ts:206`).
+ (`seedBinConfig` in `package/file-enforcer/core/src/toolchain/providers.ts:206`).
  Tradeoff:
  an existing configuration file is left alone,
  so an empty `$HOME/.bin/config.json` still wins and a human must remove it.
@@ -86,7 +86,7 @@ Workaround:
  only `--version` literals or package ids carrying the pin survive,
  so `mpm.managers.toml` bakes each `cargo:` pin into a `--version` argument
  and npm tools stay provider-owned at the repository boundary
- (`package/dev-script/file-enforcer/src/toolchain/mpm-manifest.ts`).
+ (`package/file-enforcer/core/src/toolchain/mpm-manifest.ts`).
  Definitions belong under `[mpm.overrides.<id>]` in 8.2.0;
  the `[mpm.managers.<id>]` path of the 7.6.1 record is historical.
  Tradeoff:
@@ -107,7 +107,7 @@ Workaround:
  `toolchain.lock.json` records the SHA-256 of the same artifact bytes
  (computed 2026-10-26),
  so every artifact row is a checkable SHA-256
- (`package/dev-script/file-enforcer/src/toolchain/plan.artifacts.ts:12`).
+ (`package/file-enforcer/core/src/toolchain/plan.artifacts.ts:12`).
  Tradeoff:
  the digests no longer match `mise.lock` row for row,
  so comparing the two records needs the artifact bytes.
@@ -228,7 +228,7 @@ section `Exit and rollback`).
 3. `mpm`-side removal is `mpm`-side:
    delete the restore manifest (`mpm.packages.toml`),
    the manager definitions (`mpm.managers.toml`),
-   and the sync entry (`package/dev-script/file-enforcer/src/toolchain/`),
+   and the sync entry (`package/file-enforcer/core/src/toolchain/`),
    then reinstall the tools through any manager.
 
 Exercise status:
@@ -277,7 +277,7 @@ are:
   that is the adopted design,
   not a migration workaround.
 - Running the sync entry without Node:
-  `node package/dev-script/file-enforcer/src/toolchain/sync.ts` is TypeScript
+  `node package/file-enforcer/core/src/toolchain/sync.ts` is TypeScript
   executed by an already-present `node`.
   Node and Mise stay the manually installed bootstrap prerequisites.
   The sync then stages `bin`

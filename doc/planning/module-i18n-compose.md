@@ -1,4 +1,4 @@
-# Plan: `@monochromatic-dev/module-i18n-compose`
+# Plan: `@monochromatic-dev/i18n-compose-core`
 
 Status:
  package implementation landed;
@@ -35,7 +35,7 @@ This plan supersedes the earlier brainstorm for `PLANNING.module-i18n-compose.md
 
 ## Implementation status
 
-Phases 1 through 5 plus Phase 7 (cleanup and docs) landed under `package/module/i18n-compose/`.
+Phases 1 through 5 plus Phase 7 (cleanup and docs) landed under `package/i18n-compose/core/`.
  The package type-checks,
  lints with zero errors and zero warnings,
  and all tests pass.
@@ -53,7 +53,7 @@ What shipped (file layout,
  not the plan's flat `locales/{ca,en,zh}.ts`):
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ├── README.md
 ├── mise.toml
 ├── package.json
@@ -133,7 +133,7 @@ and throws instead of inventing a measure phrase.
 Tests:
  `*.unit.test.ts` only (no `*.type.test.ts` files;
  the workspace convention puts type assertions inline
-via `expectTypeOf` from `@monochromatic-dev/module-test`).
+via `expectTypeOf` from `@monochromatic-dev/test-harness-core`).
  Coverage spans every variant of every AST kind:
 noun phrases (bare,
  counted,
@@ -260,7 +260,7 @@ These trapped the first implementation and will trap the next contributor unless
 
 8. **The plan's `*.type.test.ts` convention does not exist in this workspace.
    ** Workspace tests put type assertions inline in `*.unit.test.ts` files using `expectTypeOf` re-exported from
-   `@monochromatic-dev/module-test`.
+   `@monochromatic-dev/test-harness-core`.
     The implementation followed the workspace convention;
     `src/ast-types.unit.test.ts` is the type-assertion file.
 
@@ -272,8 +272,8 @@ These are the bits that did not get written down inside the package itself:
 (`PIPELINE_GLOB = 'src/{lib,components,client}/**/*.ts'`) **does not include `src/i18n/`**.
    Phase 6 acceptance says i18n source changes must invalidate cached rendered output (§13 Phase 6 / §15).
    Widen the glob (or add a separate i18n fingerprint) before declaring the migration done.
-- `ssg-test`'s `package.json` does not yet depend on `@monochromatic-dev/module-i18n-compose`.
-   Phase 6 must add `"@monochromatic-dev/module-i18n-compose": "workspace:*"` to `dependencies`
+- `ssg-test`'s `package.json` does not yet depend on `@monochromatic-dev/i18n-compose-core`.
+   Phase 6 must add `"@monochromatic-dev/i18n-compose-core": "workspace:*"` to `dependencies`
    and remove `"typesafe-i18n"` from `devDependencies`.
 - The existing call sites use `const t = i18nObject(lang); t.siteName()` — across roughly ten files (rg `'i18nObject'`
 from `package/ssg/aquati.cat/src`).
@@ -308,7 +308,7 @@ when you read this — `mise tasks -C package/ssg/aquati.cat` lists them).
 Build a workspace package at:
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ```
 
 The package provides a small,
@@ -1112,7 +1112,7 @@ If locale-specific order is needed,
 ## 12. Package layout
 
 ```txt
-package/module/i18n-compose/
+package/i18n-compose/core/
 ├── README.md
 ├── mise.toml
 ├── package.json
@@ -1139,7 +1139,7 @@ package/module/i18n-compose/
 
 ### Phase 1: package skeleton
 
-- Create `package/module/i18n-compose/`.
+- Create `package/i18n-compose/core/`.
 - Add `package.json`,
    `tsconfig.json`,
    and `mise.toml` consistent with nearby workspace modules.

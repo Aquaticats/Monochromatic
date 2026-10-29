@@ -1,5 +1,5 @@
 import { compareCodePoints, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {

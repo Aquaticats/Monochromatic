@@ -72,8 +72,8 @@ The successful extraction used:
 # From the repository root, with the extraction changes selected.
 git commit --no-enforce-mono/dependent-version-bump \
   --message 'refactor(*): split module-test responsibilities into packages' \
-  -- package/module/test package/module/test-expect package/module/test-sandbox \
-  package/module/test-diagnostic .changeset/config.json doc/planning/module-test-split.md
+  -- package/test-harness/core package/test-harness/core-expect package/test-harness/core-sandbox \
+  package/test-harness/core-diagnostic .changeset/config.json doc/planning/module-test-split.md
 ```
 
 The actual commit also supplied its package-by-package body.

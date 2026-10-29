@@ -41,7 +41,7 @@
   {
     "name": "closure-check-ide",
     "files": [
-      "package/desktop-app/ide/**/*.rs",
+      "package/ide/app/**/*.rs",
     ],
     "ignores": [
       "**/*.md/**",

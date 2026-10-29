@@ -6,7 +6,7 @@
 
 import { existsSync, } from 'node:fs';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { version as typescriptVersion, } from 'typescript';
 import type {
   API,

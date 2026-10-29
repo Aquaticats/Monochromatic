@@ -70,7 +70,7 @@ so any CLI that ran one could outlive its own work by up to the grace window.
 
 ## The fix
 
-`@monochromatic-dev/module-async-time` gained `settleWithin`,
+`@monochromatic-dev/async-time-core` gained `settleWithin`,
 the same race with its loser cleared through a `using` disposer,
 returning `'settled'` or `'expired'` as a VALUE:
 

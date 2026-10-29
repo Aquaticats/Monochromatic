@@ -26,12 +26,12 @@ import policiesJson from './.pnpmfile.policies.json' with { type: 'json' };
 /**
  @typedef {object} Policy
  @property {'throw' | 'silent'} action
-   `throw`: substitute with @monochromatic-dev/stub-throwing. Loading the
+   `throw`: substitute with @monochromatic-dev/pnpm-override-stub-throwing. Loading the
    module throws an error naming the policy file. Use when at least one
    importer hard-imports the package (no `try/catch` guard) and you want a
    loud, informative failure at the import site.
  
-   `silent`: substitute with @monochromatic-dev/stub-silent. Property reads,
+   `silent`: substitute with @monochromatic-dev/pnpm-override-stub-silent. Property reads,
    function calls, and `new` invocations return the stub itself. `in` checks
    return `false`. Use for soft migrations where build-green matters more
    than runtime correctness.
@@ -88,8 +88,8 @@ const POLICY = Object.freeze(
  @type {Readonly<Record<Policy['action'], string>>}
  */
 const STUB_SPECIFIER = Object.freeze({
-  throw: 'workspace:@monochromatic-dev/stub-throwing@*',
-  silent: 'workspace:@monochromatic-dev/stub-silent@*',
+  throw: 'workspace:@monochromatic-dev/pnpm-override-stub-throwing@*',
+  silent: 'workspace:@monochromatic-dev/pnpm-override-stub-silent@*',
 },);
 
 /**

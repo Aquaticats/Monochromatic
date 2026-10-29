@@ -2,7 +2,7 @@ import { once, } from 'node:events';
 import { createConnection, } from 'node:net';
 import { setTimeout as wait, } from 'node:timers/promises';
 
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { createAnswerChannel, } from '../dist/final/node/index.mjs';
 

@@ -1,7 +1,7 @@
 /**
  Tests for how the rotation sweep reads a suite's output and compares a salt against salt 0 (ledger B701).
 
- Fixtures are cat-themed invention; the record shapes are the ones the harness of `package/module/test` logs.
+ Fixtures are cat-themed invention; the record shapes are the ones the harness of `package/test-harness/core` logs.
 
  @module
  */
@@ -10,7 +10,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import {
   EXIT_WITHOUT_CASE,

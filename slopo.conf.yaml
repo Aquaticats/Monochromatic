@@ -63,7 +63,7 @@ report_dir: .slopo.local.dir/
 # Hand-tuned floor, and the lowest value this repository wants. 0.4.0 defaulted to 10 and 0.8.0
 # defaults to 20 (slopo/config.py:151-152), so 13 is more permissive than the current upstream
 # default rather than less. Below 13 the report fills with one-line idioms whose duplication is the
-# design: 25 of the 33 css* value constructors in module/hyperscript are 8-node one-liners that each
+# design: 25 of the 33 css* value constructors in hyperscript/core are 8-node one-liners that each
 # document one CSS unit. Small-idiom families are still worth measuring, through the queries in
 # doc/troubleshooting/slopo-threshold-tuning.md, without indexing them here.
 body_node_count_threshold: 13

@@ -7,7 +7,7 @@
 import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import * as v from 'valibot';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 /**
  Sentinel returned by internal {@link loadSettingsFile} when a settings file is

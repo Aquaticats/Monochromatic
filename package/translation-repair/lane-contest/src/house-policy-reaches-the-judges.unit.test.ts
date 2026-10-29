@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { buildCandidateSelectMessages, } from '@monochromatic-dev/translation-repair-adjudication';
 import { CONTEST_POLICY, } from '../dist/final/node/index.mjs';

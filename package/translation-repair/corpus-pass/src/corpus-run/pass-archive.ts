@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import { leadingMarkWidth, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import { foldInvisibleVariants, } from '@monochromatic-dev/translation-repair-markup/ts';

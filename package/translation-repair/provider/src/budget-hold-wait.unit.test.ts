@@ -15,7 +15,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { ProviderRecord, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {

@@ -33,7 +33,7 @@
  @module
  */
 
-import { logger as frameworkLogger, } from '@monochromatic-dev/module-logger/ts';
+import { logger as frameworkLogger, } from '@monochromatic-dev/logger-core/ts';
 
 import { contextRoot, } from '../dist/final/node/index.mjs';
 

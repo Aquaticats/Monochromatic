@@ -10,7 +10,7 @@
  * that the tree handles centrally.
  */
 
-import { hDom as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hDom as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { DirEntry, } from '../../../protocol.ts';
 import {

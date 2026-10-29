@@ -1,5 +1,10 @@
 # Claude CPU cap and thermal watch
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/claude-cpu-cap` is now `package/claude-cpu-cap/daemon`.
+
 ## Purpose
 
 On 2026-10-13 the user asked why Claude sessions did not use all CPU threads on the 16 core, 32 thread Ryzen 9 7950X

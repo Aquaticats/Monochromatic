@@ -12,14 +12,14 @@
  @module
  */
 
-import { wait, } from '@monochromatic-dev/module-async-time/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   DEFAULT_CONCURRENCY,
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { ProjectedLanes, } from '@monochromatic-dev/translation-repair-artifact';

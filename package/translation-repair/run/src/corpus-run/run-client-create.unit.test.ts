@@ -36,7 +36,7 @@ import {
   type DisposableSandbox,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { NEURALWATT_LEDGER_PATH_VAR, } from '@monochromatic-dev/translation-repair-provider';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract';

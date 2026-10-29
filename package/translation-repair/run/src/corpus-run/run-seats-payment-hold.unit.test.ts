@@ -21,7 +21,7 @@ import {
   expect,
   it,
   type DisposableSandbox,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { createProviderBudgets, HOLD_POLL_MS, } from '@monochromatic-dev/translation-repair-provider';
 import { TEST_MAX_HOLD_MS, } from '@monochromatic-dev/translation-repair-provider/ts/budget-hold.test-fixture.ts';

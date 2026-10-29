@@ -115,7 +115,7 @@ Works:
   two `wl_shm_pool.create_buffer` calls),
   the screenshots showed the client,
   and the client's WAYLAND_DEBUG log shows `mesa egl swrast display queue`.
-- The IDE bundle (`package/desktop-app/ide/dist/monochromatic-ide`) on a disposable folder,
+- The IDE bundle (`package/ide/app/dist/monochromatic-ide`) on a disposable folder,
   a disposable `HOME`,
   and no network held only `renderD128` (or only `renderD129`) with dmabuf buffers,
   and with `--gpu software` held no DRM node and used `wl_shm` buffers while its file list was drawn.
@@ -131,7 +131,7 @@ Fails or surprises:
 - `DRI_PRIME` in the client's environment adds the other GPU's node to the client's open files.
 
 Harness:
-`mise run //package/cli/nested-wayland-session:inspect:headless-gpu` repeats the per-device and the no-GPU cases
+`mise run //package/nested-wayland-session/cli:inspect:headless-gpu` repeats the per-device and the no-GPU cases
 and exits 1 on any failure.
 `monochromatic-nested-wayland-session --list-gpus` prints the devices and the one `auto` uses.
 

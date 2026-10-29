@@ -68,7 +68,7 @@ export const SPECIFIER_CASES: readonly ShapeCase[] = [
         text: textOf([
           'import { join, } from \'node:path\';',
           'import { readFileSync, } from \'fs\';',
-          'import { nonNullishOrThrow, } from \'@monochromatic-dev/module-or-throw/ts\';',
+          'import { nonNullishOrThrow, } from \'@monochromatic-dev/or-throw-core/ts\';',
           'import { sibling, } from \'./resolved-sibling.ts\';',
           'import pack from \'../../corpus-pass/package.json\' with { type: \'json\', };',
           'import type { Shared, } from \'#types\';',

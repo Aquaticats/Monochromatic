@@ -24,7 +24,7 @@ import {
   basename,
   join,
 } from 'node:path';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   GUEST_MOUNT_POINT,

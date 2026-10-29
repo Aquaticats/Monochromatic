@@ -105,7 +105,7 @@ Top hit files:
 - `.agents/skills/code-review/SKILL.md` (79)
 - `package/audit/oph-common-look-and-feel/src/index.html` (33)
 - `package/module/es/src/types/.../simplifiedSchema.behaviorTest.ts` (25)
-- `package/webapp-productivity/done/PLAN.md` (19)
+- `package/done/app/PLAN.md` (19)
 - `package/forbidden-strings/cli/src/rule.rs` (12)
 - `mise.toml` (9)
 

@@ -17,7 +17,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { CORPUS_EXPANSION, } from '@monochromatic-dev/translation-repair-shared-contract';
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
 import {

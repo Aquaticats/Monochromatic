@@ -1,8 +1,8 @@
 import type { Socket, } from 'node:net';
 import { once, } from 'node:events';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { runEditor, } from './editor-process.ts';
 import {

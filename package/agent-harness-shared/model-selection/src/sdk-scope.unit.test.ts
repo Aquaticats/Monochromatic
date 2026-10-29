@@ -2,7 +2,7 @@
 import { mkdir, mkdtemp, rm, writeFile, } from 'node:fs/promises';
 import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { resolveEffectiveScope, } from '../dist/final/node/index.mjs';
 import { fixtureModel, } from './test-fixtures.ts';
 

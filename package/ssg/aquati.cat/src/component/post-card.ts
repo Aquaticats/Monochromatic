@@ -13,7 +13,7 @@ import {
   cssVar,
   hCss as $,
   hHtml as h,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { Post, } from '../lib/content.ts';
 import {

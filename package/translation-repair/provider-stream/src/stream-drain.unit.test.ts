@@ -12,12 +12,12 @@
  @module
  */
 
-import { logger as frameworkLogger, } from '@monochromatic-dev/module-logger/ts';
+import { logger as frameworkLogger, } from '@monochromatic-dev/logger-core/ts';
 import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { refusalText, } from '@monochromatic-dev/translation-repair-document-structure';
 import { contextRoot, } from '@monochromatic-dev/translation-repair-typography';

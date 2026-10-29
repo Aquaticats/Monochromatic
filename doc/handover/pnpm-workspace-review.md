@@ -1,5 +1,18 @@
 # pnpm workspace review handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/numeric-format` is now `package/numeric-format/core`;
+> `package/module/toml-edit` is now `package/toml-edit/core`;
+> `package/module/or-throw` is now `package/or-throw/core`;
+> `package/module/test` is now `package/test-harness/core`.
+
 ## Status
 
 The user asked for a comprehensive review of `pnpm-workspace.yaml` after two insufficient passes.

@@ -13,7 +13,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import type { ChatTextRequest, } from '@monochromatic-dev/translation-repair-provider';
 import { promptUniqueClient, } from '@monochromatic-dev/translation-repair-stage';
 import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixture/ts/hang-stop.test-fixture.ts';

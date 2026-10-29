@@ -1,7 +1,7 @@
-# `@monochromatic-dev/module-test` test harness: confusing error chains with duplicate describes, skipped tests after first failure, shared-state flakes, assertion-count + sinon-restore pitfalls
+# `@monochromatic-dev/test-harness-core` test harness: confusing error chains with duplicate describes, skipped tests after first failure, shared-state flakes, assertion-count + sinon-restore pitfalls
 
 This file groups five independent quirks of the in-tree test harness
-(`@monochromatic-dev/module-test`).
+(`@monochromatic-dev/test-harness-core`).
  Each gets its own canonical
 section.
 
@@ -46,7 +46,7 @@ shared name verbatim.
 ### Verification
 
 Version under test:
- `@monochromatic-dev/module-test` at workspace
+ `@monochromatic-dev/test-harness-core` at workspace
 HEAD.
 
 Reproduce:
@@ -321,7 +321,7 @@ constraints concludes:
 `expect.assertions(n)` is not available on the imported `expect`:
 
 ```ts
-import { expect, } from '@monochromatic-dev/module-test';
+import { expect, } from '@monochromatic-dev/test-harness-core';
 // `expect.assertions` is undefined.
 ```
 
@@ -346,7 +346,7 @@ import {
   describe,
   expect as globalExpect,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 
 await describe({
   name: 'count check',

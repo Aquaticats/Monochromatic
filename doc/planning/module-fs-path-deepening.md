@@ -2,7 +2,7 @@
 
 Status:
  done (2026-09-08);
- `@monochromatic-dev/module-fs-path@0.2.0` is on the registry.
+ `@monochromatic-dev/fs-path-core@0.2.0` is on the registry.
 Owner decisions from the architecture grilling are recorded here as they land;
  this file is canonical for the change.
 Mechanism for the release that follows:
@@ -10,7 +10,7 @@ Mechanism for the release that follows:
 
 ## Driver
 
-The 2026-09-07 architecture review of `package/module/fs-path` (report kept outside the repo,
+The 2026-09-07 architecture review of `package/fs-path/core` (report kept outside the repo,
  findings summarised here) picked "walker plus seam as the deep module" from six candidates.
 Measured before the change:
 
@@ -71,7 +71,7 @@ Measured before the change:
    migration (owner chose "migrate everything"):
    every importer moves to the new names in the same change,
    the old names are removed rather than deprecated,
-   `package/module/matrix/src/root.ts` is deleted,
+   `package/test-harness/core-matrix/src/root.ts` is deleted,
    and 0.2.0 ships.
    Rejected:
    a deprecation period (the package has one consumer,
@@ -117,7 +117,7 @@ Measured before the change:
 
 Files outside the package that name a finder or the git error (measured 2026-09-08 with `rg`):
 
-- `package/build-tool/css/src/cli.unit.test.ts`
+- `package/css/cli/src/cli.unit.test.ts`
 - `package/fy/cli/src/cli.unit.test.ts`
 - `package/fy/cli/src/resolve.ts`
 - `package/git-clone-size/cli/src/cli.unit.test.ts`
@@ -125,25 +125,25 @@ Files outside the package that name a finder or the git error (measured 2026-09-
 - `package/mvm/cli/src/cli.unit.test.ts`
 - `package/rgffplay/cli/src/index.unit.test.ts`
 - `package/vmsync/cli/src/index.unit.test.ts`
-- `package/dev-script/deps-cube/src/cli.ts`
-- `package/dev-script/deps-cube/src/render-html.ts`
-- `package/dev-script/vm-builder/src/build-and-import.ts`
-- `package/dev-script/vm-builder/src/sign-and-push.ts`
+- `package/dependency-catalog/cli-cube/src/cli.ts`
+- `package/dependency-catalog/cli-cube/src/render-html.ts`
+- `package/vm-builder/cli/src/build-and-import.ts`
+- `package/vm-builder/cli/src/sign-and-push.ts`
 - `package/git-policy/cli/src/rule/require-root.ts`
 - `package/git-policy/cli/src/trust/config-discovery.ts`
 - `package/git-policy/cli/src/trust/fixture/final-newline-workflow.ts`
 - `package/mcp/mvm/src/index.unit.test.ts`
-- `package/module/image-diff/src/cli.unit.test.ts`
-- `package/module/matrix/src/matrix.ts`
-- `package/module/matrix/src/root.ts` (deleted)
-- `package/module/test/src/format-error.ts` (dynamic import site,
+- `package/llm/image-diff/src/cli.unit.test.ts`
+- `package/test-harness/core-matrix/src/matrix.ts`
+- `package/test-harness/core-matrix/src/root.ts` (deleted)
+- `package/test-harness/core/src/format-error.ts` (dynamic import site,
    changed mechanically).
-  Moved on 2026-10-04 to `package/module/test-diagnostic/src/format-error.ts`.
-- `package/module/token-count/src/cli.unit.test.ts`
+  Moved on 2026-10-04 to `package/test-harness/core-diagnostic/src/format-error.ts`.
+- `package/llm/token-count/src/cli.unit.test.ts`
 - `package/oxlint-plugin/test-support/src/index.ts`
 - `package/ssg/aquati.cat/src/lib/git-dates.ts`
 - `package/test-fixture/file-enforcer-perf/src/run-constrained-config.ts`
-- `package/webapp-productivity/doodle-widget/src/source-url.ts`
+- `package/doodle-widget/app/src/source-url.ts`
 - `package-paused/dev-script/inference-canary-viewer/src/data/diff.ts` (outside the workspace globs;
    edited so no stale name remains)
 
@@ -201,7 +201,7 @@ Mapping:
    contract without `resolvePath`;
    `find-monorepo-root.ts`,
    `find-package-root.ts`,
-   and `module/matrix/src/root.ts` deleted.
+   and `test-harness/core-matrix/src/root.ts` deleted.
    Package lint and types clean.
 - `0546bf787`:
    tests.
@@ -245,7 +245,7 @@ Mapping:
    fy,
    deps-cube (`packageNamed` at module load),
    and the oxlint test-support consumer;
-   `module/matrix` has no `test:unit` task.
+   `test-harness/core-matrix` has no `test:unit` task.
    Chromium gate:
    three presets fulfilled against OPFS markers,
    two negatives rejected with `RootNotFoundError`,
@@ -262,7 +262,7 @@ Mapping:
    squash-merged as `c9bb16793` the way #499 and #489 were.
    Run 34235495820 for that commit published through the trusted publisher (success at 14:03Z);
    `npm view` reports `0.2.0` under `latest`,
-   and the tag `@monochromatic-dev/module-fs-path@0.2.0` exists.
+   and the tag `@monochromatic-dev/fs-path-core@0.2.0` exists.
    Consumer check of the published tarball in a temporary `npm install` directory:
    `findRoot` with `MISE_MONOREPO` found a root through a CRLF header with a trailing comment,
    `findRootCached` returned the same promise result twice,
@@ -278,4 +278,4 @@ Follow-ups live in GitHub issues #500 to #506;
  #506 (mise-action release window) and #500 (the six `find-up` call sites) landed on 2026-09-08 and 2026-09-09,
  #502 (the `node_modules` and `.lfsconfig` walks in file-enforcer and markdown-lint) on 2026-09-09,
  #501 (the mutation-test work tree now carries a `.git` marker the validator accepts) on 2026-09-09;
- the css package-resolver walk stays synchronous for the reason recorded in `package/build-tool/css/README.md`.
+ the css package-resolver walk stays synchronous for the reason recorded in `package/css/cli/README.md`.

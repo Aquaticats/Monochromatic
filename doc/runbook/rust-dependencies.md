@@ -83,7 +83,7 @@ With `catalogPrune = true` (the repository's setting),
 
 The update needs the nightly cargo pinned in `toolchain.lock.json`.
 Its trust checks cache crates.io histories under `.cache/rust-catalog-update/`.
-See [`package/dev-script/rust-catalog-update/README.md`](../../package/dev-script/rust-catalog-update/README.md)
+See [`package/dependency-catalog/cli-rust-update/README.md`](../../package/dependency-catalog/cli-rust-update/README.md)
  for the policy details.
 
 ## Exceptions to the release age or trust policy
@@ -98,7 +98,7 @@ See [`package/dev-script/rust-catalog-update/README.md`](../../package/dev-scrip
 
 ## Check before pushing
 
-`node package/dev-script/file-enforcer/src/cli.ts --check` exits 1 and lists every generated file,
+`node package/file-enforcer/core/src/cli.ts --check` exits 1 and lists every generated file,
  manifests included,
  that differs from what the sync would write.
 A file edited by hand in a generated section is overwritten by the next sync:

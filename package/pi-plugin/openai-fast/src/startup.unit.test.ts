@@ -8,7 +8,7 @@ import { existsSync, } from 'node:fs';
 import { readFile, unlink, writeFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { CODEX_PROVIDER, OPENAI_PROVIDER, } from '../dist/final/node/index.mjs';
 import { fixtureHome, } from './host-fixture-home.ts';
 import { fixtureModel, } from './host-fixture-model.ts';

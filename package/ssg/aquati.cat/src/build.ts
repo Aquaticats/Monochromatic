@@ -18,7 +18,7 @@ import { relative, } from 'node:path';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { generateAssets, } from './build/assets.ts';
 import { ensureFavicons, } from './build/favicon.ts';

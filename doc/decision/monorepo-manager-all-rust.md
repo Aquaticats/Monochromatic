@@ -16,7 +16,7 @@ Design:
 [`doc/planning/monorepo-manager-from-scratch-design.md`](../planning/monorepo-manager-from-scratch-design.md).
 Session state:
 [`doc/handover/monorepo-manager.md`](../handover/monorepo-manager.md).
-Supersedes `package/dev-script/file-enforcer/DECISION.rust-migration.md` for the tool's file enforcement.
+Supersedes `package/file-enforcer/core/DECISION.rust-migration.md` for the tool's file enforcement.
 
 ## Context
 
@@ -116,7 +116,7 @@ and ranked under speed-first weights
 
 - `DECISION.rust-migration.md` is superseded;
    the TypeScript file-enforcer keeps running until the Rust tool replaces it.
-- `package/dev-script/vm-builder` must replace its `exec` import from file-enforcer's `/ts` subpath,
+- `package/vm-builder/cli` must replace its `exec` import from file-enforcer's `/ts` subpath,
    and the `file-enforcer-perf` fixture,
    a `prefer-readonly-parameter-type` fixture read,
    and the `sync:files` tasks need migration.
@@ -126,7 +126,7 @@ and ranked under speed-first weights
    the replacement lands with the rewrite rather than ahead of it,
    the rewrite keeps only its byte-identical gate and the performance fixture retires unmeasured,
    the `prefer-readonly-parameter-type` read moves to a new fixture package
-   that really depends on `@monochromatic-dev/module-toml-edit`,
+   that really depends on `@monochromatic-dev/toml-edit-core`,
    and the `sync:files` tasks leave with Mise.
 - Superseded on 2026-09-17 with `gxhash`:
    the AES-specific startup check.

@@ -1,5 +1,5 @@
 /** Default recovery respects exhausted-credit exclusions and bounded no-text retries. @module */
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { operationFixture, } from './operation-test-fixture.ts';
 
 /** Reported Hyper failure, not a generic HTTP 402 assumption. */

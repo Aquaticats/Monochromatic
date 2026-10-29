@@ -74,7 +74,7 @@ workspace location or a username.
 
 No credential is copied into this bundle.
 The credential source is the repo's sops/age-encrypted `.env.local.json`,
-read through `@monochromatic-dev/module-env-local-json` inside the shared
+read through `@monochromatic-dev/env-local-json-core` inside the shared
 search-fetch core.
 That store supplies `DEEPSEEK_API_KEY`,
 which is why the MCP search works

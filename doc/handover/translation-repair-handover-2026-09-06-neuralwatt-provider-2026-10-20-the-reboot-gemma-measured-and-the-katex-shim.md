@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: the reboot, Gemma measured and the katex shim, 2026-10-21
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/shim/katex` is now `package/pnpm-override/shim-katex`.
+
 The machine reboot with three agents halted,
 the owner's rulings on the picture bench and on request parameters,
 the Gemma measurement,

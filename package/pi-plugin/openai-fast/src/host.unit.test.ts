@@ -5,7 +5,7 @@
  */
 import type { Api, Model, } from '@earendil-works/pi-ai';
 import type { ModelRuntime, } from '@earendil-works/pi-coding-agent';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   CODEX_API,

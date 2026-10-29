@@ -1,5 +1,16 @@
 # Audit: `TODO.generalize-ssg.md`
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/webapp-productivity/rss` is now `package/rss/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/i18n-compose` is now `package/i18n-compose/core`;
+> `@monochromatic-dev/module-i18n-compose` is now `@monochromatic-dev/i18n-compose-core`.
+
 Generated 2026-05-28 from a critical review of
 [`package/ssg/aquati.cat/TODO.generalize-ssg.md`](../../package/ssg/aquati.cat/TODO.generalize-ssg.md),
 the plan to extract `ssg-test` into a publishable,

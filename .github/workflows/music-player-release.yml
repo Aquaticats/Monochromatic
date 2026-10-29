@@ -1379,7 +1379,7 @@ jobs:
             .ci-cache/cargo
             .ci-cache/target-app
             .ci-cache/target-nws
-          key: music-player-alpine-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('package/music-player/desktop-app/Cargo.lock', 'package/cli/nested-wayland-session/Cargo.lock') }}
+          key: music-player-alpine-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('package/music-player/desktop-app/Cargo.lock', 'package/nested-wayland-session/cli/Cargo.lock') }}
           restore-keys: |
             music-player-alpine-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-
 
@@ -1431,7 +1431,7 @@ jobs:
           # test needs a working compositor, not its fastest code, so LTO is off and codegen units are many.
           podman run --rm \
             --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
-            --volume "$GITHUB_WORKSPACE/package/cli/nested-wayland-session:/src:ro" \
+            --volume "$GITHUB_WORKSPACE/package/nested-wayland-session/cli:/src:ro" \
             --volume "$CI_CACHE/cargo:/cargo" \
             --volume "$CI_CACHE/target-nws:/target" \
             --env CARGO_HOME=/cargo --env CARGO_TARGET_DIR=/target \
@@ -1479,7 +1479,7 @@ jobs:
             .ci-cache/cargo
             .ci-cache/target-app
             .ci-cache/target-nws
-          key: music-player-alpine-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('package/music-player/desktop-app/Cargo.lock', 'package/cli/nested-wayland-session/Cargo.lock') }}
+          key: music-player-alpine-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-${{ hashFiles('package/music-player/desktop-app/Cargo.lock', 'package/nested-wayland-session/cli/Cargo.lock') }}
 
       - name: Smoke test (app inside the nested compositor)
         run: |

@@ -15,9 +15,9 @@
     "./ts/*": "./src/*"
   },
   "dependencies": {
-    "@monochromatic-dev/module-llm-type": "workspace:*",
-    "@monochromatic-dev/module-logger": "workspace:*",
-    "@monochromatic-dev/module-or-throw": "workspace:*",
+    "@monochromatic-dev/llm-llm-type": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/translation-repair-document-structure": "workspace:*",
     "@monochromatic-dev/translation-repair-glossary": "workspace:*",
@@ -33,7 +33,7 @@
   "devDependencies": {
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
-    "@monochromatic-dev/module-test": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
     "@monochromatic-dev/translation-repair-test-fixture": "workspace:*",
     "@types/node": "catalog:",
     "rolldown": "catalog:",

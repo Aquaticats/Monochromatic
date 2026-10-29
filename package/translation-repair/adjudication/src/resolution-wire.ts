@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import type { AdjudicatedIssue, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { ADDITION_IS_REMOVED_NOT_SOFTENED, } from './addition-repair-rule.ts';

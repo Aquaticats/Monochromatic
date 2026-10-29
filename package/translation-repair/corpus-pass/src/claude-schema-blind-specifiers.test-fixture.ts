@@ -174,7 +174,7 @@ function readLine(
  @example
  ```ts
  const packages = lockedPackagesIn({ text, },);
- // => Set { '@monochromatic-dev/module-or-throw', ... }
+ // => Set { '@monochromatic-dev/or-throw-core', ... }
  ```
  */
 function lockedPackagesIn({ text, }: { readonly text: string; },): ReadonlySet<string> {
@@ -239,8 +239,8 @@ const FILES_BESIDE_SOURCES: ReadonlySet<string> = new Set(
 
  @example
  ```ts
- const name = packageNameOf({ specifier: '@monochromatic-dev/module-or-throw/ts', },);
- // => '@monochromatic-dev/module-or-throw'
+ const name = packageNameOf({ specifier: '@monochromatic-dev/or-throw-core/ts', },);
+ // => '@monochromatic-dev/or-throw-core'
  ```
  */
 function packageNameOf({ specifier, }: { readonly specifier: string; },): string {

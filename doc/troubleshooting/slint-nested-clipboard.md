@@ -54,7 +54,7 @@ Ok(Self::X11(x11::Clipboard::new()?))
 ```
 
 Before this change,
-`package/cli/nested-wayland-session/src/child.rs` set the nested `WAYLAND_DISPLAY`
+`package/nested-wayland-session/cli/src/child.rs` set the nested `WAYLAND_DISPLAY`
 and removed `WAYLAND_SOCKET`,
 but retained inherited `DISPLAY` and `XAUTHORITY`.
 The compositor registered `wl_data_device_manager`,
@@ -65,7 +65,7 @@ The nested display and host X11 clipboard are not synchronized by this fixture.
 The current child environment now explicitly removes both X11 variables:
 
 ```rust
-// package/cli/nested-wayland-session/src/child.rs
+// package/nested-wayland-session/cli/src/child.rs
 command.env_remove("DISPLAY");
 command.env_remove("XAUTHORITY");
 ```
@@ -129,13 +129,13 @@ Arboard 3.6.1 checksum
 `0348a1c054491f4bfe6ab86a7b6ab1e44e45d899005de92f58b3df180b36ddaf`.
 
 Run the native lifecycle check with
-`mise run //package/cli/nested-wayland-session:inspect:clipboard`.
+`mise run //package/nested-wayland-session/cli:inspect:clipboard`.
 It launches its own compositor and asserts that the child has a different Wayland display
 and no inherited X11 environment before invoking clipboard clients.
 It requires `wl-copy` and `wl-paste` on the host.
 
 The regression command is
-`mise run //package/cli/nested-wayland-session:test:container`.
+`mise run //package/nested-wayland-session/cli:test:container`.
 Its pre-fix run failed specifically at the new X11 isolation assertion.
 
 ## Workaround and tradeoffs

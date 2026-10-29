@@ -1,7 +1,7 @@
 {
   "//": "Global dependency blocklist substitution policies. Data table for the readPackage hook in .pnpmfile.mjs. Companion to the overrides block in pnpm-workspace.yaml, which owns the removal cases. See docs/dependency-blocklist.md for the policy reference and the throw/silent/remove decision rule.",
   "//keys": "Each non-comment key is an npm package name; keys beginning with // are comments (npm names cannot start with /) and are ignored by the hook. Each policy is { action, reason, allowed? }.",
-  "//action": "throw = substitute with @monochromatic-dev/stub-throwing (loud, informative error at the import site). silent = substitute with @monochromatic-dev/stub-silent (Proxy whose reads/calls/new return the stub; in checks return false). Removal is not an action here; add \"name\": \"-\" to the overrides block in pnpm-workspace.yaml instead.",
+  "//action": "throw = substitute with @monochromatic-dev/pnpm-override-stub-throwing (loud, informative error at the import site). silent = substitute with @monochromatic-dev/pnpm-override-stub-silent (Proxy whose reads/calls/new return the stub; in checks return false). Removal is not an action here; add \"name\": \"-\" to the overrides block in pnpm-workspace.yaml instead.",
   "//reason": "reason is surfaced one-line in the install-time warning; cite the replacement, migration ticket, or rationale.",
   "//allowed": "allowed is an optional array of consumer package names that keep resolving to the real dependency.",
   "caniuse-lite": {

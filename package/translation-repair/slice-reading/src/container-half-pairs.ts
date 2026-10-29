@@ -1,6 +1,6 @@
 import type { ChunkPair, } from './chunk-document.ts';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { isInsertionChunk, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {

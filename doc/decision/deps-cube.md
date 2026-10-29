@@ -1,6 +1,6 @@
 # Visualization library choice for `deps-cube`
 
-Records the technology choice behind `package/dev-script/deps-cube/`.
+Records the technology choice behind `package/dependency-catalog/cli-cube/`.
  Future
 sessions consult this before re-proposing rejected paths.
 
@@ -493,7 +493,7 @@ per-probe baked-name textures in commit `62d80159`.
 The current implementation encodes leaf packages as spheres and non-leaf
 packages as octahedra,
  both rendered through `SimpleMeshLayer` in
-`package/dev-script/deps-cube/src/deck-scatter.ts`.
+`package/dependency-catalog/cli-cube/src/deck-scatter.ts`.
  Unknown probes are
 rendered as spheres in the unknown cluster.
 
@@ -505,7 +505,7 @@ across camera angles and allow package names to be baked into per-probe
 textures so depth testing occludes labels correctly.
 
 `partitionProbes` now lives in
-`package/dev-script/deps-cube/src/deck-scatter-helpers.ts` and routes each
+`package/dependency-catalog/cli-cube/src/deck-scatter-helpers.ts` and routes each
 probe to one of three buckets:
  leaf,
  non-leaf,
@@ -549,7 +549,7 @@ is formalised;
  non-TS,
 and low downloads would better surface the audit corner of the cube.
 The implementation lives in `computeNameBakeSet` in
-`package/dev-script/deps-cube/src/deck-scatter-helpers.ts`;
+`package/dependency-catalog/cli-cube/src/deck-scatter-helpers.ts`;
  the resulting
 set controls per-probe texture baking in `src/deck-scatter.ts`.
 

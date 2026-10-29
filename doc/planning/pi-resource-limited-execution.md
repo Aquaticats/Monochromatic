@@ -178,7 +178,7 @@ The built command adapter must repeat this measurement with its acknowledgement 
 Its 95th-percentile added startup time must remain at or under 25 ms on this host.
 
 The repository already has a narrower systemd precedent at
-`package/cli/nested-wayland-session/src/systemd.rs:137-196`.
+`package/nested-wayland-session/cli/src/systemd.rs:137-196`.
 It wraps a hosted process with
 `systemd-run --user --scope --collect --quiet`,
 applies `CPUQuota` and `CPUWeight`,

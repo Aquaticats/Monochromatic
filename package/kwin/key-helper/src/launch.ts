@@ -17,7 +17,7 @@
 
 import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 import { NoAppIdentityError } from './errors.ts';
 

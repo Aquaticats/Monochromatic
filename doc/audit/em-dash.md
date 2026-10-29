@@ -3,6 +3,33 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/webapp-productivity/done` is now `package/done/app`;
+> `package/webapp-productivity/rss` is now `package/rss/app`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/vm-builder` is now `package/vm-builder/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`;
+> `package/build-tool/css` is now `package/css/cli`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/token-count` is now `package/llm/token-count`;
+> `package/module/test-expect` is now `package/test-harness/core-expect`;
+> `package/module/zip-writer` is now `package/zip-writer/core`;
+> `package/module/image-diff` is now `package/llm/image-diff`;
+> `package/module/logger` is now `package/logger/core`;
+> `package/module/throws` is now `package/throws/core`;
+> `package/module/matrix` is now `package/test-harness/core-matrix`;
+> `package/module/test` is now `package/test-harness/core`;
+> `package/module/dom` is now `package/dom/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
 > `package/cli/fy` is now `package/fy/cli`;
 > `package/cli/mvm` is now `package/mvm/cli`;

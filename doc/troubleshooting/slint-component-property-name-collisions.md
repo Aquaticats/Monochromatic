@@ -2,7 +2,7 @@
 
 ## Symptom
 
-While building the IDE's diagnostic card (`package/desktop-app/ide/ui/annotation.slint`),
+While building the IDE's diagnostic card (`package/ide/app/ui/annotation.slint`),
 three declarations failed `slint-viewer 1.18.1 --check`.
 
 A component inheriting `Rectangle` that declares `private property <length> padding: 8px;` fails with:

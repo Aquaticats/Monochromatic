@@ -1,7 +1,7 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { benchBelowFloorStageFinding, } from '@monochromatic-dev/translation-repair-stage/ts';
 import {

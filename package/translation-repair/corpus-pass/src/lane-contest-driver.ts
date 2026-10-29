@@ -1,8 +1,8 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/logger-core/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { DeclaredNamePair, } from '@monochromatic-dev/translation-repair-house-rule/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';

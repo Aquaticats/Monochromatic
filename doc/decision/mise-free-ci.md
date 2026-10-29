@@ -12,7 +12,7 @@ Every workflow installs its tools directly (Node and pnpm through the vendor
 archives `.github/actions/task-cli-setup` downloads, Java through the pinned
 Temurin archive, Rust through `rustup`) and runs the repository's tasks
 through `task-run`, the node-native task CLI at
-`package/dev-script/task-cli/src/run.ts`.
+`package/monorepo-task/cli/src/run.ts`.
 No external GitHub action installs a tool: the user asked to avoid
 third-party actions where possible, because every one of them is an
 organization and repository allow-list entry
@@ -40,7 +40,7 @@ Moved on 2026-10-26:
 
 ## Replacement
 
-`@monochromatic-dev/dev-script-task-cli` (`package/dev-script/task-cli`)
+`@monochromatic-dev/monorepo-task-cli` (`package/monorepo-task/cli`)
 executes the same task graph the `mise.toml` tree declared, from `task.ts`
 files that mirror each package's `mise.toml` task names, bodies, `extends`,
 `depends` and `usage` options.
@@ -78,9 +78,9 @@ where `/usr/local/bin` does not exist.
 
 ## Verification
 
-- Local: `task-run //package/module/logger:build`,
-  `//package/module/logger:test:unit`, `//package/module/toml-edit:build`,
-  `//package/module/toml-edit:test:unit`, `//package/module/p-map-fork:build`,
+- Local: `task-run //package/logger/core:build`,
+  `//package/logger/core:test:unit`, `//package/toml-edit/core:build`,
+  `//package/toml-edit/core:test:unit`, `//package/upstream-fork/p-map:build`,
   `//package/forbidden-strings/cli:build` and
   `//package/linter/monochromatic-lint:build` all pass through the CLI on the
   developer machine.
@@ -88,15 +88,15 @@ where `/usr/local/bin` does not exist.
   libatomic`, the `task-cli-setup` recipe (Node 26.12.0 archive, pnpm 12.14.0
   through `npm install --global`, `task-run` shims) and
   `pnpm install --frozen-lockfile` run on a bare instance, and
-  `task-run //package/module/logger:build`, `//package/module/logger.fuzz:lint:types`
-  and `//package/module/logger.fuzz:fuzz -- --budget 3000` pass there through
+  `task-run //package/logger/core:build`, `//package/logger/core.fuzz:lint:types`
+  and `//package/logger/core.fuzz:fuzz -- --budget 3000` pass there through
   the shim.
 - The JDK recipe the kotlin and music-player jobs run was verified on a bare
   instance: it installs `Temurin-21.0.12+8`, the `mise.lock` `tools.java` pin.
 - Every tool archive URL the setup code uses answers HTTP 200
   (`nodejs.org/dist` for Node 26.12.0 and 26.5.0, the Adoptium release assets
   for `jdk-21.0.12+8`).
-- `task-run //package/module/logger.fuzz:fuzz -- --budget 1` reports the
+- `task-run //package/logger/core.fuzz:fuzz -- --budget 1` reports the
   `1ms` budget in its campaign line, and
   `task-run lint:monochromatic-lint -- 'a b.txt'` reaches the linter as one
   path word, which proves the `--` option mapping and argv forwarding.

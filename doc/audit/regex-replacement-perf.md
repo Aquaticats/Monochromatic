@@ -3,6 +3,23 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/desktop-daemon/hall-monitor` is now `package/hall-monitor/daemon`;
+> `package/dev-script/watch-restart` is now `package/watch-restart/cli`;
+> `package/dev-script/page-weight` is now `package/page-weight/cli`;
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/catalog-tighten` is now `package/dependency-catalog/cli-tighten`;
+> `package/dev-script/file-enforcer` is now `package/file-enforcer/core`;
+> `package/dev-script/deps-cube` is now `package/dependency-catalog/cli-cube`;
+> `package/module/hyperscript` is now `package/hyperscript/core`;
+> `package/module/toml-edit` is now `package/toml-edit/core`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/mvm` is now `package/mvm/cli`;
 > `package/cli/terminal-exec` is now `package/terminal-exec/cli`;
 > `package/cli/vmsync` is now `package/vmsync/cli`.

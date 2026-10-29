@@ -3,7 +3,7 @@ import {
   type ParseArgsOptionDescriptor,
 } from 'node:util';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { isAsciiDigits, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';

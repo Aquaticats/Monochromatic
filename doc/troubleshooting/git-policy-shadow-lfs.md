@@ -15,7 +15,7 @@ The commit exits 128:
 Error cleaning Git LFS object: open <worktree>/.git/cli-git/shadow/<transaction>/lfs/tmp/2882421905: no such file or directory
 error: packet write failed: Broken pipe
 error: external filter 'git-lfs filter-process' failed
-fatal: package/desktop-app/ide/design/screenshots/2026-10-05-annotations-as-built/caret-card-dark.png: clean filter 'lfs' failed
+fatal: package/ide/app/design/screenshots/2026-10-05-annotations-as-built/caret-card-dark.png: clean filter 'lfs' failed
 ```
 
 The named LFS asset is outside the requested commit paths.

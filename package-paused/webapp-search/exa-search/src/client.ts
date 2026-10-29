@@ -1,5 +1,5 @@
-import { prompt, } from '@monochromatic-dev/module-dom/ts/prompt.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw';
+import { prompt, } from '@monochromatic-dev/dom-core/ts/prompt.ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core';
 import * as v from 'valibot';
 
 import { displayResult, } from './client-display-result.ts';

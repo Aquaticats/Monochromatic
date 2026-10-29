@@ -1,6 +1,6 @@
 # Slint 1.18.1 `Flickable` eases a wheel jump in 180 ms, so a far jump blanks the IDE's code area until the tile worker catches up
 
-This was measured on 2026-10-25 with four release builds of `package/desktop-app/ide`
+This was measured on 2026-10-25 with four release builds of `package/ide/app`
 (Slint 1.18.1,
 nested compositor `monochromatic-nested-wayland-session` 0.6.1 at 1080x1880 logical px and scale 2,
 RX 7600,
@@ -149,7 +149,7 @@ so the two agree.
 ## Verification
 
 Versions under test,
-all built with `mise run //package/desktop-app/ide:build` in a worktree of the commit
+all built with `mise run //package/ide/app:build` in a worktree of the commit
 (release,
 `target/release/monochromatic-ide`,
 sha256 prefix in brackets):
@@ -370,7 +370,7 @@ and a wheel turned by a person does not reach it.
 
 The owner rejected the five options below ("Surely there is a better way?"),
 and the IDE was changed in two parts that no option had named.
-`package/desktop-app/ide/README.md`,
+`package/ide/app/README.md`,
 "A jump faster than the tile",
 describes the design as built;
 this section holds what was learned from the Slint source and from the measurement.
@@ -523,7 +523,7 @@ then 912 to 917 (four recorded frames,
 cropped to the top of the code area).
 
 Regression checks on the fix in the same compositor
-(the 286-line `build.unit.test.ts` of `package/build-tool/css`,
+(the 286-line `build.unit.test.ts` of `package/css/cli`,
 a disposable project with the same TypeScript server;
 `main` run in the same way for comparison):
 the 88-click recording shows 0 blank code frames and 0 blank minimap frames in 730 frames of the fix (856 of `main`),
@@ -811,7 +811,7 @@ and the height.
 The guard cases `hover-*` of `bin/inspect-source-guards.ts` remove each changed line in a disposable copy;
 on the final tree all 24 `hover-*` guards failed the named test with the line removed
 and passed again with it restored
-(`mise run //package/desktop-app/ide:inspect:source-guards <cache> '' <names>`,
+(`mise run //package/ide/app:inspect:source-guards <cache> '' <names>`,
 24 of 255 guards).
 Two lines have a unit test only:
 the height of the text in `follow` (`a_growing_text_restarts_a_rest_that_was_not_asked_for`),
@@ -822,7 +822,7 @@ and the height read from the window in `rest` and `on_pointer_moved` has a nativ
 
 Binaries:
 main is the installed `dd16d49c0d586fb1` (built from `495bf2f39e`;
-`git diff 495bf2f39e cff94d8247 -- package/desktop-app/ide/src package/desktop-app/ide/ui` is empty,
+`git diff 495bf2f39e cff94d8247 -- package/ide/app/src package/ide/app/ui` is empty,
 so it is the code of `origin/main`),
 the fix is a release build of the branch (`fix`),
 and a second copy of the fix binary (`fix2`) gives the spread.
@@ -1463,7 +1463,7 @@ Thirty-six sessions had the app's Wayland protocol log (`WAYLAND_DEBUG=1`).
   it sent one `enter` and one `axis`,
   and the client received them.
 - The refusal is the compositor's rule for `wheel` and `scroll`
-  (`point_pointer_at` in `package/cli/nested-wayland-session/src/input_wheel.rs`):
+  (`point_pointer_at` in `package/nested-wayland-session/cli/src/input_wheel.rs`):
   no window covers the point,
   so the command fails and nothing is sent.
   Until the hosted app commits its first buffer no window covers any point:

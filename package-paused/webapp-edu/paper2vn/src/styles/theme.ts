@@ -10,7 +10,7 @@ import {
   cssNum,
   cssOklch,
   hCss as $,
-} from '@monochromatic-dev/module-hyperscript/ts';
+} from '@monochromatic-dev/hyperscript-core/ts';
 
 /**
  * Theme custom property declarations.

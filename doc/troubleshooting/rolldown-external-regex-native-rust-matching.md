@@ -263,7 +263,7 @@ and `electron/` match;
 `node:path` and `node:` match;
 `nodex` does not.
 The flagless variants in
-`package/desktop-app/file-manager-electron/rolldown.preload.config.ts`
+`package/file-manager/variant-electron/rolldown.preload.config.ts`
 differ only in producing the prefix `(?R)` instead of `(?Ru)`,
 which removes Unicode mode that these ASCII-only patterns do not use.
 

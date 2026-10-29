@@ -3,6 +3,14 @@
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/file-manager` is now `package/file-manager/app`;
+> `package/desktop-app/terminal` is now `package/terminal/app`;
+> `package/desktop-app/ide` is now `package/ide/app`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
 > `package/cli/wg-quicker-exempt` is now `package/wg/cli-quicker-exempt`.
 

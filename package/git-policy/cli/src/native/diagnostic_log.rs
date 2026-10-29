@@ -4,7 +4,7 @@
 //!       incumbent's console sink.
 //! Why:
 //!  The incumbent prints debug records only when `MONOCHROMATIC_VERBOSE=true` and warnings
-//!      unless `MONOCHROMATIC_WARN=false` (`package/module/logger/src/sink/console.ts`),
+//!      unless `MONOCHROMATIC_WARN=false` (`package/logger/core/src/sink/console.ts`),
 //!  and its
 //!      spec requires that diagnostics never corrupt a JSONL stream:
 //!  each diagnostic is one

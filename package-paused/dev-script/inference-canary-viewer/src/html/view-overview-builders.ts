@@ -4,7 +4,7 @@
  * Converts all-model entries into combined scatter points and generates
  * the color legend mapping vendor colors to model labels.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { ScatterPoint, } from '../chart/scatter.ts';
 import { vendorColor, } from '../data/model-colors.ts';

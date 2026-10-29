@@ -24,7 +24,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { buildSampleManifest, } from '@monochromatic-dev/translation-repair-lane-contest';
 import { ArtifactParseError, } from '@monochromatic-dev/translation-repair-artifact-pool';

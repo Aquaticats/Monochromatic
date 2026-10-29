@@ -1,5 +1,5 @@
 import { ArtifactParseError, } from '../artifact-guard.ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import { compareLanes, } from './artifact-two-lane-comparison.ts';
 import { ArtifactComparisonError, } from './artifact-two-lane-comparison-fault.ts';
 import { comparisonRowDifferences, } from './artifact-two-lane-row-equality.ts';

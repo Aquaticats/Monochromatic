@@ -127,7 +127,7 @@ unchanged by the architecture:
 ### 1. Execution scope and journal
 
 Files:
-`package/module/test/src/scope.ts` (new),
+`package/test-harness/core/src/scope.ts` (new),
 `execution*.ts`,
 `describe.ts`,
 `it-attempt.ts`,
@@ -167,7 +167,7 @@ independent of the harness library.
 ### 3. `module-async-time` clock seam
 
 Files:
-`package/module/async-time/src/wait.ts`,
+`package/async-time/core/src/wait.ts`,
 `with-timeout.ts`,
 `with-timeout.unit.test.ts`.
 
@@ -188,8 +188,8 @@ item 3 can land first with its own fixture.
 ### 4. Logger deadline tests on the scope clock
 
 Files:
-`package/module/logger/src/create-logger.unit.test.ts`,
-`package/module/logger/src/create-logger.ts` (optional clock),
+`package/logger/core/src/create-logger.unit.test.ts`,
+`package/logger/core/src/create-logger.ts` (optional clock),
 possibly `with-host-timeout.ts`.
 
 Acceptance:
@@ -211,7 +211,7 @@ items 1 and 3.
 ### 5. Describe concurrency from the journal
 
 Files:
-`package/module/test/src/describe.unit.test.ts`.
+`package/test-harness/core/src/describe.unit.test.ts`.
 
 Acceptance:
 the test asserts interval overlap or peak concurrency from the journal;
@@ -225,7 +225,7 @@ item 1.
 ### 6. Descriptor memoization
 
 Files:
-`package/module/test/src/descriptor.ts`,
+`package/test-harness/core/src/descriptor.ts`,
 `describe.ts`,
 `it.ts`,
 affected self-tests.
@@ -314,7 +314,7 @@ item 11 enforcement for the allowlist path.
 
 Files:
 root task (new `test:time-bounds` or a unit test in
-`package/module/test`),
+`package/test-harness/core`),
 an allowlist file,
 fixtures.
 
@@ -335,7 +335,7 @@ items 4,
 ### 12. Documentation and skill
 
 Files:
-`package/module/test/README.md`,
+`package/test-harness/core/README.md`,
 `.agents/skills/testing-practices/SKILL.md`,
 `doc/troubleshooting/cli-git-logger-sink-verify-timeout.md`.
 

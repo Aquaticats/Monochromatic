@@ -1,4 +1,4 @@
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 
 import { communityRenderingsBlock, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { JUDGE_LINE_STRUCTURE_CLAUSE, } from '@monochromatic-dev/translation-repair-house-rule/ts';

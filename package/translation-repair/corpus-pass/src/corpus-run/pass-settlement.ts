@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ArchiveDispute, } from '@monochromatic-dev/translation-repair-archive/ts';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source/ts';

@@ -10,7 +10,7 @@ import type {
   ThinkingContent,
   ToolCall,
 } from '@earendil-works/pi-ai';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type {
   GenerateOptions,
 } from '@deepseek-ai/dsh-llm';

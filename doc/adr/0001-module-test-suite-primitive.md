@@ -1,6 +1,6 @@
 # module-test remains a suite primitive
 
-`@monochromatic-dev/module-test` exposes `describe`,
+`@monochromatic-dev/test-harness-core` exposes `describe`,
  `it`,
  and `expect` as suite and assertion primitives.
 We decided not to add a file-level runner:

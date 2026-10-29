@@ -116,7 +116,7 @@ This deletion is destructive and was authorized explicitly
 - New log files land at
   `node_modules/.monochromatic/{YYYY-MM-DD}/{timestamp}.{uuid}.log.jsonl`.
   Incident citations of the old flat shape remain valid as historical records.
-- `@monochromatic-dev/module-logger` needs a 0.4.5 release note covering
+- `@monochromatic-dev/logger-core` needs a 0.4.5 release note covering
   the day-directory layout,
   lazy creation,
   retention defaults and their environment overrides,

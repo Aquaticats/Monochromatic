@@ -4,7 +4,7 @@
  * Renders a `<details>` element showing runner configuration parameters
  * from an enriched artifact's config snapshot.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { ConfigSnapshot, } from '../data/viewer-types.ts';
 

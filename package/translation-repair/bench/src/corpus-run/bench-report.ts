@@ -1,7 +1,7 @@
 import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   StatedRefusalError,

@@ -1,5 +1,10 @@
 # Complete CI accounting and completion audit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/toml-edit` is now `package/toml-edit/core`.
+
 ## Correction and purpose
 
 The earlier Depot trial completion claim was unsupported.

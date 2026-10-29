@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Page name link rendering
 // WHICH ARCHIVE LINK RENDERS WHICH LINK OF THE ORIGINAL. Both documents carry

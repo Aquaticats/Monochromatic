@@ -5,7 +5,7 @@
  */
 
 import { parse, } from 'unbash';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import {
   looksLikePath,
   extractParamRefs,

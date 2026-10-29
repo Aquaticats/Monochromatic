@@ -43,8 +43,8 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { wrapReplacementText, } from '@monochromatic-dev/translation-repair-typography';
 import { validateTranslatedSlice, } from '@monochromatic-dev/translation-repair-translate-floor';

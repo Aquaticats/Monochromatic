@@ -240,7 +240,7 @@ The tool description tells the model:
 ### Logging absent
 
 `CLAUDE.md`:
- "Log extensively by default ... Always use tagged loggers from `@monochromatic-dev/module-logger`.
+ "Log extensively by default ... Always use tagged loggers from `@monochromatic-dev/logger-core`.
  Never use raw `console.log`/`console.error`.
 "
 

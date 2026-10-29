@@ -3,7 +3,7 @@
 // case sleeps for a hold and a stalled machine changes nothing. Shared by the cases that script a short hold (40 ms)
 // and let the reader wait it out in slices of a few milliseconds.
 
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 /**
  Runs a reading while a fake clock passes the end of its holds, and returns what the reading returned.

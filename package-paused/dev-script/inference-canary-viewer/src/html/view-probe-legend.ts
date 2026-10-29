@@ -4,7 +4,7 @@
  * Generates a legend mapping vendor colors and icons to model labels,
  * used alongside probe scatter charts.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import { vendorColor, } from '../data/model-colors.ts';
 import { iconDot, } from '../data/model-icons.ts';

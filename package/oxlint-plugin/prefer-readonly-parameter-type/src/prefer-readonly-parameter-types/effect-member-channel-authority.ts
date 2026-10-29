@@ -103,7 +103,7 @@ export const MEMBER_CHANNEL_RECEIVER_INDEX_AND_COERCION: unique symbol = Symbol(
  it, which is why the name alone cannot answer. Called with an empty argument list there is
  no such object: the member reads `[[DateValue]]`, consults ambient locale data, and
  returns a string. Measured on `pubDateDate.toLocaleString()` in
- `package/webapp-productivity/rss/src/html-item.ts`, which passes nothing.
+ `package/rss/app/src/html-item.ts`, which passes nothing.
  
  Ambient locale and time zone change what the string says and not what the receiver holds,
  so they are not a channel into caller state.

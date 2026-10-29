@@ -6,8 +6,8 @@ import type {
   Usage,
 } from '@earendil-works/pi-ai';
 import type { ReadonlyDeep, } from 'type-fest';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import type { AdvisorOperationLedger, } from './operation-ledger.ts';
 import type { AdvisorCandidateIdentity, } from './operation-candidates.ts';

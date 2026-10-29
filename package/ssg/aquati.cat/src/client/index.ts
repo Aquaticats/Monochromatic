@@ -17,7 +17,7 @@
  ```
  */
 
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { HIGHLIGHT_GROUPS, } from './highlight-groups.ts';
 // oxlint-disable-next-line no-unassigned-import -- side-effect import: registers DOM event listeners for the search widget on module load

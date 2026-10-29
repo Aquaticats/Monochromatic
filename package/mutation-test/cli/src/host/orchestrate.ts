@@ -15,7 +15,7 @@
 
 import pLimit from 'p-limit';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { enumeratePackage, } from './enumerate-package.ts';
 import { ensureRuntimeImage, } from './image.ts';

@@ -81,7 +81,7 @@ Full text round-trips on open/save.
 - **Path containment**: all filesystem operations validate paths against the root directory
   via `assertWithinRoot`, preventing traversal even with a valid auth token
 - **Tagged loggers**: all server and client modules use structured tagged logging
-  from `@monochromatic-dev/module-logger`
+  from `@monochromatic-dev/logger-core`
 - **WebSocket with token auth**: token generated per-session via `crypto.randomUUID()`,
   passed as URL query param
 - **Recent files with recency markers**: file tree shows numbers 0 (current) through 9 (oldest)

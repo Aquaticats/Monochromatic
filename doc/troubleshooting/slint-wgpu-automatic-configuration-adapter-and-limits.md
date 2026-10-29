@@ -526,8 +526,8 @@ with the variable in the environment of the compositor and so of the child:
 
 ### Open the device in the application and give it to Slint
 
-`package/desktop-app/ide/src/launcher.rs` (function `install_backend`) calls `open_hardware_device`
-(`package/desktop-app/ide/src/gpu_device.rs`),
+`package/ide/app/src/launcher.rs` (function `install_backend`) calls `open_hardware_device`
+(`package/ide/app/src/gpu_device.rs`),
 which lists the Vulkan adapters,
 keeps `DiscreteGpu` and `IntegratedGpu`
 only (`gpu_device/adapter.rs:38-39`,
@@ -835,4 +835,4 @@ Is this the intended behavior of the winit path?
 - Program 2 ran on FemtoVG over wgpu,
   not on a Vello-based Slint renderer.
 - The surrounding study is `doc/planning/ide-gpu-snapshot-harness.md` (sections "The CPU adapter question" and "Why
-  the launcher opens the device") and the README section "Renderer and GPU" of `package/desktop-app/ide/README.md`.
+  the launcher opens the device") and the README section "Renderer and GPU" of `package/ide/app/README.md`.

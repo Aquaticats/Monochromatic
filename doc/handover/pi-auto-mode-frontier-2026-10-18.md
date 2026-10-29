@@ -1,10 +1,20 @@
 # Auto-mode frontier archive, 2026-10-18
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/dev-script/task-util` is now `package/monorepo-task/core-exec`.
+
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/logger` is now `package/logger/core`;
+> `@monochromatic-dev/module-logger` is now `@monochromatic-dev/logger-core`.
+
 This record moved from `doc/handover/pi-auto-mode-current-frontier.md` on 2026-10-18.
 The [current frontier](pi-auto-mode-current-frontier.md) owns the active queue and current verification status.
 The historical next actions in this archive are not new authorization or a current queue.
 The original body is retained without changing its evidence, decisions, or failed experiments.
-
 
 ## Purpose
 
@@ -7836,7 +7846,6 @@ and open design questions.
 It is a separate workflow investigation,
 not a gate on migration delivery.
 
-
 ## Maintained-package integration in progress
 
 The shared AST adapter repair is complete:
@@ -9428,7 +9437,6 @@ Only the genuine API receipt is retained and indexed.
 This changes no authority assignment or completeness claim.
 State actually processed by the host still requires accounting.
 The following intake records explain the superseded assumption.
-
 
 While manager-source verification runs,
 the next source gap has an independent native red.

@@ -27,7 +27,7 @@ import {
   type DisposableSandbox,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { LEDGER_DIR, } from '@monochromatic-dev/translation-repair-house-rule';
 import { reportLedger, } from '../../dist/final/node/index.mjs';

@@ -78,11 +78,11 @@ The existing logger and TOML workflows contain path selectors:
 `.github/workflows/logger-fuzz.yml` and `.github/workflows/toml-edit-fuzz.yml`.
 Their selectors describe their own suites,
 not all repository consumers.
-The TOML owner also has `package/module/toml-edit.fuzz/src/ci-scope.ts`:
+The TOML owner also has `package/toml-edit/core.fuzz/src/ci-scope.ts`:
 it validates immutable event commits,
 checks checkout identity and ancestry,
 and preserves deleted paths through a NUL-delimited diff with rename detection disabled.
-`package/dev-script/task-util/src/depends.ts` owns source/output freshness checks,
+`package/monorepo-task/core-exec/src/depends.ts` owns source/output freshness checks,
 not Git-diff consumer selection.
 
 The retained historical analysis in
@@ -276,7 +276,7 @@ so exit zero alone is not proof of coverage.
 ### Repository consistency and security
 
 - [ ] Validate affected generated files against their owners using a disposable checkout.
-  `package/dev-script/file-enforcer/src/cli.ts` imports and executes its config;
+  `package/file-enforcer/core/src/cli.ts` imports and executes its config;
   it has a watch option but no implemented read-only check option.
   Regenerate in the disposable fixture and compare its resulting tracked changes.
 - [ ] Include affected CodeQL language/workflow scans and their existing selection policy.
@@ -322,7 +322,7 @@ it does not replace broader consumer or native cases.
 - TOML source change:
   base `cf9fcb48047d86e0af01ac9c73c1c7bf26fb277f`,
   head `525d2e09f8168a3bdd7e513e26d4c80b363123e5`.
-  The actual diff changes `package/module/toml-edit/src/value-encoders.ts`.
+  The actual diff changes `package/toml-edit/core/src/value-encoders.ts`.
 - Logger source and tests:
   base `20dbaca6c2bb39d5d7e51fac447d76393c21a32e`,
   head `ef01490f5e960f8ca0b424c12242caeb3c5a2b5e`.
@@ -349,10 +349,10 @@ That selection control does not require running unrelated global work merely to 
 
 ### TOML case task manifest
 
-The exact-head manifest closure selects `module/toml-edit`,
-`module/toml-edit.fuzz`,
-`dev-script/file-enforcer`,
-`dev-script/vm-builder`,
+The exact-head manifest closure selects `toml-edit/core`,
+`toml-edit/core.fuzz`,
+`file-enforcer/core`,
+`vm-builder/cli`,
 and `test-fixture/file-enforcer-perf` under `package/`.
 The source audit adds a test-only consumer in `oxlint-plugin/prefer-readonly-parameter-type`:
 `src/workspace-source-effect.unit.test.ts` reads file-enforcer's live Cargo enforcement source
@@ -362,20 +362,20 @@ not every consumer of the plugin implementation.
 
 The package manifest has 24 checks:
 
-- `module/toml-edit`:
+- `toml-edit/core`:
   `build`,
   `lint:oxlint`,
   `lint:types`,
   `test:unit --all`,
   `test:conformance`,
   and `test:mutation`.
-- `module/toml-edit.fuzz`:
+- `toml-edit/core.fuzz`:
   `lint:oxlint`,
   `lint:types`,
   `test:unit --all`,
   `fuzz --budget 3000`,
   and `fuzz:coverage`.
-- `dev-script/file-enforcer`:
+- `file-enforcer/core`:
   `build`,
   `lint:oxlint`,
   `lint:types`,
@@ -383,7 +383,7 @@ The package manifest has 24 checks:
   `fuzz --budget 3000`,
   `test:container`,
   and `test:mutation`.
-- `dev-script/vm-builder`:
+- `vm-builder/cli`:
   `build`,
   `lint:oxlint`,
   and `lint:types`.

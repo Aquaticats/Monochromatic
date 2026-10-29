@@ -135,7 +135,7 @@ invocations where the age identity is available.
   A different XDG config root can hide the host identity and produce the same decryption failure.
   Pass `env XDG_CONFIG_HOME=<fixture> ...` as the hosted child command instead,
   so mise keeps its normal identity location and only the app receives disposable configuration.
-  This was verified with `//package/cli/nested-wayland-session:run`.
+  This was verified with `//package/nested-wayland-session/cli:run`.
 - Exclude `.env.local.json` (and `mise.local.toml`) from the container
   build context:
    `package/mutation-test/cli/runtime/containerignore`,

@@ -24,8 +24,8 @@ Measured on identical input:
 - `{"a":1, // x\n"b":2}` owns the comment on value `a`.
 
 The mechanism is that both scanners decide "same line" from `\n` alone
-(`package/module/jsonc-edit/src/scan.ts:11` and
-`package/rust-module/jsonc-edit/src/scan.rs:216`),
+(`package/jsonc-edit/core-ts/src/scan.ts:11` and
+`package/jsonc-edit/core-rust/src/scan.rs:216`),
 while the comment body scanner ends at CR,
 LF or CRLF.
 A document written entirely with classic-Mac CR line endings therefore attaches every
@@ -71,8 +71,8 @@ A bare CR terminates a comment body and does not start a new line for ownership 
    `fixture_tests::comment_ownership_matches_the_fixture` fail,
    and restoring the file made it pass again.
 - Both READMEs state the rule,
-   `package/rust-module/jsonc-edit/README.md` under "Model" and
-   `package/module/jsonc-edit/README.md` in its comment-model paragraph.
+   `package/jsonc-edit/core-rust/README.md` under "Model" and
+   `package/jsonc-edit/core-ts/README.md` in its comment-model paragraph.
 - If bare-CR documents later become inputs that matter,
    this decision is the place to reverse:
    the change would touch the same-line notion in both scanners at once,

@@ -25,11 +25,11 @@ assets and source-only helpers.
 That is not evidence of 55 untested products.
 
 The existing 1818-command semantic projection records builds or lints for
-`package/desktop-daemon/hall-monitor`,
-`package/dev-script/page-weight`,
+`package/hall-monitor/daemon`,
+`package/page-weight/cli`,
 `package/figma/kiwi`,
 `package/figma/to-penpot`,
-`package/module/hyperscript` and
+`package/hyperscript/core` and
 `package/rolldown-plugin/import-attributes`.
 These roots contain 11 authored unit files;
 no owning test execution is joined for them in that projection.
@@ -1150,7 +1150,7 @@ Both product page color-scheme screenshot assertions pass in every engine.
 
 The original root E2E discovery also imports the inactive
 `package-paused/webapp-edu/paper2vn/src/paper2vn.e2e.test.ts`
-and fails its missing `@monochromatic-dev/module-or-throw` import before any E2E body.
+and fails its missing `@monochromatic-dev/or-throw-core` import before any E2E body.
 The four active DOM specifications require explicit source-owner selectors;
 the terminal selector control is recorded in the active E2E section.
 This discovery failure is retained rather than silently excluding the inactive root.
@@ -1949,17 +1949,17 @@ Missing joins do not establish an unexecuted owner or absent authored assertions
 The retained provider and legacy binary/package/case inventories are checked before new allocations.
 The finite preparation queue is now explicit:
 
-- `package/desktop-app/ide`:
+- `package/ide/app`:
   full owning test with its real pinned Helix grammar producer,
   plus a separately labelled reader-lifecycle subset/control.
-- `package/desktop-app/file-manager`:
+- `package/file-manager/app`:
   actual release Nextest owner.
-- `package/desktop-app/file-manager-gtk-sticky`:
+- `package/file-manager/variant-gtk-sticky`:
   actual release Nextest owner,
   excluding its compositor-launch Wayland task.
-- `package/desktop-app/file-manager-qt`:
+- `package/file-manager/variant-qt`:
   actual release Nextest owner.
-- `package/desktop-app/terminal`:
+- `package/terminal/app`:
   actual Nextest owner with the real Zig/font/native prerequisites
   or its authored Containerfile.
 - `package/linter/kotlin`:

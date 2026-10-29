@@ -48,7 +48,7 @@ CheckFailureError: the compositor socket never appeared
 
 The compositor log selected `NestedWinit` and reported a parent Wayland display,
 then failed to initialize winit.
-`package/cli/nested-wayland-session/src/backend_select.rs` chooses the nested winit backend
+`package/nested-wayland-session/cli/src/backend_select.rs` chooses the nested winit backend
 unless `--headless` is explicit.
 That default requires a usable parent window system.
 The disposable CI runtime had no live parent display.

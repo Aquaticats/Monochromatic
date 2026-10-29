@@ -1,6 +1,6 @@
 import { realpath, } from 'node:fs/promises';
 
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
 /**
  What the filesystem says when a path is resolved to its real place and cannot be.

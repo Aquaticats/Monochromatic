@@ -12,7 +12,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { BYTES_PER_MIB, } from '@monochromatic-dev/module-const/ts';
+import { BYTES_PER_MIB, } from '@monochromatic-dev/const-core/ts';
 import spawn from 'nano-spawn';
 
 /** Pattern to extract events per second from sysbench output */

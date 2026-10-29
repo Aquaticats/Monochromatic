@@ -18,7 +18,7 @@
 import {
   tagged,
   logger
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { stripAnsi, } from './ansi.ts';
 

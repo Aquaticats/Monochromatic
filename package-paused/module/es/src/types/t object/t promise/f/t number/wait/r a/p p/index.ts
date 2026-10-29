@@ -1,5 +1,5 @@
 /**
- * Re-export of `wait` from `@monochromatic-dev/module-async-time`,
+ * Re-export of `wait` from `@monochromatic-dev/async-time-core`,
  * aliased to `$` to preserve the taxonomy convention.
  *
  * The implementation lives in `module-async-time`; this file keeps the
@@ -7,6 +7,6 @@
  * namespace export `types.object.promise.from.number.wait.positional.portable.$`
  * continues to resolve.
  *
- * @see {@link import('@monochromatic-dev/module-async-time/ts').wait}
+ * @see {@link import('@monochromatic-dev/async-time-core/ts').wait}
  */
-export { wait as $, } from '@monochromatic-dev/module-async-time/ts';
+export { wait as $, } from '@monochromatic-dev/async-time-core/ts';

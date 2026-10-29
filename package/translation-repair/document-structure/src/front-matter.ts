@@ -1,7 +1,7 @@
 import {
   errorOrThrow,
   nonNullishOrThrow,
-} from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/or-throw-core/ts';
 import {
   parse as parseYaml,
   YAMLError,

@@ -1,4 +1,4 @@
-import type { DisposableSandbox, } from '@monochromatic-dev/module-test/ts';
+import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 //region Wall clock stub
 // Stands in for the system clock in the cases that set it, the way a person

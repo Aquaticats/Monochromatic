@@ -38,7 +38,7 @@ pub fn flush_clients(&mut self) -> std::io::Result<()> {
 ```
 
 Before the fix,
-`package/cli/nested-wayland-session/src/state.rs` dispatched client requests,
+`package/nested-wayland-session/cli/src/state.rs` dispatched client requests,
 while `src/app.rs` supplied an empty event-loop iteration callback.
 Explicit `flush_clients()` calls existed in `src/render.rs` and `src/recorder.rs`.
 Protocol progress therefore depended on entering those rendering/recording paths.
@@ -46,7 +46,7 @@ Protocol progress therefore depended on entering those rendering/recording paths
 The compositor now calls `src/protocol_flush.rs::finish_dispatch` after every dispatch cycle:
 
 ```rust
-// package/cli/nested-wayland-session/src/app.rs
+// package/nested-wayland-session/cli/src/app.rs
 .run(None, &mut state, |current| {
     crate::protocol_flush::finish_dispatch(&mut current.display_handle);
 })
@@ -73,7 +73,7 @@ or GPU frame is involved.
 ### Passing cases
 
 After adding the flush,
-`mise run //package/cli/nested-wayland-session:test:container`
+`mise run //package/nested-wayland-session/cli:test:container`
 reported 41 passing tests,
 including the exact callback object,
 opcode,

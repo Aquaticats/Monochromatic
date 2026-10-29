@@ -68,7 +68,7 @@ so a package's `main`,
 Directory granularity,
  rather than exact-file matching,
  is what admits the Electron packages:
-`package/desktop-app/file-manager-electron` declares `main: dist/app/main.mjs`,
+`package/file-manager/variant-electron` declares `main: dist/app/main.mjs`,
 so `dist/app/**` is eventual and its tests may import `../dist/app/strip.js`.
 
 ## Rule behavior
@@ -97,7 +97,7 @@ For each static `import` declaration,
 The own-package versus cross-package distinction is the reason this is a custom rule rather than configuration.
 Native `no-restricted-imports` matches specifier strings only,
 so banning `@monochromatic-dev/*/ts` would also hit the 83 legitimate cross-package sites
-and the 537 `@monochromatic-dev/module-test/ts` harness imports.
+and the 537 `@monochromatic-dev/test-harness-core/ts` harness imports.
 
 ### Fixture allowlist
 
@@ -176,8 +176,8 @@ Dynamic `import()`,
  and `export ... from` are out of scope by decision.
 Consequence to accept knowingly:
 `await import('./toml-set.ts')` remains a legal bypass,
-and 3 such sites exist today in `package/module/toml-edit/src/toml-get-raw.unit.test.ts`,
-`package/module/toml-edit/src/toml-get-node.unit.test.ts`,
+and 3 such sites exist today in `package/toml-edit/core/src/toml-get-raw.unit.test.ts`,
+`package/toml-edit/core/src/toml-get-node.unit.test.ts`,
 and `package/pi-plugin/thinking-default/src/index.unit.test.ts`.
 Adding the dynamic form later is a small change.
 
@@ -200,10 +200,10 @@ which the anti-laundering clause brings into scope.
 
 Largest concentrations by violating file count:
 `git-policy/cli` 42,
-`dev-script/file-enforcer` 36,
-`module/toml-edit` 24,
+`file-enforcer/core` 36,
+`toml-edit/core` 24,
 `pi-plugin/auto-mode` 19,
-`module/logger` 16.
+`logger/core` 16.
 
 Stage-one categorization below predates implementation and is retained
 as the shape of the work rather than as a current count.
@@ -225,7 +225,7 @@ The 411 group is the dominant cost and the reason this is not a mechanical migra
 `package/git-policy/cli` alone accounts for 88 of those sites.
 
 The build bundles rather than preserving module structure,
-verified as one emitted `.mjs` from 75 source files in `package/module/toml-edit`
+verified as one emitted `.mjs` from 75 source files in `package/toml-edit/core`
 and one from 209 in `package/git-policy/cli`.
 Consequently no internal module exists as a separate file under `dist/final`,
 and exporting the symbol from the bundle entry is the only route to it.
@@ -274,9 +274,9 @@ Measured across every package having a build task:
  5 emit code only.
 Those 5 are `kwin/key-helper`,
 `ssg/aquati.cat`,
-`webapp-productivity/done`,
-`webapp-productivity/done-postcss`,
- and `webapp-productivity/wc`.
+`done/app`,
+`done/variant-postcss`,
+ and `wc/app`.
 Only 4 type-import sites are actually at risk,
  all in `ssg/aquati.cat`;
 they have no compliant form until that package emits declarations.

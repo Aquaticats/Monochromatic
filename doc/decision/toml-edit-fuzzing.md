@@ -1,7 +1,7 @@
 # TOML edit fuzzing
 
 Decision record for the property-based fuzzing of
-`@monochromatic-dev/module-toml-edit` (issue #198).
+`@monochromatic-dev/toml-edit-core` (issue #198).
  This file grows as the work
 lands;
  it currently covers the method,
@@ -9,13 +9,13 @@ lands;
  and the bugs
 found so far.
  The full implementation plan and status live at
-`package/module/toml-edit.fuzz/HANDOVER.fuzzing.md`.
+`package/toml-edit/core.fuzz/HANDOVER.fuzzing.md`.
 
 ## Method
 
 The suite is property-based,
  built on `fast-check` and the
-`@monochromatic-dev/module-test` harness,
+`@monochromatic-dev/test-harness-core` harness,
  and runs under node (node v26 runs the
 `.ts` files directly).
  The same `*.property.unit.test.ts` files serve two layers:
@@ -23,10 +23,10 @@ a bounded run in the normal unit suite,
  and a time-budgeted campaign through the
 package `fuzz` task (`TOML_EDIT_FUZZ_BUDGET_MS`).
  See
-`package/module/toml-edit.fuzz/src/fuzz-budget.ts`.
+`package/toml-edit/core.fuzz/src/fuzz-budget.ts`.
 
 Every property file imports the built package entry point
-(`@monochromatic-dev/module-toml-edit`),
+(`@monochromatic-dev/toml-edit-core`),
  not sibling source,
  so the suite tests
 the shipped artifact across the consumer boundary.
@@ -35,18 +35,18 @@ builds before running.
 
 The oracle stack so far:
 
-- A semantic-equality oracle (`package/module/toml-edit.fuzz/src/equality.ts`)
+- A semantic-equality oracle (`package/toml-edit/core.fuzz/src/equality.ts`)
   over the parser's `getStaticTOMLValue` projection.
 - Grammar-complete generators for every value,
    key,
    and document shape
-  (`package/module/toml-edit.fuzz/src/arb-*.ts`),
+  (`package/toml-edit/core.fuzz/src/arb-*.ts`),
    with an independent string
-  escaper (`package/module/toml-edit.fuzz/src/escape.ts`) so generator encoding
+  escaper (`package/toml-edit/core.fuzz/src/escape.ts`) so generator encoding
   never reuses the emitter under test.
 - Structure-aware corruption mutators
-  (`package/module/toml-edit.fuzz/src/mutators.ts`).
-- A corpus loader (`package/module/toml-edit.fuzz/src/corpus.ts`):
+  (`package/toml-edit/core.fuzz/src/mutators.ts`).
+- A corpus loader (`package/toml-edit/core.fuzz/src/corpus.ts`):
    committed
   fixtures always,
    live repository discovery only in campaign mode,
@@ -58,7 +58,7 @@ The oracle stack so far:
 Property files exercise internal encoders and emitters through the built artifact
 rather than sibling source imports.
  Where a seam is not part of the public API,
-it is re-exported from `package/module/toml-edit/src/index.ts` with an
+it is re-exported from `package/toml-edit/core/src/index.ts` with an
 underscore prefix:
  `_encodeKey`,
  `_jsValueToTomlText`,
@@ -130,7 +130,7 @@ reason about single-byte `LF` newlines.
  The conversion is announced with a
 `warn`-level log (suppressible via `MONOCHROMATIC_WARN=false`,
  a mechanism added to
-`@monochromatic-dev/module-logger` for machine-protocol consumers whose output
+`@monochromatic-dev/logger-core` for machine-protocol consumers whose output
 streams must stay clean).
  A bare `CR` is rejected rather than normalized,
  so the
@@ -156,7 +156,7 @@ newline without any `CR` branch.
 
 ## Conformance (phase 6)
 
-Package-local node adapters under `package/module/toml-edit/src/conformance/`
+Package-local node adapters under `package/toml-edit/core/src/conformance/`
 satisfy the upstream `toml-test` runner's decoder (TOML to tagged JSON) and
 encoder (tagged JSON to TOML) interfaces,
  exercising the built package across the
@@ -289,7 +289,7 @@ so a future change that silently stops exercising a parser,
 branch fails the gate rather than passing green-but-weaker.
 
 A reachability driver
-(`package/module/toml-edit.fuzz/src/coverage-driver.ts`) imports the package
+(`package/toml-edit/core.fuzz/src/coverage-driver.ts`) imports the package
 implementation from source (the `/ts` subpath),
  not the built artifact,
  and replays
@@ -298,7 +298,7 @@ and every `_` seam at a fixed fast-check seed and run count.
  Run under
 `NODE_V8_COVERAGE`,
  that attributes coverage to the `src` files the gate watches.
-The reader (`package/module/toml-edit.fuzz/src/coverage-v8.ts`) projects the raw
+The reader (`package/toml-edit/core.fuzz/src/coverage-v8.ts`) projects the raw
 V8 block ranges to per-file covered-line counts:
  it paints a per-character bitmap
 with the innermost range's count winning (the longest range painted first),
@@ -309,9 +309,9 @@ offset.
  so a V8 range offset
 indexes the on-disk `.ts` one-to-one.
  The gate
-(`package/module/toml-edit.fuzz/src/coverage-report.ts`) compares per-file
+(`package/toml-edit/core.fuzz/src/coverage-report.ts`) compares per-file
 covered-line counts against a committed baseline
-(`package/module/toml-edit.fuzz/coverage-baseline.json`) and fails on any per-file
+(`package/toml-edit/core.fuzz/coverage-baseline.json`) and fails on any per-file
 decrease.
  The `fuzz:coverage` task runs it;
  `--write` refreezes the baseline.
@@ -379,7 +379,7 @@ node-version-bound.
  This repository deliberately tracks the latest node rather
 than pinning,
  so a node release that shifts V8 coverage is handled by refreezing
-the baseline with `mise run //package/module/toml-edit.fuzz:fuzz:coverage --write`,
+the baseline with `mise run //package/toml-edit/core.fuzz:fuzz:coverage --write`,
 the same maintenance the latest-node policy already implies;
  the gate is not a
 reason to pin node.
@@ -395,7 +395,7 @@ baseline,
 
 ## Sidecar package (2026-09-06)
 
-The campaign moved out of the runtime package into `package/module/toml-edit.fuzz`,
+The campaign moved out of the runtime package into `package/toml-edit/core.fuzz`,
 the layout `logger.fuzz`,
  `jsonc-edit.fuzz`,
  and `css-edit.fuzz` use:
@@ -415,8 +415,8 @@ the coverage driver and the oracle helpers import the runtime source through the
 the coverage report resolves the runtime package root through that subpath instead of walking up from its own file,
 and the corpus loader's fixture and repository paths shrank by one directory.
 The `fuzz` and `fuzz:coverage` tasks run as
-`//package/module/toml-edit.fuzz:fuzz`
-and `//package/module/toml-edit.fuzz:fuzz:coverage`;
+`//package/toml-edit/core.fuzz:fuzz`
+and `//package/toml-edit/core.fuzz:fuzz:coverage`;
 `toml-edit-fuzz.yml` type-checks and unit-tests the sidecar alongside the runtime package and calls the sidecar tasks.
 Every property file and the conformance suite passed in bounded,
  smoke,
@@ -473,7 +473,7 @@ and they generalize to the next target.
 
 ## Deferred
 
-- Mutation testing is available as an opt-in `mise run //package/module/toml-edit:test:mutation` task.
+- Mutation testing is available as an opt-in `mise run //package/toml-edit/core:test:mutation` task.
   It uses the repository's container-isolated mutation tester and the package unit suite;
   neither the fuzz sidecar nor the upstream conformance runner participates.
   The default source scan includes conformance adapters,

@@ -42,7 +42,7 @@ A non-blank `DEEPSEEK_API_KEY`,
 `EXA_API_KEY`,
 or `LINKUP_API_KEY` in the process environment wins.
 Otherwise the key comes from the repo's sops/age-encrypted `.env.local.json`
-through `@monochromatic-dev/module-env-local-json`,
+through `@monochromatic-dev/env-local-json-core`,
 the same reader the MCP
 server and the dsh bundle use.
 

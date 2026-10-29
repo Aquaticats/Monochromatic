@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Assembly repetition span
 // GROWING WINDOWS INTO THE SPAN THEY BELONG TO, which is the step

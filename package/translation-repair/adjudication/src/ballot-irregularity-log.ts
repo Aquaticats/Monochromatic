@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 //region Ballot irregularity log
 // Ledger L12: the panel and checker stages fold each ballot's irregularities

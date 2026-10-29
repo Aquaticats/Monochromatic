@@ -18,7 +18,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable/ts';
+import { resolveRealGit as resolveGit, } from '@monochromatic-dev/git-executable-core/ts';
 
 import type { SliceDeliveryRecord, } from '@monochromatic-dev/translation-repair-translate-floor';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source';

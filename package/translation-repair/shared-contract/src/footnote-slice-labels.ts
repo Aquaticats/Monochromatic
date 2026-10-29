@@ -1,4 +1,4 @@
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 import type { ActiveFootnoteMarker, } from './active-footnote-markers.ts';
 import type { DocumentChunk, } from './chunk-placement.ts';
 import { FootnoteRewriteError, } from '@monochromatic-dev/translation-repair-document-structure/ts';

@@ -23,7 +23,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import {
   TRANSLATE_REPAIR_RESPONSE_FORMAT,
   TRANSLATE_RESPONSE_FORMAT,

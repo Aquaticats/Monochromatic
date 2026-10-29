@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: checkpoints of 2026-10-13, the hardware change and the linter migration
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/module/test` is now `package/test-harness/core`.
+
 The two checkpoints written on 2026-10-13,
 one when the owner paused the session to change the machine's processor with the third review's fixes uncommitted,
 the other after the change,

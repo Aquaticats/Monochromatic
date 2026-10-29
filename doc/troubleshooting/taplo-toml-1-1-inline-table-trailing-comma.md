@@ -5,7 +5,7 @@ the latest `taplo` release on crates.io (published 2025-05-22),
 reports a syntax error for `clap = { version = "3", features = [ "derive", ], }`,
 a TOML 1.1 inline table that Cargo 1.98.1 accepts
 and that `module-toml-edit` emits when it creates an inline table
-(`package/module/toml-edit/src/toml-set.unit.test.ts:484` expects `x = { y = 1, }`).
+(`package/toml-edit/core/src/toml-set.unit.test.ts:484` expects `x = { y = 1, }`).
 It surfaced as research case `t20` in
 [the Rust structured-edit research](../planning/monorepo-manager-route-research/rust-structured-edits.md)
 ("Probe results by candidate",

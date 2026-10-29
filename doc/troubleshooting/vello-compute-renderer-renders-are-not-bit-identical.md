@@ -14,7 +14,7 @@ on an AMD RX 7600 (RADV),
 the Ryzen 9 7950X integrated GPU (RADV) and
 llvmpipe,
 Fedora 44 with Mesa.
-`package/desktop-app/ide` draws its code view with it.
+`package/ide/app` draws its code view with it.
 The study that found it is the section "Flakes after the merge" of `doc/planning/ide-gpu-snapshot-harness.md`,
 cause 1.
 
@@ -28,7 +28,7 @@ The IDE's tests compared two window frames with `==` and failed at random becaus
 the study measured,
 in the
 test `repeated_renders_of_one_tile_spread`
-(`package/desktop-app/ide/src/native/gpu_texture_probe_tests.rs:159`),
+(`package/ide/app/src/native/gpu_texture_probe_tests.rs:159`),
 a 697 by 1392 tile rendered 200 times:
 all 200 differed from the first,
 by 10 to 32 texels and one level at most,
@@ -468,13 +468,13 @@ then `node compare-dumps.mjs stock.rgba patched.rgba`.
 
 ### Compare renders with the measured noise, and only after a re-render
 
-`package/desktop-app/ide/src/native/tile_reads.rs:22-60` defines `RENDER_NOISE = 1` and
+`package/ide/app/src/native/tile_reads.rs:22-60` defines `RENDER_NOISE = 1` and
 `same_texel`/`same_rows`/`same_buffers`,
 which compare premultiplied texels to within one level,
 so the color of an
 invisible texel does not count.
 The stability tests use them wherever a frame follows a re-render
-(`package/desktop-app/ide/src/native/annotation_stability_tests.rs`),
+(`package/ide/app/src/native/annotation_stability_tests.rs`),
 a positive control
 (`the_noise_tolerance_tells_a_shifted_row_from_a_re_render`,
 `annotation_stability_tests.rs:753`) shows that one level

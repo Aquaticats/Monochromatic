@@ -20,8 +20,8 @@ import {
 
 import {
   readEnvLocalJson,
-} from '@monochromatic-dev/module-env-local-json/ts';
-import { writeEnvLocalJsonValues, } from '@monochromatic-dev/module-env-local-json/ts/write.ts';
+} from '@monochromatic-dev/env-local-json-core/ts';
+import { writeEnvLocalJsonValues, } from '@monochromatic-dev/env-local-json-core/ts/write.ts';
 
 import {
   EXA_API_KEY_ENV,

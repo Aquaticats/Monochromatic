@@ -293,7 +293,7 @@ not part of this refactor.
   landed mid-sweep;
   see the dedicated section.
 - Remaining red scopes are pre-existing backlogs outside this refactor:
-  `dev-script/deps-cube` package warnings and the root-scope debt
+  `dependency-catalog/cli-cube` package warnings and the root-scope debt
   (recorded baseline 3,792 warnings / 665 errors).
 - Perf:
   serial whole-repo sweep 1,639 s warm (was 816.5 s pre-refactor);

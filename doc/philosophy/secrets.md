@@ -4,7 +4,7 @@ Local developer secrets (API keys and tokens consumed by tasks and packages)
 live in a gitignored,
  age-encrypted `.env.local.json` at the repo root.
 mise decrypts it transparently through its `[env]` `_.file` directive,
-and `@monochromatic-dev/module-env-local-json` reads the same file directly for
+and `@monochromatic-dev/env-local-json-core` reads the same file directly for
 consumers launched outside mise.
 CI secrets are separate and stay in the platform's own encrypted store
 (GitHub Actions secrets);
@@ -153,7 +153,7 @@ while its quick-start says "plain text defaults").
 
 ## A direct reader for harnesses launched outside mise
 
-`@monochromatic-dev/module-env-local-json` reads the same encrypted store
+`@monochromatic-dev/env-local-json-core` reads the same encrypted store
 without mise,
 which matters for a harness that spawns its tools with a
 scrubbed environment.

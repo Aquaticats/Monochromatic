@@ -221,11 +221,11 @@ There need not be one package-wide success state that erases these distinctions.
 
 Read directly from the repository:
 
-- `package/module/jsonc-edit/package.json` exposes source through `/ts`,
+- `package/jsonc-edit/core-ts/package.json` exposes source through `/ts`,
   plus Node and neutral bundles under `dist/final`.
-- `package/module/jsonc-edit/src/parse.unit.test.ts:14-22` consumes the neutral bundle.
+- `package/jsonc-edit/core-ts/src/parse.unit.test.ts:14-22` consumes the neutral bundle.
 - `AGENTS.md` rule `ST3` directs cross-package workspace consumers to source through `/ts`.
-- `package/module/jsonc-edit/mise.toml` currently expresses `buildAndTest` as a sequence of commands.
+- `package/jsonc-edit/core-ts/mise.toml` currently expresses `buildAndTest` as a sequence of commands.
   That is incumbent orchestration,
   not meow's required domain model.
 

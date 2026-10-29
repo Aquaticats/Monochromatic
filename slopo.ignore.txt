@@ -45,7 +45,7 @@
 # plain-vs-from constructors, mirror event handlers). Meant to mirror each
 # other and stay separate; merging would hurt clarity.
 # Accepted 2026-10-09 from #657, #658.
-# standardTableBlockArbitrary (module/toml-edit.fuzz/src/arb-documents.ts) renders `[owner]` plus
+# standardTableBlockArbitrary (toml-edit/core.fuzz/src/arb-documents.ts) renders `[owner]` plus
 # an optional body,
 # while the array-of-tables instance closure renders `[[owner]]` plus the same optional body.
 # Single-bracket and double-bracket headers are different TOML constructs with different parser
@@ -59,7 +59,7 @@
 # kernels: single-byte sheng vs pair sheng2') and f498089d4a03 ('batch_sheng/batch_sheng2
 # SIMD-variant twins').
 f8cbcd443ae9
-# iterableOrThrow (module/or-throw/src/iterable-or-throw.ts) narrows to T & Iterable<unknown>
+# iterableOrThrow (or-throw/core/src/iterable-or-throw.ts) narrows to T & Iterable<unknown>
 # while maybeAsyncIterableOrThrow (src/maybe-async-iterable-or-throw.ts) narrows to T &
 # (Iterable<unknown> | AsyncIterable<unknown>); both special-case strings, reject null,
 # undefined and non-objects and then test the iteration protocol.
@@ -73,9 +73,9 @@ f8cbcd443ae9
 # then selects AVX-512 (three feature detections), NEON per line, or the scalar fallback,
 # and sheng2 falls back to sheng rather than to scalar.
 5678f2672a8c
-# trySpawn (module/p-map-fork/src/p-map-iterable.ts) and pullNext (src/p-map.ts) are the two
+# trySpawn (upstream-fork/p-map/src/p-map-iterable.ts) and pullNext (src/p-map.ts) are the two
 # concurrency engines of the fork's two public entry points.
-# Verified in package/module/p-map-fork/README.md: pMap({iterable, mapper,
+# Verified in package/upstream-fork/p-map/README.md: pMap({iterable, mapper,
 # options}) returns a promise of the mapped array (line 44), pMapIterable({iterable, mapper,
 # options}) returns an async iterable with backpressure (lines 79-92),
 # and both are exported from src/index.ts.
@@ -118,11 +118,11 @@ a1b664fb91ed
 # logic differs. Not extractable without a false abstraction.
 # Accepted 2026-10-09 from #658, #659.
 # Nineteen one-call probe functions across two coverage drivers:
-# module/p-map-fork.fuzz/src/coverage-driver.ts contributes rejectingMapper, throwingMapperRun,
+# upstream-fork/p-map.fuzz/src/coverage-driver.ts contributes rejectingMapper, throwingMapperRun,
 # aggregatedFailures, failingIterable, failingStream, invalidConcurrencyRejected, invalidInput,
 # nullInputProbe, missingMapper, nonObjectOptions, invalidBackpressure, invalidStreamingMapper,
 # invalidStreamingInput, invalidStreamingOptions and invalidStreamingConcurrency;
-# module/p-limit-fork.fuzz/src/coverage-driver.ts contributes rejectedCall, syncThrowingCall,
+# upstream-fork/p-limit.fuzz/src/coverage-driver.ts contributes rejectedCall, syncThrowingCall,
 # failingMapper and failingIterable.
 099dfffc5387
 # registerPokeRenderer (pi-plugin/bash-poke/src/message-renderer.ts) and
@@ -131,7 +131,7 @@ a1b664fb91ed
 # render result (a Text built from pokeCardText with options.outputPad,
 # versus renderVisibleContextMessage with options.expanded).
 7b056a00986b
-# Eight one-line parseCss probes in module/css-edit.fuzz/src/coverage-driver.ts,
+# Eight one-line parseCss probes in css/core-edit.fuzz/src/coverage-driver.ts,
 # each naming one malformed-CSS path: tokenizerError (an unclosed comment), strayClose,
 # unbalancedRun, unbalancedPrelude, preludeHitsBlockEnd, semicolonPrelude,
 # preludeHitsEof and unclosedBlock.
@@ -142,7 +142,7 @@ e0da7bd16e4b
 # parameters typed ForeignHostCapability) both call dispatch({model,
 # context,...(options === undefined ?
 74dca32402ba
-# Fourteen body generators in module/deepmerge-ts.fuzz/src/surface-type-cost-family.ts each emit
+# Fourteen body generators in upstream-fork/deepmerge-ts.fuzz/src/surface-type-cost-family.ts each emit
 # a distinct TypeScript probe program: literal,
 # literalFast (281-283 importing deepmergeFastUnsafe), literalInto, literalThree,
 # literalNoFilter (299-301 with DeepMergeNoFilteringURI),
@@ -150,42 +150,42 @@ e0da7bd16e4b
 # deep (127-135 with a nested() builder and a repeated.n access), intoWide,
 # recursive (159-167 emitting one type per index), sets, tuple, union and wide.
 db006cb68c8b
-# Three build closures in module/toml-edit.fuzz: arb-strings.ts pairs a basicStringLiteral
+# Three build closures in toml-edit/core.fuzz: arb-strings.ts pairs a basicStringLiteral
 # rendering with its content,
 # arb-strings.ts pairs a literalStringLiteral rendering with the same content,
 # and arb-keys.ts pairs a basicStringLiteral rendering with a key name.
 ce7b6cd78732
-# fixture0 (module/pify-fork.fuzz/src/spec-fixtures.ts), fixture1,
+# fixture0 (upstream-fork/pify.fuzz/src/spec-fixtures.ts), fixture1,
 # fixture2 and fixture3 are the zero- to three-argument callback fixtures,
 # each forwarding its received arguments to runBehavior with the same behavior, delivery,
 # callback and receivedArguments. pify's contract is arity-sensitive,
 # so each arity needs its own declared function.
 618dd93816b4
-# invalidEntryInputs (module/matcher-fork.fuzz/src/coverage-driver.ts) passes inputs 1 as never
+# invalidEntryInputs (upstream-fork/matcher.fuzz/src/coverage-driver.ts) passes inputs 1 as never
 # with patterns 'a'; invalidEntryPatterns passes inputs 'a' with patterns 1 as never.
 # Two named probes for the two argument-validation paths of matcher.
 041b4a43e7b9
-# Six run closures in module/deepmerge-ts.fuzz/src/mutation-differential-case.ts build the
+# Six run closures in upstream-fork/deepmerge-ts.fuzz/src/mutation-differential-case.ts build the
 # observation list for one API each: deepmerge, deepmergeInto, deepmergeCustom with buildOptions,
 # deepmergeIntoCustom with buildIntoOptions,
 # a paired deepmergeFastUnsafeCustom and deepmergeIntoFastUnsafe case,
 # and exoticAll which calls all four entry points over the same value.
 fdf1cbc7e553
-# Four one-line parseJsonc probes in module/jsonc-edit.fuzz/src/coverage-driver.ts: topScalar (a
+# Four one-line parseJsonc probes in jsonc-edit/core-ts.fuzz/src/coverage-driver.ts: topScalar (a
 # bare 42), unterminated (an unclosed line comment),
 # badBlock (an unclosed block comment) and missingColon (a member without its colon).
 c4d268e2d926
-# twoValuesNext (module/p-map-fork.fuzz/src/coverage-fixtures.ts) yields two positional values
+# twoValuesNext (upstream-fork/p-map.fuzz/src/coverage-fixtures.ts) yields two positional values
 # then done, and asyncSlotNext yields one fixed value 2 then done;
 # both drive a cursor object and return resolved IteratorResult records.
 # Each fixture needs its own yield schedule.
 59afeadeb480
-# Two rejectError closures inside module/logger/src/sink/indexed-db-util.ts,
+# Two rejectError closures inside logger/core/src/sink/indexed-db-util.ts,
 # one for a failed transaction ('IndexedDB transaction failed without an error object') and one
 # for an aborted transaction ('IndexedDB transaction aborted without an error object');
 # both reject with transaction.error when present.
 2ad70a51a4ba
-# Two coverage probe sequences in module/toml-edit.fuzz/src/coverage-probes.ts: pendingReadOps
+# Two coverage probe sequences in toml-edit/core.fuzz/src/coverage-probes.ts: pendingReadOps
 # nests two tomlSet edits and then exercises tomlHas, tomlGet,
 # tomlGetValue and tomlKeys over the pending edit at several paths including the root;
 # pendingProjectionOps parses a base document, edits a table and an array, deletes a table,
@@ -196,7 +196,7 @@ c4d268e2d926
 # __watch-test requires exactly 3,
 # parses a mark only and passes uid 0 with Some(Path::new(&args[2])).
 4e646f7b12c1
-# cssOklch (module/hyperscript/src/css/values.constructors.ts) and cssOklchFrom are two members
+# cssOklch (hyperscript/core/src/css/values.constructors.ts) and cssOklchFrom are two members
 # of the CSS value constructor family: both branch on an optional alpha and emit `oklch(l c h /
 # a)` or `oklch(l c h)`,
 # the second adding the `from ${from}` relative-colour syntax and defaulting l,
@@ -206,7 +206,7 @@ c4d268e2d926
 # two different summary sets: callerMutation targets summary.directMutated and callerInvocation
 # targets summary.directInvoked.
 3b1ffc90e9d3
-# Four createConf validation probes in module/conf-fork.fuzz/src/coverage-driver.ts:
+# Four createConf validation probes in upstream-fork/conf.fuzz/src/coverage-driver.ts:
 # invalidSchema (NON_OBJECT_SCHEMA), rootSchemaProperties (an empty properties object),
 # invalidEncryptionAlgorithm (an unsupported algorithm with ENCRYPTION_KEY) and
 # missingProjectVersion (migrations without a project version).
@@ -216,10 +216,10 @@ f7af44fdd36a
 # while the struct variant additionally reads a type varint and an isArray byte flag and the enum
 # variant discards a varint and a byte.
 f747010803c0
-# invalidNull (module/pify-fork.fuzz/src/coverage-driver.ts) and invalidString call pify with a
+# invalidNull (upstream-fork/pify.fuzz/src/coverage-driver.ts) and invalidString call pify with a
 # null and a string input cast through unknown to object, one probe per rejected input type.
 e9b531ba2899
-# Four reserved-key probes in module/conf-fork.fuzz/src/coverage-driver.ts: reservedSingleKey
+# Four reserved-key probes in upstream-fork/conf.fuzz/src/coverage-driver.ts: reservedSingleKey
 # ('__internal__'), reservedPathKey ('__internal__.x'),
 # reservedMultiKey (a values record with the reserved key) and reservedNestedKey (the reserved
 # key nested one level down).
@@ -229,17 +229,17 @@ c0be5bb9673e
 # one targeting summary.directMutated through callerMutation and the other summary.directInvoked
 # through callerInvocation.
 b1bec03300d0
-# namedFailure (module/make-asynchronous-fork.fuzz/src/coverage-driver.ts,
+# namedFailure (upstream-fork/make-asynchronous.fuzz/src/coverage-driver.ts,
 # an Error with errorName 'UnicornError') and propertiedFailure (an Error with errorProperties
 # {code: 'ENOENT'}) each probe one error-decoration option of getResult.
 6070d0e8205f
-# stableResolution (module/fs-id/src/platform-resolvers.ts) and degradedResolution build the same
+# stableResolution (fs-id/core/src/platform-resolvers.ts) and degradedResolution build the same
 # FsIdResolution record through createFsId,
 # one setting stable true over the three stable sources ('fs-uuid', 'volume-uuid',
 # 'volume-serial') and the other setting stable false plus a reason over the two degraded sources
 # ('f-fsid', 'device-number').
 55e2abeb8f05
-# Three coverage exercises in module/logger.fuzz/src/coverage-console.ts combine the override
+# Three coverage exercises in logger/core.fuzz/src/coverage-console.ts combine the override
 # disposables differently: exerciseSilentMode sets an empty verbose override and
 # MONOCHROMATIC_WARN 'false' then writes once;
 # exerciseVerboseEnvironment sets verbose 'true' with an empty warn override and writes plain
@@ -252,21 +252,21 @@ b1bec03300d0
 # handler}) whose handler inspects result.docComment and reports through context.report with
 # commentReportLoc(result.comment) and a per-rule messageId.
 b4653374047d
-# Two branches of one recursive delete in module/jsonc-edit/src/edit-set.ts: the record branch
+# Two branches of one recursive delete in jsonc-edit/core-ts/src/edit-set.ts: the record branch
 # filters entries by key when the segment is last, otherwise findLastIndex the matching entry,
 # throw JsoncPathNotFoundError when absent and recurse with entries.with;
 # the array branch requires an integer segment, filters by index when last, range-checks,
 # throws the same error and recurses with elements.with.
 9c728a8c9aa3
-# unsupportedMultiValue (module/conf-fork.fuzz/src/coverage-driver.ts) and
+# unsupportedMultiValue (upstream-fork/conf.fuzz/src/coverage-driver.ts) and
 # unsupportedFunctionMultiValue set a values record containing an undefined entry and a function
 # entry respectively, each cast as never, one probe per unsupported value type.
 8f67a7fcb030
-# throwingCall (module/make-asynchronous-fork.fuzz/src/coverage-driver.ts) and falsyCall each
+# throwingCall (upstream-fork/make-asynchronous.fuzz/src/coverage-driver.ts) and falsyCall each
 # wrap one failing function (fail and throwZero) through makeAsynchronous and call it,
 # probing the reject path and the throw-a-falsy-value path.
 49d22af3514a
-# openTwoValues (module/p-map-fork.fuzz/src/coverage-fixtures.ts) and openAsyncSlot are the
+# openTwoValues (upstream-fork/p-map.fuzz/src/coverage-fixtures.ts) and openAsyncSlot are the
 # enclosing factories of the two next implementations in cluster 808: each holds a cursor object
 # and returns an iterator whose next resolves done after its own limit (two positional values
 # versus one fixed value 2).
@@ -278,29 +278,29 @@ b4653374047d
 # Accepted 2026-10-09 from #659.
 # severity_name in git-policy/cli/src/native/policy_registry.rs maps a three-variant policy
 # Severity to 'off', 'warn', 'error';
-# severity_name in desktop-app/ide/src/annotation.rs maps a four-variant editor diagnostic
+# severity_name in ide/app/src/annotation.rs maps a four-variant editor diagnostic
 # Severity to 'Error', 'Warning', 'Information', 'Hint'.
 76fdab08148f
-# emitSearch (webapp-productivity/done/src/client/component/search-bar.ts) dispatches a bubbling
+# emitSearch (done/app/src/client/component/search-bar.ts) dispatches a bubbling
 # CustomEvent named search carrying the trimmed input value;
-# wireSearch (dev-script/deps-cube/src/script/controller-toggle-events.ts) attaches an input
+# wireSearch (dependency-catalog/cli-cube/src/script/controller-toggle-events.ts) attaches an input
 # listener that writes session.state.search and commits.
 8ec42a29af25
 # isExtraKey (pi-plugin/advisor/src/tool-params.ts) rejects the keys 'model' and 'question';
 # isKept (config/pnpr/src/publish-plan.ts) rejects 'provenance' and 'registry'.
 # Same two-inequality shape, unrelated key sets and opposite polarity of naming.
 a4464eda8f4c
-# iterateEntriesAscending (module/quick-lru-fork/src/quick-lru-iteration.ts) yields [key,
+# iterateEntriesAscending (upstream-fork/quick-lru/src/quick-lru-iteration.ts) yields [key,
 # item.value] pairs from an LRU item iterator;
-# the Symbol.iterator generator (module/conf-fork/src/conf.ts) yields [key,
+# the Symbol.iterator generator (upstream-fork/conf/src/conf.ts) yields [key,
 # value] pairs from Object.entries of a config store with two casts.
 459efdb938e8
-# toSummary (webapp-productivity/done/src/server/page/task-details.ts) projects id,
+# toSummary (done/app/src/server/page/task-details.ts) projects id,
 # title and status; toMinimal projects id and title.
 # Two deliberately different projections of the same candidate in one file,
 # each named for what it returns.
 4da4888c63b4
-# formatEntry in module/image-diff/src/cli.compare.ts projects provider, similarity, distance,
+# formatEntry in llm/image-diff/src/cli.compare.ts projects provider, similarity, distance,
 # embeddingDimensions and description; formatEntry in src/cli.embed.ts projects provider,
 # dimensions, usage and the embedding itself.
 # Only the name and the one-field-per-line object shape are common;
@@ -328,15 +328,15 @@ c323905b9f2c
 # From impls, and cleanup fragments where extraction costs more than it saves.
 # Accepted 2026-10-09 from #656, #659.
 # Three units build the same all-permissive property descriptor: setOwnJsonValue
-# (dev-script/file-enforcer/src/pipeline/json.ts) and defineData
-# (module/deepmerge-ts.fuzz/src/model.ts) both call Object.defineProperty with {value,
+# (file-enforcer/core/src/pipeline/json.ts) and defineData
+# (upstream-fork/deepmerge-ts.fuzz/src/model.ts) both call Object.defineProperty with {value,
 # writable: true, enumerable: true, configurable: true} in different key orders,
-# and toDescriptor (module/deepmerge-ts.fuzz/src/type-case-generate.ts) returns the same
+# and toDescriptor (upstream-fork/deepmerge-ts.fuzz/src/type-case-generate.ts) returns the same
 # descriptor as a [key, descriptor] tuple for Object.defineProperties.
 f33fa65f95fe
-# onError (module/logger.fuzz/src/browser/readback.ts) rejects with request.error or a new
+# onError (logger/core.fuzz/src/browser/readback.ts) rejects with request.error or a new
 # Error('IndexedDB request failed');
-# rejectError (module/logger/src/sink/indexed-db-util.ts) rejects with request.error or a new
+# rejectError (logger/core/src/sink/indexed-db-util.ts) rejects with request.error or a new
 # Error('IndexedDB request failed without an error object').
 6c2299e81729
 # eof (forbidden-strings/core/src/parse/cursor.rs,
@@ -344,7 +344,7 @@ f33fa65f95fe
 # position == bytes.len()) are one-line cursor predicates on unrelated types in unrelated crates,
 # and they even differ in comparison operator.
 40f00d4a0f72
-# Two Display impls for offset-carrying errors: rust-module/jsonc-edit/src/error.rs writes '{}
+# Two Display impls for offset-carrying errors: jsonc-edit/core-rust/src/error.rs writes '{}
 # (at offset {})' and linter/monochromatic-lint/src/processors_model.rs writes '{} at byte {}:
 # {}'.
 # Checked linter/monochromatic-lint/Cargo.toml: it already depends on monochromatic-jsonc-edit,
@@ -357,7 +357,7 @@ f33fa65f95fe
 # empty-check on distinct types'), so this is a re-surfaced dismissal whose hash changed.
 0f42b561be36
 # The one-line find closure |w| w.toplevel().unwrap().wl_surface() == &root appears in
-# cli/nested-wayland-session/src/handler/compositor.rs and src/handler/xdg_shell.rs.
+# nested-wayland-session/cli/src/handler/compositor.rs and src/handler/xdg_shell.rs.
 # Both also unwrap toplevel(), which panics for a window without a toplevel surface.
 c54d2a5bd7a0
 # Two send(&self,
@@ -371,7 +371,7 @@ ba8d13a458c0
 # slopo.ignore.txt already dismisses this shape under hash 9052405ce43f ('one-line atomic-store
 # setter across two audio backends').
 696cc8b6cc1e
-# line_model (desktop-app/ide/src/native/rows.rs) and mark_model both return
+# line_model (ide/app/src/native/rows.rs) and mark_model both return
 # Rc::new(VecModel::from(Vec::new())) for different element types,
 # Rc<VecModel<f32>> and Rc<VecModel<i32>>.
 4b6348b3678e
@@ -380,7 +380,7 @@ ba8d13a458c0
 # destroyOne (src/destroy.ts), is the caller that composes them (destroy,
 # tolerate a not-running VM by logging at debug, undefine, remove VMS_DIR/name, log completion).
 ebcd13404499
-# requireCanvasContext (webapp-productivity/doodle-widget/src/client/require-context.ts) and
+# requireCanvasContext (doodle-widget/app/src/client/require-context.ts) and
 # requireOffscreenContext are the same getContext('2d') null check with distinct return types
 # (CanvasRenderingContext2D versus OffscreenCanvasRenderingContext2D) and distinct messages
 # ('Canvas 2D context unavailable' versus 'Export canvas 2D context unavailable').
@@ -401,7 +401,7 @@ a8a85434e771
 # isOpeningBrace (oxlint-plugin/stylistic/src/utility/block-body-newline.ts) and isClosingBrace
 # test unit.type 'Punctuator' against OPEN_BRACE and CLOSE_BRACE respectively.
 92a2fc8d7011
-# cssMin (module/hyperscript/src/css/values.constructors.ts) and cssMax are one-line members of
+# cssMin (hyperscript/core/src/css/values.constructors.ts) and cssMax are one-line members of
 # the CSS value constructor family, joining values with ', ' inside min() and max() respectively.
 597c076ea09d
 # Dead keys kept until their successor is decided:
@@ -413,7 +413,7 @@ a907be03b808
 # Test and generated code where DRY does not apply.
 # Accepted 2026-10-09 from #656.
 # fail (mvm/cli/src/fixture.fake-virsh.ts) and failAdapter
-# (module/toml-edit/src/conformance/adapter-runtime.ts) both write a message plus newline to
+# (toml-edit/core/src/conformance/adapter-runtime.ts) both write a message plus newline to
 # process.stderr and set process.exitCode = 1.
 # Both are harness entry points: one is a fake virsh fixture,
 # the other the conformance adapter runtime.

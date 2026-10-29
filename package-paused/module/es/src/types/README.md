@@ -739,7 +739,7 @@ Final: Implementation
      describe,
      expect,
      it,
-   } from '@monochromatic-dev/module-test';
+   } from '@monochromatic-dev/test-harness-core';
    import { $ as isValidEmail, } from './index.ts';
 
    describe('Email validation type guard', () => {
@@ -855,7 +855,7 @@ import {
   expect,
   expectTypeOf,
   it,
-} from '@monochromatic-dev/module-test';
+} from '@monochromatic-dev/test-harness-core';
 import { $ as myFunction, } from './index.ts';
 
 describe('Function category: specific function', () => {
@@ -1300,7 +1300,7 @@ const _typeCheck: (input: InputType,) => OutputType = $;
      describe,
      expect,
      it,
-   } from '@monochromatic-dev/module-test';
+   } from '@monochromatic-dev/test-harness-core';
    ```
 
 3. **Test file location**: Place tests alongside implementations

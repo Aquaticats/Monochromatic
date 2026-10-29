@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { contextRoot, } from './log-context.ts';

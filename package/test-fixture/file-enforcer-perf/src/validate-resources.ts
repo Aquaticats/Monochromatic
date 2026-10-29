@@ -10,7 +10,7 @@
 
 import { readFile, } from 'node:fs/promises';
 
-import { MS_PER_SECOND, } from '@monochromatic-dev/module-const/ts';
+import { MS_PER_SECOND, } from '@monochromatic-dev/const-core/ts';
 
 import {
   round1,

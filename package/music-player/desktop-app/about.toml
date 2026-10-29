@@ -21,7 +21,7 @@
 #   Its section 2 asks for the AboutSlint widget in an About screen, which the Licenses page of Settings shows.
 # GPL-3.0-only is not accepted: taking Slint under it would make each desktop program a GPL-3.0 combined work.
 # MIT comes first because the crates' own MIT files carry the copyright lines that license asks to reproduce, which
-# also keeps the notice shorter (the IDE found the same: package/desktop-app/ide/about.toml).
+# also keeps the notice shorter (the IDE found the same: package/ide/app/about.toml).
 # A dependency under any other license, or one whose license cannot be determined, stops the task and so the release,
 # until someone reviews it and either adds the license here (with its LGPL-3.0 compatibility) or drops the crate.
 # GPL-2.0-only, the SSPL, and licenses with field-of-use or non-commercial limits can never be added.

@@ -5,7 +5,7 @@
  * Pass-1 points are filled circles; pass-2 points are hollow circles
  * overlaid at the same X position.
  */
-import { hHtml as h, } from '@monochromatic-dev/module-hyperscript/ts';
+import { hHtml as h, } from '@monochromatic-dev/hyperscript-core/ts';
 
 import type { ScatterPoint, } from './scatter.ts';
 

@@ -13,7 +13,7 @@
  @module
  */
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { version as typescriptVersion, } from 'typescript';
 import type { API, } from 'typescript/sync';
 

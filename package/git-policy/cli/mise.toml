@@ -90,7 +90,7 @@ run = """
 const files = parseUsageArgs(process.env.usage_paths ?? '')
 if (files.length === 0) { throw new Error('lint:oxlint:paths requires at least one file') }
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', files)
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
 """
 
 [tasks."format:oxlint"]
@@ -106,7 +106,7 @@ run = """
 const files = parseUsageArgs(process.env.usage_paths ?? '')
 if (files.length === 0) { throw new Error('format:oxlint:paths requires at least one file') }
 ensureOxlintConfig()
-runWorkspaceNode('package/dev-script/task-util', 'oxlint-wrapper', ['--fix', ...files])
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
 """
 
 [tasks."test:unit"]

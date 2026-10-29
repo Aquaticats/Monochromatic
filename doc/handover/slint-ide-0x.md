@@ -1,5 +1,14 @@
 # Slint IDE implementation handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/nested-wayland-session` is now `package/nested-wayland-session/cli`;
+> `package/desktop-app/terminal` is now `package/terminal/app`;
+> `package/dev-script/task-cli` is now `package/monorepo-task/cli`;
+> `package/desktop-app/ide` is now `package/ide/app`;
+> `package/build-tool/css` is now `package/css/cli`.
+
 ## Purpose and next action
 
 Continue the authorized implementation of `package/desktop-app/ide`.

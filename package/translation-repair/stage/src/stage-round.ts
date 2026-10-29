@@ -1,7 +1,7 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import { once, } from 'node:events';
-import { settleWithin, } from '@monochromatic-dev/module-async-time/ts';
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+import { settleWithin, } from '@monochromatic-dev/async-time-core/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import type {

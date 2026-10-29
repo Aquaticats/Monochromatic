@@ -12,7 +12,7 @@ import type {
   ToolCall,
   Usage,
 } from '@earendil-works/pi-ai';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type {
   ContentBlock,
   Message as DshMessage,

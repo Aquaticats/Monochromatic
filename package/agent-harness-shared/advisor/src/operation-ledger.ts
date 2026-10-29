@@ -1,7 +1,7 @@
 /**
  Operation-owned attempt snapshots; progress and final accounting share this source. @module
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import type {
   AdvisorAttemptRecord,
   AdvisorCollectedReview,

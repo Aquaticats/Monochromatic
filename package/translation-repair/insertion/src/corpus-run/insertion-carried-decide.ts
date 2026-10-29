@@ -1,7 +1,7 @@
 import {
   nonemptyOrThrow,
   nonNullishOrThrow,
-} from '@monochromatic-dev/module-or-throw/ts';
+} from '@monochromatic-dev/or-throw-core/ts';
 
 import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading/ts';
 import type { CarriedInsertion, } from '@monochromatic-dev/translation-repair-corpus-source/ts';

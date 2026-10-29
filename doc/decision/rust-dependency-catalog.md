@@ -94,9 +94,9 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 - Upstream majors arrive through the update by design;
    the owner treats falling behind as the failure.
 - `i-slint-backend-testing` stays an exact pin equal to `slint`,
-   so an update that moves `slint` breaks the tests of `package/desktop-app/ide` and `package/music-player/desktop-app`
+   so an update that moves `slint` breaks the tests of `package/ide/app` and `package/music-player/desktop-app`
    until the pin is raised by hand.
-- `package/dev-script/deps-update` is not built on;
+- `package/deps-update/cli` is not built on;
    its audit is [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
 - Lockfile drift reporting and transitive policy are
    [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801);

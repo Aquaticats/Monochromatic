@@ -1,5 +1,5 @@
 import { textsInCodePointOrder, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {

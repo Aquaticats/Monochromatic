@@ -14,7 +14,7 @@ import type { ModelRegistry, } from '@earendil-works/pi-coding-agent';
 import {
   tagged,
   type Logger,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 import type {
   ForeignBorrowed,
   ForeignHostCapability,

@@ -51,7 +51,7 @@ The boilerplate is structural to mise,
 
 ## file-enforcer capabilities surveyed
 
-Current API (`package/dev-script/file-enforcer/src/index.ts`):
+Current API (`package/file-enforcer/core/src/index.ts`):
 
 - `cat`,
    `overwrite`,
@@ -76,7 +76,7 @@ Recently added (`src/pipeline/toml.ts`,
    splice the rest byte-identically
 - `overwriteTomlKey({ dest, path, value })` -- same but persisted via `overwrite`
 
-Backed by `@monochromatic-dev/module-toml-edit`,
+Backed by `@monochromatic-dev/toml-edit-core`,
  which preserves comments and
 unmutated whitespace byte-identically in splice mode and supports path-create,
 inline-table extension,
@@ -191,7 +191,7 @@ Kind detection from filesystem signals is ambiguous in real cases:
    extends nothing from
   root,
    has its own `build`/`lint`/`test` shapes.
-- `package/module/test` is `ts-library-browser` and defines a standalone `test`
+- `package/test-harness/core` is `ts-library-browser` and defines a standalone `test`
   task with `depends = ["build"]`.
    The kind cannot emit `[tasks.test]` here
   because the package owns it.
@@ -210,18 +210,18 @@ A workable kind set is roughly seven to nine:
 `empty-fixture`,
  `special` (escape hatch for `file-enforcer` itself,
 `forbidden-strings`,
- `module/test`).
+ `test-harness/core`).
  The escape hatch is unavoidable.
 
 ### 7. Quoting normalization is constrained by splice mode
 
 `tomlSet` in splice mode preserves existing key quoting.
  Current mix
-(`[tasks.'build:js']` in `module/es` vs `[tasks."build:js"]` in `module/dom`)
+(`[tasks.'build:js']` in `module/es` vs `[tasks."build:js"]` in `dom/core`)
 will not normalize via D's incremental edits.
 
 Resolution:
- a dedicated byte-preserving normalizer in `@monochromatic-dev/module-toml-edit`
+ a dedicated byte-preserving normalizer in `@monochromatic-dev/toml-edit-core`
  (`normalizeTableHeaderKeyQuoting`) rewrites only literal-quoted table-header
  key segments to basic strings.
  `file-enforcer` calls it through `manageMiseManifests` for the hand-authored
@@ -332,10 +332,10 @@ Generator must explicitly never touch `*/mise.local.toml`.
   dry did not weigh.
 - `AUDIT.consistency.md` -- "`mise.toml` task naming" section listing the quoting
   drift and four empty `mise.toml` files.
-- `package/dev-script/file-enforcer/README.md` -- API reference;
+- `package/file-enforcer/core/README.md` -- API reference;
    the TOML
   section is the load-bearing change.
-- `package/module/toml-edit/README.md` -- splice vs canonical mode semantics,
+- `package/toml-edit/core/README.md` -- splice vs canonical mode semantics,
   v1 limitation on canonical-from-parsed-source.
 - `file-enforcer.config.ts` -- existing root config;
    D adds a fourth top-level
@@ -360,7 +360,7 @@ Generator must explicitly never touch `*/mise.local.toml`.
    `e72b7076` is the
   one-time pass,
    and `manageMiseManifests` in
-  `package/dev-script/file-enforcer/src/mise/manage-mise-manifests.ts` is the
+  `package/file-enforcer/core/src/mise/manage-mise-manifests.ts` is the
   standing enforcer.
   Measured after the pass: `git grep -n "\[tasks\.'" -- '*.toml'` returns zero
   matches, and a second `mise run sync:files` writes nothing.

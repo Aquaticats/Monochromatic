@@ -3,7 +3,7 @@ import { join, } from 'node:path';
 import {
   logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
+} from '@monochromatic-dev/logger-core/ts';
 
 import { isMeasured, } from './measure.ts';
 import { objectsDirSize, } from './objects-size.ts';

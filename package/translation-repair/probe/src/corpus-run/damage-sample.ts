@@ -1,4 +1,4 @@
-import { logger, } from '@monochromatic-dev/module-logger/ts';
+import { logger, } from '@monochromatic-dev/logger-core/ts';
 
 import { readPoolPolicy, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
 import {

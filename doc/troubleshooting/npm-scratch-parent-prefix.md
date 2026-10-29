@@ -3,7 +3,7 @@
 ## Symptom
 
 On 2026-10-16,
-`npm install @monochromatic-dev/module-fs-path@0.2.0` ran from a new scratch child directory
+`npm install @monochromatic-dev/fs-path-core@0.2.0` ran from a new scratch child directory
 without `package.json`.
 npm printed `added 1 package, and removed 120 packages`.
 It installed into the parent scratch directory,
@@ -45,7 +45,7 @@ Changing only the shell working directory did not constrain npm's installation r
   as recorded in `2026-10-16T01_46_29_297Z-debug-0.log`.
 - Working case: child with a private `package.json` before installation.
   npm installed locally,
-  and the verification read `node_modules/@monochromatic-dev/module-fs-path/package.json`
+  and the verification read `node_modules/@monochromatic-dev/fs-path-core/package.json`
   before exercising root discovery and the Node helpers.
 - Recovery: npm's removal log identified 120 package paths.
   Cached archives were installed into a separate staging project with `--prefix`,

@@ -3,7 +3,7 @@
 // ones that will not fit.
 //
 // The wire shape already exists: `ContentPart` in
-// `@monochromatic-dev/module-llm-type` carries `image_url` with a data URI, so
+// `@monochromatic-dev/llm-llm-type` carries `image_url` with a data URI, so
 // nothing here invents a protocol. What this decides is the media type and
 // whether the picture is small enough to send at all.
 //

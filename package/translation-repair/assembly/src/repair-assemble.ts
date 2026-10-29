@@ -1,4 +1,4 @@
-import type { Logger, } from '@monochromatic-dev/module-logger/ts';
+import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 
 import { guardFootnoteAssembly, } from './assembly-integrity.ts';
 import { adjacentRepetitionFindings, } from './assembly-adjacent-repetition.ts';

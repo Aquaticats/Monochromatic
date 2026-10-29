@@ -4,7 +4,7 @@
  @module
  */
 import type { Api, Model, AssistantMessage, } from '@earendil-works/pi-ai';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { CODEX_PROVIDER, FAST_PROVIDER, isPriorityTarget, PRIORITY_TARGET_PREFIX, registerOpenAIFast, } from '../dist/final/node/index.mjs';
 import { fixtureContext, fixtureModel, } from './host-fixture-model.ts';

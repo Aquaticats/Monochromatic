@@ -50,7 +50,7 @@ export const restrictionRules: DummyRuleMap = {
   'no-restricted-syntax/no-function-root-let': 'error',
 
   // `let` at module root is mutable across the entire module. No allowlist;
-  // use Map/WeakMap/Set, memoize() from @monochromatic-dev/module-memoize,
+  // use Map/WeakMap/Set, memoize() from @monochromatic-dev/kv-store-memoize,
   // or an IIFE-into-const initialization. Migration complete; severity is now
   // 'error' (see doc/audit/let.md status table).
   'no-restricted-syntax/no-module-root-let': 'error',

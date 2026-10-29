@@ -8,7 +8,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 import { applyThinkingDefault, } from './apply-thinking-default.ts';
 import type { ThinkingDefaultLevel, } from './model-policy.ts';
 

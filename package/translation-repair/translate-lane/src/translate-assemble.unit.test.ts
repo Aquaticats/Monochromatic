@@ -16,7 +16,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import type { PreparedDocumentPair, } from '@monochromatic-dev/translation-repair-corpus-source';

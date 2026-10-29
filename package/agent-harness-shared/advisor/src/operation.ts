@@ -1,8 +1,8 @@
 /**
  Serial failure recovery and opt-in overlap with bounded post-success collection. @module
  */
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
-import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   nextAdvisorCandidate,

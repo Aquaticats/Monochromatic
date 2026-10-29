@@ -1,5 +1,5 @@
 /**
- * Re-export of `withTimeout` from `@monochromatic-dev/module-async-time`,
+ * Re-export of `withTimeout` from `@monochromatic-dev/async-time-core`,
  * aliased to `$` to preserve the taxonomy convention.
  *
  * The implementation lives in `module-async-time`; this file keeps the
@@ -8,6 +8,6 @@
  * `types.object.promise.from.object.withTimeout.async.portable.$`
  * continues to resolve.
  *
- * @see {@link import('@monochromatic-dev/module-async-time/ts').withTimeout}
+ * @see {@link import('@monochromatic-dev/async-time-core/ts').withTimeout}
  */
-export { withTimeout as $, } from '@monochromatic-dev/module-async-time/ts';
+export { withTimeout as $, } from '@monochromatic-dev/async-time-core/ts';

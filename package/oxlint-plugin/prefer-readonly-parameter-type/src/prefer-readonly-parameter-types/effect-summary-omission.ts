@@ -4,8 +4,8 @@
  @module
  */
 
-import { caughtValueStack, } from '@monochromatic-dev/module-caught-value/ts';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
   DIRECT_SUMMARY_FAILURE_REASON,

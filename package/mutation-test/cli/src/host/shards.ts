@@ -73,7 +73,7 @@ export function chunk<const T,>(options: {
  
  @example
  ```ts
- const manifests = composeShards({ groups, shardSize: 16, timeoutFloorMs: 5000, timeoutFactor: 3, packagePath: 'package/module/fs-path' });
+ const manifests = composeShards({ groups, shardSize: 16, timeoutFloorMs: 5000, timeoutFactor: 3, packagePath: 'package/fs-path/core' });
  ```
  */
 export function composeShards(options: {

@@ -1,4 +1,4 @@
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
 import { producerModelIds, } from '@monochromatic-dev/translation-repair-house-rule/ts';

@@ -13,7 +13,7 @@ site with TS2614,
 whether the member is a value or a type:
 
 ```ts
-// package/module/test-sandbox/src/sinon.ts
+// package/test-harness/core-sandbox/src/sinon.ts
 import {
   createSandbox,
   type SinonSandbox,
@@ -203,14 +203,14 @@ node <repo>/node_modules/typescript/bin/tsc --project .
 
 ### Restore named imports with a module declaration (applied in this repo)
 
-`package/module/test-sandbox/src/sinon-named-exports.d.ts` declares the named
+`package/test-harness/core-sandbox/src/sinon-named-exports.d.ts` declares the named
 surface the runtime actually exports,
-and `package/module/test-sandbox/src/sinon.ts:1`
+and `package/test-harness/core-sandbox/src/sinon.ts:1`
 carries `/// <reference path="./sinon-named-exports.d.ts" />` so every program
 compiling the sandbox boundary receives the augmentation:
 
 ```ts
-// package/module/test-sandbox/src/sinon-named-exports.d.ts
+// package/test-harness/core-sandbox/src/sinon-named-exports.d.ts
 import sinon from 'sinon';
 
 declare module 'sinon' {

@@ -6,11 +6,11 @@ Accepted.
 Plan:
  `~/.claude/plans/add-fuzzing-to-file-enforcer-calm-gem.md`.
 Handover:
- `package/dev-script/file-enforcer/HANDOVER.fuzzing.md`.
+ `package/file-enforcer/core/HANDOVER.fuzzing.md`.
 
 ## Context
 
-`package/dev-script/file-enforcer` parses and transforms structured,
+`package/file-enforcer/core` parses and transforms structured,
 often untrusted input across several surfaces:
  flat JSON (`src/pipeline/json.ts`),
 TOML wrappers (`src/pipeline/toml.ts`),
@@ -36,7 +36,7 @@ exactly these input-handling edges.
 surfaces unexpected or undocumented behavior,
  including in the TOML wrappers
 even though they delegate to the monorepo-owned
-`@monochromatic-dev/module-toml-edit`.
+`@monochromatic-dev/toml-edit-core`.
 
 The first run paid for itself:
  the JSON properties found that
@@ -53,8 +53,8 @@ documented "only where absent" contract.
 
 Use `fast-check` property tests,
  the established TypeScript precedent in this
-repo (`package/module/test/src/format-error.property.unit.test.ts`).
-The test moved on 2026-10-04 to `package/module/test-diagnostic/src/format-error.property.unit.test.ts`.
+repo (`package/test-harness/core/src/format-error.property.unit.test.ts`).
+The test moved on 2026-10-04 to `package/test-harness/core-diagnostic/src/format-error.property.unit.test.ts`.
  The
 Rust `cargo-fuzz` setup in `package/forbidden-strings/cli.fuzz` does not apply
 to a TypeScript package.

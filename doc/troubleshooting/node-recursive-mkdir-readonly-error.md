@@ -48,6 +48,6 @@ default-logger persistence and strict explicit-destination failure through built
 The retained receipt is `logger-default-fallback-readonly-mkdir-controls.log` under
 `${HOME}/temp/agent/pi-mimo-preparation-failure-20261018`.
 The package contract and regression evidence live in
-[`package/module/logger/doc/file-destinations.md`](../../package/module/logger/doc/file-destinations.md).
+[`package/logger/core/doc/file-destinations.md`](../../package/logger/core/doc/file-destinations.md).
 
 [Node v26.12.0 release]: https://github.com/nodejs/node/blob/v26.12.0/src/node_file.cc

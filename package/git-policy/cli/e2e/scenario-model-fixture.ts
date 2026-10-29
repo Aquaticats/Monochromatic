@@ -12,7 +12,7 @@ import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setTimeout as sleep, } from 'node:timers/promises';
 
-import { caughtValueStack, } from '@monochromatic-dev/module-caught-value/ts';
+import { caughtValueStack, } from '@monochromatic-dev/caught-value-core/ts';
 
 import type { CommitShapeTrace, } from './commit-shape-trace-fixture.ts';
 import type {

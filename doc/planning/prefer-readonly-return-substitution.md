@@ -42,7 +42,7 @@ and resolvable,
 Workspace effect:
  2893 errors and 1555 rule findings against 2906 and 1568 before any of this,
 with the offer set unchanged at 34 through every increment except one adjudicated addition,
-`stateMatches` in `package/desktop-app/electron-infra/src/wayland-state.ts`,
+`stateMatches` in `package/electron-infra/core/src/wayland-state.ts`,
  which is correct.
 
 Eight conditions decide the discharge,
@@ -169,7 +169,7 @@ The consequence is that a source is analysed under a different project depending
 worker linted a root-level file earlier:
 
 ```text
-package file alone:  package/module/logger/tsconfig.json (371 files)
+package file alone:  package/logger/core/tsconfig.json (371 files)
 root file first:     tsconfig.json (646 files)
 ```
 
@@ -645,7 +645,7 @@ Measured directly rather than inferred from the count.
  and each is
 `opaque=[0]` when the result is returned.
  `orderedRoots` in
-`package/desktop-app/file-manager-electron/src/strip.ts` is the shape:
+`package/file-manager/variant-electron/src/strip.ts` is the shape:
  it returns
 `panes.filter(rootLike,).toSorted(bySpawnOrder,)`,
  and the chain is not what withholds it.
@@ -824,7 +824,7 @@ Workspace either side:
  and
 attribution reaching an unproven channel reports.
 
-The arrival is `getIndexHtmlBody` in `package/webapp-productivity/rss/src/html.ts`,
+The arrival is `getIndexHtmlBody` in `package/rss/app/src/html.ts`,
  whose `options` now
 reaches `pubDateDate.toLocaleString` through the composed elements.
  Consistent rather than novel:
@@ -938,7 +938,7 @@ This rule contributes 1937,
 -    6 `has stale @mutates contract`.
 
 `Mutation contracts disagree` is now zero,
- where `doc/decision/prefer-readonly-result-provenance.md` recorded four instances in `package/module/pipe`.
+ where `doc/decision/prefer-readonly-result-provenance.md` recorded four instances in `package/pipe/core`.
 That category cleared at some point since,
  and this document does not establish when or why.
 
@@ -1094,7 +1094,7 @@ Two in `package/oxlint-plugin/test-import/src/package-manifest.ts` gained `pendi
  an assertion aliases it to `fallbacks`,
  and `pending.push(...fallbacks,)` spreads it into a call,
  so the member call no longer discharges and joins the boundary list.
-One in `package/webapp-productivity/done/src/server.ts` renamed its boundary from
+One in `package/done/app/src/server.ts` renamed its boundary from
  `h3@2.0.1-rc.26 . serveStatic` to `serveStatic` with a local location.
 
 Both were checked rather than assumed.
@@ -1393,12 +1393,12 @@ Category totals identical on both sides:
 
 Exactly one finding moved,
  and it moved in place rather than appearing or disappearing.
-`package/webapp-productivity/done/src/server.ts:224` reports the same parameter for the
+`package/done/app/src/server.ts:224` reports the same parameter for the
  same reason,
  with a different name for the boundary:
 
 ```text
-before   serveStatic [/var/home/user/Monochromatic/package/webapp-productivity/done/src/server.ts:225]
+before   serveStatic [/var/home/user/Monochromatic/package/done/app/src/server.ts:225]
 after    h3@2.0.1-rc.26 . serveStatic
 ```
 
@@ -1874,7 +1874,7 @@ The cache identity is a digest of the loaded analyzer,
 That is why the cache stayed warm across two runs whose sources differed.
 
 Confirmed by reconciling the diagnostics rather than trusting the counts.
-Findings naming `package/webapp-productivity/rss` number 43 in both captures,
+Findings naming `package/rss/app` number 43 in both captures,
  and the apparent difference of two was the two omission warnings naming that same file.
 So the analysis produced identical verdicts;
  only the record of what it failed on differed.
@@ -2583,7 +2583,7 @@ Caught by review rather than by the sweep,
  and then measured.
 
 ```text
-package/module/logger, which does not declare type-fest
+package/logger/core, which does not declare type-fest
 error TS2307: Cannot find module 'type-fest' or its corresponding type declarations.
 ```
 
@@ -2795,7 +2795,7 @@ The control that caught it was a parameter that must still be offered,
  and it is the only reason the empty result was read as a configuration fact rather than
  as success.
 
-Re-run under `package/module/jsonc-edit/src/`,
+Re-run under `package/jsonc-edit/core-ts/src/`,
  which is linted and installs `type-fest`:
 
 ```text
@@ -3470,7 +3470,7 @@ writeThroughHeldResult  offered
 ```
 
 Both annotations applied,
- `mise run //package/module/jsonc-edit:lint:types` clean,
+ `mise run //package/jsonc-edit/core-ts:lint:types` clean,
  and the driver prints:
 
 ```text
@@ -5966,7 +5966,7 @@ Worth noting what did **not** happen.
 
 ### The one added finding
 
-`installKeyboard` in `package/desktop-app/file-manager-electron/src/renderer-keys.ts:272`,
+`installKeyboard` in `package/file-manager/variant-electron/src/renderer-keys.ts:272`,
  whose
  `session` parameter had no diagnostic at all in the baseline and now reports argument opacity
  naming a bodyless callable in `render-dom.ts` and `column.append`.
@@ -8687,11 +8687,11 @@ The previous section left the question open and named the two ways to settle it.
 
 ```text
 package/config/rolldown            no resolution
-package/dev-script/file-enforcer   no resolution
-package/module/pipe                no resolution
-package/webapp-productivity/wc     no resolution
+package/file-enforcer/core   no resolution
+package/pipe/core                no resolution
+package/wc/app     no resolution
 package/pi-plugin/spawn            no resolution
-package/dev-script/watch-restart   no resolution   (an @optique/core consumer)
+package/watch-restart/cli   no resolution   (an @optique/core consumer)
 package/pi-shared/model-selection  no resolution   (a valibot consumer)
 ```
 
@@ -9885,7 +9885,7 @@ And it corrected the blocker this task had carried.
 
 ```text
 SemanticBridgeError: Owned effect edge lacks callee summary:
-  package/module/toml-edit/src/document-materialize.ts:4707:6006:263
+  package/toml-edit/core/src/document-materialize.ts:4707:6006:263
 ```
 
 Widening the value walk widens the **owned-edge graph**,
@@ -10067,8 +10067,8 @@ And one corollary about tests:
  across four packages:
 
 ```text
-package/module/css-edit          0
-package/dev-script/file-enforcer 0
+package/css/core-edit          0
+package/file-enforcer/core 0
 package/config/rolldown          0
 package/pi-plugin/spawn          0
 ```
@@ -10205,7 +10205,7 @@ Everything it established stands.
  change would affect:
 
 ```text
-package/dev-script/file-enforcer 0
+package/file-enforcer/core 0
 package/config/rolldown          0
 package/pi-plugin/spawn          0
 ```
@@ -10764,7 +10764,7 @@ That entry says no per-file warning naming panic-affected files was locatable.
  The warning reads `skipping <file>:<range>, which the effect index omitted`,
  and both captures
  carry two of them,
- naming `package/webapp-productivity/rss/src/index.ts`.
+ naming `package/rss/app/src/index.ts`.
 
 That left open whether the panics cause them,
  and reading one line further settles it.
@@ -10772,7 +10772,7 @@ That left open whether the panics cause them,
  and all three name the panic:
 
 ```text
-package/webapp-productivity/rss/src/index.ts                     2 callables
+package/rss/app/src/index.ts                     2 callables
 node_modules/.../@optique/core@1.2.0/.../dist/facade.js          1 callable
 ```
 
@@ -11458,7 +11458,7 @@ throughout,
 
 #### The prediction that was wrong
 
-This thread expected `package/module/toml-edit/src/value-materialize.ts` to clear,
+This thread expected `package/toml-edit/core/src/value-materialize.ts` to clear,
  and it did
 not.
 That expectation was wrong rather than unfulfilled.
@@ -12418,7 +12418,7 @@ Workspace sweep on a cold cache:
 
 Two of the three added findings are restored charges,
 `package/mutation-test/cli/src/engine/suppression.ts:229:38` and
-`package/desktop-app/file-manager-electron/src/listing-sort.ts:103:3`,
+`package/file-manager/variant-electron/src/listing-sort.ts:103:3`,
  which is the direction
 a stricter completeness requirement is supposed to move.
 
@@ -12426,7 +12426,7 @@ The third is an offer,
  and an offer appearing is the guarded failure's own signature,
  so it
 was adjudicated rather than accepted.
-`stateMatches` in `package/desktop-app/electron-infra/src/wayland-state.ts` takes
+`stateMatches` in `package/electron-infra/core/src/wayland-state.ts` takes
 `expected: ExpectedObservedState`,
  which is `JsonObject` and carries a writable index
 signature.
@@ -12753,7 +12753,7 @@ No offer follows because the parameter is already readonly,
  so the whole effect is removing a
 report that named no action its author could take.
 
-The same holds for `spliceInstances` in `package/module/toml-edit/src/set-aot.ts` and three
+The same holds for `spliceInstances` in `package/toml-edit/core/src/set-aot.ts` and three
 others.
 
 This was landed against a recommendation recorded in this document not to widen the discharge,
@@ -12846,7 +12846,7 @@ So the complaint's own class is at most eight of 1555 findings,
  and
 some of those eight are correct too:
  `locateBlock` in
-`package/module/toml-edit/src/resolve-block.ts` takes `readonly Block[]` and calls `find`,
+`package/toml-edit/core/src/resolve-block.ts` takes `readonly Block[]` and calls `find`,
  which
 hands back an element whose own properties this classifier cannot check and which the caller
 may well be able to write through.
@@ -13026,13 +13026,13 @@ which is an assertion testing itself.
 
 Spot-checked against workspace findings rather than fixtures alone.
 
-`writeRecordToEntry` in `package/module/logger/src/create-logger.ts` takes
+`writeRecordToEntry` in `package/logger/core/src/create-logger.ts` takes
 `readonly entryIndex: number` and `readonly record: LogRecord`,
  and the message fits plainly:
 there is no type change left to make.
 
-`package/module/test/src/expect.ts` is the case worth stating.
-The file moved on 2026-10-04 to `package/module/test-expect/src/expect.ts`.
+`package/test-harness/core/src/expect.ts` is the case worth stating.
+The file moved on 2026-10-04 to `package/test-harness/core-expect/src/expect.ts`.
 Its reported input is a rest parameter typed from `Parameters<MatcherSet[K]>`,
  where "readonly
 at every level" is not evident from the declaration at all.

@@ -14,7 +14,7 @@ import { argument, } from '@optique/core/primitives';
 import { string, } from '@optique/core/valueparser';
 // TODO: deprecate Optique
 import { run, } from '@optique/run';
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { coerceArg, } from './coerce.ts';
 import { resolveSpecifier, } from './resolve.ts';

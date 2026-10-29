@@ -48,7 +48,7 @@ A search over the published parser's `src/` for a maximum nesting option or limi
  This is a **contract difference**,
  not evidence of a defect in Biome.
  The editor's existing structured parser uses a 512-depth boundary at
- `package/module/jsonc-edit/src/parse.ts:21,54`.
+ `package/jsonc-edit/core-ts/src/parse.ts:21,54`.
  The upstream clone `~/temp/agent/biome-source-2026-09-24` at `2f629c5` still has the explicit-stack path in
  `crates/biome_json_parser/src/syntax.rs:159-238`;
  the published archive remains the authority for version 0.5.7.

@@ -1,5 +1,5 @@
 import { createHash, } from 'node:crypto';
-import { describe, expect, it, } from '@monochromatic-dev/module-test/ts';
+import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import type { DocumentNode, } from '@monochromatic-dev/translation-repair-document-structure';
 import type { ContentChunk, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {

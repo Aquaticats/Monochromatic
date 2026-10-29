@@ -48,7 +48,7 @@ export type PackageManifestDependencies = {
  
  @example
  ```ts
- matchesBundlePattern({ name: '\@monochromatic-dev/module-logger', pattern: '\@monochromatic-dev/**' });
+ matchesBundlePattern({ name: '\@monochromatic-dev/logger-core', pattern: '\@monochromatic-dev/**' });
  ```
  */
 export function matchesBundlePattern({

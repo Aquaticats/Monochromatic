@@ -6,7 +6,7 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
-import { tagged, } from '@monochromatic-dev/module-logger/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import { writeFileAtomic, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import { failureName, } from '@monochromatic-dev/translation-repair-markup/ts';

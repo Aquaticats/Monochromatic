@@ -11,16 +11,16 @@ not part of this work.
 
 Sources of truth after this change:
 
-- `package/desktop-app/ide/src/bin/ide-runtime.rs`:
+- `package/ide/app/src/bin/ide-runtime.rs`:
   the `GRAMMARS` selection.
-- `package/desktop-app/ide/mise.toml`:
+- `package/ide/app/mise.toml`:
   the `runtime` task that fetches,
   builds,
   checks notices,
   and publishes assets.
-- `package/desktop-app/ide/src/syntax.rs`:
+- `package/ide/app/src/syntax.rs`:
   recognition and the bundled-manifest rule.
-- `package/desktop-app/ide/tests/syntax_inventory.rs`,
+- `package/ide/app/tests/syntax_inventory.rs`,
   `tests/syntax_injection.rs`,
   and `tests/syntax_provisioning.rs`:
   one test per language,
@@ -1171,7 +1171,7 @@ The later language-server work needs that name to choose a server.
 
 ## Build, size, and duration
 
-All builds ran through `mise run //package/desktop-app/ide:runtime` in the existing bounds:
+All builds ran through `mise run //package/ide/app:runtime` in the existing bounds:
 2 GiB memory,
 2 CPUs,
 512 processes,
@@ -1204,7 +1204,7 @@ and `cpp` (5,592,040).
 
 ### Duration
 
-Wall-clock time of `mise run //package/desktop-app/ide:runtime` on this host,
+Wall-clock time of `mise run //package/ide/app:runtime` on this host,
 while other sessions were also building:
 
 - cold,
@@ -1235,12 +1235,12 @@ so there is no before value to compare.
 All commands ran in the worktree on 2026-10-05,
 with the code at commit `b81716464`.
 
-- `mise run //package/desktop-app/ide:runtime`:
+- `mise run //package/ide/app:runtime`:
   passed.
   27 grammars fetched at their pinned revisions,
   built,
   and published with notices.
-- `mise run //package/desktop-app/ide:test`:
+- `mise run //package/ide/app:test`:
   30 test binaries,
   163 passed,
   0 failed,
@@ -1249,12 +1249,12 @@ with the code at commit `b81716464`.
   26 in `tests/syntax_inventory.rs`,
   8 in `tests/syntax_injection.rs`,
   and 9 in `tests/syntax_provisioning.rs`.
-- `mise run //package/desktop-app/ide:lint`:
+- `mise run //package/ide/app:lint`:
   passed.
   It runs Clippy on all targets with warnings denied,
   the Rust documentation and line-budget linter,
   and the Slint check of three markup files.
-- `mise run //package/desktop-app/ide:test:native`:
+- `mise run //package/ide/app:test:native`:
   14 run,
   14 passed.
 

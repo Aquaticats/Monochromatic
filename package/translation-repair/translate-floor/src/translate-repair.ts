@@ -1,8 +1,8 @@
 import {
   type Logger,
   tagged,
-} from '@monochromatic-dev/module-logger/ts';
-import type { ChatMessage, } from '@monochromatic-dev/module-llm-type/ts';
+} from '@monochromatic-dev/logger-core/ts';
+import type { ChatMessage, } from '@monochromatic-dev/llm-llm-type/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import { allInInputOrder, } from '@monochromatic-dev/translation-repair-document-structure/ts';

@@ -14,7 +14,7 @@ import {
   describe,
   expect,
   it,
-} from '@monochromatic-dev/module-test/ts';
+} from '@monochromatic-dev/test-harness-core/ts';
 
 import { readPackageSource, } from './family-source.test-fixture.ts';
 import { exampleFindingsOf, } from './tsdoc-example-scan.test-fixture.ts';
