@@ -30,6 +30,7 @@ import {
   foldCredentialHolds,
   readsImages,
   type ModelClient,
+  type UnmetFloors,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import type { RunClient, } from './run-client-contract.ts';
 import {
@@ -1071,20 +1072,26 @@ export const RUN_WRITING_PROVIDERS: ProviderRecord<boolean> = writingProvidersOf
  @param admitClaudeAttempt - told by the Claude client before each attempt it makes, with the card and the most the
  attempt can be billed; what it throws ends that call before the attempt is sent (`configureProviders`)
 
+ @param unmetFloors - the bench floors the entry's stages need, which the budgets read to tell whether a given-up
+ provider's return would leave none unmet where without it one is (REQUIRED, so no client runs with a floor nobody
+ chose): `unmetBenchFloors`, the seat reader's own, which `run-client-create.ts` hands over. Read here from the caller
+ because `run-seats.ts` reads this file's roster, and a module cannot import what imports it
+
  @returns Ready client, routed across configured providers and counted per seat
 
  @throws {@link RunConfigError} when every provider key variable is unset or empty
 
  @example
  ```ts
- const client = runClientFrom({
+ const client = runClientWithFloors({
    env: { TRANSLATION_REPAIR_SYNTHETIC_API_KEY: 'test', },
    transport,
    maxHoldMs: 1_800_000,
+   unmetFloors: unmetBenchFloors,
  },);
  ```
  */
-export function runClientFrom(
+export function runClientWithFloors(
   {
     env,
     transport,
@@ -1093,6 +1100,7 @@ export function runClientFrom(
     off,
     maxHoldMs,
     admitClaudeAttempt,
+    unmetFloors,
   }: {
     readonly env: Readonly<NodeJS.ProcessEnv>;
     readonly transport: ModelTransport;
@@ -1101,13 +1109,14 @@ export function runClientFrom(
     readonly off?: readonly ProviderOff[];
     readonly maxHoldMs: number;
     readonly admitClaudeAttempt?: (attempt: ClaudeAttemptAsk,) => void;
+    readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {
   /**
    Logger pre-tagged with this function's name.
    */
   const rl = tagged({
-    tag: runClientFrom.name,
+    tag: runClientWithFloors.name,
     l,
   },);
 
@@ -1124,6 +1133,11 @@ export function runClientFrom(
     transport,
     ...((off === undefined) ? {} : { off, }),
     maxHoldMs,
+    // The budgets set an entry's give-up of a provider aside only when that provider is the only writing provider not dry
+    // (the roster) or its return would leave no bench floor unmet where without it one is (the writing floors and the
+    // quorums the seat reader holds the phases to). Otherwise the entry stops waiting for its cooldowns.
+    writing: RUN_WRITING_PROVIDERS,
+    unmetFloors,
     // Conditional spread keeps the hook absent instead of undefined.
     ...((admitClaudeAttempt === undefined) ? {} : { admitClaudeAttempt, }),
   },);
@@ -1225,6 +1239,7 @@ export function runClientFrom(
     },
     providerMeterStates: budgets.readStates,
     providerHolds: budgets.holds,
+    beginEntry: budgets.beginEntry,
     neuralwattReturn: budgets.neuralwattReturn,
     neuralwattDryness: budgets.neuralwattDryness,
     neuralwattHeldByReturn: budgets.neuralwattHeldByReturn,
@@ -1236,11 +1251,12 @@ export function runClientFrom(
 
 /**
  The run client a runner calls over: the process's environment and the live
- transport, handed to `runClientFrom`. The one place those two are named for
+ transport, handed to `runClientWithFloors`. The one place those two are named for
  every runner, so no library function or test reaches them by default.
 
  @param options - longest hold a stated wait may set, which is required: the runner's hard cap, or the probe bound
- where its command has none; and the payload checkpoint, when the runner keeps one
+ where its command has none; the payload checkpoint, when the runner keeps one; and the bench floors the entry's stages
+ need, which decide whether a given-up provider is waited for (`unmetFloors` of {@link runClientWithFloors})
 
  @returns Ready client, routed across configured providers and counted per seat
 
@@ -1248,17 +1264,18 @@ export function runClientFrom(
 
  @example
  ```ts
- const client = createRunClient({ maxHoldMs: 25_200_000, },);
+ const client = createRunClientWithFloors({ maxHoldMs: 25_200_000, unmetFloors: unmetBenchFloors, },);
  ```
  */
-export function createRunClient(
+export function createRunClientWithFloors(
   options: {
     readonly promptPayloadDir?: string;
     readonly maxHoldMs: number;
     readonly passLeftMs?: () => number;
+    readonly unmetFloors: UnmetFloors;
   },
 ): RunClient {
-  return runClientFrom({
+  return runClientWithFloors({
     ...options,
     env: process.env,
     transport: fetchTransport,

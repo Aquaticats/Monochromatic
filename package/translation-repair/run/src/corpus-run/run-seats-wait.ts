@@ -140,6 +140,20 @@ const BENCHES_BY_PHASE: Readonly<Record<JudgeSeatPhase, readonly BenchName[]>> =
 };
 
 /**
+ Every bench any phase leans on, once each, in the order the phases first name them: the benches whose floors an entry's
+ stages need.
+
+ @example
+ ```ts
+ const names: readonly BenchName[] = BENCHES_ANY_PHASE_LEANS_ON;
+ ```
+ */
+export const BENCHES_ANY_PHASE_LEANS_ON: readonly BenchName[] = [
+  ...new Set(Object.values(BENCHES_BY_PHASE,)
+    .flat(),),
+];
+
+/**
  Voices the readers bench needs: two, since `readImagePair` corroborates a
  picture from two readings and calls a single one `one-reader-only`. The
  judge benches' quorum is a majority of a bench that votes; readers never

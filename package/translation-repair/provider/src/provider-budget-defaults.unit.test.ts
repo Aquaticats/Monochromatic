@@ -21,7 +21,6 @@ import {
 import {
   createWaitCap,
   HoldBoundError,
-  holdEndsNever,
   noLevelBeforeReading,
   notHeldOut,
   spendableBeforeReading,
@@ -49,8 +48,8 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'READ AS NOTHING KNOWN: spendable, no level, no payment refusal, unreadable, not held out '
-            + 'and no hold end',
+          name: 'READ AS NOTHING KNOWN: spendable, no level, no payment refusal, unreadable and not held '
+            + 'out',
           fn: async () => {
             expect({
               dry: spendableBeforeReading(),
@@ -58,14 +57,12 @@ await describe({
               payment: unmarkedPayment(),
               state: unreadBeforeReading(),
               heldOut: notHeldOut(),
-              holdEnd: holdEndsNever(),
             },).toEqual({
               dry: false,
               level: '',
               payment: { marked: false, level: '', },
               state: 'unreadable',
               heldOut: false,
-              holdEnd: 0,
             },);
           },
         },),

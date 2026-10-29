@@ -463,6 +463,7 @@ which lists every file of this record.
 - [B953, the named place, the carriers, the callbacks and the loaders of the schema source check][b953-ledger]
 - [B960, runner reports and probes](audit-ledger-runner-reports-and-probes.md)
 - [B961 to B964, the pass's lifecycle line stamps: an attempt count that ended the pass, tests that could not fail, lines without a time or an attempt, docs that disagreed with the code](audit-ledger-lifecycle-line-stamps-round-two.md)
+- [B965, providers and seats a run holds out](audit-ledger-providers-and-seats-a-run-holds-out.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

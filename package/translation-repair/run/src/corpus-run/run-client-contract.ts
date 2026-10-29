@@ -115,6 +115,13 @@ export type RunClient = ModelClient & {
    client carries no entry bound, which the sentence reads as the pass's.
    */
   readonly passBoundOwner?: () => BoundOwner;
+
+  /**
+   Starts an entry with no provider given up on: a provider that refused right after a refusal cooldown ran out, with
+   nothing served in between, stops being waited for until the entry ends, and the entry's name is written where it is
+   given up on. Absent on a client built outside a pass, which keeps one set of marks for its whole life.
+   */
+  readonly beginEntry?: (args: { readonly entryId: string; },) => void;
 };
 
 //endregion Run client contract

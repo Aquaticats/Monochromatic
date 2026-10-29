@@ -2,7 +2,7 @@ import {
   fetchTransport,
   type ModelTransport,
 } from '@monochromatic-dev/translation-repair-provider-stream/ts';
-import { runClientFrom, } from './run-config.ts';
+import { runClientFrom, } from './run-client-create.ts';
 import type { RunClient, } from './run-client-contract.ts';
 
 //region Probe run client

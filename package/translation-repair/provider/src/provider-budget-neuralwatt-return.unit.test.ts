@@ -338,6 +338,22 @@ await describe({
     },),
 
     it({
+      name: 'STILL WAITS FOR THE DAY START OF A NEURALWATT THE ENTRY GAVE UP ON: its refusal cooldown counts for no wait '
+        + 'once it refused right after one ran out, and the return of its spent day is a hold the refusal never set',
+      fn: async () => {
+        const reads = { count: 0, };
+        const clock = { now: 1_000, };
+        const budgets = budgetsBefore({ msBeforeReturn: 3_600_000, clock, reads, staysSpent: true, },);
+        await budgets.markRefused({ provider: 'neuralwatt', signal: SIGNAL, },);
+        clock.now += 312_000;
+        await budgets.markRefused({ provider: 'neuralwatt', signal: SIGNAL, },);
+        expect((await budgets.read({ signal: SIGNAL, },)).neuralwatt,).toBe(true,);
+        expect(budgets.holds().neuralwatt,).toBeGreaterThan(3_000_000,);
+        expect(budgets.neuralwattHeldByReturn(),).toBe(true,);
+      },
+    },),
+
+    it({
       name: 'READS THE METER AGAIN WHEN A TIMER FIRES A MILLISECOND EARLY: the return counts as passed two '
         + 'milliseconds before it, the slack Node\'s timers were measured to need',
       fn: async () => {

@@ -175,6 +175,11 @@ export async function settleEntry(
     wallClock,
   },);
 
+  // THE ENTRY STARTS WITH NO PROVIDER GIVEN UP ON: a provider that refused right after a refusal cooldown ran out is
+  // given up on for the entry that met it and no other (`provider-budget-cooldown-marks.ts`). Every attempt of an
+  // entry starts here, so an attempt meets such a provider fresh.
+  client.beginEntry?.({ entryId: entry.id, },);
+
   /**
    Per-entry slice-cache directory; earlier runs' finished slices live here so
    a large document resumes instead of restarting.

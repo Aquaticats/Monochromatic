@@ -56,11 +56,11 @@ const UNUSED_CALLER = {
 };
 
 /**
- Budgets reading OpenRouter wet or dry, recording every refusal marked.
+ Budgets reading OpenRouter wet or dry, recording every refusal marked and every provider reported as having served.
 
  @param openrouterDry - whether the OpenRouter meter reads dry
 
- @returns The budgets and the refusals marked, without their signals
+ @returns The budgets, the refusals marked without their signals, and the providers reported as having served
  */
 function budgetsReading({ openrouterDry, }: { readonly openrouterDry: boolean; },) {
   /**
@@ -71,9 +71,17 @@ function budgetsReading({ openrouterDry, }: { readonly openrouterDry: boolean; }
     readonly statedWaitMs?: number;
     readonly paymentRequired?: boolean;
   }[] = [];
+  /**
+   Providers reported as having served a call.
+   */
+  const served: ProviderName[] = [];
   return {
     marked,
+    served,
     budgets: {
+      markServed: function markServed({ provider, }: { readonly provider: ProviderName; },): void {
+        served.push(provider,);
+      },
       read: async function read(): Promise<BudgetView> {
         return {
           neuralwatt: true,
@@ -224,6 +232,31 @@ await describe({
         },);
         expect(await router.decide?.(REQUEST,),).toBe(REPLY,);
         expect(marked,).toStrictEqual([],);
+      },
+    },),
+    it({
+      name: 'REPORTS OPENROUTER AS HAVING SERVED when the endpoint answers, and not when it refuses',
+      fn: async () => {
+        const answered = budgetsReading({ openrouterDry: false, },);
+        await routerWith({
+          budgets: answered.budgets,
+          decide: async function decide() {
+            return REPLY;
+          },
+        },)
+          .decide?.(REQUEST,);
+        expect(answered.served,).toStrictEqual(['openrouter',],);
+
+        const refused = budgetsReading({ openrouterDry: false, },);
+        const failure = new Error('the cat sat on the keyboard',);
+        await expect(routerWith({
+          budgets: refused.budgets,
+          decide: async function decide(): Promise<never> {
+            throw failure;
+          },
+        },)
+          .decide?.(REQUEST,),).rejects.toBe(failure,);
+        expect(refused.served,).toStrictEqual([],);
       },
     },),
     it({
