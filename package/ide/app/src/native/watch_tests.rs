@@ -91,7 +91,7 @@ fn depth(window: &AppWindow, label: &str) -> Option<i32> {
 ///  and delete in the last of four expanded folders all show promptly.
 #[test]
 fn native_tree_follows_changes_in_one_of_several_expanded_folders() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let displayed = fixture.path().join("view.txt");
     fs::write(&displayed, "view\n").expect("displayed source");
     fs::write(fixture.path().join("outer.txt"), "outer\n").expect("root file");
@@ -165,7 +165,7 @@ fn native_tree_follows_changes_in_one_of_several_expanded_folders() {
 ///  so only its own watch can report these changes.
 #[test]
 fn native_source_follows_atomic_replace_and_delete_then_recreate() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let folder = fixture.path().join("nested");
     fs::create_dir(&folder).expect("collapsed folder");
     let displayed = folder.join("view.txt");

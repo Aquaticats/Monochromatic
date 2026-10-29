@@ -438,10 +438,10 @@ fn script(reader: &Reader) -> Vec<String> {
 ///  only where the code rows are differs.
 #[test]
 fn annotations_leave_reading_geometry_copy_and_find_unchanged() {
-    let plain_fixture = tempfile::tempdir().expect("disposable plain project");
+    let plain_fixture = crate::test_scratch::scratch().expect("disposable plain project");
     fs::write(plain_fixture.path().join("main.rs"), FIXTURE).expect("plain fixture");
     let plain = reader(plain_fixture.path(), "main.rs");
-    let annotated_fixture = tempfile::tempdir().expect("disposable annotated project");
+    let annotated_fixture = crate::test_scratch::scratch().expect("disposable annotated project");
     fs::write(annotated_fixture.path().join("main.rs"), FIXTURE).expect("annotated fixture");
     let annotated = reader(annotated_fixture.path(), "main.rs");
     annotate(&annotated);
@@ -498,7 +498,7 @@ fn annotations_leave_reading_geometry_copy_and_find_unchanged() {
 ///  find does not match their text.
 #[test]
 fn virtual_rows_are_not_source_text() {
-    let fixture = tempfile::tempdir().expect("disposable virtual-row project");
+    let fixture = crate::test_scratch::scratch().expect("disposable virtual-row project");
     fs::write(fixture.path().join("main.rs"), FIXTURE).expect("virtual-row fixture");
     let reader = reader(fixture.path(), "main.rs");
     let window = &reader.window;
@@ -584,7 +584,7 @@ fn virtual_rows_are_not_source_text() {
 ///  every message already stands above its line.
 #[test]
 fn caret_problems_follow_the_caret_and_are_spelled_out_in_full() {
-    let fixture = tempfile::tempdir().expect("disposable problem project");
+    let fixture = crate::test_scratch::scratch().expect("disposable problem project");
     fs::write(fixture.path().join("main.rs"), FIXTURE).expect("problem fixture");
     let reader = reader(fixture.path(), "main.rs");
     let window = &reader.window;
@@ -758,7 +758,7 @@ fn stale_snapshots_disappear_after_reload_and_file_switch() {
 ///  and a snapshot for other text is refused and changes nothing.
 #[test]
 fn accepted_snapshots_show_after_one_render() {
-    let fixture = tempfile::tempdir().expect("disposable accept project");
+    let fixture = crate::test_scratch::scratch().expect("disposable accept project");
     fs::write(fixture.path().join("main.rs"), FIXTURE).expect("accept fixture");
     let reader = reader(fixture.path(), "main.rs");
     let window = &reader.window;

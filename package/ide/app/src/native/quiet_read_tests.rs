@@ -43,8 +43,8 @@ use std::{
 ///  so up to five trials run until one did not stall.
 #[test]
 fn reads_no_notification_asked_for_do_not_show_a_save_in_progress() {
-    let project = tempfile::tempdir().expect("disposable project");
-    let elsewhere = tempfile::tempdir().expect("disposable outside folder");
+    let project = crate::test_scratch::scratch().expect("disposable project");
+    let elsewhere = crate::test_scratch::scratch().expect("disposable outside folder");
     let displayed = elsewhere
         .path()
         .canonicalize()

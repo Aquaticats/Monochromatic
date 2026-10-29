@@ -87,7 +87,7 @@ fn run_for(span: Duration) {
 #[test]
 #[ignore = "measurement; run through inspect:watch-scope"]
 fn watch_scope_reveal_staleness() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let displayed = fixture.path().join("view.txt");
     fs::write(&displayed, "view\n").expect("displayed source");
     for index in 0..FOLDERS {

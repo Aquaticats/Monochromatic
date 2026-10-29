@@ -24,6 +24,7 @@ import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
+  resolveBaseImage,
   resolveImage,
   type Combination,
   type UserContext,
@@ -90,6 +91,15 @@ const CELLS: readonly {
   },
 ] as const;
 
+/**
+ Image for the `cachyos` cells, chosen once for the host CPU level (v4, v3, then plain).
+ A host that is not x86-64 rejects here: the ensurePackage cells are a pacman test.
+ */
+const cachyosImage: string = (await resolveBaseImage({
+  imageName: 'container:cachyos',
+  alpineVariant: false,
+},)).image;
+
 //endregion Matrix definition
 
 //region Run
@@ -133,7 +143,10 @@ async function runCell(cell: (typeof CELLS)[number],): Promise<boolean> {
   /**
    Fully tagged image reference for the cell's distro (CachyOS maps to its Docker Hub repository).
    */
-  const image = resolveImage(parseOs(cell.os,).distro,);
+  const image = resolveImage({
+    distro: parseOs(cell.os,).distro,
+    cachyosImage,
+  },);
   console.log(
     `[ensure-package-matrix] ${cell.os} user=${cell.user}: podman run ${
       PODMAN_BOUNDS.join(' ',)

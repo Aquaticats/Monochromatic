@@ -18,7 +18,7 @@ fn executable(path: &Path) {
 
 #[test]
 fn toolchain_directories_win_over_the_application_path() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let tools = root.path().join("tools/bin");
     let stale = root.path().join("stale/bin");
     executable(&tools.join("taplo"));
@@ -30,7 +30,7 @@ fn toolchain_directories_win_over_the_application_path() {
 
 #[test]
 fn the_application_path_is_searched_when_the_toolchain_has_no_such_program() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let tools = root.path().join("tools/bin");
     let stale = root.path().join("stale/bin");
     fs::create_dir_all(&tools).expect("directory");
@@ -42,14 +42,14 @@ fn the_application_path_is_searched_when_the_toolchain_has_no_such_program() {
 
 #[test]
 fn a_program_that_is_nowhere_is_missed_without_a_shim() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let missed = find_program_in("absent", root.path(), &[], &[]).expect_err("missed");
     assert_eq!(missed, Missed { shim: None });
 }
 
 #[test]
 fn a_file_without_execute_permission_is_not_a_program() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let directory = root.path().join("bin");
     fs::create_dir_all(&directory).expect("directory");
     fs::write(directory.join("plain"), "").expect("file");
@@ -58,7 +58,7 @@ fn a_file_without_execute_permission_is_not_a_program() {
 
 #[test]
 fn relative_directories_are_never_searched() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     executable(&root.path().join("bin/taplo"));
     let relative = [PathBuf::from("bin")];
     assert!(find_program_in("taplo", root.path(), &relative, &relative).is_err());
@@ -66,7 +66,7 @@ fn relative_directories_are_never_searched() {
 
 #[test]
 fn a_command_with_a_separator_is_taken_relative_to_the_project() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     executable(&root.path().join("node_modules/.bin/server"));
     let found = find_program_in("node_modules/.bin/server", root.path(), &[], &[]).expect("found");
     assert_eq!(found, root.path().join("node_modules/.bin/server"));
@@ -75,7 +75,7 @@ fn a_command_with_a_separator_is_taken_relative_to_the_project() {
 
 #[test]
 fn a_shim_is_a_link_to_the_mise_program_and_nothing_else_is() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let mise = root.path().join("bin/mise");
     executable(&mise);
     let shims = root.path().join("shims");
@@ -94,7 +94,7 @@ fn a_shim_is_a_link_to_the_mise_program_and_nothing_else_is() {
 
 #[test]
 fn a_shim_is_skipped_and_named_and_a_real_program_after_it_is_found() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let mise = root.path().join("bin/mise");
     executable(&mise);
     let shims = root.path().join("shims");

@@ -22,7 +22,7 @@ fn answer(dirs: &[&str], bins: &[(&str, &str)]) -> String {
 
 #[test]
 fn the_directories_of_the_pinned_answer_are_kept_whole() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let node = root.path().join("node/bin");
     let taplo = root.path().join("taplo");
     fs::create_dir_all(&node).expect("directory");
@@ -46,7 +46,7 @@ fn the_directories_of_the_pinned_answer_are_kept_whole() {
 
 #[test]
 fn a_directory_is_kept_once_and_spaces_quotes_and_dashes_stay_whole() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let odd = root.path().join("it's \"quoted\"/-dash/with space");
     fs::create_dir_all(&odd).expect("directory");
     let text = answer(
@@ -61,7 +61,7 @@ fn a_directory_is_kept_once_and_spaces_quotes_and_dashes_stay_whole() {
 
 #[test]
 fn a_relative_directory_is_dropped_because_it_depends_on_the_working_directory() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let relative = root.path().join("relative");
     fs::create_dir_all(&relative).expect("directory");
     let text = answer(&["relative/bin", "./also-relative"], &[]);

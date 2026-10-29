@@ -14,7 +14,7 @@ use std::fs;
 ///  notify's rescan flag) requests a full reread.
 #[test]
 fn queue_overflow_requests_a_full_reread() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("burst");
@@ -46,7 +46,7 @@ fn queue_overflow_requests_a_full_reread() {
 /// An error from notify's event stream requests a full reread.
 #[test]
 fn a_notification_error_requests_a_full_reread() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     watcher.watch_only(&set(&[&root]), None);
@@ -67,7 +67,7 @@ fn a_notification_error_requests_a_full_reread() {
 /// Removing a watched folder requests a full reread and leaves it unwatched.
 #[test]
 fn a_removed_watched_folder_requests_a_full_reread() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -94,7 +94,7 @@ fn a_removed_watched_folder_requests_a_full_reread() {
 ///  notify also drops the kernel watch itself.
 #[test]
 fn a_renamed_watched_folder_is_not_followed_to_its_new_name() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let folder = root.join("folder");
@@ -132,7 +132,7 @@ fn a_renamed_watched_folder_is_not_followed_to_its_new_name() {
 ///  and notify keeps that watch on the moved directory unless the IDE removes it.
 #[test]
 fn a_renamed_folder_with_an_unwatched_parent_loses_its_kernel_watch() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let parent = root.join("collapsed");
@@ -165,7 +165,7 @@ fn a_renamed_folder_with_an_unwatched_parent_loses_its_kernel_watch() {
 ///  and is retried on request.
 #[test]
 fn a_failed_watch_requests_a_full_reread_and_is_retried_on_request() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let missing = root.join("missing");
@@ -208,7 +208,7 @@ fn a_failed_watch_requests_a_full_reread_and_is_retried_on_request() {
 ///  here it ends when the folder appears.
 #[test]
 fn a_watch_failing_the_same_way_is_reported_once_until_it_changes() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let (mut watcher, workspace) = start(fixture.path());
     let root = workspace.root().to_path_buf();
     let missing = root.join("missing");

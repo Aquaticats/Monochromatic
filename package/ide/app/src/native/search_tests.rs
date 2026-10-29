@@ -119,7 +119,7 @@ fn query(window: &AppWindow, raw: &str) {
 ///  content-only results can move inside the already displayed file.
 #[test]
 fn native_search_orders_results_filters_contents_and_reveals_source_lines() {
-    let fixture = tempfile::tempdir().expect("disposable search project");
+    let fixture = crate::test_scratch::scratch().expect("disposable search project");
     let text = format!("{}needle here\n", "ordinary line\n".repeat(119));
     fs::write(fixture.path().join("needle-file.txt"), &text).expect("matching path and content");
     fs::write(fixture.path().join("other.txt"), "needle in another file")
@@ -196,7 +196,7 @@ fn native_search_orders_results_filters_contents_and_reveals_source_lines() {
 /// An asynchronous open and a later same-file request must not move keyboard focus behind the open overlay.
 #[test]
 fn pending_file_open_does_not_steal_search_input_focus() {
-    let fixture = tempfile::tempdir().expect("disposable pending-open project");
+    let fixture = crate::test_scratch::scratch().expect("disposable pending-open project");
     fs::write(fixture.path().join("pending.txt"), "pending source").expect("source fixture");
     let reader = reader(fixture.path());
     {
@@ -256,7 +256,7 @@ fn pending_file_open_does_not_steal_search_input_focus() {
 ///  and closing invalidates late result publication.
 #[test]
 fn native_search_scopes_to_tree_directory_and_close_clears_pending_results() {
-    let fixture = tempfile::tempdir().expect("disposable scoped project");
+    let fixture = crate::test_scratch::scratch().expect("disposable scoped project");
     fs::create_dir(fixture.path().join("nested")).expect("nested directory");
     fs::write(fixture.path().join("needle-root.txt"), "needle root").expect("root hit");
     fs::write(

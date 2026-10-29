@@ -24,7 +24,7 @@ use std::fs;
 /// Switching files with the bar open recomputes for the new file and keeps typing in the find input.
 #[test]
 fn native_find_recomputes_for_a_switched_file_and_keeps_input_focus() {
-    let fixture = tempfile::tempdir().expect("disposable switch project");
+    let fixture = crate::test_scratch::scratch().expect("disposable switch project");
     fs::write(
         fixture.path().join("alpha.txt"),
         "alpha needle\nand needle\n",
@@ -114,7 +114,7 @@ fn native_find_recomputes_for_a_switched_file_and_keeps_input_focus() {
 ///  Ctrl+F is ignored under the modal search overlay.
 #[test]
 fn native_find_and_search_overlay_close_topmost_first() {
-    let fixture = tempfile::tempdir().expect("disposable overlay project");
+    let fixture = crate::test_scratch::scratch().expect("disposable overlay project");
     fs::write(fixture.path().join("layers.txt"), "needle and needle\n").expect("overlay fixture");
     let reader = reader(fixture.path(), "layers.txt");
     let window = &reader.window;
@@ -184,7 +184,7 @@ fn native_find_and_search_overlay_close_topmost_first() {
 ///  empty text clears highlights without claiming "No matches".
 #[test]
 fn native_find_reports_refused_text_and_clears_for_empty_text() {
-    let fixture = tempfile::tempdir().expect("disposable diagnostic project");
+    let fixture = crate::test_scratch::scratch().expect("disposable diagnostic project");
     fs::write(fixture.path().join("bounds.txt"), "needle\n").expect("diagnostic fixture");
     let reader = reader(fixture.path(), "bounds.txt");
     let window = &reader.window;
