@@ -174,6 +174,7 @@ Filed in:
 - [Audit ledger: which seats a quorum counts](audit-ledger-which-seats-a-quorum-counts.md)
 - [Audit ledger: short benches and the last live seat](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [Audit ledger: short bench floors and the waits that cross them](audit-ledger-short-bench-floors-and-the-waits-that-cross-them.md)
+- [Audit ledger: futile returns replayed and the memory of skipped slices removed](audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md)
 - [Audit ledger: holds a test registers and the seat reading sleeps](audit-ledger-holds-a-test-registers-and-the-seat-reading-sleeps.md)
 - [Audit ledger: the every-provider-dry refusal, what it stops and what it says](audit-ledger-the-every-provider-dry-refusal.md)
 - [Audit ledger: a stage that heard nobody, recorded as data](audit-ledger-silent-stages-recorded-as-data.md)

@@ -47,7 +47,6 @@ import {
   startEntryProgress,
 } from './pass-entry-interim.ts';
 import { readLanesSeats, } from './pass-reseat.ts';
-import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { runPassLanes, } from './pass-lanes.ts';
 import {
   type CorpusPin,
@@ -120,8 +119,8 @@ import {
  @param endRun - told of the failure that ended the entry when it ends the run (`tallyCaughtEntry` says when), so the
  pass stops however the failure reached the entry
 
- @param floorLimited - what earlier attempts of this pass left for this entry's translate slices that ended unfilled
- on a select bench below its floor
+ @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
+ failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
 
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it, which every lifecycle line
  the entry prints (TALLY, DESTINATIONS, DEFECTS) carries beside its clock time (ledger B960)
@@ -155,7 +154,7 @@ export async function runEntryPipeline(
     visualEvidenceReader,
     stageSettings,
     endRun,
-    floorLimited,
+    parked,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -179,7 +178,7 @@ export async function runEntryPipeline(
     readonly visualEvidenceReader?: PassVisualEvidenceReader;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly floorLimited?: FloorLimitedMemory;
+    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -398,7 +397,6 @@ export async function runEntryPipeline(
       refineSliceCache,
       translateSliceCache,
       translateInsertionAdmission,
-      ...((floorLimited === undefined) ? {} : { floorLimited, }),
       entryId: entry.id,
       stageSettings,
     },);

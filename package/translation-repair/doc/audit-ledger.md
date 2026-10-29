@@ -708,7 +708,15 @@ named for that subject and listed here.
   The ceiling that counted a provider its meter keeps dry as coming back (B837),
   the wait that judged a return against the quorum alone (B838),
   the translate lane's first-time buys on a select bench under its floor (B839),
-  and the artifact's record of why such a slice was kept (B840).
+  the artifact's record of why such a slice was kept (B840),
+  and the wait for a provider whose return had served nothing,
+  which the owner chose to remember (B1010).
+- [Audit ledger:
+  futile returns replayed and the memory of skipped slices removed](audit-ledger-futile-returns-replayed-and-the-skipped-slice-memory-removed.md):
+  The pass's memory of the translate slices it had skipped,
+  which the owner removed (B1011),
+  what the rule of B1010 spends when it is replayed over XingZ6020 (B1012),
+  and the cache account of the round with the ids it left (B1013).
 - [Audit ledger: the weight floors removed and two ballots deciding](audit-ledger-weight-floors-removed-and-two-ballots-decide.md):
   The owner's rulings of 2026-10-25 on `XingZ6021`:
   the panel tally that asked for a summed weight of three and decided nothing for a unanimous panel of two (B900),

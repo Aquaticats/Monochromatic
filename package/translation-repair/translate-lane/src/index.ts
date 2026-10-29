@@ -36,13 +36,6 @@ export {
   type UnfilledSlice,
 } from './translate-document-contract.ts';
 export { translateDocument, } from './translate-document.ts';
-export {
-  type AskDecision,
-  type FloorLimitedMemory,
-  type FloorLimitedRecord,
-  notAskedAgain,
-  rememberFloorLimited,
-} from './translate-floor-limited.ts';
 export { translateLaneWordings, } from './translate-lane-wordings.ts';
 export {
   carriedElsewhere,

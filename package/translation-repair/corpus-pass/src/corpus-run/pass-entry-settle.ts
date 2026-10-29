@@ -10,7 +10,6 @@ import type { RunClient, } from '@monochromatic-dev/translation-repair-run/ts';
 import type { PipelineDigest, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import type { StageSettings, } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { CorpusPin, } from '@monochromatic-dev/translation-repair-corpus-source/ts';
-import type { FloorLimitedMemory, } from '@monochromatic-dev/translation-repair-translate-lane/ts';
 import { retireSettledEntryCache, } from './pass-entry-caches.ts';
 import { runEntryPipeline, } from './pass-entry.ts';
 import { entryOverlap, } from './pass-overlap.ts';
@@ -88,8 +87,8 @@ import type {
 
  @param endRun - told of the failure that ended this entry when it ends the run, so the pass stops starting entries
 
- @param floorLimited - this entry's memory of translate slices that ended unfilled on a select bench below its
- floor, held by the pass so a later attempt of the entry finds what an earlier one left
+ @param parked - asked after `endRun`: answers the return the pass is now parked for when it is parked for the
+ failure, so the entry goes back to the front of its queue, which the TALLY line prints as `PARKED` with that return
 
  @param attempt - number of this attempt of the entry, as the pass's attempts file holds it once the pass has counted
  it: every lifecycle line this settlement prints (OVERLAP, TALLY, DESTINATIONS, DEFECTS, CLEANUP) carries it beside its
@@ -127,7 +126,7 @@ export async function settleEntry(
     overlap,
     stageSettings,
     endRun,
-    floorLimited,
+    parked,
     attempt,
     wallClock = wallClockNow,
   }: {
@@ -151,7 +150,7 @@ export async function settleEntry(
     readonly overlap: OverlapSetting;
     readonly stageSettings: StageSettings;
     readonly endRun?: (args: { readonly error: unknown; },) => void;
-    readonly floorLimited?: FloorLimitedMemory;
+    readonly parked?: (args: { readonly error: unknown; },) => ParkAnswer;
   },
 ): Promise<EntryOutcome> {
   /**
@@ -201,7 +200,7 @@ export async function settleEntry(
     stageSettings,
     ...((visualEvidenceReader === undefined) ? {} : { visualEvidenceReader, }),
     ...((endRun === undefined) ? {} : { endRun, }),
-    ...((floorLimited === undefined) ? {} : { floorLimited, }),
+    ...((parked === undefined) ? {} : { parked, }),
     attempt,
     wallClock,
   },);

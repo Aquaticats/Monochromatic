@@ -599,9 +599,9 @@ export type TranslateSliceSeating = {
   readonly translateModels?: TranslateModels;
 
   /**
-   Select judges a wet provider would serve as of the reading, which the lane
-   holds a floor-limited slice's earlier outcome against; absent where the hook
-   counted none.
+   Select judges a wet provider would serve as of the reading, which decides
+   whether a passage the archive never translated is bought at all; absent where
+   the hook counted none.
    */
   readonly selectReachable?: number;
 };

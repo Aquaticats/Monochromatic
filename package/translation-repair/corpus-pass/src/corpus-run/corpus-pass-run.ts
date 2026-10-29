@@ -24,7 +24,6 @@ import { assertPassResumable, } from './corpus-pass-guards.ts';
 import { assertSchemasSendable, } from './pass-schema-check.ts';
 import { runPassQueue, } from './corpus-pass-queue.ts';
 import { createPassDryStop, } from './pass-dry-stop.ts';
-import { floorLimitedByEntry, } from './pass-floor-limited.ts';
 import { selectPendingEntries, } from './corpus-pass-select.ts';
 import {
   artifactBackedIds,
@@ -274,12 +273,6 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    */
   const start = now();
 
-  /**
-   What this pass's attempts leave for the translate slices that ended unfilled on a select bench below its floor,
-   one memory per entry, so a later attempt of the same entry does not ask them again unless the bench has grown.
-   */
-  const floorLimited = floorLimitedByEntry();
-
   await runPassQueue({
     pending,
     attempts,
@@ -321,7 +314,8 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
         stageSettings: input.stageSettings,
         // The refusal that ended an entry reaches the gate even where no guarded call carried it.
         endRun: dryStop.trip,
-        floorLimited: floorLimited.of({ entryId: entry.id, },),
+        // Asked after the trip with the entry's own failure, so its TALLY line says parked and not failed.
+        parked: dryStop.parkedFor,
       },);
     },
   },);

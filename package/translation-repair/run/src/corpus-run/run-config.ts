@@ -1164,14 +1164,10 @@ export function runClientWithFloors(
    Each configured provider's client, absent where its key is unset.
    */
   const {
-    neuralwatt,
     synthetic,
     hyper,
-    bedrock,
-    deepseek,
     xiaomi,
     anthropic,
-    openrouter,
   } = clients;
 
   // THE HOLDS ON A REFUSED CREDENTIAL come from `configureProviders`, which gives them to the budgets too, so the
@@ -1214,11 +1210,13 @@ export function runClientWithFloors(
   };
 
   rl.debug(
-    `provider configuration neuralwatt=${String(neuralwatt !== undefined,)} synthetic=${String(synthetic !== undefined,)} hyper=${
-      String(hyper !== undefined,)
-    } bedrock=${String(bedrock !== undefined,)} deepseek=${String(deepseek !== undefined,)} xiaomi=${
-      String(xiaomi !== undefined,)
-    } anthropic=${String(anthropic !== undefined,)} openrouter=${String(openrouter !== undefined,)}`,
+    `provider configuration neuralwatt=${String(clients.neuralwatt !== undefined,)} synthetic=${
+      String(synthetic !== undefined,)
+    } hyper=${String(hyper !== undefined,)} bedrock=${String(clients.bedrock !== undefined,)} deepseek=${
+      String(clients.deepseek !== undefined,)
+    } xiaomi=${String(xiaomi !== undefined,)} anthropic=${String(anthropic !== undefined,)} openrouter=${
+      String(clients.openrouter !== undefined,)
+    }`,
   );
 
   return {
@@ -1258,6 +1256,7 @@ export function runClientWithFloors(
     },
     providerMeterStates: budgets.readStates,
     providerHolds: budgets.holds,
+    futileReturns: budgets.futileReturns,
     beginEntry: budgets.beginEntry,
     neuralwattReturn: budgets.neuralwattReturn,
     neuralwattDryness: budgets.neuralwattDryness,
