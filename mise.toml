@@ -1165,6 +1165,7 @@ _.file = [{ path = ".env.local.json", redact = true }]
 # instead, which would make it stable across environments.
 _.path = [
   ".cache/search-shadow-bin",
+  ".cache/mpm-shadow-bin",
   ".cache/toolchain-bin",
   ".cache/cli-git-bin",
   "node_modules/.bin",
@@ -1189,6 +1190,7 @@ _.path = [
   "package/dsh-plugin/neuralwatt/node_modules/.bin",
   "package/electron-infra/app-counter/node_modules/.bin",
   "package/electron-infra/core/node_modules/.bin",
+  "package/env-local-json/core/node_modules/.bin",
   "package/file-enforcer/core/node_modules/.bin",
   "package/file-manager/variant-electron/node_modules/.bin",
   "package/kwin/key-helper/node_modules/.bin",
@@ -1214,6 +1216,7 @@ _.path = [
   "package/pi-shared/model-review/node_modules/.bin",
   "package/pnpm-override/stub-throwing/node_modules/.bin",
   "package/ssg/aquati.cat/node_modules/.bin",
+  "package/test-fixture/file-enforcer-perf/node_modules/.bin",
   "package/translation-repair/document-structure/node_modules/.bin",
   "package/translation-repair/insertion/node_modules/.bin",
   "package/translation-repair/slice-reading/node_modules/.bin",
