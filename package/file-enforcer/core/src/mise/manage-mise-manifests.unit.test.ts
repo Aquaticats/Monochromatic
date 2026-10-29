@@ -31,6 +31,23 @@ async function setup(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'file-enforcer-mise-manifests-',),);
 }
 
+/**
+ Builds a disposable staleness manifest path inside a test's own fixture directory,
+ so writes never contend for the workspace's shared manifest and lock.
+
+ @param tempDir - Fixture directory returned by {@link setup}.
+
+ @returns Manifest path under the fixture directory, removed with it by the test cleanup.
+
+ @example
+ ```ts
+ const manifestPath = stalenessManifestPathFor(tempDir);
+ ```
+ */
+function stalenessManifestPathFor(tempDir: string,): string {
+  return join(tempDir, 'staleness-manifest.json',);
+}
+
 //endregion Temporary fixture helpers
 
 await describe({
@@ -59,6 +76,7 @@ extends = 'lint:types'
 `,);
         await manageMiseManifests({
           manifestGlobs: [join(tempDir, '*', 'mise.toml',),],
+          manifestPath: stalenessManifestPathFor(tempDir,),
         },);
         expect(await readFile(manifestPath, 'utf8',),).toBe(`[tasks."lint:types"]
 extends = 'lint:types'
@@ -87,6 +105,7 @@ extends = "lint"
         await writeFile(manifestPath, canonical,);
         await manageMiseManifests({
           manifestGlobs: [join(tempDir, 'mise.toml',),],
+          manifestPath: stalenessManifestPathFor(tempDir,),
         },);
         expect(await readFile(manifestPath, 'utf8',),).toBe(canonical,);
       },
@@ -112,6 +131,7 @@ extends = "build"
             join(tempDir, 'mise.toml',),
             join(tempDir, '*', 'mise.toml',),
           ],
+          manifestPath: stalenessManifestPathFor(tempDir,),
         },);
         expect(await readFile(manifestPath, 'utf8',),).toBe(`[tasks."build"]
 extends = "build"
@@ -135,12 +155,18 @@ extends = "build"
 A = "1"
 `,);
         const manifestGlobs = [join(tempDir, 'mise.toml',),];
-        await manageMiseManifests({ manifestGlobs, },);
+        await manageMiseManifests({
+          manifestGlobs,
+          manifestPath: stalenessManifestPathFor(tempDir,),
+        },);
         /**
          Text after the first run; the second run must not change it again.
          */
         const firstRun = await readFile(manifestPath, 'utf8',);
-        await manageMiseManifests({ manifestGlobs, },);
+        await manageMiseManifests({
+          manifestGlobs,
+          manifestPath: stalenessManifestPathFor(tempDir,),
+        },);
         expect(await readFile(manifestPath, 'utf8',),).toBe(firstRun,);
         expect(firstRun,).toBe(`[tasks."x".env]
 A = "1"
@@ -158,6 +184,7 @@ A = "1"
         };
         await manageMiseManifests({
           manifestGlobs: [join(tempDir, 'missing', '*', 'mise.toml',),],
+          manifestPath: stalenessManifestPathFor(tempDir,),
         },);
       },
     }),

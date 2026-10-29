@@ -243,10 +243,35 @@ fn landing_refusals_name_the_field() {
             intended_oid: String::from("i"),
         }],
         selected_worktree_paths: Vec::new(),
+        pre_landing_digest: Some(crate::content_digest::digest_bytes(b"pre")),
+        post_digest: None,
     });
     assert_eq!(
         parse_landing(good.as_bytes()).expect("good").added_paths[0].git_mode,
         "100755"
+    );
+    // A digest that is present must be exactly what the writer prints.
+    let digest_text: String = crate::content_digest::digest_bytes(b"pre").hash_text();
+    for damaged in [
+        format!("\"preLandingDigest\":{{\"length\":3,\"fnv1a64\":\"{}\"}}", digest_text.to_uppercase()),
+        format!("\"preLandingDigest\":{{\"length\":-3,\"fnv1a64\":\"{digest_text}\"}}"),
+        format!("\"preLandingDigest\":{{\"length\":3.5,\"fnv1a64\":\"{digest_text}\"}}"),
+        String::from("\"preLandingDigest\":\"abc\""),
+    ] {
+        let original: String = format!("\"preLandingDigest\":{{\"length\":3,\"fnv1a64\":\"{digest_text}\"}}");
+        assert_eq!(
+            refusal(parse_landing(with_field(good.as_str(), original.as_str(), damaged.as_str()).as_bytes())),
+            "Transaction record landing record has a malformed preLandingDigest field.",
+            "{damaged}"
+        );
+    }
+    // A digest without its hash names the nested field.
+    let original: String = format!("\"preLandingDigest\":{{\"length\":3,\"fnv1a64\":\"{digest_text}\"}}");
+    assert_eq!(
+        refusal(parse_landing(
+            with_field(good.as_str(), original.as_str(), "\"preLandingDigest\":{\"length\":3}").as_bytes()
+        )),
+        "Transaction record landing record#preLandingDigest has a malformed fnv1a64 field."
     );
     assert_eq!(
         refusal(parse_landing(

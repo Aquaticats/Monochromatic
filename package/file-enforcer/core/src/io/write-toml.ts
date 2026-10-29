@@ -30,6 +30,8 @@ import {
  
  @param value - JS value to write at the path
  
+ @param manifestPath - Optional staleness manifest path override forwarded to {@link overwrite}
+ 
  @throws Error when dest does not exist
  
  @throws Error from {@link parseTomlEdit} when the existing file is not valid TOML
@@ -48,8 +50,10 @@ export async function overwriteTomlKey(
     dest,
     path,
     value,
+    manifestPath,
   }: {
     readonly dest: string;
+    readonly manifestPath?: string;
     readonly path: Path;
     readonly value: TomlValueInput;
   },
@@ -76,8 +80,14 @@ export async function overwriteTomlKey(
    Updated source text; splice mode keeps unmutated regions byte-identical
    */
   const newContent = tomlStringify({ edit: edited, },);
-  await overwrite({
-    dest,
-    content: newContent,
-  },);
+  await overwrite(manifestPath === undefined
+    ? {
+      dest,
+      content: newContent,
+    }
+    : {
+      dest,
+      content: newContent,
+      manifestPath,
+    },);
 }

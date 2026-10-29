@@ -26,10 +26,14 @@
 use super::capture_records::record_landed_capture_or_warn;
 /// The invocation facts, and the baseline revision the post-index reads.
 use super::capture_invocation::{InvocationCapture, base_revision, resolve_ref_commit, resolve_symbolic_head};
+/// Where the worktree's `HEAD` file and branch files live, for the fresh read under the landing lock.
+use super::ref_files::RefFilesLayout;
 /// Native conclusion cleanup after the index is installed.
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 /// The index copy that keeps the timestamps Git reads.
 use super::commit_index::copy_index_with_timestamps;
+/// The digest of an index snapshot.
+use super::content_digest::{ContentDigest, digest_file};
 /// Debug and warning text to the diagnostic log.
 use super::diagnostic_log::{debug, warn};
 /// Failure of waiting for or creating the real index lock.
@@ -320,6 +324,21 @@ fn artifact_identity(path: &Path) -> Result<FileIdentity, LandingError> {
 }
 
 /// What:
+///  The length and hash of a landing artifact as it is on disk now.
+/// Why:
+///   The index snapshots are not synced (a sync of each costs about 2 ms), so the landing record carries their
+///  digests and recovery refuses to install a snapshot that differs from them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await digestFile(path)
+/// ```
+fn artifact_digest(path: &Path) -> Result<ContentDigest, LandingError> {
+    return digest_file(path)
+        .map_err(|error| { return LandingError::Journal(format!("reading {} to digest it failed: {error}", path.display())); });
+}
+
+/// What:
 ///  Whether a target value names a commit.
 /// Why:
 ///   Only a target that still names a commit can be replayed onto.
@@ -421,7 +440,14 @@ fn land_locked(
 ) -> Result<LandingOutcome, LandingError> {
     reach(Phase::LandingLocked)?;
     let capture: &InvocationCapture = request.capture;
-    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd).map_err(LandingError::Git)?;
+    // A fresh read of the worktree's `HEAD` under the landing lock, never the recorded one.
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: capture.layout.git_dir.as_path(),
+        common_dir: capture.layout.common_dir.as_path(),
+        ref_format: capture.layout.ref_format,
+        object_format: capture.layout.object_format.as_str(),
+    };
+    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd, &ref_files).map_err(LandingError::Git)?;
     if symbolic_head != capture.layout.symbolic_head {
         debug(TAG, "HEAD names another target than at invocation");
         return Ok(LandingOutcome::BranchSwitched { current: symbolic_head });
@@ -625,6 +651,8 @@ fn record_landing(
         pack_name: pack_name.cloned(),
         added_paths: request.added_paths.to_vec(),
         selected_worktree_paths: request.selected_worktree_paths.to_vec(),
+        pre_landing_digest: Some(artifact_digest(pre_landing.as_path())?),
+        post_digest: Some(artifact_digest(post.as_path())?),
     };
     write_journal(
         workspace.directory.as_path(),

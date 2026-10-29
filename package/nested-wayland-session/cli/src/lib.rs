@@ -419,3 +419,7 @@ pub use cli::{parse_args, Config};
 
 /// Exposes supported deterministic nested appearance values.
 pub use appearance_portal::ColorSchemePreference;
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

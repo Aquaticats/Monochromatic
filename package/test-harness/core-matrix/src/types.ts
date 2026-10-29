@@ -143,7 +143,7 @@ export type Combination = {
  - `apt`: Debian, Ubuntu
  - `dnf`: Fedora, RHEL, CentOS
  - `apk`: Alpine
- - `pacman`: Arch
+ - `pacman`: Arch, CachyOS
  */
 export type PackageManager = 'apt' | 'dnf' | 'apk' | 'pacman';
 

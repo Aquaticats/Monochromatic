@@ -151,7 +151,8 @@ Node's official Linux builds require glibc and `libatomic`.
 Before installing Node the runner installs the distro's atomic library
 (`libatomic1` on apt,
 `libatomic` on dnf,
-`gcc-libs` on pacman).
+`gcc-libs` on pacman,
+which covers both Arch and CachyOS).
 Alpine is rejected for the node runtime
 because its musl libc cannot load the glibc Node builds.
 
@@ -227,7 +228,37 @@ The package manager is detected from the distro name:
 - **apk**:
    alpine
 - **pacman**:
-   arch
+   arch,
+   cachyos
+
+### Container images
+
+A distro name becomes the image reference `<distro>:latest`
+(`ubuntu` runs `ubuntu:latest`,
+ `fedora:39` runs `fedora:39`).
+`cachyos` is the one name that maps to a different repository:
+it runs `docker.io/cachyos/cachyos:latest`,
+the unpinned image of the repository's container base distro
+(see `doc/decision/container-base-distro.md`).
+An explicit tag after the name (`cachyos:testing`) is kept on that repository.
+Docker Hub publishes `cachyos/cachyos` for `amd64` only,
+so a CachyOS cell cannot run on another architecture;
+use `alpine` or another distro there.
+
+`cachyos` is the repository's primary matrix target:
+list `'container:cachyos'` first in the `os` array,
+and keep the other distros to test portability.
+
+```ts
+await matrix({
+  os: ['container:cachyos', 'container:ubuntu', 'container:fedora',],
+  user: ['root', 'user',],
+},);
+```
+
+The package picks no default `os`:
+the option is required,
+so each consumer chooses its own list.
 
 ## Supported runtimes
 

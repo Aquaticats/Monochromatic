@@ -94,13 +94,15 @@ const traceConcurrent: ScenarioDefinition = {
   name: 'concurrent-trace-replay',
   group: 'concurrency',
   summary: `replay ${String(CONCURRENT_TRACE_COMMITS,)} trace commits with ${String(TRACE_CONCURRENCY,)} in flight`,
+  // Config hooks need Git 2.54.0.
+  minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
         random,
         paths: ['README.txt',],
       },),
-      hooks: 'hookdir',
+      hooks: 'config',
       hookEvents: ['pre-commit',],
     },);
   },

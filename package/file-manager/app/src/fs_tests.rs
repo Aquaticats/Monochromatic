@@ -23,7 +23,7 @@ fn unique_tempdir(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock after epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("fm-{tag}-{}-{nanos}", std::process::id()));
+    let dir = crate::test_scratch::scratch_root().join(format!("fm-{tag}-{}-{nanos}", std::process::id()));
     fs::create_dir_all(&dir).expect("create temp dir");
     return dir
 }
@@ -63,7 +63,7 @@ fn reads_directory_with_kinds_and_metadata() {
 
 #[test]
 fn missing_directory_is_an_error() {
-    let missing = std::env::temp_dir()
+    let missing = crate::test_scratch::scratch_root()
         .join(format!("fm-missing-{}", std::process::id()))
         .join("does-not-exist");
     assert!(read_directory(&missing, 0).is_err());

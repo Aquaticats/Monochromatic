@@ -81,32 +81,10 @@ async function runHookedSequence(context: ScenarioContext,): ReturnType<Scenario
 }
 
 /**
- Hookdir hooks on sequential commits.
- */
-const hookdirHooks: ScenarioDefinition = {
-  name: 'baseline-hooks-hookdir',
-  group: 'baseline',
-  // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
-  replayPlumbing: 'unused',
-  summary: 'pre-commit, prepare-commit-msg, commit-msg, and post-commit hookdir hooks on two sequential commits',
-  repository(random,) {
-    return repositoryOptions({
-      seedFiles: seedTexts({
-        random,
-        paths: [
-          'a.txt',
-          'b.txt',
-        ],
-      },),
-      hooks: 'hookdir',
-      hookEvents: ALL_HOOK_EVENTS,
-    },);
-  },
-  run: runHookedSequence,
-};
-
-/**
  Config-based hooks on sequential commits.
+ The former `baseline-hooks-hookdir` twin (traditional hooks in the hooks directory) is removed:
+ traditional hooks are unsupported by the wrapper,
+ and this scenario ran the identical workload and assertions.
  */
 const configHooks: ScenarioDefinition = {
   name: 'baseline-hooks-config',
@@ -168,6 +146,7 @@ const sigkillPostCommit: ScenarioDefinition = {
   // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
   replayPlumbing: 'unused',
   summary: 'SIGKILL one commit in post-commit, run git status to recover, commit again',
+  minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
@@ -177,7 +156,7 @@ const sigkillPostCommit: ScenarioDefinition = {
           'b.txt',
         ],
       },),
-      hooks: 'hookdir',
+      hooks: 'config',
       hookEvents: ['post-commit',],
     },);
   },
@@ -357,7 +336,6 @@ const checkerPositiveControl: ScenarioDefinition = {
  and checker baselines in report order.
  */
 export const BASELINE_HOOK_SCENARIOS: readonly ScenarioDefinition[] = [
-  hookdirHooks,
   configHooks,
   sshSigning,
   sigkillPostCommit,

@@ -22,8 +22,8 @@ import {
   runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
-  writeToolEnvFile,
 } from './exposure.ts';
+import { writeToolEnvFile, } from './exposure.env.ts';
 import {
   globalToolchainPaths,
   homeDirFromEnv,
@@ -48,6 +48,8 @@ import {
   installRustToolchain,
   type ProviderContext,
 } from './providers.ts';
+import { pruneStaleOwnCrates, } from './prune.ts';
+import { NOT_INSTALLED, } from './status.observe.ts';
 import {
   observeTool,
   versionMatches,
@@ -204,9 +206,53 @@ const INSTALLERS: Readonly<Record<ToolRoute, (context: ProviderContext,) => Prom
 };
 
 /**
+ The warning for an install that would replace a different installed version.
+
+ Trees whose locks pin different versions of one tool share one install
+ (the `cargo binstall` record under `~/.cargo`), so installing the locked
+ version here changes the tool for every tree that shares it.
+
+ @param id - Plan entry id the warning names
+
+ @param observed - Version the machine reports, or the absent marker
+
+ @param locked - Version this tree's lock pins
+
+ @returns One warning line when a different version is installed, none when the tool is absent or already at the lock
+
+ @example
+ ```ts
+ replacementWarning({ id: 'cargo:monochromatic-lint', observed: '0.4.0', locked: '0.3.0', },);
+ // ['cargo:monochromatic-lint is installed at 0.4.0 but this tree\'s lock pins 0.3.0; ...']
+ ```
+ */
+export function replacementWarning(
+  {
+    id,
+    observed,
+    locked,
+  }: {
+    readonly id: string;
+    readonly observed: string | typeof NOT_INSTALLED;
+    readonly locked: string;
+  },
+): readonly string[] {
+  if ((observed === NOT_INSTALLED) || versionMatches({
+    observed,
+    locked,
+  },))
+    return [];
+  return [
+    `${id} is installed at ${observed} but this tree's lock pins ${locked}; installing ${locked} replaces it `
+    + 'for every tree that shares this install, and a tree whose lock pins the other version replaces it back on its next sync',
+  ];
+}
+
+/**
  Whether one entry already sits at its locked version.
 
  A probe that cannot run (its own staging prerequisite missing) reads as absent, and the install converges it.
+ An installed version that differs from the lock logs a warning, because the install that follows replaces it.
 
  @param entry - Plan entry to probe
 
@@ -231,6 +277,13 @@ async function isAtLockedVersion(
     readonly tools: readonly ToolPlanEntry[];
   },
 ): Promise<boolean> {
+  /**
+   Logger tagged with this probe.
+   */
+  const log = tagged({
+    tag: isAtLockedVersion.name,
+    l,
+  },);
   try {
     /**
      Observed version before installing.
@@ -241,19 +294,18 @@ async function isAtLockedVersion(
       env,
       tools,
     },);
-    return (observed !== null)
+    for (const warning of replacementWarning({
+      id: entry.id,
+      observed,
+      locked: entry.version,
+    },))
+      log.warn(warning,);
+    return (observed !== NOT_INSTALLED)
       && versionMatches({
         observed,
         locked: entry.version,
       },);
   } catch (error) {
-    /**
-     Logger tagged with this probe.
-     */
-    const log = tagged({
-      tag: isAtLockedVersion.name,
-      l,
-    },);
     log.debug(`${entry.id} could not be probed, installing it: ${caughtValueText(error,)}`,);
     return false;
   }
@@ -375,13 +427,19 @@ export async function syncToolchain(
         tools,
       },);
       installed.push(entry.id,);
+      // oxlint-disable-next-line no-await-in-loop -- the prune follows its own install, before the next entry starts
+      await pruneStaleOwnCrates({
+        entry,
+        tools,
+        env: e,
+      },);
     } catch (error) {
       failed[entry.id] = caughtValueText(error,);
     }
   }
 
   // Postinstall steps (the `cli-git-bin` atomic `git` link).
-  runPostinstallLinks({
+  await runPostinstallLinks({
     paths,
     entries,
     env: e,
@@ -389,7 +447,7 @@ export async function syncToolchain(
   },);
 
   // Rebuild the exposure directory and the tool environment exports.
-  rebuildExposure({
+  await rebuildExposure({
     paths,
     entries,
     env: e,
@@ -509,5 +567,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();

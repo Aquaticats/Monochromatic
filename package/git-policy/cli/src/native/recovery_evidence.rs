@@ -23,6 +23,8 @@ use super::recovery_files::{
     LockRelease, lock_pid_path, lock_release_name, read_recovery_file, release_owned_lock,
     remove_file_if_present,
 };
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+use super::recovery_record_failure::{RecordKind, name_record_failure};
 /// The index-lock record parser.
 use super::transaction_journal_parse::parse_index_lock;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -234,7 +236,8 @@ pub fn release_recorded_locks(
             "{INDEX_LOCK_RECORD_PREFIX}{attempt}{RECORD_SUFFIX}"
         ));
         let record: super::transaction_journal::IndexLockRecord =
-            parse_index_lock(read_recovery_file(record_path.as_path())?.as_slice())?;
+            parse_index_lock(read_recovery_file(record_path.as_path())?.as_slice())
+                .map_err(|error| { return name_record_failure(error, record_path.as_path(), RecordKind::IndexLock); })?;
         let released: LockRelease = release_owned_lock(&record.lock, lock_path.as_path())?;
         debug(
             "releaseRecordedLocks",

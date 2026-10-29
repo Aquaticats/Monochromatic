@@ -28,7 +28,7 @@ export type ProviderContext = {
    Plan of the scope being synced (sibling lookups for `pnpm`, `uv`, `go`,
    `bin` and `mpm`); absent means the repository plan.
    */
-  readonly tools?: readonly ToolPlanEntry[] | undefined;
+  readonly tools?: readonly ToolPlanEntry[];
 };
 
 /**
@@ -53,7 +53,7 @@ export function planTool(
     tools,
     id,
   }: {
-    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly tools?: readonly ToolPlanEntry[];
     readonly id: string;
   },
 ): ToolPlanEntry {

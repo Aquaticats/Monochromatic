@@ -134,7 +134,7 @@ export async function buildBinPathsOutput(
    */
   const candidates = managerNativeBinDirs({
     paths,
-    env,
+    env: env ?? process.env,
   },);
   /**
    Whether each candidate directory exists, in the same order as `candidates`.
@@ -228,5 +228,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();

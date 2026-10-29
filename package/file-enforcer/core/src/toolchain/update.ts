@@ -184,7 +184,7 @@ export async function main(): Promise<void> {
   }\n`,);
 }
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();
 
 //endregion CLI

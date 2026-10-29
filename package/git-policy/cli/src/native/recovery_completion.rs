@@ -25,6 +25,10 @@ use super::recovery_files::{
 };
 /// The reflog nonce search.
 use super::recovery_reflog::list_nonce_reflog_oids;
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+use super::recovery_record_failure::{RecordKind, name_record_failure};
+/// The check of the snapshots' bytes.
+use super::recovery_snapshot::{SnapshotRole, verify_snapshot};
 /// Running real Git.
 use super::transaction_git::{GitContext, GitRequest, run_git};
 /// Journal records and artifact names.
@@ -96,7 +100,8 @@ pub fn commit_landed(
     let marker: PathBuf = directory.join(REF_UPDATED_FILENAME);
     let new_oid: &str = landing.new_oid.as_deref().unwrap_or("undefined");
     if recovery_path_exists(marker.as_path())? {
-        let landed: String = parse_ref_updated(read_recovery_file(marker.as_path())?.as_slice())?;
+        let landed: String = parse_ref_updated(read_recovery_file(marker.as_path())?.as_slice())
+            .map_err(|error| { return name_record_failure(error, marker.as_path(), RecordKind::RefUpdated); })?;
         if landing.new_oid.as_deref() != Some(landed.as_str()) {
             return Err(RecoveryError(format!(
                 "Landed marker names another commit than the landing record: {}",
@@ -219,6 +224,16 @@ pub fn complete_index(
         release_owned_lock(&landing.lock, lock_path.as_path())?;
         return Ok(IndexCompletion::AlreadyInstalled);
     }
+    // Only the install path trusts the snapshots' bytes: a landing whose install already happened needs neither.
+    verify_snapshot(
+        directory,
+        preparing,
+        landing,
+        pre_landing.as_path(),
+        SnapshotRole::PreLanding,
+        landing.pre_landing_digest,
+    )?;
+    verify_snapshot(directory, preparing, landing, post.as_path(), SnapshotRole::Post, landing.post_digest)?;
     if !files_equal(pre_landing.as_path(), real_index)? {
         return Err(RecoveryError(format!(
             "Real index no longer matches the pre-landing snapshot; recovery retained at {}",

@@ -25,7 +25,7 @@ use super::commit_recovery::{
     recovery_directories,
 };
 /// The engine failure event.
-use super::diagnostics::{EngineFailureCode, render_engine_failure};
+use super::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 /// Running real Git.
 use super::transaction_git::GitContext;
 /// Registry names.
@@ -82,10 +82,14 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity) ->
             return Gate::Stop(legacy_notice(directory.as_path()));
         }
         Err(RecoveryStop::Failure(error)) => {
-            return Gate::Stop(render_engine_failure(
+            // The code stays `content-unavailable` (transaction state is content that could not be read), but the
+            // generic hint for that code tells the person to fetch history, which does not apply: the message
+            // itself names the file or directory and the ways out.
+            return Gate::Stop(render_engine_failure_with_hint(
                 0,
                 EngineFailureCode::ContentUnavailable,
                 error.0.as_str(),
+                None,
             ));
         }
     }

@@ -100,7 +100,7 @@ function throwawayDir(directory: string,): AsyncDisposable {
  */
 async function manageLsp4ijServerSettingsError(): Promise<unknown> {
   try {
-    await manageLsp4ijServerSettings(SETTINGS,);
+    await manageLsp4ijServerSettings({ settings: SETTINGS, },);
   }
   catch (error: unknown) {
     return error;

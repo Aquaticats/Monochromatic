@@ -3311,3 +3311,26 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   one more `/tmp` use for issue 1810. Next: verify the final tree (clippy, host, binary in
   `~/temp/agent/final-verify.txt`), run the container gate once, merge to main, release (read the crate version first),
   remove worktrees and branches, run mutation wave 2.
+
+## Update at 2026-10-29 (0.3.0 released; decisions)
+
+- Release 0.3.0 (`651df035b5`) is on crates.io (published 2026-10-29T12:56:31Z). Contents: traditional Git hooks
+  unsupported (config hooks only, a non-blocking warning for a configured `core.hooksPath`, `git cli-git doctor`),
+  process-start retry, fewer Git starts and syncs per commit, recovery snapshot digests and file-naming messages, staged
+  additions in explicit-path commits, fixtures off `/tmp`. Verified before the bump on the merged tree: clippy clean; host
+  2166 of 2167 and binary 201 of 202 (only the two known linter failures); container gate 2370 passed, 5 skipped.
+- User decisions (AskUserQuestion): the two deleted hookdir e2e scenarios (`baseline-hooks-hookdir`,
+  `hooks-hookdir-concurrent`) stay deleted; the Git version cache stays in the user cache directory.
+- e2e agent (a1360b7e02c5cec27) merged into main: every hook in the e2e suite is a config hook; capped native run 34 passed,
+  2 skipped (Git 2.39.5 only). Not measured: a baseline of the old suite, and the `minimumGit: '2.54.0'` fields. Two
+  images remain: `localhost/cli-git-concurrent-e2e:cfghooks` and `localhost/cli-git-concurrent-e2e-native:cfghooks`.
+  `mise run //package/git-policy/cli:lint:oxlint` shows 30 errors and 53 warnings in files the agent did not touch
+  (`bin/native-perf.mjs`, four `e2e/*-fixture.ts`). Not mine to fix without a decision.
+- Still running or pending: the scratch-location agent (ab12997169a0f5b11, moves the three production `temp_dir()` uses and
+  the crate's test references; then tell monochromatic-80 clippy is clean so it lands the root `clippy.toml` ban); mutation
+  wave 1 units `cli-git-mutpar-w1-*` (read `~/temp/agent/mutpar-w1-*.log.*`); wave 2 over `commit_index`, `landing_attempt`,
+  `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`, `doctor`, `traditional_hook_warning`,
+  `recovery_snapshot`, `recovery_contradiction`, `content_digest`, `rule_require_root` and the 1804 files; issue 1810 (the
+  rest of the `/tmp` audit); cleanup of worktrees, branches (`integrate-slices`, `worktree-agent-*`) and the two e2e images.
+- Rejected requests: a peer asked this session to release monochromatic-lint 0.4.0; it is not this session's work.
+- The GitHub release monochromatic-git-policy-cli-v0.3.0 exists (published 2026-10-29T12:59:01Z, not a draft).

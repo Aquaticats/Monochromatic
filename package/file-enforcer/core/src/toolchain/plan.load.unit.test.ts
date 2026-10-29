@@ -16,7 +16,9 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { loadPlanFromDir, } from './plan.load.ts';
+import {
+  loadPlanFromDir,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 

@@ -1098,7 +1098,9 @@ Remaining:
       absence and sync-API cascade (`paths.ts` including `isMainModule`, `layout.ts` `findToolBin`, `exec.ts`,
       `exposure.ts`, `providers.context.ts`, `providers.environment.ts`, `status.ts`, and their callers);
       it edits tests only for forced call-site changes.
-     Queued after that agent reports: the toolchain tests' `require-eventual-artifact` imports (35 findings in 10 test
+     Queued after that agent reports: message `monochromatic-71` the commit to build on (it waits to add an owner-approved
+      `toolchain:sync` warning in `sync.ts` `isAtLockedVersion` when an installed version differs from the lock);
+      then the toolchain tests' `require-eventual-artifact` imports (35 findings in 10 test
       files) through `src/index.ts`, then a full toolchain test pass and a final lint count.
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps

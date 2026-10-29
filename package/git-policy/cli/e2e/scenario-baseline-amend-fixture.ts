@@ -101,6 +101,8 @@ const lintStaged: ScenarioDefinition = {
   // Sequential: no commit can lose a landing race, so this also runs on Git without replay plumbing.
   replayPlumbing: 'unused',
   summary: 'lint-staged backup stash and hide-unstaged hook on one partially staged index commit (linked worktree)',
+  // Config hooks need Git 2.54.0.
+  minimumGit: '2.54.0',
   repository(random,) {
     return repositoryOptions({
       seedFiles: seedTexts({
@@ -108,7 +110,7 @@ const lintStaged: ScenarioDefinition = {
         paths: ['partial.txt',],
       },),
       worktree: 'linked',
-      hooks: 'hookdir',
+      hooks: 'config',
       hookEvents: ['pre-commit',],
       hookMode: 'lint-staged',
     },);

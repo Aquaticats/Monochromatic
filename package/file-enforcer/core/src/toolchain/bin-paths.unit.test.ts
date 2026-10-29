@@ -15,13 +15,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { buildBinPathsOutput, } from './bin-paths.ts';
 import {
-  resolveToolchainPaths,
+  buildBinPathsOutput,
   type PathEnv,
+  resolveToolchainPaths,
   type ToolchainPaths,
-} from './paths.ts';
-import { TOOLS, } from './plan.ts';
+  TOOLS,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Disposable worktree fixture with an isolated home.

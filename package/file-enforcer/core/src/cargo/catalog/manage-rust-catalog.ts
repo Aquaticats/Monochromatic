@@ -91,6 +91,8 @@ async function readManifests(manifestGlobs: readonly string[],): Promise<readonl
 
  @param manifestGlobs - bounded-depth manifest discovery globs, relative to the working directory
 
+ @param manifestPath - optional staleness manifest path override forwarded to every write
+
  @throws RustCatalogError when the catalog is invalid
 
  @throws RustCatalogSyncError when a manifest needs a human decision; nothing is written
@@ -104,9 +106,11 @@ export async function manageRustCatalog(
   {
     rootDir,
     manifestGlobs,
+    manifestPath,
   }: {
     readonly rootDir: string;
-    readonly manifestGlobs: readonly string[]
+    readonly manifestGlobs: readonly string[];
+    readonly manifestPath?: string;
   },
 ): Promise<void> {
   /**
@@ -159,9 +163,16 @@ export async function manageRustCatalog(
     log.info(`affected crates (generated [workspace.dependencies] changed): ${result.affectedCrates
       .join(', ',)}`,);
 
+  /**
+   Manifest override spread into each write; empty so production callers keep the default manifest.
+   */
+  const manifestPathOption = manifestPath === undefined
+    ? {}
+    : { manifestPath, };
   await overwrite({
     dest: catalogPath,
     content: result.catalog,
+    ...manifestPathOption,
   },);
   await Promise.all([...result.manifests
     .keys(),].map(async function write(path: string,): Promise<void> {
@@ -170,6 +181,7 @@ export async function manageRustCatalog(
         content: result.manifests
           .get(path,)
           ?? '',
+        ...manifestPathOption,
       },);
     },),);
 }

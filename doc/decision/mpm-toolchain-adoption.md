@@ -279,6 +279,49 @@ The maintainer extended this decision to the machine-global toolchain
 - Old Mise installs stay as the rollback,
  pruned in a later decision.
 
+## Pruning the repository's own crates (2026-10-29)
+
+The maintainer decided that for anything provisioned that originates from the repository itself,
+ meaning a package this repository owns,
+ stale versions are deleted immediately after a new version is provisioned.
+This settles the "pruning is a later decision" note for those packages only;
+ third-party tools and the old Mise installs stay parked as the rollback.
+
+- Scope:
+ plan entries on the `cargo-binstall` route whose crate name starts with `monochromatic-`
+ (`monochromatic-lint`, `monochromatic-git-policy-cli`, `monochromatic-search-shadow`,
+ `monochromatic-nested-wayland-session`).
+ Both the repository and the machine-global scope apply it,
+ because they share one cargo home.
+- What is deleted:
+ `cargo binstall` replaces the installed binary in place,
+ so the stale copies are the earlier `.crate` archives in `registry/cache/<index>/`
+ and the extracted trees in `registry/src/<index>/` under the cargo home
+ (the shipped `cargo` manager's plain `cargo install`, which `mpm.packages.toml` routes these crates to,
+ and local builds fill both).
+ The same pass covers every `monochromatic-*` crate found in the registry,
+ not only the plan crates:
+ a plan crate keeps its locked version,
+ any other own crate (a library dependency such as `monochromatic-jsonc-edit`) keeps its newest cached version.
+ A crate with a longer name that shares the prefix is a different crate and is judged on its own versions.
+- Why the sync owns it:
+ mpm 8.2.0 has no cleanup for `cargo` (its `cleanup` exists for `pnpm` and `uv` only)
+ and removes no previous version on install or upgrade,
+ so a plain `mpm restore` or `mpm upgrade` leaves these copies behind.
+ The repo's manager definitions in `mpm.managers.toml` declare only fixed `install` and `remove` argument lists.
+- When:
+ in `toolchain:sync`,
+ right after `installEntry` succeeds for that crate.
+ A failed install deletes nothing,
+ and a crate already at its locked version is not touched,
+ so copies left by earlier builds go at the crate's next version change.
+- Where:
+ `package/file-enforcer/core/src/toolchain/prune.ts`.
+- Not covered,
+ and open for the maintainer:
+ stale versions of third-party tools under `<toolchainRoot>/<id>/<version>`
+ and their `downloads/` archives.
+
 ## Exit and rollback
 
 - Every step lands as its own commit series,

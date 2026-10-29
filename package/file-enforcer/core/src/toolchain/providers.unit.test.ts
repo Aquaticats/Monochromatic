@@ -28,22 +28,22 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  ALL_TOOLS,
+  BIN_BOOTSTRAP,
+  hostPlatformId,
   installArchive,
   installBinSourced,
   installCargoBinstall,
   installCargoGit,
   installGoInstall,
   installMpmPnpm,
+  observeTool,
+  resolveToolchainPaths,
   seedBinConfig,
-} from './providers.ts';
-import { hostPlatformId, } from './layout.ts';
-import {
-  BIN_BOOTSTRAP,
-  ALL_TOOLS,
-} from './plan.ts';
-import { resolveToolchainPaths, toolInstallDir, type ToolchainPaths, } from './paths.ts';
-import { observeTool, } from './status.ts';
-import type { ToolPlanEntry, } from './types.ts';
+  type ToolchainPaths,
+  toolInstallDir,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 

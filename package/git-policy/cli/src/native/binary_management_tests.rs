@@ -415,3 +415,30 @@ fn namespace_word_elsewhere_is_an_ordinary_argument() {
     assert_eq!(staged.stdout, b"cli-git\n".to_vec());
     remove(&fixture);
 }
+
+/// `git cli-git doctor` lists the traditional hooks of the default and the configured hooks directory, one path per
+///  line, and exits 1 when it finds any and 0 when it finds none; samples are ignored.
+#[test]
+fn doctor_lists_traditional_hooks_and_exits_by_what_it_finds() {
+    let fixture: Fixture = fixture("management-doctor");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    super::support::executable(repo.join(".git/hooks/pre-commit.sample").as_path(), b"#!/bin/sh\n");
+    let clean: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    assert_eq!(clean.code, Some(0), "{}", stderr_text(&clean));
+    assert_eq!(stdout_text(&clean), "");
+    assert_eq!(stderr_text(&clean), "");
+    super::support::executable(repo.join(".git/hooks/commit-msg").as_path(), b"#!/bin/sh\n");
+    std::fs::create_dir(repo.join("custom")).expect("custom hooks");
+    super::support::executable(repo.join("custom/pre-commit").as_path(), b"#!/bin/sh\n");
+    super::support::git(&fixture, repo.as_path(), &["config", "core.hooksPath", "custom"]);
+    let found: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor"]);
+    assert_eq!(found.code, Some(1), "{}", stderr_text(&found));
+    assert_eq!(
+        stdout_text(&found),
+        format!("{}\n{}\n", repo.join(".git/hooks/commit-msg").display(), repo.join("custom/pre-commit").display())
+    );
+    assert!(stderr_text(&found).contains("unsupported"), "{}", stderr_text(&found));
+    let refused: Observed = run(&fixture, repo.as_path(), &["cli-git", "doctor", "--all"]);
+    assert_eq!(refused.code, Some(2), "{}", stderr_text(&refused));
+    remove(&fixture);
+}

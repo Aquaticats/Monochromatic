@@ -131,7 +131,7 @@ fn private_bus_never_reads_service_files() -> anyhow::Result<()> {
     if std::env::var_os(PLANTED_ROLE_VARIABLE).is_some() {
         return run_planted_role();
     }
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::test_scratch::scratch_root().join(format!(
         "monochromatic-nested-planted-services-{}",
         std::process::id(),
     ));

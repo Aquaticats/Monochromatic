@@ -25,9 +25,11 @@ struct Scratch {
 }
 
 impl Scratch {
-    /// Create an empty directory named after the test.
+    /// Create an empty directory named after the test, in the per-user runtime directory:
+    ///  a Unix socket path holds at most `SOCKET_PATH_LIMIT` bytes, which the build directory's path already exceeds.
     fn new(name: &str) -> Scratch {
-        let directory = std::env::temp_dir().join(format!("nws-socket-{}-{name}", std::process::id()));
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").expect("XDG_RUNTIME_DIR holds the short socket directory");
+        let directory = PathBuf::from(runtime).join(format!("nws-socket-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).expect("creating the scratch directory");
         return Scratch { directory }

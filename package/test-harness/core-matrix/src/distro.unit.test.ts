@@ -90,6 +90,20 @@ await describe({
         },),
 
         it({
+          name: 'cachyos resolves to pacman',
+          fn: async () => {
+            expect(detectPackageManager('cachyos',),).toBe('pacman',);
+          },
+        },),
+
+        it({
+          name: 'cachyos with a tag resolves to pacman',
+          fn: async () => {
+            expect(detectPackageManager('cachyos:latest',),).toBe('pacman',);
+          },
+        },),
+
+        it({
           name: 'strips tag suffix before lookup',
           fn: async () => {
             expect(detectPackageManager('fedora:39',),).toBe('dnf',);

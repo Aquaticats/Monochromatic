@@ -101,7 +101,7 @@ fn create_process(
 ///  and Firefox Nightly executable groups.
 #[test]
 fn scan_combines_named_and_process_targets() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!(
+    let scratch = crate::test_scratch::scratch_root().join(format!(
         "wg-quicker-application-targets-{}",
         std::process::id()
     ));
@@ -252,7 +252,7 @@ fn scan_combines_named_and_process_targets() -> io::Result<()> {
 /// Discovers ChatGPT package-tree executables and the Interpreter executable family.
 #[test]
 fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!(
+    let scratch = crate::test_scratch::scratch_root().join(format!(
         "wg-quicker-application-targets-agents-{}",
         std::process::id()
     ));
@@ -388,7 +388,7 @@ fn scan_discovers_chatgpt_and_interpreter_cgroups() -> io::Result<()> {
 ///  and the agents its CLI wrappers exec.
 #[test]
 fn scan_discovers_qure_cgroups() -> io::Result<()> {
-    let scratch = std::env::temp_dir().join(format!(
+    let scratch = crate::test_scratch::scratch_root().join(format!(
         "wg-quicker-application-targets-qure-{}",
         std::process::id()
     ));

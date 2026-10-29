@@ -41,6 +41,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// One `git config --list` read, parsed, and the lookups the commit path makes against it.
+pub mod config_snapshot;
+
 /// Key-naming typed readers over parsed JSONC values.
 mod config_values;
 
@@ -91,6 +94,12 @@ pub mod real_git_candidate;
 ///  never part of the release executable.
 #[cfg(test)]
 mod test_support;
+
+/// A Git stand-in that logs each start and runs the real Git;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod recording_git;
 
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
@@ -573,6 +582,9 @@ pub mod transaction_owner;
 /// The per-worktree registry of commit-transaction directories.
 pub mod transaction_registry;
 
+/// The length and hash of an index snapshot that a landing record keeps.
+pub mod content_digest;
+
 /// The schema-version-2 journal records of one commit transaction and their filenames.
 pub mod transaction_journal;
 
@@ -587,6 +599,10 @@ pub mod iso_time;
 
 /// The filesystem identity recorded with every real `index.lock` a transaction creates.
 pub mod filesystem_identity;
+
+/// The Linux filesystem UUID of a path read from the mount table and the udev database instead of `findmnt`.
+#[cfg(target_os = "linux")]
+pub mod filesystem_identity_mount;
 
 /// Running real Git for transaction,
 ///  recovery and landing work.
@@ -604,6 +620,12 @@ pub mod hook_dispatch_entries;
 /// The hook dispatcher entered by a transaction's hook entry name, under the hook lock.
 pub mod hook_dispatch;
 
+/// The non-blocking warning for a configured `core.hooksPath`, decided from the configuration snapshot alone.
+pub mod traditional_hook_warning;
+
+/// `git cli-git doctor`: the traditional hooks a repository holds, which are unsupported.
+pub mod doctor;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 
@@ -618,6 +640,18 @@ pub mod recovery_reflog;
 /// Deciding whether a landing landed,
 ///  and installing its recorded post-index.
 pub mod recovery_completion;
+
+/// The check that an index snapshot still holds the bytes the landing wrote.
+pub mod recovery_snapshot;
+
+/// The steps that finish a retained transaction by hand.
+pub mod recovery_manual_steps;
+
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+pub mod recovery_record_failure;
+
+/// The refusal to discard a transaction whose branch moved but whose records say otherwise.
+pub mod recovery_contradiction;
 
 /// The `.keep` files protecting a landing's migrated pack.
 pub mod pack_keep;
@@ -700,6 +734,15 @@ pub mod replay_revalidation;
 
 /// Replay: one replay of a prepared commit onto a moved target, the integrator's replay result (`replay_commit`).
 pub mod replay_commit;
+/// The empty tree's object name under each known object format.
+pub mod empty_tree;
+
+/// Files-backend ref reads that answer without a Git process or decline.
+pub mod ref_files;
+
+/// Proof, without a Git process, that a sequencer marker names nothing on the files ref storage.
+pub mod sequencer_marker;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;
@@ -769,6 +812,9 @@ pub mod process_start;
 
 /// The Git version check run once before work that depends on Git's behavior.
 pub mod git_version;
+
+/// The private per-user cache of the version text, keyed by the Git executable's identity.
+pub mod git_version_cache;
 
 /// Processes holding a lock file open,
 ///  found by device and inode.

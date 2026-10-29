@@ -374,6 +374,13 @@ Open:
   `native-binary-*` directories of about 95 MB and `monochromatic-lint-stub-cargo-*` of 5 MB left by test runs of other
   sessions), which made `git commit` fail with `Disk quota exceeded` while writing its signing buffer. Setting
   `TMPDIR=${HOME}/temp/agent/gittmp` for the commit avoids it; the leaking tests are not fixed.
+- Queued, decided by the owner on 2026-10-29: `toolchain:sync` warns when it is about to replace an installed tool with a
+  different version. Background: trees share one `~/.cargo/bin`, `isAtLockedVersion` in `sync.ts` observes the shared
+  `cargo binstall --list` record and needs an exact match with the lock, so trees pinning different versions of one cargo tool
+  (lint 0.3.0 and 0.4.0 that day) overwrite each other on every sync. The warning goes through the tagged logger and names the
+  entry id, the observed version and the locked version; one test accompanies it. It waits for the session that owns
+  `package/file-enforcer/core/src/toolchain/` to commit its cascade (`observed` may become a symbol sentinel instead of `null`),
+  and that session migrates test imports afterwards. The owner declined per-tree cargo installs for now.
 - A Claude Code PreToolUse hook for the commands a `PATH` shadow cannot see (not built).
 - `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...`; whether that matches after
   the move to `Aquaticats` is untested.

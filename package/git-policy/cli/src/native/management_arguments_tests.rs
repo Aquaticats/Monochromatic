@@ -276,3 +276,14 @@ fn native_bytes_are_kept_for_pathspecs_and_refused_for_policy_ids() {
         );
     }
 }
+
+/// `doctor` takes no arguments, and the usage and help name it.
+#[test]
+fn doctor_takes_no_arguments_and_is_documented() {
+    assert_eq!(parse(&["doctor"]), Ok(ManagementAction::Doctor));
+    for arguments in [vec!["doctor", "--all"], vec!["doctor", "--help"], vec!["doctor", "--", "a.txt"], vec!["doctor", "x"]] {
+        assert_eq!(parse(arguments.as_slice()), Err(ManagementRefusal::Usage), "{arguments:?}");
+    }
+    assert!(MANAGEMENT_USAGE.contains("git cli-git doctor"), "{MANAGEMENT_USAGE}");
+    assert!(MANAGEMENT_HELP.contains("doctor"), "{MANAGEMENT_HELP}");
+}

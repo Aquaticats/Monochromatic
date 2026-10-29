@@ -194,7 +194,10 @@ The advisor must remain configured and operational.
 Use disposable configuration fixtures;
 do not test policy mutations against shared real state.
 Host verification must use human-supervised interactive sessions,
-following the [existing Claude Code boundary](../decision/general-purpose-subagent-ban.md).
+following the [Claude Code boundary](../decision/general-purpose-subagent-ban.md)
+as it stood on 2026-06-12.
+That supervision requirement was lifted on 2026-10-29,
+so keep this requirement only if host verification needs it on its own merits.
 
 Research continues without Codex subagents.
 The user reiterated that Codex delegation is disabled;

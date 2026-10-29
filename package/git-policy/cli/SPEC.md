@@ -233,6 +233,7 @@ git [<git-global-options>] cli-git check [--policy <id>]... --all
 git [<git-global-options>] cli-git check [--policy <id>]... -- <pathspec>...
 git [<git-global-options>] cli-git fix [--policy <id>]... --all
 git [<git-global-options>] cli-git fix [--policy <id>]... -- <pathspec>...
+git [<git-global-options>] cli-git doctor
 ```
 
 The retired forms `trust [--yes]`,
@@ -258,12 +259,38 @@ Rules:
 - Tokens after `--` are passed to real Git pathspec expansion without wrapper reinterpretation.
 - Unknown management flags and extra positionals are usage errors with exit `2`.
 - A usage error never loads repository config.
+- `doctor` takes no options, scope or policy; any extra token is a usage error with exit `2`.
 - `check` and `fix` load config after grammar and scope validation.
 - `fix` changes selected worktree files and verifies every real index blob is unchanged.
 
 Direct `check` and `fix` emit policy events on stdout.
 A configuration failure of `check` or `fix` emits one schema-version-one `engine-failure` event with code
 `config-invalid` on stdout and exits `2`.
+
+### Doctor
+
+`git cli-git doctor` lists the traditional hooks a repository holds.
+Traditional hooks are unsupported (see "Hook dispatcher shim"),
+and this command is where they are found:
+the commit path only warns when `core.hooksPath` is configured and never scans a directory.
+
+- It asks real Git, with the caller's global options, for the common Git directory
+  (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
+  (`git config --type=path --get core.hooksPath`).
+- It scans `<git-common-dir>/hooks` and, when `core.hooksPath` is set, the directory it names.
+  A relative value resolves against the worktree root, or against the Git directory of a repository without a worktree.
+  A directory that two spellings name is scanned once.
+- A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
+  (a dangling link included), except names ending in `.sample`.
+  Plain files without an execute bit, directories and samples are not hooks.
+- It prints one hook path per line on stdout,
+  the default directory first and each directory in name order,
+  and nothing else on stdout.
+  When it finds any it also explains on stderr that traditional hooks are unsupported.
+- Exit status: `0` when no hook is found, `1` when any is found,
+  and `2` when Git cannot locate a repository or a scanned directory cannot be read.
+  A directory that does not exist holds no hooks.
+- It does not load configuration, recover transactions or take a lock, and it changes nothing.
 
 ## Lifecycle
 
@@ -796,7 +823,8 @@ export type EventBase = {
 ```
 
 `sequence` starts at `0` for each batch of events and increments by one in emission order.
-A commit invocation can emit two batches (the pre-commit run and the post-commit run), each starting at `0`.
+A commit invocation can emit up to three batches (the traditional-hooks warning, the pre-commit run and the
+post-commit run), each starting at `0`.
 
 ### Finding event
 
@@ -847,12 +875,13 @@ not the corrected finding.
 ```ts
 export type ConfigurationWarningEvent = EventBase & {
   readonly type: 'configuration-warning';
-  readonly code: 'warn-unsafe' | 'legacy-config-ignored';
+  readonly code: 'warn-unsafe' | 'legacy-config-ignored' | 'traditional-hooks-unsupported';
   readonly message: string;
   // `warn-unsafe` carries the trigger and policy it came from:
   readonly trigger?: PolicyTrigger;
   readonly policyId?: string;
   // `legacy-config-ignored` carries the legacy file instead and has no trigger or policy:
+  // `traditional-hooks-unsupported` carries the configured `core.hooksPath` value in `path`:
   readonly path?: string;
 };
 ```
@@ -860,6 +889,19 @@ export type ConfigurationWarningEvent = EventBase & {
 An explicitly configured warn-unsafe policy emits this non-blocking event even when its check returns no finding.
 Configuration warnings share the same JSONL stream and invocation-local sequence as findings and engine failures;
 they never write ad hoc prose to the machine stream.
+
+A `git commit` in a repository whose configuration sets `core.hooksPath` emits one `traditional-hooks-unsupported`
+configuration warning on standard error, before anything else the command prints.
+It names the configured value in `path`,
+says that traditional hooks are unsupported and that their behavior is undefined,
+and says to run `git cli-git doctor`.
+The warning never blocks the commit and is not a core finding.
+The trigger is the configuration snapshot the commit reads once for its other needs:
+the commit starts no process and makes no file system call for this warning,
+so a repository without the setting pays nothing,
+and the hooks directory is not scanned on the commit path.
+The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
+which reach commands that config hooks start, never trigger it.
 
 ### Core finding event
 
@@ -1308,6 +1350,11 @@ the real `index.lock` device and inode,
 the migrated pack name
 (see "Object migration"),
 and the added-path and selected-worktree records.
+It ends with `preLandingDigest` and `postDigest`,
+each `{ "length": <bytes>, "fnv1a64": "<16 lowercase hexadecimal digits>" }`
+over the snapshot as the landing wrote it
+(FNV-1a with the 64-bit offset basis `cbf29ce484222325` and prime `100000001b3`).
+A record without them (written before they existed) is read as having none.
 
 The legacy single-journal `<git-dir>/cli-git-transaction` directory is not recovered:
 a command that meets one stops with exit `2` and asks for any Git command through the previous cli-git executable,
@@ -1476,7 +1523,6 @@ The shadow `config` has this layout:
 ; <git-common-dir>/cli-git/shadow/<transaction-id>/config
 [core]
   repositoryformatversion = <copied value>
-  hooksPath = <git-common-dir>/hooks
 [extensions]
   ; every extensions.* key of the real repository, copied with its value;
   ; the section is omitted when the repository has none
@@ -1492,8 +1538,9 @@ The shadow `config` has this layout:
 
 - `core.repositoryformatversion` and every `extensions.*` key are copied explicitly,
   because Git does not apply them from an included file.
-- `core.hooksPath` precedes the include,
-  so a real `core.hooksPath` from the included config still overrides it.
+- The shadow names no hooks directory:
+  traditional hooks are unsupported,
+  and every command the wrapper starts against the shadow passes its own `core.hooksPath`.
 - `core.worktree` follows the include,
   so the real config cannot redirect the shadow's worktree.
 - `gc.auto` and `maintenance.auto` follow the include,
@@ -1581,10 +1628,13 @@ executable scripts in `.git/hooks` or in a `core.hooksPath` directory,
 are not supported.
 Any use of them with the wrapper is undefined behavior:
 nothing here promises their order, environment, locking or exit-status handling,
-and no requirement or test is written for them.
+and no user-facing requirement is written for them.
 Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-The shim below may still pass a traditional hook through as a side effect of `git hook run`;
-that is not a guarantee.
+The Git processes the wrapper starts on the commit path name a hooks directory that holds no hook
+(`<tx>/no-hooks`, below), so none of them starts a traditional hook;
+controls pin that because the dispatcher must never start its own entries again,
+and it is an implementation property, not a promise to users.
+`git cli-git doctor` lists the traditional hooks a repository holds.
 
 Hooks run through a dispatcher shim passed with `-c core.hooksPath=<tx>/hooks`
 plus `-c hook.<event>.enabled=false` for each event.
@@ -1605,16 +1655,14 @@ so both are required.
   on Windows, which has not been run, hard links or copies named `<event>.exe`).
   `post-commit` is intentionally absent,
   so it never runs during preparation.
-- The plan records the repository's own `core.hooksPath`
-  (absent means `<git-common-dir>/hooks`;
-  a relative value resolves against the worktree root),
-  the events the user disabled through `hook.<event>.enabled`,
+- The plan records the events the user disabled through `hook.<event>.enabled`,
   the config parameters native Git would hand its hooks or their absence,
   the real Git path,
   the absolute worktree root,
   the preparation lease,
   the hook lock path,
   and whether the hook lock is skipped.
+  It records no hooks path.
   The config parameters are the caller's inherited `GIT_CONFIG_PARAMETERS` followed by the caller's global `-c` options,
   each quoted in Git's `sq_quote` form
   (`'` and `!` close and reopen the quote);
@@ -1628,9 +1676,19 @@ so both are required.
   takes the hook lock
   (see "Hook lock"),
   runs
-  `git -c hook.<event>.enabled=true -c core.hooksPath=<original> hook run --ignore-missing <event> -- <args>`,
+  `git -c hook.<event>.enabled=true -c core.hooksPath=<tx>/no-hooks hook run --ignore-missing <event> -- <args>`,
   releases the hook lock,
   and propagates the exit status.
+- `<tx>/no-hooks` is a path inside the transaction that is never created.
+  Git finds no hook in a missing hooks directory,
+  so the inner run starts only the hooks the configuration defines by name,
+  never a traditional hook and never the transaction's own entries again.
+  The `post-commit` run in the real worktree passes the same `-c core.hooksPath=<tx>/no-hooks`.
+- A configuration that defines no hook by name (`hook.<name>.event` or `hook.<name>.command`)
+  gets no entry and no `post-commit` run:
+  the entries and the run would find nothing to start.
+  The answer comes from the configuration snapshot, so it costs no file system call.
+  A `pre-commit` re-run after a replay follows the same answer.
 - The program exports `CLI_GIT_PREPARATION_LEASE`.
   A nested wrapper invocation that inherits a valid lease skips startup transaction recovery and hook-lock acquisition,
   and an index writer whose `GIT_INDEX_FILE` names the transaction's private index
@@ -2418,7 +2476,8 @@ After both locks are released:
     since Git 2.54 the default `geometric` maintenance strategy merges packs whose sizes break a geometric progression,
     and under the `gc` strategy or an older Git,
     `gc --auto` repacks once the count exceeds `gc.autoPackLimit`.
-3.  Run `post-commit` once through `git hook run post-commit` in the real worktree,
+3.  Run `post-commit` once through `git -c core.hooksPath=<tx>/no-hooks hook run post-commit` in the real worktree,
+    when the configuration defines a hook by name,
     under the hook lock unless `hooks.concurrentCommits` is `true`,
     with native-equivalent `GIT_INDEX_FILE`,
     `GIT_AUTHOR_NAME`,
@@ -2691,7 +2750,15 @@ Management help returns before recovery.
 Recovery validates the expected old OID,
 the landed OID,
 the pre-landing and intended index snapshots,
-and the recorded artifact and lock identities without hashes.
+and the recorded artifact and lock identities.
+Neither index snapshot is synced when it is written,
+so before installing a post-index, and before comparing the real index with the pre-landing snapshot,
+recovery recomputes the length and hash of each snapshot and compares them with the landing record's digests.
+A snapshot that differs is never installed: recovery fails closed,
+names the snapshot, the landing record and the transaction directory,
+and leaves the branch, the real index and the owned `index.lock` as they were.
+A landing whose install already happened (the `index-installed` marker, or a real index equal to the post-index)
+needs neither snapshot and skips the comparison.
 Before the exact `ref-updated.json` marker exists,
 a landing counts as landed only when the target ref's reflog contains the transaction's nonce entry
 with the recorded new OID;
@@ -2774,7 +2841,7 @@ each run through private preparation:
 
 Private preparation:
 
-- hookdir and config-based hooks each run once;
+- config-based hooks each run once, and a traditional hook in `.git/hooks` or a `core.hooksPath` directory does not run;
 - a hook that changes into a subdirectory sees the correct top level and an absolute `GIT_WORK_TREE`;
 - `post-commit` does not run during preparation;
 - shared `HEAD`,
@@ -2788,8 +2855,8 @@ Private preparation:
   and a hook that rejects commits to `main` rejects one;
 - a real `git prune --expire=now` and `gc --prune=now` during preparation keep the prepared commit,
   and `git prune --expire=now` inside the shadow keeps objects reachable only from real refs;
-- a real `core.hooksPath`,
-  `extensions.worktreeConfig` with `config.worktree`,
+- a real `core.hooksPath` runs no traditional hook and prints the `traditional-hooks-unsupported` warning,
+  and `extensions.worktreeConfig` with `config.worktree`,
   and a real `gc.auto` or `maintenance.auto` setting each take the effect "Shadow repository layout" states;
 - two concurrent preparations never share a `COMMIT_EDITMSG`;
 - preparation in LFS,
@@ -2805,10 +2872,7 @@ Private preparation:
   cherry-pick,
   and revert conclusions produce native parents and messages,
   byte-identical to native Git for the conclusions;
-- shim plan with `core.hooksPath` absent,
-  relative,
-  and absolute,
-  user-disabled events,
+- shim plan with user-disabled events,
   caller `GIT_CONFIG_PARAMETERS` present and absent,
   and adversarial paths with quotes,
   newlines,
@@ -3020,7 +3084,7 @@ so this suite is an inherent part of the transaction protocol.
   - a scenario catalog of concurrent agent behavior:
     shared-file edits with overlapping and non-overlapping hunks,
     interleaved index writers,
-    hookdir and config-based hooks,
+    config-based hooks,
     lint-staged-style stash hooks,
     `commit-msg` and `post-commit` hooks,
     SSH signing,

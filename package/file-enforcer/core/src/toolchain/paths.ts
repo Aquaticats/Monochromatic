@@ -6,20 +6,21 @@
  that run it without the workspace's `node_modules`.
  */
 
-import { realpathSync, } from 'node:fs';
+import { realpath, } from 'node:fs/promises';
 import { homedir, } from 'node:os';
 import {
   isAbsolute,
   join,
   resolve,
 } from 'node:path';
+import { isErrnoException, } from './fs-probe.ts';
 
 //region Roots
 
 /**
  Environment record consulted for `HOME` and `XDG_DATA_HOME`.
  */
-export type PathEnv = Readonly<Record<string, string | undefined>>;
+export type PathEnv = Readonly<NodeJS.ProcessEnv>;
 
 /**
  Resolved toolchain path set.
@@ -88,12 +89,17 @@ export const EXPOSURE_DIR_RELATIVE = '.cache/toolchain-bin' as const;
  (`<root>/package/file-enforcer/core/src/toolchain`), so callers can run
  the toolchain entry points from any working directory.
  
- @param env - Environment consulted for an explicit override
- 
+ @param env - Environment consulted for an explicit override; absent means no override
+
  @returns Absolute worktree root
+
+ @example
+ ```ts
+ worktreeRootFromModule({ env: { MONOCHROMATIC_WORKTREE_ROOT: '/work/tree', }, },); // '/work/tree'
+ ```
  */
 export function worktreeRootFromModule(
-  { env, }: { readonly env?: PathEnv | undefined; } = {},
+  { env, }: { readonly env?: PathEnv; } = {},
 ): string {
   /**
    Explicit override, used by tests and disposable fixtures.
@@ -116,12 +122,17 @@ export function worktreeRootFromModule(
  (`${XDG_DATA_HOME:-$HOME/.local/share}/monochromatic-dev/toolchain`),
  deriving the home directory from the environment or the runtime homedir.
  
- @param env - Environment consulted for `XDG_DATA_HOME` and `HOME`
- 
+ @param env - Environment consulted for `XDG_DATA_HOME` and `HOME`; the process environment when absent
+
  @returns Absolute toolchain root
+
+ @example
+ ```ts
+ toolchainRootFromEnv({ env: { XDG_DATA_HOME: '/data', }, },); // '/data/monochromatic-dev/toolchain'
+ ```
  */
 export function toolchainRootFromEnv(
-  { env, }: { readonly env?: PathEnv | undefined; } = {},
+  { env, }: { readonly env?: PathEnv; } = {},
 ): string {
   /**
    Effective environment (defaults to the process environment).
@@ -149,12 +160,17 @@ export function toolchainRootFromEnv(
  Resolves the current user's home directory from `HOME`, falling back to the
  runtime homedir.
  
- @param env - Environment consulted for `HOME`
- 
+ @param env - Environment consulted for `HOME`; the process environment when absent
+
  @returns Absolute home directory
+
+ @example
+ ```ts
+ homeDirFromEnv({ env: { HOME: '/home/user', }, },); // '/home/user'
+ ```
  */
 export function homeDirFromEnv(
-  { env, }: { readonly env?: PathEnv | undefined; } = {},
+  { env, }: { readonly env?: PathEnv; } = {},
 ): string {
   /**
    Effective environment (defaults to the process environment).
@@ -168,9 +184,16 @@ export function homeDirFromEnv(
 /**
  Builds the full path set for one worktree.
  
- @param options - Worktree root and environment overrides
- 
+ @param worktreeRoot - Worktree root; absent means the root derived from this module's location
+
+ @param env - Environment overrides; absent means the process environment for the machine roots
+
  @returns Resolved toolchain paths
+
+ @example
+ ```ts
+ resolveToolchainPaths({ worktreeRoot: '/work/tree', },).lockFile; // '/work/tree/toolchain.lock.json'
+ ```
  */
 export function resolveToolchainPaths(
   {
@@ -178,7 +201,7 @@ export function resolveToolchainPaths(
     env,
   }: {
     readonly worktreeRoot?: string;
-    readonly env?: PathEnv | undefined;
+    readonly env?: PathEnv;
   } = {},
 ): ToolchainPaths {
   /**
@@ -186,11 +209,13 @@ export function resolveToolchainPaths(
    */
   const root = worktreeRoot !== undefined
     ? resolve(worktreeRoot,)
-    : worktreeRootFromModule({ env, });
+    : worktreeRootFromModule(env === undefined
+      ? {}
+      : { env, },);
   /**
    Absolute machine toolchain root.
    */
-  const toolchainRoot = toolchainRootFromEnv({ env, });
+  const toolchainRoot = toolchainRootFromEnv({ env: env ?? process.env, },);
   /**
    Absolute exposure directory.
    */
@@ -246,15 +271,21 @@ export function resolveToolchainPaths(
  and the exposure farm is `<toolchainRoot>/exposure`.
  
  @param env - Environment consulted for `HOME`, `XDG_CONFIG_HOME` and
- `XDG_DATA_HOME`
- 
+ `XDG_DATA_HOME`; the process environment when absent
+
  @returns Resolved global-scope toolchain paths
+
+ @example
+ ```ts
+ globalToolchainPaths({ env: { HOME: '/home/user', }, },).exposureDir;
+ // '/home/user/.local/share/monochromatic-dev/toolchain-global/exposure'
+ ```
  */
 export function globalToolchainPaths(
   {
     env,
   }: {
-    readonly env?: PathEnv | undefined;
+    readonly env?: PathEnv;
   } = {},
 ): ToolchainPaths {
   /**
@@ -339,12 +370,76 @@ export function globalToolchainPaths(
 //region Install directories
 
 /**
+ Whether one character may appear verbatim in an install directory name:
+ an ASCII letter or digit, `.`, `_` or `-`.
+
+ @param char - One code point of a tool id
+
+ @returns `true` when the character is kept as is
+ */
+function isInstallDirCharacter(char: string,): boolean {
+  return ((char >= 'a') && (char <= 'z'))
+    || ((char >= 'A') && (char <= 'Z'))
+    || ((char >= '0') && (char <= '9'))
+    || ('._-'.includes(char,));
+}
+
+/**
+ Install directory name of a tool id: each run of characters outside ASCII
+ letters, digits, `.`, `_` and `-` becomes one `-`.
+
+ Two linear passes over the code points and one join, so the work is linear
+ in the id length.
+
+ @param id - Tool id (`cargo:monochromatic-search-shadow`)
+
+ @returns Directory-safe name (`cargo-monochromatic-search-shadow`)
+ */
+function installDirName(id: string,): string {
+  /**
+   Code points of the id; a lone surrogate is one code point, as the old pattern treated it.
+   */
+  const chars = Array.from(id,);
+  /**
+   Whether each code point is kept verbatim.
+   */
+  const kept = chars.map(
+    function isKept(char,): boolean {
+      return isInstallDirCharacter(char,);
+    },
+  );
+  return chars.map(
+    function keepOrCollapse(
+      char,
+      index,
+    ): string {
+      if (kept[index] === true)
+        return char;
+      // A replaced code point after another replaced one belongs to the same run.
+      return kept[index - 1] === false
+        ? ''
+        : '-';
+    },
+  )
+    .join('',);
+}
+
+/**
  Absolute install directory of one tool inside the machine toolchain root
  (`<root>/<id>/<version>`).
  
- @param options - Toolchain root, tool id, and resolved version
+ @param toolchainRoot - Machine toolchain root
  
+ @param id - Tool id; characters outside ASCII letters, digits, `.`, `_` and `-` become `-`
+ 
+ @param version - Resolved tool version
+
  @returns Absolute install directory
+
+ @example
+ ```ts
+ toolInstallDir({ toolchainRoot: '/root', id: 'cargo:rg', version: '15.2.0', },); // '/root/cargo-rg/15.2.0'
+ ```
  */
 export function toolInstallDir(
   {
@@ -359,10 +454,7 @@ export function toolInstallDir(
 ): string {
   return join(
     toolchainRoot,
-    id.replaceAll(
-      /[^A-Za-z0-9._-]+/g,
-      '-',
-    ),
+    installDirName(id,),
     version,
   );
 }
@@ -371,9 +463,16 @@ export function toolInstallDir(
  Manager-native bin directory candidates a route installs into,
  in resolution order.
  
- @param options - Path set and environment
- 
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment overriding manager homes; the process environment when absent
+
  @returns Absolute candidate directories
+
+ @example
+ ```ts
+ managerNativeBinDirs({ paths, },)[0]; // paths.exposureDir
+ ```
  */
 export function managerNativeBinDirs(
   {
@@ -381,7 +480,7 @@ export function managerNativeBinDirs(
     env,
   }: {
     readonly paths: ToolchainPaths;
-    readonly env?: PathEnv | undefined;
+    readonly env?: PathEnv;
   },
 ): readonly string[] {
   /**
@@ -458,11 +557,18 @@ export function managerNativeBinDirs(
 /**
  Throws when a path is not absolute, keeping CLI output contracts honest.
  
- @param options - Path to check and the field name to name in the error
- 
+ @param path - Path to check
+
+ @param field - Field name to name in the error
+
  @returns The checked path
- 
- @throws {Error} when the path is relative
+
+ @throws Error when the path is relative
+
+ @example
+ ```ts
+ assertAbsolute({ path: '/usr/bin', field: 'binDir', },); // '/usr/bin'
+ ```
  */
 export function assertAbsolute(
   {
@@ -486,19 +592,30 @@ export function assertAbsolute(
  Whether this module is the process entry point, comparing real paths so
  symlinked home directories (`/home/user` versus the backing store) still
  match.
- 
+
+ @param moduleFilename - Absolute filename of the module asking (`import.meta.filename`)
+
  @returns `true` when the process was started on this file
+
+ @example
+ ```ts
+ if (await isMainModule(import.meta.filename,))
+   await main();
+ ```
  */
-export function isMainModule(moduleFilename: string,): boolean {
+export async function isMainModule(moduleFilename: string,): Promise<boolean> {
   /**
    Entry script path the process was started with.
    */
-  const entry = process.argv[1];
+  const [, entry,] = process.argv;
   if (entry === undefined)
     return false;
   try {
-    return realpathSync(entry,) === realpathSync(moduleFilename,);
-  } catch {
+    return await realpath(entry,) === await realpath(moduleFilename,);
+  } catch (error) {
+    // A missing or unreadable entry path means the process was not started on this file.
+    if (!isErrnoException(error,))
+      throw error;
     return false;
   }
 }

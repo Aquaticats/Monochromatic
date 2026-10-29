@@ -1392,69 +1392,71 @@ function harperLintersDisabled(rules: readonly string[],): Record<string, false>
  */
 async function manageHarperLsp4ij(): Promise<void> {
   await manageLsp4ijServerSettings({
-    productPrefixes: [
-      'IntelliJIdea',
-      'IdeaIC',
-    ],
-    baseServerMatch: {
-      commandLineIncludes: 'harper-ls',
-      serverNameEquals: 'Harper Language Server',
-      templateId: 'harper-ls',
-    },
-    baseConfig: {
-      set: harperLintersDisabled([
-        'UseTitleCase',
-        'SplitWords',
-        'PhrasalVerbAsCompoundNoun',
-      ],),
-      arrayUnion: {
-        'harper-ls.excludePatterns': [
-          '**/AGENTS.md',
-          '**/CLAUDE.md',
-          join(
-            process.cwd(),
+    settings: {
+      productPrefixes: [
+        'IntelliJIdea',
+        'IdeaIC',
+      ],
+      baseServerMatch: {
+        commandLineIncludes: 'harper-ls',
+        serverNameEquals: 'Harper Language Server',
+        templateId: 'harper-ls',
+      },
+      baseConfig: {
+        set: harperLintersDisabled([
+          'UseTitleCase',
+          'SplitWords',
+          'PhrasalVerbAsCompoundNoun',
+        ],),
+        arrayUnion: {
+          'harper-ls.excludePatterns': [
+            '**/AGENTS.md',
+            '**/CLAUDE.md',
+            join(
+              process.cwd(),
+              'AGENTS.md',
+            ),
+            join(
+              process.cwd(),
+              'CLAUDE.md',
+            ),
+          ],
+        },
+      },
+      schemaDefaults: {
+        'harper-ls.linters.UseTitleCase': {
+          type: 'boolean',
+          default: true,
+          description: 'Prompts you to use title case in relevant headings.',
+        },
+      },
+      scopedServers: [
+        {
+          id: 'harper-ls-agents-claude-md',
+          name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
+          fileNames: [
             'AGENTS.md',
-          ),
-          join(
-            process.cwd(),
             'CLAUDE.md',
-          ),
-        ],
-      },
+          ],
+          languageId: 'markdown',
+          copyOptions: [
+            'commandLine',
+            'installAlreadyDone',
+            'installerConfigurationContent',
+            'serverUrl',
+            'templateId',
+            'workingDir',
+            'workspaceFolderStrategyConfiguration',
+          ],
+          configOmitKeys: ['harper-ls.excludePatterns',],
+          config: { set: harperLintersDisabled([
+            'MissingTo',
+            'LongSentences',
+            'OxfordComma',
+          ],), },
+        },
+      ],
     },
-    schemaDefaults: {
-      'harper-ls.linters.UseTitleCase': {
-        type: 'boolean',
-        default: true,
-        description: 'Prompts you to use title case in relevant headings.',
-      },
-    },
-    scopedServers: [
-      {
-        id: 'harper-ls-agents-claude-md',
-        name: 'Harper Language Server (AGENTS.md and CLAUDE.md)',
-        fileNames: [
-          'AGENTS.md',
-          'CLAUDE.md',
-        ],
-        languageId: 'markdown',
-        copyOptions: [
-          'commandLine',
-          'installAlreadyDone',
-          'installerConfigurationContent',
-          'serverUrl',
-          'templateId',
-          'workingDir',
-          'workspaceFolderStrategyConfiguration',
-        ],
-        configOmitKeys: ['harper-ls.excludePatterns',],
-        config: { set: harperLintersDisabled([
-          'MissingTo',
-          'LongSentences',
-          'OxfordComma',
-        ],), },
-      },
-    ],
   },);
 }
 

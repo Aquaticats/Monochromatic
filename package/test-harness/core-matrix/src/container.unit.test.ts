@@ -13,6 +13,7 @@ import {
 import {
   buildContainerCommand,
   parseOs,
+  resolveImage,
 } from '../dist/final/node/index.mjs';
 
 await describe({
@@ -82,6 +83,58 @@ await describe({
     },),
 
     //endregion parseOs
+
+    //region resolveImage
+
+    describe({
+      name: resolveImage.name,
+      children: [
+        it({
+          name: 'appends latest to a bare distro name',
+          fn: async () => {
+            expect(resolveImage('ubuntu',),).toBe('ubuntu:latest',);
+          },
+        },),
+
+        it({
+          name: 'keeps an explicit tag on an unmapped distro',
+          fn: async () => {
+            expect(resolveImage('fedora:39',),).toBe('fedora:39',);
+          },
+        },),
+
+        it({
+          name: 'cachyos resolves to the unpinned CachyOS Docker Hub image',
+          fn: async () => {
+            expect(resolveImage('cachyos',),).toBe('docker.io/cachyos/cachyos:latest',);
+          },
+        },),
+
+        it({
+          name: 'cachyos keeps an explicit tag on the CachyOS repository',
+          fn: async () => {
+            expect(resolveImage('cachyos:latest',),).toBe('docker.io/cachyos/cachyos:latest',);
+            expect(resolveImage('cachyos:testing',),).toBe('docker.io/cachyos/cachyos:testing',);
+          },
+        },),
+
+        it({
+          name: 'a name that only starts with cachyos is not remapped',
+          fn: async () => {
+            expect(resolveImage('cachyos-v3',),).toBe('cachyos-v3:latest',);
+          },
+        },),
+
+        it({
+          name: 'a name inherited from Object.prototype is treated as an ordinary distro',
+          fn: async () => {
+            expect(resolveImage('constructor',),).toBe('constructor:latest',);
+          },
+        },),
+      ],
+    },),
+
+    //endregion resolveImage
 
     //region buildContainerCommand
 
@@ -183,6 +236,59 @@ await describe({
             },);
 
             expect(cmd,).toContain('dnf install',);
+          },
+        },),
+
+        it({
+          name: 'uses pacman for cachyos',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'root',
+                runtime: 'bun',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman -Sy --noconfirm curl unzip',);
+            expect(cmd,).not.toContain('sudo',);
+          },
+        },),
+
+        it({
+          name: 'cachyos non-root installs sudo with pacman and creates the user',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'user',
+                runtime: 'bun',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman -Sy --noconfirm curl unzip sudo',);
+            expect(cmd,).toContain('useradd -m testuser',);
+          },
+        },),
+
+        it({
+          name: 'node on cachyos installs gcc-libs and jq with pacman',
+          fn: async () => {
+            const cmd = buildContainerCommand({
+              combination: {
+                file: '/repo/test.ts',
+                os: 'container:cachyos',
+                user: 'root',
+                runtime: 'node',
+              },
+              monorepoRoot: '/repo',
+            },);
+
+            expect(cmd,).toContain('pacman -Sy --noconfirm gcc-libs jq',);
           },
         },),
 
