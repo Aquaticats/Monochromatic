@@ -273,19 +273,10 @@ while without it at least one is.
 Otherwise the give-up holds,
 and the entry waits for none of that provider's cooldowns again.
 The decision is taken for each provider given up.
-Round 3 worded it otherwise:
-the give-up held only while the providers left met every bench floor.
-That wording was the lead's error and is superseded.
-It set the give-up aside whenever the providers left fell short,
-whatever the given-up provider's return would do,
-and over the 518 readings of the meters in XingZ6020 it sets the give-up of Synthetic aside in all 518,
-so the 58 waits recur.
-With Synthetic back,
-five benches stay short in that pass as they do without it,
-so waiting for it never made the entry finishable.
-Reading (b) as "the return lifts any unmet floor" would set the give-up aside there too
-(Synthetic lifts the readers and the translators to their quorums),
-and is not the rule either.
+Round 3 worded the rule otherwise,
+and round 4 superseded that wording.
+The account of the superseded wording is kept in one place,
+[the entry B965 of the ledger][b965-entry].
 
 The floors are the seat reader's own,
 not copies:
@@ -509,3 +500,6 @@ and its exhaustion is learned from HTTP 402,
 which the router passes to `markRefused` as `paymentRequired` for both providers.
 A run without either key logs that provider as `dry`,
 and `meter-report` reads logs written before today as having no reading for them.
+
+[b965-entry]:
+  audit-ledger-providers-and-seats-a-run-holds-out.md#b965-the-seat-reader-waited-out-the-refusal-cooldown-of-a-provider-that-refused-at-once-after-it-for-every-slice

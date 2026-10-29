@@ -35,6 +35,8 @@ use super::candidate_tree::{TreeRecord, parse_tree_records};
 use super::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
 use super::git_metadata::{MetadataOutput, run_metadata_git, strip_git_line};
+/// `HashSet<T>` is an unordered collection of distinct values with constant-time membership tests.
+use std::collections::HashSet;
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
@@ -99,6 +101,10 @@ pub struct CandidateStore {
     ///  `Some(Some(commit))` for a recorded base, `Some(None)` for a recorded unborn branch, `None` for live `HEAD`.
     baseline: Option<Option<ObjectId>>,
 }
+
+/// The most commits one `git rev-list` receives.
+///  `usize` is the type of counts; 2,048 object names stay far below any argument limit.
+const COMMIT_CHUNK_SIZE: usize = 2_048;
 
 /// What:
 ///  Build the failure of a listing command that could not be started or exited unsuccessfully.
@@ -495,6 +501,22 @@ impl CandidateStore {
         let Some(head) = self.baseline_commit()? else {
             return Ok(Vec::new());
         };
+        return self.commit_tree_records(&head);
+    }
+
+    /// What: Every file of one commit with its mode and object.
+    /// Why:  Policies that compare candidates with the parents of a commit read each parent's files
+    ///       the way they read `HEAD`'s. `--full-tree` lists from the top level whatever directory
+    ///       Git runs in.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async commitTreeRecords(commit: ObjectId): Promise<TreeRecord[]>
+    /// ```
+    pub fn commit_tree_records(
+        &mut self,
+        commit: &ObjectId,
+    ) -> Result<Vec<TreeRecord>, CandidateError> {
         let output: Vec<u8> = self.run_listing(
             "ls-tree",
             &[
@@ -502,10 +524,70 @@ impl CandidateStore {
                 OsString::from("-r"),
                 OsString::from("-z"),
                 OsString::from("--full-tree"),
-                OsString::from(head.as_str()),
+                OsString::from(commit.as_str()),
             ],
         )?;
         return parse_tree_records(output.as_slice());
+    }
+
+    /// What: The commit the "against `HEAD`" listings compare with: the recorded base or the commit
+    ///       `HEAD` names now; nothing when the branch has no commit yet.
+    /// Why:  A policy that skips content the baseline already holds names the commit in its log
+    ///       record and lists its files through `commit_tree_records`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async baselineReference(): Promise<ObjectId | undefined>
+    /// ```
+    pub fn baseline_reference(&mut self) -> Result<Option<ObjectId>, CandidateError> {
+        return self.baseline_commit();
+    }
+
+    /// What: The parents of these commits that are not among the commits themselves, each once, in
+    ///       the order of the commits and then of their parents.
+    /// Why:  A pushed commit's parent that is also pushed is new to the remote, so only the parents
+    ///       outside the given commits count as already published. One `rev-list` answers 2,048
+    ///       commits, so the process count does not grow with the commits.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async parentsOutside(commits: ObjectId[]): Promise<ObjectId[]>
+    /// ```
+    pub fn parents_outside(
+        &mut self,
+        commits: &[ObjectId],
+    ) -> Result<Vec<ObjectId>, CandidateError> {
+        // Membership tests stay constant-time however many commits a push carries.
+        let given: HashSet<&ObjectId> = commits.iter().collect();
+        let mut seen: HashSet<ObjectId> = HashSet::new();
+        let mut outside: Vec<ObjectId> = Vec::new();
+        for chunk in commits.chunks(COMMIT_CHUNK_SIZE) {
+            let mut command: Vec<OsString> = vec![
+                OsString::from("rev-list"),
+                OsString::from("--no-walk=unsorted"),
+                OsString::from("--parents"),
+            ];
+            for commit in chunk {
+                command.push(OsString::from(commit.as_str()));
+            }
+            let output: Vec<u8> = self.run_listing("rev-list", command.as_slice())?;
+            for line in output.split(|byte| { return *byte == b'\n'; }) {
+                // The first name of a line is the commit itself; the rest are its parents.
+                for name in line.split(|byte| { return *byte == b' '; }).skip(1) {
+                    let Some(parent) = parse_object_id(name) else {
+                        return Err(listing_failure(
+                            CandidateFailure::ListingMalformed,
+                            "rev-list",
+                            "printed a parent that is not an object name.",
+                        ));
+                    };
+                    if !given.contains(&parent) && seen.insert(parent.clone()) {
+                        outside.push(parent);
+                    }
+                }
+            }
+        }
+        return Ok(outside);
     }
 
     /// What: A version of the current generation built from records the caller derived.
