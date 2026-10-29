@@ -992,7 +992,25 @@ pnpm precedent read for this (pnpm `pnpm11/resolving/npm-resolver/src/trustCheck
  and a picked version that fails is set aside and the picker retries the next candidate (up to 1000 times)
  instead of failing the install.
 `rust-catalog-update` does not yet set aside and repick; it restores every lockfile instead.
-The verify scope and an ignore-after value go to the owner.
+
+Owner decisions (2026-10-29, question tool):
+
+- Verify scope: "New versions only".
+   `--verify` checks only registry versions that some `Cargo.lock` holds and the same lockfile at the merge base with `main` did not,
+   as pnpm checks trust only while resolving.
+   CI needs `main`'s history for the merge base.
+- `trustPolicyIgnoreAfter = 525600` (365 days) in `rust-catalog.toml`.
+- Toolchain plan data: "Add a *.data.ts pattern".
+   `plan.tools.ts` and `plan.artifacts.ts` are data, not code ("the 300 line limit doesn't apply to non-code"),
+   so they become `plan.tools.data.ts` and `plan.artifacts.data.ts`,
+   a `**/*.data.ts` override in `package/config/oxlint/src/overrides.ts` turns `eslint/max-lines` off,
+   and neither file is split.
+   The renderer emits one property per line and fixes the generated file's other findings.
+
+Adopted from pnpm without asking (its documented behavior settles it):
+ when a newly resolved version fails the trust check, the update sets it aside and re-resolves that crate
+ with the version excluded, up to a bound, before failing.
+ Queued after the verify scope change.
 
 Remaining:
 
