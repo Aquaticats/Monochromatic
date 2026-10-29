@@ -187,6 +187,44 @@ the user chose "JSONC plan + JSON lock" over making the lock the only file.
 - A file-enforcer rule projects the plan's fields into the lock,
   and `check` fails on drift.
 
+### Lock writer: a separate resolution file
+
+Asked 2026-10-29 who writes `toolchain.lock.json`;
+the user chose "Separate resolution file".
+
+- `mpm-shadow update` writes only `toolchain.resolution.json`
+  (strict JSON:
+  per tool,
+  version and artifacts with URL and SHA-256).
+- file-enforcer renders `toolchain.lock.json` from `toolchain.plan.jsonc` plus `toolchain.resolution.json`
+  and is the lock's only writer,
+  so `check` rebuilds the whole lock from committed inputs.
+
+### Bootstrap: prebuilt mpm-shadow and cargo install
+
+Asked 2026-10-29 how a fresh machine gets its first `mpm-shadow`;
+the user answered "A+B":
+both a prebuilt archive and `cargo install`.
+
+- `mpm-shadow` becomes an archive-route plan entry with release URLs and SHA-256 in the lock;
+  `Dockerfile` and CI fetch it with `jq`,
+  `curl`,
+  and `sha256sum`,
+  as they already do for Node and pnpm (`Dockerfile:24-45`).
+- `cargo install monochromatic-mpm-shadow` is the other documented path,
+  and the only one on platforms without a prebuilt archive.
+- A runbook step covers people's machines,
+  since `AGENTS.md` (`SCR`) forbids bash and PowerShell scripts.
+
+### bin-paths: an mpm-shadow subcommand
+
+Asked 2026-10-29;
+the user chose "mpm-shadow bin-paths".
+`mpm-shadow bin-paths` prints the same JSON (`exposureDir`,
+`pathDirs`,
+`bins`) that `package/ide/app/src/language/toolchain.rs` parses today,
+so mpm-shadow stays the only owner of the exposure layout.
+
 ### browserslist through browserslist-rs
 
 Asked 2026-10-29 what happens to `.browserslistrc.resolved.local.json`;
