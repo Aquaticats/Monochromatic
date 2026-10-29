@@ -350,6 +350,47 @@ Limits of this evidence:
   `dedupeDirectDeps` and optional dependencies,
   which the fix skips on purpose and which have no test of their own here.
 
+### pnpm 11 (TypeScript) prototype
+
+pnpm 11 has the same exemption in `pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts`
+([doc comment][pnpm11-dangling-doc]):
+"A missing entry is not a broken link:
+skipped optional and excluded dependencies have none."
+The prototype
+([`pnpm-missing-workspace-link-repeat-install-fast-path.v11.patch`](pnpm-missing-workspace-link-repeat-install-fast-path.v11.patch),
+27 changed lines in that one file)
+treats a missing entry as stale when it is a non-optional `workspace:` dependency,
+the linker is isolated,
+and `dedupeDirectDeps` is off.
+
+Harness:
+the original and patched file at commit `cf2556e97c`,
+with the three workspace imports redirected to stubs,
+run by `node` 24 in `podman run --network=none --memory=1g --cpus=1` against a disposable directory per case.
+Result on 2026-10-29:
+
+```text
+original=fresh patched=fresh | workspace dependency, link present
+original=fresh patched=stale | workspace dependency, link absent
+original=fresh patched=stale | workspace devDependency, link absent
+original=stale patched=stale | workspace dependency, link dangling
+original=fresh patched=fresh | registry dependency, entry absent
+original=fresh patched=fresh | workspace optionalDependency, entry absent
+original=fresh patched=fresh | workspace dependency, hoisted linker, entry absent
+original=fresh patched=fresh | workspace dependency, dedupeDirectDeps, entry absent
+original=fresh patched=fresh | workspace devDependency excluded by --prod, entry absent
+PATCHED MATCHES EXPECTATIONS
+```
+
+The two "link absent" rows are the positive control:
+the original says fresh (the bug) and the patched file says stale (the fix).
+
+Limits:
+this exercises the function alone.
+It does not run pnpm 11's own test suite or a pnpm 11 build,
+and it adds no test to `pnpm11/deps/status/test`.
+Whether a stale result there makes the real install relink the missing link was not run.
+
 ## Upstream filing decision
 
 Walk of the six constraints,
@@ -463,8 +504,8 @@ Before anyone posts it:
   which answers the form's Node.js field.
   Not met:
   no human has re-run the reproduction;
-  the prototype patch covers only the Rust (pnpm 12) code,
-  and the pnpm 11 TypeScript code was not read or patched;
+  the pnpm 11 prototype was checked only as a function in isolation,
+  not inside pnpm 11's build or test suite;
   the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change);
   and every live check above must be repeated on the day of posting.
 - Fill pnpm's bug form field by field;
@@ -493,9 +534,9 @@ Before anyone posts it:
 - Know the limits of the evidence.
   The behavior was tested on pnpm 12.16.1 and 11.28.9 (affected) and 10.34.9 (not affected).
   pnpm's contribution checklist says bug fixes go into every affected version,
-  and the prototype patch changes only the Rust (pnpm 12) code.
-  The check on links in pull request 15569 exists for both stacks,
-  so a fix may need both.
+  and the prototype patches cover both stacks:
+  the Rust code (pnpm 12) with an integration test,
+  and the TypeScript function (pnpm 11) in isolation.
 - Decide whether to open a pull request instead of an issue.
   `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
@@ -549,8 +590,10 @@ and 12.16.1 still fails with no Node.js on `PATH`, so Node.js is not involved.
 Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
 entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
 install's scope holds every project.
-A prototype patch for the Rust code (pnpm 12) is attached (7 files, 120 insertions, 2 deletions);
-the pnpm 11 TypeScript code is not patched.
+A prototype patch for the Rust code (pnpm 12) is attached (7 files, 120 insertions, 2 deletions),
+and one for pnpm 11 (`findDanglingDirectDependencyLink.ts`, 27 changed lines) that was checked only as a function in isolation.
+pnpm 11 has the same exemption in the doc comment of that function
+([link](https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts?plain=1#L14-L23)).
 Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
 and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
 and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
@@ -563,6 +606,7 @@ so the regression evidence for those is limited.
 Written by an agent (Claude Code, claude-sonnet-5-5).
 ~~~
 
+[pnpm11-dangling-doc]: https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts?plain=1#L14-L23
 [pnpm-fast-path-comment]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install.rs#L4-L9
 [pnpm-freshness-checks]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs#L257-L265
 [pnpm-dangling-doc]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168

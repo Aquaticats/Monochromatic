@@ -1,0 +1,72 @@
+--- a/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts
++++ b/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts
+@@ -5,7 +5,7 @@
+ import { isError } from './stubs.ts'
+ import { DEPENDENCIES_FIELDS, type IncludedDependencies, type ProjectManifest } from './stubs.ts'
+ 
+-export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
++export type FindDanglingDirectDependencyLinkOptions = Pick<Config, 'dedupeDirectDeps' | 'lockfileDir' | 'modulesDir' | 'nodeLinker' | 'packageConfigs'>
+ & Pick<ConfigContext, 'allProjects' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+ & {
+   include?: IncludedDependencies
+@@ -18,16 +18,23 @@
+  * install relinks it
+  * (https://github.com/pnpm/pnpm/issues/9758). A missing entry is not a
+  * broken link: skipped optional and excluded dependencies have none, and a
+- * healthy entry costs one `stat`. The hoisted linker places a project's
++ * healthy entry costs one `stat`. The exception is a non-optional
++ * `workspace:` dependency under the isolated linker: it is always linked,
++ * so its missing entry means the install has to run again. The hoisted linker places a project's
+  * dependencies in the root modules directory too, so both are probed there.
+  */
+ export async function findDanglingDirectDependencyLink (opts: FindDanglingDirectDependencyLinkOptions): Promise<string | undefined> {
+   const entries = listDirectDependencyEntries(opts)
+-  const dangling = await Promise.all(entries.map(isDanglingLink))
+-  return entries.find((_, index) => dangling[index])
++  const stale = await Promise.all(entries.map(({ entry, mustExist }) => isStaleLink(entry, mustExist)))
++  return entries.find((_, index) => stale[index])?.entry
+ }
+ 
+-function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOptions): string[] {
++interface DirectDependencyEntry {
++  entry: string
++  mustExist: boolean
++}
++
++function listDirectDependencyEntries (opts: FindDanglingDirectDependencyLinkOptions): DirectDependencyEntry[] {
+   const projects: Array<{ rootDir: string, manifest: ProjectManifest }> = [...(opts.allProjects ?? [])]
+   if (opts.rootProjectManifest != null && !projects.some(({ rootDir }) => rootDir === opts.rootProjectManifestDir)) {
+     projects.push({ rootDir: opts.rootProjectManifestDir, manifest: opts.rootProjectManifest })
+@@ -35,17 +42,20 @@
+   const modulesDirOf = createProjectModulesDirResolver(opts)
+   const rootModulesDir = path.resolve(opts.rootProjectManifestDir, modulesDirOf(opts.rootProjectManifest?.name) ?? 'node_modules')
+   const fields = DEPENDENCIES_FIELDS.filter((field) => opts.include?.[field] !== false)
++  const isolatedLinker = opts.nodeLinker !== 'hoisted' && opts.nodeLinker !== 'pnp' && opts.dedupeDirectDeps !== true
+   return projects.flatMap(({ rootDir, manifest }) => {
+     const modulesDirs = [path.resolve(rootDir, modulesDirOf(manifest.name) ?? 'node_modules')]
+     if (opts.nodeLinker === 'hoisted' && modulesDirs[0] !== rootModulesDir) {
+       modulesDirs.push(rootModulesDir)
+     }
+-    const aliases = fields.flatMap((field) => Object.keys(manifest[field] ?? {}))
+-    return aliases.flatMap((alias) => modulesDirs.map((modulesDir) => path.join(modulesDir, alias)))
++    return fields.flatMap((field) => Object.entries(manifest[field] ?? {}).flatMap(([alias, spec]) => {
++      const mustExist = isolatedLinker && field !== 'optionalDependencies' && spec.startsWith('workspace:')
++      return modulesDirs.map((modulesDir) => ({ entry: path.join(modulesDir, alias), mustExist }))
++    }))
+   })
+ }
+ 
+-async function isDanglingLink (entry: string): Promise<boolean> {
++async function isStaleLink (entry: string, mustExist: boolean): Promise<boolean> {
+   try {
+     await fs.promises.stat(entry)
+     return false
+@@ -56,7 +66,7 @@
+     await fs.promises.lstat(entry)
+     return true
+   } catch (error) {
+-    if (hasErrorCode(error, 'ENOENT', 'ENOTDIR')) return false
++    if (hasErrorCode(error, 'ENOENT', 'ENOTDIR')) return mustExist
+     throw error
+   }
+ }
