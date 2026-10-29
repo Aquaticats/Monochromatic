@@ -3443,3 +3443,8 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   unnecessary here, or not possible), implements the native step with zero extra syscalls on the common path, fails closed
   when the upload fails, and for any hook it cannot handle keeps the shim and exempts a byte-exact LFS shim from the warning
   and from `git cli-git doctor`. Parent merges after reading the diff, verifies, and includes it in the next gate and release.
+
+- Clarification from the user: if the wrapper cannot handle an LFS hook natively, exempting the shim from the warning is not
+  enough; traditional LFS hooks must be explicitly supported (a contract: the byte-exact shim runs on every path where Git
+  would run it, with Git's arguments and stdin, including the wrapper's own plumbing paths, and a failure fails closed;
+  doctor reports supported shims separately; everything else stays unsupported). Sent to agent `ab2b64d9df753a15f`.

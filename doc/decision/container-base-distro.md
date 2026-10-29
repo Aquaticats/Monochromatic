@@ -104,8 +104,12 @@ The owner chose to keep each release's current floor:
 ### Kept on purpose
 
 - `package/test-harness/core-matrix` tests across several distros:
-   CachyOS is added and becomes the default,
-   the other distros stay.
+   CachyOS is added and becomes the default.
+  Fedora was then dropped from the test matrices
+   (owner chose "Drop Fedora from matrices" on 2026-10-29,
+   after file-enforcer's Fedora cell spent 17 minutes in `dnf install` on slow mirrors);
+   Ubuntu (apt) and CachyOS (pacman) cells stay,
+   and an explicit `container:fedora` still resolves.
 - The root `Dockerfile` (Ubuntu CI canary image) and the `mvm` default VM template (Ubuntu) stay as they are.
 - Images that are not general bases stay:
    `package/vm-builder/cli` boots `ucore-hci`,
