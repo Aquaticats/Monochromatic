@@ -86,7 +86,7 @@ fn idle_root_emits_no_extra_queue_updates() {
         .as_nanos();
     // What:     Build the source root path under the system temp directory.
     // Why:      A real directory the OS watcher can observe.
-    let dir = std::env::temp_dir().join(format!("mp_idle_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_idle_{nanos}"));
     // What:     Create the source root before opening it.
     // Why:      The Source Root must exist to be scanned and watched.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");
@@ -182,7 +182,7 @@ fn watcher_drives_rescan_update_through_engine() {
         .as_nanos();
     // What:     Build the source root path under the system temp directory.
     // Why:      A real directory the OS watcher can observe.
-    let dir = std::env::temp_dir().join(format!("mp_engine_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_engine_{nanos}"));
     // What:     Create the source root before opening it.
     // Why:      The Source Root must exist to be scanned and watched.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");

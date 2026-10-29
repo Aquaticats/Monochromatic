@@ -55,10 +55,10 @@ fn unique_path(suffix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `std::env::temp_dir().join(format!("music-player-peak-{}-{}-{}", std::process::id(), nanos, suffix))`.
+    // What:     `crate::test_scratch::scratch_root().join(format!("music-player-peak-{}-{}-{}", std::process::id(), nanos, suffix))`.
     //           Build the path. Tail -> return.
     // Why:      Unique per process, call, and purpose.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "music-player-peak-{}-{}-{}",
         std::process::id(),
         nanos,

@@ -67,10 +67,10 @@ fn temp_cache(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `std::env::temp_dir().join(format!(...))`. Join a formatted filename
+    // What:     `crate::test_scratch::scratch_root().join(format!(...))`. Join a formatted filename
     //           under the system temp directory. Tail expression returns it.
     // Why:      Keep disposable cache state out of the repo and real config dir.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "mp-controller-{}-{}-{}.json",
         std::process::id(),
         nanos,
@@ -336,10 +336,10 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `let dir = std::env::temp_dir().join(format!("mp_rescan_{nanos}"));`. The
+    // What:     `let dir = crate::test_scratch::scratch_root().join(format!("mp_rescan_{nanos}"));`. The
     //           disposable Source Root.
     // Why:      A real directory so `expand_paths` actually scans it.
-    let dir = std::env::temp_dir().join(format!("mp_rescan_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_rescan_{nanos}"));
     // What:     Create the disposable source root.
     // Why:      The root must exist before scanning.
     std::fs::create_dir_all(&dir).expect("source fixture directory should be created");
@@ -399,7 +399,7 @@ fn rescan_reflects_disk_and_preserves_selection_by_path() {
 #[test]
 fn a_plain_open_measures_the_first_track_too() {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).expect("system clock should be after Unix epoch").as_nanos();
-    let root = std::env::temp_dir().join(format!("mp-open-sweep-{}-{nanos}", std::process::id()));
+    let root = crate::test_scratch::scratch_root().join(format!("mp-open-sweep-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&root).expect("the scratch library is created");
     let first = root.join("a.flac");
     let second = root.join("b.mp3");

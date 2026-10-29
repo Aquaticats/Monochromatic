@@ -50,7 +50,7 @@ fn temp_cache(tag: &str) -> PathBuf {
         .as_nanos();
     // What:     build the path under the system temp dir. Tail -> return.
     // Why:      Disposable location.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "mp-measure-{}-{}-{}.db",
         std::process::id(),
         nanos,
@@ -361,7 +361,7 @@ fn two_sweeps_of_one_load_decode_a_track_only_once() {
 fn a_file_that_cannot_be_decoded_is_tried_again_by_the_next_sweep_of_the_same_load() {
     let path = temp_cache("retry");
     let cache = CacheHandle::open_at(path.clone());
-    let broken = std::env::temp_dir().join(format!("music-player-broken-{}.flac", std::process::id()));
+    let broken = crate::test_scratch::scratch_root().join(format!("music-player-broken-{}.flac", std::process::id()));
     std::fs::write(&broken, b"this is not audio").expect("the broken file is written");
     let (sink, reports) = collecting_sink();
     let claims: Arc<Mutex<HashSet<u64>>> = Arc::new(Mutex::new(HashSet::new()));

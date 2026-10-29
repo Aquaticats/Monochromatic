@@ -1561,3 +1561,7 @@ fn main() -> Result<()> {
     run_result.map_err(|error| return startup_failed(StartupStep::EventLoop, error))?;
     return Ok(())
 }
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;
