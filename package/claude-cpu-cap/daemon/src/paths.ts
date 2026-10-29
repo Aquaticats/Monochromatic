@@ -154,6 +154,8 @@ export function resolvePaths({
     ),
     cgroupFile: env.CPU_WATCH_CGROUP_FILE
       ?? `/sys/fs/cgroup/user.slice/user-${uid}.slice/user@${uid}.service/app.slice/claude-code-bash/cpu.max`,
+    ioWeightFile: env.CPU_WATCH_IO_WEIGHT_FILE
+      ?? `/sys/fs/cgroup/user.slice/user-${uid}.slice/user@${uid}.service/app.slice/claude-code-bash/io.weight`,
     hwmonRoot: env.CPU_WATCH_HWMON_ROOT ?? '/sys/class/hwmon',
     procRoot: env.CPU_WATCH_PROC_ROOT ?? '/proc',
     sampleDir: env.CPU_WATCH_SAMPLE_DIR ?? join(

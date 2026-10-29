@@ -8,6 +8,7 @@ import { reconcileCap, } from './cap.ts';
 import {
   ABSENT,
   BURST_MS,
+  DEFAULT_IO_WEIGHT,
   INTERVAL_MS,
   MILLI_PER_UNIT,
   MIN_THREADS,
@@ -15,6 +16,7 @@ import {
   SAMPLE_EVERY_ITERATIONS,
   TONE_DOWN_STEP,
 } from './constants.ts';
+import { reconcileIoWeight, } from './io-weight.ts';
 import { samplePower, } from './power.ts';
 import { readPressure, } from './pressure.ts';
 import { writeSample, } from './samples.ts';
@@ -263,7 +265,8 @@ export async function recordThermal({
 /**
  Runs one watcher pass: reconciles the cap, samples power and pressure, advances every streak,
  tracks burst mode and writes a sample row when due.
- IO pressure is deliberately not watched: the user's drives are slow and nothing can be done about it (2026-10-13).
+ IO pressure is deliberately not sampled; instead the cgroup's `io.weight` is lowered every pass so tool commands
+ yield the NVMe to the desktop under BFQ (2026-10-29, `doc/planning/agent-search-io-throttle.md`).
 
  @param state - state from the previous pass
  
@@ -303,6 +306,12 @@ export async function runPass({
     cgroupFile: inputs.paths
       .cgroupFile,
     totalThreads: inputs.totalThreads,
+    l: rl,
+  },);
+  await reconcileIoWeight({
+    ioWeightFile: inputs.paths
+      .ioWeightFile,
+    weight: DEFAULT_IO_WEIGHT,
     l: rl,
   },);
   /**

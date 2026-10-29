@@ -77,6 +77,7 @@ await describe({
             expect(resolvePaths({ env: {}, uid: 1_234, home: '/home/x', },),).toEqual({
               capFile: '/home/x/.config/claude-cpu-cap/threads',
               cgroupFile: '/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/app.slice/claude-code-bash/cpu.max',
+              ioWeightFile: '/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/app.slice/claude-code-bash/io.weight',
               hwmonRoot: '/sys/class/hwmon',
               procRoot: '/proc',
               sampleDir: '/home/x/.local/share/claude-cpu-cap/samples',
@@ -90,6 +91,7 @@ await describe({
               env: {
                 CPU_WATCH_CAP_FILE: '/a',
                 CPU_WATCH_CGROUP_FILE: '/b',
+                CPU_WATCH_IO_WEIGHT_FILE: '/f',
                 CPU_WATCH_HWMON_ROOT: '/c',
                 CPU_WATCH_PROC_ROOT: '/d',
                 CPU_WATCH_SAMPLE_DIR: '/e',
@@ -99,6 +101,7 @@ await describe({
             },),).toEqual({
               capFile: '/a',
               cgroupFile: '/b',
+              ioWeightFile: '/f',
               hwmonRoot: '/c',
               procRoot: '/d',
               sampleDir: '/e',

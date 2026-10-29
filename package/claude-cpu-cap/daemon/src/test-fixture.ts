@@ -327,6 +327,14 @@ export async function makeHost({
   await writeFile(
     join(
       root,
+      'cgroup',
+      'io.weight',
+    ),
+    'default 100\n',
+  );
+  await writeFile(
+    join(
+      root,
       'threads',
     ),
     `${threads}\n`,
@@ -342,6 +350,11 @@ export async function makeHost({
         root,
         'cgroup',
         'cpu.max',
+      ),
+      ioWeightFile: join(
+        root,
+        'cgroup',
+        'io.weight',
       ),
       hwmonRoot: join(
         root,
