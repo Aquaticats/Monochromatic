@@ -86,6 +86,14 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    and only a change between two declared `repository` values fails;
    an undeclared value on either side carries no evidence.
    The CI check re-verifies every locked registry version.
+   Amended by the owner on 2026-10-29:
+   a cold cache is filled from the crates.io database dump (`https://static.crates.io/db-dump.tar.gz`,
+   rebuilt daily, no rate limit), which crates.io's data-access policy lists ahead of the API,
+   after a full API-only verification hit HTTP 429 after 657 requests.
+   The dump keeps every Trusted Publishing column private,
+   so a crate with a publisher-less release since 2025-07-01 still takes its history from the API,
+   which is spaced at 1100 ms and retries HTTP 429 after `Retry-After`.
+   The dump and CSV readers are hand-written, not third-party libraries (owner choice).
 - `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
    it writes no lockfiles.
 

@@ -69,15 +69,27 @@ Team owners do not count,
 `trustPolicyExclude` exempts versions,
  and `trustPolicyIgnoreAfter` (minutes) skips versions older than that.
 
-Version histories come from `https://crates.io/api/v1/crates/<name>/versions`,
- spaced at one request per second as crates.io's data-access policy requires,
- with a user agent naming the repository.
-They are cached under `.cache/rust-catalog-update/crates-io/` (gitignored),
+Version histories are cached under `.cache/rust-catalog-update/crates-io/` (gitignored),
  since published versions never change;
- a history is refetched only when a needed version is missing from its cache file.
-A cold `--verify` over the current lockfiles is about 1024 requests,
- so about 17 minutes;
  CI keeps the cache with `actions/cache`.
+When at least 100 of the checked crates have no cache file,
+ the cache is filled from the crates.io database dump (`https://static.crates.io/db-dump.tar.gz`),
+ which crates.io's data-access policy asks bulk readers to use and serves without a rate limit.
+The reader streams the 2.1 GB archive,
+ reads only `crates.csv` and `versions.csv`,
+ and stops before the later tables
+ (22 seconds for all 1024 locked crates on 2026-10-29, plus the download).
+The dump keeps every Trusted Publishing column private,
+ and a Trusted Publishing release has no publisher,
+ so a crate with a publisher-less release since 2025-07-01 is left to the API
+ (141 of 1024 crates on 2026-10-29).
+Those crates,
+ fewer than 100 uncached crates,
+ and versions newer than the dump come from `https://crates.io/api/v1/crates/<name>/versions`,
+ spaced 1100 ms apart with a user agent naming the repository;
+ an HTTP 429 is retried after its `Retry-After`,
+ or a doubling 30-second backoff,
+ at most five times.
 
 ## Limits
 

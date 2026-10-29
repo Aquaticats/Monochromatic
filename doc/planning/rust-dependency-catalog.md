@@ -931,20 +931,52 @@ The host's `RUSTUP_TOOLCHAIN=1.98.1` stays on purpose as a canary for tools that
  (owner decision, [issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
 The warm crates.io history cache (161 crates) is in the main checkout's gitignored `.cache/rust-catalog-update/`.
 
-Queued, waiting for another session's uncommitted package-rename batch,
- which holds edits to the files these steps touch
- (root `mise.toml`, `.github/workflows/advisory-core.yml`, `pnpm-lock.yaml`, and parts of `package/file-enforcer/core`):
+Landed after the package moves (the update package is now `package/dependency-catalog/cli-rust-update`,
+ file-enforcer is `package/file-enforcer/core`):
 
-1.  Add a thin `rust:update` mise task in `mise.no-env.toml` running the update bin, then `mise run sync:files`.
-2.  Add the CI steps to `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`:
-     `file-enforcer --check`,
-     then `rust-catalog-update --verify` between pinned `actions/cache/restore` and `actions/cache/save` steps
-     for `.cache/rust-catalog-update/`,
-     keyed on a hash of every `Cargo.lock`.
-3.  Fix every pre-existing `file-enforcer` lint and type error
-     (including `src/toolchain/update.ts:632` and `:633` TS7006,
-     and the toolchain tests that still expect `nightly-2026-10-28` and node `26.12.1`),
+- `rust:update` and `rust:verify` tasks in `mise.no-env.toml` and in root `task.ts`
+   (`task-run` reads `task.ts`, not `mise.toml`), commit `328e2421b2`;
+   `pnpm-lock.yaml` with the importer landed in the other session's batch.
+- CI steps in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm` (commit `ed7a8036c2`).
+   `prepare:pnpm` already runs the file-enforcer sync (`node file-enforcer.config.ts`),
+   so the drift step checks with `git diff --exit-code` that the sync left every crate manifest and `rust-catalog.toml`
+   unchanged;
+   a `file-enforcer --check` at that point would compare against files the sync just rewrote and could never fail.
+   Control in a throwaway worktree: clean tree exit 0, an edited generated entry exit 1 naming the file.
+   `rust:verify` runs between `actions/cache/restore` and `actions/cache/save` of `.cache/rust-catalog-update/`.
+
+The first full `rust:verify` (1388 versions of 1024 crates) got HTTP 429 from crates.io after 657 API requests
+ spaced exactly 1000 ms apart.
+crates.io's data-access policy lists the API last, after the sparse index, static.crates.io,
+ and the database dump (`https://static.crates.io/db-dump.tar.gz`, 2,103,407,089 bytes on 2026-10-29, rebuilt daily,
+ no rate limit),
+ and allows the API "a maximum of 1 request per second".
+Owner decision (2026-10-29): fill the trust cache from the dump (commit `d6954e5a7f`).
+Measured for the design:
+
+- Dump layout (dump `2026-10-29-020020`, crates.io commit `55d3c7bf0d5d0ffc2fc6217d7ce0f97cc798ae02`):
+   tar order `crates.csv`, `crate_owners.csv`, `versions.csv`, then `dependencies.csv` (1.8 GB)
+   and `version_downloads.csv` (0.96 GB).
+   Public: `versions.{crate_id,num,created_at,published_by,repository}`, `crate_owners`, `users`,
+   and `crates.trustpub_only` (134 locked crates).
+   Private: `versions.trustpub_data` and every `trustpub_*` table (`dump-db.toml` at that commit).
+- Across 785 API histories (37,822 releases, 1,470 Trusted Publishing) no Trusted Publishing release has a publisher;
+   the earliest is 2025-07-12T16:49:05Z,
+   so a crate with a publisher-less release since 2025-07-01 is left to the API.
+- On the real dump: 1024 of 1024 locked crates found, 883 histories written, 141 left to the API,
+   22 seconds including gunzip, stopping after `versions.csv`.
+- Dump against API on 660 crates and 23,813 releases: identical version sets, times, and publishers;
+   9 old `dashmap` releases list a repository in the dump and none in the API,
+   which the declared-to-declared repository rule does not count.
+- The tar and CSV readers are hand-written (owner chose this over vetted libraries).
+- The API now spaces requests 1100 ms apart and retries HTTP 429 after `Retry-After`
+   or a doubling 30-second backoff, at most five times.
+
+Remaining:
+
+1.  A cold `task-run rust:verify` from an empty cache (running at the time of writing).
+2.  Fix every pre-existing file-enforcer lint and type error
+     (452 errors and 454 warnings measured before the move, mostly `src/toolchain/*`;
+     `src/toolchain/plan.artifacts.ts` is `toolchain:update` output, so its findings are fixed in the renderer),
      committing each step (owner decision: "Our rules allow broken commits. Just do all of it while committing every step.").
-4.  Commit `pnpm-lock.yaml` with the `rust-catalog-update` importer:
-     the other session includes it in its batch commit.
-5.  Close #1800 with the final commit.
+3.  Close #1800.
