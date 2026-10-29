@@ -168,6 +168,102 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
+## Current design (consolidated 2026-10-29)
+
+The live decisions,
+with superseded ones left out;
+the "Decisions" section holds each one's question,
+answer,
+and history.
+
+- Tools:
+  `package/file-enforcer/core-rust` (library) and `package/file-enforcer/cli` (clap binary `file-enforcer`),
+  standalone,
+  embeddable by meow later;
+  config `file-enforcer.config.jsonc` read with `monochromatic-jsonc-edit`,
+  decoded by hand;
+  output is JSON lines only,
+  including clap's help and errors.
+- Config model:
+  fixed Rust rule kinds with structured JSONC values,
+  no string expressions;
+  each run plans every rule against a virtual view of planned outputs,
+  validates the whole run,
+  then writes;
+  file modes are part of a rule's contract.
+- Server:
+  one auto-started server per worktree serializes all writes over an owner-only Unix socket
+  (newline-delimited JSON-RPC 2.0) and exits when idle;
+  `write`,
+  `check`,
+  `watch`,
+  and `explain` are clients;
+  the server watches inputs,
+  outputs,
+  and glob roots while a `watch` client is attached,
+  and warns on hand edits to generated files.
+- Commands:
+  `write`,
+  `check` (with `--expected-dir <dir>` for standard diff tools),
+  `watch`,
+  `explain <path>`,
+  `user write`,
+  `user check`;
+  exit codes 0,
+  1,
+  2.
+- Outputs file-enforcer writes:
+  `CLAUDE.md` (preamble plus `AGENTS.md`),
+  root `LICENSE`,
+  every package's `LICENSES/` copies,
+  the `.claude/skills` and `.factory/skills` copies (targets owned outright),
+  per-crate `Cargo.toml` keys,
+  `[workspace.dependencies]` through the dependency-catalog Rust library,
+  `.browserslistrc.resolved.local.json` through `browserslist-rs`,
+  `.config/mise/conf.d/10-bin.local.toml`,
+  `mpm.packages.toml` and `mpm.managers.toml` from the lock,
+  and,
+  through `user write`,
+  the JetBrains Harper policy.
+- Outputs file-enforcer checks but never writes:
+  `toolchain.lock.json` against `toolchain.plan.jsonc`.
+- Gone from file-enforcer:
+  the generated root `mise.toml` (now hand-written plus committed `conf.d`),
+  the rules file and its seed (the scanner reads a comma-separated list),
+  the scanner step,
+  task-header quoting,
+  the `CONTEXT.md` guard,
+  the OS package installer,
+  the staleness cache,
+  and `exec`.
+- Schema:
+  committed `file-enforcer.schema.json` with a cargo golden test against the decoder,
+  mapped in `.idea/jsonSchemas.xml`.
+- Toolchain (mpm-shadow):
+  `sync`,
+  `status`,
+  `update [--check]`,
+  `lock` (offline),
+  `bin-paths`,
+  each with `--global`;
+  the only writer of `toolchain.lock.json`;
+  first versions of new npm and PyPI tools from the registries,
+  later ones from `mpm outdated`;
+  native lookups for the rest,
+  including Rust channels;
+  postinstall links and commands;
+  bootstrap by prebuilt archive with lock SHA-256 or `cargo install`.
+- Elsewhere:
+  pnpr generates its own `config.yaml`;
+  the container runner moves to `package/test-harness/core-matrix`;
+  vm-builder gets a private process runner.
+- Cutover:
+  one switch after everything is built,
+  published,
+  fetched by a clean container,
+  and compared with the old output;
+  the global plan is converted directly with a 0600 backup kept beside it.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
@@ -620,7 +716,35 @@ Especially with auto update."
 The per-user config and its subcommand stay,
 so IDE auto-updates get the policy reapplied by a command rather than a remembered manual import.
 
-#### mise.toml: question withdrawn until the evidence is complete
+#### mise.toml: committed conf.d files (re-asked with full evidence)
+
+Re-asked after the source-level study
+[`doc/research/file-enforcer-rust-rewrite-mise-confd.md`](../research/file-enforcer-rust-rewrite-mise-confd.md);
+the user chose "conf.d layout",
+replacing the earlier decision to keep generating `mise.toml`.
+
+- `mise.no-env.toml` is renamed to `mise.toml` and hand-written.
+- `.config/mise/conf.d/20-env.toml` (committed) holds the sops `_.file`,
+  the `.cache/*-bin` directories,
+  `node_modules/.bin`,
+  the Slint variables,
+  and `FORBIDDEN_STRINGS_RULES`.
+- `.config/mise/conf.d/10-bin.local.toml` (gitignored by `*.local.*`) is written by `file-enforcer write`
+  with the existing non-empty `package/*/*/node_modules/.bin` directories.
+- Accepted caveats:
+  PATH order depends on the names sorting `10-` before `20-`;
+  `_.path` stays out of `mise.toml`;
+  a fresh clone lacks package bins until `file-enforcer write`;
+  the file spelling of `MISE_TRUSTED_CONFIG_PATHS` in
+  `doc/troubleshooting/mise-untrusted-temporary-worktree-shell.md` changes to the directory spelling;
+  `package/monorepo-task/core-exec/src/build-and-test-fixture-config.ts`,
+  its test,
+  and the `mise.no-env.toml:238` fallback are fixed in the switch.
+- `FORBIDDEN_STRINGS_RULES` becomes the comma-separated list of the two appendix files,
+  following the rules-file decision.
+- `doc/decision/monorepo-manager-all-rust.md` ("root `mise.toml` stays generated") is amended at acceptance.
+
+#### mise.toml: first asking withdrawn until the evidence was complete
 
 Asked whether `.config/mise/conf.d/*.toml` can replace the generated root `mise.toml`;
 the user answered:
