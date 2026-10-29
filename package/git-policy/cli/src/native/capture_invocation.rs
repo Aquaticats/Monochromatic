@@ -25,6 +25,8 @@
 use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 /// Failure text of one Git start that the layout reports as unusable.
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
+/// The empty tree's name per object format, known without a Git process.
+use super::empty_tree::empty_tree_name;
 /// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
 use super::js_text::trim_javascript;
 /// Invocation start time, ISO-8601 with milliseconds.
@@ -302,6 +304,24 @@ pub fn resolve_ref_format(context: &GitContext, cwd: &Path) -> Result<RefFormat,
 }
 
 /// What:
+///  The empty tree's object name under the repository's object format.
+/// Why:
+///   The name is a constant per object format, so a known format needs no Git process;
+///  a format the table does not know is hashed by Git, which stays the authority.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// emptyTreeName(objectFormat) ?? (await runTransactionGit({ args: ['hash-object', '-t', 'tree', '--stdin'] })).trim()
+/// ```
+fn resolve_empty_tree(context: &GitContext, cwd: &Path, object_format: &str) -> Result<String, GitFailure> {
+    if let Some(known) = empty_tree_name(object_format) {
+        return Ok(String::from(known));
+    }
+    let hashed: GitOutput = required(context, cwd, &["hash-object", "-t", "tree", "--stdin"])?;
+    return decoded_trimmed(&hashed);
+}
+
+/// What:
 ///  Captures every invocation fact except the preparation base,
 ///  before any Git mutation.
 /// Why:
@@ -344,7 +364,8 @@ pub fn capture_invocation_layout(
         SymbolicHead::Branch(reference) => reference.clone(),
         SymbolicHead::Detached => String::from("HEAD"),
     };
-    let empty_tree: GitOutput = required(context, cwd, &["hash-object", "-t", "tree", "--stdin"])?;
+    let object_format: String = required_line(&lines, 6)?;
+    let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
     let repository_root: PathBuf = std::fs::canonicalize(absolute_reported(cwd, &lines, 0)?)
         .map_err(|error| { return GitFailure(format!("repository root is unreadable: {error}")); })?;
     return Ok(InvocationLayout {
@@ -358,8 +379,8 @@ pub fn capture_invocation_layout(
         object_directory: absolute_reported(cwd, &lines, 4)?,
         registry_root: absolute_reported(cwd, &lines, 5)?,
         ref_format: resolve_ref_format(context, cwd)?,
-        object_format: required_line(&lines, 6)?,
-        empty_tree_oid: decoded_trimmed(&empty_tree)?,
+        object_format,
+        empty_tree_oid,
         invoked_at,
     });
 }

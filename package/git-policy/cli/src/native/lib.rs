@@ -92,6 +92,12 @@ pub mod real_git_candidate;
 #[cfg(test)]
 mod test_support;
 
+/// A Git stand-in that logs each start and runs the real Git;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod recording_git;
+
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
@@ -699,6 +705,9 @@ pub mod replay_revalidation;
 
 /// Replay: one replay of a prepared commit onto a moved target, the integrator's replay result (`replay_commit`).
 pub mod replay_commit;
+/// The empty tree's object name under each known object format.
+pub mod empty_tree;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;

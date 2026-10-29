@@ -3,6 +3,8 @@
 
 use super::*;
 use crate::test_support::{fixture, git, git_context, git_text, repository, remove};
+#[cfg(unix)]
+use crate::recording_git::{recorded_starts, recording_context};
 
 /// Git's empty tree under SHA-1, the object format of every fixture.
 const SHA1_EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
@@ -34,6 +36,29 @@ fn branch_layout_names_the_branch_and_the_store() {
     );
     assert!(!layout.invoked_at.is_empty());
     remove(root.as_path());
+}
+
+/// The empty tree of a SHA-1 or SHA-256 repository is known without hashing:
+///  no `hash-object` start happens and the recorded name is what Git hashes.
+#[test]
+#[cfg(unix)]
+fn the_empty_tree_of_a_known_format_starts_no_hash_object() {
+    for format in ["sha1", "sha256"] {
+        let root: PathBuf = fixture(format!("capture-invocation-no-hash-{format}").as_str());
+        let repo: PathBuf = root.join("repo");
+        std::fs::create_dir(&repo).expect("fixture");
+        git(repo.as_path(), &["init", "--quiet", format!("--object-format={format}").as_str()]);
+        let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+        let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+        let starts: Vec<String> = recorded_starts(log.as_path());
+        assert!(!starts.is_empty(), "the recorder must see the layout's other starts");
+        for start in &starts {
+            assert!(!start.starts_with("hash-object"), "unexpected start: {start}");
+        }
+        let oracle: String = git_text(repo.as_path(), &["hash-object", "-t", "tree", "--stdin"]);
+        assert_eq!(layout.empty_tree_oid, oracle);
+        remove(root.as_path());
+    }
 }
 
 /// A detached `HEAD` makes `HEAD` itself the ref the landing advances.
