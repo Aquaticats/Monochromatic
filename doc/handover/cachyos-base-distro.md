@@ -105,6 +105,9 @@ Owner follow-ups the same day:
    `map-options.ts`, `p-map-keyed.ts`, `p-map-stop.ts` 1 each;
    p-memoize `p-memoize-decorator.ts` 6, `memoized-cache-store.ts` 5, `p-memoize-clear.ts` 4.
   All ran against their files' own unit tests (none are "no tests select this file").
+  Owner chose "Kill or justify all": one subagent per package adds killing tests or justified
+   `mutation-test-disable` suppressions, then reruns `test:mutation`
+   (units `pmap-survivors-final`, `pmemoize-survivors-final`; report copies in `~/temp/agent/mutation-survivors/`).
 
 ## music-player `run`: zigbuild adopted for now
 
