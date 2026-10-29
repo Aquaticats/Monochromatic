@@ -252,11 +252,19 @@ Publication: the dry run passed (20 files, 38.5 KiB compressed). The first real 
 (the same finding as `doc/runbook/publish-crate-first-time.md`), and the registry still answered 404 for the crate.
 After the owner created a new token and ran `cargo login`, the publish succeeded: the registry reports `max_stable_version`
 0.1.0, license `LGPL-3.0-or-later`, 39,464 bytes. A disposable `cargo install --version 0.1.0` from the registry built and ran
-(`search-shadow --version` printed `search-shadow 0.1.0`). The GitHub Actions trusted publisher was created through
+(`search-shadow --version` printed `search-shadow 0.1.0`). A GitHub Actions trusted publisher was created through
 `POST /api/v1/trusted_publishing/github_configs` with the token's `trusted-publishing` scope (config id 29471,
-`Aquaticat/Monochromatic`, `cargo-publish.yml`, no environment).
+`cargo-publish.yml`, no environment), but with the wrong owner: the runbook said `Aquaticat` (id 66041952) and the repository's
+owner is `Aquaticats` (id 343218767). The error surfaced when the workflow run URL showed `Aquaticats`, and by then every API call
+with the token returned `403 authentication failed`, so the entry must be replaced in the crates.io dashboard
+(`doc/runbook/publish-crate-first-time.md`, which now names `Aquaticats`). One related line is unchecked:
+`.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...` to `gh attestation verify`,
+and a signer-workflow string may not follow a GitHub redirect the way a URL does.
 
-Not done yet: revoking the bootstrap token, adding the crate to `.github/workflows/cargo-publish.yml`, and activation.
+CI: `.github/workflows/cargo-publish.yml` gained `ss-detect`, `ss-publish-crate`, `ss-release-state`, `ss-build-binary` and
+`ss-create-release` (commit `0a53556811`), modeled on the nested-wayland-session jobs: a version bump on `main` publishes through
+Trusted Publishing and, once the crate's `Cargo.toml` carries `[package.metadata.binstall]`, builds two Linux archives and
+creates one immutable release. Not done yet: that metadata and a 0.1.1 bump, the plan entry, and activation.
 The toolchain's `cargo-binstall` provider runs `cargo binstall --no-confirm --version X CRATE` with no compile ban, so a
 source-only crate installs by compiling (about 9 seconds measured). A plan entry needs `postinstall.link` for `rg`
 (the schema allows one link per entry, so `grep` and `find` need an array), and the link directory must precede
