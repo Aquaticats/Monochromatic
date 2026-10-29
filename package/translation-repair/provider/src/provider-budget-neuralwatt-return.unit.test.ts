@@ -13,6 +13,7 @@
 
 import {
   describe,
+  type DisposableSandbox,
   expect,
   it,
 } from '@monochromatic-dev/module-test/ts';
@@ -205,6 +206,45 @@ async function heldWithin({ msBeforeReturn, }: { readonly msBeforeReturn: number
 }
 
 /**
+ Fake clock that the production wait sleeps on, and that the case's budgets and wall clock read.
+
+ The clock is installed on the calling case's own sandbox with the timers `waitOutHold` arms, and removed when the
+ returned handle is disposed, so the case sleeps no real time and a stalled machine changes nothing. A native timer made
+ before the install and cleared under it, such as the module logger's start check, is cleared by the real
+ `clearTimeout`.
+
+ @param sinon - case's own sandbox, which restores the clock when the case ends
+
+ @returns The clock, starting at one second so no reading sits at instant zero, and the disposal that removes it
+
+ @example
+ ```ts
+ using fake = fakeClockStarted({ sinon: ctx.sinon, },);
+ ```
+ */
+function fakeClockStarted(
+  { sinon, }: { readonly sinon: DisposableSandbox; },
+): { readonly clock: ReturnType<DisposableSandbox['useFakeTimers']>; } & Disposable {
+  /**
+   The fake clock the wait sleeps on.
+   */
+  const clock = sinon.useFakeTimers({
+    now: 1_000,
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+    ],
+    shouldClearNativeTimers: true,
+  },);
+  return {
+    clock,
+    [Symbol.dispose]: function removeClock(): void {
+      clock.restore();
+    },
+  };
+}
+
+/**
  The refusal the router throws once it has waited out the holds it can, read over the budgets of a case.
 
  @param budgets - budgets the case built, every provider dry
@@ -370,11 +410,12 @@ await describe({
     it({
       name: 'ENDS THE RUN WITH THE DAY START STATED when the account still reads the day spent after the return was '
         + 'waited for, and offers no return to park for: the router waited for it already',
-      fn: async () => {
+      fn: async ctx => {
+        using fake = fakeClockStarted({ sinon: ctx.sinon, },);
         /**
-         The monotonic instant the case began at, from which the wall clock stub moves with real time.
+         The fake instant the case began at, from which the wall clock stub moves with the fake clock.
          */
-        const began = performance.now();
+        const began = fake.clock.now;
         const budgets = createProviderBudgets({
           maxHoldMs: TEST_MAX_HOLD_MS,
           neuralwatt: {
@@ -382,8 +423,9 @@ await describe({
             dayAnchor: () => ({ known: true, msOfDay: DAY_START_MS_OF_DAY, }),
           },
           freshForMs: FRESH_MS,
-          // The wall clock reads 50 ms before the day start when the case begins and moves with real time, so the day
-          // start passes during the wait and the next reading names the day after.
+          now: () => fake.clock.now,
+          // The wall clock reads 50 ms before the day start when the case begins and moves with the fake clock, so the
+          // day start passes during the wait and the next reading names the day after.
           wallNow: () => new Date(Date.UTC(
             2_026,
             9,
@@ -391,11 +433,17 @@ await describe({
             0,
             0,
             0,
-            (DAY_START_MS_OF_DAY - 50) + Math.round(performance.now() - began,),
+            (DAY_START_MS_OF_DAY - 50) + (fake.clock.now - began),
           ),),
           returnMarginMs: 20,
         },);
-        const thrown = await refusalAfterHolds({ budgets, pollMs: 10, },);
+        /**
+         The router's call, sleeping out the 70 ms to the return (50 to the day start and the 20 of margin) on the fake
+         clock.
+         */
+        const refusal = refusalAfterHolds({ budgets, pollMs: 10, },);
+        await fake.clock.tickAsync(70 + 10,);
+        const thrown = await refusal;
         expect(thrown,).toBeInstanceOf(EveryProviderDryError,);
         expect((thrown as Error).message,).toContain('after waiting',);
         expect((thrown as Error).message,).toContain('at 19:15:08 UTC',);
@@ -437,15 +485,24 @@ await describe({
     it({
       name: 'LETS THE ROUTER\'S WAIT SEE THE RETURN: every provider dry but NeuralWatt coming back in 50 ms waits it '
         + 'out and reads NeuralWatt wet, instead of ending the run',
-      fn: async () => {
+      fn: async ctx => {
+        using fake = fakeClockStarted({ sinon: ctx.sinon, },);
         const reads = { count: 0, };
-        // THE REAL MONOTONIC CLOCK, since real time passes during the wait and the return is read against it.
-        const budgets = budgetsBefore({ msBeforeReturn: 50, reads, withXiaomi: true, marginMs: 20, },);
+        // THE FAKE CLOCK IS THE MONOTONIC CLOCK, since time passes during the wait only as the case ticks it and the
+        // return is read against it.
+        const budgets = budgetsBefore({
+          msBeforeReturn: 50,
+          clock: fake.clock,
+          reads,
+          withXiaomi: true,
+          marginMs: 20,
+        },);
         /**
-         What the router's read comes to once the wait has ended, over the live roster's shape: a funded Xiaomi that
-         serves a checker seat and nothing that writes, and every other provider unconfigured and so dry.
+         The router's read, sleeping out the 70 ms to the return (50 to the day start and the 20 of margin) on the fake
+         clock, over the live roster's shape: a funded Xiaomi that serves a checker seat and nothing that writes, and
+         every other provider unconfigured and so dry.
          */
-        const view = await readBudgetsPastHolds({
+        const reading = readBudgetsPastHolds({
           budgets,
           modelId: 'glm-5.3',
           signal: SIGNAL,
@@ -462,6 +519,11 @@ await describe({
             openrouter: true,
           },
         },);
+        await fake.clock.tickAsync(70 + 10,);
+        /**
+         What the read comes to once the wait has ended.
+         */
+        const view = await reading;
         expect(view.neuralwatt,).toBe(false,);
         expect(view.xiaomi,).toBe(false,);
         expect(reads.count,).toBe(2,);
