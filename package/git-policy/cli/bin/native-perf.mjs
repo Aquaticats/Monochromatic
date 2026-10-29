@@ -6,43 +6,58 @@
   `SPEC.md` ("Benchmark method") requires a paired direct-Git baseline for every scenario, the median, p95 and median
   absolute deviation of each, the wrapper-added delta, and the raw samples; the added latency of a forwarded
   command must stay strictly under two seconds.
- 
+
  In TS you'd write (pseudocode):
  ```ts
  for (const scenario of scenarios) report(await paired(scenario, samples));
  ```
  */
-import { spawnSync } from 'node:child_process';
+// The bin scripts sit outside the package tsconfig's include list, so type-aware lint checks them in an inferred
+// program that loads no ambient Node types; this reference loads them, so `process` and `node:` imports stay typed
+// in this file on its own instead of depending on a sibling module that carries the same reference.
+/// <reference types="node" />
 import {
-  chmodSync,
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync
-} from 'node:fs';
+  access,
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir } from 'node:os';
 import {
   dirname,
   join,
-  resolve
+  resolve,
 } from 'node:path';
 import { parseArgs } from 'node:util';
+
+import { repository } from './native-perf-git.mjs';
+import { measure } from './native-perf-measure.mjs';
 
 /** The strict upper bound for wrapper-added latency of a forwarded command, in milliseconds. */
 const BUDGET_MILLISECONDS = 2_000;
 
-/** The real Git every direct sample and every wrapper child runs. */
-const REAL_GIT = '/usr/bin/git';
+/** The fewest samples per scenario that make a median, a p95 and a deviation meaningful. */
+const MINIMUM_SAMPLES = 5;
+
+/** Permission bits of the copied wrapper binary: executable by everyone, writable by its owner. */
+const EXECUTABLE_MODE = 0o755;
+
+/** Permission bits of the scratch parent directory: private to the current user. */
+const PRIVATE_DIRECTORY_MODE = 0o700;
+
+/** Width of the scenario column in the printed lines, so the figures align. */
+const SCENARIO_COLUMN_WIDTH = 22;
 
 const { values } = parseArgs({
   options: {
     binary: { type: 'string' },
     samples: {
       type: 'string',
-      default: '30'
+      default: '30',
     },
     output: { type: 'string' },
   },
@@ -51,215 +66,77 @@ if (values.binary === undefined) {
   throw new Error('--binary <path to the release cli-git-native> is required');
 }
 const samples = Number(values.samples);
-if ((!Number.isInteger(samples)) || (samples < 5)) {
-  throw new Error('--samples must be an integer of at least 5');
+if ((!Number.isInteger(samples)) || (samples < MINIMUM_SAMPLES)) {
+  throw new Error(`--samples must be an integer of at least ${String(MINIMUM_SAMPLES)}`);
 }
 
-if ((values.output !== undefined) && (!existsSync(
-  dirname(resolve(values.output)),
-))) {
-  throw new Error(`the directory of --output does not exist: ${dirname(resolve(values.output))}`);
+if (values.output !== undefined) {
+  const outputDirectory = dirname(resolve(values.output));
+  try {
+    await access(outputDirectory);
+  }
+  catch (error) {
+    throw new Error(
+      `the directory of --output does not exist: ${outputDirectory}`,
+      { cause: error },
+    );
+  }
 }
 
 const scratchParent = join(
   homedir(),
   'temp',
-  'agent'
+  'agent',
 );
-mkdirSync(
+await mkdir(
   scratchParent,
   {
     recursive: true,
-    mode: 0o700
-  }
+    mode: PRIVATE_DIRECTORY_MODE,
+  },
 );
-const root = mkdtempSync(join(
+const root = await mkdtemp(join(
   scratchParent,
-  'native-perf-'
+  'native-perf-',
 ));
-mkdirSync(join(
+await mkdir(join(
   root,
-  'bin'
+  'bin',
 ));
-mkdirSync(join(
+await mkdir(join(
   root,
-  'home'
+  'home',
 ));
-copyFileSync(
+const wrapperBinary = join(
+  root,
+  'bin',
+  'cli-git-native',
+);
+await copyFile(
   resolve(values.binary),
-  join(
-    root,
-    'bin',
-    'cli-git-native'
-  )
+  wrapperBinary,
 );
-chmodSync(
-  join(
-    root,
-    'bin',
-    'cli-git-native'
-  ),
-  0o755
+await chmod(
+  wrapperBinary,
+  EXECUTABLE_MODE,
 );
-symlinkSync(
+await symlink(
+  wrapperBinary,
   join(
     root,
     'bin',
-    'cli-git-native'
+    'git',
   ),
-  join(
-    root,
-    'bin',
-    'git'
-  )
 );
 
-/** The environment of one sample: identical for the direct and the wrapped run apart from the PATH order. */
-function environment(wrapped) { return {
-  PATH: wrapped ? `${join(
-    root,
-    'bin'
-  )}:/usr/bin:/bin` : '/usr/bin:/bin',
-  HOME: join(
-    root,
-    'home'
-  ),
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: '/nonexistent-global-config',
-  GIT_AUTHOR_NAME: 'Perf',
-  GIT_AUTHOR_EMAIL: 'perf@example.invalid',
-  GIT_COMMITTER_NAME: 'Perf',
-  GIT_COMMITTER_EMAIL: 'perf@example.invalid',
-}; }
-
-/** Run Git once and return the elapsed milliseconds and the exit status. */
-function timed({
-  wrapped,
-  directory,
-  arguments_
-}) {
-  const program = wrapped ? join(
-    root,
-    'bin',
-    'git'
-  ) : REAL_GIT;
-  const started = process.hrtime
-    .bigint();
-  const result = spawnSync(
-    program,
-    arguments_,
-    {
-      cwd: directory,
-      env: environment(wrapped),
-      stdio: [
-        'ignore',
-        'pipe',
-        'pipe'
-      ],
-    }
-  );
-  const elapsed = Number(process.hrtime
-    .bigint()
-    - started) / 1e6;
-  return {
-    elapsed,
-    status: result.status,
-    stderr: String(result.stderr)
-  };
-}
-
-/** Run Git for setup and fail loudly. */
-function setup(
-  directory,
-  arguments_
-) {
-  const result = spawnSync(
-    REAL_GIT,
-    arguments_,
-    {
-      cwd: directory,
-      env: environment(false),
-      encoding: 'utf8'
-    }
-  );
-  if (result.status !== 0) {
-    throw new Error(`git ${arguments_.join(' ')} failed in ${directory}: ${result.stderr}`);
-  }
-}
-
-/** One repository with thirty tracked files, so the forwarded commands read a realistic index. */
-function repository(name) {
-  const directory = join(
-    root,
-    name
-  );
-  mkdirSync(directory);
-  setup(
-    directory,
-    [
-      'init',
-      '--quiet',
-      '--initial-branch=main'
-    ]
-  );
-  for (let index = 0; index < 30; index += 1) {
-    writeFileSync(
-      join(
-        directory,
-        `file-${String(index)}.txt`
-      ),
-      `content ${String(index)}\n`
-    );
-  }
-  setup(
-    directory,
-    [
-      'add',
-      '--',
-      '.'
-    ]
-  );
-  setup(
-    directory,
-    [
-      'commit',
-      '--quiet',
-      '--message=base'
-    ]
-  );
-  return directory;
-}
-
-function median(values_) {
-  const sorted = [...values_].sort((
-    left,
-    right
-  ) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  return (sorted.length % 2) === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
-}
-function percentile95(values_) {
-  const sorted = [...values_].sort((
-    left,
-    right
-  ) => left - right);
-  return sorted[Math.min(
-    sorted.length - 1,
-    Math.ceil(0.95 * sorted.length) - 1
-  )];
-}
-function medianAbsoluteDeviation(values_) {
-  const centre = median(values_);
-  return median(values_.map((value) => Math.abs(value - centre)));
-}
-function summary(values_) { return {
-  median: median(values_),
-  p95: percentile95(values_),
-  medianAbsoluteDeviation: medianAbsoluteDeviation(values_),
-}; }
-
-const directRepository = repository('direct-repo');
-const wrappedRepository = repository('wrapped-repo');
+const directRepository = await repository({
+  root,
+  name: 'direct-repo',
+});
+const wrappedRepository = await repository({
+  root,
+  name: 'wrapped-repo',
+});
 
 /** Forwarded read commands: the wrapper only classifies them and runs real Git. */
 const forwarded = [
@@ -267,137 +144,117 @@ const forwarded = [
     name: 'rev-parse',
     arguments_: [
       'rev-parse',
-      'HEAD'
-    ]
+      'HEAD',
+    ],
   },
   {
     name: 'status',
     arguments_: [
       'status',
-      '--porcelain'
-    ]
+      '--porcelain',
+    ],
   },
   {
     name: 'log',
     arguments_: [
       'log',
       '-1',
-      '--format=%H'
-    ]
+      '--format=%H',
+    ],
   },
   {
     name: 'diff-stat',
     arguments_: [
       'diff',
-      '--stat'
-    ]
+      '--stat',
+    ],
   },
 ];
 
+/** @type {import('./native-perf-measure.mjs').SampleFailure[]} */
 const failures = [];
+/** @type {import('./native-perf-measure.mjs').ScenarioReport[]} */
 const report = [];
 
-/** Pair a direct and a wrapped sample, alternating which goes first so cache order cancels. */
-function measure({
-  name,
-  prepare,
-  command,
-  enforced
-}) {
-  const direct = [];
-  const wrappedSamples = [];
-  for (let sample = 0; sample < samples; sample += 1) {
-    const order = (sample % 2) === 0 ? [
-      false,
-      true
-    ] : [
-      true,
-      false
-    ];
-    for (const wrapped of order) {
-      const directory = wrapped ? wrappedRepository : directRepository;
-      prepare?.({
-        directory,
-        sample
-      });
-      const result = timed({
-        wrapped,
-        directory,
-        arguments_: command({ sample })
-      });
-      if (result.status !== 0) {
-        failures.push({
-          scenario: name,
-          wrapped,
-          sample,
-          status: result.status,
-          stderr: result.stderr
-        });
-        continue;
-      }
-      (wrapped ? wrappedSamples : direct).push(result.elapsed);
-    }
+/**
+ Keep a scenario's failed samples and its report, in the order the scenarios ran.
+
+ @param {import('./native-perf-measure.mjs').ScenarioMeasurement} measurement - what one scenario measured
+ */
+function record(measurement) {
+  failures.push(...measurement.failures);
+  if (measurement.entry !== undefined) {
+    report.push(measurement.entry);
   }
-  if ((direct.length === 0) || (wrappedSamples.length === 0)) {
-    return;
+}
+
+/**
+ Measure every scenario one at a time, forwarded commands first, because concurrent scenarios would distort each other.
+
+ @returns {AsyncGenerator<import('./native-perf-measure.mjs').ScenarioMeasurement>} one measurement per scenario,
+   in the order the scenarios ran
+ */
+async function* measureScenarios() {
+  for (const scenario of forwarded) {
+    yield measure({
+      name: scenario.name,
+      command() {
+        return scenario.arguments_;
+      },
+      enforced: true,
+      samples,
+      root,
+      directRepository,
+      wrappedRepository,
+    });
   }
-  const delta = {
-    median: median(wrappedSamples) - median(direct),
-    p95: percentile95(wrappedSamples) - percentile95(direct)
-  };
-  report.push({
-    scenario: name,
-    enforced,
-    direct: summary(direct),
-    wrapped: summary(wrappedSamples),
-    addedMedianMilliseconds: delta.median,
-    addedP95Milliseconds: delta.p95,
-    rawDirect: direct,
-    rawWrapped: wrappedSamples,
+  // An explicit-path commit runs the whole transaction, so it is reported but not held to the forwarded-command budget.
+  yield measure({
+    name: 'commit-explicit-path',
+    async prepare({
+      directory,
+      sample,
+    }) {
+      await writeFile(
+        join(
+          directory,
+          'file-0.txt',
+        ),
+        `edit ${String(sample)} ${String(Math.random())}\n`,
+      );
+    },
+    command({ sample }) {
+      return [
+        'commit',
+        '--quiet',
+        `--message=perf ${String(sample)}`,
+        '--',
+        'file-0.txt',
+      ];
+    },
+    enforced: false,
+    samples,
+    root,
+    directRepository,
+    wrappedRepository,
   });
 }
 
-for (const scenario of forwarded) {
-  measure({
-    name: scenario.name,
-    command: () => scenario.arguments_,
-    enforced: true
-  });
+for await (const measurement of measureScenarios()) {
+  record(measurement);
 }
-// An explicit-path commit runs the whole transaction, so it is reported but not held to the forwarded-command budget.
-measure({
-  name: 'commit-explicit-path',
-  prepare: ({
-    directory,
-    sample
-  }) => {
-    writeFileSync(
-      join(
-        directory,
-        'file-0.txt'
-      ),
-      `edit ${String(sample)} ${String(Math.random())}\n`
-    );
-  },
-  command: ({ sample }) => [
-    'commit',
-    '--quiet',
-    `--message=perf ${String(sample)}`,
-    '--',
-    'file-0.txt'
-  ],
-  enforced: false,
-});
 
-rmSync(
+await rm(
   root,
   {
     recursive: true,
-    force: true
-  }
+    force: true,
+  },
 );
 
-const overBudget = report.filter((entry) => entry.enforced && (entry.addedP95Milliseconds >= BUDGET_MILLISECONDS));
+const overBudget = report.filter(function overBudgetEntry(entry) {
+  return entry.enforced && (entry.addedP95Milliseconds >= BUDGET_MILLISECONDS);
+});
 const document = {
   schemaVersion: 1,
   date: new Date().toISOString(),
@@ -409,19 +266,19 @@ const document = {
   report,
 };
 if (values.output !== undefined) {
-  writeFileSync(
+  await writeFile(
     values.output,
     `${JSON.stringify(
       document,
       undefined,
-      2
-    )}\n`
+      2,
+    )}\n`,
   );
 }
 for (const entry of report) {
   const line = [
     entry.scenario
-      .padEnd(22),
+      .padEnd(SCENARIO_COLUMN_WIDTH),
     `direct median ${entry.direct
       .median
       .toFixed(1)} ms`,
@@ -440,7 +297,9 @@ if (failures.length > 0) {
   process.exitCode = 1;
 }
 if (overBudget.length > 0) {
-  console.log(`OVER BUDGET (added p95 >= ${String(BUDGET_MILLISECONDS)} ms): ${overBudget.map((entry) => entry.scenario)
-    .join(', ')}`);
+  const overBudgetNames = overBudget.map(function scenarioName(entry) {
+    return entry.scenario;
+  });
+  console.log(`OVER BUDGET (added p95 >= ${String(BUDGET_MILLISECONDS)} ms): ${overBudgetNames.join(', ')}`);
   process.exitCode = 1;
 }
