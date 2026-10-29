@@ -81,15 +81,25 @@ type CallableProbe<Element> = {
  
  @throws InvalidInputError when the input exposes neither iterator slot.
  
- @throws TypeError from the probe itself when the input is `null` or
- `undefined`, matching upstream `p-map`'s property access.
- 
+ @throws InvalidInputError for a `null` or `undefined` input too, carrying
+ the same message as any other wrong input, as `p-map` 7.1.0 does with
+ optional chaining instead of letting the engine's property-access
+ diagnostic through.
+
  @example
  ```ts
  validateInput([1, 2,],);
  ```
  */
 export function validateInput<Element>(iterable: MapInput<Element>,): void {
+  /**
+   The input as a caller may really supply it: the public type excludes
+   nullish values, but a mis-typed caller can still pass one.
+   */
+  const candidate: unknown = iterable;
+  if (candidate === null || candidate === undefined)
+    throw new InvalidInputError(candidate,);
+
   /**
    Both iterator slots, probed in upstream `p-map`'s access order so an
    exotic input throws at the same probe.

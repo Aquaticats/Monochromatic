@@ -288,7 +288,7 @@ await describe({
         },),
 
         it({
-          name: 'rejects a null input from the probe itself, like upstream property access',
+          name: 'rejects a null input with the same message as any other wrong input, like upstream p-map 7.1.0',
           fn: async () => {
             /**
              Failure observed from the run's promise.
@@ -305,8 +305,31 @@ await describe({
             catch (error) {
               caught = error;
             }
-            expect(caught,).toBeInstanceOf(TypeError,);
-            expect((caught as Error).message,).toContain('is not iterable',);
+            expect(caught,).toBeInstanceOf(InvalidInputError,);
+            expect((caught as Error).message,).toBe('Expected `input` to be either an `Iterable` or `AsyncIterable`, got (object)',);
+          },
+        },),
+
+        it({
+          name: 'rejects an undefined input with the same message as any other wrong input, like upstream p-map 7.1.0',
+          fn: async () => {
+            /**
+             Failure observed from the run's promise.
+             */
+            let caught: unknown;
+            try {
+              await pMap({
+                iterable: undefined as never,
+                mapper: function identity(value: number,): number {
+                  return value;
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,).toBeInstanceOf(InvalidInputError,);
+            expect((caught as Error).message,).toBe('Expected `input` to be either an `Iterable` or `AsyncIterable`, got (undefined)',);
           },
         },),
       ],
