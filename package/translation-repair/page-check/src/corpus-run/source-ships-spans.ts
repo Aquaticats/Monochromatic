@@ -8,7 +8,7 @@ import { footnoteRead, } from './source-ships-footnote-spans.ts';
 import { rawHtmlBlockReading, } from './source-ships-footnote-html-region.ts';
 import { imageAltReading, } from './source-ships-image-alt.ts';
 import {
-  isIndentedCode,
+  isIndentedCodeBlock,
   markerEscapeEdits,
 } from './source-ships-list-marker.ts';
 import { literalBlockReading, } from './source-ships-literal-block.ts';
@@ -203,7 +203,7 @@ export function spansOf(
     const afterIndentedCode = endsInIndentedCode.get(parent,) ?? false;
     endsInIndentedCode.set(
       parent,
-      isIndentedCode({
+      isIndentedCodeBlock({
         source,
         node,
       },),

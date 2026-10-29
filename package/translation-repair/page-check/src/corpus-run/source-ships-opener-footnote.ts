@@ -104,7 +104,7 @@ function linesOfRange(
 
  @example
  ```ts
- const split = splitFlowsOf({ source, range: { start: 0, end: 39, }, starts: [20,], closed: [], },);
+ const split = splitFlowsOf({ source, range: { start: 0, end: 39, }, starts: [20,], closed: [], htmlRanges: [], },);
  ```
  */
 function splitFlowsOf(

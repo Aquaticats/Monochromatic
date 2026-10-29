@@ -1585,11 +1585,31 @@ const HELD_TESTS: Readonly<Record<string, {
     tests: 1,
     why: SCANNER,
   },
+  'page-check/corpus-run/source-ships-display-math.ts#isBlankFrom': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-footnote-html-region.ts#endMarkOf': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-footnote-html-region.ts#regionEndOf': {
+    tests: 2,
+    why: SCANNER,
+  },
   'page-check/corpus-run/source-ships-lines.ts#contentStretches': {
     tests: 1,
     why: SCANNER,
   },
   'page-check/corpus-run/source-ships-links.ts#destinationCharacter': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-list-marker.ts#isOneOf': {
+    tests: 1,
+    why: SCANNER,
+  },
+  'page-check/corpus-run/source-ships-list-marker.ts#markerEscapeEdits': {
     tests: 1,
     why: SCANNER,
   },

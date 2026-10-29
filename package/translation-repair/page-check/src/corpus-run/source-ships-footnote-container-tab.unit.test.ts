@@ -11,16 +11,9 @@
  @module
  */
 
-import {
-  describe,
-  expect,
-  it,
-} from '@monochromatic-dev/module-test/ts';
+import { describe, } from '@monochromatic-dev/module-test/ts';
 
-import {
-  encodeAsLiteralMdx,
-  readingDifferenceOf,
-} from '../../dist/final/node/index.mjs';
+import { sameReadingCases, } from './source-reading-same.test-fixture.ts';
 
 /**
  Texts whose lines after a footnote's first carry a tab where the container's pattern has a space: what the case is, and
@@ -43,16 +36,5 @@ const TAB_CASES: readonly (readonly [string, string])[] = [
 
 await describe({
   name: 'a tab where the container puts a space before the blocks of a footnote',
-  children: TAB_CASES.map(function caseOf([name, text,],): ReturnType<typeof it> {
-    return it({
-      name: `SHOWS THE SOURCE TEXT FOR ${name}`,
-      fn: function readsAsTheSourceDoes(): Promise<void> {
-        expect(readingDifferenceOf({
-          source: text,
-          carried: encodeAsLiteralMdx({ text, },),
-        },).kind,).toBe('same',);
-        return Promise.resolve();
-      },
-    },);
-  },),
+  children: sameReadingCases({ cases: TAB_CASES, },),
 },);

@@ -17,38 +17,8 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import {
-  encodeAsLiteralMdx,
-  readingDifferenceOf,
-} from '../../dist/final/node/index.mjs';
-
-/**
- The comparison of a source with the page carrying it as the encoder writes it.
-
- @param source - text of a run of slices
-
- @returns What the encoder writes and what the comparison says
-
- @example
- ```ts
- const { written, kind, } = encodedReading({ source: '![<https://example.net/a>](u.png)', },);
- ```
- */
-function encodedReading(
-  { source, }: { readonly source: string; },
-): { readonly written: string; readonly kind: string; } {
-  /**
-   The page text the encoder writes.
-   */
-  const written = encodeAsLiteralMdx({ text: source, },);
-  return {
-    written,
-    kind: readingDifferenceOf({
-      source,
-      carried: written,
-    },).kind,
-  };
-}
+import { encodeAsLiteralMdx, } from '../../dist/final/node/index.mjs';
+import { encodedReading, } from './source-reading-same.test-fixture.ts';
 
 await describe({
   name: 'source ships image alternative text',

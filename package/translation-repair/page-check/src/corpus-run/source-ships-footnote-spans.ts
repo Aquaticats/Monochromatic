@@ -239,7 +239,7 @@ export function footnoteRead(
       node,
     },);
     /**
-     Whether another footnote definition starts in the paragraph after this one, whose lines hold the table.
+     Whether another footnote definition starts further down the paragraph, whose lines hold the table.
      */
     const hasLaterStart = ranges.some(function startsLater({ start, },): boolean {
       return (start > split) && (start < range.end);

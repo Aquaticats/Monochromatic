@@ -18,38 +18,7 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
-import {
-  encodeAsLiteralMdx,
-  readingDifferenceOf,
-} from '../../dist/final/node/index.mjs';
-
-/**
- What the encoder writes for a text, and what the comparison says of the page.
-
- @param source - text of a run of slices
-
- @returns The page text and the answer of the comparison
-
- @example
- ```ts
- const { written, kind, } = encodedReading({ source: '    注\n2.\n', },);
- ```
- */
-function encodedReading(
-  { source, }: { readonly source: string; },
-): { readonly written: string; readonly kind: string; } {
-  /**
-   The page text the encoder writes.
-   */
-  const written = encodeAsLiteralMdx({ text: source, },);
-  return {
-    written,
-    kind: readingDifferenceOf({
-      source,
-      carried: written,
-    },).kind,
-  };
-}
+import { encodedReading, } from './source-reading-same.test-fixture.ts';
 
 await describe({
   name: 'source ships a list marker after indented code',

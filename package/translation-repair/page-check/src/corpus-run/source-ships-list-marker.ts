@@ -164,10 +164,10 @@ function markerIndexOf(
 
  @example
  ```ts
- const indented = isIndentedCode({ source: '    c\n', node, },);
+ const indented = isIndentedCodeBlock({ source: '    c\n', node, },);
  ```
  */
-export function isIndentedCode(
+export function isIndentedCodeBlock(
   {
     source,
     node,

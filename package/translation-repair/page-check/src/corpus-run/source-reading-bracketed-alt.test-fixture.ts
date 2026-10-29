@@ -36,7 +36,7 @@ const ADDRESSES: readonly string[] = [
  const page = bracketedAltPage({ text: '![<https://example.net/a>](u.png)', },);
  ```
  */
-export function bracketedAltPage({ text, }: { readonly text: string; },): string {
+function bracketedAltPage({ text, }: { readonly text: string; },): string {
   return ADDRESSES.reduce(
     function bracketed(
       page,
