@@ -23,6 +23,7 @@ fn plan(lock: &Path, skip_lock: bool, disabled: &[&str]) -> HookDispatchPlan {
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: skip_lock,
+        named_hooks_possible: true,
     };
 }
 
@@ -113,6 +114,82 @@ fn disabled_post_commit_runs_nothing() {
     .expect("disabled run");
     assert_eq!(outcome, PostCommitHookOutcome::Disabled);
     assert!(!record.exists());
+    remove(root.as_path());
+}
+
+/// An event with no user hook runs nothing: no author lookup, no lock and no hook runner start.
+#[test]
+fn an_absent_post_commit_hook_starts_nothing() {
+    let root: PathBuf = fixture("post-commit-absent");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let lock: PathBuf = repo.join(".git").join("cli-git").join("hook.lock");
+    let (stand_in, log) = logging_git(root.as_path());
+    let context: GitContext = GitContext {
+        real_git: stand_in,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+    };
+    let absent_plan: HookDispatchPlan = HookDispatchPlan {
+        hooks_path: repo.join(".git").join("hooks").display().to_string(),
+        named_hooks_possible: false,
+        ..plan(lock.as_path(), false, &[])
+    };
+    let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+        context: &context,
+        worktree: repo.as_path(),
+        real_index: repo.join(".git").join("index").as_path(),
+        landed_oid: "unused",
+        plan: &absent_plan,
+    })
+    .expect("absent run");
+    assert_eq!(outcome, PostCommitHookOutcome::Absent);
+    assert!(!log.exists(), "nothing started: {:?}", std::fs::read_to_string(log.as_path()));
+    assert!(!lock.exists());
+    remove(root.as_path());
+}
+
+/// A post-commit file that is not executable, or a configuration that names hooks, still runs the hook runner,
+///  which prints Git's hint or runs the named hook.
+#[test]
+fn a_non_executable_or_named_post_commit_hook_still_starts_the_runner() {
+    let root: PathBuf = fixture("post-commit-kept");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let lock: PathBuf = repo.join(".git").join("cli-git").join("hook.lock");
+    let hooks: PathBuf = repo.join(".git").join("hooks");
+    std::fs::write(hooks.join("post-commit"), b"#!/bin/sh\n").expect("plain file");
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let context = git_context();
+    for named_hooks_possible in [false, true] {
+        let kept_plan: HookDispatchPlan = HookDispatchPlan {
+            hooks_path: hooks.display().to_string(),
+            named_hooks_possible,
+            ..plan(lock.as_path(), true, &[])
+        };
+        let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+            context: &context,
+            worktree: repo.as_path(),
+            real_index: repo.join(".git").join("index").as_path(),
+            landed_oid: landed.as_str(),
+            plan: &kept_plan,
+        })
+        .expect("run");
+        assert_eq!(outcome, PostCommitHookOutcome::Ran(0), "named {named_hooks_possible}");
+    }
+    std::fs::remove_file(hooks.join("post-commit")).expect("remove the file");
+    let named_plan: HookDispatchPlan = HookDispatchPlan {
+        hooks_path: hooks.display().to_string(),
+        named_hooks_possible: true,
+        ..plan(lock.as_path(), true, &[])
+    };
+    let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+        context: &context,
+        worktree: repo.as_path(),
+        real_index: repo.join(".git").join("index").as_path(),
+        landed_oid: landed.as_str(),
+        plan: &named_plan,
+    })
+    .expect("run");
+    assert_eq!(outcome, PostCommitHookOutcome::Ran(0));
     remove(root.as_path());
 }
 

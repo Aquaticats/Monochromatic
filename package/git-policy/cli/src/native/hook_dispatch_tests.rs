@@ -41,6 +41,7 @@ fn plan_for(git_path: &Path, hooks_path: &Path, lock: &Path, skip_hook_lock: boo
         lease: String::from("lease"),
         hook_lock_path: String::from(lock.to_str().expect("UTF-8")),
         skip_hook_lock,
+        named_hooks_possible: true,
     };
 }
 

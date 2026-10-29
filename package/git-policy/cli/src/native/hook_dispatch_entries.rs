@@ -11,6 +11,10 @@
 //! await writeHookShim({ hooksDirectory, plan, nodePath: process.execPath });
 //! ```
 
+/// Debug logging of an omitted entry.
+use super::diagnostic_log::debug;
+/// Whether a user hook may exist for an event.
+use super::hook_presence::event_may_have_user_hook;
 /// Plan spelling shared with the reader.
 use super::hook_dispatch_plan::{
     HookDispatchPlan, PLAN_FILENAME, PREPARATION_HOOK_EVENTS, encode_hook_dispatch_plan,
@@ -94,6 +98,8 @@ fn write_entry(executable: &Path, entry: &Path) -> std::io::Result<()> {
 /// Why:
 ///   The incumbent's `writeHookShim`, with native entries instead of a Node program:
 ///  `post-commit` has no entry, so it never runs during preparation.
+///  An event with no user hook has no entry either: Git then finds nothing to start for it, which is what the
+///  entry would have done after re-entering this executable, taking the hook lock and running `git hook run`.
 ///  The directory must not exist, so nothing half-written is reused.
 ///
 /// In TS you'd write (pseudocode):
@@ -120,6 +126,10 @@ pub fn write_hook_dispatch(
         ))
     })?;
     for event in PREPARATION_HOOK_EVENTS {
+        if !event_may_have_user_hook(plan, event) {
+            debug("writeHookDispatch", format!("no user hook for {event}; the entry is omitted").as_str());
+            continue;
+        }
         let entry: PathBuf = hooks_directory.join(hook_entry_name(event));
         write_entry(executable, entry.as_path()).map_err(|error| {
             return HookEntryError(format!(
