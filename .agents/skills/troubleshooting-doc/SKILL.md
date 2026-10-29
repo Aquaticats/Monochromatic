@@ -514,9 +514,12 @@ same empty comment.
 
 ## Risk to the poster before any filing
 
-Filing puts a real person's account in front of strangers,
- so weigh that person's risk before drafting an artifact and before
-saying anything about whether to file.
+Always draft the artifact;
+ drafting is never held back by this section.
+ Filing is what puts a real person's account in front of strangers,
+ so this section governs what the doc says about filing:
+ weigh that person's risk before saying anything about whether to file
+and before marking a draft fileable.
 
 - Some repositories run trust or blocklist systems.
    Vouch is one;
