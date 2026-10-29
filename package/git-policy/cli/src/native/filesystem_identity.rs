@@ -18,6 +18,9 @@
 
 /// Trimming with the incumbent's `.trim()` semantics.
 use super::js_text::trim_javascript;
+/// The in-process answer for the UUID `findmnt` would print.
+#[cfg(target_os = "linux")]
+use super::filesystem_identity_mount::{MountUuid, mount_uuid};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -249,23 +252,33 @@ fn command_output(command: &str, arguments: &[&std::ffi::OsStr]) -> Option<Strin
 /// ```ts
 /// async function resolveLinuxFsId({ path }): Promise<FsIdResolution>;
 /// ```
-#[cfg_attr(
-    not(any(target_os = "linux", test)),
-    allow(dead_code, reason = "Linux only in the release build")
-)]
+#[cfg(target_os = "linux")]
 fn linux_fs_id(path: &Path) -> Option<String> {
     let target: &std::ffi::OsStr = path.as_os_str();
-    if let Some(output) = command_output(
-        "findmnt",
-        &[
-            std::ffi::OsStr::new("--target"),
-            target,
-            std::ffi::OsStr::new("--output=UUID"),
-            std::ffi::OsStr::new("--noheadings"),
-        ],
-    ) && let Some(identity) = create_fs_id(FsIdSource::FsUuid, output.as_str())
-    {
-        return Some(identity);
+    // The mount table and the udev record answer most paths without starting `findmnt`;
+    // a shape they cannot answer exactly is `Unknown` and still spawns it.
+    let in_process: MountUuid = mount_uuid(path);
+    match in_process {
+        MountUuid::Text(text) => {
+            if let Some(identity) = create_fs_id(FsIdSource::FsUuid, text.as_str()) {
+                return Some(identity);
+            }
+        }
+        MountUuid::Absent => {}
+        MountUuid::Unknown => {
+            if let Some(output) = command_output(
+                "findmnt",
+                &[
+                    std::ffi::OsStr::new("--target"),
+                    target,
+                    std::ffi::OsStr::new("--output=UUID"),
+                    std::ffi::OsStr::new("--noheadings"),
+                ],
+            ) && let Some(identity) = create_fs_id(FsIdSource::FsUuid, output.as_str())
+            {
+                return Some(identity);
+            }
+        }
     }
     let fallback: String = command_output(
         "stat",
