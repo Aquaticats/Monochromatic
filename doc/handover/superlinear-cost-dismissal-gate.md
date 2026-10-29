@@ -436,7 +436,8 @@ and safe to delete:
   First measured per-diff cost:
   195.5 s on a 106-line diff replay,
   and the reviewer demanded linearity proof even on the fix diff.
-- Built 2026-10-29 at the owner's "you already named work, why didn't you do it":
+- Built 2026-10-29 at the owner's "you already named work,
+  why didn't you do it":
   the ratio-proof helper,
   `measureTwoSizeRatio` and `expectLinearTimeGrowth`
   in `package/test-harness/core-expect`
