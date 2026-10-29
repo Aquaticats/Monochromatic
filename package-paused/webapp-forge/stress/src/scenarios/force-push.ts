@@ -39,7 +39,7 @@ import {
 
 import nodeFs from 'node:fs';
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import * as git from 'isomorphic-git';
@@ -207,7 +207,7 @@ async function fabricateCommit(row: {
    * Isolated bare gitdir so fabrication does not collide with the forge's own state.
    */
   const gitdir = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-fp-fab-',
   ),);
   await git.init({
@@ -374,7 +374,7 @@ async function run(): Promise<ScenarioResult> {
    * Throwaway directory holding the scenario's gitdir, kept out of the forge's tree.
    */
   const gitdirRoot = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-fp-root-',
   ),);
   process.env
