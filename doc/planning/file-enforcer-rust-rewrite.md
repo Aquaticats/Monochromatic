@@ -168,6 +168,139 @@ create-if-absent seeds,
 file modes),
 and watch rediscovering new packages and matched paths.
 
+## Next action (2026-10-29, second review round)
+
+Asked how to close the grilling,
+the user chose "Re-review,
+then confirm".
+A second round of sol,
+astra,
+and kimi reviews is running against this file,
+the inventory,
+toolchain-split,
+replacements,
+and mise conf.d research,
+and the two amended decisions;
+output goes to `${HOME}/temp/agent/fe-rust/review2-{sol,astra,kimi}.md`.
+When they return:
+verify each finding against the repository,
+ask the user about those that hold,
+then confirm and write `doc/decision/file-enforcer-rust-rewrite.md` for acceptance.
+No code before acceptance.
+
+Update:
+the three second-round reviews returned and are recorded under "Second review round".
+Still open:
+who writes and checks `mpm.packages.toml` and `mpm.managers.toml`,
+and file-enforcer's toolchain role.
+A prototype agent is running real mpm in podman in a linked worktree,
+on the throwaway branch `prototype/fe-mpm-files`,
+testing four candidates (mpm-shadow owns and checks,
+mpm-shadow writes and file-enforcer checks through a shared crate,
+file-enforcer renders,
+or the files should not exist);
+its report goes to `${HOME}/temp/agent/fe-rust/proto-mpm-files.md`.
+After it:
+verify the report,
+ask the user with its evidence,
+then the shared-understanding confirmation and the decision record.
+
+## Current design (consolidated 2026-10-29)
+
+The live decisions,
+with superseded ones left out;
+the "Decisions" section holds each one's question,
+answer,
+and history.
+
+- Tools:
+  `package/file-enforcer/core-rust` (library) and `package/file-enforcer/cli` (clap binary `file-enforcer`),
+  standalone,
+  embeddable by meow later;
+  config `file-enforcer.config.jsonc` read with `monochromatic-jsonc-edit`,
+  decoded by hand;
+  output is JSON lines only,
+  including clap's help and errors.
+- Config model:
+  fixed Rust rule kinds with structured JSONC values,
+  no string expressions;
+  each run plans every rule against a virtual view of planned outputs,
+  validates the whole run,
+  then writes;
+  file modes are part of a rule's contract.
+- Server:
+  one auto-started server per worktree serializes all writes over an owner-only Unix socket
+  (newline-delimited JSON-RPC 2.0) and exits when idle;
+  `write`,
+  `check`,
+  `watch`,
+  and `explain` are clients;
+  the server watches inputs,
+  outputs,
+  and glob roots while a `watch` client is attached,
+  and warns on hand edits to generated files.
+- Commands:
+  `write`,
+  `check` (with `--expected-dir <dir>` for standard diff tools),
+  `watch`,
+  `explain <path>`,
+  `user write`,
+  `user check`;
+  exit codes 0,
+  1,
+  2.
+- Outputs file-enforcer writes:
+  `CLAUDE.md` (preamble plus `AGENTS.md`),
+  root `LICENSE`,
+  every package's `LICENSES/` copies,
+  the `.claude/skills` and `.factory/skills` copies (targets owned outright),
+  per-crate `Cargo.toml` keys,
+  `[workspace.dependencies]` through the dependency-catalog Rust library,
+  `.browserslistrc.resolved.local.json` through `browserslist-rs`,
+  `.config/mise/conf.d/10-bin.local.toml`,
+  `mpm.packages.toml` and `mpm.managers.toml` from the lock,
+  and,
+  through `user write`,
+  the JetBrains Harper policy.
+- Outputs file-enforcer checks but never writes:
+  `toolchain.lock.json` against `toolchain.plan.jsonc`.
+- Gone from file-enforcer:
+  the generated root `mise.toml` (now hand-written plus committed `conf.d`),
+  the rules file and its seed (the scanner reads a comma-separated list),
+  the scanner step,
+  task-header quoting,
+  the `CONTEXT.md` guard,
+  the OS package installer,
+  the staleness cache,
+  and `exec`.
+- Schema:
+  committed `file-enforcer.schema.json` with a cargo golden test against the decoder,
+  mapped in `.idea/jsonSchemas.xml`.
+- Toolchain (mpm-shadow):
+  `sync`,
+  `status`,
+  `update [--check]`,
+  `lock` (offline),
+  `bin-paths`,
+  each with `--global`;
+  the only writer of `toolchain.lock.json`;
+  first versions of new npm and PyPI tools from the registries,
+  later ones from `mpm outdated`;
+  native lookups for the rest,
+  including Rust channels;
+  postinstall links and commands;
+  bootstrap by prebuilt archive with lock SHA-256 or `cargo install`.
+- Elsewhere:
+  pnpr generates its own `config.yaml`;
+  the container runner moves to `package/test-harness/core-matrix`;
+  vm-builder gets a private process runner.
+- Cutover:
+  one switch after everything is built,
+  published,
+  fetched by a clean container,
+  and compared with the old output;
+  the global plan is converted directly with a 0600 backup kept beside it.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
@@ -620,7 +753,35 @@ Especially with auto update."
 The per-user config and its subcommand stay,
 so IDE auto-updates get the policy reapplied by a command rather than a remembered manual import.
 
-#### mise.toml: question withdrawn until the evidence is complete
+#### mise.toml: committed conf.d files (re-asked with full evidence)
+
+Re-asked after the source-level study
+[`doc/research/file-enforcer-rust-rewrite-mise-confd.md`](../research/file-enforcer-rust-rewrite-mise-confd.md);
+the user chose "conf.d layout",
+replacing the earlier decision to keep generating `mise.toml`.
+
+- `mise.no-env.toml` is renamed to `mise.toml` and hand-written.
+- `.config/mise/conf.d/20-env.toml` (committed) holds the sops `_.file`,
+  the `.cache/*-bin` directories,
+  `node_modules/.bin`,
+  the Slint variables,
+  and `FORBIDDEN_STRINGS_RULES`.
+- `.config/mise/conf.d/10-bin.local.toml` (gitignored by `*.local.*`) is written by `file-enforcer write`
+  with the existing non-empty `package/*/*/node_modules/.bin` directories.
+- Accepted caveats:
+  PATH order depends on the names sorting `10-` before `20-`;
+  `_.path` stays out of `mise.toml`;
+  a fresh clone lacks package bins until `file-enforcer write`;
+  the file spelling of `MISE_TRUSTED_CONFIG_PATHS` in
+  `doc/troubleshooting/mise-untrusted-temporary-worktree-shell.md` changes to the directory spelling;
+  `package/monorepo-task/core-exec/src/build-and-test-fixture-config.ts`,
+  its test,
+  and the `mise.no-env.toml:238` fallback are fixed in the switch.
+- `FORBIDDEN_STRINGS_RULES` becomes the comma-separated list of the two appendix files,
+  following the rules-file decision.
+- `doc/decision/monorepo-manager-all-rust.md` ("root `mise.toml` stays generated") is amended at acceptance.
+
+#### mise.toml: first asking withdrawn until the evidence was complete
 
 Asked whether `.config/mise/conf.d/*.toml` can replace the generated root `mise.toml`;
 the user answered:
@@ -789,6 +950,150 @@ stdout stays JSON lines.
   and `mpm outdated` probes for rollback,
   unchanged,
   and pinned cases.
+
+#### Second review round: fixes adopted (one clear answer each)
+
+Reviews:
+[`doc/research/file-enforcer-rust-rewrite-review2-sol.md`](../research/file-enforcer-rust-rewrite-review2-sol.md),
+[`doc/research/file-enforcer-rust-rewrite-review2-astra.md`](../research/file-enforcer-rust-rewrite-review2-astra.md),
+[`doc/research/file-enforcer-rust-rewrite-review2-kimi.md`](../research/file-enforcer-rust-rewrite-review2-kimi.md).
+None found a contradiction between owner decisions.
+Unlike the first round,
+these findings were adopted without a repository verification pass,
+because nearly all are design-level gaps in the plan's text rather than claims about repository facts.
+The advisor was skipped when these were first adopted;
+the user asked "Did you skip the advisor?",
+and the advisor's corrections are folded in here.
+
+- Filesystem containment:
+  mirror roots,
+  their ancestors,
+  and entries are inspected with `symlink_metadata` and never followed;
+  destination symlinks are replaced or removed as links,
+  source symlinks are rejected,
+  and containment is rechecked at mutation time.
+- `check --expected-dir` requires an absent or empty directory disjoint from the worktree and every target,
+  writes paired sparse actual and expected trees for the drift set,
+  and reports removals and mode changes as events only.
+- Server election:
+  an owner-only startup lock separate from the socket;
+  only its holder probes,
+  removes a verified stale socket,
+  and spawns;
+  others wait with a deadline;
+  readiness and draining are explicit;
+  requests carry ids,
+  and an ambiguous disconnect is never replayed blindly.
+- Handshake:
+  protocol version,
+  build identity,
+  and worktree identity (canonical path plus directory identity) are checked before any request;
+  a mismatch drains and restarts the server;
+  the server exits when its worktree root disappears or changes.
+- Runtime directory:
+  an unset or unusable `$XDG_RUNTIME_DIR` falls back to a verified owner-only directory;
+  the server detaches its standard streams;
+  CI and container steps get deterministic shutdown,
+  tested in a clean container with the variable unset.
+- Each request carries its canonical config path and options;
+  the config is re-read every run.
+- Snapshot revalidation:
+  a plan records the content,
+  modes,
+  and directory membership it read,
+  and is discarded and redone if any changed before publishing;
+  the remaining race with non-participating writers is documented,
+  not denied.
+- Atomicity is per file:
+  the no-write guarantee covers validation failures only;
+  a partial run is reported,
+  the next run reconverges,
+  staging files use hidden names (mise skips hidden `conf.d` files) with final modes set before rename,
+  and abandoned staging files are cleaned at startup.
+- Composition:
+  rule kinds declare whether they compose on one file (Cargo key rules with the catalog) or own it whole;
+  only undeclared overlaps fail.
+- Discovery watches the nearest existing ancestor of an absent fan-out root.
+- The catalog library also writes `rust-catalog.toml` (adoption as `>=` floors,
+  pruning,
+  internal versions),
+  planned before manifest rendering.
+- License pruning touches only the tool-owned ids (CC-BY-SA-4.0,
+  GPL-3.0-or-later,
+  LGPL-3.0-or-later),
+  leaving hand-kept texts.
+- Offline `mpm-shadow lock` rejects additions and resolution-affecting edits (pins,
+  package id,
+  route,
+  artifact selection,
+  platforms) without changing the lock;
+  one validator serves `lock`,
+  `update`,
+  `sync`,
+  and file-enforcer's lock check.
+- `sync` and `status` refuse to run when plan and lock disagree,
+  naming `mpm-shadow lock` or `mpm-shadow update`.
+- `update --check` never auto-syncs or installs.
+- `mpm outdated` reading,
+  pending the `mpm outdated` probe gate (not adopted):
+  a candidate rule takes a tool's latest version from the outdated row when present,
+  otherwise from the installed version mpm reports,
+  then compares it with the lock;
+  it assumes `mpm installed --output-format json` reports versions for the pnpm and uv managers
+  and that an absent row means installed equals registry latest,
+  neither verified.
+  Settled either way:
+  an absent or failed manager result is never read as "unchanged".
+- mpm-shadow's own writes:
+  the snapshot revalidation rule applies to its lock publish step
+  (record the plan and lock revisions read,
+  refuse to publish if either changed);
+  an exclusive OS lock per scope in front of it is an implementation detail.
+  Put to the user as a question,
+  answered "?",
+  so adopted with the user's veto open.
+- `user` commands get their own auto-started server keyed by the canonical per-user config path,
+  independent of any worktree,
+  following the server-client decision.
+  Put to the user as a question,
+  answered "?",
+  so adopted with the user's veto open.
+- Rules list:
+  each `FORBIDDEN_STRINGS_RULES` entry is anchored with `{{config_root}}`,
+  cli-git array paths are relative to its config file,
+  files join with an explicit newline boundary and a per-file source map,
+  and duplicate sections across files fail.
+- The forbidden-strings and git-policy changes join the pre-switch build list,
+  and the switch lock must pin releases that understand the new rules list.
+- The IDE launcher finds `mpm-shadow` by an explicit path (never the `mpm` link,
+  whose name selects pass-through mode),
+  tested in the real sandbox with the toolchain present and missing.
+- The bootstrap runbook installs and verifies rustup before `cargo install`.
+
+#### Rules list: a trailing '?' marks the optional file
+
+Asked how the comma-separated list marks the file that may be missing;
+the user chose "Trailing '?' marks optional"
+over treating `.local.` names as optional (recommended after the advisor's note).
+An entry ending in `?` may be absent,
+every other entry must exist,
+and any read error other than absence fails;
+the environment variable uses the same syntax,
+and cli-git's JSONC array uses `{"path": ..., "optional": true}`.
+
+#### mpm files and file-enforcer's toolchain role: prototype first
+
+Re-asked who writes and checks `mpm.packages.toml` and `mpm.managers.toml`,
+with the consequence that file-enforcer could end up with no toolchain role;
+the user answered:
+"This is the 3rd time.
+Please make sure we're actually right this time,
+okay?
+And you have worktrees.
+You have podman.
+You can prototype."
+A throwaway prototype in a linked worktree and a podman container runs the real mpm and the candidate flows
+before the question returns.
 
 #### Process lessons: deferred to issue #1817
 

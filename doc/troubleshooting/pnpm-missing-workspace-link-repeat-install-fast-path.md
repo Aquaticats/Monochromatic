@@ -329,10 +329,13 @@ and the only difference is the new test going from failing to passing.
 
 Limits of this evidence:
 
-- The container fails about 190 CLI repeat-install tests,
-  3 filter tests and 16 workspace tests in both arms
-  (lifecycle-script errors such as `ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED`),
-  so a regression in one of those could not show up.
+- This first run's container had no Node.js,
+  so it failed about 190 CLI repeat-install tests,
+  3 filter tests and 16 workspace tests in both arms,
+  and a regression in one of those could not show up.
+  The clean rerun below,
+  with Node.js installed,
+  supersedes this limit.
   The package-manager unit tests listed no failures in either arm
   (the last run recorded failing counts,
   not pass counts;
@@ -350,6 +353,48 @@ Limits of this evidence:
   `dedupeDirectDeps` and optional dependencies,
   which the fix skips on purpose and which have no test of their own here.
 
+### Clean rerun with Node.js (2026-10-29)
+
+The first run's container had no Node.js,
+which is why `pnpmfile` hooks and lifecycle scripts failed (`running updateConfig hook ... No such file or directory`).
+The rerun used a fresh clone of current `main` (`cf2556e97c`),
+the patch applied with `git apply` unchanged,
+and `nodejs` and `npm` installed in the container
+(CachyOS v4 image,
+24 GiB,
+12 CPUs,
+only the disposable clone mounted,
+run as a capped systemd user unit).
+The same steps as above gave:
+
+```text
+PRE-PATCH new-test exit=101
+PRE repeat_install failing=2
+PRE install_filters failing=0
+PRE workspace_install failing=3
+PRE package-manager failing=0
+POST-PATCH new-test exit=0
+POST repeat_install failing=1
+POST install_filters failing=0
+POST workspace_install failing=3
+POST package-manager failing=0
+```
+
+The failing lists in both arms:
+
+- `hoisted_node_linker::repeat_install::an_interrupted_hoisted_install_forgets_the_locations_it_replaces`
+  fails in both.
+- `repeat_install::repeat_install_relinks_a_missing_workspace_dependency_link` fails only without the fix.
+- `pnpr_install::workspace::filtered_workspace_install_via_pnpr_materializes_the_root_and_selected_closure`,
+  `workspace_install::freshness::changed_registry_specifier_in_workspace_importer_invalidates_lockfile`
+  and `workspace_install::optional_peer_is_not_supplied_from_the_lockfile_by_a_package_whose_peers_the_importer_rejects`
+  fail in both.
+
+Every "only post" list was empty,
+so no test fails only with the fix.
+The four tests that fail in both arms were not investigated;
+they are identical with and without the change.
+
 ### pnpm 11 (TypeScript) prototype
 
 pnpm 11 has the same exemption in `pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts`
@@ -358,7 +403,8 @@ pnpm 11 has the same exemption in `pnpm11/deps/status/src/findDanglingDirectDepe
 skipped optional and excluded dependencies have none."
 The prototype
 ([`pnpm-missing-workspace-link-repeat-install-fast-path.v11.patch`](pnpm-missing-workspace-link-repeat-install-fast-path.v11.patch),
-27 changed lines in that one file)
+the source file plus a new test file,
+99 insertions and 9 deletions)
 treats a missing entry as stale when it is a non-optional `workspace:` dependency,
 the linker is isolated,
 and `dedupeDirectDeps` is off.
@@ -385,11 +431,32 @@ PATCHED MATCHES EXPECTATIONS
 The two "link absent" rows are the positive control:
 the original says fresh (the bug) and the patched file says stale (the fix).
 
+Run in pnpm 11's own setup:
+the same cases are a jest test file,
+`pnpm11/deps/status/test/findDanglingDirectDependencyLink.test.ts`,
+in the patch.
+It ran on 2026-10-29 in the clean container of the Rust rerun (Node.js installed,
+`tsgo --build` then `jest`,
+on commit `cf2556e97c`):
+
+```text
+original source: Tests: 2 failed, 7 passed, 9 total
+  failing: a missing entry for a workspace dependency in dependencies is stale
+           a missing entry for a workspace dependency in devDependencies is stale
+patched source:  Tests: 9 passed, 9 total
+```
+
+The two failures in the original arm are the positive control.
+
+What makes a stale result relink the link:
+`installDeps.ts` returns `false` from the repeat-install shortcut when `findDanglingDirectDependencyLink(opts) != null`,
+so the full install runs
+([`installDeps.ts:228-234`](https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm11/installing/commands/src/installDeps.ts?plain=1#L228-L234)).
+That is the path the existing dangling-link case already takes.
+
 Limits:
-this exercises the function alone.
-It does not run pnpm 11's own test suite or a pnpm 11 build,
-and it adds no test to `pnpm11/deps/status/test`.
-Whether a stale result there makes the real install relink the missing link was not run.
+a pnpm 11 CLI build was not run end to end,
+and the new test and the source change were not run through pnpm 11's ESLint step.
 
 ## Upstream filing decision
 
@@ -429,16 +496,25 @@ with the default policy of not filing.
    and a test.
    The new test fails without the fix and passes with it,
    and no other test in the four selections run differs between the two arms.
-   The container could not run the CLI repeat-install suites meaningfully
-   (about 190 of them fail with and without the fix),
-   so that part of the regression evidence is weak and the doc says so.
+   The clean rerun with Node.js installed ran the CLI repeat-install,
+   filter and workspace suites and the package-manager unit tests:
+   the only difference between the arms is the new test.
+   The pnpm 11 fix has its own jest test,
+   failing on the original source and passing on the patched one.
 
 Decision:
-constraints 1 to 6 now hold or hold with the caveats written above,
-so the draft below is fileable once a human has read it and decided to file;
-nothing was filed or posted in this session.
+constraints 1 to 6 hold with the caveats written above,
+so the draft below was fileable.
 Filing is an outward-facing action on a third-party tracker,
-so it waits for the repository owner's go-ahead.
+so `AGENTS.md` requires the repository owner's go-ahead before anything is posted;
+the owner chose "file the issue only" on 2026-10-29 and the issue was filed as
+[pnpm/pnpm#17485](https://github.com/pnpm/pnpm/issues/17485).
+The filed body follows pnpm's bug form field by field and links both patches from the reproduction repository
+(commit `81b20eb412`,
+directory `patches/`) instead of attaching them.
+The issue type `Bug` that the form sets could not be set through the API by a non-maintainer,
+so the type is empty;
+the triage automation added the label `area: monorepo`.
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
 cargo workspace,
@@ -457,7 +533,8 @@ though `bun-install.md` and `cargo-workspace.md` were not opened to rule out a b
 ## Upstream filing artifact
 
 Draft of a new issue,
-not filed.
+filed as pnpm/pnpm#17485 on 2026-10-29 (the block is the pre-filing draft;
+the filed text rearranges it into the form's fields and replaces "attached" with links).
 The duplicate search found nothing,
 so this is a new-issue draft and not a comment.
 The block below is the issue exactly as it would be posted:
@@ -482,26 +559,52 @@ Before anyone posts it:
   `AGENTS.md` and `CONTRIBUTING.md` mention neither `vouch` nor `denounce`;
   check the live repository and its contribution policy again on the day of posting.
   Filing is the poster's decision.
-  This doc makes no recommendation to file,
-  because the conditions for one are not met.
-  Readiness check of 2026-10-29:
-  not ready.
-  Run that day against the live repository:
-  the latest release was still 12.16.1;
-  four issue searches found no duplicate;
-  a pull-request search found #15569,
-  which states the exemption this report asks to narrow;
-  no `VOUCHED.td` exists in the root or `.github` of the default branch and no workflow is named for such a list;
-  and the default branch still contains `is_dangling_link` and its comment.
-  Met since:
-  pnpm 11.28.9 and 12.16.1 reproduce and pnpm 10.34.9 does not (version matrix above),
-  and the reproduction needs no Node.js,
-  which answers the form's Node.js field.
-  Not met:
-  the pnpm 11 prototype was checked only as a function in isolation,
-  not inside pnpm 11's build or test suite;
-  the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change);
-  and every live check above must be repeated on the day of posting.
+  Readiness check of 2026-10-29,
+  run after the clean rerun:
+  ready,
+  and the recommendation is to file the issue below (see the ranking in the next bullet).
+  Every item below was run against the live repositories that day:
+  - Releases:
+    the latest are 12.16.1,
+    11.28.9 and 10.34.9,
+    the versions tested.
+  - Duplicates:
+    issue searches for the symptom words returned nothing,
+    and a positive-control search (`Already up to date`) returned five issues.
+    Three closed ones were read:
+    #12090 and #12748 report a fresh clone with no `node_modules` at all (and `--force` does not fix #12748),
+    and #17468 reports a `readPackage` hook that stops the fast path from ever applying.
+    None covers one removed link with unchanged state,
+    which `--force` repairs.
+  - Prior art:
+    #15569 states the exemption this report asks to narrow,
+    and the draft cites it.
+  - Trust lists:
+    no `VOUCHED.td`,
+    `.github/VOUCHED.td`,
+    `vouch.td` or `.github/vouch.td` exists on the default branch,
+    and no workflow name mentions vouch,
+    denounce or trust.
+  - The code:
+    the Rust patch applies unchanged to `main` at `cf2556e97c`,
+    so the check is still there;
+    the pnpm 11 file was read at the same commit.
+  - Versions:
+    11.28.9 and 12.16.1 reproduce and 10.34.9 does not,
+    on clean runners.
+  - Fix evidence:
+    Rust integration test fails without the fix and passes with it,
+    with an identical failing list otherwise;
+    pnpm 11 jest test does the same.
+  - Intake:
+    the form fields are mapped below,
+    and the Node.js field is answered by the run with no Node.js on `PATH`.
+  Caveats that do not block the recommendation:
+  the pnpm 11 change was not run through pnpm 11's ESLint step or a CLI build;
+  four tests fail identically with and without the change and were not investigated;
+  and the live checks should be repeated if posting waits more than a day.
+  The recommendation does not remove the risk to the poster above;
+  it only says the report is ready.
 - Fill pnpm's bug form field by field;
   its blank-issue option is off and its contact links say issues are for bug reports only
   (read from `.github/ISSUE_TEMPLATE/bug-report.yaml` and `config.yml` on the default branch on 2026-10-29).
@@ -530,8 +633,19 @@ Before anyone posts it:
   pnpm's contribution checklist says bug fixes go into every affected version,
   and the prototype patches cover both stacks:
   the Rust code (pnpm 12) with an integration test,
-  and the TypeScript function (pnpm 11) in isolation.
-- Decide whether to open a pull request instead of an issue.
+  and the TypeScript function (pnpm 11) with a jest test.
+- Issue or pull request.
+  Ranking:
+  issue first,
+  pull request second.
+  The issue ranks first because #15569 states the exemption on purpose,
+  so the maintainers should decide whether to narrow it before reviewing code,
+  and a pull request that overturns a stated decision is the likelier to be closed.
+  The pull request ranks second because both patches already have tests and a clean baseline,
+  so it is ready if the maintainers ask for it,
+  and it must then follow `.github/pull_request_template.md` (Summary,
+  Squash Commit Body,
+  Checklist).
   `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
 
 ~~~md
@@ -584,18 +698,21 @@ and 12.16.1 still fails with no Node.js on `PATH`, so Node.js is not involved.
 Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
 entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
 install's scope holds every project.
-A prototype patch for the Rust code (pnpm 12) is attached (7 files, 120 insertions, 2 deletions),
-and one for pnpm 11 (`findDanglingDirectDependencyLink.ts`, 27 changed lines) that was checked only as a function in isolation.
-pnpm 11 has the same exemption in the doc comment of that function
-([link](https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts?plain=1#L14-L23)).
+Prototype patches are attached for both stacks.
+The Rust one (pnpm 12) has 7 files, 120 insertions and 2 deletions.
 Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
 and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
 and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
-Known limits: with the change the install pipeline runs and the link is restored (the new test asserts the link),
+The failing lists are otherwise identical: four tests fail with and without the change on current `main` (cf2556e).
+pnpm 11 has the same exemption in the doc comment of
+[`findDanglingDirectDependencyLink.ts`](https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm11/deps/status/src/findDanglingDirectDependencyLink.ts?plain=1#L14-L23).
+The pnpm 11 patch changes that file and adds a jest test beside the existing ones.
+On the original source 2 of its 9 cases fail (a missing entry for a `workspace:` dependency in `dependencies` and in `devDependencies`),
+and on the patched source all 9 pass.
+Known limits: with the change the install pipeline runs and the link is restored (the new Rust test asserts the link),
 but the output still ends with `Already up to date`;
 that message also ends the first install above, which does create the link, so it is not specific to this case.
-About 190 of the `pnpm-cli` repeat-install tests could not pass in the sandbox used, with or without the change,
-so the regression evidence for those is limited.
+The pnpm 11 change was not built into a CLI or run through its ESLint step.
 
 Written by an agent (Claude Code, claude-sonnet-5-5).
 ~~~

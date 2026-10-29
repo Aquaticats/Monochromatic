@@ -287,3 +287,15 @@ fn doctor_takes_no_arguments_and_is_documented() {
     assert!(MANAGEMENT_USAGE.contains("git cli-git doctor"), "{MANAGEMENT_USAGE}");
     assert!(MANAGEMENT_HELP.contains("doctor"), "{MANAGEMENT_HELP}");
 }
+
+/// The help describes the `doctor` exit statuses the way `SPEC.md` ("Doctor") defines them:
+///  0 for no hooks or only git-lfs shims, 1 for any other hook (even beside shims), 2 outside a repository.
+#[test]
+fn doctor_help_states_the_exit_statuses() {
+    let sentence: &str = concat!(
+        "  doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,\n",
+        "           1 when any other hook is found, 2 outside a repository.\n",
+    );
+    assert!(MANAGEMENT_HELP.contains(sentence), "{MANAGEMENT_HELP}");
+    assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
+}

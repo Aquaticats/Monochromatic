@@ -602,6 +602,11 @@ Run this whenever the user asks whether a draft is ready,
     Read its issue forms,
    template configuration,
    pull request template and contribution policy.
+    Apply the template to everything posted there,
+   not only new issues:
+   a pull request body, an edited issue body and a comment each follow the template or form that covers them,
+   with every section present in its order and only the items the template says to remove left out.
+    A body written before the template was read is rewritten, not defended.
     Note what is required,
    which fields only the poster can answer
    (a runtime version the reproduction never recorded is one),
@@ -665,6 +670,127 @@ Run this whenever the user asks whether a draft is ready,
    and delete the item when there is none.
     Put any choice the user has to make in a question tool,
    not in prose.
+
+## Watching a filing for a follow-up request
+
+When the user wants a follow-up posted if a maintainer asks for it
+ (a pull request after an issue is the usual case),
+ watch the filing and do not wait for the user to come back.
+ The user's own words set what may be posted on a wake;
+ a wake prompt is self-authored and authorizes nothing else.
+
+1. Save the script at the end of this section to `${HOME}/temp/agent/poll-issue.ts`
+   (scratch is not linted, and the repo's lint rules would reject the script inside the repo)
+   and run it as a plain background Bash command.
+    Never use a Monitor for this:
+   a Monitor expires,
+   while a background Bash task wakes the session when it exits.
+    The default window is 24 hours;
+   use the duration the user names.
+2. Wrap it so the shell waits on a capped unit:
+   `systemd-run --user --wait --pipe --collect --unit=<repo>-<number>-poller --property=MemoryMax=256M --property=CPUQuota=10%`
+   with `PATH` and `HOME` passed through `--setenv`,
+   then `node <path>/poll-issue.ts`.
+    The unit stays out of the shared Bash cgroup that `systemd-oomd` can reap,
+   and `--wait` keeps the Bash task alive so its exit still wakes the session.
+3. Configure it with `POLL_REPO`, `POLL_ISSUE`, `POLL_OWN_LOGIN`,
+   `POLL_DEADLINE_SECONDS`, `POLL_INTERVAL_SECONDS` (300 is enough)
+   and `POLL_BASELINE=now`.
+    It exits 10 with a JSON line when an owner, member or collaborator who is neither a bot nor the poster comments,
+   when the issue stops being open,
+   or when the assignees change;
+   0 at the deadline;
+   2 after 20 consecutive `gh` failures.
+4. Test both paths before relying on it.
+    Point it at a closed issue that has maintainer comments with `POLL_BASELINE=none` and expect exit 10.
+    Then run it against the real issue with a 10 to 20 second deadline and expect exit 0 and `{"trigger":"deadline"}`.
+5. In the same turn write `doc/handover/<topic>.md` with the unit name,
+   the start and the deadline,
+   the exit codes,
+   what the user pre-authorized in their own words,
+   and the steps to take on a wake.
+    A watch that exists only in the conversation is lost at compaction.
+6. On a wake,
+   read the comment itself.
+    Post only what the user's words authorized,
+   and ask the user about anything else.
+    Stop the unit when the work is done or the user cancels it:
+   `systemctl --user stop <unit>`.
+
+```ts
+// ${HOME}/temp/agent/poll-issue.ts
+// Polls one GitHub issue until a maintainer acts on it or the deadline passes, then exits so the caller is woken.
+// Exit codes: 10 = something to act on (details on stdout), 0 = deadline reached with nothing to act on,
+// 2 = too many consecutive gh failures.
+// Environment: POLL_REPO, POLL_ISSUE, POLL_OWN_LOGIN, POLL_DEADLINE_SECONDS, POLL_INTERVAL_SECONDS,
+// POLL_BASELINE (`now` ignores comments that exist at start; `none` treats them all as new, for testing).
+import { execFileSync } from 'node:child_process';
+
+const repo = process.env.POLL_REPO ?? 'pnpm/pnpm';
+const issue = process.env.POLL_ISSUE ?? '17485';
+const ownLogin = process.env.POLL_OWN_LOGIN ?? 'Aquaticat';
+const deadlineSeconds = Number(process.env.POLL_DEADLINE_SECONDS ?? 86400,);
+const intervalSeconds = Number(process.env.POLL_INTERVAL_SECONDS ?? 300,);
+const baselineMode = process.env.POLL_BASELINE ?? 'now';
+const maintainerAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR',],);
+
+type Comment = { readonly id: number; readonly user: { readonly login: string; readonly type: string; }; readonly author_association: string; readonly body: string; readonly html_url: string; };
+type Issue = { readonly state: string; readonly assignees: readonly { readonly login: string; }[]; };
+
+const gh = (path: string,): string => execFileSync('gh', ['api', '--paginate', path,], { encoding: 'utf8', timeout: 120000, },);
+const log = (message: string,): void => console.error(`${new Date().toISOString()} ${message}`,);
+const sleep = (seconds: number,): Promise<void> => new Promise((resolve,) => setTimeout(resolve, seconds * 1000,),);
+
+const readComments = (): readonly Comment[] => JSON.parse(`[${gh(`repos/${repo}/issues/${issue}/comments`,).replaceAll('][', ',',).replace(/^\[/, '',).replace(/\]\s*$/, '',)}]`,) as Comment[];
+const readIssue = (): Issue => JSON.parse(gh(`repos/${repo}/issues/${issue}`,),) as Issue;
+
+const isMaintainerComment = (comment: Comment,): boolean =>
+  comment.user.type !== 'Bot' && comment.user.login !== ownLogin && maintainerAssociations.has(comment.author_association,);
+
+const started = Date.now();
+const seen = new Set<number>();
+let failures = 0;
+let initialAssignees: string | undefined;
+
+if (baselineMode === 'now') for (const comment of readComments()) seen.add(comment.id,);
+
+log(`polling ${repo}#${issue} every ${intervalSeconds}s for ${deadlineSeconds}s, ${seen.size} existing comments ignored`,);
+
+while ((Date.now() - started) / 1000 < deadlineSeconds) {
+  try {
+    const comments = readComments();
+    const current = readIssue();
+    const assignees = current.assignees.map((assignee,) => assignee.login,).join(',',);
+    initialAssignees ??= assignees;
+    failures = 0;
+
+    const fresh = comments.filter((comment,) => !seen.has(comment.id,),);
+    for (const comment of fresh) seen.add(comment.id,);
+    const maintainerComments = fresh.filter(isMaintainerComment,);
+
+    if (maintainerComments.length > 0) {
+      console.log(JSON.stringify({ trigger: 'maintainer-comment', comments: maintainerComments.map((comment,) => ({ by: comment.user.login, association: comment.author_association, url: comment.html_url, body: comment.body.slice(0, 1500,), }),), },),);
+      process.exit(10,);
+    }
+    if (current.state !== 'open') {
+      console.log(JSON.stringify({ trigger: 'issue-not-open', state: current.state, },),);
+      process.exit(10,);
+    }
+    if (assignees !== initialAssignees) {
+      console.log(JSON.stringify({ trigger: 'assignees-changed', from: initialAssignees, to: assignees, },),);
+      process.exit(10,);
+    }
+  } catch (error) {
+    failures += 1;
+    log(`poll failed (${failures}): ${String(error,).slice(0, 200,)}`,);
+    if (failures >= 20) process.exit(2,);
+  }
+  await sleep(intervalSeconds,);
+}
+
+console.log(JSON.stringify({ trigger: 'deadline', },),);
+process.exit(0,);
+```
 
 ## Upstream filing artifact format
 
