@@ -201,9 +201,12 @@ GAP:
 Remove superseded rules.
 
 EPR:
- Research ecosystem precedent before offering naming or technology options it could inform.
+ Research precedent before offering options;
+ for one the repo runs,
+ read its full docs and config,
+ adopting its answers unasked.
 "Think in X":
- list X's features,
+ list all X's features,
  ask which to omit.
 
 VHI:
