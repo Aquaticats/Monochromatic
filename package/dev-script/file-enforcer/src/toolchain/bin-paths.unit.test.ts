@@ -198,15 +198,15 @@ await describe({
               (entry,) => entry.bins.length > 0,
             )
               .slice(
-                0,
-                2,
+              0,
+              2,
               )
               .map(
-                (entry, index,) => ({
-                  ...entry,
-                  bins: ['same-name'],
-                  id: `duplicate-${index}`,
-                }),
+              (entry, index,) => ({
+                ...entry,
+                bins: ['same-name'],
+                id: `duplicate-${index}`,
+              }),
               );
             /**
              Fixture for the collision check.

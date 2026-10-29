@@ -154,10 +154,10 @@ function readCliLog(fixture: Fixture,): readonly (readonly string[])[] {
   )
     .split('\n',)
     .filter(
-      (line,) => line.trim() !== '',
+    (line,) => line.trim() !== '',
     )
     .map(
-      (line,) => JSON.parse(line,) as string[],
+    (line,) => JSON.parse(line,) as string[],
     );
 }
 
@@ -221,7 +221,7 @@ await describe({
                 "const path = require('node:path');",
                 "const args = process.argv.slice(2);",
                 "const dest = args[5] ?? 'fixture-tool';",
-                "fs.writeFileSync(path.join(path.dirname(process.argv[1]), '..', '..', 'bin', dest), '#!/bin/sh\\n');",
+                String.raw`fs.writeFileSync(path.join(path.dirname(process.argv[1]), '..', '..', 'bin', dest), '#!/bin/sh\n');`,
                 'process.exit(0);',
               ].join('\n',),
             },);
@@ -363,7 +363,7 @@ await describe({
                 'bin',
               ),
               logFile: fixture.logFile,
-              body: "process.stdout.write('/x/fixture-tool  v9.9.9  https://example  ok\\n');",
+              body: String.raw`process.stdout.write('/x/fixture-tool  v9.9.9  https://example  ok\n');`,
             },);
             /**
              Entry declaring the reported binary.
@@ -403,7 +403,7 @@ await describe({
                 'uv',
               ),
               logFile: fixture.logFile,
-              body: "process.stdout.write('huggingface-hub v2.2.0\\n');",
+              body: String.raw`process.stdout.write('huggingface-hub v2.2.0\n');`,
             },);
             /**
              Entry spelled with the PyPI underscore form.
@@ -999,9 +999,9 @@ await describe({
                */
               const singleFileRows = Object.values(entry.artifacts,)
                 .filter(
-                  function isSingleFile(row,): boolean {
-                    return !/\.(tar\.gz|tgz|tar\.xz|tar\.bz2|tar|zip)$/u.test(row.url,);
-                  },
+                function isSingleFile(row,): boolean {
+                  return !/\.(tar\.gz|tgz|tar\.xz|tar\.bz2|tar|zip)$/u.test(row.url,);
+                },
                 );
               if (singleFileRows.length === 0)
                 continue;
@@ -1019,7 +1019,7 @@ await describe({
                 if (name === copyName)
                   continue;
                 expect(
-                  entry.options.binAliases?.[name] === copyName
+                  (entry.options.binAliases?.[name] === copyName)
                     || aliasTargets.has(name,),
                 )
                   .toBe(true,);
@@ -1093,7 +1093,7 @@ async function serveDir(dir: string,): Promise<FileServer> {
    Bound address carrying the ephemeral port.
    */
   const address = server.address();
-  if (address === null || typeof address === 'string')
+  if ((address === null) || ((typeof address) === 'string'))
     throw new Error('fixture server did not bind a TCP port',);
   return {
     url: `http://127.0.0.1:${

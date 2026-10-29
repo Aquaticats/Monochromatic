@@ -13,7 +13,10 @@
 
 import { pathToFileURL, } from 'node:url';
 import { join, } from 'node:path';
-import { TOOL_ROUTES, type ToolPlanEntry, } from './types.ts';
+import {
+  TOOL_ROUTES,
+  type ToolPlanEntry,
+} from './types.ts';
 
 //region Raw shapes
 
@@ -85,8 +88,8 @@ function parseEntry(
   /**
    Declared tool id.
    */
-  const id = raw.id;
-  if (typeof id !== 'string' || id === '') {
+  const {id} = raw;
+  if (((typeof id) !== 'string') || (id === '')) {
     planError({
       file,
       id: null,
@@ -96,8 +99,8 @@ function parseEntry(
   /**
    Request intent of the entry.
    */
-  const request = raw.request;
-  if (request === null || typeof request !== 'object') {
+  const {request} = raw;
+  if ((request === null) || ((typeof request) !== 'object')) {
     planError({
       file,
       id,
@@ -108,14 +111,18 @@ function parseEntry(
    Request record with exactly one intent key.
    */
   const requestRecord = request as Record<string, unknown>;
-  const intentKeys = ['track', 'pinned', 'channel',]
+  const intentKeys = [
+    'track',
+    'pinned',
+    'channel',
+  ]
     .filter(
-      function present(key,): boolean {
-        return requestRecord[key] !== undefined;
-      },
+    function present(key,): boolean {
+      return requestRecord[key] !== undefined;
+    },
     );
-  if (intentKeys.length !== 1
-    || typeof requestRecord[intentKeys[0] ?? ''] !== 'string') {
+  if ((intentKeys.length !== 1)
+    || ((typeof requestRecord[intentKeys[0] ?? '']) !== 'string')) {
     planError({
       file,
       id,
@@ -125,8 +132,8 @@ function parseEntry(
   /**
    Resolved version literal.
    */
-  const version = raw.version;
-  if (typeof version !== 'string' || version === '') {
+  const {version} = raw;
+  if (((typeof version) !== 'string') || (version === '')) {
     planError({
       file,
       id,
@@ -136,9 +143,9 @@ function parseEntry(
   /**
    Install route.
    */
-  const route = raw.route;
-  if (typeof route !== 'string'
-    || !TOOL_ROUTES.includes(route as (typeof TOOL_ROUTES)[number],)) {
+  const {route} = raw;
+  if (((typeof route) !== 'string')
+    || (!TOOL_ROUTES.includes(route as (typeof TOOL_ROUTES)[number],))) {
     planError({
       file,
       id,
@@ -150,12 +157,12 @@ function parseEntry(
   /**
    Declared binary names.
    */
-  const bins = raw.bins;
-  if (!Array.isArray(bins,)
-    || bins.length === 0
+  const {bins} = raw;
+  if ((!Array.isArray(bins,))
+    || (bins.length === 0)
     || bins.some(
       function notName(name,): boolean {
-        return typeof name !== 'string' || name === '';
+        return ((typeof name) !== 'string') || (name === '');
       },
     )) {
     planError({
@@ -170,7 +177,7 @@ function parseEntry(
   const options = raw.options === undefined
     ? {}
     : raw.options;
-  if (options === null || typeof options !== 'object') {
+  if ((options === null) || ((typeof options) !== 'object')) {
     planError({
       file,
       id,
@@ -181,11 +188,12 @@ function parseEntry(
    Optional OS filter.
    */
   const os = raw.os ?? null;
-  if (os !== null
-    && (!Array.isArray(os,)
+  if ((os !== null)
+    && ((!Array.isArray(os,))
       || os.some(
         function notFamily(name,): boolean {
-          return name !== 'linux' && name !== 'macos' && name !== 'windows';
+          return (name !== 'linux') && (name !== 'macos')
+            && (name !== 'windows');
         },
       ))) {
     planError({
@@ -198,7 +206,7 @@ function parseEntry(
    Optional environment exports.
    */
   const env = raw.env ?? {};
-  if (env === null || typeof env !== 'object') {
+  if ((env === null) || ((typeof env) !== 'object')) {
     planError({
       file,
       id,
@@ -210,10 +218,10 @@ function parseEntry(
     request: requestRecord as ToolPlanEntry['request'],
     version,
     route: route as ToolPlanEntry['route'],
-    manager: typeof raw.manager === 'string'
+    manager: (typeof raw.manager) === 'string'
       ? raw.manager
       : null,
-    packageId: typeof raw.packageId === 'string'
+    packageId: (typeof raw.packageId) === 'string'
       ? raw.packageId
       : null,
     bins: bins as string[],
@@ -247,23 +255,35 @@ export async function loadPlanFromDir(
   /**
    Declarations module of this scope.
    */
-  const toolsModule = await import(pathToFileURL(join(dir, 'plan.tools.ts',),)
+  const toolsModule = await import(pathToFileURL(join(
+    dir,
+    'plan.tools.ts',
+  ),)
     .href,) as { TOOLS?: unknown; };
   if (!Array.isArray(toolsModule.TOOLS,)) {
     throw new Error(
-      `${join(dir, 'plan.tools.ts',)}: expected a TOOLS array export`,
+      `${join(
+        dir,
+        'plan.tools.ts',
+      )}: expected a TOOLS array export`,
     );
   }
   /**
    Generated artifact rows of this scope.
    */
-  const artifactsModule = await import(pathToFileURL(join(dir, 'plan.artifacts.ts',),)
+  const artifactsModule = await import(pathToFileURL(join(
+    dir,
+    'plan.artifacts.ts',
+  ),)
     .href,) as { ARTIFACTS?: unknown; };
-  if (artifactsModule.ARTIFACTS === undefined
-    || artifactsModule.ARTIFACTS === null
-    || typeof artifactsModule.ARTIFACTS !== 'object') {
+  if ((artifactsModule.ARTIFACTS === undefined)
+    || (artifactsModule.ARTIFACTS === null)
+    || ((typeof artifactsModule.ARTIFACTS) !== 'object')) {
     throw new Error(
-      `${join(dir, 'plan.artifacts.ts',)}: expected an ARTIFACTS object export`,
+      `${join(
+        dir,
+        'plan.artifacts.ts',
+      )}: expected an ARTIFACTS object export`,
     );
   }
   /**
@@ -290,11 +310,17 @@ export async function loadPlanFromDir(
     const entry = parseEntry({
       raw,
       artifacts,
-      file: join(dir, 'plan.tools.ts',),
+      file: join(
+        dir,
+        'plan.tools.ts',
+      ),
     },);
     if (seenIds.has(entry.id,)) {
       planError({
-        file: join(dir, 'plan.tools.ts',),
+        file: join(
+          dir,
+          'plan.tools.ts',
+        ),
         id: entry.id,
         problem: 'declared twice',
       },);
@@ -302,15 +328,20 @@ export async function loadPlanFromDir(
     seenIds.add(entry.id,);
     for (const name of new Set([
       ...entry.bins,
-      ...Object.keys(entry.options.binAliases ?? {},),
+      ...Object.keys(entry.options
+        .binAliases
+        ?? {},),
     ])) {
       /**
        Entry already claiming this exposure name, when any.
        */
       const owner = seenNames.get(name,);
-      if (owner !== undefined && owner !== entry.id) {
+      if ((owner !== undefined) && (owner !== entry.id)) {
         planError({
-          file: join(dir, 'plan.tools.ts',),
+          file: join(
+            dir,
+            'plan.tools.ts',
+          ),
           id: entry.id,
           problem: `exposure name ${
             JSON.stringify(name,)

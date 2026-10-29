@@ -51,6 +51,7 @@ import {
 import {
   rewriteCatalogRanges,
 } from './yaml-rewrite.ts';
+import { tightenRustCatalog, } from './cargo/run.ts';
 
 
 
@@ -496,5 +497,15 @@ console.info(`  Undeclared (in store, not tightened): ${String(summary.undeclare
 console.info(`  Not installed: ${String(summary.notFoundCount,)}`,);
 
 //endregion Summary
+
+//region Cargo catalog
+
+// The Rust catalog (rust-catalog.toml) is tightened by the same command; see src/cargo/run.ts.
+await tightenRustCatalog({
+  root: monorepoRoot,
+  dryRun,
+},);
+
+//endregion Cargo catalog
 
 //endregion Main

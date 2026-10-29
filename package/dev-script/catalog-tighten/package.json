@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@monochromatic-dev/module-pnpm-workspace-catalog": "workspace:*",
+    "@monochromatic-dev/module-rust-catalog": "workspace:*",
+    "@monochromatic-dev/module-toml-edit": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "version": "0.0.1",

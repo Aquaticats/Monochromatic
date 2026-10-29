@@ -20,6 +20,7 @@ import {
   manageCargoManifests,
   manageLsp4ijServerSettings,
   manageMiseManifests,
+  manageRustCatalog,
   overwrite,
   overwriteEach,
   overwriteIfNotExists,
@@ -1596,149 +1597,6 @@ const CARGO_LINTS_CLIPPY_KEYS = {
 } as const satisfies Record<string, CanonicalTomlValue>;
 
 /**
- One owned shared dependency: its table, name, and single fleet-wide requirement.
- 
- @example
- ```ts
- const dep: CargoSharedDependency = { table: 'dependencies', name: 'anyhow', value: '1' };
- ```
- */
-type CargoSharedDependency = {
-  readonly table: 'dependencies' | 'build-dependencies';
-  readonly name: string;
-  readonly value: CanonicalTomlValue;
-};
-
-/**
- Shared dependency requirements owned across crates: every dependency whose
- exact requirement is identical wherever it appears (single fleet-wide form).
- `tokio` is excluded because `truepeak-core` declares an `optional` variant;
- `image`, `gtk4`, `windows`, and `slint` carry genuinely divergent per-crate forms:
- `package/desktop-app/ide` draws on the GPU only (`renderer-femtovg-wgpu`, no `renderer-software`, no OpenGL),
- and a fleet-wide form would put the software renderer back into it on the next sync.
- 
- @example
- ```ts
- console.log(CARGO_SHARED_DEPENDENCIES.length);
- ```
- */
-const CARGO_SHARED_DEPENDENCIES: readonly CargoSharedDependency[] = [
-  {
-    table: 'dependencies',
-    name: 'aho-corasick',
-    value: '1',
-  },
-  {
-    table: 'dependencies',
-    name: 'anyhow',
-    value: '1',
-  },
-  {
-    table: 'dependencies',
-    name: 'arbitrary',
-    value: {
-      version: '1',
-      features: ['derive',],
-    },
-  },
-  {
-    table: 'dependencies',
-    name: 'clap',
-    value: {
-      version: '4',
-      features: ['derive',],
-    },
-  },
-  {
-    table: 'dependencies',
-    name: 'i-slint-backend-winit',
-    value: '1.18.1',
-  },
-  {
-    table: 'dependencies',
-    name: 'ignore',
-    value: '0.4',
-  },
-  {
-    table: 'dependencies',
-    name: 'libfuzzer-sys',
-    value: {
-      version: '0.4',
-      features: ['arbitrary-derive',],
-    },
-  },
-  {
-    table: 'dependencies',
-    name: 'memchr',
-    value: '2',
-  },
-  {
-    table: 'dependencies',
-    name: 'opus',
-    value: '0.4',
-  },
-  {
-    table: 'dependencies',
-    name: 'rayon',
-    value: '1',
-  },
-  {
-    table: 'dependencies',
-    name: 'regex',
-    value: '1',
-  },
-  {
-    table: 'dependencies',
-    name: 'ringbuf',
-    value: '0.5',
-  },
-  {
-    table: 'dependencies',
-    name: 'serde',
-    value: {
-      version: '1',
-      features: ['derive',],
-    },
-  },
-  {
-    table: 'dependencies',
-    name: 'serde_json',
-    value: '1',
-  },
-  {
-    table: 'dependencies',
-    name: 'symphonia',
-    value: {
-      version: '0.6',
-      features: ['all',],
-    },
-  },
-  {
-    table: 'dependencies',
-    name: 'tracing',
-    value: '0.1',
-  },
-  {
-    table: 'dependencies',
-    name: 'tracing-appender',
-    value: '0.2',
-  },
-  {
-    table: 'dependencies',
-    name: 'tracing-subscriber',
-    value: {
-      version: '0.3',
-      features: ['env-filter',],
-    },
-  },
-  {
-    table: 'build-dependencies',
-    name: 'slint-build',
-    value: '1.18.1',
-  },
-];
-
-/**
  Release/dev profile tables mapped to their canonical key/value settings.
  
  @example
@@ -1871,7 +1729,7 @@ const CARGO_PROFILE_BY_DIR: Record<string, CargoProfileSpec> = {
 
 /**
  Guarded enforcements identical for every crate: edition, license, publish,
- the three lint keys, the shared dependency requirements, and the
+ the three lint keys, and the
  published-crate repository and readme.
  
  @example
@@ -1925,25 +1783,6 @@ const CARGO_STATIC_ENFORCEMENTS: readonly CargoEnforcement[] = [
         value,
       };
     },),
-  ...CARGO_SHARED_DEPENDENCIES.map(function dependencyEnforcement(
-    {
-      table,
-      name,
-      value,
-    },
-  ): CargoEnforcement {
-    return {
-      guardPath: [
-        table,
-        name,
-      ],
-      path: [
-        table,
-        name,
-      ],
-      value,
-    };
-  },),
   {
     guardPath: [
       'package',
@@ -2183,12 +2022,22 @@ function buildCargoManifestPlan(
  ```
  */
 async function generateCargoManifests(): Promise<void> {
+  /**
+   Bounded-depth crate manifest globs shared by both Cargo steps.
+   */
+  const manifestGlobs = [
+    'package/*/*/Cargo.toml',
+    'package/*/*/*/Cargo.toml',
+  ];
   await manageCargoManifests({
-    manifestGlobs: [
-      'package/*/*/Cargo.toml',
-      'package/*/*/*/Cargo.toml',
-    ],
+    manifestGlobs,
     spec: buildCargoManifestPlan,
+  },);
+  // Dependencies come from rust-catalog.toml (doc/decision/rust-dependency-catalog.md);
+  // runs after the manifest engine so it reads that step's output through the cache.
+  await manageRustCatalog({
+    rootDir: '.',
+    manifestGlobs,
   },);
 }
 

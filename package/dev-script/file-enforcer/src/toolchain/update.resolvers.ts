@@ -25,7 +25,9 @@ export type FetchedResponse = {
   readonly ok: boolean;
   readonly status: number;
   readonly text: string;
-  /** Raw bytes for binary payloads (the Android archive hash). */
+  /**
+   Raw bytes for binary payloads (the Android archive hash).
+   */
   readonly bytes?: Uint8Array | undefined;
 };
 
@@ -69,12 +71,15 @@ function parseJson(
     return JSON.parse(response.text,) as unknown;
   }
   catch (error) {
-    throw new Error(`${
+    throw new Error(
+      `${
       label
     } returned unparseable JSON: ${
       (error as Error)
         .message
-    }`,);
+    }`,
+      { cause: error },
+    );
   }
 }
 
@@ -96,10 +101,8 @@ export function githubRepoFromRows(
     /**
      Slug captured from a release download URL.
      */
-    const match = row.url.match(
-      /^https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/download\//u,
-    );
-    if (match !== null && match[1] !== undefined)
+    const match = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/download\//u.exec(row.url);
+    if ((match !== null) && (match[1] !== undefined))
       return match[1];
   }
   throw new Error('no GitHub release URL found in the artifact rows',);
@@ -119,10 +122,8 @@ export function githubTagFromRows(
     /**
      Tag captured from a release download URL.
      */
-    const match = row.url.match(
-      /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/([^/]+)\//u,
-    );
-    if (match !== null && match[1] !== undefined)
+    const match = /^https:\/\/github\.com\/[^/]+\/[^/]+\/releases\/download\/([^/]+)\//u.exec(row.url);
+    if ((match !== null) && (match[1] !== undefined))
       return decodeURIComponent(match[1],);
   }
   throw new Error('no GitHub release tag found in the artifact rows',);
@@ -151,12 +152,15 @@ export function versionFromTag(
    Index of the old version inside the old tag.
    */
   const at = oldTag.indexOf(oldVersion,);
-  if (at < 0)
+  if (at === (-1))
     return null;
   /**
    Tag prefix carried over every release (`''`, `'v'`, `'bun-v'`, ...).
    */
-  const prefix = oldTag.slice(0, at,);
+  const prefix = oldTag.slice(
+    0,
+    at,
+  );
   return newTag.startsWith(prefix,)
     ? newTag.slice(prefix.length,)
     : null;
@@ -189,15 +193,21 @@ export type GithubRelease = {
 function assetPatternRegex(
   { pattern, }: { readonly pattern: string; },
 ): RegExp {
-  return new RegExp(`^${
+  return new RegExp(
+    `^${
     pattern.split('*',)
       .map(
         function escapeLiteral(part,): string {
-          return part.replaceAll(/[\\^$.*+?()[\]{}|]/gu, '\\$&',);
+          return part.replaceAll(
+            /[\\^$.*+?()[\]{}|]/gu,
+            String.raw`\$&`,
+          );
         },
       )
       .join('.*',)
-  }$`, 'u',);
+  }$`,
+    'u',
+  );
 }
 
 /**
@@ -251,7 +261,10 @@ export async function mapGithubRows(
      */
     const oldName = basename(row.url,);
     const candidates = [
-      oldName.replaceAll(oldVersion, newVersion,),
+      oldName.replaceAll(
+        oldVersion,
+        newVersion,
+      ),
       oldName,
     ];
     /**
@@ -263,17 +276,17 @@ export async function mapGithubRows(
       if (asset !== undefined)
         break;
     }
-    if (asset === undefined && assetPattern !== undefined) {
+    if ((asset === undefined) && (assetPattern !== undefined)) {
       /**
        Assets whose names the pattern selects and the single selection
        (undefined while the pattern selects zero or several assets).
        */
       const matches = (release.assets ?? [])
         .filter(
-          function matchesPattern(candidate,): boolean {
-            return assetPatternRegex({ pattern: assetPattern, },)
-              .test(candidate.name ?? '',);
-          },
+        function matchesPattern(candidate,): boolean {
+          return assetPatternRegex({ pattern: assetPattern, },)
+            .test(candidate.name ?? '',);
+        },
         );
       const [selected] = matches.length === 1
         ? matches
@@ -298,7 +311,7 @@ export async function mapGithubRows(
         release.tag_name ?? 'the release'
       }`,);
     }
-    if (asset.name === undefined || asset.browser_download_url === undefined) {
+    if ((asset.name === undefined) || (asset.browser_download_url === undefined)) {
       throw new Error(`release asset ${
         asset.name ?? oldName
       } carries no download URL`,);
@@ -307,9 +320,13 @@ export async function mapGithubRows(
      SHA-256: the asset digest field when the release records one, else the
      downloaded bytes (releases predating asset digests).
      */
-    let digest = asset.digest === null || asset.digest === undefined
+    let digest = (asset.digest === null) || (asset.digest === undefined)
       ? undefined
-      : asset.digest.replace(/^sha256:/u, '',);
+      : asset.digest
+        .replace(
+        /^sha256:/u,
+        '',
+        );
     if (digest === undefined) {
       if (fetcher === undefined) {
         throw new Error(`release asset ${
@@ -320,7 +337,7 @@ export async function mapGithubRows(
        Downloaded asset bytes to hash.
        */
       const downloaded = await fetcher(asset.browser_download_url,);
-      if (downloaded.bytes === undefined || !downloaded.ok) {
+      if ((downloaded.bytes === undefined) || (!downloaded.ok)) {
         throw new Error(`cannot download release asset ${
           asset.name
         } to hash it`,);
@@ -426,7 +443,8 @@ export async function resolveGithubFamily(
       oldVersion: entry.version,
       newVersion,
       fetcher,
-      assetPattern: entry.options.assetPattern,
+      assetPattern: entry.options
+        .assetPattern,
     },),
   };
 }
@@ -471,9 +489,15 @@ export async function resolveJava(
   /**
    Release core of the new resolution (`21.0.13+9`) and of the recorded one.
    */
-  const newCore = releaseName.replace(/^jdk-/u, '',);
+  const newCore = releaseName.replace(
+    /^jdk-/u,
+    '',
+  );
   const oldCore = githubTagFromRows({ rows: entry.artifacts, },)
-    .replace(/^jdk-/u, '',);
+    .replace(
+    /^jdk-/u,
+    '',
+    );
   /**
    Release payload carrying the per-platform assets and their digests.
    */
@@ -491,8 +515,14 @@ export async function resolveJava(
       rows: entry.artifacts,
       release,
       // The asset names spell the build with an underscore (21.0.13_9).
-      oldVersion: oldCore.replaceAll('+', '_',),
-      newVersion: newCore.replaceAll('+', '_',),
+      oldVersion: oldCore.replaceAll(
+        '+',
+        '_',
+      ),
+      newVersion: newCore.replaceAll(
+        '+',
+        '_',
+      ),
       fetcher,
     },),
   };
@@ -520,8 +550,9 @@ export function parseShasums(
     /**
      Digest and file name of one sums row.
      */
-    const match = line.match(/^([0-9a-f]{64})\s+\*?(.+)$/u);
-    if (match === null || match[1] === undefined || match[2] === undefined)
+    const match = /^([0-9a-f]{64})\s+\*?(.+)$/u.exec(line);
+    if ((match === null) || (match[1] === undefined)
+      || (match[2] === undefined))
       continue;
     sums.set(
       match[2],
@@ -556,13 +587,17 @@ export async function resolveNode(
     response: await fetcher('https://nodejs.org/dist/index.json',),
     label: 'nodejs.org index',
   },) as readonly { version?: string; }[];
-  const newTag = index[0]?.version;
+  const newTag = index[0]
+    ?.version;
   if (newTag === undefined)
     throw new Error('nodejs.org reports no release',);
   /**
    New bare version (`26.12.1`).
    */
-  const newVersion = newTag.replace(/^v/u, '',);
+  const newVersion = newTag.replace(
+    /^v/u,
+    '',
+  );
   /**
    Sums bodies for the official and the unofficial (musl) host.
    */
@@ -599,12 +634,19 @@ export async function resolveNode(
      New file name and its sums row.
      */
     const newName = basename(row.url,)
-      .replaceAll(entry.version, newVersion,);
+      .replaceAll(
+      entry.version,
+      newVersion,
+      );
     const digest = sums.get(newName,);
     if (digest === undefined)
       throw new Error(`SHASUMS256.txt has no row for ${newName}`,);
     mapped[platform] = {
-      url: row.url.replaceAll(entry.version, newVersion,),
+      url: row.url
+        .replaceAll(
+        entry.version,
+        newVersion,
+        ),
       sha256: digest,
     };
   }
@@ -639,11 +681,11 @@ function stringField(
    */
   let cursor: unknown = doc;
   for (const key of path) {
-    if (typeof cursor !== 'object' || cursor === null)
+    if (((typeof cursor) !== 'object') || (cursor === null))
       return undefined;
     cursor = (cursor as Record<string, unknown>)[key];
   }
-  return typeof cursor === 'string'
+  return (typeof cursor) === 'string'
     ? cursor
     : undefined;
 }
@@ -669,7 +711,12 @@ export async function resolveCargo(
   /**
    Crate name behind the entry.
    */
-  const crate = entry.packageId ?? entry.id.replace(/^cargo:/u, '',);
+  const crate = entry.packageId
+    ?? entry.id
+      .replace(
+      /^cargo:/u,
+      '',
+      );
   /**
    Crate document from the registry.
    */
@@ -679,7 +726,10 @@ export async function resolveCargo(
   },);
   const version = stringField({
     doc,
-    path: ['crate', 'max_stable_version'],
+    path: [
+      'crate',
+      'max_stable_version'
+    ],
   },);
   if (version === undefined)
     throw new Error(`crates.io reports no version for ${crate}`,);
@@ -712,12 +762,18 @@ export async function resolveNpm(
   /**
    Package name behind the entry (the scoped names keep their slash).
    */
-  const name = entry.packageId ?? entry.id.replace(/^npm:/u, '',);
+  const name = entry.packageId
+    ?? entry.id
+      .replace(
+      /^npm:/u,
+      '',
+      );
   /**
    Dist-tag the request tracks (`latest`, `next`, ...).
    */
   const tag = 'channel' in entry.request
-    ? entry.request.channel
+    ? entry.request
+      .channel
     : 'latest';
   /**
    Packument from the registry.
@@ -728,7 +784,10 @@ export async function resolveNpm(
   },);
   const version = stringField({
     doc,
-    path: ['dist-tags', tag],
+    path: [
+      'dist-tags',
+      tag
+    ],
   },);
   if (version === undefined) {
     throw new Error(`registry.npmjs.org reports no ${
@@ -764,7 +823,12 @@ export async function resolvePypi(
   /**
    Project name behind the entry.
    */
-  const name = entry.packageId ?? entry.id.replace(/^pipx:/u, '',);
+  const name = entry.packageId
+    ?? entry.id
+      .replace(
+      /^pipx:/u,
+      '',
+      );
   /**
    Project metadata from PyPI.
    */
@@ -774,7 +838,10 @@ export async function resolvePypi(
   },);
   const version = stringField({
     doc,
-    path: ['info', 'version'],
+    path: [
+      'info',
+      'version'
+    ],
   },);
   if (version === undefined)
     throw new Error(`pypi.org reports no version for ${name}`,);
@@ -835,7 +902,12 @@ export async function resolveGoRuntime(
   },) as readonly GoRelease[];
   const chosen = releases.find(
     function carriesRecordedVersion(release,): boolean {
-      return release.version.replace(/^go/u, '',) === entry.version;
+      return release.version
+        .replace(
+        /^go/u,
+        '',
+        )
+        === entry.version;
     },
   ) ?? releases.find(
     function isStable(release,): boolean {
@@ -855,7 +927,7 @@ export async function resolveGoRuntime(
     sha256: string;
   }> = {};
   for (const file of chosen.files) {
-    if (file.kind !== 'archive' || file.os !== 'linux')
+    if ((file.kind !== 'archive') || (file.os !== 'linux'))
       continue;
     /**
      Platform id of this linux archive (`linux-x64`, `linux-arm64`).
@@ -875,13 +947,18 @@ export async function resolveGoRuntime(
     };
   }
   if (Object.keys(mapped,)
-    .length === 0) {
+    .length
+    === 0) {
     throw new Error(`the go.dev release ${
       chosen.version
     } lists no linux archive`,);
   }
   return {
-    version: chosen.version.replace(/^go/u, '',),
+    version: chosen.version
+      .replace(
+      /^go/u,
+      '',
+      ),
     artifacts: mapped,
   };
 }
@@ -908,7 +985,12 @@ export async function resolveGoModule(
   /**
    Go module path behind the entry.
    */
-  const module = entry.packageId ?? entry.id.replace(/^go:/u, '',);
+  const module = entry.packageId
+    ?? entry.id
+      .replace(
+      /^go:/u,
+      '',
+      );
   /**
    `@latest` record from the module proxy.
    */
@@ -939,7 +1021,10 @@ export async function resolveGoModule(
     }`,);
   }
   return {
-    version: tag.replace(/^v/u, '',),
+    version: tag.replace(
+      /^v/u,
+      '',
+    ),
     artifacts: {},
   };
 }
@@ -976,24 +1061,22 @@ export async function resolveRust(
    Channel name the entry requests (`nightly`, `stable`, ...).
    */
   const channel = 'channel' in entry.request
-    ? entry.request.channel
+    ? entry.request
+      .channel
     : 'nightly';
   /**
    Channel manifest body.
    */
-  const text = (await fetcher(`https://static.rust-lang.org/dist/channel-rust-${
+  const {text} = (await fetcher(`https://static.rust-lang.org/dist/channel-rust-${
     channel
-  }.toml`,))
-    .text;
+  }.toml`,));
   if (channel !== 'nightly') {
     /**
      `[pkg.rust]` version field, the first field of the section block that
      precedes the target subsections.
      */
-    const match = text.match(
-      /^\[pkg\.rust\][ \t]*\r?\nversion[ \t]*=[ \t]*"([^"]+)"/mu,
-    );
-    if (match === null || match[1] === undefined) {
+    const match = /^\[pkg\.rust\][ \t]*\r?\nversion[ \t]*=[ \t]*"([^"]+)"/mu.exec(text);
+    if ((match === null) || (match[1] === undefined)) {
       throw new Error(`the rustup ${
         channel
       } manifest carries no [pkg.rust] version`,);
@@ -1006,8 +1089,8 @@ export async function resolveRust(
   /**
    Manifest date line.
    */
-  const match = text.match(/^date\s*=\s*"([^"]+)"/mu,);
-  if (match === null || match[1] === undefined)
+  const match = /^date\s*=\s*"([^"]+)"/mu.exec(text);
+  if ((match === null) || (match[1] === undefined))
     throw new Error('the rustup nightly manifest carries no date',);
   return {
     version: `nightly-${match[1]}`,
@@ -1044,13 +1127,12 @@ export async function resolveRustup(
   /**
    Release manifest body.
    */
-  const text = (await fetcher('https://static.rust-lang.org/rustup/release-stable.toml',))
-    .text;
+  const {text} = (await fetcher('https://static.rust-lang.org/rustup/release-stable.toml',));
   /**
    Manifest version line (`version = '1.29.2'`).
    */
-  const match = text.match(/^version\s*=\s*['"]([^'"]+)['"]/mu,);
-  if (match === null || match[1] === undefined)
+  const match = /^version\s*=\s*['"]([^'"]+)['"]/mu.exec(text);
+  if ((match === null) || (match[1] === undefined))
     throw new Error('the rustup release manifest carries no version',);
   /**
    New channel version.
@@ -1074,10 +1156,8 @@ export async function resolveRustup(
     /**
      Target triple recorded in the row URL.
      */
-    const targetMatch = row.url.match(
-      /\/rustup\/archive\/[^/]+\/([^/]+)\/rustup-init$/u,
-    );
-    if (targetMatch === null || targetMatch[1] === undefined) {
+    const targetMatch = /\/rustup\/archive\/[^/]+\/([^/]+)\/rustup-init$/u.exec(row.url);
+    if ((targetMatch === null) || (targetMatch[1] === undefined)) {
       throw new Error(
         `rustup artifact url ${
           row.url
@@ -1105,7 +1185,7 @@ export async function resolveRustup(
      */
     const digest = checksum.trim()
       .split(/\s/u)[0];
-    if (digest === undefined || !/^[0-9a-f]{64}$/u.test(digest,)) {
+    if ((digest === undefined) || (!/^[0-9a-f]{64}$/u.test(digest,))) {
       throw new Error(
         `rustup archive checksum for ${
           target
@@ -1154,29 +1234,35 @@ export async function resolveZigLatest(
    */
   const stable = Object.keys(doc,)
     .filter(
-      function isStable(key,): boolean {
-        return key !== 'master' && !key.includes('-',);
-      },
+    function isStable(key,): boolean {
+      return (key !== 'master') && (!key.includes('-',));
+    },
     )
     .sort(
-      function byVersion(a, b,) {
+    function byVersion(
+      a,
+      b,
+    ) {
         /**
          Numeric segments of the two keys.
          */
-        const left = a.split('.',)
-          .map(Number,);
-        const right = b.split('.',)
-          .map(Number,);
-        for (let at = 0; at < Math.max(left.length, right.length,); at += 1) {
+      const left = a.split('.',)
+        .map(Number,);
+      const right = b.split('.',)
+        .map(Number,);
+      for (let at = 0; at < Math.max(
+        left.length,
+        right.length,
+      ); at += 1) {
           /**
            Segment difference at this position.
            */
-          const delta = (left[at] ?? 0) - (right[at] ?? 0);
-          if (delta !== 0)
-            return delta;
-        }
-        return 0;
-      },
+        const delta = (left[at] ?? 0) - (right[at] ?? 0);
+        if (delta !== 0)
+          return delta;
+      }
+      return 0;
+    },
     )
     .reverse();
   return stable[0] ?? null;
@@ -1210,8 +1296,7 @@ export async function resolveAndroid(
   /**
    Repository XML body.
    */
-  const text = (await fetcher('https://dl.google.com/android/repository/repository2-3.xml',))
-    .text;
+  const {text} = (await fetcher('https://dl.google.com/android/repository/repository2-3.xml',));
   /**
    Every cmdline-tools package block with its revision, build and archive.
    */
@@ -1226,15 +1311,12 @@ export async function resolveAndroid(
     /**
      Revision and archive of one cmdline-tools block.
      */
-    const revision = block.match(
-      /<revision>\s*<major>(\d+)<\/major>\s*<minor>(\d+)<\/minor>/u,
-    );
-    const archive = block.match(
-      /<url>commandlinetools-linux-(\d+)_latest\.zip<\/url>/u,
-    );
-    if (revision === null || archive === null)
+    const revision = /<revision>\s*<major>(\d+)<\/major>\s*<minor>(\d+)<\/minor>/u.exec(block);
+    const archive = /<url>commandlinetools-linux-(\d+)_latest\.zip<\/url>/u.exec(block);
+    if ((revision === null) || (archive === null))
       continue;
-    if (revision[1] === undefined || revision[2] === undefined || archive[1] === undefined)
+    if ((revision[1] === undefined) || (revision[2] === undefined)
+      || (archive[1] === undefined))
       continue;
     packages.push({
       major: Number(revision[1],),
@@ -1245,10 +1327,13 @@ export async function resolveAndroid(
   if (packages.length === 0)
     throw new Error('the Android repository lists no cmdline-tools archive',);
   packages.sort(
-    function byRevision(a, b,) {
-      return a.major - b.major
-        || a.minor - b.minor
-        || a.build - b.build;
+    function byRevision(
+      a,
+      b,
+    ) {
+      return (a.major - b.major)
+        || (a.minor - b.minor)
+        || (a.build - b.build);
     },
   );
   /**
@@ -1340,7 +1425,11 @@ export async function resolveConda(
   /**
    Package owner and name behind the entry.
    */
-  const spec = entry.id.replace(/^conda:/u, '',);
+  const spec = entry.id
+    .replace(
+    /^conda:/u,
+    '',
+    );
   /**
    Package record from anaconda.org.
    */
@@ -1353,7 +1442,10 @@ export async function resolveConda(
       basename?: string;
       version?: string;
       sha256?: string;
-      attrs?: { build_number?: number; subdir?: string; };
+      attrs?: {
+        build_number?: number;
+        subdir?: string
+      };
     }[];
   };
   const version = doc.latest_version;
@@ -1367,19 +1459,23 @@ export async function resolveConda(
     readonly sha256: string;
   }>();
   for (const file of doc.files ?? []) {
-    if (file.version !== version
-      || file.basename === undefined
-      || file.sha256 === undefined
-      || file.attrs?.subdir === undefined)
+    if ((file.version !== version)
+      || (file.basename === undefined)
+      || (file.sha256 === undefined)
+      || (file.attrs
+        ?.subdir
+        === undefined))
       continue;
     /**
      Previously recorded build for this subdirectory, kept when it is
      newer (the record lists every build of the version).
      */
-    const previous = bySubdir.get(file.attrs.subdir,);
+    const previous = bySubdir.get(file.attrs
+      .subdir,);
     if (previous === undefined) {
       bySubdir.set(
-        file.attrs.subdir,
+        file.attrs
+          .subdir,
         {
           basename: file.basename,
           sha256: file.sha256,
@@ -1398,8 +1494,10 @@ export async function resolveConda(
     /**
      Subdirectory the recorded row installs from (`linux-64`, ...).
      */
-    const subdir = row.url.split('/')
-      .slice(-2, -1,)[0] ?? '';
+    const subdir = row.url
+      .split('/')
+      .at(-2)
+      ?? '';
     /**
      Matching file of the newest version.
      */

@@ -11,13 +11,11 @@ import {
 } from '@monochromatic-dev/module-test/ts';
 
 import {
+  type ManifestFile,
   RustCatalogSyncError,
   syncRustCatalog,
-} from './sync.ts';
-import type {
-  ManifestFile,
-  SyncResult,
-} from './types.ts';
+  type SyncResult,
+} from '../../../dist/final/node/index.mjs';
 
 //region Fixtures
 

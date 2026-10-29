@@ -45,22 +45,22 @@ await describe({
              */
             const ordered = syncOrder({ entries: ALL_TOOLS, },)
               .map(
-                (entry,) => entry.id,
+              (entry,) => entry.id,
               );
             expect(ordered.slice(
               0,
               7,
             ),)
               .toEqual(
-                [
-                  'bin',
-                  'uv',
-                  'mpm',
-                  'rust',
-                  'cargo-binstall',
-                  'node',
-                  'pnpm',
-                ],
+              [
+                'bin',
+                'uv',
+                'mpm',
+                'rust',
+                'cargo-binstall',
+                'node',
+                'pnpm',
+              ],
               );
           },
         },),
@@ -72,7 +72,7 @@ await describe({
              */
             const rest = syncOrder({ entries: ALL_TOOLS, },)
               .map(
-                (entry,) => entry.id,
+              (entry,) => entry.id,
               )
               .slice(7,);
             expect(rest.includes('bun',),)
@@ -97,7 +97,9 @@ await describe({
         it({
           name: 'admits unfiltered tools on any platform',
           fn: async () => {
-            expect(appliesToHost(toolById('node',),),)
+            expect(
+              appliesToHost(toolById('node',),),
+            )
               .toBe(true,);
           },
         },),
@@ -165,7 +167,7 @@ await describe({
               ),
             )
               .toBe(
-                'https://github.com/FiloSottile/age/releases/tag/v1.3.2',
+              'https://github.com/FiloSottile/age/releases/tag/v1.3.2',
               );
           },
         },),
@@ -178,7 +180,7 @@ await describe({
               ),
             )
               .toBe(
-                'https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12+8',
+              'https://github.com/adoptium/temurin21-binaries/releases/tag/jdk-21.0.12+8',
               );
             expect(releaseTagUrl('https://nodejs.org/dist/v26.12.0/node.tar.gz',),)
               .toBe(null,);

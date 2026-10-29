@@ -43,7 +43,7 @@ const EXCLUDED_FRAGMENTS = [
 
  @example
  ```ts
- await readManifests(['package/​*​/​*​/Cargo.toml',]);
+ await readManifests(['package/<category>/<crate>/Cargo.toml',]);
  ```
  */
 async function readManifests(manifestGlobs: readonly string[],): Promise<readonly ManifestFile[]> {
@@ -52,11 +52,12 @@ async function readManifests(manifestGlobs: readonly string[],): Promise<readonl
    */
   const paths = (await Promise.all(manifestGlobs.map(async function collect(pattern,): Promise<readonly string[]> {
     return await Array.fromAsync(glob(pattern,),);
-  },),)).flat().filter(function isFirstParty(path,): boolean {
-    return EXCLUDED_FRAGMENTS.every(function excludes(fragment,): boolean {
-      return !path.includes(fragment,);
+  },),)).flat()
+    .filter(function isFirstParty(path,): boolean {
+      return EXCLUDED_FRAGMENTS.every(function excludes(fragment,): boolean {
+        return !path.includes(fragment,);
+      },);
     },);
-  },);
   /**
    Unique sorted paths.
    */
@@ -69,7 +70,10 @@ async function readManifests(manifestGlobs: readonly string[],): Promise<readonl
      Current text.
      */
     const source = await readExisting(path,);
-    return source === ABSENT_FILE_CONTENT ? [] : [{ path, source, },];
+    return source === ABSENT_FILE_CONTENT ? [] : [{
+      path,
+      source,
+    },];
   },),);
   return files.flat();
 }
@@ -93,20 +97,32 @@ async function readManifests(manifestGlobs: readonly string[],): Promise<readonl
 
  @example
  ```ts
- await manageRustCatalog({ rootDir: '.', manifestGlobs: ['package/​*​/​*​/Cargo.toml',], });
+ await manageRustCatalog({ rootDir: '.', manifestGlobs: ['package/<category>/<crate>/Cargo.toml',], });
  ```
  */
 export async function manageRustCatalog(
-  { rootDir, manifestGlobs, }: { readonly rootDir: string; readonly manifestGlobs: readonly string[]; },
+  {
+    rootDir,
+    manifestGlobs,
+  }: {
+    readonly rootDir: string;
+    readonly manifestGlobs: readonly string[]
+  },
 ): Promise<void> {
   /**
    Logger tagged for this step.
    */
-  const log = tagged({ tag: manageRustCatalog.name, l, },);
+  const log = tagged({
+    tag: manageRustCatalog.name,
+    l,
+  },);
   /**
    Catalog path.
    */
-  const catalogPath = join(rootDir, RUST_CATALOG_FILENAME,);
+  const catalogPath = join(
+    rootDir,
+    RUST_CATALOG_FILENAME,
+  );
   /**
    Catalog text.
    */
@@ -119,24 +135,43 @@ export async function manageRustCatalog(
    Every first-party manifest.
    */
   const manifests = await readManifests(manifestGlobs,);
-  addWatchedPaths([catalogPath, ...manifests.map(function toPath(manifest,): string {
-    return manifest.path;
-  },),],);
+  addWatchedPaths([
+    catalogPath,
+    ...manifests.map(function toPath(manifest,): string {
+      return manifest.path;
+    },),
+  ],);
   log.debug(`syncing ${String(manifests.length,)} manifests with ${catalogPath}`,);
 
   /**
    New texts and reports.
    */
-  const result = syncRustCatalog({ catalogPath, catalogSource, manifests, },);
+  const result = syncRustCatalog({
+    catalogPath,
+    catalogSource,
+    manifests,
+  },);
   for (const warning of result.warnings)
     log.warn(warning,);
-  if (result.affectedCrates.length > 0)
-    log.info(`affected crates (generated [workspace.dependencies] changed): ${result.affectedCrates.join(', ',)}`,);
+  if (result.affectedCrates
+    .length
+    > 0)
+    log.info(`affected crates (generated [workspace.dependencies] changed): ${result.affectedCrates
+      .join(', ',)}`,);
 
-  await overwrite({ dest: catalogPath, content: result.catalog, },);
-  await Promise.all([...result.manifests.entries(),].map(async function write([path, content,],): Promise<void> {
-    await overwrite({ dest: path, content, },);
-  },),);
+  await overwrite({
+    dest: catalogPath,
+    content: result.catalog,
+  },);
+  await Promise.all([...result.manifests
+    .keys(),].map(async function write(path: string,): Promise<void> {
+      await overwrite({
+        dest: path,
+        content: result.manifests
+          .get(path,)
+          ?? '',
+      },);
+    },),);
 }
 
 //endregion Manage

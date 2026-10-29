@@ -14,8 +14,15 @@ import {
   symlinkSync,
   unlinkSync,
 } from 'node:fs';
-import { readFile, rename, } from 'node:fs/promises';
-import { basename, dirname, join, } from 'node:path';
+import {
+  readFile,
+  rename,
+} from 'node:fs/promises';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import { pipeline, } from 'node:stream/promises';
 import spawn from 'nano-spawn';
 
@@ -84,7 +91,8 @@ export async function run(
     };
     return {
       stdout: failure.stdout ?? '',
-      stderr: failure.stderr ?? failure.message ?? String(error,),
+      stderr: failure.stderr ?? failure.message
+        ?? String(error,),
       code: failure.exitCode ?? 1,
     };
   }
@@ -140,7 +148,7 @@ export async function downloadVerified(
    Fetched response body.
    */
   const response = await fetch(url,);
-  if (!response.ok || response.body === null) {
+  if ((!response.ok) || (response.body === null)) {
     throw new Error(`download failed for ${url}: HTTP ${response.status}`,);
   }
   await pipeline(
@@ -297,7 +305,10 @@ export function symlinkOrCopy(
   },
 ): void {
   try {
-    symlinkSync(target, linkPath,);
+    symlinkSync(
+      target,
+      linkPath,
+    );
   } catch {
     linkSync(
       target,

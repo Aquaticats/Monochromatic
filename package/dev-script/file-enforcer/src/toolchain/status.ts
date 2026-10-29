@@ -8,7 +8,10 @@
  ```
  */
 
-import { existsSync, readdirSync, } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+} from 'node:fs';
 import { join, } from 'node:path';
 import { run, } from './exec.ts';
 import { findToolBin, } from './layout.ts';
@@ -27,8 +30,8 @@ import {
   type PathEnv,
   type ToolchainPaths,
   isMainModule,
+  toolInstallDir
 } from './paths.ts';
-import { toolInstallDir, } from './paths.ts';
 import {
   ALL_TOOLS,
 } from './plan.ts';
@@ -79,7 +82,8 @@ export function versionMatches(
    Normalized locked version.
    */
   const l = normalizeVersion(locked,);
-  return o === l || o.startsWith(`${l}-`,) || l.startsWith(`${o}-`,);
+  return (o === l) || o.startsWith(`${l}-`,)
+    || l.startsWith(`${o}-`,);
 }
 
 //endregion Version comparison
@@ -92,9 +96,13 @@ export function versionMatches(
 export type ToolObservation = {
   readonly id: string;
   readonly locked: string;
-  /** Observed version text, or `null` when nothing is installed. */
+  /**
+   Observed version text, or `null` when nothing is installed.
+   */
   readonly observed: string | null;
-  /** Whether the observed version matches the lock. */
+  /**
+   Whether the observed version matches the lock.
+   */
   readonly inSync: boolean;
 };
 
@@ -115,7 +123,9 @@ export async function observeTool(
     readonly entry: ToolPlanEntry;
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
-    /** Plan of the scope being observed; absent means the repository plan. */
+    /**
+     Plan of the scope being observed; absent means the repository plan.
+     */
     readonly tools?: readonly ToolPlanEntry[] | undefined;
   },
 ): Promise<string | null> {
@@ -180,7 +190,9 @@ export async function observeTool(
           env,
         },),
       },);
-      return parseCargoBinstallList(listed.stdout,).get(entry.packageId ?? entry.id,) ?? null;
+      return parseCargoBinstallList(listed.stdout,)
+        .get(entry.packageId ?? entry.id,)
+        ?? null;
     }
     case 'mpm-pnpm': {
       /**
@@ -231,8 +243,13 @@ export async function observeTool(
           : [parsed,];
         const dependencies: Record<string, { version?: string; }> = {};
         for (const root of roots)
-          Object.assign(dependencies, root.dependencies ?? {},);
-        return dependencies[entry.packageId ?? entry.id]?.version ?? null;
+          Object.assign(
+            dependencies,
+            root.dependencies ?? {},
+          );
+        return dependencies[entry.packageId ?? entry.id]
+          ?.version
+          ?? null;
       } catch {
         return null;
       }
@@ -257,22 +274,34 @@ export async function observeTool(
         return null;
       const listed = await run({
         command: uvBin,
-        args: ['tool', 'list'],
+        args: [
+          'tool',
+          'list'
+        ],
         env: toolchainPathEnv({
           paths,
           env,
         },),
       },);
-      for (const line of listed.stdout.split('\n',)) {
+      for (const line of listed.stdout
+        .split('\n',)) {
         /**
          One `name v<version>` row.
          */
-        const match = line.match(/^(\S+)\s+v?(\S+)/u);
+        const match = /^(\S+)\s+v?(\S+)/u.exec(line);
         // `uv tool list` prints registry-normalized names (`huggingface-hub`)
         // where the plan may spell the PyPI form with underscores.
-        if (match !== null
-          && match[1]?.replaceAll('-', '_') === (entry.packageId ?? entry.id)
-            .replaceAll('-', '_'))
+        if ((match !== null)
+          && (match[1]
+            ?.replaceAll(
+            '-',
+            '_'
+            )
+            === (entry.packageId ?? entry.id)
+              .replaceAll(
+              '-',
+              '_'
+              )))
           return match[2] ?? null;
       }
       return null;
@@ -283,9 +312,13 @@ export async function observeTool(
        */
       const listed = await run({
         command: 'rustup',
-        args: ['toolchain', 'list'],
+        args: [
+          'toolchain',
+          'list'
+        ],
       },);
-      for (const line of listed.stdout.split('\n',)) {
+      for (const line of listed.stdout
+        .split('\n',)) {
         /**
          Toolchain id from one listing line.
          */
@@ -324,27 +357,32 @@ export async function observeTool(
       // directory, so presence at that key is the locked version.
       const toolRoot = join(
         paths.toolchainRoot,
-        entry.id.replaceAll(
+        entry.id
+          .replaceAll(
           /[^A-Za-z0-9._-]+/g,
           '-',
-        ),
+          ),
       );
       if (!existsSync(toolRoot,))
         return null;
       /**
        Installed version directory names.
        */
-      const dirs = readdirSync(toolRoot, { withFileTypes: true, },)
+      const dirs = readdirSync(
+        toolRoot,
+        { withFileTypes: true, },
+      )
         .filter(
-          function isVersionDir(entryDir,): boolean {
-            return entryDir.isDirectory()
-              && !entryDir.name.startsWith('.',);
-          },
+        function isVersionDir(entryDir,): boolean {
+          return entryDir.isDirectory()
+            && (!entryDir.name
+              .startsWith('.',));
+        },
         )
         .map(
-          function dirName(entryDir,): string {
-            return entryDir.name;
-          },
+        function dirName(entryDir,): string {
+          return entryDir.name;
+        },
         );
       return dirs.includes(entry.version,)
         ? entry.version
@@ -368,7 +406,9 @@ export async function observeTools(
     env,
   }: {
     readonly entries?: readonly ToolPlanEntry[];
-    /** Plan sibling lookups resolve against; defaults to `entries`. */
+    /**
+     Plan sibling lookups resolve against; defaults to `entries`.
+     */
     readonly tools?: readonly ToolPlanEntry[] | undefined;
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
@@ -392,7 +432,7 @@ export async function observeTools(
       id: entry.id,
       locked: entry.version,
       observed,
-      inSync: observed !== null
+      inSync: (observed !== null)
         && versionMatches({
           observed,
           locked: entry.version,
@@ -418,7 +458,8 @@ export async function main(): Promise<void> {
   /**
    Whether this run targets the machine-global scope.
    */
-  const global = process.argv.includes('--global',);
+  const global = process.argv
+    .includes('--global',);
   /**
    Resolved scope paths.
    */
@@ -441,17 +482,20 @@ export async function main(): Promise<void> {
   let drift = 0;
   for (const observation of observations) {
     if (observation.inSync) {
-      process.stdout.write(`ok      ${observation.id}  ${observation.locked}\n`,);
+      process.stdout
+        .write(`ok      ${observation.id}  ${observation.locked}\n`,);
       continue;
     }
     drift += 1;
-    process.stdout.write(
+    process.stdout
+      .write(
       `drift   ${observation.id}  locked=${observation.locked}  observed=${
         observation.observed ?? '(absent)'
       }\n`,
-    );
+      );
   }
-  process.stdout.write(
+  process.stdout
+    .write(
     drift === 0
       ? `toolchain status: ${
         observations.length
@@ -459,7 +503,7 @@ export async function main(): Promise<void> {
       : `toolchain status: ${drift} of ${
         observations.length
       } tools drifted from toolchain.lock.json\n`,
-  );
+    );
   if (drift > 0)
     process.exitCode = 1;
 }

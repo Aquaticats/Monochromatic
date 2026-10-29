@@ -779,6 +779,32 @@ pnpm has no grouping construct:
 Following pnpm,
  the Rust catalog adds none.
 
+### Out-of-scope formatting left in the worktree (2026-10-29)
+
+While linting the catalog code,
+ a package-wide `mise run //package/dev-script/file-enforcer:format:oxlint` reformatted files outside this work.
+Owner decisions:
+
+- The 25 files under `package/dev-script/file-enforcer/src/toolchain/` and `src/package/` that were unmodified
+   before this session stay modified (formatting only);
+   their diff is saved at `${HOME}/temp/agent/rust-catalog/autofix-outside-scope.patch`.
+- `src/toolchain/plan.artifacts.ts` and `src/toolchain/plan.tools.ts` already held another session's uncommitted
+   work;
+   they now also carry this autofix's formatting and are left as they are.
+Later autofix runs snapshot `src/` first and copy every file outside the catalog work back byte for byte.
+
+The autofix also changed meaning in one of the 25 files:
+ `src/toolchain/update.ts` had a typed arrow `const fetcher: ... = async (url, init) => ...`,
+ rewritten as `async function fetcher(url, init)`,
+ so `mise run //package/dev-script/file-enforcer:lint:types` fails with TS7006 at `update.ts:632` and `:633`.
+Told this,
+ the owner still chose to leave all 25 files as they are.
+Type-checking the catalog code therefore reads that task's output for errors in `src/cargo/catalog/`,
+`src/check-mode.ts`,
+`src/cli.ts`,
+and `src/index.ts`,
+ which report none.
+
 ## Rejected
 
 - Repository-root Cargo workspace:

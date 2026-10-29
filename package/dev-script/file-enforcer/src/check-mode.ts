@@ -33,7 +33,10 @@ const driftedDestinations: Set<string> = new Set<string>();
  ```
  */
 export function enableCheckMode(): void {
-  checkModeByKey.set('enabled', true,);
+  checkModeByKey.set(
+    'enabled',
+    true,
+  );
 }
 
 /**
