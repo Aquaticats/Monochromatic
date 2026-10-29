@@ -102,7 +102,7 @@ function parseEntry(
    */
   const fail = planFailure({
     file,
-    id: String(id,),
+    id,
   },);
   /**
    Resolved version literal.
@@ -134,12 +134,12 @@ function parseEntry(
     fail,
   },);
   return {
-    id: String(id,),
+    id,
     request: parseRequest({
       value: raw.request,
       fail,
     },),
-    version: String(version,),
+    version,
     route: parseRoute({
       value: raw.route,
       fail,
@@ -159,7 +159,7 @@ function parseEntry(
       value: raw.env,
       fail,
     },),
-    artifacts: artifacts[String(id,)] ?? {},
+    artifacts: artifacts[id] ?? {},
   };
 }
 

@@ -176,7 +176,10 @@ export function findBinUnder(
   },
 ): string | typeof BIN_NOT_FOUND {
   /**
-   Pending directories, as `[dir, depth]` pairs.
+   Breadth-first queue of directories with their depth. The `for...of` walk
+   visits entries pushed during the walk (the array iterator re-reads
+   `length` each step), so each dequeue is constant time where `shift()`
+   would copy the array every step.
    */
   const pending: {
     dir: string;
@@ -185,13 +188,7 @@ export function findBinUnder(
     dir: root,
     depth: 0
   }];
-  while (pending.length > 0) {
-    /**
-     Next directory to inspect.
-     */
-    const current = pending.shift();
-    if (current === undefined)
-      break;
+  for (const current of pending) {
     /**
      Direct candidate in this directory.
      */

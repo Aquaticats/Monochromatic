@@ -11,6 +11,7 @@ export {
 } from './providers.archive.ts';
 export {
   installBinSourced,
+  ReleaseTagUrlError,
   releaseTagUrl,
   seedBinConfig,
 } from './providers.bin.ts';
@@ -25,6 +26,7 @@ export {
 } from './providers.context.ts';
 export {
   binCliPath,
+  NO_GITHUB_TOKEN,
   resolveGithubToken,
   toolchainPathEnv,
 } from './providers.environment.ts';

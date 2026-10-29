@@ -14,10 +14,10 @@
  */
 
 import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+  mkdir,
+  readFile,
+  writeFile,
+} from 'node:fs/promises';
 import { dirname, } from 'node:path';
 import { isErrnoException, } from './fs-probe.ts';
 import {
@@ -91,8 +91,13 @@ export type GenerateReport = {
  @param content - Rendered content the file should hold
 
  @returns `true` when the file content equals `content`
+
+ @example
+ ```ts
+ await targetIsCurrent({ target: '/repo/toolchain.lock.json', content, },);
+ ```
  */
-function targetIsCurrent(
+async function targetIsCurrent(
   {
     target,
     content,
@@ -100,17 +105,90 @@ function targetIsCurrent(
     readonly target: string;
     readonly content: string;
   },
-): boolean {
+): Promise<boolean> {
   try {
-    return readFileSync(
+    return (await readFile(
       target,
       'utf8',
-    ) === content;
+    )) === content;
   } catch (error) {
     if (!isErrnoException(error,))
       throw error;
     return false;
   }
+}
+
+/**
+ One artifact to write: its file name, output path, and rendered content.
+ */
+type ArtifactJob = {
+  readonly name: string;
+  readonly target: string;
+  readonly content: string;
+};
+
+/**
+ One artifact's write outcome.
+ */
+type ArtifactOutcome = {
+  readonly name: string;
+  readonly changed: boolean;
+};
+
+/**
+ File name of a write outcome.
+
+ @param outcome - write outcome
+
+ @returns its file name
+
+ @example
+ ```ts
+ nameOfOutcome({ name: 'mpm.packages.toml', changed: true, },); // 'mpm.packages.toml'
+ ```
+ */
+function nameOfOutcome(outcome: ArtifactOutcome,): string {
+  return outcome.name;
+}
+
+/**
+ Writes one artifact when its content differs.
+
+ @param target - Absolute output path
+
+ @param content - Rendered content
+
+ @returns `true` when the file was written, `false` when it was already current
+
+ @example
+ ```ts
+ await writeIfChanged({ target: '/repo/mpm.packages.toml', content, },);
+ ```
+ */
+async function writeIfChanged(
+  {
+    target,
+    content,
+  }: {
+    readonly target: string;
+    readonly content: string;
+  },
+): Promise<boolean> {
+  await mkdir(
+    dirname(target,),
+    { recursive: true, },
+  );
+  if (await targetIsCurrent({
+    target,
+    content,
+  },))
+    return false;
+  await writeFile(
+    target,
+    content,
+    'utf8',
+  );
+  return true;
 }
 
 /**
@@ -124,10 +202,10 @@ function targetIsCurrent(
 
  @example
  ```ts
- writeArtifacts({ tools: ALL_TOOLS, paths: resolveToolchainPaths(), },).written; // ['toolchain.lock.json']
+ (await writeArtifacts({ tools: ALL_TOOLS, paths: resolveToolchainPaths(), },)).written; // ['toolchain.lock.json']
  ```
  */
-export function writeArtifacts(
+export async function writeArtifacts(
   {
     tools,
     paths,
@@ -135,7 +213,7 @@ export function writeArtifacts(
     readonly tools: readonly ToolPlanEntry[];
     readonly paths: ReturnType<typeof resolveToolchainPaths>;
   },
-): GenerateReport {
+): Promise<GenerateReport> {
   /**
    Rendered artifacts keyed by file name.
    */
@@ -149,41 +227,41 @@ export function writeArtifacts(
     'mpm.managers.toml': paths.mpmManagersFile,
   };
   /**
-   Files written this run.
+   One write job per artifact that has an output path.
    */
-  const written: string[] = [];
-  /**
-   Files already current.
-   */
-  const unchanged: string[] = [];
-  for (const [name, content,] of Object.entries(artifacts,)) {
+  const jobs = Object.entries(artifacts,).flatMap(function toJob([name, content,]: readonly [string, string,],): readonly ArtifactJob[] {
     /**
      Absolute output path for this artifact.
      */
     const target = targets[name];
-    if (target === undefined)
-      continue;
-    mkdirSync(
-      dirname(target,),
-      { recursive: true },
-    );
-    if (targetIsCurrent({
-      target,
-      content,
-    },)) {
-      unchanged.push(name,);
-      continue;
-    }
-    writeFileSync(
-      target,
-      content,
-      'utf8',
-    );
-    written.push(name,);
-  }
+    return target === undefined
+      ? []
+      : [
+        {
+          name,
+          target,
+          content,
+        },
+      ];
+  },);
+  /**
+   Each artifact with whether it was written; the files are independent, so they are written concurrently.
+   */
+  const outcomes = await Promise.all(jobs.map(async function runJob(job: ArtifactJob,): Promise<ArtifactOutcome> {
+    return {
+      name: job.name,
+      changed: await writeIfChanged(job,),
+    };
+  },),);
   return {
-    written,
-    unchanged,
+    written: outcomes.filter(function wasWritten(outcome: ArtifactOutcome,): boolean {
+      return outcome.changed;
+    },)
+      .map(nameOfOutcome,),
+    unchanged: outcomes.filter(function wasCurrent(outcome: ArtifactOutcome,): boolean {
+      return !outcome.changed;
+    },)
+      .map(nameOfOutcome,),
   };
 }
 
@@ -217,7 +295,7 @@ export async function main(): Promise<void> {
   /**
    Generation report for this run.
    */
-  const report = writeArtifacts({
+  const report = await writeArtifacts({
     tools: global
       ? await loadPlanFromDir({ dir: paths.worktreeRoot, },)
       : ALL_TOOLS,

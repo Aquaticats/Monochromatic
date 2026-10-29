@@ -25,15 +25,15 @@ import type { ToolPlanEntry, } from './types.ts';
 const GITHUB_TOKEN_CACHE_KEY = 'github-token';
 
 /**
- Cached value meaning the lookup found no token.
+ Marks that no GitHub token is available; callers then make unauthenticated requests.
  */
-const NO_GITHUB_TOKEN = '';
+export const NO_GITHUB_TOKEN: unique symbol = Symbol('no GitHub token available',);
 
 /**
  Cached GitHub token for `bin` release lookups; the unauthenticated API
  quota cannot cover one full sync.
  */
-const githubTokenCache = new Map<typeof GITHUB_TOKEN_CACHE_KEY, string>();
+const githubTokenCache = new Map<typeof GITHUB_TOKEN_CACHE_KEY, string | typeof NO_GITHUB_TOKEN>();
 
 /**
  Resolves a GitHub token: the environment when present, else the `gh`
@@ -41,7 +41,7 @@ const githubTokenCache = new Map<typeof GITHUB_TOKEN_CACHE_KEY, string>();
 
  @param env - Environment to read `GITHUB_TOKEN` from
 
- @returns Token string, or null when none is available
+ @returns Token string, or {@link NO_GITHUB_TOKEN} when none is available
 
  @example
  ```ts
@@ -54,16 +54,13 @@ export async function resolveGithubToken(
   }: {
     readonly env: PathEnv;
   },
-): Promise<string | null> {
+): Promise<string | typeof NO_GITHUB_TOKEN> {
   /**
    Earlier lookup result, when this process already resolved a token.
    */
   const cached = githubTokenCache.get(GITHUB_TOKEN_CACHE_KEY,);
-  if (cached !== undefined) {
-    return cached === NO_GITHUB_TOKEN
-      ? null
-      : cached;
-  }
+  if (cached !== undefined)
+    return cached;
   /**
    Token from the environment, which CI and interactive shells set.
    */
@@ -90,7 +87,7 @@ export async function resolveGithubToken(
   /**
    Trimmed `gh` output, or the no-token marker when `gh` failed.
    */
-  const fromGh = viaGh.code === 0
+  const fromGh = (viaGh.code === 0) && (viaGh.stdout.trim() !== '')
     ? viaGh.stdout
       .trim()
     : NO_GITHUB_TOKEN;
@@ -98,9 +95,7 @@ export async function resolveGithubToken(
     GITHUB_TOKEN_CACHE_KEY,
     fromGh,
   );
-  return fromGh === NO_GITHUB_TOKEN
-    ? null
-    : fromGh;
+  return fromGh;
 }
 
 /**

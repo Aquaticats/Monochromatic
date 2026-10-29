@@ -882,7 +882,7 @@ await describe({
               '',
               'utf8',
             );
-            seedBinConfig({
+            await seedBinConfig({
               downloadDir: fixture.paths.toolchainBinDir,
               configPath,
             },);
