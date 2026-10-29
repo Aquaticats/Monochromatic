@@ -64,7 +64,9 @@ Owner follow-ups the same day:
   Not run: the PKCS#11 path (needs a real certificate) and `verify:signing`.
 - `run` fallback built with cargo-zigbuild for glibc 2.39 (`4723d28bc9`, `dc88d327e4`):
    prints `music-player 0.1.13` on this glibc 2.43 host, newest symbol `GLIBC_2.39`.
-  Owner chose to extend it to `run-quick` and `run-debug`: subagent in flight.
+  Extended to `run-quick` and `run-debug` (owner choice; `21e72de5c0`, docs `ba5582e60c`):
+   both print `music-player 0.1.13` on this host from the container path; the container path of `run-quick`
+   also stopped ignoring its own `CARGO_TARGET_DIR` and LTO settings.
 - `XDG_RUNTIME_DIR` tmpfs in container cargo runs (`26146d128a`): the three `unplayable_notification` tests pass.
 - `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis` fails on both images
    and stops nextest before 267 tests: owner chose an issue, #1815.
