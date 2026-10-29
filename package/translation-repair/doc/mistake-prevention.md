@@ -45,9 +45,11 @@ named for that subject and listed here.
   Rules for running the repository's tasks and builds:
   where a task runs from,
   which install a build uses,
+  which tools a gate tree runs,
   and where large output goes.
   Sections:
   - [Tasks, builds and bulk output](mistake-prevention-tasks-builds-and-bulk-output.md#tasks-builds-and-bulk-output)
+  - [Gate trees and their tools](mistake-prevention-tasks-builds-and-bulk-output.md#gate-trees-and-their-tools)
 - [Preventing mistakes: guards, searches and claims](mistake-prevention-guards-searches-and-claims.md):
   Rules for evidence:
   guards that must be able to fail,
@@ -223,6 +225,13 @@ named for that subject and listed here.
   - [Files a later run reads back](mistake-prevention-stored-files-and-cached-decisions.md#files-a-later-run-reads-back)
   - [File names derived from an input](mistake-prevention-stored-files-and-cached-decisions.md#file-names-derived-from-an-input)
   - [Facts a cache gate reads](mistake-prevention-stored-files-and-cached-decisions.md#facts-a-cache-gate-reads)
+- [Preventing mistakes: commits on a branch and figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md):
+  Rules for two checks that are made once and then relied on:
+  which commits a branch holds,
+  and the figures one session tells another.
+  Sections:
+  - [Which commits a branch holds](mistake-prevention-commit-checks-and-figures-told-to-others.md#which-commits-a-branch-holds)
+  - [Figures told to others](mistake-prevention-commit-checks-and-figures-told-to-others.md#figures-told-to-others)
 
 ## Before a run launches
 
@@ -320,6 +329,10 @@ not a memory of having done it.
     loaded from the gated worktree's build);
     a package added since the last install is left out of the bundle,
     and the pass stops before its `START` line.
+    A tree made fresh,
+    or merged across a change to the toolchain,
+    also runs `mise run toolchain:sync` after the install and before its first gate,
+    so that its own `.cache/toolchain-bin` holds the tools (B980).
 11. A new provider's routing signals are seen working before a run leans on them (P16):
     any field the provider reports that makes the router stop,
     hold out or move calls
