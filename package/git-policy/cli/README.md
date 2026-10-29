@@ -40,7 +40,8 @@ Read-only commands,
    and they are never run through the wrapper:
    every real Git it starts, forwarded commands and its own children alike, runs with
    `-c core.hooksPath=/dev/null/cli-git-no-hooks` first, a directory that cannot exist.
-  Configured hooks still run.
+  Configured hooks still run, and a configured `pre-push` hook runs once per push that publishes:
+   the wrapper's own dry-run probes switch configured `pre-push` hooks off with `-c hook.pre-push.enabled=false`.
   A `-c core.hooksPath=<directory>` you write after the subcommand's global options wins for that command.
   A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs them.
   A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event

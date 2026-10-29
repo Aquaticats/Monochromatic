@@ -3467,9 +3467,11 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   of `config` is not recognized). A caller's later `-c core.hooksPath` wins. The three budget ratchets pass unchanged.
 - Consequences found by measurement: (1) git-lfs reads the inherited setting, finds no hooks directory it can write, and
   writes no shims inside a wrapper-started Git (a direct `git add` still writes all four, byte for byte the text doctor
-  recognizes); (2) a local-path remote's server-side hooks still run; (3) a configuration `pre-push` hook also runs in the
-  wrapper's dry-run probes (the probe replaces only the hooks directory), so `a_push_that_lost_a_race...` now counts 5 runs;
-  that is older behavior that traditional-hook fixtures used to hide; (4) the unit tests that used traditional hooks as
+  recognizes); (2) a local-path remote's server-side hooks still run; (3) a configuration `pre-push` hook used to run in the
+  wrapper's dry-run probes as well (the probe replaced only the hooks directory; traditional-hook fixtures hid it); user
+  decision: the probes skip it. `probe_arguments` now adds `-c hook.pre-push.enabled=false` (measured on Git 2.56.0: it turns
+  configured hooks off for that start and leaves the probe's private traditional recording hook running), so a configured
+  `pre-push` hook runs once per publishing push and twice for a lost race, and `a_push_that_lost_a_race...` expects 2 again; (4) the unit tests that used traditional hooks as
   instruments (auto-push, reconcile, push stacking, worktree copy) now use configuration hooks.
 - `doctor`: a hook file whose bytes equal the git-lfs shim for its own name (regular file, four names, text of git-lfs
   3.8.0 with the final line feed) is explained on stderr apart from other hooks and exits 0 when alone (user-chosen exit

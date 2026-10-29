@@ -759,7 +759,13 @@ and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksP
 - git-lfs reads the same setting when it picks the directory for its shims: a clean filter started inside a
   wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
   `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
-- A configuration hook also runs in the wrapper's dry-run probes, because the probe replaces only the hooks directory.
+- The wrapper's dry-run push probes (the scope probe of a manual push, the integration probe after a rejected push, and
+  the stacked push's own scope probe) carry `-c hook.pre-push.enabled=false` after their hooks-directory override.
+  That switch turns configured `pre-push` hooks off for the one probe and leaves the probe's private recording hook
+  (a traditional hook in the probe's own directory) running (measured on Git 2.56.0).
+  A configured `pre-push` hook therefore runs once per push that publishes: once for a normal push or an auto-push,
+  twice for a push that lost a race (the rejected push and the stacked merge push), and never for a probe.
+  The real push, the stacked push, the lost-race merge push and the reconcile pushes run configured hooks as Git does.
 - Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
   A missing `core.hooksPath` directory is the case the commit dispatcher already relies on (`<tx>/no-hooks`),
   and the container end-to-end suite runs that on Git 2.39.5.
