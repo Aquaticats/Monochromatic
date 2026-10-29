@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, } from 'node:path';
+import { isErrnoException, } from './fs-probe.ts';
 import {
   renderToolchainLockJson,
   toolchainLockFromTools,
@@ -41,9 +42,14 @@ import type { ToolPlanEntry, } from './types.ts';
 /**
  Renders every generated artifact from plan entries.
  
- @param options - Plan entries to render from
- 
+ @param tools - Plan entries to render from
+
  @returns File name to file content
+
+ @example
+ ```ts
+ renderArtifacts({ tools: ALL_TOOLS, },)['toolchain.lock.json']; // '{\n  "schemaVersion": 1,...'
+ ```
  */
 export function renderArtifacts(
   { tools, }: { readonly tools: readonly ToolPlanEntry[]; },
@@ -76,11 +82,50 @@ export type GenerateReport = {
 };
 
 /**
+ Whether a target file already holds exactly the rendered content.
+
+ A file that cannot be read (absent, or unreachable) is not current, so the caller rewrites it.
+
+ @param target - Absolute path of the artifact file
+
+ @param content - Rendered content the file should hold
+
+ @returns `true` when the file content equals `content`
+ */
+function targetIsCurrent(
+  {
+    target,
+    content,
+  }: {
+    readonly target: string;
+    readonly content: string;
+  },
+): boolean {
+  try {
+    return readFileSync(
+      target,
+      'utf8',
+    ) === content;
+  } catch (error) {
+    if (!isErrnoException(error,))
+      throw error;
+    return false;
+  }
+}
+
+/**
  Writes the generated root artifacts when their content differs.
- 
- @param options - Plan entries, target paths and a worktree root
- 
+
+ @param tools - Plan entries to render the artifacts from
+
+ @param paths - Resolved toolchain paths whose artifact files receive the output
+
  @returns Which files were written and which were already current
+
+ @example
+ ```ts
+ writeArtifacts({ tools: ALL_TOOLS, paths: resolveToolchainPaths(), },).written; // ['toolchain.lock.json']
+ ```
  */
 export function writeArtifacts(
   {
@@ -122,19 +167,10 @@ export function writeArtifacts(
       dirname(target,),
       { recursive: true },
     );
-    /**
-     Existing content of the target file, or `null` when absent.
-     */
-    let existing: string | null = null;
-    try {
-      existing = readFileSync(
-        target,
-        'utf8',
-      );
-    } catch {
-      existing = null;
-    }
-    if (existing === content) {
+    if (targetIsCurrent({
+      target,
+      content,
+    },)) {
       unchanged.push(name,);
       continue;
     }
@@ -160,8 +196,11 @@ export function writeArtifacts(
  
  `--global` regenerates the machine-global scope's records
  (`doc/planning/mpm-global-toolchain-migration.md`).
- 
- @returns Promise resolved after the files are written
+
+ @example
+ ```ts
+ await main();
+ ```
  */
 export async function main(): Promise<void> {
   /**

@@ -152,7 +152,7 @@ fn require_root_rejects_a_directory_below_the_top_level() {
             one(
                 "not-at-root",
                 "cli-git: not at the root of the git repository. Repo root is /r but effective cwd \
-                 is /r/sub/dir. Tip: cd to /r or pass -C /r before the subcommand."
+                 is /r/sub/dir. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to /r or pass -C /r before the subcommand."
             ),
             location_only()
         )

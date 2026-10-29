@@ -84,6 +84,9 @@ export const base: OxlintConfig = {
     // The repository's fixture packages under `package/test-fixture/`, named with their parent segment
     // so a package that is itself called `test-fixture` (`package/translation-repair/test-fixture`) is linted.
     '**/package/test-fixture/**',
+    // Verbatim vendored upstream source the conf fork's parity fuzzer runs as its oracle; an autofix pass
+    // once rewrote it and broke the oracle (package/upstream-fork/conf.fuzz/README.md). User-approved 2026-10-29.
+    '**/upstream-fork/conf.fuzz/upstream-conf/**',
     '**/perf-test-data/**',
     '**/teto-generated/**',
     '**/sudoku-puzzles*',

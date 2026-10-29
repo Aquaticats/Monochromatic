@@ -101,7 +101,7 @@ export class UnclearableCacheError extends TypeError {
    migrating from `p-memoize` see identical diagnostics.
    */
   constructor() {
-    super('The cache Map can\'t be cleared!',);
+    super('The cache can\'t be cleared!',);
     this.name = 'UnclearableCacheError';
   }
 }

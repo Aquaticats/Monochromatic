@@ -1,15 +1,16 @@
-//! What:     The `link` subcommand's work: put a symlink named `rg`, `grep` and `find` in one directory, each pointing at
-//!           the `search-shadow` executable.
-//! Why:      Starting the binary under those names is what switches it into shadow mode; a directory of such links,
-//!           placed first on PATH, shadows the real tools.
+//! What:     The `link` subcommand's work: for every shadowed name whose REAL tool exists on PATH, put a symlink with that name in
+//!           one directory pointing at the `search-shadow` executable; remove a link whose real tool has gone; skip the rest.
+//! Why:      Starting the binary under a tool's name is what switches it into shadow mode. Linking only names that have a real
+//!           tool keeps `command -v ag` honest: a link for a tool that is not installed would make scripts believe it is, then
+//!           fail with "not found" when they run it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // link.ts
-//! export function linkShadows(directory: string, executable: string): string[] { ... }
+//! export function linkShadows(directory: string, executable: string, pathVariable: string): LinkReport { ... }
 //! ```
 
-/// Imports the file-system module (create directories, remove files).
+/// Imports the file-system module (create directories, remove files, resolve symlinks).
 use std::fs;
 
 /// What:     `use std::io;` imports the standard input/output module, for `io::Result`.
@@ -34,19 +35,39 @@ use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 
 use crate::constants::SHADOWED_NAMES;
+use crate::real_binary::find_in_path;
 
-/// What:     `pub fn link_shadows(directory: &Path, executable: &Path) -> io::Result<Vec<PathBuf>>` declares a public
-///           function. `io::Result<Vec<PathBuf>>` is a `Result` that is either `Ok(list of created links)` or
-///           `Err(an I/O error)`; `Vec<PathBuf>` is an owned growable list (sibling: `&[PathBuf]` is a borrowed view).
-/// Why:      The caller prints what was created. `Vec` and not a borrow because the list is built here.
+/// What:     `pub struct LinkReport { ... }` declares a record with three lists: the links made, the names skipped because no
+///           real tool exists, and the stale links removed. `Vec<PathBuf>` is an owned growable list of owned paths.
+///           `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
+/// Why:      The `link` subcommand prints what happened, and the tests check it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function linkShadows(directory: string, executable: string): string[] { // throws on I/O errors
+/// type LinkReport = { linked: string[]; skipped: string[]; removed: string[] };
 /// ```
-pub fn link_shadows(directory: &Path, executable: &Path) -> io::Result<Vec<PathBuf>> {
-    // What:     `fs::create_dir_all(directory)?;` makes the directory and any missing parents. The trailing `?` means
-    //           "if this returned an error, stop and return that error to my caller; otherwise continue".
+#[derive(Debug, PartialEq)]
+pub struct LinkReport {
+    /// The links created or refreshed.
+    pub linked: Vec<PathBuf>,
+    /// The names with no real tool on PATH and no link to remove.
+    pub skipped: Vec<String>,
+    /// The links removed because their real tool is gone.
+    pub removed: Vec<PathBuf>,
+}
+
+/// What:     `pub fn link_shadows(...) -> io::Result<LinkReport>` declares a public function. `io::Result<LinkReport>` is a
+///           `Result` that is either `Ok(report)` or `Err(an I/O error)`.
+/// Why:      `path_variable` is the PATH to search for real tools; the shadow links themselves resolve to `executable` and are
+///           skipped by that search, so running `link` twice gives the same answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function linkShadows(directory: string, executable: string, pathVariable: string): LinkReport { // throws on I/O errors
+/// ```
+pub fn link_shadows(directory: &Path, executable: &Path, path_variable: &str) -> io::Result<LinkReport> {
+    // What:     `fs::create_dir_all(directory)?;` makes the directory and any missing parents. The trailing `?` means "if this
+    //           returned an error, stop and return that error to my caller; otherwise continue".
     // Why:      The links need somewhere to live.
     // Gotcha:   `?` is an early `return Err(...)`, not an exception: control leaves the function at that line.
     //
@@ -56,24 +77,44 @@ pub fn link_shadows(directory: &Path, executable: &Path) -> io::Result<Vec<PathB
     // ```
     fs::create_dir_all(directory)?;
 
-    let mut created: Vec<PathBuf> = Vec::new();
-    for name in SHADOWED_NAMES {
-        let link_path: PathBuf = directory.join(name);
-
-        // `symlink_metadata` looks at the link itself, not its target, so a dangling link still counts as present.
-        if link_path.symlink_metadata().is_ok() {
-            fs::remove_file(&link_path)?;
-        }
-        symlink(executable, &link_path)?;
-        created.push(link_path);
+    // The resolved path of the executable is what the PATH search must skip; fall back to the given path if it cannot resolve.
+    let mut skip: PathBuf = executable.to_path_buf();
+    if let Ok(real) = fs::canonicalize(executable) {
+        skip = real;
     }
 
-    // What:     `Ok(created)` wraps the list in the success case of `Result`.
-    // Why:      Hand the created links to the caller and signal "no error".
+    let mut report: LinkReport = LinkReport {
+        linked: Vec::new(),
+        skipped: Vec::new(),
+        removed: Vec::new(),
+    };
+    for name in SHADOWED_NAMES {
+        let link_path: PathBuf = directory.join(name);
+        let has_real_tool: bool = find_in_path(name, path_variable, &skip).is_some();
+
+        // `symlink_metadata` looks at the link itself, not its target, so a dangling link still counts as present.
+        let link_exists: bool = link_path.symlink_metadata().is_ok();
+
+        if has_real_tool {
+            if link_exists {
+                fs::remove_file(&link_path)?;
+            }
+            symlink(executable, &link_path)?;
+            report.linked.push(link_path);
+        } else if link_exists {
+            fs::remove_file(&link_path)?;
+            report.removed.push(link_path);
+        } else {
+            report.skipped.push((*name).to_string());
+        }
+    }
+
+    // What:     `Ok(report)` wraps the record in the success case of `Result`.
+    // Why:      Hand what happened to the caller and signal "no error".
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return created;
+    // return report;
     // ```
-    return Ok(created);
+    return Ok(report);
 }

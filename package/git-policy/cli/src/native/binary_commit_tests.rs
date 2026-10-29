@@ -601,6 +601,54 @@ fn a_staged_deletion_below_an_ignored_directory_is_not_answered_with_a_force_add
     remove_settled(&fixture);
 }
 
+/// Files an ignore rule matches but the real index stages are committed by a directory pathspec and by a file
+/// pathspec, with the worktree content, as native Git commits them (issue 1807).
+#[test]
+fn explicit_paths_commit_staged_additions_that_an_ignore_rule_matches() {
+    let fixture: Fixture = fixture("commit-staged-ignored");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    std::fs::write(repo.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore", "--", ".gitignore"]);
+    std::fs::create_dir(repo.join("lib")).expect("lib");
+    std::fs::write(repo.join("lib/_a.js"), b"a\n").expect("_a");
+    std::fs::write(repo.join("lib/_b.js"), b"b\n").expect("_b");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", "lib/_a.js", "lib/_b.js"]);
+    let by_directory: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=lib", "--", "lib"]);
+    assert_eq!(by_directory.code, Some(0), "{}", stderr_of(&by_directory));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["ls-tree", "--name-only", "-r", "HEAD", "lib"]), "lib/_a.js\nlib/_b.js\n");
+    std::fs::write(repo.join("lib/_a.js"), b"a2\n").expect("edit _a");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", "lib/_a.js"]);
+    std::fs::write(repo.join("lib/_a.js"), b"a3\n").expect("edit _a again");
+    let by_file: Observed =
+        run_commit(&fixture, repo.as_path(), &["commit", "--message=file", "--", "lib/_a.js"]);
+    assert_eq!(by_file.code, Some(0), "{}", stderr_of(&by_file));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["show", "HEAD:lib/_a.js"]), "a3\n");
+    assert_nothing_left(&fixture, repo.as_path());
+    remove_settled(&fixture);
+}
+
+/// An ignored path nothing stages is refused with the way forward, not with Git's force-add hint alone.
+#[test]
+fn an_explicit_path_commit_of_an_unstaged_ignored_path_names_the_way_forward() {
+    let fixture: Fixture = fixture("commit-unstaged-ignored");
+    let repo: PathBuf = edited_repository(&fixture, "repo");
+    std::fs::write(repo.join(".gitignore"), b"*.js\n").expect("ignore rule");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ignore", "--", ".gitignore"]);
+    std::fs::write(repo.join("c.js"), b"c\n").expect("c");
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "c.js"]);
+    assert_ne!(refused.code, Some(0), "{}", stderr_of(&refused));
+    assert!(stderr_of(&refused).contains("git add --force -- <path>"), "{}", stderr_of(&refused));
+    assert_nothing_left(&fixture, repo.as_path());
+    let head_before: String = git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]);
+    git(&fixture, repo.as_path(), &["add", "--force", "--", "c.js"]);
+    let landed: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--message=c", "--", "c.js"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    assert_ne!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]), head_before);
+    remove_settled(&fixture);
+}
+
 /// A repository nothing was staged in has no index file; an explicit-path commit there reads it as empty instead of
 ///  failing on the missing file.
 #[test]

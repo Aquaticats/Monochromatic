@@ -33,6 +33,7 @@
     "@monochromatic-dev/test-harness-core-sandbox",
     "@monochromatic-dev/throws-core",
     "@monochromatic-dev/toml-edit-core",
+    "@monochromatic-dev/translation-repair-*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed",
     "@monochromatic-dev/oxlint-plugin-no-restricted-syntax",
     "@monochromatic-dev/oxlint-plugin-prefer-readonly-parameter-type",

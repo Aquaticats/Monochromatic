@@ -30,9 +30,10 @@ cache writes carry only fulfilled resolve values.
 
 #### Upstream differential oracle
 
-The same workloads drive upstream `p-memoize` 8.0.0
- (the dependency this fork
-replaces) and the fork:
+The same workloads drive the installed upstream `p-memoize`
+ (its catalog entry floats at `>=9.0.0`,
+ so a newer release is picked up on the next install)
+ and the fork:
  call outcomes,
  shared-promise grouping,
  invocation
@@ -43,9 +44,14 @@ and failure sequences,
 write-predicate observations must all match.
  Clearing and validation error
 messages,
- and the retained synchronous-throw in-flight replay,
+ and in-flight sharing of a synchronous throw,
  are compared
 directly as well.
+ The workloads reach what the generator covers;
+ the fork's own unit tests pin the rest of the 9.0.0 behavior
+(re-entrant calls,
+ failing cache methods,
+ decorator stand-down).
 
 ### Running
 

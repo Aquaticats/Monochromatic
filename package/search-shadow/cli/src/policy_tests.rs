@@ -15,7 +15,7 @@
 /// ```ts
 /// import { describeWalk, refusalFor } from './policy.ts';
 /// ```
-use crate::policy::{WalkDescription, describe_walk, refusal_for};
+use crate::policy::{WalkDescription, describe_walk, rg_refusal};
 
 /// What:     `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an
 ///           owned list of `String`s (the shape the policy functions take).
@@ -86,7 +86,7 @@ fn lookalikes_of_the_short_r_flag_are_not_flags() {
 /// The ban applies to rg only and has no escape hatch, repository root or path condition.
 #[test]
 fn refuses_the_short_r_flag_for_rg_everywhere() {
-    let message = refusal_for("rg", &texts(&["-rl", "foo"]), false, false, false, "/anywhere");
+    let message = rg_refusal("rg", &texts(&["-rl", "foo"]), false, false, false, "/anywhere");
 
     assert!(message.is_some());
     let text = message.unwrap_or_default();
@@ -94,11 +94,11 @@ fn refuses_the_short_r_flag_for_rg_everywhere() {
     assert!(text.contains("--replace"));
     assert!(text.contains("-l"));
     // The wide-walk escape hatch must not lift this ban, and a piped stdin must not either.
-    assert!(refusal_for("rg", &texts(&["-r", "X", "foo"]), true, true, true, "/repo").is_some());
+    assert!(rg_refusal("rg", &texts(&["-r", "X", "foo"]), true, true, true, "/repo").is_some());
     // Other tools keep their own meaning of `-r` (grep's is "recursive").
-    assert_eq!(refusal_for("grep", &texts(&["-rl", "foo"]), false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("grep", &texts(&["-rl", "foo"]), false, true, false, "/repo"), None);
     // The explicit long form is not refused.
-    assert_eq!(refusal_for("rg", &texts(&["--replace", "X", "foo"]), false, false, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--replace", "X", "foo"]), false, false, false, "/repo"), None);
 }
 
 /// The first positional is the pattern, so only later ones are paths.
@@ -166,7 +166,7 @@ fn information_flags_are_informational() {
 /// The refusal fires only for the exact combination: rg, wide, no path, repository root, no piped input.
 #[test]
 fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
-    let message = refusal_for("rg", &texts(&["--hidden", "foo"]), false, true, false, "/repo");
+    let message = rg_refusal("rg", &texts(&["--hidden", "foo"]), false, true, false, "/repo");
 
     // `message.is_some()` asks whether a refusal came back; `unwrap_or_default()` then takes the text out.
     assert!(message.is_some());
@@ -181,11 +181,11 @@ fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
 #[test]
 fn lets_through_everything_that_is_not_a_wide_unbounded_rg_walk() {
     let wide = texts(&["--hidden", "foo"]);
-    assert_eq!(refusal_for("rg", &texts(&["--hidden", "foo", ".github"]), false, true, false, "/repo"), None);
-    assert_eq!(refusal_for("rg", &texts(&["foo"]), false, true, false, "/repo"), None);
-    assert_eq!(refusal_for("rg", &texts(&["--help", "--hidden"]), false, true, false, "/repo"), None);
-    assert_eq!(refusal_for("grep", &wide, false, true, false, "/repo"), None);
-    assert_eq!(refusal_for("rg", &wide, true, true, false, "/repo"), None);
-    assert_eq!(refusal_for("rg", &wide, false, false, false, "/repo"), None);
-    assert_eq!(refusal_for("rg", &wide, false, true, true, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--hidden", "foo", ".github"]), false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["foo"]), false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["--help", "--hidden"]), false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("grep", &wide, false, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, true, true, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, false, false, false, "/repo"), None);
+    assert_eq!(rg_refusal("rg", &wide, false, true, true, "/repo"), None);
 }

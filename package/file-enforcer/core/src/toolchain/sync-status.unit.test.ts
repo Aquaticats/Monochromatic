@@ -35,7 +35,7 @@ await describe({
   name: 'sync and status helpers',
   children: [
     describe({
-      name: 'syncOrder',
+      name: syncOrder.name,
       children: [
         it({
           name: 'stages bin, uv, mpm, rust, cargo-binstall, node and pnpm first',
@@ -92,7 +92,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'appliesToHost',
+      name: appliesToHost.name,
       children: [
         it({
           name: 'admits unfiltered tools on any platform',
@@ -156,7 +156,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'releaseTagUrl',
+      name: releaseTagUrl.name,
       children: [
         it({
           name: 'derives the release-tag URL from an artifact URL',
@@ -240,7 +240,7 @@ await describe({
       ],
     },),
     describe({
-      name: 'seedBinConfig',
+      name: seedBinConfig.name,
       children: [
         it({
           name: 'converges default_path in the scope config',

@@ -189,22 +189,81 @@ User decisions taken during execution
     Both now match `mise.no-env.toml`:
      pack `./package/$NPM_PACKAGE`,
      publish that one tarball with provenance.
-- `npm-release.yml` (changesets) fails in its `select-mode` step on every run,
-   including before the moves,
-   so it never reaches publishing;
-   `doc/decision/npm-publishing.md` and `doc/runbook/publish-npm-package-first-time.md` still describe it as the release path.
+- `npm-release.yml` (changesets) failed in `select-mode` on every run:
+   34 public `translation-repair-*` packages depend on ignored packages.
+  Fixed in `33b6a407a5` (one `@monochromatic-dev/translation-repair-*` glob in `.changeset/config.json`);
+   run 40864949257 passed `select-mode` and skipped version,
+    pack,
+    and publish (the local publish plan is empty).
+  `doc/decision/npm-publishing.md` now records `npm-publish.yml` as the release path the user directed,
+   and the npm runbook's repository owner is corrected to `Aquaticats`.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,
     `or-throw-core`).
-- `package/pnpm-override/shim-readable-stream/lib/*.js` are tracked but match the blanket `*.js` ignore,
-   which `doc/decision/gitignore-negations.md` already names;
-  explicit file pathspecs fail on them,
-   so stage that directory instead.
+- `package/pnpm-override/shim-readable-stream/lib/*.js` match the blanket `*.js` ignore,
+   which `doc/decision/gitignore-negations.md` already names.
+  The move commit `592d78b143` dropped them (deleted at the old path, never added at the new one);
+   restored byte-identical in `5cb4a779ff`.
+  Only `git commit --no-only -- <files>` from the repo root committed them:
+   a directory pathspec silently committed nothing and explicit paths failed in the guard's `git add --all`
+   (issue 1807);
+   running from a subdirectory was refused (issue 1808).
+- `file-enforcer/core`:
+   the TS7006 error is gone (fixed elsewhere; `lint:types` passes);
+   `55afe67909` makes the toolchain tests read the nightly and node versions from the plan,
+   so daily toolchain bumps no longer break them.
+- `dependency-catalog/cli-rust-update` `lint:types` passes now (fixed by its owning session).
+- The 80 stale `src/*.js` files naming old packages were a one-off `tsc` emit from 2026-10-03
+   (`noEmit` is set, so no build regenerates them; the earlier "regenerate on the next build" note was wrong).
+  Moved to `~/temp/agent/package-category-elimination/stale-js-backup/`;
+   `test:unit` passes for every affected package that has the task.
+- `~/.local/bin/spawn-claude` and `spawn-pi` now link to
+   `package/claude-code-plugin/source/src/cli/spawn-claude.ts` and `package/pi-plugin/spawn/dist/final/node/cli.mjs`;
+   both print their help.
+- Fork parity fixes:
+  - `conf`: the fork was fine;
+     autofix pass `3da31bdc3a` had corrupted the vendored upstream oracle `conf.fuzz/upstream-conf/`
+     (arrow `set` became a `function`, losing `this`).
+    Restored byte-exact in `4b2565bd3c` and `090879d2ff` (corrective commit comment posted on `4b2565bd3c`).
+    User approved an oxlint ignore for that directory:
+     `78c8068b76` (verified: oxlint reports no files for it, still lints its sibling `src/`).
+    First coverage baseline frozen: `975ab54da3`.
+  - `p-memoize`: upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
+     ported in `21bff0aa78`.
+    User chose a full 9.0.0 port next:
+     done in `ab6bf76143` (fork) and `aed44ff3c3` (sidecar, coverage baseline refrozen for the added functions only),
+     README fix `55ca780397`.
+    Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (8 files) pass;
+     the sidecar's `coverage-report.ts` lint errors are fixed.
+    `test:mutation` was not run (the subagent hand-mutated `dist` with 12 mutants, all caught).
+    Open notes:
+     `isCacheEnabled` is now `cache !== false` like upstream, so a falsy non-`false` `cache` fails, with no test pinning it;
+     `mimicBestEffort` swallows its caught error (`void error`) because the package has no logger dependency.
+  - `p-map`: the lockfile moved the floating oracle from 7.0.8 to 7.1.1 (`755685da03`, 2026-10-14);
+     the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
+     (parity and coverage gates pass, confirmed by a rerun).
+    User chose to port the new 7.1 APIs too (`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, `preserveOrder`),
+     mirroring upstream's shapes; its subagent is in flight.
+  - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
+     (removed `rebuildEntry` callbacks and the JSON.parse fast path)
+     and made the driver reach `emitPlainJson` again;
+     the gate passes (17 files).
+    Nothing outside tests constructs the public `plainJson` value kind any more.
+  - Each fuzz sidecar's `coverage-report.ts` still reports 3 `prefer-readonly-parameter-type` lint errors (pre-existing);
+     the porting subagents fix theirs if cheap.
+- `0c5e7be0ee`:
+   ten fuzz sidecars built `SOURCE_MARKER` from `${sep}`-joined old segments (`package/module/<x>-fork/src`),
+   a form the move rewrite could not see, so every `fuzz:coverage` gate projected nothing.
+  After the fix, eight of ten gates pass.
+  `conf.fuzz` lacked a baseline (now frozen);
+   `jsonc-edit/core-ts.fuzz` reports covered-function drops in four files (`edit-comment.ts` 12 < 14, and so on),
+   and a subagent is diagnosing whether source changes or lost driver reach explain them.
+- Searches for moved paths so far covered literal paths, quoted segment lists (`'package', 'dev-script'`),
+   escaped separators, and `${sep}` joins;
+   test fixtures that use made-up paths such as `/repo/package/module/x` are left as they are.
 - `56178d85ed` is mislabeled;
    corrective commit comment posted.
-- `~/.local/bin/spawn-pi` and `spawn-claude` were broken symlinks before this work
-   (old `packages/` layout and a plugin cache).
 
 ## Tooling
 

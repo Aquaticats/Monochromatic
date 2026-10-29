@@ -123,3 +123,33 @@ fn non_utf8_host_bytes_survive_in_logical_paths() {
     );
     assert_eq!(language_of(&host), Some(Language::Markdown));
 }
+
+/// Only the two places GitHub reads steps from are YAML hosts.
+#[test]
+fn only_workflows_and_composite_actions_are_yaml_hosts() {
+    for host in [
+        ".github/workflows/ci.yml",
+        ".github/workflows/ci.yaml",
+        "/repo/.github/workflows/ci.yml",
+        "package/x/.github/workflows/ci.yml",
+        ".github/actions/setup/action.yml",
+        ".github/actions/group/setup/action.yaml",
+    ] {
+        assert_eq!(language_of(Path::new(host)), Some(Language::Yaml), "{host}");
+    }
+    for other in [
+        "ci.yml",
+        "config/other.yml",
+        ".github/dependabot.yml",
+        ".github/workflows/nested/deep.yml",
+        ".github/workflows/ci.yml.bak",
+        ".github/workflows/ci.json",
+        ".github/actions/setup/other.yml",
+        "actions/setup/action.yml",
+        "workflows/ci.yml",
+        ".github/workflows/ci.yml/0.sh",
+    ] {
+        assert_eq!(language_of(Path::new(other)), None, "{other}");
+    }
+    assert_eq!(Language::Yaml.processor(), ProcessorLanguage::Yaml);
+}

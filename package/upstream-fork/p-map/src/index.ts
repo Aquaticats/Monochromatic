@@ -3,7 +3,7 @@
  Sindre Sorhus (MIT): map over iterables with limited concurrency.
  
  Rewritten to this repository's TypeScript standards with the upstream
- `p-map` 7.0.8 iteration semantics preserved: up to `concurrency` mapper
+ `p-map` 7.1.1 iteration semantics preserved: up to `concurrency` mapper
  calls run at once,
  results collect in input order,
  `pMapSkip` drops a result,
@@ -37,10 +37,12 @@ export {
   InvalidBackpressureError,
   InvalidConcurrencyError,
   InvalidInputError,
+  InvalidKeyedInputError,
   MapperRequiredError,
 } from './errors.ts';
 
 export {
+  type MapControl,
   type MapInput,
   type Mapper,
 } from './mapper.ts';
@@ -50,11 +52,28 @@ export { type SourceIterator, } from './map-iterator.ts';
 export {
   type IterableMapOptions,
   type MapOptions,
+  type SettledMapOptions,
 } from './map-options.ts';
+
+export {
+  type KeyedInput,
+  type KeyedKey,
+  type KeyedMapper,
+  type KeyedMapperFunction,
+  type KeyedMapRun,
+  type KeyedNewValue,
+  type KeyedResult,
+  type KeyedValue,
+  pMapKeyed,
+  pMapSettledKeyed,
+  type SettledKeyedMapRun,
+} from './p-map-keyed.ts';
 
 export {
   type MapRun,
   pMap,
+  pMapSettled,
+  type SettledMapRun,
 } from './p-map.ts';
 
 export {
@@ -63,3 +82,5 @@ export {
 } from './p-map-iterable.ts';
 
 export { pMapSkip, } from './p-map-skip.ts';
+
+export { pMapStop, } from './p-map-stop.ts';

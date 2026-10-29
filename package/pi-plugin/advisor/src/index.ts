@@ -25,7 +25,6 @@ import {
   ADVISOR_MESSAGE_TYPE,
   buildAdvisorSystemPrompt,
   createAdvisorProjectContextState,
-  filterAdvisorScopeByOutputCapacity,
   loadMergedConfig,
   MAIN_MODEL_GUIDANCE_PREFIX,
   selectAdvisorModel,
@@ -239,21 +238,14 @@ async function buildMainModelGuidance(
     errorPrefix: 'advisor',
   },);
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = filterAdvisorScopeByOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
-  /**
    Default model for empty Advisor params.
    */
-  const defaultSelection = eligibleScope.entries
+  const defaultSelection = scope.entries
     .length
     === 0
     ? undefined
     : selectAdvisorModel({
-      scope: eligibleScope,
+      scope,
       config,
       estimatedInputTokens: 0,
       modelRegistry: ctx.modelRegistry,
@@ -264,9 +256,9 @@ async function buildMainModelGuidance(
   /**
    Canonical slugs available to Advisor.
    */
-  const scopedSlugs = eligibleScope.entries
+  const scopedSlugs = scope.entries
     .map(function mapEntry(
-      entry: ReadonlyDeep<(typeof eligibleScope.entries)[number]>,
+      entry: ReadonlyDeep<(typeof scope.entries)[number]>,
     ) {
       return entry.canonicalSlug;
     },);

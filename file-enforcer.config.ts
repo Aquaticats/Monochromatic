@@ -701,9 +701,13 @@ async function generateMiseToml(): Promise<void> {
 # https://mise.jdx.dev/environments/secrets/sops.html
 _.file = [{ path = ".env.local.json", redact = true }]
 
-# The first entry is the gitignored per-worktree toolchain exposure directory
+# The first entry is the gitignored per-worktree directory .cache/search-shadow-bin that
+# holds the rg link to the installed search shadow (the postinstall of the
+# cargo:monochromatic-search-shadow tool in the toolchain plan). It has to come first:
+# the next entry holds the locked ripgrep, which would otherwise win and the shadow would
+# never run. The second is the gitignored per-worktree toolchain exposure directory
 # .cache/toolchain-bin, one link per tool toolchain.lock.json declares, so tasks
-# resolve the locked tools before any ambient or global one. The second is the
+# resolve the locked tools before any ambient or global one. The third is the
 # gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
 # installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli
 # tool in the toolchain plan).
@@ -718,6 +722,9 @@ _.path = [
 ${
     [
       ...new Set([
+        // The search shadow's gitignored link directory, created by the toolchain postinstall,
+        // must precede the toolchain exposure links: they hold the locked ripgrep.
+        '.cache/search-shadow-bin',
         // The toolchain exposure links must precede every ambient and global
         // tool so tasks run the locked versions.
         '.cache/toolchain-bin',

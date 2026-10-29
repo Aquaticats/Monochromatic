@@ -3127,3 +3127,128 @@ hits changes between runs; permanent tests assert invariants for every outcome, 
 Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by command), `measure-fsync.ts`,
 `sync-sites.ts` (each sync with its Rust caller via `strace -k`), `trace-histogram.ts`, `fork-fault-injection.ts`
 (scratch version of the permanent sweep), `partition-run.ts`, `pids-hang-repro.ts`, `wait-publish.ts <sha> <version>`.
+
+## Update at 2026-10-29 (issues 1807 and 1808, slice S2 report)
+
+- Issue 1808 closed by `813d74dab1`: the not-at-root refusal stays (the proposal was declined) and its message now says
+  the rule exists because agents and humans frequently forget which directory they are in.
+- Issue 1807 in progress: `commit_staged_additions.rs` carries real-index staged additions that match the selection into
+  the explicit-path private index; the ignored-path refusal names `git add --force -- <path>`. Unit tests shown failing
+  without the fix (8 of 14). Binary tests added in `binary_commit_tests.rs`; host and binary suites and gate still to run.
+- Slice S2 agent (aa0a34070e816763b) finished on branch `worktree-agent-aa0a34070e816763b` (`e29c38425b`, `34d8dde3c3`,
+  `d7bba16754`): in-process filesystem identity, `findmnt` starts 3 to 0 per commit; full suite not run by the agent.
+  Known divergence: a host with `/run/udev/data` and no `findmnt` records `fs-uuid_` instead of `f-fsid_`.
+  Merge after reading its diff; its scratch is in `~/temp/agent/s2` (`ns/` needs `chmod --recursive u+rwx`).
+
+## Update at 2026-10-29 (slice J report)
+
+- Journal agent (a4bd69a2e240509bc) finished on branch `worktree-agent-a4bd69a2e240509bc` (`74f04c463a`, `e48b110e7c`,
+  `ea1cb159a3`, `589debb275`, `0895770b64`). Not merged. Full host suite and gate not run by the agent.
+- J1 needed no production change (the `ensure_*` helpers sync only what they create; the three syncs are creation syncs on a
+  fresh repository, none on a warm one). Correct the handover sentence that says they sync even when nothing was created.
+- J2 dropped both syncs in `remove_transaction_directory`: 41 to 39 syncs on a warm commit. The rename-ordering barrier is an
+  accepted unsourced assumption.
+- J3 harness: 247 recovery cases (kill at six phases, then empty, halve or delete each state file), identical across two runs,
+  recorded on host Git 2.55.0 (regenerate on the gate's 2.56.0). Two cases leave a corrupt real index: `post-1.index` emptied
+  or halved at `ref-updated` is installed as the real index. Two are silently inconsistent: `landing-1.json` or
+  `preparing.json` deleted at `ref-updated`. Neither index snapshot is synced today. Remedies, not done: sync both snapshots
+  before `landing-1.json`, or have recovery verify their content. Do this before dropping any further journal sync.
+- Sticking messages for `preparing.json`, landing, index-lock and ref-updated records name no file or transaction and carry an
+  inapplicable fetch hint: a UX item still to fix.
+- No sync-budget ratchet test exists yet (the planning doc names one); still to write.
+
+## Update at 2026-10-29 (slice S4 report)
+
+- Small-natives agent (a22fc0d42c883a26c) finished on branch `worktree-agent-a22fc0d42c883a26c` (`748dd15e43`,
+  `db121b475c`, `dd8e563112`, `90ddcd4976`). Not merged; tests run were targeted, not the full suite or gate.
+- Replaces per commit: the empty-tree `hash-object`, both `symbolic-ref HEAD` reads (files backend only, strict shapes,
+  everything else spawns), the three sequencer-marker `rev-parse` calls (loose spellings plus a `packed-refs` substring
+  search, any hit spawns), and the `git version` spawn (cache keyed by Git identity, ELF files named `git` only).
+  Cold commit saves 6 starts, warm saves 7.
+- Deviation: the version cache lives in `$XDG_CACHE_HOME/cli-git/` (or `$HOME/.cache/cli-git/`), not under the repository,
+  because the version check runs before any repository path exists. A kill between temp write and rename leaves a
+  `.tmp-<uuid>` file nothing collects. Open choice: reorder the check after layout capture (changes when "Nothing was run"
+  is reported).
+- Review items: `ref_files::tests` is `pub(crate)` and borrowed by two other test files (move to a test-support file);
+  the sixth marker spelling is subsumed by the fifth and cannot be shown failing.
+- The planning doc and the optimizations log are untouched by S4; the integrator records S2, S4 and J results there.
+
+## Update at 2026-10-29 (issue 1807 verified)
+
+- Issue 1807 verified at `f0b74627f3`: clippy clean; host 2021 of 2022 and binary 166 of 167 (only the two known host-only
+  linter failures); container gate 2190 passed, 5 skipped, 0 failed in 66 s. Unreleased: ships with the next version,
+  together with the merged slices R, S1 to S4 and J (read the current crate version first).
+- Cost: one extra `git diff-index` start per explicit-path commit (no per-commit spawn budget test exists to ratchet).
+
+## Decision at 2026-10-29: traditional Git hooks are unsupported
+
+- The user decided that traditional hooks (scripts in `.git/hooks` or a `core.hooksPath` directory) are explicitly
+  unsupported and any use is undefined behavior. Only `hook.<name>.event` with `hook.<name>.command` config hooks are
+  supported. Written into the README ("Hooks" bullet) and the SPEC ("Hook dispatcher shim").
+- The hooks-and-config agent (aac40a929f1822d77) was told: preserve, test and extend nothing for traditional hooks; report
+  rather than silently delete code that becomes dead. No code was removed for this decision; the shim still passes a
+  traditional hook through `git hook run` as a side effect. Open: remove the `core.hooksPath` handling (S3 snapshot, plan
+  recording, `-c core.hooksPath` override) once the user wants the code to follow the decision.
+
+## Queued at 2026-10-29: remove core.hooksPath handling and warn on traditional hooks
+
+- The user decided (after the unsupported-hooks docs) that the `core.hooksPath` handling is removed, and that the wrapper
+  warns whenever it detects traditional hooks (executable non-`.sample` files in `<git-common-dir>/hooks`, or any configured
+  `core.hooksPath`). Not started: it overlaps the hooks-and-config agent (aac40a929f1822d77), which edits
+  `hook_dispatch_plan.rs` and the config snapshot. Do it after that branch merges. The agent was told and asked to list
+  where the handling lives.
+- Design to settle with the code in view: the dispatcher shim currently runs `git hook run` with `core.hooksPath=<original>`
+  to avoid recursing into its own entries. After removal the inner run needs an empty directory instead, so only
+  config-based hooks run; `post-commit` in the real worktree needs the same override. The warning is non-blocking and
+  needs a rendering path that is not a blocking `CoreFinding` (those block).
+
+## Update at 2026-10-29 (slices merged for verification; hooks decisions)
+
+- All four slice branches are merged into branch `integrate-slices`, checked out at `~/temp/agent/merge-slices`
+  (merge order S2, J, S4, S1/S3; conflicts in `filesystem_identity.rs`, `binary_tests.rs`, `capture_invocation.rs`,
+  `post_commit_hook.rs` and the planning doc, all resolved by keeping both sides). One merge commit (`1240234269`) carried
+  conflict markers by my mistake; `e66495826a` removes them. Verification (clippy, host, binary, gate) of that tree is next;
+  main is untouched until it passes. Then fast-forward main to it, release (read the current crate version first), and remove
+  the worktree, the branches and the agent worktrees.
+- S1/S3 report (agent aac40a929f1822d77): config starts 4 to 1, a no-hook commit goes 52 to 43 Git starts and 42 to 38 syncs.
+  Deviations to veto: (1) the config snapshot is taken at invocation start, so a hook that changes `maintenance.auto` during
+  the commit no longer affects that commit; (2) dispatcher entries are decided at plan time; (3) named hooks are found from
+  the real repository config while the dispatcher sees the shadow config. Pre-existing gap pinned: Git 2.56.0 runs
+  traditional hooks even when `hook.<event>.enabled=false`.
+- User decisions, not started: (a) remove the `core.hooksPath` handling. The agent listed it: `hook_dispatch_plan.rs`
+  (`compute_hook_dispatch_plan`, `default_hooks_directory`, `resolve_hooks_path`, `plan.json` `hooksPath`),
+  `commit_preparation.rs` (`native_commit_arguments`), `commit_revalidation.rs` (`rerun_pre_commit`), `hook_dispatch.rs`
+  (`run_git_hook`), `shadow_git.rs:87`, `manual_push_probe.rs:197`, `shadow_config.rs`, and `hook_presence.rs`
+  (`hook_entry_may_exist`; `event_may_have_user_hook` reduces to `named_hooks_possible`). Dead tests are in
+  `binary_hook_shim_tests.rs` (the traditional-hook shapes). (b) Warn when traditional hooks are detected, adding no extra
+  syscalls to the common path: the user said to add a `doctor` subcommand if needed. Plan: the commit path warns only on
+  a signal it already holds (a configured `core.hooksPath` from the config snapshot); a new `doctor` management
+  subcommand scans `<git-common-dir>/hooks` and the configured path and reports every traditional hook. Do this after the
+  merge verifies, on the merged tree.
+
+## Update at 2026-10-29 (parallel work in flight)
+
+- Merged tree `integrate-slices` (`~/temp/agent/merge-slices`, tip `11b79d7d5a`): clippy clean; host 2124 of 2125 and
+  binary 191 of 192 (only the two known linter failures). Container gate running in unit `cli-git-gate-merge`
+  (log `~/temp/agent/gate-merge.log`, image tag `mmerge`). On a pass: merge `integrate-slices` into main, release
+  (read the current crate version first), remove worktrees and branches.
+- Mutation wave 1 on the merged tree, units `cli-git-mutpar-w1-*` (`start_retry`, `commit_staged_additions`,
+  `filesystem_identity_mount`, `config_snapshot`, `transaction_git`), logs `~/temp/agent/mutpar-w1-*.log.N`, started with
+  `MUT_ROOT=~/temp/agent/merge-slices node ~/temp/agent/mutation-parallel.ts w1 <files>`. Wave 2 still to run on the
+  final tree: `commit_index`, `landing_attempt`, `empty_tree`, `ref_files`, `sequencer_marker`, `git_version_cache`,
+  `hook_presence`, `hook_dispatch_plan`, `rule_require_root`, and the 1804 files (task 65).
+- Three agents started from `integrate-slices`, each in its own worktree: (1) remove `core.hooksPath` handling, warn on
+  traditional hooks without extra syscalls, add `git cli-git doctor` (agent a8b31ddd4ffbe9b0d); (2) spawn and sync budget
+  ratchet tests (a25fe20d930cb8679); (3) recovery: torn index snapshots, the two silent-inconsistency cases, and sticking
+  messages that name the file (a49eb138569c35a3c). Merge each after reading its diff; agent 1 and 3 avoid each other's
+  files by brief.
+
+## Update at 2026-10-29 (merged-tree gate failed; resumed the J agent)
+
+- Container gate on `integrate-slices`: 2294 of 2296 run passed; `recovery_tearing::damage_at_index_installed` and
+  `damage_at_landing_locked` fail deterministically (reproduced twice) at `binary_recovery_tearing_tests.rs:379`: no file
+  `cli-git-transactions/<id>/cli-git-add-policy-<pid>-<n>-0/index` at those phases under Git 2.56.0. They pass on the host
+  (Git 2.55.0). The container task ignores a `-- <filter>` argument (it ran all 2296). Main stays unmerged until fixed.
+- Agent a4bd69a2e240509bc (slice J) was resumed to find the cause (harness assumption or a real change from one of the other
+  slices) and fix it on its own worktree after merging `integrate-slices`; then merge its branch into `integrate-slices`
+  again and rerun the gate.

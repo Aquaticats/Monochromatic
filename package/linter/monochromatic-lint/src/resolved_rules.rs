@@ -74,6 +74,16 @@ pub(crate) fn complete_rules(mut rules: JsoncValue) -> Result<JsoncValue, Config
                 value,
             });
         }
+        if id.starts_with("shell/") && !max_present {
+            // A step runs one command or at most two lines; every construct rule allows none.
+            let default: &str = if id == "shell/max-lines" { "2" } else { "0" };
+            let value = JsoncValue::number_from_token(default)
+                .expect("default shell limit is a JSON number");
+            options.push(JsoncEntry {
+                key: JsoncKey::from_text("max"),
+                value,
+            });
+        }
         if id == "markdown/lfs-image-url" && !exclude_present {
             options.push(JsoncEntry {
                 key: JsoncKey::from_text("exclude"),

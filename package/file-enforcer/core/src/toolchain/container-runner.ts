@@ -8,21 +8,52 @@
  */
 
 import { execFile, } from 'node:child_process';
+import { promisify, } from 'node:util';
 
 //region Bounds
+
+/**
+ Bytes in one kibibyte.
+ */
+const BYTES_PER_KIBIBYTE = 1_024;
+
+/**
+ Bytes in one mebibyte.
+ */
+const BYTES_PER_MEBIBYTE: number = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE;
+
+/**
+ Capture cap for one cell's combined output, in mebibytes.
+ */
+const CAPTURE_CAP_MEBIBYTES = 32;
+
+/**
+ Wall-clock cap for one cell, in minutes.
+ */
+const CELL_TIMEOUT_MINUTES = 20;
+
+/**
+ Seconds in one minute.
+ */
+const SECONDS_PER_MINUTE = 60;
+
+/**
+ Milliseconds in one second.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  Explicit capture cap for one cell's combined output.
  Overflow fails the cell loudly instead of growing the driver's heap.
  */
-export const MAX_CAPTURED_OUTPUT_BYTES: number = 32 * 1_024
-  * 1_024;
+export const MAX_CAPTURED_OUTPUT_BYTES: number = CAPTURE_CAP_MEBIBYTES * BYTES_PER_MEBIBYTE;
 
 /**
  Wall-clock cap for one cell, in milliseconds.
  */
-export const CELL_TIMEOUT_MS: number = 20 * 60
-  * 1_000;
+export const CELL_TIMEOUT_MS: number = CELL_TIMEOUT_MINUTES
+  * SECONDS_PER_MINUTE
+  * MILLISECONDS_PER_SECOND;
 
 /**
  Podman resource flags applied to every container cell.
@@ -46,12 +77,88 @@ export type BoundedRun = {
 };
 
 /**
+ Exit code reported when the capture cap, the timeout, or a failed start
+ stopped a command without a numeric exit code of its own.
+ */
+const STOPPED_COMMAND_EXIT_CODE = 1;
+
+/**
+ Specialized promisified `execFile`, typed through Node's own adapter contract.
+
+ The generic `promisify(execFile)` form trips `strict-void-return`, because
+ Node's overload set includes void-returning callbacks.
+ See `doc/troubleshooting/oxlint-promisify-void-return.md`.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ `execFile` with a promise result instead of a callback.
+ */
+const execFileAsync = promisifyExecFile(execFile,);
+
+/**
+ Reads one `execFile` rejection into the outcome shape.
+
+ @param error - Rejection of the promisified `execFile`
+
+ @returns Captured output and exit code; `code` is `1` when the error carries
+ no numeric exit code
+
+ @example
+ ```ts
+ const outcome = readExecFailure(new Error('spawn failed',),);
+ ```
+ */
+function readExecFailure(error: unknown,): BoundedRun {
+  if (!Error.isError(error,)) {
+    return {
+      stdout: '',
+      stderr: String(error,),
+      code: STOPPED_COMMAND_EXIT_CODE,
+    };
+  }
+  /**
+   Captured stdout the failed command produced before it stopped.
+   */
+  const stdout = ('stdout' in error) && ((typeof error.stdout) === 'string')
+    ? error.stdout
+    : '';
+  /**
+   Captured stderr the failed command produced before it stopped.
+   */
+  const stderr = ('stderr' in error) && ((typeof error.stderr) === 'string')
+    ? error.stderr
+    : '';
+  /**
+   Exit code from the error object, or the generic stop code.
+   */
+  const code = ('code' in error) && ((typeof error.code) === 'number')
+    ? error.code
+    : STOPPED_COMMAND_EXIT_CODE;
+  return {
+    stdout,
+    stderr: `${stderr}\n${error.message}`,
+    code,
+  };
+}
+
+/**
  Runs one command with an explicit output cap and timeout.
- 
- @param options - Command, arguments, and optional timeout override
- 
+
+ @param command - Executable to start
+
+ @param args - Arguments passed to the executable
+
+ @param timeoutMs - Wall-clock cap in milliseconds; absent means
+ {@link CELL_TIMEOUT_MS}
+
  @returns Captured output and exit code; `code` is `1` when the capture cap
  or the timeout stopped the command
+
+ @example
+ ```ts
+ const outcome = await runBounded({ command: 'echo', args: ['hello',], },);
+ ```
  */
 export async function runBounded(
   {
@@ -61,64 +168,53 @@ export async function runBounded(
   }: {
     readonly command: string;
     readonly args: readonly string[];
-    readonly timeoutMs?: number | undefined;
+    readonly timeoutMs?: number;
   },
 ): Promise<BoundedRun> {
-  return new Promise<BoundedRun>(
-    (resolveRun,) => {
-      execFile(
-        command,
-        [...args],
-        {
-          timeout: timeoutMs,
-          maxBuffer: MAX_CAPTURED_OUTPUT_BYTES,
-          encoding: 'utf8',
-          killSignal: 'SIGKILL',
-        },
-        (
-          error,
-          stdout,
-          stderr,
-        ) => {
-          /**
-           Exit code from the error object, or 0 when the command succeeded.
-           */
-          const code = error === null
-            ? 0
-            : (typeof (error as { code?: unknown; })
-              .code) === 'number'
-              ? (error as { code: number; })
-                .code
-              : 1;
-          resolveRun({
-            stdout,
-            stderr: error === null
-              ? stderr
-              : `${
-                stderr
-              }\n${
-                (error as Error)
-                  .message
-              }`,
-            code,
-          });
-        },
-      );
-    },
-  );
+  try {
+    /**
+     Captured output of a command that exited with code 0.
+     */
+    const completed = await execFileAsync(
+      command,
+      [...args],
+      {
+        timeout: timeoutMs,
+        maxBuffer: MAX_CAPTURED_OUTPUT_BYTES,
+        encoding: 'utf8',
+        killSignal: 'SIGKILL',
+      },
+    );
+    return {
+      stdout: completed.stdout,
+      stderr: completed.stderr,
+      code: 0,
+    };
+  } catch (error) {
+    return readExecFailure(error,);
+  }
 }
 
 /**
  Runs one bounded podman container cell:
  `podman run --memory=2g --cpus=2 --rm` over the mounted worktree.
- 
+
  The mount skips a SELinux `:Z` relabel (the repository's volume refuses
  label xattrs, `lsetxattr: operation not permitted`) and passes
  `--security-opt label=disable` instead.
- 
- @param options - Image, in-container command, and worktree root to mount
- 
+
+ @param image - Fully tagged image reference to run
+
+ @param command - Shell command executed inside the container
+
+ @param monorepoRoot - Worktree root mounted at `/workspace`
+
  @returns Captured output and exit code of the cell
+
+ @example
+ ```ts
+ const outcome = await runContainerCell({ image: 'ubuntu:latest', command: 'true', monorepoRoot: '/repo', },);
+ ```
  */
 export async function runContainerCell(
   {
@@ -131,7 +227,7 @@ export async function runContainerCell(
     readonly monorepoRoot: string;
   },
 ): Promise<BoundedRun> {
-  return runBounded({
+  return await runBounded({
     command: 'podman',
     args: [
       'run',

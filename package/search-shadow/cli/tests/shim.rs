@@ -81,8 +81,13 @@ fn make_world() -> (tempfile::TempDir, String) {
     let real_directory = root.path().join("real");
     fs::create_dir(&shadow_directory).expect("make the shadow directory");
     fs::create_dir(&real_directory).expect("make the real directory");
-    std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join("rg")).expect("make the shadow link");
+    // Shadow links and fake real tools for the three tools the tests drive; grep and find print which tool answered.
+    for name in ["rg", "grep", "find"] {
+        std::os::unix::fs::symlink(SHADOW_EXECUTABLE, shadow_directory.join(name)).expect("make the shadow link");
+    }
     write_script(&real_directory, "rg", REAL_RG_BODY);
+    write_script(&real_directory, "grep", "printf 'REAL grep %s\\n' \"$*\"");
+    write_script(&real_directory, "find", "printf 'REAL find %s\\n' \"$*\"");
     let path_variable = format!("{}:{}:/usr/bin:/bin", shadow_directory.display(), real_directory.display());
     return (root, path_variable);
 }
@@ -96,7 +101,18 @@ fn make_world() -> (tempfile::TempDir, String) {
 /// function runRg(root, args, cwd, pathVariable, env): SpawnSyncReturns<Buffer> { ... }
 /// ```
 fn run_rg(root: &Path, arguments: &[OsString], working_directory: &Path, path_variable: &str, extra_env: &[(&str, &str)]) -> Output {
-    let mut command = Command::new(root.join("shadow").join("rg"));
+    return run_tool(root, "rg", arguments, working_directory, path_variable, extra_env);
+}
+
+/// What:     `fn run_tool(...) -> Output` declares the general helper: it runs the shadow link with the given tool name.
+/// Why:      The `grep` and `find` tests use the same arrangement as `rg`, under a different name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runTool(root, name, args, cwd, pathVariable, env): SpawnSyncReturns<Buffer> { ... }
+/// ```
+fn run_tool(root: &Path, name: &str, arguments: &[OsString], working_directory: &Path, path_variable: &str, extra_env: &[(&str, &str)]) -> Output {
+    let mut command = Command::new(root.join("shadow").join(name));
     command.args(arguments);
     command.current_dir(working_directory);
     command.env_clear();
@@ -237,19 +253,64 @@ fn passes_a_non_utf8_argument_through_unchanged() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("ff 61"));
 }
 
-/// `search-shadow link DIRECTORY` creates the three links, and `--help` describes the command.
+/// `search-shadow link DIRECTORY` links only the tools that exist on PATH, reports the rest, and `--help` describes the command.
 #[test]
-fn the_link_subcommand_creates_the_shadow_links_and_help_mentions_it() {
+fn the_link_subcommand_links_only_present_tools_and_help_mentions_it() {
     let root = tempfile::tempdir().expect("make a temporary directory");
     let links_directory = root.path().join("bin");
+    let (world, _path_variable) = make_world();
+    // PATH holds the fake real tools of the world (rg, grep, find) and nothing else.
+    let only_fakes = world.path().join("real").to_string_lossy().to_string();
 
-    let linked = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links_directory).output().expect("run link");
+    let linked = Command::new(SHADOW_EXECUTABLE).arg("link").arg(&links_directory).env_clear().env("PATH", &only_fakes).output().expect("run link");
+    let stdout = String::from_utf8_lossy(&linked.stdout).to_string();
+
     assert!(linked.status.success(), "{}", String::from_utf8_lossy(&linked.stderr));
     for name in ["rg", "grep", "find"] {
         assert!(links_directory.join(name).symlink_metadata().is_ok(), "{name} link missing");
     }
+    // Tools without a real binary get no link, so `command -v` stays honest.
+    for name in ["ag", "ack", "ugrep", "fdfind", "bfs", "ncdu", "cloc"] {
+        assert!(links_directory.join(name).symlink_metadata().is_err(), "{name} must not be linked");
+    }
+    assert!(stdout.contains("linked"), "{stdout}");
+    assert!(stdout.contains("skipped, no real tool on PATH"), "{stdout}");
 
     let help = Command::new(SHADOW_EXECUTABLE).arg("--help").output().expect("run help");
     assert!(help.status.success());
     assert!(String::from_utf8_lossy(&help.stdout).contains("link"));
+}
+
+/// A recursive grep from a repository root is refused through the real process, and a named subdirectory runs.
+#[test]
+fn refuses_a_recursive_grep_from_a_repository_root_but_runs_a_bounded_one() {
+    let (root, path_variable) = make_world();
+    let repository = root.path().join("repository");
+    fs::create_dir_all(repository.join(".git")).expect("make a repository root");
+    fs::create_dir_all(repository.join("package")).expect("make a subdirectory");
+
+    let refused = run_tool(root.path(), "grep", &texts(&["-rn", "foo"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
+    let allowed = run_tool(root.path(), "grep", &texts(&["-rn", "foo", "package"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
+
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("a whole repository"));
+    assert!(refused.stdout.is_empty(), "the real tool must not have run");
+    assert!(String::from_utf8_lossy(&allowed.stdout).contains("REAL grep -rn foo package"));
+}
+
+/// An unbounded find from a repository root is refused, and the same find with a small depth limit runs.
+#[test]
+fn refuses_an_unbounded_find_from_a_repository_root_but_runs_a_bounded_one() {
+    let (root, path_variable) = make_world();
+    let repository = root.path().join("repository");
+    fs::create_dir_all(repository.join(".git")).expect("make a repository root");
+
+    let refused = run_tool(root.path(), "find", &texts(&[".", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
+    let allowed = run_tool(root.path(), "find", &texts(&[".", "-maxdepth", "2", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent")]);
+    let escaped = run_tool(root.path(), "find", &texts(&[".", "-name", "x"]), &repository, &path_variable, &[("HOME", "/nonexistent"), ("SEARCH_SHADOW_ALLOW_WIDE", "1")]);
+
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("-maxdepth 3"));
+    assert!(String::from_utf8_lossy(&allowed.stdout).contains("REAL find . -maxdepth 2 -name x"));
+    assert!(String::from_utf8_lossy(&escaped.stdout).contains("REAL find . -name x"));
 }

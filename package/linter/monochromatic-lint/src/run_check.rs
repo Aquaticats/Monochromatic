@@ -32,6 +32,7 @@ use crate::{
     markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings},
     markdown_source::MarkdownSource,
     processors::{ProcessorLanguage, VirtualSource, extract},
+    run_check_shell::shell_findings,
     run_failure::{host_span, processing_failure, processor_failure},
     run_lfs::LfsRepos,
     run_paths::{Language, logical_path},
@@ -348,6 +349,13 @@ impl<'run> HostChecker<'run> {
             Ok(FileConfiguration::Ignored) | Ok(FileConfiguration::Unconfigured) => return Ok(()),
             Err(error) => return Err(error.to_string()),
         };
+        if input.language() == ProcessorLanguage::Shell {
+            // A workflow step's findings are in the step's coordinates; the processor maps them to the workflow.
+            for finding in shell_findings(input, &rules)? {
+                self.project(input, finding, source, findings);
+            }
+            return Ok(());
+        }
         if input.language() == ProcessorLanguage::Rust {
             let settings: RustRuleSettings = match rust_rule_settings(&rules) {
                 Ok(typed) => typed,

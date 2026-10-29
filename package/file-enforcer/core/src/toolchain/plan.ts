@@ -5,16 +5,11 @@
  `mpm.managers.toml` are generated from (see `generate.ts`), and the record
  `toolchain.lock.json` names in its `generatedFrom` field.
 
- The tool data lives in `plan.tools.ts` (tools) and `plan.artifacts.ts`
+ The tool data lives in `plan.tools.data.ts` (tools) and `plan.artifacts.data.ts`
  (per-platform artifact provenance).
  */
 
-import {
-  ALL_TOOLS,
-  BIN_BOOTSTRAP,
-  MPM_BOOTSTRAP,
-  TOOLS,
-} from './plan.tools.ts';
+import { ALL_TOOLS, } from './plan.tools.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 export {
@@ -22,12 +17,12 @@ export {
   BIN_BOOTSTRAP,
   MPM_BOOTSTRAP,
   TOOLS,
-};
-export { ARTIFACTS, } from './plan.artifacts.ts';
+} from './plan.tools.data.ts';
+export { ARTIFACTS, } from './plan.artifacts.data.ts';
 export type {
   ArtifactRow,
   ToolArtifacts,
-} from './plan.artifacts.ts';
+} from './plan.artifacts.data.ts';
 export { TOOL_ROUTES, } from './types.ts';
 export type {
   PostinstallLink,
@@ -65,8 +60,13 @@ export const TOOLS_BY_ID: ReadonlyMap<string, ToolPlanEntry> = new Map(
  @param id - Stable tool id (`bun`, `cargo:fd-find`, `mpm`, ...)
  
  @returns Matching plan entry
- 
- @throws {Error} when the id names no plan entry
+
+ @throws Error when the id names no plan entry
+
+ @example
+ ```ts
+ toolById('bun',).version;
+ ```
  */
 export function toolById(id: string,): ToolPlanEntry {
   /**
@@ -86,6 +86,13 @@ export function toolById(id: string,): ToolPlanEntry {
  Prefixed ids (`cargo:fd-find`, `npm:yaml-language-server`,
  `github:owner/repo`) contribute their bare name; every tool also
  contributes its own id lowercased.
+
+ @returns Lowercased names, ids, repository names, and package ids
+
+ @example
+ ```ts
+ toolPlanInstallableNames().has('fd-find',); // true
+ ```
  */
 export function toolPlanInstallableNames(): ReadonlySet<string> {
   /**

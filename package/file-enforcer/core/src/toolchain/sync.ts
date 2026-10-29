@@ -13,9 +13,10 @@
  ```
  */
 
-import { join, } from 'node:path';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import { l, } from '../logger.ts';
 import { hostPlatformId, } from './layout.ts';
-import { run, } from './exec.ts';
 import {
   rebuildExposure,
   runPostinstallLinks,
@@ -50,7 +51,10 @@ import {
   observeTool,
   versionMatches,
 } from './status.ts';
-import type { ToolPlanEntry, } from './types.ts';
+import type {
+  ToolPlanEntry,
+  ToolRoute,
+} from './types.ts';
 
 //region Staging order
 
@@ -74,14 +78,30 @@ const STAGING_IDS: readonly string[] = [
 /**
  Orders plan entries for installation: the staging prerequisites first, then
  every remaining entry in plan order.
- 
+
  @param entries - Plan entries to order
- 
+
  @returns Ordered entries
+
+ @example
+ ```ts
+ syncOrder({ entries: ALL_TOOLS, },).map((entry,) => entry.id,).slice(0, 3,); // ['bin', 'uv', 'mpm']
+ ```
  */
 export function syncOrder(
   { entries, }: { readonly entries: readonly ToolPlanEntry[]; },
 ): readonly ToolPlanEntry[] {
+  /**
+   First plan entry per tool id.
+   */
+  const firstById = new Map<string, ToolPlanEntry>();
+  for (const entry of entries) {
+    if (!firstById.has(entry.id,))
+      firstById.set(
+        entry.id,
+        entry,
+      );
+  }
   /**
    Staged entries, in staging order.
    */
@@ -90,9 +110,7 @@ export function syncOrder(
     /**
      Matching plan entry for this staging id.
      */
-    const entry = entries.find(
-      (candidate,) => candidate.id === id,
-    );
+    const entry = firstById.get(id,);
     if (entry !== undefined)
       staged.push(entry,);
   }
@@ -116,6 +134,11 @@ export function syncOrder(
  @param entry - Plan entry to test
  
  @returns `true` when the entry's OS filter admits this platform
+
+ @example
+ ```ts
+ appliesToHost(toolById('node',),); // true
+ ```
  */
 export function appliesToHost(entry: ToolPlanEntry,): boolean {
   if (entry.os === null)
@@ -130,8 +153,11 @@ export function appliesToHost(entry: ToolPlanEntry,): boolean {
       : process.platform === 'win32'
         ? 'windows'
         : process.platform;
-  return entry.os
-    .includes(family as 'linux' | 'macos' | 'windows');
+  /**
+   The entry's OS filter, widened so any host platform name can be tested against it.
+   */
+  const admitted: readonly string[] = entry.os;
+  return admitted.includes(family,);
 }
 
 //endregion Platform filter
@@ -161,11 +187,139 @@ export type SyncReport = {
 };
 
 /**
+ Installer for each install route.
+ */
+const INSTALLERS: Readonly<Record<ToolRoute, (context: ProviderContext,) => Promise<unknown>>> = {
+  'bin-sourced': installBinSourced,
+  'archive': installArchive,
+  'cargo-binstall': installCargoBinstall,
+  'cargo-git': installCargoGit,
+  'mpm-pnpm': installMpmPnpm,
+  'mpm-uvx': installMpmUvx,
+  'go-install': installGoInstall,
+  'rustup-toolchain': installRustToolchain,
+  'rustup-components': installRustComponents,
+  'android-sdk': installAndroidSdk,
+};
+
+/**
+ Whether one entry already sits at its locked version.
+
+ A probe that cannot run (its own staging prerequisite missing) reads as absent, and the install converges it.
+
+ @param entry - Plan entry to probe
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment the probe resolves manager homes from
+
+ @param tools - Plan the probe resolves sibling tools against
+
+ @returns `true` when the observed version matches the lock
+ */
+async function isAtLockedVersion(
+  {
+    entry,
+    paths,
+    env,
+    tools,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly paths: ToolchainPaths;
+    readonly env: PathEnv;
+    readonly tools: readonly ToolPlanEntry[];
+  },
+): Promise<boolean> {
+  try {
+    /**
+     Observed version before installing.
+     */
+    const observed = await observeTool({
+      entry,
+      paths,
+      env,
+      tools,
+    },);
+    return (observed !== null)
+      && versionMatches({
+        observed,
+        locked: entry.version,
+      },);
+  } catch (error) {
+    /**
+     Logger tagged with this probe.
+     */
+    const log = tagged({
+      tag: isAtLockedVersion.name,
+      l,
+    },);
+    log.debug(`${entry.id} could not be probed, installing it: ${caughtValueText(error,)}`,);
+    return false;
+  }
+}
+
+/**
+ Installs one entry through its route, then adds the Rust components and targets its options ask for.
+
+ @param entry - Plan entry to install
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment the installers run with
+
+ @param tools - Plan the installers resolve sibling tools against
+
+ @throws Error when the route's installer fails
+ */
+async function installEntry(
+  {
+    entry,
+    paths,
+    env,
+    tools,
+  }: {
+    readonly entry: ToolPlanEntry;
+    readonly paths: ToolchainPaths;
+    readonly env: PathEnv;
+    readonly tools: readonly ToolPlanEntry[];
+  },
+): Promise<void> {
+  /**
+   Provider context for this entry.
+   */
+  const context: ProviderContext = {
+    entry,
+    paths,
+    env,
+    extraDirs: [paths.toolchainBinDir],
+    tools,
+  };
+  await INSTALLERS[entry.route](context,);
+  if ((entry.options
+    .rustComponents
+    !== undefined)
+    || (entry.options
+      .rustTargets
+      !== undefined))
+    await installRustComponents(context,);
+}
+
+/**
  Runs the full sync algorithm against one worktree.
- 
- @param options - Plan entries, paths and environment overrides
- 
+
+ @param tools - Plan entries to converge; the repository plan when absent
+
+ @param paths - Resolved toolchain paths of the scope
+
+ @param env - Environment overrides; the process environment when absent
+
  @returns The sync report
+
+ @example
+ ```ts
+ const report = await syncToolchain({ paths: resolveToolchainPaths(), },);
+ report.failed; // {}
+ ```
  */
 export async function syncToolchain(
   {
@@ -173,9 +327,9 @@ export async function syncToolchain(
     paths,
     env,
   }: {
-    readonly tools?: readonly ToolPlanEntry[] | undefined;
+    readonly tools?: readonly ToolPlanEntry[];
     readonly paths: ToolchainPaths;
-    readonly env?: PathEnv | undefined;
+    readonly env?: PathEnv;
   },
 ): Promise<SyncReport> {
   /**
@@ -201,85 +355,27 @@ export async function syncToolchain(
   const failed: Record<string, string> = {};
 
   for (const entry of entries) {
-    /**
-     Observed version before installing; a probe that cannot run (its own
-     staging prerequisite missing) reads as absent, and the install below
-     converges it.
-     */
-    let observed: string | null = null;
+    // oxlint-disable-next-line no-await-in-loop -- staging order makes later probes depend on earlier installs
+    if (await isAtLockedVersion({
+      entry,
+      paths,
+      env: e,
+      tools,
+    },)) {
+      unchanged.push(entry.id,);
+      continue;
+    }
     try {
-      observed = await observeTool({
+      // oxlint-disable-next-line no-await-in-loop -- installers share manager state and staging order, so one at a time
+      await installEntry({
         entry,
         paths,
         env: e,
         tools,
       },);
-    } catch {
-      observed = null;
-    }
-    if ((observed !== null)
-      && versionMatches({
-        observed,
-        locked: entry.version,
-      },)) {
-      unchanged.push(entry.id,);
-      continue;
-    }
-    /**
-     Provider context for this entry.
-     */
-    const context: ProviderContext = {
-      entry,
-      paths,
-      env: e,
-      extraDirs: [paths.toolchainBinDir],
-      tools,
-    };
-    try {
-      switch (entry.route) {
-        case 'bin-sourced':
-          await installBinSourced(context,);
-          break;
-        case 'archive':
-          await installArchive(context,);
-          break;
-        case 'cargo-binstall':
-          await installCargoBinstall(context,);
-          break;
-        case 'cargo-git':
-          await installCargoGit(context,);
-          break;
-        case 'mpm-pnpm':
-          await installMpmPnpm(context,);
-          break;
-        case 'mpm-uvx':
-          await installMpmUvx(context,);
-          break;
-        case 'go-install':
-          await installGoInstall(context,);
-          break;
-        case 'rustup-toolchain':
-          await installRustToolchain(context,);
-          break;
-        case 'rustup-components':
-          await installRustComponents(context,);
-          break;
-        case 'android-sdk':
-          await installAndroidSdk(context,);
-          break;
-      }
-      if ((entry.options
-        .rustComponents
-        !== undefined)
-        || (entry.options
-          .rustTargets
-          !== undefined))
-        await installRustComponents(context,);
       installed.push(entry.id,);
     } catch (error) {
-      failed[entry.id] = Error.isError(error,)
-        ? error.message
-        : String(error,);
+      failed[entry.id] = caughtValueText(error,);
     }
   }
 
@@ -298,7 +394,7 @@ export async function syncToolchain(
     env: e,
     extraDirs: [paths.toolchainBinDir],
   },);
-  writeToolEnvFile({
+  await writeToolEnvFile({
     paths,
     entries,
   },);
@@ -307,7 +403,7 @@ export async function syncToolchain(
     unchanged,
     installed,
     failed,
-    missingBins: unresolvableBins({
+    missingBins: await unresolvableBins({
       paths,
       entries,
     },),
@@ -323,8 +419,11 @@ export async function syncToolchain(
  
  `--global` syncs the machine-global scope
  (`doc/planning/mpm-global-toolchain-migration.md`).
- 
- @returns Promise resolved after the sync finishes
+
+ @example
+ ```ts
+ await main();
+ ```
  */
 export async function main(): Promise<void> {
   /**

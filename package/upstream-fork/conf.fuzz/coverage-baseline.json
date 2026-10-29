@@ -1,0 +1,21 @@
+{
+  "bytes.ts": 5,
+  "change-notifications.ts": 7,
+  "conf-crud.ts": 13,
+  "conf-events.ts": 5,
+  "conf.ts": 23,
+  "config-dir.ts": 1,
+  "debounce.ts": 1,
+  "encryption.ts": 6,
+  "errors.ts": 15,
+  "file-io.ts": 6,
+  "index.ts": 1,
+  "internal-key.ts": 4,
+  "migrate.ts": 6,
+  "prepare-options.ts": 3,
+  "schema.ts": 6,
+  "store-access.ts": 7,
+  "store-file.ts": 9,
+  "value-type.ts": 2,
+  "watcher.ts": 1
+}

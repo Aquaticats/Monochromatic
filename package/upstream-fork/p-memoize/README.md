@@ -13,7 +13,9 @@ Derived from [`p-memoize`](https://github.com/sindresorhus/p-memoize) by
  released upstream under the [MIT License](LICENSES/MIT.txt).
  Memoization semantics,
  validation rules,
- and error message texts come from `p-memoize` 8.0.0.
+ and error message texts follow `p-memoize` 9.0.0
+(see "Tracking upstream 9.0.0"),
+ which the fork was first derived from at 8.0.0.
  The function-identity copying in `src/mimic-function.ts` is inlined from
  [`mimic-function`](https://github.com/sindresorhus/mimic-function) 5.0.1,
  same author and license.
@@ -65,10 +67,9 @@ serializer like `JSON.stringify` keys by all arguments instead.
 `options.cache` defaults to a fresh `Map` per memoized function and accepts
 any storage implementing `has`,
  `get`,
- `set`,
- and `delete`,
+ and `set`,
  with optional
-`clear`.
+`delete` and `clear`.
  All of `has`,
  `get`,
  and `set` may return promises, so asynchronous
@@ -81,9 +82,11 @@ one key share a result.
 Concurrent calls with one key share one promise object,
  so the wrapped
 function runs once per key until that promise settles.
- The in-flight entry
-is dropped the moment the call settles,
- whether it fulfilled or rejected.
+ When the call settles,
+ fulfilled or rejected,
+ its in-flight entry is dropped
+if the entry still belongs to that call;
+ a clear in the meantime has already dropped it (see "Tracking upstream 9.0.0").
 
 #### shouldCache
 
@@ -97,7 +100,8 @@ failure and skip caching.
 
 #### pMemoizeClear
 
-`pMemoizeClear(memoized)` drops every cached value of one memoized function.
+`pMemoizeClear(memoized)` drops every cached value of one memoized function,
+ and the in-flight calls of that function (see "Tracking upstream 9.0.0").
 It throws `NotMemoizedError` for functions never memoized,
  `CacheDisabledError`
 for functions created with `cache: false`,
@@ -114,7 +118,8 @@ non-enumerable,
  configurable property,
  so `pMemoizeClear(instance.method)`
 clears one instance's cache.
- Private methods are not supported.
+ Private methods are not supported,
+ and a subclass override is left alone.
 
 ### Deviations from upstream p-memoize
 
@@ -172,22 +177,96 @@ any conforming runtime.
 
 Upstream's `try`/`finally` cleanup becomes `try`/`catch` with the in-flight
 cleanup duplicated before each `return` (repository lint bans `try`/`finally`).
- The duplicate placements preserve upstream's exact ordering: cleanup runs
-before each settlement and inside the same synchronous stretch when the
-wrapped function throws synchronously.
+ The duplicate placements preserve upstream's ordering: cleanup runs
+before each settlement.
 
-### Retained upstream behavior
+### Tracking upstream 9.0.0
 
-Upstream `p-memoize` registers a call's in-flight promise after the call
-body starts.
- When the wrapped function throws synchronously with caching
-disabled (`cache: false`),
- the cleanup runs before the registration lands, so
-the rejected promise stays in the in-flight map and later calls with the
-same key replay that rejection instead of recomputing.
- The fork reproduces
-this ordering exactly;
- the differential oracle pins it.
+The fork tracks `p-memoize` 9.0.0.
+ The behavior below changed between 8.0.0 and 9.0.0 and is followed here;
+ the differential oracle in the fuzz sidecar compares the fork with whatever
+upstream release the catalog entry installs.
+
+#### Synchronous throw with caching disabled
+
+Upstream 8.0.0 registered a call's in-flight promise after the call body
+started.
+ When the wrapped function threw synchronously with caching disabled
+(`cache: false`),
+ the cleanup ran before the registration landed,
+ so the rejected promise stayed in the in-flight map and later calls with the
+same key replayed that rejection.
+ Upstream 9.0.0 (commit `a8cec6126`, issues 55 and 62) yields one microtask
+before running the wrapped function when caching is disabled,
+ so registration comes first and a later call recomputes.
+
+#### Clearing and calls in flight
+
+`pMemoizeClear` bumps a generation counter shared by every memoized function
+over one cache,
+ so a call that was running at clear time does not write its result back and
+a `has` hit followed by a clear before `get` counts as a miss.
+ The clear also drops the cleared function's own in-flight promises,
+ so a later call starts fresh;
+ other functions over the same cache keep their in-flight calls.
+ A `cache.set` that already started is not undone.
+ A `clear()` that returns a promise finishes after `pMemoizeClear` returns,
+ and a rejection from it is dropped.
+ A `clear()` that throws synchronously still propagates,
+ after the bookkeeping ran.
+
+#### Messages and options
+
+`UnclearableCacheError` carries upstream 9.0.0's text
+`The cache can't be cleared!` (8.0.0 said `The cache Map can't be cleared!`).
+ `shouldCache` is read once when the function is memoized,
+ like `cache` and `cacheKey`.
+ Only `cache: false` disables caching.
+ `CacheStorage.delete` is optional because the memoizer never calls it.
+
+#### Keys
+
+`cacheKey` receives a copy of the argument tuple,
+ so a key built by sorting it in place cannot reorder what the wrapped
+function receives.
+ A `cacheKey` that throws makes the call reject instead of throwing
+synchronously,
+ and a `cacheKey` typed to return a promise is rejected by the type.
+
+#### Re-entrant calls and failing storages
+
+A call re-entered for the same key from `cache.has`,
+ `cache.get`,
+ or the wrapped function joins the running call instead of running again.
+ A `cache.has` that throws synchronously rejects that call without leaving a
+stuck in-flight entry,
+ so the next call retries.
+
+#### Function-identity copy
+
+Copying the wrapped function's name,
+ properties,
+ and source into the memoized function is cosmetic,
+ and a function that makes it hard
+(a non-configurable own `toString`,
+ a `toString` that throws,
+ a proxy whose `ownKeys` throws)
+is still memoized with whatever the copy reached.
+
+#### Decorator and subclasses
+
+`pMemoizeDecorator` asks where the decorated method is defined
+(the prototype for an instance method,
+ the class for a static one),
+ by property descriptor so no subclass getter runs,
+ and stands down when that is not the decorated function
+(a subclass override,
+ a method deleted from the chain,
+ an accessor that replaced it).
+ Defining the memoized copy on the instance would otherwise shadow the
+override.
+ A `super.method()` call from an override reaches the original,
+ unmemoized method.
 
 ### Layout
 

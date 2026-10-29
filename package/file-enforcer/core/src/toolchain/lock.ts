@@ -16,8 +16,13 @@ import type {
  inserting keys in the fixed order the schema documents.
  
  @param entry - Plan entry to project
- 
+
  @returns Lock record with stable key order
+
+ @example
+ ```ts
+ lockToolFromPlanEntry(toolById('bun',));
+ ```
  */
 export function lockToolFromPlanEntry(entry: ToolPlanEntry,): ToolchainLockTool {
   return {
@@ -40,8 +45,13 @@ export function lockToolFromPlanEntry(entry: ToolPlanEntry,): ToolchainLockTool 
  then `mise.no-env.toml` `[tools]` order).
  
  @param tools - Plan entries in lock order
- 
+
  @returns Lock document
+
+ @example
+ ```ts
+ toolchainLockFromTools({ tools: ALL_TOOLS, });
+ ```
  */
 export function toolchainLockFromTools(
   { tools, }: { readonly tools: readonly ToolPlanEntry[]; },
@@ -70,8 +80,13 @@ export function toolchainLockFromTools(
  {@link lockToolFromPlanEntry} fix, so the output is byte-stable.
  
  @param lock - Lock document to render
- 
+
  @returns JSON text
+
+ @example
+ ```ts
+ renderToolchainLockJson(toolchainLockFromTools({ tools: ALL_TOOLS, },));
+ ```
  */
 export function renderToolchainLockJson(lock: ToolchainLock,): string {
   return `${

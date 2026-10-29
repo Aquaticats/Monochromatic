@@ -89,7 +89,7 @@ fn not_at_root() -> PolicyEvent {
         severity: Severity::Error,
         code: "not-at-root",
         message: String::from(
-            "cli-git: not at the root of the git repository. Repo root is /r but effective cwd is /r/sub. Tip: cd to /r or pass -C /r before the subcommand.",
+            "cli-git: not at the root of the git repository. Repo root is /r but effective cwd is /r/sub. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to /r or pass -C /r before the subcommand.",
         ),
         path: None,
         location: None,

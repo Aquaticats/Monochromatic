@@ -253,6 +253,7 @@ pub fn resolve_require_root(facts: &RequireRootFacts) -> RequireRootVerdict {
     let message: String = format!(
         "cli-git: not at the root of the git repository. \
          Repo root is {root} but effective cwd is {directory}. \
+         This rule exists because agents and humans frequently forget which directory they are in. \
          Tip: cd to {root} or pass -C {root} before the subcommand.",
         root = root.display(),
         directory = facts.effective_directory.display(),

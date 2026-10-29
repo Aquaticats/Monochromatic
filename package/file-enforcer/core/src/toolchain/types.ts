@@ -2,7 +2,7 @@
  Shared types for the typed toolchain plan and its generated artifacts.
  */
 
-import type { ToolArtifacts, } from './plan.artifacts.ts';
+import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 
 //region Request intent
 

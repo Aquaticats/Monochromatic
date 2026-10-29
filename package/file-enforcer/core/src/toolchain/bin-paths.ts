@@ -29,13 +29,14 @@
  ```
  */
 
-import { existsSync, } from 'node:fs';
 import { join, } from 'node:path';
+import { pathExists, } from './fs-probe.ts';
 import { ALL_TOOLS, } from './plan.ts';
 import {
   EXPOSURE_DIR_RELATIVE,
   managerNativeBinDirs,
   resolveToolchainPaths,
+  type PathEnv,
   type ToolchainPaths,
   isMainModule,
 } from './paths.ts';
@@ -68,30 +69,40 @@ export type BinPathsOutput = {
 /**
  Builds the exposure contract for one worktree.
 
- @param options - Resolved toolchain paths and environment overrides
- 
+ @param paths - Resolved toolchain paths of the worktree
+
+ @param env - Environment overriding manager homes; the process environment when absent
+
+ @param entries - Plan entries whose declared bins are listed; the repository plan when absent
+
  @returns The exact JSON contract
- 
- @throws {Error} when two plan entries declare the same binary name
+
+ @throws Error when two plan entries declare the same binary name
+
+ @example
+ ```ts
+ const output = await buildBinPathsOutput({ paths: resolveToolchainPaths(), env: process.env, },);
+ output.exposureDir; // '.cache/toolchain-bin'
+ ```
  */
-export function buildBinPathsOutput(
+export async function buildBinPathsOutput(
   {
     paths,
     env,
     entries = ALL_TOOLS,
   }: {
     readonly paths: ToolchainPaths;
-    readonly env?: NodeJS.ProcessEnv | undefined;
+    readonly env?: PathEnv;
     readonly entries?: readonly ToolPlanEntry[];
   },
-): BinPathsOutput {
+): Promise<BinPathsOutput> {
   /**
-   Binary name to absolute exposure symlink path, built in plan order.
+   Declared binary names in plan order, so duplicates are caught whether or
+   not they are provisioned.
    */
-  const bins: Record<string, string> = {};
+  const names: string[] = [];
   /**
-   Declared binary names seen so far, so duplicates are caught whether or not
-   they are provisioned.
+   Declared binary names seen so far.
    */
   const declared = new Set<string>();
   for (const entry of entries) {
@@ -103,35 +114,71 @@ export function buildBinPathsOutput(
           } more than once`,
         );
       declared.add(name,);
-      /**
-       Absolute path of this binary's exposure symlink.
-       */
-      const linkPath = join(
-        paths.exposureDir,
-        name,
-      );
-      if (existsSync(linkPath,))
-        bins[name] = linkPath;
+      names.push(name,);
     }
   }
 
   /**
-   Candidate PATH directories, absolute, keeping only the ones that exist.
+   Whether each declared name has a resolving exposure symlink, in the same order as `names`.
    */
-  const pathDirs = managerNativeBinDirs({
+  const linked = await Promise.all(names.map(
+    function linkResolves(name,): Promise<boolean> {
+      return pathExists(join(
+        paths.exposureDir,
+        name,
+      ),);
+    },
+  ),);
+  /**
+   Candidate PATH directories, absolute.
+   */
+  const candidates = managerNativeBinDirs({
     paths,
     env,
-  },)
-    .filter(
-    function exists(dir,): boolean {
-      return existsSync(dir,);
+  },);
+  /**
+   Whether each candidate directory exists, in the same order as `candidates`.
+   */
+  const present = await Promise.all(candidates.map(
+    function dirExists(dir,): Promise<boolean> {
+      return pathExists(dir,);
     },
-    );
+  ),);
 
   return {
     exposureDir: EXPOSURE_DIR_RELATIVE,
-    pathDirs,
-    bins,
+    pathDirs: candidates.filter(
+      function directoryExists(
+        _dir,
+        index,
+      ): boolean {
+        return present[index] === true;
+      },
+    ),
+    bins: Object.fromEntries(
+      names.filter(
+        function nameIsLinked(
+          _name,
+          index,
+        ): boolean {
+          return linked[index] === true;
+        },
+      )
+        .map(
+        function linkEntry(name,): readonly [
+          string,
+          string,
+        ] {
+          return [
+            name,
+            join(
+              paths.exposureDir,
+              name,
+            ),
+          ];
+        },
+        ),
+    ),
   };
 }
 
@@ -142,14 +189,17 @@ export function buildBinPathsOutput(
 /**
  Entry point: prints the JSON contract on stdout.
 
- @returns Promise resolved after the JSON is written
+ @example
+ ```ts
+ await main();
+ ```
  */
 export async function main(): Promise<void> {
   try {
     /**
      Contract for the worktree this file lives in.
      */
-    const output = buildBinPathsOutput({
+    const output = await buildBinPathsOutput({
       paths: resolveToolchainPaths(),
       env: process.env,
     },);

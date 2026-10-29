@@ -34,6 +34,10 @@ Read-only commands,
   Any staged entry outside the committed paths that differs is named in a warning,
    so a loss of staged work is reported instead of silent.
   A transaction that an interrupted process left behind is recovered by the next invocation.
+- Hooks.
+  Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
+  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported:
+   any use of them with the wrapper is undefined behavior.
 - Content policies.
   `final-newline`,
    `markdown/autofix`,

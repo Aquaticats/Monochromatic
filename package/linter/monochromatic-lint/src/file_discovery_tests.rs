@@ -128,4 +128,6 @@ fn discovery_errors_are_not_empty_successes() {
     assert_eq!(error.to_string(), error.message);
     assert!(supported_source(Path::new("a.rs")));
     assert!(!supported_source(Path::new("a.RS")));
+    assert!(supported_source(Path::new(".github/workflows/ci.yml")));
+    assert!(!supported_source(Path::new("config/other.yml")));
 }

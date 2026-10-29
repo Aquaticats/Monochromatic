@@ -13,7 +13,7 @@ Derived from [`p-map`](https://github.com/sindresorhus/p-map) by
  released upstream under the [MIT License](LICENSES/MIT.txt).
 Iteration semantics,
  validation rules,
- and error message texts come from `p-map` 7.0.8.
+ and error message texts come from `p-map` 7.1.1.
 Upstream's copyright and permission notice are preserved verbatim in
 `LICENSES/MIT.txt`;
  this fork's own code is licensed `LGPL-3.0-or-later AND MIT`
@@ -67,6 +67,18 @@ run rejects with an `AggregateError` of them once the input is exhausted.
 An input that throws mid-iteration rejects the run with that throw either
 way,
  because an iterable is likely to keep throwing after its first failure.
+The `AggregateError` lists the failures in input order, not in the order they
+happened.
+
+#### Source protocol
+
+Each pull takes its position in the input when the `next()` call is made, so
+a source that settles its calls out of call order still gets the right
+positions.
+Once the source reports `done` it is never pulled again, and anything it
+produces afterwards is dropped, like `for await`.
+A `null` or `undefined` input fails with the same `InvalidInputError` as any
+other wrong input.
 
 #### Abort signal
 
@@ -81,8 +93,13 @@ closes the source.
 `pMapIterable({ iterable, mapper, options })` returns an async iterable that
 streams mapper results in input order under `concurrency` and a
 `backpressure` bound.
-A mapper failure surfaces as a throw from the async iterator, and leaving the
-iteration early (a `break`) stops further pulls and closes the source.
+A mapper failure surfaces as a throw from the async iterator at its own
+position: the results before it are still yielded first.
+Leaving the iteration early (a `break`, or `return()` or `throw()` on the
+iterator) stops further pulls and mapping at once and closes the source.
+When `backpressure` is above `concurrency`, the next element is read while the
+mappers run.
+Skipped results count toward `backpressure` until the consumer steps over them.
 
 ### Deviations from upstream p-map
 
@@ -126,6 +143,16 @@ through `@monochromatic-dev/logger-core` instead of discarding them,
  then
 continues the same way.
 Repository rules forbid silent catch blocks.
+
+#### Not ported from p-map 7.1
+
+`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, and the
+`preserveOrder` option of `pMapIterable` are not part of this fork.
+No package in this repository uses them, and the differential oracle drives
+only `pMap` and `pMapIterable` without them.
+Upstream's link that keeps the caller in the async stack trace of a mapper
+error is not ported either: a trace detail that no result or error message
+depends on.
 
 #### Exports
 

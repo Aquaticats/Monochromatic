@@ -48,12 +48,12 @@ function makePlanDir(
     { recursive: true },
   );
   writeFileSync(
-    join(dir, 'plan.tools.ts',),
+    join(dir, 'plan.tools.data.ts',),
     toolsSource,
     'utf8',
   );
   writeFileSync(
-    join(dir, 'plan.artifacts.ts',),
+    join(dir, 'plan.artifacts.data.ts',),
     artifactsSource,
     'utf8',
   );
@@ -159,7 +159,7 @@ await describe({
         }
         expect(caught,)
           .toBeInstanceOf(Error,);
-        expect((caught as Error).message.includes('plan.tools.ts',),)
+        expect((caught as Error).message.includes('plan.tools.data.ts',),)
           .toBe(true,);
         expect((caught as Error).message.includes('fixture',),)
           .toBe(true,);

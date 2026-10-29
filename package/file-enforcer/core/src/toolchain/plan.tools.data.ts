@@ -6,10 +6,10 @@
  version `mise.lock` carried on 2026-10-26, the install route, the MPM manager
  identity, the exposure bins measured from the Mise-installed trees on that
  date, OS filters, provider options, tool environment exports, and the
- per-platform artifact provenance from `plan.artifacts.ts`.
+ per-platform artifact provenance from `plan.artifacts.data.ts`.
  */
 
-import { artifacts, } from './plan.artifacts.ts';
+import { artifacts, } from './plan.artifacts.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 
 //region Tools
@@ -393,6 +393,32 @@ export const TOOLS: readonly ToolPlanEntry[] = [
           sourceBin: 'cli-git-native',
           linkName: 'git',
           linkDir: '.cache/cli-git-bin',
+        },
+      },
+    },
+    env: {},
+    artifacts: {},
+  },
+  // The postinstall links `search-shadow` as `rg` under `.cache/search-shadow-bin`, a directory that
+  // precedes `.cache/toolchain-bin` on PATH, so every `rg` in the mise environment runs behind the
+  // shadow (doc/planning/agent-search-io-throttle.md). `grep` and `find` are not linked yet:
+  // a postinstall carries one link. Linux only: the crate uses `ioprio_set` and `/proc`.
+  {
+    id: 'cargo:monochromatic-search-shadow',
+    request: { track: 'latest' },
+    version: '0.1.1',
+    route: 'cargo-binstall',
+    manager: 'cargo',
+    packageId: 'monochromatic-search-shadow',
+    bins: ['search-shadow'],
+    os: ['linux'],
+    options: {
+      postinstall: {
+        when: 'always',
+        link: {
+          sourceBin: 'search-shadow',
+          linkName: 'rg',
+          linkDir: '.cache/search-shadow-bin',
         },
       },
     },

@@ -62,7 +62,10 @@ There is no global `mise.lock`;
 - Config stack (declarations and generated records):
  `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/`
  holding `plan.tools.ts`,
- `plan.artifacts.ts`,
+ `plan.artifacts.ts`
+ (renamed `plan.tools.data.ts` and `plan.artifacts.data.ts` on 2026-10-29,
+ matching the `**/*.data.ts` data-module lint exemption;
+ `doc/planning/rust-dependency-catalog.md`),
  `toolchain.lock.json`,
  `mpm.packages.toml`,
  and `mpm.managers.toml`.
@@ -92,7 +95,7 @@ and reusable by every entry point with `--global`.
 
 ## Global plan
 
-- `plan.tools.ts` in the config stack is a TypeScript data module:
+- `plan.tools.ts` (`plan.tools.data.ts` since 2026-10-29) in the config stack is a TypeScript data module:
  comments preserved,
  no imports,
  validated at load into `ToolPlanEntry[]`

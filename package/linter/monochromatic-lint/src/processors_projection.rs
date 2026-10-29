@@ -118,6 +118,10 @@ fn verify(mapping: &Mapping, parent: &Arc<Mapping>, expected: &str) -> Result<()
         Guard::Fence { marker } => crate::processors_fences::fence_text(parent, marker),
         Guard::Docs { anchor } => crate::processors_docs::doc_text(parent, anchor),
         Guard::Prepared => Ok(Some(crate::processors_prepare::prepared_text(parent))),
+        Guard::Step => {
+            return Err(mapping
+                .error("A workflow step unexpectedly requested a fix; its rules carry none."));
+        }
         Guard::Root => {
             return Err(
                 mapping.error("A physical host unexpectedly requested container verification.")

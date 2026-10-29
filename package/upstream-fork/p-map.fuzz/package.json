@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/upstream-fork-p-map.fuzz",
-  "description": "Property-based fuzz campaign for module-p-map-fork: iteration invariants, input totality, and a differential oracle against upstream p-map 7.0.8.",
+  "description": "Property-based fuzz campaign for module-p-map-fork: iteration invariants, input totality, and a differential oracle against upstream p-map 7.1.1.",
   "type": "module",
   "version": "0.0.0",
   "private": true,

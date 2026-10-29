@@ -5,11 +5,9 @@
  */
 
 import type { ExtensionCommandContext, } from '@earendil-works/pi-coding-agent';
-import type { ReadonlyDeep, } from 'type-fest';
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   buildAdvisorSystemPrompt,
-  filterAdvisorScopeByOutputCapacity,
   maxContextCharsForAdvisorModel,
   selectAdvisorModel,
 } from '@monochromatic-dev/agent-harness-shared-advisor/ts';
@@ -54,21 +52,14 @@ export async function buildAdvisorStatus(
     errorPrefix: 'advisor',
   },);
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = filterAdvisorScopeByOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
-  /**
    Empty-context default ranking for status display.
    */
-  const defaultSelection = eligibleScope.entries
+  const defaultSelection = scope.entries
     .length
     === 0
     ? undefined
     : selectAdvisorModel({
-      scope: eligibleScope,
+      scope,
       config,
       estimatedInputTokens: 0,
       modelRegistry: ctx.modelRegistry,
@@ -117,29 +108,12 @@ export async function buildAdvisorStatus(
     `Scoped models: ${
       scope.entries
         .length
-        === 0 ? 'none' : scope
-        .entries
-          .map(function mapEntry(
-            entry: ReadonlyDeep<(typeof scope.entries)[number]>,
-          ) {
-          return entry.canonicalSlug;
-        },)
-          .join(', ',)
+        === 0 ? 'none' : String(scope.entries
+          .length,)
     }`,
-    `Eligible Advisor models (>=${
+    `Advisor request budget: ${
       String(config.maxAdvisorOutputTokens,)
-    } output tokens): ${
-      eligibleScope.entries
-        .length
-        === 0 ? 'none' : eligibleScope
-        .entries
-          .map(function mapEligibleEntry(
-            entry: ReadonlyDeep<(typeof eligibleScope.entries)[number]>,
-          ) {
-          return entry.canonicalSlug;
-        },)
-          .join(', ',)
-    }`,
+    } output tokens, clamped to each route's advertised maximum`,
     `Default model: ${defaultSelection?.selected
       .canonicalSlug
       ?? 'none'}`,

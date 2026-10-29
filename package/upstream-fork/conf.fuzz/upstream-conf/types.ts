@@ -1,5 +1,5 @@
 // @ts-nocheck -- Vendored upstream conf snapshot (commit 83e267178f), type-checked under upstream's own tsconfig; see README.md in this directory.
-import type {JSONSchema as TypedJSONSchema} from 'json-schema-typed';
+import {type JSONSchema as TypedJSONSchema} from 'json-schema-typed';
 // eslint-disable unicorn/import-index
 import type {Options as AjvOptions_} from 'ajv';
 import type Conf from './index.js';
@@ -12,7 +12,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	**Note:** The values in `defaults` will overwrite the `default` key in the `schema` option.
 	*/
-  defaults?: Readonly<T>;
+	defaults?: Readonly<T>;
 
 	/**
 	[JSON Schema](https://json-schema.org) to validate your config data.
@@ -76,7 +76,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	Without the annotation, TypeScript cannot tell the value types from the schema, so `get()` returns `unknown`. If you also pass `defaults`, the schema still wins the inference, so a key that is only in `defaults` is an error.
 	*/
-  schema?: Schema<T>;
+	schema?: Schema<T>;
 
 	/**
 	Root-level [JSON Schema keywords](https://json-schema.org/understanding-json-schema/reference) for the schema, such as `additionalProperties` or `patternProperties`. This is useful when you do not know the key names in advance.
@@ -115,7 +115,7 @@ export type Options<T extends Record<string, unknown>> = {
 	});
 	```
 	*/
-  rootSchema?: Omit<TypedJSONSchema, 'properties'>;
+	rootSchema?: Omit<TypedJSONSchema, 'properties'>;
 
 	/**
 	[Options passed to AJV](https://ajv.js.org/options.html).
@@ -140,7 +140,7 @@ export type Options<T extends Record<string, unknown>> = {
 	});
 	```
 	*/
-  ajvOptions?: AjvOptions;
+	ajvOptions?: AjvOptions;
 
 	/**
 	Name of the config file (without extension).
@@ -149,7 +149,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default 'config'
 	*/
-  configName?: string;
+	configName?: string;
 
 	/**
 	__Required unless you specify the `cwd` option.__
@@ -164,14 +164,14 @@ export type Options<T extends Record<string, unknown>> = {
 	const config = new Conf({projectName: packageJson.name});
 	```
 	*/
-  projectName?: string;
+	projectName?: string;
 
 	/**
 	__Required if you specify the `migrations` option.__
 
 	You can fetch the `version` field from package.json.
 	*/
-  projectVersion?: string;
+	projectVersion?: string;
 
 	/**
 	**Important: I cannot provide support for this feature. It has some known bugs. I have no plans to work on it, but pull requests are welcome.**
@@ -211,7 +211,7 @@ export type Options<T extends Record<string, unknown>> = {
 	});
 	```
 	*/
-  migrations?: Migrations<T>;
+	migrations?: Migrations<T>;
 
 	/**
 	The given callback function will be called before each migration step.
@@ -258,7 +258,7 @@ export type Options<T extends Record<string, unknown>> = {
 	});
 	```
 	*/
-  beforeEachMigration?: BeforeEachMigrationCallback<T>;
+	beforeEachMigration?: BeforeEachMigrationCallback<T>;
 
 	/**
 	__You most likely don't need this. Please don't use it unless you really have to. By default, it will pick the optimal location by adhering to system conventions. You are very likely to get this wrong and annoy users.__
@@ -271,7 +271,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	The only use-case I can think of is having the config located in the app directory or on some external storage.
 	*/
-  cwd?: string;
+	cwd?: string;
 
 	/**
 	Note that this is __not intended for security purposes__, since the encryption key would be easily found inside a plain-text Node.js app.
@@ -284,7 +284,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default undefined
 	*/
-  encryptionKey?: string | Uint8Array | NodeJS.TypedArray | DataView;
+	encryptionKey?: string | Uint8Array | NodeJS.TypedArray | DataView;
 
 	/**
 	Encryption algorithm to use when `encryptionKey` is set.
@@ -297,7 +297,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default 'aes-256-cbc'
 	*/
-  encryptionAlgorithm?: 'aes-256-cbc' | 'aes-256-gcm' | 'aes-256-ctr';
+	encryptionAlgorithm?: 'aes-256-cbc' | 'aes-256-gcm' | 'aes-256-ctr';
 
 	/**
 	Extension of the config file.
@@ -306,14 +306,14 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default 'json'
 	*/
-  fileExtension?: string;
+	fileExtension?: string;
 
 	/**
 	The config is cleared if reading the config file causes a `SyntaxError` (malformed JSON), a schema validation error when using the `schema` option, or a decryption failure when using `encryptionKey`. This is a good behavior for unimportant data, as the config file is not intended to be hand-edited, so it usually means the config is corrupt and there's nothing the user can do about it anyway. However, if you let the user edit the config file directly, mistakes might happen and it could be more useful to throw an error when the config is invalid instead of clearing.
 
 	@default false
 	*/
-  clearInvalidConfig?: boolean;
+	clearInvalidConfig?: boolean;
 
 	/**
 	Function to serialize the config object to a UTF-8 string when writing the config file.
@@ -322,7 +322,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default value => JSON.stringify(value, null, '\t')
 	*/
-  readonly serialize?: Serialize<T>;
+	readonly serialize?: Serialize<T>;
 
 	/**
 	Function to deserialize the config object from a UTF-8 string when reading the config file.
@@ -331,7 +331,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default JSON.parse
 	*/
-  readonly deserialize?: Deserialize<T>;
+	readonly deserialize?: Deserialize<T>;
 
 	/**
 	__You most likely don't need this. Please don't use it unless you really have to.__
@@ -344,7 +344,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default 'nodejs'
 	*/
-  readonly projectSuffix?: string;
+	readonly projectSuffix?: string;
 
 	/**
 	Accessing nested properties by dot notation. For example:
@@ -389,14 +389,14 @@ export type Options<T extends Record<string, unknown>> = {
 	```
 
 	*/
-  readonly accessPropertiesByDotNotation?: boolean;
+	readonly accessPropertiesByDotNotation?: boolean;
 
 	/**
 	Watch for any changes in the config file and call the callback for `onDidChange` or `onDidAnyChange` if set. This is useful if there are multiple processes changing the same config file.
 
 	@default false
 	*/
-  readonly watch?: boolean;
+	readonly watch?: boolean;
 
 	/**
 	Keep the store in memory, so reading a value does not read and parse the config file each time. This makes reads much faster, in particular when the config file is large.
@@ -407,7 +407,7 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default false
 	*/
-  readonly cache?: boolean;
+	readonly cache?: boolean;
 
 	/**
 	The [mode](https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation) used when creating the config file.
@@ -420,21 +420,18 @@ export type Options<T extends Record<string, unknown>> = {
 
 	@default 0o666
 	*/
-  readonly configFileMode?: number;
+	readonly configFileMode?: number;
 };
 
 export type Migrations<T extends Record<string, unknown>> = Record<string, (store: Conf<T>) => void>;
 
 export type BeforeEachMigrationContext = {
-  fromVersion: string;
-  toVersion: string;
-  finalVersion: string;
-  versions: string[];
+	fromVersion: string;
+	toVersion: string;
+	finalVersion: string;
+	versions: string[];
 };
-export type BeforeEachMigrationCallback<T extends Record<string, unknown>> = (
-  store: Conf<T>,
-  context: BeforeEachMigrationContext
-) => void;
+export type BeforeEachMigrationCallback<T extends Record<string, unknown>> = (store: Conf<T>, context: BeforeEachMigrationContext) => void;
 
 export type Schema<T> = {[Property in keyof T]: ValueSchema};
 export type ValueSchema = TypedJSONSchema;
@@ -442,57 +439,51 @@ export type ValueSchema = TypedJSONSchema;
 export type Serialize<T> = (value: T) => string;
 export type Deserialize<T> = (text: string) => T;
 
-export type OnDidChangeCallback<T> = (
-  newValue?: T,
-  oldValue?: T
-) => void;
-export type OnDidAnyChangeCallback<T> = (
-  newValue: Readonly<T>,
-  oldValue?: Readonly<T>
-) => void;
+export type OnDidChangeCallback<T> = (newValue?: T, oldValue?: T) => void;
+export type OnDidAnyChangeCallback<T> = (newValue: Readonly<T>, oldValue?: Readonly<T>) => void;
 
 export type Unsubscribe = () => void;
 
 export type DotNotationKeyOf<T extends Record<string, unknown>> = {
-  [K in keyof Required<T>]: K extends string
-    ? Required<T>[K] extends Record<string, unknown>
-      ? K | `${K}.${DotNotationKeyOf<Required<T>[K]>}`
-      : K
-    : never
+	[K in keyof Required<T>]: K extends string
+		? Required<T>[K] extends Record<string, unknown>
+			? K | `${K}.${DotNotationKeyOf<Required<T>[K]>}`
+			: K
+		: never
 }[keyof T];
 
 export type DotNotationValueOf<T extends Record<string, unknown>, K extends DotNotationKeyOf<T>> =
-  K extends `${infer Head}.${infer Tail}`
-    ? Head extends keyof T
-      ? T[Head] extends Record<string, unknown>
-        ? Tail extends DotNotationKeyOf<T[Head]>
+	K extends `${infer Head}.${infer Tail}`
+		? Head extends keyof T
+			? T[Head] extends Record<string, unknown>
+				? Tail extends DotNotationKeyOf<T[Head]>
 					// Type of objects for required properties
-          ? DotNotationValueOf<T[Head], Tail>
-          : never
-        : Required<T>[Head] extends Record<string, unknown>
-          ? Tail extends DotNotationKeyOf<Required<T>[Head]>
+					? DotNotationValueOf<T[Head], Tail>
+					: never
+				: Required<T>[Head] extends Record<string, unknown>
+					? Tail extends DotNotationKeyOf<Required<T>[Head]>
 						// Type of objects for optional properties
-            ? DotNotationValueOf<Required<T>[Head], Tail> | undefined
-            : never
-          : never
-      : never
-    : K extends keyof T
-      ? T[K]
-      : never;
+						? DotNotationValueOf<Required<T>[Head], Tail> | undefined
+						: never
+					: never
+			: never
+		: K extends keyof T
+			? T[K]
+			: never;
 
 type ImmutablePrimitives = Date | RegExp | URL | Error;
 
 export type PartialObjectDeep<T> =
-  T extends ImmutablePrimitives
-    ? T
-    : T extends Map<infer K, infer V>
-      ? Map<PartialObjectDeep<K>, PartialObjectDeep<V>>
-      : T extends Set<infer U>
-        ? Set<PartialObjectDeep<U>>
-        : T extends (infer U)[]
-          ? PartialObjectDeep<U>[]
-          : T extends (...args: unknown[]) => unknown
-            ? T
-            : T extends Record<string, unknown>
-              ? {[K in keyof T]?: PartialObjectDeep<T[K]>}
-              : T;
+	T extends ImmutablePrimitives
+		? T
+		: T extends Map<infer K, infer V>
+			? Map<PartialObjectDeep<K>, PartialObjectDeep<V>>
+			: T extends Set<infer U>
+				? Set<PartialObjectDeep<U>>
+				: T extends Array<infer U>
+					? Array<PartialObjectDeep<U>>
+					: T extends (...args: unknown[]) => unknown
+						? T
+						: T extends Record<string, unknown>
+							? {[K in keyof T]?: PartialObjectDeep<T[K]>}
+							: T;

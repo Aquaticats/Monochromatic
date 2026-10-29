@@ -140,6 +140,8 @@ export async function runIterableWorkload(
               throw failureFor(spec.id,);
             if (spec.behavior === 'skip')
               return adapter.skip;
+            if (spec.behavior === 'stop')
+              return adapter.stop;
 
             backlog.resolved += 1;
             backlog.maxObserved = Math.max(
@@ -152,6 +154,7 @@ export async function runIterableWorkload(
         concurrency: workload.concurrency,
         stopOnError: workload.stopOnError,
         backpressure: workload.backpressure,
+        preserveOrder: workload.preserveOrder,
       })) {
         yielded.push(caughtValueText(value,),);
         backlog.collected += 1;

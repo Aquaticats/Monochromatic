@@ -8,7 +8,6 @@
  */
 
 import {
-  type CacheStorage,
   NonMethodDecorationError,
   NotMemoizedError,
   pMemoize,
@@ -19,6 +18,13 @@ import {
 } from '@monochromatic-dev/upstream-fork-p-memoize/ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
+import {
+  alwaysHitCache,
+  asyncClearCache,
+  cacheLog,
+  recordingCache,
+} from './coverage-caches.ts';
+
 //region Fixtures
 
 /**
@@ -27,16 +33,6 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 const counterState = {
   index: 0,
 };
-
-/**
- Records cache method calls in order.
- */
-const cacheLog: string[] = [];
-
-/**
- Backing store behind the recording cache.
- */
-const cacheEntries = new Map<string, number>();
 
 /**
  Initializers registered by the decorator context double.
@@ -157,64 +153,6 @@ function allow(_value: number,): Promise<boolean> {
 }
 
 /**
- Async cache storage recording `has`, `get`, `set`, `delete`, and `clear`.
- */
-const recordingCache: CacheStorage<string, number> & {
-  readonly clear: () => unknown;
-} = {
-  has: function has(key: string,): Promise<boolean> {
-    cacheLog.push(`has ${key}`,);
-    return Promise.resolve(cacheEntries.has(key,),);
-  },
-  // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- mirrors `CacheStorage.get` documented cache-miss `undefined` value
-  get: function get(key: string,): Promise<number | undefined> {
-    cacheLog.push(`get ${key}`,);
-    return Promise.resolve(cacheEntries.get(key,),);
-  },
-  set: function set(
-    key: string,
-    value: number,
-  ): Promise<void> {
-    cacheLog.push(`set ${key}`,);
-    cacheEntries.set(
-      key,
-      value,
-    );
-    return Promise.resolve();
-  },
-  delete: function remove(key: string,): boolean {
-    cacheLog.push(`delete ${key}`,);
-    return cacheEntries.delete(key,);
-  },
-  clear: function clear(): void {
-    cacheLog.push('clear',);
-    cacheEntries.clear();
-  },
-};
-
-/**
- Cache reporting every key present while reading `undefined`, exercising
- the has-hit get-miss path.
- */
-const alwaysHitCache: CacheStorage<string, number> = {
-  has: function has(_key: string,): boolean {
-    return true;
-  },
-  get: function get(_key: string,): undefined {
-    return undefined;
-  },
-  set: function set(
-    _key: string,
-    _value: number,
-  ): void {
-    cacheLog.push('set unexpected',);
-  },
-  delete: function remove(_key: string,): boolean {
-    return false;
-  },
-};
-
-/**
  Synthetic method context the decorator receives.
  */
 const methodContext = {
@@ -258,13 +196,12 @@ type DecoratedInstance = {
 };
 
 /**
- Placeholder memoized method the decorator initializer replaces.
- 
- @returns Resolved `-1` sentinel.
+ Prototype holding the decorated method where the decorator looks for it,
+ as a class's prototype would.
  */
-function uncinstalled(): Promise<number> {
-  return Promise.resolve(-1,);
-}
+const decoratedPrototype = {
+  counter: decoratedMethod,
+};
 
 /**
  Wrapped function for the WeakMap fixture.
@@ -456,7 +393,7 @@ async function runDriver(): Promise<void> {
 
   /**
    Memoized function with caching disabled whose wrapped call throws
-   synchronously, exercising the retained in-flight replay.
+   synchronously, exercising the disabled-cache yield before the call.
    */
   const uncachedThrower = pMemoize({
     fn: syncThrower,
@@ -492,8 +429,22 @@ async function runDriver(): Promise<void> {
     pMemoizeClear(weak,);
   },);
 
-  // pMemoizeClear paths: success, disabled cache, unknown function.
+  // pMemoizeClear paths: success, asynchronous clear, disabled cache, unknown
+  // function.
   pMemoizeClear(cached,);
+  /**
+   Memoized function over a cache whose `clear` returns a promise.
+   */
+  const asyncCleared = pMemoize({
+    fn: counter,
+    options: {
+      cache: asyncClearCache,
+    },
+  },);
+  await asyncCleared({
+    args: ['z'],
+  },);
+  pMemoizeClear(asyncCleared,);
   captureThrow(function clearDisabled(): void {
     pMemoizeClear(pMemoize({
       fn: counter,
@@ -524,10 +475,13 @@ async function runDriver(): Promise<void> {
   /**
    Instance whose counter the memoized method bumps.
    */
-  const instance: DecoratedInstance = {
-    index: 0,
-    counter: uncinstalled,
-  };
+  // oxlint-disable-next-line typescript/no-unsafe-assignment -- `Object.create` is typed `any`; the prototype chain is what the decorator inspects
+  const instance: DecoratedInstance = Object.assign(
+    Object.create(decoratedPrototype,),
+    {
+      index: 0,
+    },
+  );
   for (const initialize of initializers)
     initialize.call(instance,);
   await instance.counter({

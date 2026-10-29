@@ -104,7 +104,7 @@ await describe({
   name: 'bin-paths contract',
   children: [
     describe({
-      name: 'buildBinPathsOutput',
+      name: buildBinPathsOutput.name,
       children: [
         it({
           name: 'returns the pinned shape with empty maps when unprovisioned',
@@ -116,9 +116,9 @@ await describe({
             /**
              Output for the fixture.
              */
-            const output = buildBinPathsOutput({
+            const output = await buildBinPathsOutput({
               paths: fixture.paths,
-              env: fixture.env as NodeJS.ProcessEnv,
+              env: fixture.env,
             },);
             expect(output.exposureDir,)
               .toBe('.cache/toolchain-bin',);
@@ -155,12 +155,12 @@ await describe({
             /**
              Output for the fixture.
              */
-            const output = buildBinPathsOutput({
+            const output = await buildBinPathsOutput({
               paths: fixture.paths,
-              env: fixture.env as NodeJS.ProcessEnv,
+              env: fixture.env,
             },);
             expect(Object.keys(output.bins,)
-              .sort(),)
+              .toSorted(),)
               .toEqual(['taplo'],);
             expect(output.bins.taplo,)
               .toBe(join(
@@ -179,10 +179,10 @@ await describe({
              */
             const fixture = fixtureWorktree();
             expect(
-              buildBinPathsOutput({
+              (await buildBinPathsOutput({
                 paths: fixture.paths,
-                env: fixture.env as NodeJS.ProcessEnv,
-              },)
+                env: fixture.env,
+              },))
                 .pathDirs,
             )
               .toEqual([fixture.paths.exposureDir],);
@@ -212,13 +212,14 @@ await describe({
              Fixture for the collision check.
              */
             const fixture = fixtureWorktree();
-            expect(
-              () => buildBinPathsOutput({
+            await expect(
+              buildBinPathsOutput({
                 paths: fixture.paths,
-                env: fixture.env as NodeJS.ProcessEnv,
+                env: fixture.env,
                 entries: duplicate,
               },),
             )
+              .rejects
               .toThrow();
           },
         },),

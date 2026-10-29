@@ -34,10 +34,27 @@ Upstream `conf` is MIT,
    its type-only import specifier `./types.js` reads `./types.ts` so Node's
    type stripping can resolve it (the import statement is retained at
    runtime even though every binding is a type).
-   Nothing else differs from upstream bytes.
+   Apart from the added first line described below, nothing else differs from upstream bytes.
 - `types.ts`:
    upstream `source/types.ts`,
    byte-for-byte.
+
+Both files also carry one added first line, a `// @ts-nocheck` comment,
+ because upstream type-checks them under its own tsconfig rather than this repository's.
+
+## Do not reformat or autofix
+
+These files must stay byte-for-byte upstream (plus the two edits above).
+ A repository-wide autofix pass (commit `3da31bdc3a`, the `no-restricted-syntax/no-arrow-function` fixer)
+ once rewrote the arrow function `set` inside `Conf#set` into a function declaration,
+ which loses the lexical `this`,
+ so every `appendToArray` and nested `set` call threw
+ `Cannot read properties of undefined (reading '#options')`
+ and the differential test failed.
+ To restore them,
+ fetch `source/index.ts` and `source/types.ts` at commit `83e267178fb6d19e6447eb3ac3ed0ce5ea1258a0`
+ with `gh api repos/sindresorhus/conf/contents/<path>?ref=<commit>`
+ and reapply the edits above.
 
 Runtime dependencies (`ajv`,
  `ajv-formats`,

@@ -320,7 +320,7 @@ fn an_unknown_rule_is_reported_with_a_hint() {
             .help
             .as_deref()
             .expect("help")
-            .contains("Did you mean \"rust/max-lines\"?")
+            .contains("Did you mean \"rust/max-lines\" or \"shell/max-lines\"?")
     );
     assert!(
         found[1]
