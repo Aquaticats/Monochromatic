@@ -490,3 +490,7 @@ fn unknown_root(work: &Path) {
         other => panic!("expected a failure, got {other:?}"),
     }
 }
+
+/// Content already in a parent commit's tree is not scanned again.
+#[path = "policy_forbidden_strings_known_content_tests.rs"]
+mod known_content;

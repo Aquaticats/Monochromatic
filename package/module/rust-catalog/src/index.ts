@@ -13,6 +13,11 @@
  */
 
 export { RustCatalogError, } from './errors.ts';
+export {
+  isRegistryPackage,
+  type LockedPackage,
+  parseCargoLock,
+} from './lockfile.ts';
 export { parseRustCatalog, } from './parse.ts';
 export {
   readRustCatalog,
