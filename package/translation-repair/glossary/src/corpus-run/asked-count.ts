@@ -39,7 +39,7 @@ const AT_LEAST = 1;
 /**
  Reads how many units a run was asked for.
 
- @param line - the bench's command line, read whole by `reportingRefusals`,
+ @param line - bench's command line, read whole by `reportingRefusals`,
  whose first position is the count; passed in so this is testable without a
  subprocess
 

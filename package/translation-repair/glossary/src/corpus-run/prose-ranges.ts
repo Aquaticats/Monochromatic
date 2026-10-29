@@ -306,7 +306,7 @@ function inlineCodeSpans(
 
  @param at - offset just past the opening mark
 
- @param quote - the opening mark
+ @param quote - opening mark
 
  @returns Whether the same mark stands again before the next line break
 

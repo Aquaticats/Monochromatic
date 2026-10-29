@@ -17,7 +17,7 @@ import { statedRefusalMessage, } from '../stated-refusal-message.test-fixture.ts
 
  @param cap - cap as typed
 
- @returns The refusal's sentence
+ @returns Refusal's sentence
 
  @example
  ```ts
@@ -36,7 +36,7 @@ export function capNotDigits({ cap, }: { readonly cap: string; },): string {
 
  @param askedFrom - reads a probe's arguments off the command line carrying what was typed, thrown on a refusal
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @throws Error when `askedFrom` threw something other than a stated refusal
 

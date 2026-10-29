@@ -116,7 +116,7 @@ function isBlank({ character, }: { readonly character: string; },): boolean {
 
  @param index - position of the straight double quote
 
- @returns The curly mark it stands for, or `unread`
+ @returns Curly mark it stands for, or `unread`
 
  @example
  ```ts

@@ -83,7 +83,7 @@ const COMMENT_CLOSE = '-->';
 
  @param text - passage to strip
 
- @returns The passage without its comments
+ @returns Passage without its comments
 
  @example
  ```ts
@@ -218,9 +218,9 @@ type SwitchedBlock = {
 
  @param original - block of the original, comments already cut
 
- @param rendering - the rendering's block in the same place
+ @param rendering - rendering's block in the same place
 
- @returns The switch, or none where the block addresses nobody, the rendering
+ @returns Switch, or none where the block addresses nobody, the rendering
  keeps a second-person pronoun, or its third-person pronouns do not outnumber
  the original's own
 

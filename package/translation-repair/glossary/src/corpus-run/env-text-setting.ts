@@ -14,7 +14,7 @@
 
  @param fallback - value when the variable says nothing
 
- @returns The variable's text, or the fallback
+ @returns Variable's text, or the fallback
 
  @example
  ```ts

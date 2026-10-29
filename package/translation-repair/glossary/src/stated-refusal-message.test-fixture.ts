@@ -14,7 +14,7 @@ import { StatedRefusalError, } from '../dist/final/node/index.mjs';
 
  @param read - read that must refuse
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @throws Error when the read threw something other than a stated refusal
 
