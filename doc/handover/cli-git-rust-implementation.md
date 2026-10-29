@@ -3437,7 +3437,9 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   unnecessary here (each returns early without a `lockable` attribute, and no tracked `.gitattributes` has one). The set of
   hooks that cannot be handled natively is empty, so no shim support, recognition or doctor category was added (user
   clarification).
-- Design: `lfs_pre_push.rs`. For a real push in a repository whose config has a `filter.lfs.*` or `lfs.*` key, the wrapper
+- Design: `lfs_pre_push.rs`. For a real push in a repository whose own config (local, worktree or command scope; the
+  global file does not count, so a global `git lfs install` does not make every repository an LFS repository) has a
+  `filter.lfs.*` or `lfs.*` key, the wrapper
   adds `-c hook.cli-git-lfs-pre-push.event=pre-push -c hook.cli-git-lfs-pre-push.command='<own exe>' cli-git lfs-pre-push`
   to the real `git push` it starts; Git supplies the arguments and the ref-update lines; the entry runs
   `git-lfs pre-push` and explains a failure. Covered: forwarded push (`entry.rs` `stack_if_push`), the stacked first push
