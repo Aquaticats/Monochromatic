@@ -62,22 +62,29 @@ this project signs under a registered organization rather than an individual (se
 ## Verification
 
 Tool under test:
- `osslsigncode` 2.9 (Fedora 41 package,
- in this repo's
-`package/music-player/desktop-app/Containerfile.sign`),
- built against OpenSSL 3.2.
+ `osslsigncode` 2.14 (the latest upstream release on 2026-10-29,
+ compiled from source by the build stage of this repo's
+`package/music-player/desktop-app/Containerfile.sign` on CachyOS),
+ built against OpenSSL 3.6.5.
+ The first verification, on 2026-10-14, used osslsigncode 2.9 from the Fedora 41 package with OpenSSL 3.2;
+ neither the Arch nor the CachyOS repositories package the tool.
  Its `sign` usage confirms both
-the legacy `.pfx` path and the PKCS#11 path:
+the legacy `.pfx` path and the PKCS#11 path (`-pkcs11module` and `-pkcs11cert` still exist;
+ the 2.9 option `-pkcs11engine` is now `-engine`, and `-provider` was added):
 
 ```text
-[ sign ] ( -pkcs12 <pkcs12file>
-            | ( -certs <certfile> | -spc <certfile> ) -key <keyfile>
-            | [ -pkcs11engine <engine> ] [ -login ] -pkcs11module <module>
-              ( -pkcs11cert <pkcs11 cert id> | -certs <certfile> ) -key <pkcs11 key id> )
+[ sign ] -pkcs12 <file> | ( [ -certs <file|URI> | -spc <file> ]
+            ( -key <file|URI> [ -pkcs11module <module> ] [ -pkcs11cert <pkcs11 cert URI> ] )
+            [ -provider <provider> | ( -engine <engine> [ -login ] [ -engineCtrl <command[:parameter]> ] ) ] )
           ...
-          [ -ts <timestampurl> [ -ts ... ] ]
-          [ -in ] <infile> [ -out ] <outfile>
+          [ -ts <timestampurl> [ -ts ... ] [ -p <proxy> ] [ -noverifypeer ] ]
+          [ -in ] <file> [-out ] <file>
 ```
+
+The `sign:windows` task was run on 2026-10-29 with the throwaway self-signed `.pfx` path
+ on a 19-section PE executable built with the Windows GNU cross compiler of this repository;
+ it ended with `Signature verification: ok`, `Number of verified signatures: 1` and `Succeeded`.
+ The PKCS#11 path was not exercised, because it needs a real certificate and the CA's module.
 
 What still works:
 
