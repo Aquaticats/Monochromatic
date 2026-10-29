@@ -39,8 +39,8 @@ fixture's `bin` directory. The discard controls use `run_commit` and `stub_manua
 
 `forwarding::exit_codes_and_stderr_match_native_git` failed once in a mutation baseline (`native:mutation:scoped`,
 `--file src/native/command_push.rs`; log `~/temp/agent/mutpar-w4-command_push.log.2`, run of 2568 tests in the
-2 CPU, 2 GiB container while the host load average was above 35) with `the command hit the 5-second bound` at
-`binary_support.rs:233` after 5.628 s.
+2 CPU, 2 GiB container on a loaded host whose load average that log does not record)
+with `the command hit the 5-second bound` at `binary_support.rs:233` after 5.628 s.
 The same log shows the two sibling tests of that module started just before it taking 1.10 s
 (`argument_bytes_reach_git_unchanged`) and 2.25 s (`environment_overlay_reaches_git`), against 0.05 s each on the host
 when alone: the whole container was 20 to 50 times slower at that moment, not one command.
@@ -67,12 +67,12 @@ when alone: the whole container was 20 to 50 times slower at that moment, not on
 
 No mechanism that makes one of the 12 commands slow was found, and none is claimed.
 A command that normally takes 4 ms needs a stall of more than 1000 times that to reach 5 s; the measurements above show
-no work in these commands that can wait on its own (no sync call, sleep, lock or stdin read), so the stall happened in
-the container or host under the command (CPU quota, memory pressure or disk reads of an evicted executable are
-candidates, none verified).
+no work in these commands that can wait on its own (no sync call, sleep or lock in the traced calls; the test sends
+empty, closed standard input), so the stall most likely came from the container or host under the command
+(CPU quota, memory pressure or disk reads of an evicted executable are candidates, none verified).
 The test is left on the shared bound: moving it to the commit bound would hide a real forwarding loop, which is what
-the short bound is for, and making the wrapper faster has nothing to act on, since the wrapper adds one `rev-parse` and
-no syscall that waits.
+the short bound is for, and making the wrapper faster has nothing to act on, since the wrapper adds one `rev-parse`
+and none of the traced waiting calls.
 
 ### What changed
 
