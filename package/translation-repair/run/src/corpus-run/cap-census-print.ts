@@ -22,7 +22,7 @@ const PERCENT = 100;
 
  @example
  ```ts
- const tally: CapCensusTally = { logs: 3, passRunLogs: 1, samples: 40, unreadable: 0, unstampedLines: 2, };
+ const tally: CapCensusTally = { logs: 3, passRunLogs: 1, samples: 40, unreadable: 0, danglingLinks: 0, unstampedLines: 2, };
  ```
  */
 export type CapCensusTally = {
@@ -45,6 +45,11 @@ export type CapCensusTally = {
    Paths the walk could not read.
    */
   readonly unreadable: number;
+
+  /**
+   Dangling links the walk passed over for a name no log has, which hold nothing to read.
+   */
+  readonly danglingLinks: number;
 
   /**
    Lines left out for a stamp the logger did not write.
@@ -152,7 +157,14 @@ export function printCapCensus(
           one: 'path',
           many: 'paths',
         },)
-      } unreadable; `
+      } unreadable, `
+      + `${String(tally.danglingLinks,)} dangling ${
+        wordForCount({
+          count: tally.danglingLinks,
+          one: 'link',
+          many: 'links',
+        },)
+      } with no log name passed over; `
       + `lines left out for a stamp the logger did not write: ${String(tally.unstampedLines,)}`,
   );
   for (const row of census.rows) {
