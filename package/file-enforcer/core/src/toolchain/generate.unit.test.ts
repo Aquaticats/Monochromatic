@@ -8,17 +8,17 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  renderToolchainLockJson,
-  toolchainLockFromTools,
-} from './lock.ts';
-import {
+  ALL_TOOLS,
+  renderArtifacts,
   renderMpmManagersToml,
   renderMpmPackagesToml,
+  renderToolchainLockJson,
   tomlKey,
   tomlString,
-} from './mpm-manifest.ts';
-import { renderArtifacts, } from './generate.ts';
-import { ALL_TOOLS, TOOLS, toolById, } from './plan.ts';
+  toolById,
+  toolchainLockFromTools,
+  TOOLS,
+} from '../../dist/final/node/index.mjs';
 
 /**
  Whether a declaration key carries `@version` pin syntax: an `@` right before an optional `v` and a digit.

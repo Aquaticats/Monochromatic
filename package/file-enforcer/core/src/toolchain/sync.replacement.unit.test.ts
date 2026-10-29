@@ -7,8 +7,10 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { NOT_INSTALLED, } from './status.observe.ts';
-import { replacementWarning, } from './sync.ts';
+import {
+  NOT_INSTALLED,
+  replacementWarning,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: replacementWarning.name,

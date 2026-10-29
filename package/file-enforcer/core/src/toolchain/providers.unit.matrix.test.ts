@@ -33,26 +33,23 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { run, sha256File, } from './exec.ts';
 import {
-  rebuildExposure,
-  runPostinstallCommands,
-  runPostinstallLinks,
-} from './exposure.ts';
-import { hostPlatformId, } from './layout.ts';
-import {
-  resolveToolchainPaths,
-  toolInstallDir,
-  type ToolchainPaths,
-} from './paths.ts';
-import { BIN_BOOTSTRAP, } from './plan.ts';
-import {
+  BIN_BOOTSTRAP,
+  hostPlatformId,
   installArchive,
   installBinSourced,
   installCargoBinstall,
   type ProviderContext,
-} from './providers.ts';
-import type { ToolPlanEntry, } from './types.ts';
+  rebuildExposure,
+  resolveToolchainPaths,
+  run,
+  runPostinstallCommands,
+  runPostinstallLinks,
+  sha256File,
+  type ToolchainPaths,
+  toolInstallDir,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 

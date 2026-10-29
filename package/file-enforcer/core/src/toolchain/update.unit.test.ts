@@ -14,24 +14,20 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import type { ToolArtifacts, } from './plan.artifacts.data.ts';
-import type { ToolPlanEntry, } from './types.ts';
-import {
-  mapGithubRows,
-  parseShasums,
-  versionFromTag,
-  type Fetcher,
-} from './update.resolvers.ts';
-import {
-  patchPlanVersions,
-  renderPlanArtifactsTs,
-} from './update.render.ts';
 import {
   applyResolutions,
+  type Fetcher,
   formatReport,
+  mapGithubRows,
+  parseShasums,
+  patchPlanVersions,
+  renderPlanArtifactsTs,
   resolveAll,
+  type ToolArtifacts,
+  type ToolPlanEntry,
   type UpdateOutcome,
-} from './update.ts';
+  versionFromTag,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 

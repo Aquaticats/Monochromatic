@@ -13,9 +13,8 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import type { ToolArtifacts, } from './plan.artifacts.data.ts';
-import type { ToolPlanEntry, } from './types.ts';
 import {
+  type Fetcher,
   mapGithubRows,
   resolveGoModule,
   resolveGoRuntime,
@@ -23,8 +22,9 @@ import {
   resolveRust,
   resolveRustup,
   resolveZigLatest,
-  type Fetcher,
-} from './update.resolvers.ts';
+  type ToolArtifacts,
+  type ToolPlanEntry,
+} from '../../dist/final/node/index.mjs';
 
 //region Fixtures
 

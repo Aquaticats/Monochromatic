@@ -16,21 +16,18 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  ALL_TOOLS,
+  appliesToHost,
+  normalizeVersion,
   parseBinList,
   parseCargoBinstallList,
-  ReleaseTagUrlError,
   releaseTagUrl,
+  ReleaseTagUrlError,
   seedBinConfig,
-} from './providers.ts';
-import {
-  normalizeVersion,
-  versionMatches,
-} from './status.ts';
-import {
-  appliesToHost,
   syncOrder,
-} from './sync.ts';
-import { ALL_TOOLS, toolById, } from './plan.ts';
+  toolById,
+  versionMatches,
+} from '../../dist/final/node/index.mjs';
 
 await describe({
   name: 'sync and status helpers',
