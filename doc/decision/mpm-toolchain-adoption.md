@@ -281,46 +281,73 @@ The maintainer extended this decision to the machine-global toolchain
 
 ## Pruning the repository's own crates (2026-10-29)
 
-The maintainer decided that for anything provisioned that originates from the repository itself,
+The maintainer decided that for anything provisioned through mpm that originates from the repository itself,
  meaning a package this repository owns,
  stale versions are deleted immediately after a new version is provisioned.
 This settles the "pruning is a later decision" note for those packages only;
  third-party tools and the old Mise installs stay parked as the rollback.
+The maintainer then chose a shadow of `mpm` written in Rust with clap,
+ following the `git` wrapper precedent,
+ as the single owner of the rule,
+ and removed the TypeScript prune from `toolchain:sync`.
 
+- Owner:
+ the crate `monochromatic-mpm-shadow` (`package/mpm-shadow/cli`, binary `mpm-shadow`).
+ The artifact is deliberately not named `mpm`;
+ the toolchain plan links it as `mpm` into a gitignored directory that comes first on PATH,
+ the way `cli-git-native` is linked as `git`.
+ Started as `mpm` it finds the real `mpm` (skipping every candidate that resolves to itself),
+ runs it as a child with the arguments and streams untouched,
+ prunes,
+ and exits with mpm's status.
+ `toolchain:sync` no longer prunes.
+ A crate installed by `cargo binstall` through the sync alone is therefore not pruned until the next `mpm` run.
 - Scope:
- plan entries on the `cargo-binstall` route whose crate name starts with `monochromatic-`
- (`monochromatic-lint`, `monochromatic-git-policy-cli`, `monochromatic-search-shadow`,
- `monochromatic-nested-wayland-session`).
- Both the repository and the machine-global scope apply it,
- because they share one cargo home.
+ every crate whose name starts with `monochromatic-` found in cargo's registry,
+ whether or not the tool plan lists it.
 - What is deleted:
  `cargo binstall` replaces the installed binary in place,
  so the stale copies are the earlier `.crate` archives in `registry/cache/<index>/`
  and the extracted trees in `registry/src/<index>/` under the cargo home
- (the shipped `cargo` manager's plain `cargo install`, which `mpm.packages.toml` routes these crates to,
+ (the shipped `cargo` manager's plain `cargo install`,
+ which `mpm.packages.toml` routes these crates to,
  and local builds fill both).
- The same pass covers every `monochromatic-*` crate found in the registry,
- not only the plan crates:
- a plan crate keeps its locked version,
- any other own crate (a library dependency such as `monochromatic-jsonc-edit`) keeps its newest cached version.
+ The kept version is the one cargo's install record (`.crates2.json`) names as installed,
+ or the newest cached version when the record does not name the crate
+ (a library dependency such as `monochromatic-jsonc-edit`).
  A crate with a longer name that shares the prefix is a different crate and is judged on its own versions.
-- Why the sync owns it:
+- When:
+ after every `mpm` run that started,
+ whatever its exit code and verb.
+ The verb is hard to find when options come first,
+ and `mpm upgrade --all` exits 0 when some managers fail,
+ so neither the verb nor the exit code shows that something was provisioned;
+ the rule is idempotent.
+ A run that could not start prunes nothing.
+- Why the shadow owns it:
  mpm 8.2.0 has no cleanup for `cargo` (its `cleanup` exists for `pnpm` and `uv` only)
  and removes no previous version on install or upgrade,
  so a plain `mpm restore` or `mpm upgrade` leaves these copies behind.
- The repo's manager definitions in `mpm.managers.toml` declare only fixed `install` and `remove` argument lists.
-- When:
- in `toolchain:sync`,
- right after `installEntry` succeeds for that crate.
- A failed install deletes nothing,
- and a crate already at its locked version is not touched,
- so copies left by earlier builds go at the crate's next version change.
-- Where:
- `package/file-enforcer/core/src/toolchain/prune.ts`.
+ The repo's manager definitions in `mpm.managers.toml` accept `cleanup_cache`,
+ but mpm runs it only on an explicit `mpm cleanup`,
+ never after an install or upgrade.
+- Tradeoff:
+ a cached version that a project's `Cargo.lock` still pins is deleted too when it is not the kept one;
+ cargo downloads it again on the next online build,
+ but an offline build of that project fails until then.
 - Not covered,
  and open for the maintainer:
  stale versions of third-party tools under `<toolchainRoot>/<id>/<version>`
  and their `downloads/` archives.
+- Status (2026-10-29):
+ `monochromatic-mpm-shadow` 0.1.0 is published, with Trusted Publishing configured,
+ and released through CI as `monochromatic-mpm-shadow-v0.1.0` with Linux archives
+ (`doc/runbook/publish-crate-first-time.md`, section on this crate).
+ The plan entry `cargo:monochromatic-mpm-shadow` links it as `mpm` under `.cache/mpm-shadow-bin`,
+ which `file-enforcer.config.ts` puts ahead of `.cache/toolchain-bin` on PATH.
+ `mpm.managers.toml` carries the pinned extension manager `cargo-binstall-monochromatic-mpm-shadow`,
+ and `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
+ installs the release archive's binary through `cargo binstall`.
 
 ## Exit and rollback
 
