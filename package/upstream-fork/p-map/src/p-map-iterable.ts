@@ -31,11 +31,13 @@ import {
   validateConcurrency,
 } from './map-options.ts';
 import {
+  type MapControl,
   type MapInput,
   type Mapper,
   validateMapper,
 } from './mapper.ts';
 import { pMapSkip, } from './p-map-skip.ts';
+import { pMapStop, } from './p-map-stop.ts';
 
 //region Types
 
@@ -104,13 +106,14 @@ type PullOutcome<NewElement> =
   }
     | {
     /**
-     One mapped element, possibly {@link pMapSkip} for a dropped result.
+     One mapped element, possibly {@link pMapSkip} for a dropped result or
+     {@link pMapStop} for the end of the stream.
      */
       readonly kind: 'value';
     /**
-     Mapper result or {@link pMapSkip}.
+     Mapper result, {@link pMapSkip}, or {@link pMapStop}.
      */
-      readonly value: NewElement | typeof pMapSkip;
+      readonly value: NewElement | MapControl;
     }
     | {
     /**
@@ -124,6 +127,24 @@ type PullOutcome<NewElement> =
      */
       readonly error: unknown;
     };
+
+/**
+ Marks a queue slot whose worker has not settled yet, when the results are
+ not kept in input order.
+ */
+const emptySlot: unique symbol = Symbol('p-map empty queue slot',);
+
+/**
+ One entry of the spawn queue: the pending pull itself with `preserveOrder`;
+ without it, an empty slot that the first worker to settle fills with its
+ outcome.
+
+ @typeParam NewElement - mapper result type, awaited when thenable
+ */
+type QueueSlot<NewElement> =
+  | Promise<PullOutcome<NewElement>>
+    | PullOutcome<NewElement>
+    | typeof emptySlot;
 
 //endregion Types
 
@@ -178,7 +199,7 @@ export function pMapIterable<Element, NewElement>(
     mapper,
     options,
   }: IterableMapRun<Element, NewElement>,
-): AsyncIterable<Exclude<NewElement, typeof pMapSkip>> {
+): AsyncIterable<Exclude<NewElement, MapControl>> {
   /**
    Run configuration destructured with upstream `p-map`'s defaults, before
    every check like upstream's parameter destructuring.
@@ -186,6 +207,7 @@ export function pMapIterable<Element, NewElement>(
   const {
     concurrency,
     backpressure,
+    preserveOrder,
   } = resolveIterableMapOptions(options,);
   validateInput(iterable,);
   validateMapper(mapper,);
@@ -196,7 +218,7 @@ export function pMapIterable<Element, NewElement>(
   },);
 
   return {
-    [Symbol.asyncIterator](): AsyncGenerator<Exclude<NewElement, typeof pMapSkip>, void, undefined> {
+    [Symbol.asyncIterator](): AsyncGenerator<Exclude<NewElement, MapControl>, void, undefined> {
       /**
        Mutable iteration state, kept in one record because function-root
        `let` bindings are banned by repository lint.
@@ -221,12 +243,24 @@ export function pMapIterable<Element, NewElement>(
          */
         index: 0,
         /**
-         Lowest position whose pull, element, or mapper threw. The stream ends
-         there, like a `throw` in a loop: nothing past it is pulled and no
-         pending element past it is mapped, while the earlier elements still
-         finish and are yielded first.
+         Lowest position whose mapper returned `pMapStop`, or, with
+         `preserveOrder`, whose pull, element, or mapper threw. The stream ends
+         there, like a `break` or a `throw` in a loop: nothing past it is
+         pulled and no pending element past it is mapped, while the earlier
+         elements still finish and are yielded first.
          */
         stopIndex: Number.POSITIVE_INFINITY,
+        /**
+         Lowest position whose pull reported `done`. Without
+         `preserveOrder`, the pulls after it have their slots given back, so
+         their errors are dropped.
+         */
+        doneIndex: Number.POSITIVE_INFINITY,
+        /**
+         Without `preserveOrder`, the oldest empty slot in the queue, where
+         the next settled worker puts its result.
+         */
+        fillIndex: 0,
         /**
          Elements being read, or waiting for a mapper slot. They do not hold a
          mapper slot, so the next element can be read while the mappers run;
@@ -256,12 +290,22 @@ export function pMapIterable<Element, NewElement>(
        Spawned pulls awaiting collection, in yield order; a consumed entry is
        replaced by `consumedSlot` and the consumed prefix is dropped in halves.
        */
-      const promises: Promise<PullOutcome<NewElement>>[] = [];
+      const promises: QueueSlot<NewElement>[] = [];
+      /**
+       Without `preserveOrder`, the resolver of the consumer while it waits
+       on an empty head slot; at most one entry.
+       */
+      const wakers: ((outcome: PullOutcome<NewElement>) => void)[] = [];
+      /**
+       Without `preserveOrder`, the positions of the pulls whose worker has
+       not filled a slot yet.
+       */
+      const unfilledIndexes = new Set<number>();
       /**
        Shared placeholder for a collected entry, so the queue releases the
        collected outcome without holding an absent value.
        */
-      const consumedSlot = Promise.resolve<PullOutcome<NewElement>>({ kind: 'done', },);
+      const consumedSlot: QueueSlot<NewElement> = Promise.resolve<PullOutcome<NewElement>>({ kind: 'done', },);
       /**
        Collects the spawned pulls in yield order and yields their results.
 
@@ -271,7 +315,7 @@ export function pMapIterable<Element, NewElement>(
 
        @throws The first failure of the stream, at its own position.
        */
-      async function* consume(): AsyncGenerator<Exclude<NewElement, typeof pMapSkip>, void, undefined> {
+      async function* consume(): AsyncGenerator<Exclude<NewElement, MapControl>, void, undefined> {
         // Created when the first `next()` arrives, not when the iterable is asked for its iterator, like upstream `p-map`'s generator body.
         /**
          Source iterator, created once per iteration like upstream `p-map`.
@@ -296,6 +340,66 @@ export function pMapIterable<Element, NewElement>(
           nonNullishOrThrow(mapperWaiters.get(state.wokenMapperWaiterCount,),)();
           mapperWaiters.delete(state.wokenMapperWaiterCount,);
           state.wokenMapperWaiterCount += 1;
+        }
+
+        /**
+         Without `preserveOrder`, puts one result in the oldest empty slot and
+         wakes the consumer if it waits on that slot.
+
+         @param outcome - Result of a settled worker, or a given-back slot.
+         */
+        function fillSlot(outcome: PullOutcome<NewElement>,): void {
+          promises[state.fillIndex] = outcome;
+          state.fillIndex += 1;
+          wakers.pop()?.(outcome,);
+        }
+
+        /**
+         Without `preserveOrder`, fills a slot a tick after the worker settles,
+         rather than in the worker itself, for the same reason the consumer
+         awaits a filled slot: so the consumer never runs, and pulls, earlier.
+
+         @param worker - The pull's worker; it never rejects, as errors come
+         back as a value.
+
+         @param position - Position of the pull in the input.
+         */
+        async function fillWhenSettled(
+          {
+            worker,
+            position,
+          }: {
+            /**
+             The pull's worker.
+             */
+            readonly worker: Promise<PullOutcome<NewElement>>;
+            /**
+             Position of the pull in the input.
+             */
+            readonly position: number;
+          },
+        ): Promise<void> {
+          /**
+           Outcome the worker settled with.
+           */
+          const outcome = await worker;
+
+          // The slot was already given back, as the pull came after the end of
+          // the source.
+          if (!unfilledIndexes.delete(position,))
+            return;
+
+          if (outcome.kind === 'done')
+            // The pulls made after this one came after the end of the source,
+            // and a source like a queue may never answer them, so give their
+            // slots back now instead of waiting on them.
+            for (const unfilledIndex of unfilledIndexes)
+              if (unfilledIndex > position) {
+                unfilledIndexes.delete(unfilledIndex,);
+                fillSlot({ kind: 'done', },);
+              }
+
+          fillSlot(outcome,);
         }
 
         /**
@@ -362,6 +466,10 @@ export function pMapIterable<Element, NewElement>(
               // oxlint-disable-next-line typescript/strict-boolean-expressions -- upstream `p-map` checks truthiness of `done`, so a non-conforming source's truthy `done` must terminate the pull exactly like upstream
               if (nextItem.done) {
                 state.isIterableDone = true;
+                state.doneIndex = Math.min(
+                  state.doneIndex,
+                  currentIndex,
+                );
                 holds.isReading = false;
                 state.readingCount -= 1;
                 return { kind: 'done', };
@@ -426,6 +534,12 @@ export function pMapIterable<Element, NewElement>(
               holds.hasMapperSlot = false;
               releaseMapperSlot();
 
+              if (returnValue === pMapStop)
+                state.stopIndex = Math.min(
+                  state.stopIndex,
+                  currentIndex,
+                );
+
               return {
                 kind: 'value',
                 value: returnValue,
@@ -438,12 +552,22 @@ export function pMapIterable<Element, NewElement>(
               if (holds.hasMapperSlot)
                 releaseMapperSlot();
 
-              // The error is thrown at its own position, after the results
-              // before it, so those still finish.
-              state.stopIndex = Math.min(
-                state.stopIndex,
-                currentIndex,
-              );
+              // With `preserveOrder`, the error is thrown at its own position,
+              // after the results before it, so those still finish. Without
+              // it, the error is thrown as soon as it settles, so nothing
+              // still pending can be yielded anymore. An error from a pull
+              // after the end of the source is dropped, as `done` is final,
+              // so it must have no effect: `doneIndex` is set before the
+              // worker that saw `done` settles, so its slot hand-back runs
+              // before the delivery check of any error that sees it here.
+              if (preserveOrder)
+                state.stopIndex = Math.min(
+                  state.stopIndex,
+                  currentIndex,
+                );
+              else if (currentIndex < state.doneIndex)
+                state.isDone = true;
+
               return {
                 kind: 'error',
                 error,
@@ -451,10 +575,40 @@ export function pMapIterable<Element, NewElement>(
             }
           }
 
-          promises.push(runPull(),);
+          /**
+           This pull's worker, started now.
+           */
+          const worker = runPull();
+
+          if (preserveOrder) {
+            promises.push(worker,);
+            return;
+          }
+
+          promises.push(emptySlot,);
+          unfilledIndexes.add(currentIndex,);
+          void fillWhenSettled({
+            worker,
+            position: currentIndex,
+          },);
         }
 
         trySpawn();
+
+        /**
+         Waits for the first worker to fill the empty head slot, without
+         `preserveOrder`.
+
+         @returns The outcome that fills the head slot.
+         */
+        function waitForFill(): Promise<PullOutcome<NewElement>> {
+          /**
+           Deferred pair the next `fillSlot` resolves.
+           */
+          const filled = Promise.withResolvers<PullOutcome<NewElement>>();
+          wakers.push(filled.resolve,);
+          return filled.promise;
+        }
 
         /**
          Source shutdown on every exit from the consumption below: the
@@ -478,10 +632,23 @@ export function pMapIterable<Element, NewElement>(
 // mutation-test-disable-next-line conditional, equality -- loop-shape only: the queue empties through the `done` outcome before the length check is reached
         while (state.headIndex < promises.length) {
           /**
-           Oldest spawned pull's outcome; only the head is awaited so results
-           leave the queue in yield order.
+           Oldest spawned pull's slot. Without `preserveOrder`, a filled slot
+           holds the outcome itself and is still awaited: that takes one tick,
+           like awaiting a settled promise, so the consumer, and its
+           `trySpawn()`, never run earlier than with a promise in the slot.
+           Taking a ready result without the tick can make the consumer pull
+           before it sees a stop or the end of the source, and a one-shot
+           source, like a queue, would lose that item.
            */
-          const outcome = await nonNullishOrThrow(promises[state.headIndex],);
+          const headSlot = nonNullishOrThrow(promises[state.headIndex],);
+          /**
+           The head's outcome; an empty head is waited on until the first
+           worker fills it, and only the head is awaited so results leave the
+           queue in yield order.
+           */
+          const outcome = await (headSlot === emptySlot
+            ? waitForFill()
+            : headSlot);
 
           // Release the entry instead of leaving it for a `shift()` to move,
           // and drop the consumed prefix once it is at least half the array.
@@ -497,13 +664,26 @@ export function pMapIterable<Element, NewElement>(
               0,
               state.headIndex,
             );
+            state.fillIndex -= state.headIndex;
             state.headIndex = 0;
           }
 
           if (outcome.kind === 'error')
             throw outcome.error;
 
-          if (outcome.kind === 'done')
+          if (outcome.kind === 'done') {
+            // Without `preserveOrder`, the `done` can arrive while other
+            // workers are still running.
+            if (preserveOrder)
+              return;
+
+            continue;
+          }
+
+          // The stream ends where the stop would have been yielded: after the
+          // earlier elements with `preserveOrder`, and after the results that
+          // were ready before it without.
+          if (outcome.value === pMapStop)
             return;
 
           // Spawn if just dropped below the backpressure limit and still below
@@ -517,7 +697,7 @@ export function pMapIterable<Element, NewElement>(
             continue;
 
           // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the skip check above proved the value is not pMapSkip
-          yield outcome.value as Exclude<NewElement, typeof pMapSkip>;
+          yield outcome.value as Exclude<NewElement, MapControl>;
         }
         /* oxlint-enable no-await-in-loop */
       }
@@ -545,11 +725,11 @@ export function pMapIterable<Element, NewElement>(
       // not `async`: the generator already returns a promise, and an `async`
       // function would wrap it in two more promises and two more microtask
       // hops.
-      generator.return = function returnAndStop(value: Parameters<typeof generatorReturn>[0],): Promise<IteratorResult<Exclude<NewElement, typeof pMapSkip>, void>> {
+      generator.return = function returnAndStop(value: Parameters<typeof generatorReturn>[0],): Promise<IteratorResult<Exclude<NewElement, MapControl>, void>> {
         state.isDone = true;
         return generatorReturn(value,);
       };
-      generator.throw = function throwAndStop(error: unknown,): Promise<IteratorResult<Exclude<NewElement, typeof pMapSkip>, void>> {
+      generator.throw = function throwAndStop(error: unknown,): Promise<IteratorResult<Exclude<NewElement, MapControl>, void>> {
         state.isDone = true;
         return generatorThrow(error,);
       };

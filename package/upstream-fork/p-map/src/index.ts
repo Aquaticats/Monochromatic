@@ -41,6 +41,7 @@ export {
 } from './errors.ts';
 
 export {
+  type MapControl,
   type MapInput,
   type Mapper,
 } from './mapper.ts';
@@ -50,11 +51,14 @@ export { type SourceIterator, } from './map-iterator.ts';
 export {
   type IterableMapOptions,
   type MapOptions,
+  type SettledMapOptions,
 } from './map-options.ts';
 
 export {
   type MapRun,
   pMap,
+  pMapSettled,
+  type SettledMapRun,
 } from './p-map.ts';
 
 export {
@@ -63,3 +67,5 @@ export {
 } from './p-map-iterable.ts';
 
 export { pMapSkip, } from './p-map-skip.ts';
+
+export { pMapStop, } from './p-map-stop.ts';
