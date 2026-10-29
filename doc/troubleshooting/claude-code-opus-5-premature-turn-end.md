@@ -1380,6 +1380,76 @@ the records carry `stopHookActive` true and false.
 The request body itself is checked in the unit tests with a stubbed `fetch`, not on the wire.
 Not yet known: whether the repeated-stop history changes outcomes in live use; the new field makes that measurable.
 
+### A chain stop that history turned into a miss, 2026-10-29
+
+The owner reported a stop that should have been blocked.
+It is session `a45b87f9`, line 484 of its transcript, 2026-10-29 03:10:39 local (07:10:39 UTC), in this repository on
+`main`.
+The message was 1,146 characters about the `no-arrow-function` autofix.
+It said "I haven't run a fixture to watch it happen", listed a fix, and ended "I haven't started on that. Do you want
+me to?".
+
+What the hook did, from the transcript and the verdict log:
+
+- The turn already held one hook block.
+  The stop before it, at 07:10:25, was blocked by the wording check on "I haven't checked whether the rule guards
+  against these"; the agent answered by checking the rule source, which is the intended response.
+- The stop at 07:10:39 was therefore inside a blocked chain.
+  Its verdict row has `stopHookActive` true, and the wording checks and the trailing-question check were off.
+- Luna ran with the six earlier stops of the turn as context and scored `waits_on_user` 0.54, `leaves_open_work` 0.37.
+  The top label is under the 0.60 cutoff, so the stop was released.
+
+What the same message does elsewhere, on its full text through the shipped code:
+
+- Luna on the final message alone: `waits_on_user` 0.99, which blocks and routes the agent to the question tool.
+- Luna with the earlier stops: 0.54 and 0.37, a release.
+  The two blocking labels together still carry 0.95 of the mass.
+- The built bundle with Luna off: blocks on `i haven't run` when `stop_hook_active` is false, passes when it is true.
+- The detectors on the prose: uncertainty `i haven't run`, trailing question "Do you want me to?", no parked-decision
+  phrase.
+
+So the cause is the combination of the chain gate and the turn history.
+The history is the change the owner chose on 2026-10-25, and the measurement section above predicted the direction: it
+lowered the block mass on five of seven repeated misses.
+This stop differs in kind: its block mass barely moved (1.00 to 0.95), but the mass moved from one label to two, and the
+cutoff reads the single top label, which fell from 0.99 to 0.54.
+
+How often the wording checks would matter inside chains, from the 41 logged turns that had a hook block followed by
+later stops (227 stops, 215 of them released by Luna; the log ends 2026-10-25, so this stop is not in it):
+
+- Run once per trigger inside a chain, the uncertainty, trailing-question and parked-decision checks would flag 20 of
+  the released chain stops (21 hits; one stop matched two checks).
+  Six of the 20 were followed by a hook block anyway, so the wording check had run at those stops.
+  `stop_hook_active` is not true at every stop after a first block, and I did not find the rule that resets it.
+- That leaves 14 stops that nothing else blocked.
+  The two reported misses are among them: the 23:11 report on `i didn't measure` and the 10:31 stop on `say so if`.
+  I judged one more a false hit ("as it should be").
+  I did not classify the other eleven.
+- The trailing-question check flagged none of the released chain stops, so it would add no blocks in this sample.
+  The one known miss of that shape is the stop above.
+
+How often Luna splits between blocking labels, over the 832 released stops that have all six scores:
+
+- Block mass (`announces_own_next_step` plus `leaves_open_work` plus `waits_on_user`) of 0.8 or more with no label at
+  0.60 occurred 3 times; at 0.9 or more, never.
+- Of the 3, one is the 10:31 stop (mass 0.80, the owner's nudge followed), one drew a human reply that was a new problem
+  report and not a nudge, and one was blocked by something else.
+- This stop has mass 0.95 and would be a fourth.
+
+Owner decisions pending, each a separate question:
+
+- Whether the wording checks run inside a chain, once per trigger, as the parked-decision check already does.
+- Whether Luna keeps receiving the earlier stops on repeated stops.
+  The case for keeping it: it removed three verified repeated false blocks.
+  The case against: it lowered the block mass on five of seven repeated misses and, on this stop, moved the top label
+  under the cutoff.
+- Whether a stop is blocked when the always-blocking labels together reach 0.8 and no single label reaches 0.60.
+
+Limits: eight repeated misses and three repeated false blocks are too few for a rate.
+The 14 unblocked chain stops were read by me and are not a labelled sample.
+Luna's scores are reproducible for a given input (a logged score matched a rerun), so these numbers will not move on a
+rerun, but they describe the model as it was served on 2026-10-29.
+
 ### Not yet known
 
 - Agreement between Luna's label and a human label.
