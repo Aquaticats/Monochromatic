@@ -464,7 +464,7 @@ The concurrent transaction itself cannot be turned off.
 
 The wrapper never waits for another process without a limit,
 and never waits without saying so.
-Four environment variables set the limits and the pace of the notices,
+The environment variables below set the limits and the pace of the notices,
 each a positive whole number of seconds;
 a zero,
 negative,

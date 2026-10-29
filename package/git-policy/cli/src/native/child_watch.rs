@@ -148,8 +148,11 @@ fn stop_process(pid: u32) {
     let Ok(raw) = i32::try_from(pid) else {
         return;
     };
-    // SAFETY: `kill` takes no pointers; the process is a child of this one that has not been waited for yet,
-    // so its identifier cannot name another process.
+    // SAFETY: `kill` takes no pointers. The watcher fires only while a wait is marked, and the waiting thread reaps
+    // the child only after it ends the mark, except for the window between a one-shot run's `wait_with_output`
+    // returning and its `end` call (microseconds), where a reaped identifier could in principle be reused by another
+    // process before the signal lands; the bound is far longer than that window, so a stop in it needs a wait that
+    // crossed the bound in the same instant.
     unsafe {
         libc::kill(raw, libc::SIGKILL);
     }
