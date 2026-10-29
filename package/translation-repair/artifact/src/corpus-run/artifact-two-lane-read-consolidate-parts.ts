@@ -14,6 +14,7 @@ import {
   type ArchiveKeptReason,
   type GateBallot,
   isGateChoice,
+  type TranslateWinnerReason,
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
 
 //region Artifact version 2 consolidation parts
@@ -58,6 +59,39 @@ const ARCHIVE_KEPT_REASONS: readonly string[] = Object.keys(ARCHIVE_KEPT_REASON_
 function isArchiveKeptReason(value: unknown,): value is ArchiveKeptReason {
   return ((typeof value) === 'string') && Object.hasOwn(
     ARCHIVE_KEPT_REASON_NAMES,
+    value,
+  );
+}
+
+/**
+ Reasons the translate lane's winner ships, keyed by `TranslateWinnerReason` so that the compiler refuses a reason the
+ stage gains that this reader lacks.
+ */
+const TRANSLATE_WINNER_REASON_NAMES: Readonly<Record<TranslateWinnerReason, true>> = {
+  'refused-standing': true,
+  'present-tense-standing': true,
+};
+
+/**
+ The reasons, in the order a refusal names them.
+ */
+const TRANSLATE_WINNER_REASONS: readonly string[] = Object.keys(TRANSLATE_WINNER_REASON_NAMES,);
+
+/**
+ Whether a stored value names a reason the translate lane's winner ships.
+
+ @param value - reason as the artifact carries it
+
+ @returns Whether it is one of the names `TRANSLATE_WINNER_REASON_NAMES` holds
+
+ @example
+ ```ts
+ const known = isTranslateWinnerReason('present-tense-standing',);
+ ```
+ */
+function isTranslateWinnerReason(value: unknown,): value is TranslateWinnerReason {
+  return ((typeof value) === 'string') && Object.hasOwn(
+    TRANSLATE_WINNER_REASON_NAMES,
     value,
   );
 }
@@ -168,6 +202,7 @@ export function parseShipped(
       allowed: [
         'kind',
         'text',
+        'reason',
       ],
       path,
     },);
@@ -177,12 +212,22 @@ export function parseShipped(
         reason: 'the consolidation a slice whose terminal is consolidated ships, rather than the translate lane winner',
       },);
     }
+    // WHY THE WINNER SHIPPED, from generation twenty-two: over a standing the rule refused, or over an unendorsed
+    // standing the tense detector flagged (owner, 2026-10-29, "Swap only where flagged"). A record that cannot say
+    // is refused.
+    if (!isTranslateWinnerReason(record.reason,)) {
+      throw new ArtifactParseError({
+        path: `${path}.reason`,
+        reason: `one of ${TRANSLATE_WINNER_REASONS.join(', ',)}`,
+      },);
+    }
     return {
       kind: 'translate-winner',
       text: requireString({
         value: record.text,
         path: `${path}.text`,
       },),
+      reason: record.reason,
     };
   }
   if (record.kind === 'incumbent') {

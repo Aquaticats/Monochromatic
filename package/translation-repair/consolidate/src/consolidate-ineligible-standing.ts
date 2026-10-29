@@ -473,6 +473,7 @@ export function shipTranslateWinner(
     ...settlement,
     text: winner.text,
     translateWinnerShipped: true,
+    translateWinnerReason: 'refused-standing',
     findings: [
       ...settlement.findings,
       TRANSLATE_WINNER_SHIPS_FINDING,

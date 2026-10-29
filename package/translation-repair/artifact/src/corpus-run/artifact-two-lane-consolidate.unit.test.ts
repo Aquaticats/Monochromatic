@@ -205,9 +205,11 @@ await describe({
             translateWinnerShipped: true,
           },
         },);
+        // A settlement that names no reason is the one written before the swap existed, which replaced a refused standing.
         expect(winner.shipped,).toStrictEqual({
           kind: 'translate-winner',
           text: 'The cat naps on the sill.',
+          reason: 'refused-standing',
         },);
       },
     },),

@@ -20,15 +20,14 @@ import {
 } from './consolidate-settle-context.ts';
 import {
   INELIGIBLE_STANDING_WITHHELD_FINDING,
-  nothingValidShips,
   slateIncumbentFor,
 } from './consolidate-ineligible-standing.ts';
 import {
-  settleRefusedStanding,
   settleWithoutSlate,
   shipWinnerBeforeSlate,
 } from './consolidate-settle-unseated.ts';
 import { judgeConsolidationSlate, } from './consolidate-settle-judge.ts';
+import { settleKeptStanding, } from './consolidate-settle-kept.ts';
 import { applyFinalPolish, } from './consolidation-polish-apply.ts';
 import type {
   ConsolidationPolish,
@@ -118,6 +117,23 @@ export type ArchiveKeptReason =
   | 'no-wording-passed'
     | 'final-round-unseated'
     | 'slate-declined';
+
+/**
+ Why the translate lane's winner ships, as the artifact and the publish defect say it.
+
+ `refused-standing` is the standing the deterministic rule refused, replaced where the final round could not seat two
+ judges (owner, 2026-10-29, "Ship the two-ballot text"). `present-tense-standing` is an eligible standing the contest
+ did not endorse, replaced where the final round could not seat two judges and the tense detector flags the standing and
+ not the winner (owner, 2026-10-29, "Swap only where flagged").
+
+ @example
+ ```ts
+ const reason: TranslateWinnerReason = 'present-tense-standing';
+ ```
+ */
+export type TranslateWinnerReason =
+  | 'refused-standing'
+    | 'present-tense-standing';
 
 /**
  Which slate terminal a judged round ends in, per decision.
@@ -355,6 +371,13 @@ export type ConsolidationSettlement = {
    healthier bench would ship the winner unasked.
    */
   readonly translateWinnerShipped?: true;
+
+  /**
+   Why the translate lane's winner shipped, present exactly where {@link ConsolidationSettlement.translateWinnerShipped}
+   is: over a standing the rule refused, or over an unendorsed standing the tense detector flagged (owner, 2026-10-29,
+   "Swap only where flagged"). Never cached, as the mark is not.
+   */
+  readonly translateWinnerReason?: TranslateWinnerReason;
 
   /**
    Present where the slate bench read fewer reachable judges than the ballots
@@ -623,6 +646,7 @@ export async function settleConsolidation(
    */
   const beforeSlate = shipWinnerBeforeSlate({
     standingEligible,
+    standingMayShip,
     laneTexts,
     translateWinnerBallots,
     ...((slateReachable === undefined) ? {} : { slateReachable, }),
@@ -750,41 +774,21 @@ export async function settleConsolidation(
   // gate, and asking the gate anyway would buy ballots about the text that is
   // already in place.
   if (decided.origin !== 'fresh') {
-    /**
-     The settlement this exit ends in.
-     */
-    const settlement: ConsolidationSettlement = {
+    return await settleKeptStanding({
+      client,
+      decided,
       terminal: SLATE_TERMINALS[decided.decision],
-      text: standingText,
+      standingText,
       floor,
       verdicts,
-      decided,
-      rewrapped: false,
-      demoted: false,
-      findings: decided.findings,
-    };
-    if (nothingValidShips({
       standingEligible,
-      terminal: settlement.terminal,
-    },)) {
-      return settleRefusedStanding({
-        settlement,
-        decided,
-        laneTexts,
-        translateWinnerBallots,
-        subject,
-        sliceIndex,
-        l: sl,
-      },);
-    }
-    return await applyFinalPolish({
-      client,
-      settlement,
+      standingMayShip,
+      laneTexts,
+      translateWinnerBallots,
       subject,
       lineStructured,
       sliceIndex,
       ...((polishConfig === undefined) ? {} : { polishConfig, }),
-      eligible: standingMayShip,
       signal,
       perCallTimeoutMs,
       l: sl,

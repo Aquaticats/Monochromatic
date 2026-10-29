@@ -285,7 +285,16 @@ export const ARTIFACT_SCHEMA_VERSION_V21 = 21;
  publish defect then said "no wording passed" for all three. Under twenty-two the record carries the key `reason`
  (`no-wording-passed`, `final-round-unseated` or `slate-declined`) on that shipped kind, and a slice whose final round
  could not seat two judges and whose translate lane held a text two judges chose, passing the rule, records the new
- shipped kind `translate-winner` with that text.
+ shipped kind `translate-winner` with that text and the key `reason`: `refused-standing` where it replaced a standing the
+ rule refused, `present-tense-standing` where it replaced an eligible standing the contest did not endorse because the
+ tense detector flags that standing and not the text (owner, 2026-10-29, "Swap only where flagged", B1050).
+
+ THE KEY `reason` OF `translate-winner` RODE INSIDE GENERATION TWENTY-TWO rather than minting twenty-three, on the
+ evidence the cached-decisions rule asks for: no run began after the commit that set the number (`fdf3201f3f`, 14:30 UTC
+ on 2026-10-29). The newest corpus-pass log in the agent runs directory, `corpus-pass-XingZ6022.log`, started at 07:49
+ UTC on that day and was last written at 11:44 UTC, and no other top-level log in that directory written since holds a
+ `START tip=` line. The tip it started on (`c6185d4086`) is an ancestor of `fdf3201f3f`. So no generation twenty-two
+ file exists in which a `translate-winner` slice lacks the key, and the reader requires it.
 
  WHY A GENERATION AND NOT AN OPTIONAL KEY OF TWENTY-ONE: the reader of `shipped` requires its exact keys
  (`requireExactKeys`) and a closed set of kinds, so a reader built for twenty-one refuses both, and an absent `reason`

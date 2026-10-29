@@ -14,6 +14,10 @@ import type {
   ConsolidationTerminal,
 } from './consolidate-settle.ts';
 import type { ProposalVerdict, } from './consolidate-settle-context.ts';
+import {
+  presentTenseSwapOf,
+  shipTranslateWinnerOverPresentTense,
+} from './consolidate-tense-swap.ts';
 import type { SlateFloor, } from './consolidate-validity-floor.ts';
 
 //region Consolidate settle, final round unseated
@@ -21,7 +25,10 @@ import type { SlateFloor, } from './consolidate-validity-floor.ts';
 // cap. The owner's answer of 2026-10-29 ("Ship the two-ballot text (Recommended)"): when the final round can't seat two
 // judges, the translate lane's winner ships if two judges chose it and it passes the publication rule. One judge alone
 // never decides (2026-10-25), a slice with no wording that passes keeps the archive (2026-09-27, "Keep archive,
-// ship"), and a disputed archive is never a candidate or a fallback (2026-09-27).
+// ship"), and a disputed archive is never a candidate or a fallback (2026-09-27). An eligible standing the contest did
+// not endorse gives way to the same text only where the tense detector flags the standing and not the text (owner,
+// 2026-10-29, "Swap only where flagged"; `consolidate-tense-swap.ts`), which `shipWinnerBeforeSlate` reads before a
+// slate is bought.
 
 /**
  Settles an exit that bought no slate and offered no lane text: the standing stays, and where the rule refused it no
@@ -125,9 +132,13 @@ export type BeforeSlateExit =
 
 /**
  Ships the translate lane's winner before any slate is bought, where fewer slate judges are reachable than a winner
- needs over a standing the rule refused.
+ needs over a standing the rule refused, or over an eligible standing the contest did not endorse and the tense
+ detector flags where it does not flag the winner (owner, 2026-10-29, "Swap only where flagged").
 
  @param standingEligible - whether the standing passed the deterministic gate
+
+ @param standingMayShip - whether the contest endorsed the standing; an endorsed one is never overruled, and a caller
+ that does not say is read as endorsing it
 
  @param laneTexts - lane texts the slate offers, whose translate entry passed the rule
 
@@ -159,6 +170,7 @@ export type BeforeSlateExit =
 export function shipWinnerBeforeSlate(
   {
     standingEligible,
+    standingMayShip = true,
     laneTexts,
     translateWinnerBallots,
     slateReachable,
@@ -171,6 +183,7 @@ export function shipWinnerBeforeSlate(
     l,
   }: {
     readonly standingEligible: boolean;
+    readonly standingMayShip?: boolean;
     readonly laneTexts: readonly LaneText[];
     readonly translateWinnerBallots: number;
     readonly slateReachable?: number;
@@ -190,26 +203,55 @@ export function shipWinnerBeforeSlate(
     laneTexts,
     ballots: translateWinnerBallots,
   },);
-  if (standingEligible)
-    return { kind: 'asks', };
   if (winner.kind === 'none')
     return { kind: 'asks', };
   if (slateReachable === undefined)
     return { kind: 'asks', };
   if (!unseatedFinalRound({ heard: slateReachable, },))
     return { kind: 'asks', };
+  /**
+   The settlement the slate's absence leaves, before the winner replaces its text.
+   */
+  const settlement: ConsolidationSettlement = {
+    terminal: 'incumbent-only',
+    text: standingText,
+    floor,
+    verdicts,
+    rewrapped: false,
+    demoted: false,
+    findings: producedFindings,
+  };
+  // AN ELIGIBLE STANDING IS ASKED UNLESS THE DETECTOR OVERRULES IT (owner, 2026-10-29, "Swap only where flagged"):
+  // the contest's endorsement and the standing's pass of the rule are what it ships on, and nothing else overrules them.
+  if (standingEligible) {
+    /**
+     What the detector makes of the standing and the winner.
+     */
+    const swap = presentTenseSwapOf({
+      standingEligible,
+      standingMayShip,
+      standingText,
+      laneTexts,
+      translateWinnerBallots,
+      subject,
+    },);
+    if (swap.kind === 'keeps')
+      return { kind: 'asks', };
+    return {
+      kind: 'ships',
+      settlement: shipTranslateWinnerOverPresentTense({
+        settlement,
+        swap,
+        subject,
+        sliceIndex,
+        l,
+      },),
+    };
+  }
   return {
     kind: 'ships',
     settlement: shipTranslateWinner({
-      settlement: {
-        terminal: 'incumbent-only',
-        text: standingText,
-        floor,
-        verdicts,
-        rewrapped: false,
-        demoted: false,
-        findings: producedFindings,
-      },
+      settlement,
       winner: winner.laneText,
       subject,
       sliceIndex,

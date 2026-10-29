@@ -431,6 +431,7 @@ await describe({
           shipped: {
             kind: 'translate-winner',
             text: 'The cat naps on the sill.',
+            reason: 'refused-standing',
           },
         };
         const contest = contestOf({

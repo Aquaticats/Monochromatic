@@ -65,7 +65,15 @@ export {
   type ConsolidationSubject,
   type ConsolidationTerminal,
   settleConsolidation,
+  type TranslateWinnerReason,
 } from './consolidate-settle.ts';
+export {
+  presentTenseSwapOf,
+  shipTranslateWinnerOverPresentTense,
+  swapAfterUnseatedSlate,
+  type TenseSwap,
+  type UnseatedSwapExit,
+} from './consolidate-tense-swap.ts';
 export {
   buyConsolidationSlice,
   standingKeptUnendorsed,

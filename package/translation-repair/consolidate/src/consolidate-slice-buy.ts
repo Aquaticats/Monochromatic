@@ -13,6 +13,7 @@ import {
   type ConsolidationSubject,
   settleConsolidation,
 } from './consolidate-settle.ts';
+import { presentTenseSwapOf, } from './consolidate-tense-swap.ts';
 import type { ConsolidateSubject, } from './consolidate-wire.ts';
 import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import {
@@ -265,6 +266,9 @@ async function buyConsolidationAttempt(
   // cannot decide. The text two judges chose in the lane and the rule admitted ships instead (owner, 2026-10-29,
   // "Ship the two-ballot text"; XingZ6022: 65 calls and 10.679 Wh at sixteen slices). A refused standing with no such
   // text is still asked, since its settlement says whether the final round seated two judges after all. Never cached.
+  //
+  // SO DOES AN ELIGIBLE STANDING THE CONTEST DID NOT ENDORSE where the tense detector flags it and does not flag the
+  // translate text (owner, 2026-10-29, "Swap only where flagged"): the slate could not overrule that swap either.
   /**
    The translate lane's two-ballot text, where the offer holds it.
    */
@@ -272,10 +276,22 @@ async function buyConsolidationAttempt(
     laneTexts,
     ballots: translateWinnerBallots,
   },);
-  if ((!standingEligible)
-    && (slateReachable !== undefined)
+  /**
+   Whether the tense detector overrules an eligible standing the contest did not endorse, read as the settlement reads
+   it.
+   */
+  const { kind: tenseSwap, } = presentTenseSwapOf({
+    standingEligible,
+    standingMayShip,
+    standingText,
+    laneTexts,
+    translateWinnerBallots,
+    subject,
+  },);
+  if ((slateReachable !== undefined)
     && unseatedFinalRound({ heard: slateReachable, },)
-    && (translateWinner.kind === 'offered')) {
+    && (translateWinner.kind === 'offered')
+    && ((!standingEligible) || (tenseSwap === 'swaps'))) {
     /**
      The translate winner shipped on the incumbent-only exit, before the mark.
      */

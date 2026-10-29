@@ -19,10 +19,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import {
-  type ChatJsonOutcome,
-  type ChatJsonRequest,
-  type ModelClient,
+import type {
+  ChatJsonOutcome,
+  ChatJsonRequest,
+  ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-floor';
 import {

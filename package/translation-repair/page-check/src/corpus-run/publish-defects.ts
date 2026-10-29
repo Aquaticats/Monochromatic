@@ -57,7 +57,8 @@ export type PublishCheck =
     | 'page-without-body'
     | 'source-reading-not-compared'
     | 'source-reading-undecided'
-    | 'source-reads-differently';
+    | 'source-reads-differently'
+    | 'tense-swap';
 
 /**
  One failed content check the page shipped with.
@@ -221,6 +222,57 @@ export function archiveKeptDefects(
   return [{
     check: 'no-valid-wording',
     message: `entry ${entryId} kept the archive at ${sentences.join('; at ',)}`,
+  },];
+}
+
+/**
+ Reports the slices where the translate lane's text shipped in place of an eligible standing the contest did not
+ endorse, because the tense detector flags that standing and not the text (owner, 2026-10-29, "Swap only where
+ flagged", B1050).
+
+ READ OFF THE ARTIFACT, like {@link archiveKeptDefects}: the consolidation recorded why each translate winner shipped,
+ and a winner that replaced a refused standing is not reported here. The page ships either way; this names where the
+ detector, which is otherwise an aid, decided what ships, so a run shows each swap.
+
+ @param entryId - entry the page belongs to
+
+ @param consolidation - what the third rendering settled over the entry
+
+ @returns One defect naming every such slice, or none
+
+ @example
+ ```ts
+ const defects = tenseSwapDefects({ entryId: 'BookshopCat', consolidation: artifact.consolidation, },);
+ ```
+ */
+export function tenseSwapDefects(
+  {
+    entryId,
+    consolidation,
+  }: {
+    readonly entryId: string;
+    readonly consolidation: WouldShipSource['consolidation'];
+  },
+): readonly PublishDefect[] {
+  if (consolidation.kind !== 'settled')
+    return [];
+  /**
+   Slices where the translate text shipped over a standing the detector flagged, named as the message prints them.
+   */
+  const swapped = consolidation.slices
+    .filter(function swappedForTense({ shipped, },): boolean {
+      return (shipped.kind === 'translate-winner') && (shipped.reason === 'present-tense-standing');
+    },)
+    .map(function named({ sliceIndex, },): string {
+      return `slice ${String(sliceIndex,)}`;
+    },);
+  if (swapped.length === 0)
+    return [];
+  return [{
+    check: 'tense-swap',
+    message: `entry ${entryId} shipped the translate lane text at ${
+      swapped.join(', ',)
+    }, in place of a standing the tense detector flagged, where the final round could not seat two judges`,
   },];
 }
 

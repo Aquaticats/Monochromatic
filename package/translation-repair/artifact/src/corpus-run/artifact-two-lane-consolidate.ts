@@ -5,6 +5,7 @@ import type {
   ConsolidationTerminal,
   GateBallot,
   ProposalVerdict,
+  TranslateWinnerReason,
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { TenseCandidateGroup, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
 
@@ -131,6 +132,13 @@ export type ArtifactConsolidateShipped =
      Wording to write, exactly as the translate lane would ship it.
      */
       readonly text: string;
+
+    /**
+     Why the winner shipped: over a standing the rule refused, or over an unendorsed standing the tense detector flagged
+     and did not flag in the winner (owner, 2026-10-29, "Swap only where flagged"). Recorded with the kind, in
+     generation twenty-two.
+     */
+      readonly reason: TranslateWinnerReason;
     }
     | {
     /**
@@ -577,6 +585,8 @@ function shippedBy(
     return {
       kind: 'translate-winner',
       text: settlement.text,
+      // A WINNER SETTLED BEFORE THE SWAP EXISTED was always the one that replaced a refused standing.
+      reason: settlement.translateWinnerReason ?? 'refused-standing',
     };
   }
   if (settlement.archiveKept === true) {

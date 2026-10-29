@@ -55,6 +55,7 @@ import {
   pageWithoutBodyDefects,
   type PublishDefect,
   publishDefects,
+  tenseSwapDefects,
 } from './publish-defects.ts';
 
 /**
@@ -371,6 +372,12 @@ export async function publishFixedPage(
   const defects: readonly PublishDefect[] = [
     ...failedChecks,
     ...archiveKeptDefects({
+      entryId,
+      consolidation: artifact.consolidation,
+    },),
+    // WHERE THE TENSE DETECTOR DECIDED WHAT SHIPS (owner, 2026-10-29, "Swap only where flagged"): named, so a run
+    // shows each swap.
+    ...tenseSwapDefects({
       entryId,
       consolidation: artifact.consolidation,
     },),
