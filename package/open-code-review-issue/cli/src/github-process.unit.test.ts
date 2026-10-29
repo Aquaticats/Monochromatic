@@ -3,7 +3,7 @@ import {
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -23,7 +23,7 @@ await describe({
         /**
          Disposable executable fixture directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-gh-process-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-gh-process-',),);
         /**
          Executable fixture path.
          */

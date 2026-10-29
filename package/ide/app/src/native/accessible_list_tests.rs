@@ -241,14 +241,14 @@ fn container(window: &AppWindow, role: AccessibleRole, label: &str, rows: usize)
 ///  A directory row is expandable and its expand action expands it.
 #[test]
 fn tree_rows_report_role_name_position_and_the_open_file_as_selected() {
-    // What: `tempfile::tempdir()` makes a disposable directory removed when the value is dropped.
+    // What: `crate::test_scratch::scratch()` makes a disposable directory removed when the value is dropped.
     // Why: The tree lists a real project, which must never be the repository.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const fixture = mkdtempSync(join(tmpdir(), 'tree-'));
     // ```
-    let fixture = tempfile::tempdir().expect("disposable accessible tree project");
+    let fixture = crate::test_scratch::scratch().expect("disposable accessible tree project");
     // What: `fixture.path().join(..)` builds a path inside the directory; `fs::write` creates the file.
     // Why: Two files and one directory give a selected row, an unselected row, and an expandable row.
     //
@@ -361,7 +361,7 @@ fn tree_rows_report_role_name_position_and_the_open_file_as_selected() {
 ///  and the selected state follows Down and Up.
 #[test]
 fn search_results_report_role_name_position_and_the_selected_result() {
-    let fixture = tempfile::tempdir().expect("disposable accessible search project");
+    let fixture = crate::test_scratch::scratch().expect("disposable accessible search project");
     // Names match the query and contents do not, so each file is one result with its own path.
     fs::write(fixture.path().join("needle-one.txt"), "first\n").expect("search fixture");
     fs::write(fixture.path().join("needle-two.txt"), "second\n").expect("search fixture");

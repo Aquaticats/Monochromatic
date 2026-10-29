@@ -139,7 +139,7 @@ pub(super) fn baseline(window: &AppWindow, displayed: &Path) {
 /// and the selection follows the replaced region.
 #[test]
 fn native_source_does_not_show_an_in_place_save_before_it_finishes() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let folder = fixture.path().join("nested");
     fs::create_dir(&folder).expect("collapsed folder");
     let displayed = folder.join("view.txt");
@@ -188,7 +188,7 @@ fn native_source_does_not_show_an_in_place_save_before_it_finishes() {
 /// the write wait keeps the empty file from being read.
 #[test]
 fn native_source_does_not_show_a_deleted_file_before_its_rewrite_finishes() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let folder = fixture.path().join("nested");
     fs::create_dir(&folder).expect("collapsed folder");
     let displayed = folder.join("view.txt");
@@ -238,7 +238,7 @@ fn native_source_does_not_show_a_deleted_file_before_its_rewrite_finishes() {
 #[test]
 #[ignore = "measurement; run through inspect:refresh-latency with the filter write_wait_pause"]
 fn write_wait_pause_sweep() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let folder = fixture.path().join("nested");
     fs::create_dir(&folder).expect("collapsed folder");
     let displayed = folder.join("view.txt");

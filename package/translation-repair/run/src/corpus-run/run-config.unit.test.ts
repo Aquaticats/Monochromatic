@@ -33,7 +33,7 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
@@ -379,7 +379,7 @@ async function askSeat(
 
  @example
  ```ts
- using _elsewhere = inDirectory({ path: tmpdir(), },);
+ using _elsewhere = inDirectory({ path: scratchRoot(), },);
  ```
  */
 function inDirectory({ path, }: { readonly path: string; },): Disposable {
@@ -1002,7 +1002,7 @@ await describe({
              */
             const fromHere = await readHeadSha();
 
-            using _elsewhere = inDirectory({ path: tmpdir(), },);
+            using _elsewhere = inDirectory({ path: scratchRoot(), },);
 
             expect(await readHeadSha(),).toBe(fromHere,);
           },

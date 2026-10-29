@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -24,7 +24,7 @@ import {
 
 /** Creates a fresh temp directory and resets tracker state */
 async function setup(prefix: string,): Promise<string> {
-  const tempDir = await mkdtemp(join(tmpdir(), prefix,),);
+  const tempDir = await mkdtemp(join(scratchRoot(), prefix,),);
   reset();
   resetWriteTimestamps();
   return tempDir;

@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, mkdir, rm, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -52,7 +52,7 @@ async function createDisposableHome(): Promise<DisposableHome> {
   /**
    Absolute home directory unique to the current case.
    */
-  const path = await mkdtemp(join(tmpdir(), 'bash-poke-home-', ), );
+  const path = await mkdtemp(join(scratchRoot(), 'bash-poke-home-', ), );
 
   /**
    Value `HOME` held before this case replaced it.

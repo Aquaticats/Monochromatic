@@ -5,7 +5,7 @@ import {
   utimes,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -127,7 +127,7 @@ await describe({
         /**
          Disposable integration directory containing isolated OCR home.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-cli-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-cli-',),);
         /**
          Synthetic persisted OCR session directory.
          */
@@ -225,7 +225,7 @@ await describe({
         /**
          Disposable integration directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-cli-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-cli-',),);
         /**
          Fake process and OCR fixture paths.
          */
@@ -260,7 +260,7 @@ await describe({
         /**
          Disposable integration directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-cli-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-cli-',),);
         /**
          Fake process and OCR fixture paths.
          */
@@ -299,7 +299,7 @@ await describe({
         /**
          Disposable integration directory.
          */
-        await using directory = await mkdtempDisposable(join(tmpdir(), 'ocr-issue-cli-',),);
+        await using directory = await mkdtempDisposable(join(scratchRoot(), 'ocr-issue-cli-',),);
         /**
          Fake process and OCR fixture paths.
          */

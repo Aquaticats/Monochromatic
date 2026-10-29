@@ -3,7 +3,7 @@ import {
   mkdtempSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -30,7 +30,7 @@ const BUNDLE = resolve(
 /**
  Scratch directory holding one transcript per case.
  */
-const SCRATCH = mkdtempSync(join(tmpdir(), 'stop-reminder-release-',),);
+const SCRATCH = mkdtempSync(join(scratchRoot(), 'stop-reminder-release-',),);
 
 /**
  Transcript line for a turn the user typed, which closes the counting window.

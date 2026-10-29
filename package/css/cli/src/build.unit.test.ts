@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { buildCss, } from '@monochromatic-dev/css-cli';
@@ -46,7 +46,7 @@ async function buildInTempDir({
    Disposable directory owning all inputs and the output.
    */
   const dir = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'build-css-test-',
   ),);
   /**

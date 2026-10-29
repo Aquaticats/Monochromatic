@@ -99,9 +99,9 @@ fn resolve(
 
 #[test]
 fn a_project_in_a_toolchain_worktree_gets_the_directories_the_lookup_prints() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
-    let tools = tempfile::tempdir().expect("directory");
+    let tools = crate::test_scratch::scratch().expect("directory");
     let node = tools.path().join("node/bin");
     let taplo = tools.path().join("taplo");
     fs::create_dir_all(&node).expect("directory");
@@ -136,7 +136,7 @@ fn a_project_in_a_toolchain_worktree_gets_the_directories_the_lookup_prints() {
 
 #[test]
 fn the_lookup_is_only_given_the_entry_point_path_and_never_a_tool_or_an_option() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let (state, seen) = resolve(&root, done(&answer(&[], &[]), ""));
     assert!(matches!(state, ToolchainState::Provided(_)), "{state:?}");
@@ -151,7 +151,7 @@ fn the_lookup_is_only_given_the_entry_point_path_and_never_a_tool_or_an_option()
 
 #[test]
 fn a_folder_below_the_worktree_root_is_served_by_the_worktrees_entry_point() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let folder = base.path().join("package/ide/app");
     let found = entry_point(&folder).expect("entry point");
@@ -163,7 +163,7 @@ fn a_folder_below_the_worktree_root_is_served_by_the_worktrees_entry_point() {
 
 #[test]
 fn a_project_with_a_dashed_name_is_only_the_working_directory() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     worktree(base.path());
     let folder = base.path().join("--cd=etc");
     let (state, seen) = resolve(&folder, done(&answer(&[], &[]), ""));
@@ -176,7 +176,7 @@ fn a_project_with_a_dashed_name_is_only_the_working_directory() {
 
 #[test]
 fn a_project_without_the_entry_point_is_not_a_toolchain_project() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = base.path().to_path_buf();
     let (state, seen) = resolve(
         &root,
@@ -192,7 +192,7 @@ fn a_project_without_the_entry_point_is_not_a_toolchain_project() {
 
 #[test]
 fn a_worktree_that_is_not_above_the_project_does_not_serve_it() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     worktree(&base.path().join("one"));
     let other = base.path().join("two");
     assert!(entry_point(&other).is_none());
@@ -200,7 +200,7 @@ fn a_worktree_that_is_not_above_the_project_does_not_serve_it() {
 
 #[test]
 fn an_unreadable_answer_fails_instead_of_guessing() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let (state, _) = resolve(&root, done("<html>", ""));
     let ToolchainState::Failed(not_json) = state else {
@@ -215,7 +215,7 @@ fn an_unreadable_answer_fails_instead_of_guessing() {
 
 #[test]
 fn an_answer_of_another_shape_fails_instead_of_guessing() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let (state, _) = resolve(&root, done(r#"{"exposureDir": "x", "bins": {}}"#, ""));
     let ToolchainState::Failed(no_dirs) = state else {
@@ -226,7 +226,7 @@ fn an_answer_of_another_shape_fails_instead_of_guessing() {
 
 #[test]
 fn a_failed_run_quotes_the_lookup_and_drops_the_node_version_footer() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let stderr = "file:///work/project/package/file-enforcer/core/src/toolchain/bin-paths.ts:3
 Error: toolchain.lock.json is unreadable
@@ -246,7 +246,7 @@ Node.js v26.12.0
 
 #[test]
 fn a_failure_without_a_message_still_says_what_ended() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let (state, _) = resolve(&root, exited(""));
     let ToolchainState::Failed(failed) = state else {
@@ -263,7 +263,7 @@ fn a_failure_without_a_message_still_says_what_ended() {
 
 #[test]
 fn a_run_that_timed_out_or_could_not_start_fails_and_a_refused_sandbox_does_not() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     let timed_out = RunFailure::Failed("did not finish within 10 s and was stopped".to_string());
     let (state, _) = resolve(&root, Err(timed_out));
@@ -289,7 +289,7 @@ fn a_run_that_timed_out_or_could_not_start_fails_and_a_refused_sandbox_does_not(
 
 #[test]
 fn the_disabled_policy_never_runs_the_lookup() {
-    let base = tempfile::tempdir().expect("directory");
+    let base = crate::test_scratch::scratch().expect("directory");
     let root = worktree(base.path());
     assert_eq!(resolve_disabled(&request(&root)), ToolchainState::Disabled);
 }

@@ -24,7 +24,7 @@ impl Library {
         let nanos: u128 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| return elapsed.as_nanos());
-        let root = std::env::temp_dir().join(format!("music-player-flow-{}-{nanos}-{tag}", std::process::id()));
+        let root = crate::test_scratch::scratch_root().join(format!("music-player-flow-{}-{nanos}-{tag}", std::process::id()));
         for file in files {
             let path = root.join(file);
             std::fs::create_dir_all(path.parent().expect("a file has a folder")).expect("the folder is created");

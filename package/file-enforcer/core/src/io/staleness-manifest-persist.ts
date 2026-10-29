@@ -8,6 +8,10 @@ import { dirname, } from 'node:path';
 
 import { acquireManifestLock, } from './staleness-manifest-lock.ts';
 import {
+  manifestTempFilePath,
+  removeOrphanedManifestTempFiles,
+} from './staleness-manifest-temp-orphan.ts';
+import {
   readManifestFromDisk,
   serializeManifest,
   type PersistableStalenessManifest,
@@ -19,18 +23,10 @@ import {
 import {
   fsyncDirectory,
   writeTempFileDurably,
+  type AtomicTempFileWriter,
 } from './write-atomic.ts';
 
 export { readManifestFromDisk, } from './staleness-manifest-parse.ts';
-
-//region Atomic write constants
-
-/**
- Suffix appended to manifest path for atomic-write temp files.
- */
-const TEMP_FILE_SUFFIX = '.tmp';
-
-//endregion Atomic write constants
 
 //region Atomic write and inter-process merge
 
@@ -41,6 +37,8 @@ const TEMP_FILE_SUFFIX = '.tmp';
  @param tempPath - Same-directory temp path.
  
  @param manifest - Manifest to serialize.
+ 
+ @param tempFileWriter - Writer that creates the temp file; fault-injection seam.
  
  @mutates manifest - `JSON.stringify` may invoke hooks on manifest entries.
  
@@ -53,12 +51,14 @@ async function writeManifestTempFile(
   {
     tempPath,
     manifest,
+    tempFileWriter,
   }: {
     manifest: PersistableStalenessManifest;
+    readonly tempFileWriter: AtomicTempFileWriter;
     readonly tempPath: string;
   },
 ): Promise<void> {
-  await writeTempFileDurably({
+  await tempFileWriter({
     tempPath,
     content: serializeManifest(manifest,),
   },);
@@ -72,20 +72,24 @@ async function writeManifestTempFile(
  
  @param manifest - Manifest to persist.
  
+ @param tempFileWriter - Writer that creates the temp file; fault-injection seam.
+ 
  @mutates manifest - `JSON.stringify` may invoke hooks on manifest entries.
  
  @example
  ```ts
- await writeManifestAtomically({ manifestPath, manifest });
+ await writeManifestAtomically({ manifestPath, manifest, tempFileWriter });
  ```
  */
 async function writeManifestAtomically(
   {
     manifestPath,
     manifest,
+    tempFileWriter,
   }: {
     manifest: PersistableStalenessManifest;
     readonly manifestPath: string;
+    readonly tempFileWriter: AtomicTempFileWriter;
   },
 ): Promise<void> {
   /**
@@ -99,9 +103,15 @@ async function writeManifestAtomically(
   /**
    Same-directory temp path used for atomic replacement.
    */
-  const tempPath = `${manifestPath}.${String(process.pid,)}.${randomUUID()}${TEMP_FILE_SUFFIX}`;
+  const tempPath = manifestTempFilePath({
+    manifestPath,
+    processId: process.pid,
+    uniqueToken: randomUUID(),
+  },);
   /**
-   Cleanup handle for temp file when write or rename fails.
+   Cleanup handle for temp file when write or rename fails in this process.
+   A process that dies before disposal leaves the file for
+   {@link removeOrphanedManifestTempFiles} to remove on a later locked write.
    */
   await using _tempCleanup = {
     async [Symbol.asyncDispose](): Promise<void> {
@@ -114,6 +124,7 @@ async function writeManifestAtomically(
   await writeManifestTempFile({
     tempPath,
     manifest,
+    tempFileWriter,
   },);
   await rename(
     tempPath,
@@ -124,7 +135,8 @@ async function writeManifestAtomically(
 
 /**
  Merges cached entries with latest disk state under a lock from
- {@link acquireManifestLock}, reading the existing manifest via
+ {@link acquireManifestLock}, removing temp files orphaned by dead writers via
+ {@link removeOrphanedManifestTempFiles}, reading the existing manifest via
  {@link readManifestFromDisk}, then writes atomically with
  {@link writeManifestAtomically}.
  
@@ -132,26 +144,33 @@ async function writeManifestAtomically(
  
  @param manifest - Cached manifest changes to persist.
  
+ @param tempFileWriter - Optional writer that creates the temp file; fault-injection seam for tests.
+ 
  @returns Merged manifest written to disk.
  
  @example
  ```ts
  const merged = await writeMergedManifest({ manifestPath, manifest });
  ```
+
+ @internal
  */
 export async function writeMergedManifest(
   {
     manifestPath,
     manifest,
+    tempFileWriter = writeTempFileDurably,
   }: {
     readonly manifest: Readonly<PersistableStalenessManifest>;
     readonly manifestPath: string;
+    readonly tempFileWriter?: AtomicTempFileWriter;
   },
 ): Promise<StalenessManifest> {
   /**
    Lock handle released after merged manifest has been written.
    */
   await using _lock = await acquireManifestLock(manifestPath,);
+  await removeOrphanedManifestTempFiles(manifestPath,);
   /**
    Latest manifest state from disk while lock is held.
    */
@@ -169,6 +188,7 @@ export async function writeMergedManifest(
   await writeManifestAtomically({
     manifestPath,
     manifest: mergedManifest,
+    tempFileWriter,
   },);
   return mergedManifest;
 }

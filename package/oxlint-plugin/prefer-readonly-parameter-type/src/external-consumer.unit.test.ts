@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -39,7 +39,7 @@ type ExternalConsumer = {
  */
 function createExternalConsumer(): ExternalConsumer {
   /** Unique consumer directory under operating-system temporary root. */
-  const path = mkdtempSync(join(tmpdir(), 'readonly-rule-consumer-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-rule-consumer-',),);
   return {
     path,
     [Symbol.dispose]: function removeExternalConsumer(): void {

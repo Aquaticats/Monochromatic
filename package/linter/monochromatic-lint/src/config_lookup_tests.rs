@@ -57,7 +57,7 @@ impl ConfigFilesystem for MemoryFilesystem {
 
 /// Native temporary-directory paths supply the platform's absolute-root grammar without reading files.
 fn root() -> PathBuf {
-    return std::env::temp_dir().join("monochromatic-lint-memory-config");
+    return crate::test_scratch::scratch_root().join("monochromatic-lint-memory-config");
 }
 
 /// The native adapter reads only owned fixture paths and classifies real I/O failures.

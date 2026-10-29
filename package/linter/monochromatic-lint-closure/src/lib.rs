@@ -158,3 +158,7 @@ impl<'tcx> LateLintPass<'tcx> for AvoidableClosure {
         );
     }
 }
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

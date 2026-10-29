@@ -3,7 +3,6 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import {
@@ -16,6 +15,7 @@ import {
 } from '@earendil-works/pi-coding-agent';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Constants
 
 /**
@@ -182,7 +182,7 @@ async function writeRetainedAnswer(
    Unique retained-answer directory.
    */
   const directory = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     RETAINED_ANSWER_PREFIX,
   ),);
   await chmod(

@@ -22,8 +22,8 @@ struct Fixture {
 }
 
 fn fixture() -> Fixture {
-    let project = tempfile::tempdir().expect("project directory");
-    let elsewhere = tempfile::tempdir().expect("outside directory");
+    let project = crate::test_scratch::scratch().expect("project directory");
+    let elsewhere = crate::test_scratch::scratch().expect("outside directory");
     let root = project.path().canonicalize().expect("canonical project");
     let outside_root = elsewhere.path().canonicalize().expect("canonical outside");
     fs::create_dir_all(root.join("src/@scope")).expect("nested directory");

@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   DEFAULT_MAX_HASH_SIZE_BYTES,
@@ -44,7 +44,7 @@ const SHA256_HEX_OF_HELLO =
  @returns absolute path of a freshly-created temp directory
  */
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'watch-restart-hash-cache-',),);
+  return mkdtemp(join(scratchRoot(), 'watch-restart-hash-cache-',),);
 }
 
 await describe({

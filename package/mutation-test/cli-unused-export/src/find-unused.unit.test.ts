@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
@@ -44,7 +44,7 @@ async function fixtureWorkspace(): Promise<FixtureWorkspace> {
    Fresh fixture root under the platform temp directory.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'unused-export-',
   ),);
   /**
@@ -133,7 +133,7 @@ await describe({
             let caught: unknown;
             try {
               await discoverWorkspacePackages({ workspaceRoot: join(
-                tmpdir(),
+                scratchRoot(),
                 'unused-export-absent',
               ), },);
             }

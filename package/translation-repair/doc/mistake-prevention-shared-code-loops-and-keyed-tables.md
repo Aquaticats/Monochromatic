@@ -159,6 +159,10 @@ A tool version written in source is the same copy of a fact the lock holds:
 `PINNED_LINT_BINARY_VERSION` in `semantic-wrap-binary-constants.ts` must equal the version of `monochromatic-lint`
 in `toolchain.lock.json`,
 and it follows each release in the change that moves the lock (ledger B700).
+The rule holds for any binary a package pins:
+the pin follows `toolchain.lock.json`,
+and a lock move updates the pin in the same round,
+which the move to 0.4.0 did not do until the owner ruled on it (ledger B1015).
 The lock was `mise.lock` until the repository moved its tools to MPM on 2026-10-28.
 A lock moved by a commit of its own leaves the constant behind,
 so after any change to `toolchain.lock.json` the unit tests of typography and page-check run with the real program.

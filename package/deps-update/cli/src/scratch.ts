@@ -16,7 +16,6 @@ import {
   readdir,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import {
   dirname,
   join,
@@ -167,10 +166,24 @@ export async function createScratchWorkspace({
     l,
   },);
   /**
+   Gitignored per-tool scratch parent inside the workspace being resolved, never the system temporary directory
+   whose backing device is unknowable.
+   */
+  const scratchParent = join(
+    root,
+    'node_modules',
+    '.monochromatic',
+    'deps-update',
+  );
+  await mkdir(
+    scratchParent,
+    { recursive: true, },
+  );
+  /**
    Fresh private directory for this run.
    */
   const dir = await mkdtemp(join(
-    tmpdir(),
+    scratchParent,
     'deps-update-',
   ),);
   cl.debug(`scratch workspace ${dir}`,);

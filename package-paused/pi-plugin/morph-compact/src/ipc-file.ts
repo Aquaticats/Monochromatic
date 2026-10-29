@@ -14,9 +14,9 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { scratchParent, } from './scratch-parent.ts';
 //region Types
 
 /**
@@ -40,8 +40,8 @@ export type WriteCompactFileResult = {
 /**
  Write compressed context to a temp file.
  
- Creates a unique temp directory under the system tmpdir
- (e.g. `/tmp/morph-compact-<uuid>/data.txt`) to avoid
+ Creates a unique directory under the tool scratch directory
+ (e.g. `node_modules/.monochromatic/morph-compact/morph-compact-<uuid>/data.txt`) to avoid
  name collisions and simplify cleanup.
  
  @param text - the compressed context string
@@ -65,7 +65,7 @@ export async function writeCompactFile(
    */
   const dir = await mkdtemp(
     join(
-      tmpdir(),
+      await scratchParent(),
       'morph-compact-',
     ),
   );

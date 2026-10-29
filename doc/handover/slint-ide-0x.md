@@ -6062,8 +6062,39 @@ Installed and verified, 2026-10-29:
   `monochromatic-db` was told the three packages are idle and answered that it moves them after its cli batch (it will message me).
   It recorded that `ide-release.yml`, the `//package/desktop-app/ide` task addresses and this handover carry package paths that must change with the move.
 
+Package move and nightly toolchain, 2026-10-29 (after the release):
+- The move landed in `592d78b143`: the IDE is `package/ide/app`, the compositor `package/nested-wayland-session/cli`, the terminal `package/terminal/app`;
+  Cargo package, bin and crate names are unchanged (no npm names exist for them), task addresses are `//package/ide/app:<task>`.
+  A rename-aware diff against `d1477a13ba` shows only message text and task addresses changed in the IDE package;
+  `ide-release.yml` already used the new paths, and its push run on the move built nothing (`detect` passed, the rest skipped).
+  This handover keeps the old paths in its history on purpose (`monochromatic-db` added a dated note near the top).
+- Dry run 40872932504 on `main` failed in both build legs: `build.rs` panicked that `target/release/build/runtime/manifest.json` was unreadable.
+  Cause (measured in `localhost/monochromatic/ide`, Cargo 1.101.0-nightly): `OUT_DIR` is now `target/release/build/<package>/<hash>/out`, so `ancestors().nth(3)` stopped at `target/release/build`.
+  The pinned nightly arrived with `8652ba7d7f`, not with the move.
+  Fix `08840ea6be` (on `main` as `e3ec1a5ff4` after the merge): the profile directory is the parent of the nearest ancestor named `build`;
+  checked against the real nightly `OUT_DIR`, the older layout, a `build` directory above the target and a path with none.
+  Doc: `doc/troubleshooting/ide-build-script-out-dir-depth-under-nightly-cargo.md`.
+- Dry run 40877021793 on `e3ec1a5ff4` passed: `detect`, both builds, `checksums`, `release` succeeded; rustc 1.101.0-nightly; glibc floor check 2.39 passed.
+  `tag_exists=true` for `ide-v0.1.3`, so no further real release exists to make for this version; the fix changes the build only.
+  The next release needs a version bump and starts from this nightly image.
+- `monochromatic-db` plans to move the repo's container base to CachyOS (rule BXD, `doc/decision/container-base-distro.md`);
+  the terminal and ide Containerfiles are on hold until the user decides how to keep the IDE release glibc floor (the IDE release binary is compiled inside the image built from the terminal image).
+  It will message me the commit hash if a terminal or ide Containerfile change lands, and I dry-run the IDE release on it before any real release.
+- The user decided (relayed by `monochromatic-db`, recorded in `doc/decision/container-base-distro.md`, `51874c06c6` and `3df9a372af`):
+  split each of `package/terminal/app` and `package/ide/app` into a CachyOS development image (base chosen by host CPU level through `ARG CACHYOS_IMAGE`)
+  and a separate release image based on `docker.io/library/ubuntu:24.04` (glibc 2.39, the floor the release workflow checks);
+  the first relay said the release image would stay on Fedora 41, and a later relay from the same session replaced that with Ubuntu 24.04.
+  Every release path, including the build in `localhost/monochromatic/ide` that `ide-release.yml` runs, must build from the release image.
+  No terminal or ide Containerfile change was committed at the time of writing; `monochromatic-db` will message me the hash when one lands.
+- `origin/main` was already at `7c448d8a3e` ("build the compositor image on CachyOS with pacman instead of Fedora 41 with dnf") when I checked,
+  so the compositor image changed base.
+  Its release jobs in `.github/workflows/cargo-publish.yml` (`nws-build-binary` and the packaging after it) run on named `ubuntu-24.04` and `ubuntu-24.04-arm` runners
+  and install the system libraries with the runner's package manager, not from the Containerfile image, so that change does not move the compositor release glibc (read from the workflow, not by a dry run).
+
 Next, in order:
-- When `monochromatic-db` announces the move, check `ide-release.yml`, the `task.ts` and `mise.toml` addresses and this handover's paths, and dry-run the next release from the new location.
+- Wait for that message; then dry-run `ide-release.yml` on the commit, check that the build runs in the Ubuntu 24.04 release image, the glibc floor step (2.39) and the recorded toolchain, and compare with the baseline run 40877021793; record the result here.
+- Before the next compositor release, dry-run the compositor release in `cargo-publish.yml` once, because the package path and the image changed since `monochromatic-nested-wayland-session-v0.6.2`.
+- Release the next IDE version when there is a change worth shipping (bump `version` in `package/ide/app/Cargo.toml`, `task-run //package/ide/app:fetch`, dry run, then dispatch with `--ref main --field dry-run=false`).
 - The compositor needs no release now; its manifest is covered by the same generator fix.
 
 [scope]: ../decision/slint-ide-0x-scope.md

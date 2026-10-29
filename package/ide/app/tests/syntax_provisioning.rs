@@ -77,7 +77,7 @@ fn runtime_directory() -> PathBuf {
 /// }
 /// ```
 fn write_manifest(content: &str) -> tempfile::TempDir {
-    // What: `tempfile::tempdir()` returns `Result<TempDir, io::Error>`; `.expect("...")`
+    // What: `tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR"))` returns `Result<TempDir, io::Error>`; `.expect("...")`
     //       extracts the directory handle or panics with that message.
     // Why:  A fixture that cannot be created is a broken test environment, not a test result.
     //
@@ -85,7 +85,7 @@ fn write_manifest(content: &str) -> tempfile::TempDir {
     // ```ts
     // const directory = mkdtempSync(join(tmpdir(), 'manifest-')); // throws on failure
     // ```
-    let directory = tempfile::tempdir().expect("isolated manifest directory");
+    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
     fs::write(directory.path().join("manifest.json"), content).expect("write manifest fixture");
     return directory;
 }
@@ -194,7 +194,7 @@ fn manifest_lists_grammar_ids_without_the_library_suffix() {
 /// A missing manifest names the file and the task that prepares it.
 #[test]
 fn missing_manifest_names_the_file_and_the_remedy() {
-    let directory = tempfile::tempdir().expect("isolated manifest directory");
+    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("isolated manifest directory");
     let manifest = directory.path().join("manifest.json");
     let error = provisioned_grammars(&manifest).expect_err("missing manifest");
     let message = format!("{error:#}");

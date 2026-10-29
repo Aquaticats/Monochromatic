@@ -2,7 +2,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -22,7 +22,7 @@ async function pressureFile(text: string,): Promise<string> {
   /**
    Fresh directory so cases cannot share files.
    */
-  const dir = await mkdtemp(join(tmpdir(), 'cpu-cap-pressure-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'cpu-cap-pressure-',),);
   await writeFile(join(dir, 'cpu',), text,);
   return join(dir, 'cpu',);
 }

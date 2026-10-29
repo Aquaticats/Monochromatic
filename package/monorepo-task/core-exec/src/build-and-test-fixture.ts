@@ -12,7 +12,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   dirname,
@@ -243,7 +243,7 @@ export async function runBuildAndTestFixture({
    Disposable resource removes configuration and outputs after the child has closed.
    */
   await using directory = await mkdtempDisposable(join(
-    tmpdir(),
+    scratchRoot(),
     'mise-build-and-test-',
   ),);
   /**

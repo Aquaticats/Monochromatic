@@ -45,6 +45,12 @@ export {
 } from './io/staleness-manifest-lock-owner-publish.ts';
 export { lockOwnerState, } from './io/staleness-manifest-lock-owner.ts';
 export { acquireManifestLock, } from './io/staleness-manifest-lock.ts';
+/**
+ Re-exported so built-artifact tests drive the locked manifest write, including its orphaned temp file removal.
+
+ @internal
+ */
+export { writeMergedManifest, } from './io/staleness-manifest-persist.ts';
 export { freshStalenessManifest, } from './io/staleness-run.ts';
 export { manageMiseManifests, } from './mise/manage-mise-manifests.ts';
 export {

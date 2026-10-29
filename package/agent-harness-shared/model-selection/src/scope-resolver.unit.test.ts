@@ -9,7 +9,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -103,7 +103,7 @@ await describe({
       name: 'uses settings scope before available fallback',
       fn: async function testSettingsScope() {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-shared-scope-test-',
         ),);
         const cwd = join(
@@ -144,7 +144,7 @@ await describe({
       name: 'falls back to all available models',
       fn: async function testAvailableFallback() {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-shared-scope-test-',
         ),);
         const scope = await resolveEffectiveScope({

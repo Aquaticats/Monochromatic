@@ -1,13 +1,13 @@
 /** Opt-in overlap and finite scheduling configuration at the real file-loading boundary. @module */
 import { mkdir, mkdtemp, rm, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { describe, expect, it, } from '@monochromatic-dev/test-harness-core/ts';
 import { DEFAULT_CONFIG, loadMergedConfig, } from '../dist/final/node/index.mjs';
 
 /** Load disposable global and project JSON files through the actual config merger. */
 async function configured(global: Record<string, unknown> | string, project: Record<string, unknown> = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'advisor-hedge-config-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'advisor-hedge-config-',),);
   await using cleanup = {
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(root, { recursive: true, force: true, },);

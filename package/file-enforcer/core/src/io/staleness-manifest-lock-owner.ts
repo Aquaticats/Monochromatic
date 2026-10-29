@@ -216,8 +216,10 @@ async function readLockOwner(lockPath: string,): Promise<ManifestLockOwnerRead> 
  ```ts
  const alive = processAppearsAlive(process.pid);
  ```
+
+ @internal
  */
-function processAppearsAlive(pid: number,): boolean {
+export function processAppearsAlive(pid: number,): boolean {
   try {
     process.kill(
       pid,

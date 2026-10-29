@@ -38,7 +38,7 @@ pub(super) fn row(window: &AppWindow, label: &str) -> Option<i32> {
 ///  Ctrl+1 promotes and alternates successful opens.
 #[test]
 fn native_tree_switches_files_and_preserves_current_file_reading_state() {
-    let fixture = tempfile::tempdir().expect("disposable native project");
+    let fixture = crate::test_scratch::scratch().expect("disposable native project");
     let nested = fixture.path().join("src/deep");
     fs::create_dir_all(&nested).expect("nested fixture directories");
     let initial = nested.join("view.txt");
@@ -136,7 +136,7 @@ fn native_tree_switches_files_and_preserves_current_file_reading_state() {
 ///  and a later failed open retains it through successful source refreshes.
 #[test]
 fn native_failed_open_keeps_source_and_does_not_promote_history() {
-    let fixture = tempfile::tempdir().expect("disposable native project");
+    let fixture = crate::test_scratch::scratch().expect("disposable native project");
     fs::write(fixture.path().join("source.txt"), "readable source").expect("readable fixture");
     fs::write(fixture.path().join("binary.txt"), [0xff]).expect("invalid UTF-8 fixture");
     let workspace = Workspace::new(fixture.path()).expect("workspace");

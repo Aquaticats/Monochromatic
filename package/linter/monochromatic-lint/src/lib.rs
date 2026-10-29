@@ -371,3 +371,7 @@ mod processors_rewrite;
 mod processors_spans;
 /// Virtual shell files for the steps of a workflow or composite action.
 mod processors_workflow;
+
+/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+#[cfg(test)]
+mod test_scratch;

@@ -64,7 +64,7 @@ impl Scale {
     fn new(tag: &str) -> Scale {
         crate::logging::init();
         let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |elapsed| return elapsed.as_nanos());
-        let folder = std::env::temp_dir().join(format!("mp-refresh-scale-{}-{nanos}-{tag}", std::process::id()));
+        let folder = crate::test_scratch::scratch_root().join(format!("mp-refresh-scale-{}-{nanos}-{tag}", std::process::id()));
         std::fs::create_dir_all(&folder).expect("the folder is created");
         let tracks: Vec<PathBuf> = million_library().into_iter().map(|path| return folder.join(path.strip_prefix(ROOT).expect("below the root"))).collect();
         let reports: Arc<Mutex<Vec<SweepReport>>> = Arc::new(Mutex::new(Vec::new()));

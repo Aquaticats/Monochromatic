@@ -242,11 +242,8 @@ export function buildContainerCommand({
 }
 
 /**
- Image repositories for distros whose Docker Hub repository name differs from the distro name.
- Per the owner's 2026-10-29 container base distro decision
- (`doc/decision/container-base-distro.md`), CachyOS resolves to the unpinned `latest` tag
- of the plain `cachyos/cachyos` image, which runs on any x86-64 CPU
- (`cachyos/cachyos-v3` needs AVX2 and fails on CPUs without it).
+ Image repositories for distros whose Docker Hub repository name differs from the distro name
+ and that have no CPU-level ladder.
  A `Map` keeps lookups of names like `constructor` from reaching the prototype.
  */
 const IMAGE_REPOSITORY_BY_DISTRO: ReadonlyMap<string, string> = new Map([
@@ -259,21 +256,34 @@ const IMAGE_REPOSITORY_BY_DISTRO: ReadonlyMap<string, string> = new Map([
 /**
  Resolves a distro name to a container image reference.
  Appends `:latest` if no tag is specified.
- Distros listed in `IMAGE_REPOSITORY_BY_DISTRO` resolve to their registry repository
- (keeping an explicit tag); every other distro name is used as the image name.
+ 
+ A bare `cachyos` resolves to the CachyOS image the caller resolved for the host's CPU level
+ (`cachyos-v4`, `cachyos-v3` or plain `cachyos`, see `resolveBaseImage` in `./cachyos-image.ts`).
+ `cachyos:<tag>` is an explicit choice and resolves to the plain `cachyos/cachyos` repository
+ with that tag, skipping the ladder. Every other distro name is used as the image name.
  
  @param distro - Distro name (e.g. `'ubuntu'`, `'fedora:39'`, `'cachyos'`)
  
+ @param cachyosImage - Image for a bare `cachyos`, from `resolveBaseImage`; required only for that distro
+ 
  @returns container image reference (e.g. `'ubuntu:latest'`, `'fedora:39'`,
- `'docker.io/cachyos/cachyos:latest'`)
+ `'docker.io/cachyos/cachyos-v4:latest'`)
+ 
+ @throws Error when a bare `cachyos` is given without `cachyosImage`
  
  @example
  ```ts
- resolveImage('ubuntu'); // 'ubuntu:latest'
- resolveImage('cachyos'); // 'docker.io/cachyos/cachyos:latest'
+ resolveImage({ distro: 'ubuntu', }); // 'ubuntu:latest'
+ resolveImage({ distro: 'cachyos', cachyosImage: 'docker.io/cachyos/cachyos:latest', });
  ```
  */
-export function resolveImage(distro: string,): string {
+export function resolveImage({
+  distro,
+  cachyosImage,
+}: {
+  readonly distro: string;
+  readonly cachyosImage?: string;
+},): string {
   /**
    Split point between distro name and tag; -1 signals no tag.
    */
@@ -287,17 +297,29 @@ export function resolveImage(distro: string,): string {
       0,
       colonIndex,
     );
+
+  if ((baseName === 'cachyos') && (colonIndex === (-1))) {
+    if (cachyosImage === undefined) {
+      throw new Error(
+        'A bare "cachyos" distro needs the image chosen for the host CPU level: '
+          + 'pass cachyosImage from resolveBaseImage (the matrix does this once at startup).',
+      );
+    }
+    return cachyosImage;
+  }
+
   /**
    Registry repository for distros whose image name differs from the distro name.
    */
   const repository = IMAGE_REPOSITORY_BY_DISTRO.get(baseName,);
 
-  if (repository === undefined)
-    return colonIndex === (-1) ? `${distro}:latest` : distro;
+  if (repository === undefined) {
+    return colonIndex === (-1)
+      ? `${distro}:latest`
+      : distro;
+  }
 
-  return colonIndex === (-1)
-    ? `${repository}:latest`
-    : `${repository}${distro.slice(colonIndex,)}`;
+  return `${repository}${distro.slice(colonIndex,)}`;
 }
 
 /**
@@ -309,6 +331,8 @@ export function resolveImage(distro: string,): string {
  @param combination - Fully resolved combination to execute
  
  @param monorepoRoot - Absolute path to the monorepo root on the host
+ 
+ @param cachyosImage - CachyOS image resolved once for the whole matrix, for a bare `cachyos` distro
  
  @returns stdout from the container execution
  
@@ -330,9 +354,11 @@ export function resolveImage(distro: string,): string {
 export async function runContainer({
   combination,
   monorepoRoot,
+  cachyosImage,
 }: {
   readonly combination: Combination;
   readonly monorepoRoot: string;
+  readonly cachyosImage?: string;
 },): Promise<string> {
   /**
    Pre-parsed OS so the vm-protocol guard and the image resolution can both reuse it.
@@ -346,7 +372,10 @@ export async function runContainer({
   /**
    Fully tagged image reference suitable for `podman run`.
    */
-  const image = resolveImage(parsed.distro,);
+  const image = resolveImage({
+    distro: parsed.distro,
+    ...(cachyosImage === undefined ? {} : { cachyosImage, }),
+  },);
   /**
    Single shell string passed to `sh -c`; built ahead of time so the spawn call stays readable.
    */
