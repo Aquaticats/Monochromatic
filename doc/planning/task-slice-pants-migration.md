@@ -2,21 +2,31 @@
 
 Status:
  proposal,
- written 2026-10-29 after the user answered
- "2"
- to the adoption question
- (adopt the owner,
- write the migration plan first,
- adopt after reading it),
- and added the scope statement
- "we're still going to migrate off pants to meow later when we have capacity".
+ written 2026-10-29 and revised the same day after two corrections.
 No `doc/decision/` record yet,
  no task file changed.
 
+## Corrections applied 2026-10-29
+
+Two corrections from the user
+ re-derived the decisions below.
+
+- "We don't care about how much work hop 2 would take."
+ Hop 2's cost is not a design input.
+ Every decision that was justified
+ by making hop 2 cheap is re-derived
+ on capability for the target workload alone.
+- "`task-run` (task CLI) is an extremely ugly hack we did because Mise was bugging out."
+ `@monochromatic-dev/monorepo-task-cli`
+ and its `task.ts` mirrors
+ are a stopgap,
+ not an owner to extend.
+ The plan retires them
+ instead of building on them.
+
 ## Scope
 
-Two hops,
- not one.
+Two hops.
 
 - Hop 1:
   Mise to Pants 2.33.1,
@@ -27,54 +37,177 @@ Two hops,
   later,
   when capacity allows.
 
-Because hop 2 is planned,
- hop 1 is written for cheap reversal
- and cheap second migration.
-That constraint shapes every decision below
- and it is the reason the plan preserves
- a vocabulary that costs something to keep.
+Hop 2 still happens.
+Its cost simply does not shape hop 1.
 
-## What must survive both hops
+## What the target workload needs
 
-### The `//package/<path>:<task>` vocabulary
+### Addressing
 
-Keep it as the addressing form
- through both hops.
+Keep `//package/<path>:<task>`.
 
-This is not incumbent fidelity.
-`meow`'s accepted command surface is already
- `meow run //package/cow:test`
- ([`monorepo-manager-from-scratch-design.md`](monorepo-manager-from-scratch-design.md)),
- so the label shape is the *target* shape
- and keeping it makes hop 2
- a leading-token change at call sites
- instead of a second re-addressing.
+This is not incumbent fidelity
+ and not a hedge for hop 2.
+It is the target's own grammar:
+ a Pants spec is `path:target_name`
+ with an optional `//` prefix
+ that `src/rust/engine/src/externs/address.rs` strips.
+After the name change below,
+ `//package/cow:build.js.node`
+ is a literal Pants spec.
 
-Measured call-site surface today:
+Measured call-site surface today
+ (2026-10-29,
+ `rg --hidden`,
+ excluding worktrees and `node_modules`):
 
-- 104 code call sites in 78 files
-  match `mise run //...`
-  (`.ts`,
-  `.toml`,
-  `.rs`,
-  `.mjs`,
-  `.kts`);
-- 2,418 total matches including docs and fixtures.
+- 2,422 `mise run //...` matches;
+- 81 `task-run //...` matches,
+  all in CI workflows and handover notes.
+
+Root tasks are bare names today
+ (`lint:monochromatic-lint`,
+ `prepare:pnpm`,
+ `changeset:*`).
+They become root-level specs
+ (`//:lint.monochromatic-lint`).
+
+### Task names
+
+Rename the task-name separator from `:` to `.`
+ at the source.
+One vocabulary,
+ no map,
+ no translation layer.
+
+`BANNED_CHARS_IN_TARGET_NAME`
+ (`src/rust/engine/src/externs/address.rs:73`)
+ bans `: # ! @ ? / \ =`,
+ so the colon form is not addressable
+ in Pants at all.
+
+Measured 2026-10-29 over `mise.toml` and `mise.no-env.toml`
+ outside worktrees:
+ 508 distinct task names,
+ 408 of which contain a colon,
+ 0 of which contain a dot,
+ and `:` to `.` collides on no pair.
+The rename is therefore injective.
+
+Why rename rather than mangle behind a map:
+
+- criterion `G`,
+  machine-readable listing,
+  reports one vocabulary.
+  With a map,
+  `peek` prints `build.js.node`
+  while humans and call sites say `build:js:node`,
+  and every consumer needs the map.
+- criterion `I`,
+  maintenance depth,
+  drops a permanent translation artifact.
+
+The hierarchy survives.
+`build.js` fans out over `build.js.*`
+ exactly as `build:js` fans out over `build:js:*` today,
+ so umbrella fanout
+ and the `category[--modifier].child` grammar
+ are unchanged apart from the separator.
+
+The naming convention at `mise.toml:624-625`
+ (`${category}${optional(`--${modifier}`)}:${child}`)
+ is documented in the incumbent's own config
+ and retires with it.
+
+This is the largest single change in the plan
+ (408 names,
+ 2,422 call sites,
+ `AGENTS.md` `CM5`).
+It is recorded here as decided.
+Veto is cheap now
+ and expensive after wave 3.
 
 ### Task bodies
 
-Keep each body as the same argv plus inline TypeScript
- it is today,
- so hop 2 moves the text
- rather than re-deriving it.
+- `adhoc_tool` argv lists,
+  one entry per argv element,
+  no shell strings.
+- Use a local-workspace environment target
+  (`LocalWorkspaceCompatiblePlatformsField`)
+  so the process is a pure exec.
+  Without it `prepare_adhoc_process` wraps argv
+  in `bash -c "cd <workdir> && <shlex.join(argv)>"`,
+  which is safe against injection
+  but puts a `bash` in the tree.
+- `runnable_dependencies` always generate bash shims;
+  keep them out of the slice
+  unless a body truly needs them.
+- Intentional failure tolerance
+  stays expressible in the body.
+  `adhoc_tool` has no `allowFailure` field,
+  so a tolerant task exits 0 from its own body
+  rather than being marked tolerant by the runner.
 
 ### The acceptance boundary
 
 `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`
- (moved 2026-10-29 by concurrent work to
- `package/monorepo-task/core-exec/src/build-and-test.unit.test.ts`,
- staged and not yet committed)
- stays green after every wave.
+ is the gate.
+It checks that tests still run after build failure,
+ that either phase failing makes the aggregate fail,
+ and that explicitly tolerant tasks remain tolerant.
+
+It currently drives generated `mise.toml`
+ through real Mise subprocesses.
+Under hop 1 its subject changes
+ to the generated Pants layer
+ and the dispatcher,
+ and its assertions stay.
+
+## What retires with Mise
+
+### `task-run` and `task.ts`
+
+`@monochromatic-dev/monorepo-task-cli`
+ (`package/monorepo-task/cli`,
+ the `task-run` bin)
+ is a stopgap built because Mise was misbehaving,
+ per the user on 2026-10-29.
+It resolves `//package/<path>:<task>`,
+ honours `depends`,
+ `extends`,
+ `usage_*` and umbrella fanout
+ over 21 `task.ts` files
+ that mirror each package's `mise.toml`.
+
+None of that is a platform to extend.
+The 21 `task.ts` files are a derived mirror
+ of the `mise.toml` corpus
+ and retire with the CLI.
+
+Consequence:
+ `doc/decision/mise-free-ci.md`
+ (accepted 2026-10-25,
+ in force)
+ is superseded on the runner half
+ once the Pants layer serves CI.
+Its other half,
+ that no workflow installs or invokes Mise,
+ stands unchanged.
+That supersession is a `doc/decision/` edit
+ and waits for explicit acceptance.
+
+### `monorepo-task/core-exec`
+
+`command.ts` (`task-command --allowFailure`)
+ and the `depends-*.ts` make-style checker
+ exist for the same reason,
+ to paper over Mise limitations.
+`allowFailure` is a real duty
+ ("intentional failure tolerance"),
+ so that behavior survives,
+ but as a body concern rather than a runner shim.
+The `depends` staleness machinery
+ is superseded by Pants caching.
 
 ## Integration boundary
 
@@ -100,82 +233,32 @@ Pants does not take:
 Mise's `sync:files` tasks leave with Mise,
  as the endpoint decision already records.
 
-## Name and label mapping
+## Source of truth
 
-Measured 2026-10-29 over `mise.toml` and `mise.no-env.toml`
- outside worktrees:
- 508 distinct task names,
- of which 408 contain a colon
- (`build:js:node`,
- `lint:types`,
- `watch:build`).
-Pants target names and address specs both reject the colon
- (Buck2's wording is "the colon is the label separator";
- Pants' error is `expected EOF`),
- so the generated layer must mangle.
+The `mise.toml` corpus
+ (root `mise.no-env.toml` plus the package `mise.toml` files)
+ stays the source of truth through hop 1.
+`task.ts` is derived and retires.
+The Pants layer is generated.
 
-Decision:
- keep the colon names
- as the source of truth,
- mangle only inside the generated Pants layer,
- and record the map
- so hop 2 can invert it.
-Mangling is `:` to `.`
- (`build:js:node` to `build.js.node`),
- the form Buck2,
- Pants,
- and Please all accept
- (Nadle is the outlier,
- allowing only letters,
- numbers,
- and dashes,
- which is one reason the map is kept
- and not baked into names).
-
-Open item for hop 2:
- `meow`'s label grammar does not yet decide
- whether a task name may contain a colon
- (the design keeps `meow run //package/cow:test`
- without deciding what the label refers to).
-If `meow` rejects colons,
- the mangling becomes permanent
- and the map retires.
-
-## Task source of truth
-
-Keep the current task metadata
- where it lives today
- (root `mise.toml` plus the package `mise.toml` files)
- as the source of truth during the interim,
- and generate the Pants layer from it.
-
-Reason:
+Reason on target-workload grounds:
  `meow`'s task model is still unsettled
  ("We need to settle on 'what is a task' first too",
  and task ordering is explicitly undecided),
- so writing `meow.hcl` now
- would bake in a model the user has not approved.
-Writing `meow.hcl` is hop 2's own work.
-
-Consequence:
- the generated Pants layer is disposable
- and the source files never move during hop 1.
+ so `meow.hcl` cannot be the source yet.
+Nothing here is chosen to spare hop 2.
 
 ## Target generation
 
 One generator,
- owned by `monorepo-task`
- (`RCI`:
- extend the package that already owns task orchestration,
- `@monochromatic-dev/monorepo-task-core-exec`
- and `@monochromatic-dev/monorepo-task-cli`),
- emitting one `BUILD` file per package
- from that package's task metadata.
+ extending the pipeline that already emits task config:
+ `file-enforcer.config.ts:691` `generateMiseToml`
+ already generates root `mise.toml`.
+That is the nearest real owner of task-config emission,
+ and extending it is what `RCI` asks.
 
-`file-enforcer.config.ts` already owns `mise.toml` generation,
- so the generator is added beside it
- and the two share the parse
- rather than each re-reading the corpus.
+The stopgap CLI is not a candidate,
+ per the correction above.
 
 Generator duties:
 
@@ -189,7 +272,7 @@ Generator duties:
 - expand `{{vars.}}` at generation time,
   since Pants has no template layer
   (1,159 of 1,836 tasks carry `{{vars.`);
-- mangle names and write the name map;
+- apply the `:` to `.` name change;
 - emit `dependencies`
   (or `execution_dependencies` where order is required)
   from the `depends` lists;
@@ -198,37 +281,13 @@ Generator duties:
   and `output` fields
   from the body shape.
 
-## Task bodies
-
-- `adhoc_tool` argv lists,
-  one entry per argv element,
-  no shell strings.
-- Use a local-workspace environment target
-  (`LocalWorkspaceCompatiblePlatformsField`)
-  so the process is a pure exec.
-  Without it `prepare_adhoc_process` wraps argv
-  in `bash -c "cd <workdir> && <shlex.join(argv)>"`,
-  which is safe against injection
-  but puts a `bash` in the tree
-  and is the wrong default for hop 2.
-- `runnable_dependencies` always generate bash shims;
-  keep them out of the slice
-  unless a body truly needs them.
-- The 41 tasks that use `depends`
-  and the fan-out bodies
-  in `monorepo-task/core-exec`
-  keep their tests-after-build-failure behavior,
-  which is the acceptance boundary.
-
 ## The four carry-in items
 
 These are what adoption must build,
  because upstream does not provide them.
 
 - Summary line for the dependents of a failed build.
-  Build it in the interim dispatcher,
-  not in Pants:
-   compute the blocked set from `peek`
+  Compute the blocked set from `peek`
   and the run result,
   and print it after the run.
 - Aggregate exit that survives a raised failure.
@@ -239,7 +298,7 @@ These are what adoption must build,
   Keep bodies failing as captured results
   (nonzero exit from `adhoc_tool`),
   which is the path that continues independents,
-  and make the dispatcher derive the aggregate exit.
+  and derive the aggregate exit outside the engine.
 - Task timeout above 30 seconds.
   `AdhocToolTimeoutField` defaults to 30.
   Emit a repo default
@@ -253,36 +312,56 @@ These are what adoption must build,
   `--local-store-dir`,
   and must opt out of anonymous telemetry.
 
+The first two need a thin repo-owned reporter
+ that runs with the job.
+The last two are generator and config work.
+
 ## Command surface
 
-Open item,
- ranked.
+The old ranking
+ (`meow`-shaped stub first)
+ rested entirely
+ on saving a hop-2 token change,
+ so it is void.
 
-1.  A `meow`-shaped stub:
-    `meow run //package/<path>:<task>`
-    dispatched to Pants,
-    deleted when real `meow` lands.
-    Call sites are rewritten once
-    and never again.
+Re-derived:
+ the label is already a Pants spec,
+ so a dispatcher adds nothing to addressing.
+Its only remaining jobs
+ are the two reporting duties
+ (dependents summary,
+ aggregate exit),
+ which need a thin runner in the loop
+ either way.
+
+1.  A thin `task` dispatcher
+    that resolves the spec,
+    invokes `pants`,
+    prints the dependents summary,
+    and derives the exit.
+    One surface for humans and CI.
     Con:
-     a binary named `meow` that is not `meow`.
-2.  A neutral interim command:
-    `task //package/<path>:<task>`
-    in `monorepo-task/cli`.
-    Call sites change once to `task`
-    and once more to `meow run` at hop 2.
+     one more binary.
+2.  `pants` goals directly,
+    with the reporter as a separate step
+    on the root aggregates and in CI.
+    Fewest moving parts.
     Con:
-     two mechanical rewrites.
-3.  `pants` goals directly.
-    Call sites learn the Pants address form
-    and the whole vocabulary moves twice.
+     call sites that need the summary
+     must remember the reporter.
+3.  A `meow`-shaped stub.
     Con:
-     worst for hop 2.
+     its only merit was hop-2 token stability,
+     which is now not a design input,
+     and it names a binary after a tool it is not.
 
 Ranking 1 > 2 > 3,
- because hop 2 is already planned
- and the only cost that compounds
- is the call-site token.
+ because the two reporting duties
+ are wanted on every call
+ and a dispatcher is the only shape
+ that guarantees them;
+ 2 leaves that to caller discipline;
+ 3 has no remaining justification.
 
 ## Rollout
 
@@ -290,8 +369,9 @@ Each wave is gated on the acceptance boundary
  and on a dual-run diff.
 
 - Wave 0:
-   the generator,
-   one pilot package,
+   re-measure the corpus,
+  build the generator,
+  one pilot package,
   dual-run against Mise
   and diff the outputs.
 - Wave 1:
@@ -307,31 +387,31 @@ Each wave is gated on the acceptance boundary
   dual-run per package,
   diff.
 - Wave 3:
-   rewrite the call-site leading token,
-  retire `mise run`,
-  and delete the generated layer's name map
-  only at hop 2.
+   rewrite call sites to the new names,
+  repoint CI from `task-run` to the dispatcher,
+  retire `task.ts` and the `task-run` bin,
+  retire `mise run`.
 
 Docs (`AGENTS.md` `CM3`,
  `CM5`,
- and the 2,418 mentions)
+ and the 2,422 mentions)
  follow wave 3,
  not before.
 
 ## Reversal
 
-- Rollback is deletion.
-   The generated `BUILD` files are disposable,
-  the task metadata stays authoritative
-  until wave 3 completes,
-  and reverting is deleting the generated files
-  plus restoring the call-site token.
-- Exit to meow
-  (hop 2):
-   the call sites change the leading token,
-  the name map inverts,
-  bodies move into meow's argv model,
-  and the generator's input becomes `meow.hcl`.
+Rollback is deletion.
+The generated `BUILD` files are disposable,
+ the `mise.toml` corpus stays authoritative
+ until wave 3 completes,
+ and reverting is deleting the generated files
+ plus restoring the call sites.
+
+Nothing here is designed around hop 2.
+When meow takes the slice,
+ it replaces the dispatcher,
+ reads the same corpus,
+ and the call sites keep their labels.
 
 ## Revisit triggers
 
@@ -340,55 +420,22 @@ Docs (`AGENTS.md` `CM3`,
   (what is a task,
   what creates ordering).
 - `meow`'s label grammar settled
-  for a colon inside a task name.
-
-## Risks carried into hop 2
-
-Named here so hop 2 starts with them open,
- not discovered.
-
-- Task ordering is undecided in the meow design,
-  while this corpus carries 603 cross-package `depends` edges
-  (the figure the pnpm pilot measured),
-  41 tasks with a non-empty `depends`,
-  and a `run`-array convention
-  that the design's `depends_on` entry retracted.
-  A live recount on 2026-10-29
-  over `mise.toml` and `mise.no-env.toml`
-  outside worktrees finds 182 `depends` lines
-  expanding to 673 entries,
-  so the migration re-measures the edge set
-  at wave 0
-  rather than trusting either figure.
-- meow's cross-package edges
-  come from native manifests
-  (pnpm workspace links,
-  Cargo path dependencies),
-  which do not express task-level ordering.
-- meow's freshness model
-  hashes declared reads
-  and assumes `meow watch`
-  keeps everything up to date,
-  so unbuilt dependencies
-  "do not arise";
-  Pants runs on demand.
-  The two models differ
-  and the hop-2 plan must reconcile them.
-- The name map must survive hop 1
-  in the generated layer
-  or be re-derived.
+  for a dot inside a task name.
 
 ## Open items to settle at adoption
 
-- The command surface
-  (ranked above).
 - The timeout default
   (proposal:
   900 seconds).
-- Where the generator lives
+- Whether the generator extends `file-enforcer.config.ts`
+  or gets its own package
   (proposal:
-  `monorepo-task`,
-  beside the existing task orchestration).
+  extend file-enforcer,
+  which already emits task config).
+- Whether the dispatcher's reporting
+  is worth its own binary
+  or is a root-aggregate and CI-only step
+  (ranking above).
 - Whether docs rewrite in wave 3
   or in a separate wave
   (proposal:

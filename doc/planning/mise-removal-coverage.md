@@ -613,6 +613,22 @@ Intentionally retired behavior:
  no task feature is selected for retirement.
 Unused Mise task features do not need replacement unless a current caller outside task metadata is found.
 
+Update 2026-10-29 (plan revision):
+ the user corrected two premises of the migration plan
+ recorded in [`task-slice-pants-migration.md`](task-slice-pants-migration.md).
+ "We don't care about how much work hop 2 would take",
+ so the later meow hop is not a design input,
+ and "`task-run` (task CLI) is an extremely ugly hack we did because Mise was bugging out",
+ so `@monochromatic-dev/monorepo-task-cli` and its 21 `task.ts` mirrors
+ are a stopgap to retire,
+ not an owner to extend.
+ CI already runs that stopgap instead of Mise,
+ so the slice has two representations today
+ (`mise.toml` and the `task.ts` mirror);
+ only `mise.toml` is source of truth.
+ The replacement owner is still Pants 2.33.1,
+ vetted in [`tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
+
 ### Watching and process lifecycle
 
 Current owner:
