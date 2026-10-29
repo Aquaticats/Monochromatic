@@ -9,7 +9,7 @@
  Package shapes tested:
  - String shorthand (`p('tree')`): binary = effname = package name
  - Bin differs from effname (`p({ bin: 'rg', effname: 'ripgrep' })`)
- - Per-manager overrides via yes tuples (`yes: [['dnf', 'ImageMagick']]`)
+ - Per-manager overrides via yes tuples (`yes: ['apt', ['dnf', 'ImageMagick'], 'pacman']`; a manager missing from `yes` is unprovidable)
  */
 
 import {
@@ -46,7 +46,7 @@ const TEST_PACKAGES = [
   p({
     bin: 'convert',
     effname: 'imagemagick',
-    yes: ['apt', ['dnf', 'ImageMagick',],],
+    yes: ['apt', ['dnf', 'ImageMagick',], 'pacman',],
   },),
   /** Shape: effname only (bin defaults to effname) */
   p({ effname: 'strace', },),
