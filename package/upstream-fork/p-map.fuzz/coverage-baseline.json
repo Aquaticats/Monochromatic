@@ -1,10 +1,12 @@
 {
-  "errors.ts": 6,
+  "errors.ts": 7,
   "index.ts": 1,
-  "map-iterator.ts": 4,
+  "map-iterator.ts": 10,
   "map-options.ts": 6,
   "mapper.ts": 3,
-  "p-map-iterable.ts": 6,
+  "p-map-iterable.ts": 12,
+  "p-map-keyed.ts": 9,
   "p-map-skip.ts": 1,
-  "p-map.ts": 10
+  "p-map-stop.ts": 1,
+  "p-map.ts": 16
 }
