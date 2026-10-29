@@ -808,14 +808,20 @@ verbatim:
 This is the move of the constant that follows the two of B700 (0.1.2 to 0.2.0 and 0.2.0 to 0.3.0),
 and the same fact in two writings.
 With the lock at 0.4.0 and the constant at 0.3.0,
-the lead's gate g230 on the typography unit tests passed 3271 and failed 15,
-and the lead's count is the source of the 15 here;
-the log (`gate-g230/typography.test-unit.log`,
+the lead's gate g230 failed one step,
+`typography.test-unit` (exit 1);
+the gate's whole-suite summary read 3271 passing and 15 failing,
+counted in `[PASS]` and `[FAIL]` lines across every package,
+not in cases,
+and the failing lines are all typography's
+(an earlier draft of this entry,
+from the lead's own message,
+called the 15 "cases" of typography alone,
+which was wrong);
+the step's log (`gate-g230/typography.test-unit.log`,
 lines 34 to 37) shows the refusal
 `LintBinaryVersionError: monochromatic-lint is version 0.4.0, but shipped text is wrapped by version 0.3.0 only`
-from the cases that wrap through the real program,
-and it carries no totals line,
-so this entry did not count the 15 itself.
+from the cases that wrap through the real program.
 A corpus pass would have stopped at its first wrap.
 The agreement case that B980 moved onto `toolchain.lock.json` would have failed too,
 and it is a unit test of typography,
