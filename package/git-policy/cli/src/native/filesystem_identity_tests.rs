@@ -134,7 +134,7 @@ fn windows_paths_need_a_drive_root() {
 #[cfg(target_os = "linux")]
 #[test]
 fn linux_identities_match_the_platform_commands() {
-    let directory: PathBuf = std::env::temp_dir();
+    let directory: PathBuf = crate::test_support::fixture_root();
     let found: String = filesystem_identity(directory.as_path()).expect("an identity");
     let canonical: PathBuf = std::fs::canonicalize(&directory).expect("canonical");
     let uuid: std::process::Output = std::process::Command::new("findmnt")

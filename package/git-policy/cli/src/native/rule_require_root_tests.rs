@@ -64,13 +64,13 @@ fn violation(root: &str, directory: &str) -> RequireRootVerdict {
 fn ports_the_incumbent_cases() {
     // The fixtures run `-C <directory> status`; a nonexempt command needs the measurement.
     assert_eq!(
-        decide("-C /tmp/x status"),
+        decide("-C /fixture/x status"),
         RequireRootDecision::NeedsRepositoryRoot
     );
     // Outside a repository; and below an empty `.git` or a malformed gitfile, which the
     // measurement does not accept as a repository.
     assert_eq!(
-        resolve_require_root(&facts("/tmp/x", None)),
+        resolve_require_root(&facts("/fixture/x", None)),
         RequireRootVerdict::Pass
     );
     // At the root, whether `.git` is a directory or a gitfile.
