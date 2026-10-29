@@ -251,8 +251,19 @@ User decisions taken during execution
     Rerun confirms fork `test:unit`, sidecar parity, and the coverage gate (10 files) pass.
     The subagent once stopped on `EDQUOT`
      (8.9G of leaked `native-binary-*` git-policy/cli test fixtures filled the user's `/tmp` tmpfs quota, issue #1809).
-    Not done: `test:mutation`, and upstream's ava suite was hand-adapted per feature rather than ported wholesale;
+    Upstream's ava suite was hand-adapted per feature rather than ported wholesale;
      the differential fuzz against installed upstream is the parity guarantee for the new APIs.
+  - `test:mutation` for `p-map` and `p-memoize` (user asked 2026-10-29):
+     first attempt failed because `package/mutation-test/cli/dist` was built 2026-10-20 and still scanned
+     `package/cli/mutation-test/src/container`; rebuilt (doc example fixed in `5ae7a23939`).
+    Running as systemd user units `mutation-p-memoize` and `mutation-p-map`,
+     logs in `~/temp/agent/package-category-elimination/mutation-*.log`,
+     reports land in each package's `dist/mutation-report.json`; survivors still need triage.
+  - A scan of `package/**/dist` for old category paths found stale builds;
+     rebuilt `test-harness/core-matrix` (stack-frame filter fragments), `wg/cli-quicker` (build hint),
+     `file-manager/variant-electron`, `doodle-widget/app`; all now clean.
+    Remaining hits are old mutation reports, fuzz artifacts, and deliberate doc examples
+     (`/repo/package/module/x` in oxlint plugins; translation-repair's pre-split history path).
   - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
      (removed `rebuildEntry` callbacks and the JSON.parse fast path)
      and made the driver reach `emitPlainJson` again;
