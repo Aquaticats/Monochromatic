@@ -87,6 +87,10 @@ mod landing_crash;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// Content a parent commit's tree already holds is not scanned again by forbidden-strings.
+#[path = "binary_known_content_tests.rs"]
+mod known_content;
+
 /// `pathBytes` for a file whose name is not UTF-8 through the commit path.
 #[path = "binary_event_path_commit_tests.rs"]
 mod event_path_commit;

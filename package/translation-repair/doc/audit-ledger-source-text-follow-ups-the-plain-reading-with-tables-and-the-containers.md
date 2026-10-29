@@ -726,6 +726,9 @@ Dated 2026-10-25.
 The owner's stopping rule is that a branch lands once a re-check finds no major issue
 and nothing that changes behaviour on real sources or the real corpus,
 and that gaps shown only by invented inputs become stated limits and a later item.
+On 2026-10-29 (UTC) the rule was completed in the record:
+behaviour is judged on runs as well as on sources and the corpus,
+and a nit goes into the same docs round and not a round of its own (M296).
 The re-check of this round (the seventh) found the limits that follow.
 None is fixed by this branch,
 each is a later item,
