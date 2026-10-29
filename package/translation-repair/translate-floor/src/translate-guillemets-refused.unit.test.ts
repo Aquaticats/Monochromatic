@@ -28,7 +28,7 @@ const SOURCE = '猫说：「我饿了。」';
 
  @param candidateText - rendering under the floor
 
- @returns The number of findings
+ @returns Number of findings
 
  @example
  ```ts

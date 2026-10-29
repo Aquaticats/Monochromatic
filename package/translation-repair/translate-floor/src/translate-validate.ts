@@ -115,7 +115,7 @@ export type SliceValidation =
  @param unread - which side no grammar read and why, the verdict's detail
  when no text floor refuses
 
- @returns A text floor's refusal, or no verdict
+ @returns Refusal of the text floor, or no verdict
 
  @example
  ```ts

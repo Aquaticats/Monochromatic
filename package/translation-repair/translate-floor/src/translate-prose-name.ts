@@ -91,11 +91,11 @@ function isDeclared(
 /**
  Finding for one name a candidate respells.
 
- @param pair - the original's name and the archive's spelling of it
+ @param pair - original's name and archive's spelling of it
 
  @param spellings - spellings of the same letters the candidate writes
 
- @returns The sentence the floor reports
+ @returns Sentence the floor reports
 
  @example
  ```ts

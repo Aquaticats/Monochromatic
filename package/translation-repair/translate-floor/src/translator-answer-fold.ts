@@ -111,7 +111,7 @@ export type FoldedTranslation = {
 
  @param translation - translation as the model wrote it
 
- @returns The translation as it would ship, with a finding per code point folded
+ @returns Translation as it would ship, with a finding per code point folded
 
  @example
  ```ts

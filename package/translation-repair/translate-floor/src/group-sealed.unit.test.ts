@@ -63,7 +63,7 @@ function blocksOf({ text, }: { readonly text: string; },): readonly DocumentNode
 
  @param at - position
 
- @returns The block
+ @returns Block
 
  @example
  ```ts

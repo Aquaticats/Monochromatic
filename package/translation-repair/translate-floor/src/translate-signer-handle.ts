@@ -106,7 +106,7 @@ const PLACEHOLDER_MEANINGS: ReadonlySet<string> = new Set([
 
  @param rendered - signer as the candidate signs it
 
- @returns The finding, or none
+ @returns Finding, or none
 
  @example
  ```ts

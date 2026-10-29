@@ -41,7 +41,7 @@ const INSTRUCTION = 'Write Jumao, followed by what 橘猫 means in English in pa
 
  @param bare - reading as the candidate writes it
 
- @returns The finding, word for word
+ @returns Finding, word for word
 
  @example
  ```ts

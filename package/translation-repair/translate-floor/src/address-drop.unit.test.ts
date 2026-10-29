@@ -50,7 +50,7 @@ const VALID: SliceValidation = {
  @param times - how often the original addresses someone, as the finding
  words it
 
- @param quoted - the rendering's third-person pronouns, quoted and joined as
+ @param quoted - rendering's third-person pronouns, quoted and joined as
  the finding joins them
 
  @param rendered - how many third-person pronouns the rendering carries

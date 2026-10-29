@@ -189,7 +189,7 @@ export class FloorGroundDisagreementError extends Error {
 
  @param verdict - what the floor said
 
- @returns The pass or the refusal
+ @returns Pass or refusal
 
  @throws {@link FloorGroundDisagreementError} when the floor says it
  compared nothing
@@ -296,7 +296,7 @@ type FrontMatterSide =
 
  @param name - what a detail calls this side
 
- @returns The block, or why none could be read
+ @returns Block, or why none could be read
 
  @throws Whatever the splitter throws that is not a YAML refusal, since that
  is a fault in this code rather than a fact about the text

@@ -306,7 +306,7 @@ export class TranslateAbsenceError extends Error {
 
  @param error - value the catch clause bound
 
- @returns The absence itself
+ @returns Absence itself
 
  @throws What was caught, by identity, when it is not an absence
 

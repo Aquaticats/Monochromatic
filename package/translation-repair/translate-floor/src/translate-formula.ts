@@ -65,7 +65,7 @@ function isFormula({ type, }: { readonly type: string; },): boolean {
 
  @param text - passage to read
 
- @returns The count, or a refusal where the strict grammar refuses the passage
+ @returns Count, or a refusal where the strict grammar refuses the passage
 
  @throws {@link Error} any failure other than the grammar's refusal, which is
  not this floor's to read

@@ -94,7 +94,7 @@ const BROKEN_METADATA = '---\nname: [broken\n---\n';
  What the strict grammar says of the unclosed original, read rather than
  written out, since the detail is the grammar's own.
 
- @returns The grammar's refusal detail
+ @returns Grammar's refusal detail
 
  @throws {@link Error} where the fixture reads, which would mean it no longer
  exercises an unread original
@@ -118,7 +118,7 @@ function unclosedSourceDetail(): string {
  What the splitter says of the broken metadata, which a detail naming it
  carries.
 
- @returns The refusal's message
+ @returns Refusal's message
 
  @throws {@link Error} where the fixture parses, which would mean it no
  longer exercises a refusal

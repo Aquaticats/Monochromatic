@@ -414,7 +414,7 @@ function acceptedStarts(
 
  @param starts - offsets of the occurrences to cut, in order
 
- @returns The text without those occurrences
+ @returns Text without those occurrences
 
  @example
  ```ts
@@ -472,7 +472,7 @@ function cutAt(
 
  @param candidateText - rendering, comments already cut
 
- @returns The rendering without its accepted title occurrences
+ @returns Rendering without its accepted title occurrences
 
  @example
  ```ts

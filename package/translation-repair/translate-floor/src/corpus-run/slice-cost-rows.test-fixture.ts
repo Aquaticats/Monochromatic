@@ -22,7 +22,7 @@ import type {
 
  @param exit - how the lane left the slice
 
- @returns The row
+ @returns Row
 
  @example
  ```ts

@@ -235,7 +235,7 @@ await describe({
 
          @param acceptedText - wording the lane decided on
 
-         @returns The refusal, class and message
+         @returns Refusal, class and message
 
          @example
          ```ts

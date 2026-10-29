@@ -108,7 +108,7 @@ function fenceRunAtEnd({ line, }: { readonly line: string; },): number {
 
  @param line - one line of a candidate
 
- @returns The label, or none for any other line and for a label that shows a
+ @returns Label, or none for any other line and for a label that shows a
  reader nothing
 
  @example

@@ -71,7 +71,7 @@ const FENCED_LABELS: readonly (readonly [string, string,])[] = [
  @param label - label the finding names: a listed head, or a fenced line's
  own label where no listed head covers it
 
- @returns The finding, word for word
+ @returns Finding, word for word
 
  @example
  ```ts

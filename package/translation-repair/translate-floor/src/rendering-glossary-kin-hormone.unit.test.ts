@@ -40,7 +40,7 @@ const WHOLE = 'The cat\'s friends and family all remembered that it loved sunbat
 
  @param term - glossary key
 
- @returns The seeded rendering, empty where the term is not seeded
+ @returns Seeded rendering, empty where the term is not seeded
 
  @example
  ```ts
