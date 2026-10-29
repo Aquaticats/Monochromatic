@@ -283,6 +283,12 @@ so DSH context still carries 49 lines of Claude Code rules:
     maxBytes: 131072
 ```
 
+Moved 2026-10-29:
+this row now sits inside the `preset-cordis` override in
+`~/.dsh/cordis.patch.yml`,
+the user-wide layer;
+see the section Glob and grep disabled user-wide, 2026-10-29.
+
 The change takes effect at the next server start.
 It has not been observed,
 because no restart or new session has happened since it was written.
@@ -351,6 +357,12 @@ the profile now drops the second candidate:
     maxBytes: 131072
     instructionFileCandidates: ["AGENTS.md"]
 ```
+
+Moved 2026-10-29:
+the `preset-cordis` override this snippet came from now lives in
+`~/.dsh/cordis.patch.yml`,
+the user-wide layer;
+see the section Glob and grep disabled user-wide, 2026-10-29.
 
 This is strictly better than the third-file option this section proposed,
 because `diff AGENTS.md CLAUDE.md` reports `0a1,49`:
@@ -1099,6 +1111,66 @@ Measured from the active plugin list:
   which is how the 52-tool schema dump
   and the `list_bundles` output in this audit remained usable.
 
+## Glob and grep disabled user-wide, 2026-10-29
+
+Requested as "disable the grep and find tools in dsh, user-wide",
+then corrected to name `glob` by "find".
+The pair is `glob` and `grep`,
+both registered by `@deepseek-ai/dsh-tool-fs-search`,
+which injects `tools`,
+`systemPrompt`,
+`subprocess`,
+`workingDirectory`,
+registers the two tools and self-hiding prompt sections,
+and exports no service,
+so disabling it breaks nothing else.
+
+The change lives in a new user-wide layer file,
+`~/.dsh/cordis.patch.yml`.
+The Host row `tool-fs-search` is `disabled: true` there,
+covering headless and advisor-fixture-minimal,
+where the row served the tools;
+the web-app bundle already disabled the row in web.
+Web sessions took the tools from agent presets,
+so `preset-standard`,
+`preset-ptc`,
+and `preset-cordis` carry `disabled: true` on their `tool-fs-search` child
+rows.
+`preset-minimal` never mounted them.
+The `preset-cordis` restatement moved there from
+`~/.dsh/profiles/web/cordis.patch.yml` with its rationale comments,
+so one file owns the complete lists:
+a home-layer override would otherwise shadow the profile one and leave two
+restatements to keep in sync.
+
+Measured 2026-10-29:
+`dsh --dump-config` before and after differs for web only by the three
+`disabled: true` child rows and patch-layer provenance lines,
+every other composed value byte-identical,
+including the moved `agent-instructions` and `tool-web` settings;
+headless and advisor compositions are unchanged.
+A patch naming an entry absent from a composition prints one stderr line per
+boot (measured first with a throwaway `--patch` overlay),
+so headless and advisor boots now print three such lines naming the home file.
+
+Not observed:
+the model-visible tool catalog of a new top-level Web session under the
+running server.
+Agents that already run keep the tool sets they started with,
+and `dsh-subagent` children `composeFrom` the parent,
+so a subagent of an old session proves nothing about new revisions.
+The headless path was boot-checked to the model call,
+which fails on this machine's pre-existing `MISSING_CREDENTIAL: llm-deepseek`
+gap for the `deepseek-official` route,
+so that probe observed composition but no tool catalog.
+
+Consequences:
+item 7's drift guard now covers three complete preset lists,
+all in `~/.dsh/cordis.patch.yml`.
+Workspace rules stay consistent,
+because `AGENTS.md` rule RT1 already directs `rg` and `rg --files`
+for search and discovery.
+
 ## Priorities
 
 Items 1,
@@ -1225,7 +1297,12 @@ done or settled rather than open.
    It also means the entire shipped preset is shadowed,
    so any upstream change to `presets/cordis.patch.yml` at the next upgrade is
    lost silently,
-   with the `MAINTENANCE` comment in the profile patch as the only defence.
+   with the `MAINTENANCE` comment as the only defence.
+   The comment and the override moved to `~/.dsh/cordis.patch.yml` on
+   2026-10-29,
+   and that file now restates three preset lists after the tool disable
+   recorded in the section Glob and grep disabled user-wide, 2026-10-29,
+   so a drift guard has three lists to cover.
    A repo task that diffs the shipped preset against the override and fails on
    drift would turn that into a loud failure,
    and it would also protect the `agent-instructions` and `tool-web` settings
