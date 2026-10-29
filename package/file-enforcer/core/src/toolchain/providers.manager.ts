@@ -13,8 +13,12 @@ import {
   run,
   type RunResult,
 } from './exec.ts';
-import { findToolBin, } from './layout.ts';
+import {
+  BIN_NOT_FOUND,
+  findToolBin,
+} from './layout.ts';
 import { toolInstallDir, } from './paths.ts';
+import { ALL_TOOLS, } from './plan.ts';
 import {
   artifactForHost,
   planTool,
@@ -53,13 +57,13 @@ export async function installGoInstall(
     paths,
     env,
     extraDirs,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Toolchain `go` the build must run through; retired machine shims must
    never receive the install.
    */
-  const goBin = findToolBin({
+  const goBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'go',
@@ -69,7 +73,7 @@ export async function installGoInstall(
     env,
     extraDirs,
   },);
-  if (goBin === null) {
+  if (goBin === BIN_NOT_FOUND) {
     throw new Error(
       'go is not installed in the toolchain; the go stage must run first',
     );
@@ -161,13 +165,13 @@ export async function installMpmPnpm(
     paths,
     env,
     extraDirs,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Toolchain `pnpm` the install must run through; retired machine shims
    must never receive the install.
    */
-  const pnpmBin = findToolBin({
+  const pnpmBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'pnpm',
@@ -177,7 +181,7 @@ export async function installMpmPnpm(
     env,
     extraDirs,
   },);
-  if (pnpmBin === null) {
+  if (pnpmBin === BIN_NOT_FOUND) {
     throw new Error(
       'pnpm is not installed in the toolchain; the pnpm stage must run first',
     );
@@ -249,13 +253,13 @@ export async function installMpmUvx(
     paths,
     env,
     extraDirs,
-    tools,
+    tools = ALL_TOOLS,
   } = context;
   /**
    Toolchain `uv` the install must run through; retired machine shims must
    never receive the install.
    */
-  const uvBin = findToolBin({
+  const uvBin = await findToolBin({
     entry: planTool({
       tools,
       id: 'uv',
@@ -265,7 +269,7 @@ export async function installMpmUvx(
     env,
     extraDirs,
   },);
-  if (uvBin === null) {
+  if (uvBin === BIN_NOT_FOUND) {
     throw new Error(
       'uv is not installed in the toolchain; the uv stage must run first',
     );

@@ -22,8 +22,8 @@ import {
   runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
-  writeToolEnvFile,
 } from './exposure.ts';
+import { writeToolEnvFile, } from './exposure.env.ts';
 import {
   globalToolchainPaths,
   homeDirFromEnv,
@@ -49,6 +49,7 @@ import {
   type ProviderContext,
 } from './providers.ts';
 import { pruneStaleOwnCrates, } from './prune.ts';
+import { NOT_INSTALLED, } from './status.observe.ts';
 import {
   observeTool,
   versionMatches,
@@ -242,7 +243,7 @@ async function isAtLockedVersion(
       env,
       tools,
     },);
-    return (observed !== null)
+    return (observed !== NOT_INSTALLED)
       && versionMatches({
         observed,
         locked: entry.version,
@@ -387,7 +388,7 @@ export async function syncToolchain(
   }
 
   // Postinstall steps (the `cli-git-bin` atomic `git` link).
-  runPostinstallLinks({
+  await runPostinstallLinks({
     paths,
     entries,
     env: e,
@@ -395,7 +396,7 @@ export async function syncToolchain(
   },);
 
   // Rebuild the exposure directory and the tool environment exports.
-  rebuildExposure({
+  await rebuildExposure({
     paths,
     entries,
     env: e,

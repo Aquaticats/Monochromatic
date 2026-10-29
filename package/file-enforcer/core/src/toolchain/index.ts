@@ -19,10 +19,11 @@ export {
   runPostinstallCommands,
   runPostinstallLinks,
   unresolvableBins,
-  writeToolEnvFile,
   type ExposureReport,
 } from './exposure.ts';
+export { writeToolEnvFile, } from './exposure.env.ts';
 export {
+  BIN_NOT_FOUND,
   hostPlatformId,
   findToolBin,
   type BinSearchContext,
@@ -78,6 +79,7 @@ export {
   appliesToHost,
   type SyncReport,
 } from './sync.ts';
+export { NOT_INSTALLED, } from './status.observe.ts';
 export {
   normalizeVersion,
   observeTool,

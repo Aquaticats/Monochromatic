@@ -1,18 +1,13 @@
 /**
- Exposure directory rebuild, tool environment exports, and postinstall links.
+ Exposure directory rebuild and postinstall links.
  */
 
-import { mkdirSync, } from 'node:fs';
 import {
   mkdir,
-  readFile,
-  rename,
   rm,
-  writeFile,
 } from 'node:fs/promises';
 import {
   delimiter,
-  dirname,
   isAbsolute,
   join,
 } from 'node:path';
@@ -21,7 +16,10 @@ import {
   run,
 } from './exec.ts';
 import { pathExists, } from './fs-probe.ts';
-import { findToolBin, } from './layout.ts';
+import {
+  BIN_NOT_FOUND,
+  findToolBin,
+} from './layout.ts';
 import type {
   PathEnv,
   ToolchainPaths,
@@ -61,27 +59,102 @@ export type ExposureReport = {
 
  @example
  ```ts
- const report = rebuildExposure({ paths, env: process.env, entries: ALL_TOOLS, },);
+ const report = await rebuildExposure({ paths, env: process.env, entries: ALL_TOOLS, },);
  report.missing; // []
  ```
  */
-export function rebuildExposure(
+export async function rebuildExposure(
   {
     paths,
     env,
     entries,
-    extraDirs,
+    extraDirs = [],
   }: {
     readonly paths: ToolchainPaths;
     readonly env: PathEnv;
     readonly entries: readonly ToolPlanEntry[];
     readonly extraDirs?: readonly string[];
   },
-): ExposureReport {
-  mkdirSync(
+): Promise<ExposureReport> {
+  await mkdir(
     paths.exposureDir,
     { recursive: true },
   );
+  /**
+   Every declared bin name with the entry that declares it, in plan order.
+   */
+  const declarations = entries.flatMap(
+    function declaredBins(entry,): readonly {
+      readonly entry: ToolPlanEntry;
+      readonly name: string;
+    }[] {
+      return entry.bins
+        .map(
+        function declaration(name,): {
+          readonly entry: ToolPlanEntry;
+          readonly name: string;
+        } {
+          return {
+            entry,
+            name,
+          };
+        },
+        );
+    },
+  );
+  /**
+   Outcome of each declared name, in the same order as `declarations`; the links are independent, so they
+   resolve and land concurrently.
+   */
+  const outcomes = await Promise.all(declarations.map(
+    async function linkDeclared(
+      {
+        entry,
+        name,
+      },
+    ): Promise<{
+      readonly name: string;
+      readonly linked: boolean;
+    }> {
+      /**
+       Alias map of this entry.
+       */
+      const aliases = entry.options
+        .binAliases
+        ?? {};
+      /**
+       Primary binary this name resolves through.
+       */
+      const primary = aliases[name] ?? name;
+      /**
+       Absolute target behind the primary name.
+       */
+      const target = await findToolBin({
+        entry,
+        name: primary,
+        paths,
+        env,
+        extraDirs,
+      },);
+      if (target === BIN_NOT_FOUND) {
+        return {
+          name,
+          linked: false,
+        };
+      }
+      await atomicSymlink({
+        linkPath: join(
+          paths.exposureDir,
+          name,
+        ),
+        target,
+      },);
+      return {
+        name,
+        linked: true,
+      };
+    },
+  ),);
   /**
    Names that linked successfully.
    */
@@ -90,41 +163,11 @@ export function rebuildExposure(
    Names with no resolvable target.
    */
   const missing: string[] = [];
-  for (const entry of entries) {
-    /**
-     Alias map of this entry.
-     */
-    const aliases = entry.options
-      .binAliases
-      ?? {};
-    for (const name of entry.bins) {
-      /**
-       Primary binary this name resolves through.
-       */
-      const primary = aliases[name] ?? name;
-      /**
-       Absolute target behind the primary name.
-       */
-      const target = findToolBin({
-        entry,
-        name: primary,
-        paths,
-        env,
-        extraDirs,
-      },);
-      if (target === null) {
-        missing.push(name,);
-        continue;
-      }
-      atomicSymlink({
-        linkPath: join(
-          paths.exposureDir,
-          name,
-        ),
-        target,
-      },);
-      linked.push(name,);
-    }
+  for (const outcome of outcomes) {
+    if (outcome.linked)
+      linked.push(outcome.name,);
+    else
+      missing.push(outcome.name,);
   }
   return {
     linked,
@@ -133,79 +176,6 @@ export function rebuildExposure(
 }
 
 //endregion Exposure directory
-
-//region Tool environment exports
-
-/**
- Writes the gitignored `.cache/toolchain.env.json`
- (`ANDROID_HOME`, `ANDROID_SDK_ROOT`, `JAVA_HOME`, `RUSTUP_TOOLCHAIN`).
- Values the plan records as toolchain-root relative paths are resolved to
- absolute machine paths here; literal values pass through.
-
- @param paths - Resolved toolchain paths of the scope
-
- @param entries - Plan entries whose `env` blocks are merged
-
- @returns The environment record written
-
- @example
- ```ts
- const env = await writeToolEnvFile({ paths, entries: ALL_TOOLS, },);
- env.JAVA_HOME; // '/.../jdk/25'
- ```
- */
-export async function writeToolEnvFile(
-  {
-    paths,
-    entries,
-  }: {
-    readonly paths: ToolchainPaths;
-    readonly entries: readonly ToolPlanEntry[];
-  },
-): Promise<Readonly<Record<string, string>>> {
-  /**
-   Environment record assembled from every entry's `env` block.
-   */
-  const env: Record<string, string> = {};
-  for (const entry of entries) {
-    for (const [name, value,] of Object.entries(entry.env,)) {
-      env[name] = value.includes('/')
-        ? join(
-          paths.toolchainRoot,
-          value,
-        )
-        : value;
-    }
-  }
-  await mkdir(
-    dirname(paths.envFile,),
-    { recursive: true },
-  );
-  /**
-   Temporary file beside the final env file.
-   */
-  const temp = `${paths.envFile}.${
-    process.pid
-  }.tmp`;
-  await writeFile(
-    temp,
-    `${
-      JSON.stringify(
-        env,
-        null,
-        2,
-      )
-    }\n`,
-    'utf8',
-  );
-  await rename(
-    temp,
-    paths.envFile,
-  );
-  return env;
-}
-
-//endregion Tool environment exports
 
 //region Postinstall
 
@@ -225,76 +195,78 @@ export async function writeToolEnvFile(
 
  @example
  ```ts
- runPostinstallLinks({ paths, entries: ALL_TOOLS, env: process.env, },); // ['git']
+ await runPostinstallLinks({ paths, entries: ALL_TOOLS, env: process.env, },); // ['git']
  ```
  */
-export function runPostinstallLinks(
+export async function runPostinstallLinks(
   {
     paths,
     entries,
     env,
-    extraDirs,
+    extraDirs = [],
   }: {
     readonly paths: ToolchainPaths;
     readonly entries: readonly ToolPlanEntry[];
     readonly env: PathEnv;
     readonly extraDirs?: readonly string[];
   },
-): readonly string[] {
+): Promise<readonly string[]> {
   /**
-   Link names created.
+   Link names created by each entry, in the same order as `entries`; each entry's link is independent, so they
+   resolve and land concurrently.
    */
-  const created: string[] = [];
-  for (const entry of entries) {
-    /**
-     Postinstall link step of this entry, if any.
-     */
-    const { postinstall, } = entry.options;
-    if ((postinstall === undefined) || (!('link' in postinstall)))
-      continue;
-    /**
-     Absolute source binary behind the step's `sourceBin`.
-     */
-    const target = findToolBin({
-      entry,
-      name: postinstall.link
-        .sourceBin,
-      paths,
-      env,
-      extraDirs,
-    },);
-    if (target === null)
-      continue;
-    /**
-     Absolute directory holding the link: an absolute `linkDir` verbatim, a
-     worktree-relative `linkDir` under the worktree root, else the scope's own
-     link directory (`paths.cliGitBinDir`).
-     */
-    const linkDir = postinstall.link
-      .linkDir
-      === undefined
-      ? paths.cliGitBinDir
-      : isAbsolute(postinstall.link
-        .linkDir,)
-        ? postinstall.link
-          .linkDir
-        : join(
-          paths.worktreeRoot,
+  const created = await Promise.all(entries.map(
+    async function linkEntry(entry,): Promise<readonly string[]> {
+      /**
+       Postinstall link step of this entry, if any.
+       */
+      const { postinstall, } = entry.options;
+      if ((postinstall === undefined) || (!('link' in postinstall)))
+        return [];
+      /**
+       Absolute source binary behind the step's `sourceBin`.
+       */
+      const target = await findToolBin({
+        entry,
+        name: postinstall.link
+          .sourceBin,
+        paths,
+        env,
+        extraDirs,
+      },);
+      if (target === BIN_NOT_FOUND)
+        return [];
+      /**
+       Absolute directory holding the link: an absolute `linkDir` verbatim, a
+       worktree-relative `linkDir` under the worktree root, else the scope's own
+       link directory (`paths.cliGitBinDir`).
+       */
+      const linkDir = postinstall.link
+        .linkDir
+        === undefined
+        ? paths.cliGitBinDir
+        : isAbsolute(postinstall.link
+          .linkDir,)
+          ? postinstall.link
+            .linkDir
+          : join(
+            paths.worktreeRoot,
+            postinstall.link
+              .linkDir,
+          );
+      await atomicSymlink({
+        linkPath: join(
+          linkDir,
           postinstall.link
-            .linkDir,
-        );
-    atomicSymlink({
-      linkPath: join(
-        linkDir,
-        postinstall.link
-          .linkName,
-      ),
-      target,
-    },);
-    created.push(postinstall.link
-      .linkName,);
-  }
-  return created;
+            .linkName,
+        ),
+        target,
+      },);
+      return [postinstall.link
+        .linkName,];
+    },
+  ),);
+  return created.flat();
 }
 
 /**
@@ -324,7 +296,7 @@ export async function runPostinstallCommands(
     paths,
     entries,
     env,
-    extraDirs,
+    extraDirs = [],
   }: {
     readonly paths: ToolchainPaths;
     readonly entries: readonly ToolPlanEntry[];
@@ -370,19 +342,19 @@ export async function runPostinstallCommands(
      Command the step runs: a bin of this entry plus its arguments.
      */
     const { run: step, } = postinstall;
+    /* oxlint-disable no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time */
     /**
      Absolute bin behind the step's `sourceBin`.
      */
-    const target = findToolBin({
+    const target = await findToolBin({
       entry,
       name: step.sourceBin,
       paths,
       env,
       extraDirs,
     },);
-    if (target === null)
+    if (target === BIN_NOT_FOUND)
       continue;
-    /* oxlint-disable no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time */
     /**
      Outcome of the step's command.
      */
@@ -466,58 +438,6 @@ export async function unresolvableBins(
 }
 
 //endregion Verification
-
-/**
- Whether a parsed JSON value is an object whose values are all strings.
-
- @param value - Parsed JSON value to test
-
- @returns `true` when every property value is a string
- */
-function isStringRecord(
-  value: unknown,
-): value is Readonly<Record<string, string>> {
-  return ((typeof value) === 'object')
-    && (value !== null)
-    && (!Array.isArray(value,))
-    && Object.values(value,)
-      .every(
-      function isString(propertyValue: unknown,): boolean {
-        return (typeof propertyValue) === 'string';
-      },
-      );
-}
-
-/**
- Reads a generated `.cache/toolchain.env.json` back.
-
- @param paths - Resolved toolchain paths of the scope
-
- @returns The recorded environment; empty when the file is absent
-
- @throws TypeError when the file exists but is not an object of string values
-
- @example
- ```ts
- const env = await readToolEnvFile(paths,);
- ```
- */
-export async function readToolEnvFile(
-  paths: ToolchainPaths,
-): Promise<Readonly<Record<string, string>>> {
-  if (!(await pathExists(paths.envFile,)))
-    return {};
-  /**
-   Parsed file content.
-   */
-  const parsed: unknown = JSON.parse(await readFile(
-    paths.envFile,
-    'utf8',
-  ),);
-  if (!isStringRecord(parsed,))
-    throw new TypeError(`${paths.envFile} is not an object of string values`,);
-  return parsed;
-}
 
 /**
  Removes the per-worktree exposure directory with its contents (used by tests and

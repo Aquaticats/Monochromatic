@@ -706,7 +706,7 @@ await describe({
             /**
              Exposure rebuild report.
              */
-            const report = rebuildExposure({
+            const report = await rebuildExposure({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -753,7 +753,7 @@ await describe({
              Entry declaring a binary that is not installed.
              */
             const entry = fixtureEntry({ bins: ['absent-tool'], },);
-            expect(rebuildExposure({
+            expect(await rebuildExposure({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -819,7 +819,7 @@ await describe({
               '.cache',
               'cli-git-bin',
             );
-            runPostinstallLinks({
+            await runPostinstallLinks({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
@@ -841,7 +841,7 @@ await describe({
               .isSymbolicLink(),)
               .toBe(true,);
             // A second run must replace the link in place, leaving one entry.
-            runPostinstallLinks({
+            await runPostinstallLinks({
               paths: fixture.paths,
               env: fixture.env,
               entries: [entry],
