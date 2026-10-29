@@ -25,6 +25,7 @@ const OperationViewSchema = v.object({
     usageIncomplete: v.boolean(),
     end: v.exactOptional(v.string(),),
   },),
+  defaultSelectionReason: v.exactOptional(v.string(),),
 },);
 
 /**
@@ -117,5 +118,17 @@ export function renderAdvisorOperationSummary({
    Missing remote settlement is disclosed rather than displayed as complete zero usage.
    */
   const accounting = operation.usageIncomplete ? '\nUsage may be incomplete; cancelled requests can still be billed.' : '';
-  return `${heading}\n${attempts}${accounting}\n${expanded ? text : firstAdvisoryLine(text,)}`;
+  /**
+   Selection rationale naming the configured-reviewer outcome for empty-param
+   calls, so a silently replaced `defaultReviewerModel` stays visible.
+   */
+  const selectionReason = parsed.output
+    .defaultSelectionReason;
+  /**
+   Selection line rendered only when the operation made a default selection.
+   */
+  const selection = selectionReason === undefined
+    ? ''
+    : `\n${selectionReason}`;
+  return `${heading}\n${attempts}${selection}${accounting}\n${expanded ? text : firstAdvisoryLine(text,)}`;
 }
