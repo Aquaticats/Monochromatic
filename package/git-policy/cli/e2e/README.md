@@ -105,7 +105,7 @@ Each scenario declares how it depends on replay plumbing
   the default,
   skips it on 2.39.5,
   where its commits that lose a landing race would fail fast by design;
-- `unused` runs it on every Git,
+- `unused` runs it on every Git that meets its `minimumGit`,
   because none of its commits can lose a landing race:
   the baselines,
   `branch-switch-during-commit`,
@@ -189,7 +189,7 @@ Baselines prove the harness sound and must pass on today's build:
 - `baseline-lint-staged`:
   lint-staged's backup stash and hide-unstaged sequence on a partially staged index commit,
   in a linked worktree.
-- `baseline-hooks-hookdir` and `baseline-hooks-config`:
+- `baseline-hooks-config`:
   `pre-commit`,
   `prepare-commit-msg`,
   `commit-msg`,
@@ -247,8 +247,7 @@ Design scenarios exercise the accepted concurrent-commit design:
 - `interleaved-index-writers`:
   4 commits and 4 `git add` runs of new files in a seeded interleaving;
   every add must succeed and its staged entry must survive.
-- `hooks-hookdir-concurrent`,
-  `hooks-config-concurrent`,
+- `hooks-config-concurrent`
   and `ssh-signing-concurrent`:
   4 agents at once with all four hooks or with signing.
 - `lint-staged-stash-concurrent`:
@@ -335,6 +334,32 @@ Each hook logs its run,
 writes a `<token>.<event>` marker,
 and blocks while a `<token>.<event>.hold` file exists,
 which is how scenarios pin interleavings and inject kills.
+
+### Hook kinds
+
+Every scenario that needs a hook registers it as a config hook
+(`hooks: 'config'` in `RepositoryOptions`, `repository-model-fixture.ts`),
+which `repository-setup-fixture.ts` writes with
+`git config hook.e2e-<event>.command "<hook program> <event>"` and
+`git config --add hook.e2e-<event>.event <event>`.
+The command runs the shared hook program, so the logging, markers, holds, trailer and lint-staged mode described above
+are the same for every event.
+Config hooks need Git 2.54.0, so every hooked scenario declares `minimumGit: '2.54.0'` and skips on older Git.
+
+Traditional hooks (executable files in `.git/hooks` or a `core.hooksPath` directory)
+are unsupported by the wrapper, and any use is undefined behavior,
+so the suite installs none and `RepositoryOptions` cannot express them.
+Two scenarios that existed only as the traditional-hook twin of a config-hook scenario,
+`baseline-hooks-hookdir` and `hooks-hookdir-concurrent`, were removed;
+`baseline-hooks-config` and `hooks-config-concurrent` run the same workload and assertions.
+No other scenario's meaning depended on a traditional-hook behavior.
+
+Fixture setup commits made with real Git (`seedTracePaths` and `commitAmendBase` in `scenario-setup-fixture.ts`)
+pass `-c hook.e2e-<event>.enabled=false` for every event through `hookDisableArguments`,
+so the repository's config hooks do not run for them.
+The earlier `-c core.hooksPath=/dev/null` was removed:
+it silences only traditional hooks and leaves config hooks running
+(`doc/troubleshooting/git-hook-disable-switches.md`).
 
 ### Phase markers
 
@@ -476,6 +501,10 @@ free-running starts and the `sigkill-offset` kill still depend on process schedu
 so a replay reproduces the workload exactly but can land a free-running race differently.
 
 ## Results of the TypeScript wrapper build, 2026-09-26
+
+These counts are historical:
+they predate the switch from traditional hooks to config hooks,
+which removed two scenarios and gave the other hooked scenarios a `minimumGit` of 2.54.0.
 
 Seeds 1,
 2,
