@@ -248,7 +248,8 @@ named for that subject and listed here.
   Readers,
   predicates and helpers the production code kept in more than one copy,
   each copy free to drift from the others,
-  among them the pinned lint binary version beside the one `mise.lock` installs (B700).
+  among them the pinned lint binary version beside the one `mise.lock` installs (B700),
+  and the toolchain cutover that broke its reader and the gate's lookup of the lint program (B980).
 - [Audit ledger: copies of shared code in tests and scans](audit-ledger-copies-in-tests-and-scans.md):
   Helper bodies the test files and the source scans kept in copies,
   and the scans that could not see a copy.
