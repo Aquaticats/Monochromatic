@@ -3270,3 +3270,21 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   classifier denied cleaning them ("Shared Scratch Sweep") for both the agent and me. A user decision is needed: allow a
   sweep of dead-pid fixtures older than 30 minutes, or clear `/tmp` by hand. Longer term, the binary test fixtures
   should remove themselves on failure.
+
+## Update at 2026-10-29 (issue 1809: fixtures leave /tmp)
+
+- Cause of the quota failures: `/tmp` is a tmpfs with a per-user quota (13108M); 160 leaked `native-binary-<pid>-*` fixtures
+  (8.9 GB) from panicking tests filled it, and every command writing under `/tmp` failed with EDQUOT. A peer session
+  (monochromatic-fb) removed the dead-pid fixtures with the user's approval.
+- Fix: binary fixtures live in `CARGO_TARGET_TMPDIR` with an `impl Drop for Fixture`; unit fixtures live in
+  `<target>/test-fixtures` and a thread-exit guard removes them; `CLI_GIT_KEEP_FIXTURES=1` keeps them for debugging and
+  `CLI_GIT_TEST_ROOT` moves the root (for example onto a tmpfs for speed). Controls: `test_support_tests.rs` and
+  `binary_fixture_tests.rs`, shown failing with the guards disabled (3 of the removal tests fail).
+- Consequence of the longer fixture path: a Unix socket path is limited to about 108 bytes, so
+  `a_socket_is_a_conflict_and_a_symbolic_link_is_not_opened` now binds through `/proc/self/fd/<dir>/` on Linux.
+- Verified: clippy clean; host 2024 of 2026 before the socket fix (the socket test now passes); binary 170 of 171 (only the
+  known linter failure); no entries left in the fixture directories after the runs.
+- New rule `XTD` in AGENTS.md (commit `6232630542`): never use `/tmp`; the device behind it is unknowable.
+- Open: three production uses of `std::env::temp_dir()` remain: `markdown_linter.rs` (temporary linter config),
+  `transaction_git.rs` (`cli-git-input-*` file), `manual_push_probe.rs` (scratch). They break the new rule. Decide where
+  production scratch goes (the transaction directory under `.git/cli-git`, or `$XDG_RUNTIME_DIR`).
