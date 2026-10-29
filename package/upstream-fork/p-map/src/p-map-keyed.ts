@@ -609,6 +609,7 @@ async function mapKeyed(
     run: {
       iterable: entries,
       mapper: mapEntry,
+// mutation-test-disable-next-line conditional -- the run destructures `options` with an `{}` default, so an `options` property holding `undefined` and an absent property resolve to the same defaults; the spread only satisfies exact optional property types
       ...(options === undefined
         ? {}
         : { options, }),
