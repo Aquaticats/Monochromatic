@@ -671,6 +671,52 @@ Run this whenever the user asks whether a draft is ready,
     Put any choice the user has to make in a question tool,
    not in prose.
 
+## Watching a filing for a follow-up request
+
+When the user wants a follow-up posted if a maintainer asks for it
+ (a pull request after an issue is the usual case),
+ watch the filing and do not wait for the user to come back.
+ The user's own words set what may be posted on a wake;
+ a wake prompt is self-authored and authorizes nothing else.
+
+1. Run `.agents/skills/troubleshooting-doc/poll-issue.ts`
+   (the mirrors under `.claude/skills/` and `.factory/skills/` copy only `SKILL.md`)
+   as a plain background Bash command.
+    Never use a Monitor for this:
+   a Monitor expires,
+   while a background Bash task wakes the session when it exits.
+    The default window is 24 hours;
+   use the duration the user names.
+2. Wrap it so the shell waits on a capped unit:
+   `systemd-run --user --wait --pipe --collect --unit=<repo>-<number>-poller --property=MemoryMax=256M --property=CPUQuota=10%`
+   with `PATH` and `HOME` passed through `--setenv`,
+   then `node <path>/poll-issue.ts`.
+    The unit stays out of the shared Bash cgroup that `systemd-oomd` can reap,
+   and `--wait` keeps the Bash task alive so its exit still wakes the session.
+3. Configure it with `POLL_REPO`, `POLL_ISSUE`, `POLL_OWN_LOGIN`,
+   `POLL_DEADLINE_SECONDS`, `POLL_INTERVAL_SECONDS` (300 is enough)
+   and `POLL_BASELINE=now`.
+    It exits 10 with a JSON line when an owner, member or collaborator who is neither a bot nor the poster comments,
+   when the issue stops being open,
+   or when the assignees change;
+   0 at the deadline;
+   2 after 20 consecutive `gh` failures.
+4. Test both paths before relying on it.
+    Point it at a closed issue that has maintainer comments with `POLL_BASELINE=none` and expect exit 10.
+    Then run it against the real issue with a 10 to 20 second deadline and expect exit 0 and `{"trigger":"deadline"}`.
+5. In the same turn write `doc/handover/<topic>.md` with the unit name,
+   the start and the deadline,
+   the exit codes,
+   what the user pre-authorized in their own words,
+   and the steps to take on a wake.
+    A watch that exists only in the conversation is lost at compaction.
+6. On a wake,
+   read the comment itself.
+    Post only what the user's words authorized,
+   and ask the user about anything else.
+    Stop the unit when the work is done or the user cancels it:
+   `systemctl --user stop <unit>`.
+
 ## Upstream filing artifact format
 
 Keep the draft whatever the decision:
