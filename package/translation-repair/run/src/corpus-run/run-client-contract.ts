@@ -1,12 +1,16 @@
 import type {
   BoundOwner,
   BudgetView,
+  FutileReturn,
   MeterState,
   ModelClient,
   NeuralWattCause,
   NeuralWattReturn,
 } from '@monochromatic-dev/translation-repair-provider/ts';
-import type { ProviderRecord, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  ProviderName,
+  ProviderRecord,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Run client contract
 // THE CLIENT A CORPUS RUN HOLDS: the routed caller every stage calls, the
@@ -68,6 +72,16 @@ export type RunClient = ModelClient & {
    outside every exchange and bounds it by what the pass has left (`passLeftMs`).
    */
   readonly providerHolds: (args?: { readonly returnBoundMs?: number; },) => ProviderRecord<number>;
+
+  /**
+   Which providers' last return served nothing: the hold ended in the entry, no call the provider answered came after
+   the end, and it refused again. READ BESIDE THE HOLDS by `run-seats-futile.ts`, which leaves such a provider's hold out
+   of what the seat reader waits for, so a stage short of a bench goes on short instead of waiting for a provider that has
+   refused its last return (the owner's answer of 2026-10-29, "Remember futile returns"). A provider whose return would
+   let the entry finish is never listed (`ProviderBudgets['futileReturns']`). Absent on a client built over budgets that
+   see no service, whose holds are all waited for.
+   */
+  readonly futileReturns?: () => ReadonlyMap<ProviderName, FutileReturn>;
 
   /**
    What the run knows of when NeuralWatt's free energy returns, read by the seat reader when it ends the run on every

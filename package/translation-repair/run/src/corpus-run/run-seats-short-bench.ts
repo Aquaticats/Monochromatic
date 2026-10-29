@@ -17,6 +17,10 @@ import type { RunClient, } from './run-client-contract.ts';
 import { judgeSeatsFor, } from './run-seats.ts';
 import { ceilingWordsOf, } from './run-seats-ceiling.ts';
 import {
+  leaveOutFutileReturns,
+  sayFutileSkips,
+} from './run-seats-futile.ts';
+import {
   holdsThatCureShortBenches,
   meterDryOf,
   shortBenchesWithCure,
@@ -57,7 +61,8 @@ import {
  */
 export type SeatReadingClient = Pick<
   RunClient,
-  'neuralwattDryness'
+  'futileReturns'
+    | 'neuralwattDryness'
     | 'neuralwattHeldByReturn'
     | 'neuralwattReturn'
     | 'passBoundOwner'
@@ -225,9 +230,16 @@ export async function readDrynessPastShortBench(
    */
   const benches = benchesOf({ seats: judgeSeatsFor({ dry: first, },), },);
   /**
-   How long each provider's refusal still holds it out, as the pass allows it to be waited for.
+   How long each provider's refusal still holds it out, as the pass allows it to be waited for, without the holds of
+   providers whose last return served nothing, which are said below when a bench is short.
    */
-  const running = holdsWithinPass({ client, },);
+  const {
+    held: running,
+    skipped: skippedFirst,
+  } = leaveOutFutileReturns({
+    client,
+    running: holdsWithinPass({ client, },),
+  },);
   /**
    Providers the meters keep dry, whose holds ending bring no return.
    */
@@ -276,6 +288,13 @@ export async function readDrynessPastShortBench(
       unreachableWriters: [],
     };
   }
+  // A BENCH IS SHORT, so a hold left out because its provider's last return served nothing is said before the reading
+  // goes on without it or waits for another hold.
+  sayFutileSkips({
+    skipped: skippedFirst,
+    phase,
+    l,
+  },);
   if (shortest === 0) {
     return seatWithoutWaiting({
       client,
@@ -349,7 +368,14 @@ export async function readDrynessPastShortBench(
     );
     // Dryness after the wait, the holds still running, and what the meters keep dry.
     waiting.dry = await readDryness();
-    waiting.running = holdsWithinPass({ client, },);
+    /**
+     The holds running after the wait, without those of providers whose last return served nothing.
+     */
+    const rerun = leaveOutFutileReturns({
+      client,
+      running: holdsWithinPass({ client, },),
+    },);
+    waiting.running = rerun.held;
     waiting.meterDry = await readMeterDry(waiting.running,);
     /* oxlint-enable no-await-in-loop */
     /**
@@ -373,6 +399,11 @@ export async function readDrynessPastShortBench(
       .length
       === 0) && (stillBelow.length === 0))
       break;
+    sayFutileSkips({
+      skipped: rerun.skipped,
+      phase,
+      l,
+    },);
     // A HOLD THAT ENDED FIRST IS NOT THE END OF THE WAITING: a bench still short while another hold runs (the
     // NeuralWatt return behind a rate-limit hold) is waited for too, bounded by the entry's abort, by the holds that
     // serve a short bench, and by the pass bound the client carries (a return past it is not a hold).
