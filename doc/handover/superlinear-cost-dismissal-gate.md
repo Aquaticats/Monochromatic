@@ -259,8 +259,13 @@ in production:
 a path column containing a two-character space run parses its tail as the version;
 `parseBinList` splits on `\n` while `readBinRow` guards other line terminators;
 `parseCargoBinstallList` normalizes `cargoVer` but not `binstallVer`.
-Not investigated here,
-recorded so they are not lost.
+Two are fixed in `c42e90ea02`:
+`splitRows` keeps every terminator-separated row in one pass,
+and both version columns normalize alike.
+The first needs a contract choice,
+because `readBinRow` documents "the shortest prefix"
+and no rule says what a version word looks like;
+the proposal with the owner anchors on the URL column instead.
 
 ## Open
 
