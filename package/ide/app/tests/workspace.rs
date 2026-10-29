@@ -30,7 +30,7 @@ fn listed_as_directory(entries: &[DirectoryEntry], name: &str) -> Option<bool> {
 /// Hidden entries and native names arrive in display order with accurate directory kinds.
 #[test]
 fn listing_matches_dirents_and_refreshes_from_disk() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     fs::create_dir(fixture.path().join("src")).expect("source directory");
     fs::write(fixture.path().join(".hidden"), "hidden").expect("hidden fixture");
     fs::write(fixture.path().join("猫 'quoted'.ts"), "const 猫 = 1;").expect("Unicode fixture");
@@ -64,7 +64,7 @@ fn listing_matches_dirents_and_refreshes_from_disk() {
 ///  with valid parent segments allowed inside it.
 #[test]
 fn contained_relative_and_absolute_paths_resolve() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     fs::create_dir(fixture.path().join("src")).expect("source directory");
     fs::write(fixture.path().join("src/main.rs"), "fn main() {}").expect("source file");
     let project = Workspace::new(fixture.path()).expect("open project");
@@ -81,7 +81,7 @@ fn contained_relative_and_absolute_paths_resolve() {
 /// Component containment rejects sibling-prefix paths and parent traversal.
 #[test]
 fn sibling_prefix_and_parent_escape_are_rejected() {
-    let fixture = tempfile::tempdir().expect("disposable parent");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable parent");
     let root = fixture.path().join("project");
     let sibling = fixture.path().join("project-other");
     fs::create_dir(&root).expect("project directory");
@@ -94,7 +94,7 @@ fn sibling_prefix_and_parent_escape_are_rejected() {
 /// Tree operations reject outside symlink targets while retaining dirent link semantics.
 #[test]
 fn symbolic_links_do_not_bypass_project_boundary() {
-    let fixture = tempfile::tempdir().expect("disposable parent");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable parent");
     let root = fixture.path().join("project");
     let outside = fixture.path().join("outside");
     fs::create_dir(&root).expect("project directory");
@@ -123,7 +123,7 @@ fn symbolic_links_do_not_bypass_project_boundary() {
 ///  and listing a file report failures rather than empty directories.
 #[test]
 fn invalid_directory_inputs_are_errors() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     let file = fixture.path().join("file.txt");
     fs::write(&file, "source").expect("file fixture");
     assert!(Workspace::new(&file).is_err());

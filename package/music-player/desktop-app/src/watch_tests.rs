@@ -29,10 +29,10 @@ fn watcher_fires_on_file_creation() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `let dir = std::env::temp_dir().join(format!("mp_watch_{nanos}"));`. The dir
+    // What:     `let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_{nanos}"));`. The dir
     //           to watch.
     // Why:      A real directory the OS watcher can observe.
-    let dir = std::env::temp_dir().join(format!("mp_watch_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_{nanos}"));
     // What:     Create the source root before watching it.
     // Why:      The watch target must exist.
     std::fs::create_dir_all(&dir).expect("watch fixture directory should be created");
@@ -92,7 +92,7 @@ fn reading_a_watched_directory_is_not_a_change_but_writing_is() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_watch_reads_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_reads_{nanos}"));
     std::fs::create_dir_all(dir.join("sub")).expect("watch fixture directory should be created");
     std::fs::write(dir.join("sub").join("a.flac"), b"x").expect("fixture file should be written");
     let (tx, rx) = mpsc::channel::<()>();
@@ -125,7 +125,7 @@ fn a_burst_of_changes_requests_one_rescan() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_watch_burst_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_burst_{nanos}"));
     std::fs::create_dir_all(&dir).expect("watch fixture directory should be created");
     let (tx, rx) = mpsc::channel::<()>();
     let mut watcher = SourceWatcher::new(move |_change| {
@@ -154,7 +154,7 @@ fn a_registration_is_followed_by_exactly_one_catch_up_rescan() {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_watch_catchup_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_catchup_{nanos}"));
     std::fs::create_dir_all(dir.join("sub")).expect("watch fixture directory should be created");
     std::fs::write(dir.join("sub").join("a.flac"), b"x").expect("fixture file should be written");
     let (tx, rx) = mpsc::channel::<()>();
@@ -177,7 +177,7 @@ fn a_registration_is_followed_by_exactly_one_catch_up_rescan() {
 // Why:      The tests below read what the real notify backend names for each kind of change.
 fn watched(tag: &str, files: &[&str]) -> (std::path::PathBuf, SourceWatcher, mpsc::Receiver<Change>) {
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).expect("system clock should be after Unix epoch").as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_watch_{tag}_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_watch_{tag}_{nanos}"));
     for file in files {
         std::fs::create_dir_all(dir.join(file).parent().expect("a file has a folder")).expect("watch fixture directory should be created");
         std::fs::write(dir.join(file), b"first").expect("fixture file should be written");

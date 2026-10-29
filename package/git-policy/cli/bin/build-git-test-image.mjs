@@ -8,7 +8,6 @@ import {
   rm,
   writeFile
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import {
   join,
   resolve
@@ -18,6 +17,13 @@ import {
   createContainer,
   runCommand
 } from './native-verification-process.mjs';
+import { mkdirSync as makeScratchBase } from 'node:fs';
+
+// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
+// whose backing device is unknowable.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'git-policy');
+makeScratchBase(scratchBase, { recursive: true });
+
 
 /** Spaces of indentation in the evidence files. */
 const jsonIndent = 2;
@@ -65,7 +71,7 @@ const checkedOutRevision = checkedOut.stdout
 if (checkedOutRevision !== revision)
   throw new NativeVerificationError('The checkout is not the inspected Git 2.56.0 revision.');
 const contextPath = await mkdtemp(join(
-  tmpdir(),
+  scratchBase,
   'cli-git-native-image-'
 ));
 /** Removes the build context when the script ends, whether the build passed or failed. */

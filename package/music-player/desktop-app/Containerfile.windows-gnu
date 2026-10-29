@@ -4,46 +4,43 @@
 # binary is built natively on a Windows runner, see the build-desktop job of
 # .github/workflows/music-player-release.yml).
 #
-# Pinned by digest (fedora:44 on registry.fedoraproject.org, pulled 2026-10-14) so a moving tag
-# cannot change the mingw-w64 or Wine versions under a recorded result. Bump the digest on purpose.
-FROM registry.fedoraproject.org/fedora@sha256:4031272b5578da0aafbf8e83b041778a4d0385e8f49df408067c4a43e0afa036
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
-# Build argument FEDORA_MIRROR (for example https://mirrors.kernel.org/fedora) replaces the metalink with that mirror's
-# base and updates trees; use it when the default mirror selection is slow. Signatures are still checked.
-#
 # Build toolchain:
-#   mingw64-gcc, mingw64-binutils  the cross gcc driver and GNU ld (x86_64-w64-mingw32-gcc / -ld),
+#   mingw-w64-gcc, mingw-w64-binutils  the cross gcc driver and GNU ld (x86_64-w64-mingw32-gcc / -ld),
 #                          plus dlltool and windres, which the `windows` crates (raw-dylib) and
-#                          winresource call. Fedora's mingw64-* packages default to the msvcrt C
-#                          runtime, the one rustc documents for x86_64-pc-windows-gnu.
-#   gcc, cmake, ninja-build  opusic-sys cmake-builds libopus 1.6.1; its build script picks the
+#                          winresource call. Arch's mingw-w64 packages default to the UCRT C runtime (the executable
+#                          imports api-ms-win-crt-* DLLs), the one the release build also uses. mingw-w64-crt, mingw-w64-headers and mingw-w64-winpthreads are the C runtime,
+#                          headers and threads library the cross compiler links against.
+#   gcc, cmake, ninja, make  opusic-sys cmake-builds libopus 1.6.1; its build script picks the
 #                          Ninja generator when `ninja` runs, and the cmake crate then passes
 #                          CMAKE_SYSTEM_NAME=Windows and the cross windres to cmake.
 #   clang                  libclang is not needed for this target (bindgen is Linux-only, via
 #                          pipewire), so it is deliberately absent.
 # Run time:
-#   wine-core, wine-common  the Windows API layer that runs the .exe files; headless console
-#                          tests need no display.
-#   wine-*-winefonts       the fonts Wine registers in its prefix; without them Slint's software renderer finds no
-#                          system font on Windows and three UI tests panic in `systemfonts.rs`.
-#   xorg-x11-server-Xvfb   a virtual X11 display, because Wine's graphics driver talks to X11;
+#   wine                   the Windows API layer that runs the .exe files; headless console tests need no display.
+#   noto-fonts             system fonts for Slint's software renderer; without them it finds no font under Wine and three
+#                          UI tests panic in `systemfonts.rs` (Arch's wine ships Tahoma but not the Arial and Times New
+#                          Roman files that Fedora's winefonts packages added, and ttf-liberation alone did not help).
+#   xorg-server-xvfb       a virtual X11 display, because Wine's graphics driver talks to X11;
 #                          only the app launch check uses it.
-#   mesa-dri-drivers       software OpenGL for Wine's opengl32, for the femtovg renderer.
-ARG FEDORA_MIRROR=""
-RUN mirror_args=""; \
-    if [ -n "${FEDORA_MIRROR}" ]; then \
-      mirror_args="--setopt=fedora.metalink= --setopt=fedora.baseurl=${FEDORA_MIRROR}/releases/44/Everything/x86_64/os/ --setopt=updates.metalink= --setopt=updates.baseurl=${FEDORA_MIRROR}/updates/44/Everything/x86_64/"; \
-    fi; \
-    dnf install -y ${mirror_args} --setopt=install_weak_deps=False \
-      gcc cmake ninja-build make \
-      mingw64-gcc mingw64-binutils mingw64-crt mingw64-headers mingw64-winpthreads-static \
-      wine-core wine-common wine-winefonts wine-tahoma-winefonts wine-arial-winefonts wine-times-new-roman-winefonts \
-      xorg-x11-server-Xvfb xdotool mesa-dri-drivers mesa-libGL \
+#   xdotool                drives the app launch check.
+#   mesa                   software OpenGL for Wine's opengl32, for the femtovg renderer.
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+      gcc cmake ninja make \
+      mingw-w64-gcc mingw-w64-binutils mingw-w64-crt mingw-w64-headers mingw-w64-winpthreads \
+      wine noto-fonts \
+      xorg-server-xvfb xdotool mesa \
       curl tar gzip which file \
-    && dnf clean all
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
 # The turso_sdk_kit build script (a dependency of the peak cache) runs a bare `windres` for every non-MSVC Windows target, but
-# Fedora installs the cross tools only under their triple prefix; on Windows with MSYS2 the bare name exists. Without this
+# the distro installs the cross tools only under their triple prefix; on Windows with MSYS2 the bare name exists. Without this
 # link the cross build stops with "compile Windows version resource: No such file or directory".
 RUN ln --symbolic "$(command -v x86_64-w64-mingw32-windres)" /usr/local/bin/windres
 
@@ -65,9 +62,10 @@ RUN curl --proto '=https' --tlsv1.2 --location --silent --show-error --fail \
 
 ENV CARGO_HOME=/cargo
 ENV SLINT_ENABLE_EXPERIMENTAL_FEATURES=1
-# The cross linker and the Wine test runner, read by cargo for this target only.
+# The cross linker and the Wine test runner, read by cargo for this target only. Arch's wine package installs one `wine`
+# binary (new WoW64 mode runs 64-bit programs too) and no `wine64`.
 ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
-ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine64
+ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine
 # A throwaway Wine prefix in the image's writable layer; WINEDEBUG keeps Wine's own trace quiet.
 ENV WINEPREFIX=/tmp/wineprefix
 ENV WINEDEBUG=-all

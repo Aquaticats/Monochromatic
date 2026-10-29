@@ -3,7 +3,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -152,7 +152,7 @@ type LogDirectory = {
  ```
  */
 async function makeLogDirectory(): Promise<LogDirectory> {
-  const path = await mkdtemp(join(tmpdir(), 'statusline-log-',),);
+  const path = await mkdtemp(join(scratchRoot(), 'statusline-log-',),);
 
   return {
     path,

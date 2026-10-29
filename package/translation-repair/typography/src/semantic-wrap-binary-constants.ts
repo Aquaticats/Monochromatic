@@ -15,7 +15,7 @@ export const LINT_BINARY_NAME = 'monochromatic-lint';
  (the tool plan keeps the floating request for a tool the repository
  publishes), and `semantic-wrap-binary.unit.test.ts` holds the two together.
  */
-export const PINNED_LINT_BINARY_VERSION = '0.3.0';
+export const PINNED_LINT_BINARY_VERSION = '0.4.0';
 
 /**
  File name of the configuration the program reads, selecting the one rule.

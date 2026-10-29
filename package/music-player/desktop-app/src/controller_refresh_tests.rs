@@ -31,8 +31,8 @@ impl Rig {
         let nanos: u128 = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| return elapsed.as_nanos());
-        let root = std::env::temp_dir().join(format!("music-player-refresh-{}-{nanos}-{tag}", std::process::id()));
-        let cache_file = std::env::temp_dir().join(format!("music-player-refresh-{}-{nanos}-{tag}.db", std::process::id()));
+        let root = crate::test_scratch::scratch_root().join(format!("music-player-refresh-{}-{nanos}-{tag}", std::process::id()));
+        let cache_file = crate::test_scratch::scratch_root().join(format!("music-player-refresh-{}-{nanos}-{tag}.db", std::process::id()));
         std::fs::create_dir_all(&root).expect("the folder is created");
         let reports: Arc<Mutex<Vec<SweepReport>>> = Arc::new(Mutex::new(Vec::new()));
         let updates: Arc<Mutex<Vec<Update>>> = Arc::new(Mutex::new(Vec::new()));

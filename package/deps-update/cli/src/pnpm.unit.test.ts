@@ -4,7 +4,7 @@
  @module
  */
 
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   describe,
@@ -26,7 +26,7 @@ await describe({
         /**
          Dotted version parts pnpm printed.
          */
-        const parts = (await runPnpm({ args: ['--version',], cwd: tmpdir(), },)).trim().split('.',);
+        const parts = (await runPnpm({ args: ['--version',], cwd: scratchRoot(), },)).trim().split('.',);
         expect(parts,).toHaveLength(3,);
         expect(parts.every(function isInteger(part,): boolean {
           return Number.isInteger(Number(part,),);
@@ -41,7 +41,7 @@ await describe({
          */
         const error = await (async function attempt(): Promise<unknown> {
           try {
-            await runPnpm({ args: ['deps-update-no-such-command',], cwd: tmpdir(), },);
+            await runPnpm({ args: ['deps-update-no-such-command',], cwd: scratchRoot(), },);
             return 'resolved';
           }
           catch (caught) {

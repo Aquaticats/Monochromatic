@@ -14,7 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import { join, } from 'node:path';
 
@@ -47,7 +47,7 @@ async function configFixture(
   /**
    Disposable fixture root under the system temp directory.
    */
-  const root = await mkdtemp(join(tmpdir(), 'advisor-config-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'advisor-config-',),);
   /**
    Global extension directory holding the user-level config file.
    */

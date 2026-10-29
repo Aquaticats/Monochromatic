@@ -1,7 +1,7 @@
 /**
  Tests for the per-package JSON file cache.
  
- Each test creates an isolated cache root under `os.tmpdir()`
+ Each test creates an isolated cache root under `os.scratchRoot()`
  so concurrent runs don't collide; cleanup runs in a `using`
  disposable so failures don't leave temp dirs behind.
  
@@ -21,7 +21,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
@@ -42,7 +42,7 @@ async function tempCacheRoot(): Promise<{
   rootDir: string;
   [Symbol.asyncDispose]: () => Promise<void>;
 }> {
-  const rootDir = await mkdtemp(join(tmpdir(), 'deps-cube-cache-',),);
+  const rootDir = await mkdtemp(join(scratchRoot(), 'deps-cube-cache-',),);
   return {
     rootDir,
     [Symbol.asyncDispose]: async function dispose() {

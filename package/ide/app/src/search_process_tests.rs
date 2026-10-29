@@ -24,7 +24,7 @@ fn sleeper() -> Command {
 /// Cancellation must kill and reap an already spawned child without waiting for stdout or stderr bytes.
 #[tokio::test]
 async fn cancellation_interrupts_silent_pipes_and_reaps_the_child() {
-    let fixture = tempfile::tempdir().expect("disposable search root");
+    let fixture = crate::test_scratch::scratch().expect("disposable search root");
     let cancellation = SearchCancellation::new();
     let signal = cancellation.subscribe();
     let child = sleeper().spawn().expect("silent child");
@@ -64,7 +64,7 @@ async fn cancellation_interrupts_silent_pipes_and_reaps_the_child() {
 /// EOF must not turn the final process wait into an uncancellable join.
 #[tokio::test]
 async fn cancellation_after_stdout_eof_still_reaps_the_running_child() {
-    let fixture = tempfile::tempdir().expect("disposable search root");
+    let fixture = crate::test_scratch::scratch().expect("disposable search root");
     let cancellation = SearchCancellation::new();
     let signal = cancellation.subscribe();
     let mut closed_output = Command::new("true")
@@ -110,7 +110,7 @@ async fn cancellation_after_stdout_eof_still_reaps_the_running_child() {
 /// A signal cancelled before startup prevents even an invalid executable from being spawned.
 #[tokio::test]
 async fn pre_cancelled_search_skips_process_start_and_live_spawn_errors_are_visible() {
-    let fixture = tempfile::tempdir().expect("disposable root");
+    let fixture = crate::test_scratch::scratch().expect("disposable root");
     let cancelled = SearchCancellation::default();
     cancelled.cancel();
     assert!(
@@ -151,7 +151,7 @@ async fn stopping_an_already_completed_child_keeps_its_status() {
 ///  then the production flags disable it.
 #[tokio::test]
 async fn production_command_ignores_external_ripgrep_configuration() {
-    let fixture = tempfile::tempdir().expect("disposable parent");
+    let fixture = crate::test_scratch::scratch().expect("disposable parent");
     let root = fixture.path().join("project");
     fs::create_dir(&root).expect("search root");
     fs::write(root.join("source.txt"), "needle\n").expect("source fixture");

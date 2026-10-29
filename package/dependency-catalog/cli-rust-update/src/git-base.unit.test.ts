@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
@@ -58,7 +58,7 @@ async function makeGitRepo(): Promise<AsyncDisposable & { readonly root: string;
   /**
    Fresh directory.
    */
-  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-git-base-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'rust-catalog-git-base-',),);
   await mkdir(join(root, 'package/cli/a',), { recursive: true, },);
   await writeFile(join(root, 'package/cli/a/Cargo.lock',), 'committed\n',);
   await git({ root, args: ['init', '--quiet', '--initial-branch=main',], },);

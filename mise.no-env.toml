@@ -131,6 +131,71 @@ const worker = async () => {
 await Promise.all(Array.from({ length: limit }, worker))
 if (failed.length > 0) { throw new Error(`package fanout failed: ${failed.join(', ')}`) }
 """
+
+# Standards-review gate shadow run (doc/runbook/standards-review-gate.md).
+# Reviews the landed commit against AGENTS.md through pi and appends one entry
+# to doc/audit/standards-review-gate-shadow.md. Shadow semantics: it never
+# blocks or fails a landing, records skips and reviewer failures in the log,
+# and judges nothing, so "Named superlinear cost" arrives as unjudged.
+# Reviewer route is pinned because pi's default provider answered 402
+# billing_error on 2026-10-29 (doc/troubleshooting/pi-advisor-provider-billing.md);
+# --no-tools keeps the reviewer from running git, which is the recursion guard.
+# SHADOW_REVIEW_LOG points the log at a disposable fixture for tests and
+# SHADOW_REVIEW_SHA replays any commit instead of HEAD.
+shadow_review = """
+const { execFileSync } = await import('node:child_process')
+const { appendFileSync, mkdirSync, writeFileSync } = await import('node:fs')
+const repo = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
+const git = (...args) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 1 << 26 })
+const sha = git('rev-parse', process.env.SHADOW_REVIEW_SHA ?? 'HEAD').trim()
+const subject = git('log', '-1', '--format=%s', sha).trim()
+const patch = git('show', '--format=', '--patch', sha)
+const names = git('diff-tree', '--no-commit-id', '--name-only', '-r', sha).split('\\n').filter(Boolean)
+const codeFiles = names.filter((name) => /\\.(ts|tsx|rs|js|mjs|cjs)$/.test(name))
+const logPath = process.env.SHADOW_REVIEW_LOG ?? `${repo}/doc/audit/standards-review-gate-shadow.md`
+const entry = (line) => appendFileSync(logPath, `${line}\\n`)
+if (codeFiles.length === 0) {
+  entry('- Skipped:')
+  entry(`  ${sha.slice(0, 12)} (no code files):`)
+  entry(`  \\`${subject}\\``)
+  process.exit(0)
+}
+const capLines = 2000
+const lines = patch.split('\\n')
+const truncated = lines.length > capLines
+const scratch = `${process.env.HOME}/temp/agent/shadow-review`
+mkdirSync(scratch, { recursive: true, mode: 0o700 })
+const diffPath = `${scratch}/${sha.slice(0, 12)}.diff`
+writeFileSync(diffPath, `${lines.slice(0, capLines).join('\\n')}\\n`)
+const route = 'openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files'
+const prompt = 'Review the candidate diff in the second file against the standards in the first file, AGENTS.md. Report findings only: each with the function name, a severity (blocker, major, minor, nit), the tag code of the standard it violates when one applies, and one or two sentences of rationale. Account cost across call boundaries: a per-entry or per-run call into a helper that walks unbounded data is superlinear. Never accept an inline complexity claim as proof: an O(n) or one-linear-pass comment is a claim, not evidence. If you have no findings in some respect, say so explicitly. Do not propose rewritten code. Keep the review under 400 words.'
+const started = Date.now()
+let outcome = ''
+try {
+  outcome = execFileSync('pi', ['--model', 'openai/gpt-6.1-sol', '--print', '--no-session', '--no-tools', '--no-skills', '--no-themes', '--no-context-files', '--thinking', 'xhigh', '--system-prompt', prompt, `@${repo}/AGENTS.md`, `@${diffPath}`], { encoding: 'utf8', maxBuffer: 1 << 26, cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+} catch (error) {
+  outcome = `Reviewer failed: ${error instanceof Error ? error.message : String(error)}`
+}
+const seconds = ((Date.now() - started) / 1000).toFixed(1)
+entry('- Date:')
+entry(`  ${new Date().toISOString()}`)
+entry('  Subject:')
+entry(`  ${sha.slice(0, 12)} \\`${subject}\\``)
+entry('  Input size:')
+entry(`  \\`${codeFiles.length} code files, ${lines.length} diff lines${truncated ? `, capped at ${capLines}` : ''}\\``)
+entry('  Reviewer route:')
+entry(`  \\`${route}\\``)
+entry('  Wall-clock cost:')
+entry(`  ${seconds} s`)
+entry('  Named superlinear cost:')
+entry('  unjudged')
+entry('  Findings kept:')
+entry('    `````text')
+for (const line of outcome.split('\\n')) { entry(`    ${line}`) }
+entry('    `````')
+entry('')
+"""
+
 # Bootstrap-safe dispatch to any workspace package's node entry. Resolves the
 # monorepo root (mise sets MISE_MONOREPO_ROOT in monorepo mode; the fallback
 # covers non-monorepo invocations), then runs the entry's built dist when present,
@@ -907,6 +972,13 @@ run = "pnpm approve-builds sharp"
 [tasks."prepare:pnpm:others:files"]
 description = "Sync file-enforcer managed files"
 run = "node file-enforcer.config.ts"
+
+[tasks."shadow-review"]
+description = "Standards-review gate shadow run on the landed commit: appends to doc/audit/standards-review-gate-shadow.md and never blocks or fails a landing"
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.shadow_review}}
+"""
 
 [tasks."prepare:playwright"]
 description = "Build Playwright container image via podman"

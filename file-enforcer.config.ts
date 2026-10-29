@@ -725,6 +725,9 @@ ${
         // The search shadow's gitignored link directory, created by the toolchain postinstall,
         // must precede the toolchain exposure links: they hold the locked ripgrep.
         '.cache/search-shadow-bin',
+        // The mpm shadow's gitignored link directory, created by the toolchain postinstall, holds the `mpm`
+        // link that runs the real mpm and then prunes; it must precede the exposure links, which hold the real mpm.
+        '.cache/mpm-shadow-bin',
         // The toolchain exposure links must precede every ambient and global
         // tool so tasks run the locked versions.
         '.cache/toolchain-bin',
@@ -1555,10 +1558,10 @@ const CARGO_WORKSPACE_BLOCK = `# Standalone crate: its own workspace root, so no
  
  @example
  ```ts
- console.log(CARGO_DYLINT_DIRS.includes('package/ide/app'));
+ console.log(CARGO_DYLINT_DIRS.has('package/ide/app'));
  ```
  */
-const CARGO_DYLINT_DIRS: readonly string[] = new Set([
+const CARGO_DYLINT_DIRS: ReadonlySet<string> = new Set([
   'package/ide/app',
   'package/linter/monochromatic-lint',
 ]);

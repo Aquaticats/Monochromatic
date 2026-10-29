@@ -65,10 +65,14 @@ await describe({
               isError: true,
             },);
             expect(error.message,).toContain('purr-lint was not found on the PATH',);
-            expect(error.message,).toContain('"mise install"',);
-            expect(error.message,).toContain(`"cargo:${LINT_BINARY_NAME}" in mise.toml`,);
+            expect(error.message,).toContain('"mise run toolchain:sync"',);
+            expect(error.message,).toContain(`"cargo:${LINT_BINARY_NAME}" in toolchain.lock.json`,);
             expect(error.message,).toContain(`"cargo binstall ${LINT_BINARY_NAME}@${PINNED_LINT_BINARY_VERSION}"`,);
-            expect(error.message,).toContain('"mise exec --"',);
+            expect(error.message,).toContain('under "mise run" or with the tree\'s ".cache/toolchain-bin" directory',);
+            // THE WORDS OF BEFORE THE TOOL MIGRATION stay out: mise installs no tool now.
+            expect(error.message,).not.toContain('mise install',);
+            expect(error.message,).not.toContain('mise.toml',);
+            expect(error.message,).not.toContain('mise exec',);
           },
         },),
       ],
@@ -94,7 +98,11 @@ await describe({
             },);
             expect(found.message,).toContain('purr-lint is version 0.1.1, but',);
             expect(found.message,).toContain(`wrapped by version ${PINNED_LINT_BINARY_VERSION} only`,);
-            expect(found.message,).toContain('"mise install"',);
+            expect(found.message,).toContain('"mise run toolchain:sync"',);
+            // THE SAME ABSENT WORDS AS THE MISSING-PROGRAM CASE, since both messages carry one advice.
+            expect(found.message,).not.toContain('mise install',);
+            expect(found.message,).not.toContain('mise.toml',);
+            expect(found.message,).not.toContain('mise exec',);
             expect(unreadable.message,).toContain('purr-lint is not a version this package can read, but',);
           },
         },),

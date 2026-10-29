@@ -5,7 +5,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -215,7 +215,7 @@ await describe({
             /**
              Throwaway JetBrains config root.
              */
-            const configRoot = await mkdtemp(join(tmpdir(), 'fe-lsp4ij-',),);
+            const configRoot = await mkdtemp(join(scratchRoot(), 'fe-lsp4ij-',),);
             await using owned = throwawayDir(configRoot,);
             /**
              Options directory of a synthetic latest IDEA install.

@@ -3,7 +3,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -42,7 +42,7 @@ function createManifestFixture(manifestText: string,): ManifestFixture {
   /**
    Fresh fixture directory under the system temp root.
    */
-  const path = mkdtempSync(join(tmpdir(), 'package-externals-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'package-externals-',),);
   writeFileSync(join(path, 'package.json',), manifestText,);
   return {
     path,

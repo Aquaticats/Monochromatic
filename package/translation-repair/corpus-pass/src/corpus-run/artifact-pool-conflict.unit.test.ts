@@ -38,7 +38,7 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -159,7 +159,7 @@ await describe({
             const refusal = await rejectionOf(async function overBothPools() {
               await resolvePool({
                 artifactsDir: join(
-                  tmpdir(),
+                  scratchRoot(),
                   'translation-repair-pool-conflict-unread',
                 ),
                 policy: {

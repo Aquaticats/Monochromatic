@@ -8,7 +8,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -30,7 +30,7 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(tmpdir(), 'e2e-files-',),);
+        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
         expect(await pathExists(dir,),).toBe(true,);
         expect(
           await pathExists(join(dir, 'missing',),),
@@ -50,7 +50,7 @@ await describe({
         /**
          Scratch directory of the test.
          */
-        const dir = await mkdtemp(join(tmpdir(), 'e2e-files-',),);
+        const dir = await mkdtemp(join(scratchRoot(), 'e2e-files-',),);
         await ensureDirectory(join(dir, 'a', 'b',),);
         await ensureDirectory(join(dir, 'a', 'b',),);
         expect(

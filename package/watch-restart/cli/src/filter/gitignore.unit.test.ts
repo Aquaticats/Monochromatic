@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
@@ -90,7 +90,7 @@ function makeEvent(
  ```
  */
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'watch-restart-gitignore-',),);
+  return mkdtemp(join(scratchRoot(), 'watch-restart-gitignore-',),);
 }
 
 await describe({

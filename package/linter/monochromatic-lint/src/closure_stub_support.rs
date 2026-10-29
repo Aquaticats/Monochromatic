@@ -51,7 +51,7 @@ pub(crate) fn stub_cargo() -> &'static Path {
 /// function compileStub(): Path;
 /// ```
 fn compile_stub() -> PathBuf {
-    let output: PathBuf = std::env::temp_dir().join(format!(
+    let output: PathBuf = crate::test_scratch::scratch_root().join(format!(
         "monochromatic-lint-stub-cargo-{}",
         std::process::id()
     ));
@@ -101,7 +101,7 @@ static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// ```
 pub(crate) fn scenario(files: &[(&str, &str)]) -> Scenario {
     let sequence: u64 = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let directory: PathBuf = std::env::temp_dir().join(format!(
+    let directory: PathBuf = crate::test_scratch::scratch_root().join(format!(
         "monochromatic-lint scenario {}-{sequence}",
         std::process::id()
     ));

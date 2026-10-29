@@ -13,7 +13,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import type {
@@ -42,7 +42,7 @@ type TempWorkspace = {
  @returns disposable temporary workspace handle
  */
 async function makeWorkspace(): Promise<TempWorkspace> {
-  const path = await mkdtemp(join(tmpdir(), 'session-start-housekeeping-',),);
+  const path = await mkdtemp(join(scratchRoot(), 'session-start-housekeeping-',),);
 
   return {
     path,

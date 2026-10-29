@@ -79,7 +79,7 @@ fn detached_directory_replies_are_rejected() {
 ///  and non-UTF-8 names in dirent order.
 #[test]
 fn workspace_snapshots_keep_native_names_and_order() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("disposable project");
     // What: from_vec constructs a Unix native filename from arbitrary bytes, unlike UTF-8 String.
     // Why: UI display conversion must never become the identity used to open a file.
     //

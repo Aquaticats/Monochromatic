@@ -15,7 +15,7 @@
  */
 
 import { writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -263,7 +263,7 @@ await describe({
          Directory the fixture actually sits under, which the refusal must not
          name: under `artifacts/` the surrounding path is a person's entry id.
          */
-        const root = tmpdir();
+        const root = scratchRoot();
 
         expect(refusal.file,).toBe('contest.json',);
         expect(refusal.message.includes(root,),).toBe(false,);

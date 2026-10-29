@@ -127,7 +127,7 @@ fn scratch_file(test: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("the clock is after the epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_session_{test}_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_session_{test}_{nanos}"));
     std::fs::create_dir_all(&dir).expect("the scratch directory is created");
     return dir.join("session.json");
 }

@@ -9,7 +9,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -53,7 +53,7 @@ const encrypted = await writeEncryptedStore({
 /**
  Isolated Pi config home.
  */
-const configHome = await mkdtemp(join(tmpdir(), 'search-fetch-config-home-',),);
+const configHome = await mkdtemp(join(scratchRoot(), 'search-fetch-config-home-',),);
 
 //endregion Fixtures
 

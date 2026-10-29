@@ -6,7 +6,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -133,7 +133,7 @@ async function createTempDirectory(): Promise<TempDirectory> {
    Absolute sandbox root unique to the current probe.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'dsh-advisor-status-',
   ),);
 

@@ -182,9 +182,10 @@ jobs:
         # (cargo-publish.yml, job nws-build-binary, does the same).
         # arch is the spelling of the asset names (music-player-release.yml uses it too); machine is `uname -m`; needed
         # is the exact sorted list of shared libraries in the dynamic section of the executable (INSTALL.txt names them).
-        # The lists differ by architecture: the x86_64 executable also names its dynamic loader (first dry run), while
-        # the aarch64 helper binary ide-runtime, linked in the arm64 build image on 2026-10-22, names only
-        # libgcc_s.so.1 and libc.so.6 and not ld-linux-aarch64.so.1.
+        # Both executables name their dynamic loader, which is part of glibc and so is covered by the glibc floor
+        # below. The x86_64 executable did from the first dry run. The aarch64 executable did not while it was linked in
+        # the Fedora 41 build image (dry run 40877021793, ide-v0.1.3), and names ld-linux-aarch64.so.1 since it is
+        # linked in the Ubuntu 24.04 release image (dry run 40883876777, which failed this check until it was added).
         - arch: x64
           runner: ubuntu-24.04
           machine: x86_64
@@ -192,7 +193,7 @@ jobs:
         - arch: arm64
           runner: ubuntu-24.04-arm
           machine: aarch64
-          needed: libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6
+          needed: ld-linux-aarch64.so.1 libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6
     runs-on: ${{ matrix.runner }}
     # The first dry run took 15 min 37 s up to the renderer gate (doc/decision/ide-releases.md, "First dry run").
     timeout-minutes: 150
@@ -211,6 +212,10 @@ jobs:
       # runner room for podman and the runner processes. container-bounds.ts reads exactly these variable names.
       IDE_CONTAINER_CPUS: '4'
       IDE_CONTAINER_MEMORY: '12g'
+      # The shipped executable is compiled in the Ubuntu 24.04 release image (Containerfile.release of the ide and terminal
+      # packages), not in the CachyOS development image: the glibc of the build image sets the oldest glibc the
+      # executable runs on (doc/decision/container-base-distro.md). The ide tasks read this variable to pick the image.
+      IDE_RELEASE: '1'
       # One task at a time: build depends on runtime and notices, each starting a bounded container, and the
       # bound is per container, not per task graph.
       # The program prints the version of Cargo.toml and exits before it opens a display.
@@ -271,19 +276,19 @@ jobs:
         mkdir --parents "${HOME}/temp/agent"
         chmod 700 "${HOME}/temp/agent"
 
-    # The IDE image is built FROM localhost/monochromatic/terminal, which only the terminal package's image task builds
-    # (the ide tasks build the ide image on demand but not its base).
-    - name: Build the base image (terminal)
-      run: task-run //package/terminal/app:image
+    # The IDE release image is built FROM localhost/monochromatic/terminal-release, which only the terminal package's
+    # image:release task builds (the ide tasks build the ide image on demand but not its base).
+    - name: Build the base image (terminal release)
+      run: task-run //package/terminal/app:image:release
 
-    - name: Build the IDE build image
-      run: task-run //package/ide/app:image
+    - name: Build the IDE release build image
+      run: task-run //package/ide/app:image:release
 
     # A bounded container with the same kinds of limits the tasks pass (CPU, memory, processes, open files), so a
     # runner that refuses one of them fails here and not an hour into the build. The Alpine jobs of
     # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit and --ulimit were not proven.
     # The compiler version goes to the release notes: the image installs the stable toolchain of the day it is built
-    # (package/terminal/app/Containerfile), so each leg records which one. A matrix job cannot hand a value to
+    # (package/terminal/app/Containerfile.release), so each leg records which one. A matrix job cannot hand a value to
     # a later job as an output (the legs would overwrite each other), so the line travels as a small artifact. Its name
     # does not start with asset-, so it is never released. The compiler must also be native for the runner: its host
     # triple is the target of this leg's build.
@@ -292,15 +297,15 @@ jobs:
         set -euo pipefail
         podman run --rm --network=none --security-opt label=disable \
           --memory="$IDE_CONTAINER_MEMORY" --cpus="$IDE_CONTAINER_CPUS" --pids-limit=1024 --ulimit nofile=4096:4096 \
-          localhost/monochromatic/ide sh -c 'rustc --version --verbose && cargo --version && cargo-about --version'
-        host=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide \
+          localhost/monochromatic/ide-release sh -c 'rustc --version --verbose && cargo --version && cargo-about --version'
+        host=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide-release \
           sh -c "rustc --version --verbose | awk '/^host: / { print \$2 }'")
         echo "rustc host triple: ${host}"
         if [ "$host" != "${MACHINE}-unknown-linux-gnu" ]; then
           echo "::error::The build image compiles for '${host}', expected '${MACHINE}-unknown-linux-gnu'."
           exit 1
         fi
-        rustc=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide rustc --version)
+        rustc=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide-release rustc --version)
         mkdir --parents "${RUNNER_TEMP}/ide-meta"
         echo "$rustc" > "${RUNNER_TEMP}/ide-meta/rustc-${ARCH}.txt"
         df --human-readable /

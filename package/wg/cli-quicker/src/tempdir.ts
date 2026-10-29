@@ -2,9 +2,9 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { scratchParent, } from './scratch-parent.ts';
 /**
  A private temp directory removed automatically when the scope exits.
  
@@ -42,7 +42,7 @@ export async function makeTempDir(): Promise<TempDir> {
    Freshly created private temp directory path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     'wg-quicker-',
   ),);
   return {

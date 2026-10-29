@@ -102,7 +102,7 @@ fn caret_x(reader: &Reader, head: usize) -> f32 {
 ///  a fourth starts over.
 #[test]
 fn click_count_selects_caret_word_and_line() {
-    let fixture = tempfile::tempdir().expect("disposable pointer project");
+    let fixture = crate::test_scratch::scratch().expect("disposable pointer project");
     // alpha(0..5) blank beta(6..10) blank gamma(11..16) LF(16); second line starts at 17; empty line at 34; last at 35.
     let text = "alpha beta gamma\nsecond line here\n\nlast";
     fs::write(fixture.path().join("pointer.txt"), text).expect("pointer fixture");
@@ -178,7 +178,7 @@ fn click_count_selects_caret_word_and_line() {
 /// Shift+click extends from the anchor in both directions and is never counted as a double click.
 #[test]
 fn shift_click_extends_the_selection_from_its_anchor() {
-    let fixture = tempfile::tempdir().expect("disposable pointer project");
+    let fixture = crate::test_scratch::scratch().expect("disposable pointer project");
     let text = "alpha beta gamma\nsecond line here\n\nlast";
     fs::write(fixture.path().join("pointer.txt"), text).expect("pointer fixture");
     let reader = reader(fixture.path(), "pointer.txt");
@@ -221,7 +221,7 @@ fn shift_click_extends_the_selection_from_its_anchor() {
 ///  and after a double click it extends by words.
 #[test]
 fn drag_selects_text_by_characters_and_by_words_without_panning() {
-    let fixture = tempfile::tempdir().expect("disposable pointer project");
+    let fixture = crate::test_scratch::scratch().expect("disposable pointer project");
     // Two hundred lines make the view scrollable, so a pan would be possible if drags were not selections.
     let text = "alpha beta gamma\n".repeat(200);
     fs::write(fixture.path().join("drag.txt"), &text).expect("drag fixture");

@@ -191,7 +191,7 @@ fn every_location_variable_names_a_place() {
 
 #[test]
 fn a_location_variable_below_a_replaced_directory_is_shown_again_read_only() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let data = root.path().join("data");
     fs::create_dir_all(&data).expect("directory");
     let request = launch_request(
@@ -221,7 +221,7 @@ fn program(path: &Path, mode: u32) {
 
 #[test]
 fn node_is_found_in_the_toolchain_root_first_then_on_path() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let home = root.path().join("home");
     let installed = home.join(".local/share/monochromatic-dev/toolchain/bin/node");
     program(&installed, 0o755);
@@ -241,7 +241,7 @@ fn node_is_found_in_the_toolchain_root_first_then_on_path() {
 
 #[test]
 fn an_xdg_data_home_names_the_toolchain_root_instead_of_the_home() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let data = root.path().join("data");
     let installed = data.join("monochromatic-dev/toolchain/bin/node");
     program(&installed, 0o755);
@@ -253,7 +253,7 @@ fn an_xdg_data_home_names_the_toolchain_root_instead_of_the_home() {
 
 #[test]
 fn a_mise_shim_on_path_is_not_node() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let mise = root.path().join("bin/mise");
     program(&mise, 0o755);
     let shims = root.path().join("shims");
@@ -272,7 +272,7 @@ fn a_mise_shim_on_path_is_not_node() {
 
 #[test]
 fn node_is_not_found_without_an_executable_or_an_absolute_place() {
-    let root = tempfile::tempdir().expect("directory");
+    let root = crate::test_scratch::scratch().expect("directory");
     let home = root.path().join("home");
     program(
         &home.join(".local/share/monochromatic-dev/toolchain/bin/node"),

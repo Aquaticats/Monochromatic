@@ -6,7 +6,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -78,7 +78,7 @@ async function createTempDirectory(): Promise<TempDirectory> {
    Absolute fixture root unique to current test.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'git-executable-native-',
   ),);
 

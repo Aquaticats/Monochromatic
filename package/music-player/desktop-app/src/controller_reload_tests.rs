@@ -65,7 +65,7 @@ impl Rig {
     /// What: `new` builds the rig; `playing` decides whether the first track plays or is paused.
     /// Why: tests of both states share the setup.
     fn new(tag: &str, playing: bool) -> Rig {
-        let directory = std::env::temp_dir().join(format!("mp-reload-{}-{}", std::process::id(), tag));
+        let directory = crate::test_scratch::scratch_root().join(format!("mp-reload-{}-{}", std::process::id(), tag));
         std::fs::create_dir_all(&directory).expect("the test directory should be creatable");
         write_wav(&directory.join("t1.wav"), 3, 440.7, 8_000.0);
         write_wav(&directory.join("t2.wav"), 3, 880.3, 12_000.0);

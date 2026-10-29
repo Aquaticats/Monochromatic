@@ -9,6 +9,7 @@
     "@monochromatic-dev/file-enforcer-core": "workspace:*",
     "@monochromatic-dev/fs-path-core": "workspace:*",
     "@monochromatic-dev/const-core": "workspace:*",
+    "@monochromatic-dev/test-harness-core-matrix": "workspace:*",
     "nano-spawn": "catalog:"
   },
   "devDependencies": {

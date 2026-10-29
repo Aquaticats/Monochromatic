@@ -47,7 +47,7 @@ fn peek_measures_keeps_queue_order_and_pairs_each_path() {
 
 #[test]
 fn cached_exact_decision_supplies_the_peak_and_its_length() {
-    let db = std::env::temp_dir().join(format!("mp-peek-{}.db", std::process::id()));
+    let db = crate::test_scratch::scratch_root().join(format!("mp-peek-{}.db", std::process::id()));
     let cache = CacheHandle::open_at(db.clone());
     let track = fixture("tone.wav");
     let key = peakcache::fingerprint(&track).expect("the fixture has a fingerprint");

@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -64,7 +64,7 @@ async function makeTempPackage(): Promise<TempPackage> {
    Temporary package root.
    */
   const packageRoot = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'electron-infra-distribution-',
   ),);
 

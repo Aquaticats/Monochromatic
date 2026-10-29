@@ -5,7 +5,7 @@
  */
 
 import { mkdir, mkdtemp, readFile, rm, writeFile, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 
 import {
@@ -54,7 +54,7 @@ async function createTempHome(): Promise<TempHome> {
   /**
    Absolute home root unique to the current test.
    */
-  const path = await mkdtemp(join(tmpdir(), 'bash-poke-settings-', ), );
+  const path = await mkdtemp(join(scratchRoot(), 'bash-poke-settings-', ), );
   return {
     path,
     async [Symbol.asyncDispose](): Promise<void> {

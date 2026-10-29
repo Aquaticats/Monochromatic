@@ -101,7 +101,10 @@ impl PrivateBus {
     /// When `dbus-daemon` is not installed or does not print an address; the tests need it and say so.
     pub(crate) fn start(label: &str) -> PrivateBus {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("clock after 1970").as_nanos();
-        let folder = std::env::temp_dir().join(format!("mp_bus_{label}_{}_{nanos}", std::process::id()));
+        // The daemon creates its socket inside this folder, and a Unix socket path holds at most 107 bytes, which the
+        // build directory's path already exceeds, so the folder lives in the per-user runtime directory.
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").expect("XDG_RUNTIME_DIR holds the short socket directory");
+        let folder = std::path::PathBuf::from(runtime).join(format!("mp_bus_{label}_{}_{nanos}", std::process::id()));
         std::fs::create_dir_all(&folder).expect("the scratch folder is made");
         let config = folder.join("bus.conf");
         let text = format!(

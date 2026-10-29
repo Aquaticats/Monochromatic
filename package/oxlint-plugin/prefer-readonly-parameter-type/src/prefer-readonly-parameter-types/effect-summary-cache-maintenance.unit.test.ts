@@ -6,7 +6,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -49,7 +49,7 @@ function createCacheRootFixture(): CacheRootFixture {
   /**
    Unique cache root path.
    */
-  const root = mkdtempSync(join(tmpdir(), 'effect-cache-maintenance-',),);
+  const root = mkdtempSync(join(scratchRoot(), 'effect-cache-maintenance-',),);
   return {
     root,
     [Symbol.dispose]: function removeCacheRoot(): void {

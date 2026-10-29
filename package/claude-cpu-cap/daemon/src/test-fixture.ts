@@ -3,7 +3,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import type { Logger, } from '@monochromatic-dev/logger-core/ts';
 import { EXPECTED_CORES, } from './constants.ts';
@@ -137,7 +137,7 @@ export async function makeHost({
    Root of the disposable host.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'cpu-cap-host-',
   ),);
   /**

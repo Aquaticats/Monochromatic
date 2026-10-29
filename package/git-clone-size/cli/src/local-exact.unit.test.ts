@@ -13,7 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
@@ -56,7 +56,7 @@ type DisposableDir = { readonly path: string; readonly [Symbol.dispose]: () => v
  @returns disposable directory handle
  */
 function disposableDir(prefix: string): DisposableDir {
-  const path = mkdtempSync(join(tmpdir(), prefix));
+  const path = mkdtempSync(join(scratchRoot(), prefix));
   return {
     path,
     [Symbol.dispose]() {

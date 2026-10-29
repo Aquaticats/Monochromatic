@@ -617,8 +617,8 @@ Both were run on GitHub Windows runners; see the decision record.
 
 ### Building the GNU target on Linux
 
-`mise run //package/music-player/desktop-app:image:windows-gnu` builds a Fedora image with mingw-w64 and Wine,
-pinned by digest (`Containerfile.windows-gnu`).
+`mise run //package/music-player/desktop-app:image:windows-gnu` builds a CachyOS image with mingw-w64 and Wine
+(`Containerfile.windows-gnu`, unpinned like every container base image of the repository).
 `:build:windows-gnu` then cross-compiles the program,
 and `:test:windows-gnu` cross-compiles the tests and runs them under Wine.
 Both run in a container capped at 6 GiB of memory and 4 CPUs.
@@ -627,7 +627,7 @@ The cross build has no icon (the icon is embedded by a build script that runs on
 and six tests fail or hang under Wine that pass on the Windows runners;
 `doc/troubleshooting/music-player-windows-build-and-test.md` lists them with what was and was not found.
 `nextest.windows-gnu.toml` ends a hung test after five minutes.
-To start the program under Wine, use a virtual desktop (`wine64 explorer /desktop=mp,1280x800 music-player.exe`):
+To start the program under Wine, use a virtual desktop (`wine explorer /desktop=mp,1280x800 music-player.exe`):
 on a bare Xvfb screen Slint's frame throttle divides by a refresh rate of 0 and the program exits.
 
 ### Continuous integration

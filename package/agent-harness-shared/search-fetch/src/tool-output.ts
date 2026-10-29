@@ -9,7 +9,6 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 import {
   DEFAULT_MAX_LINES,
@@ -27,6 +26,7 @@ import type {
 } from './search-fetch-client.ts';
 import { modelTextForLinkupResponse, } from './tool-output-format.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 /**
  Logger root for pi-search-fetch after removing the package log shim.
  
@@ -439,7 +439,7 @@ async function writeFullResponseToTemp(
    Temp directory dedicated to this response.
    */
   const tempDir = await mkdtemp(join(
-    tmpdir(),
+    await scratchParent(),
     `${TEMP_RESPONSE_DIR_PREFIX}${randomSuffix}-`,
   ),);
   /**

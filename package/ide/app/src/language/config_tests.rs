@@ -31,7 +31,7 @@ language-servers = ["scripted-ls", "absent-ls"]
 "#;
 
 fn project() -> (tempfile::TempDir, PathBuf) {
-    let directory = tempfile::tempdir().expect("project");
+    let directory = crate::test_scratch::scratch().expect("project");
     let root = directory.path().canonicalize().expect("canonical project");
     return (directory, root);
 }

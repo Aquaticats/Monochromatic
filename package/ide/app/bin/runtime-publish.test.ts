@@ -18,7 +18,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +33,10 @@ import {
 
 const modulePath = fileURLToPath(new URL('./runtime-publish.ts', import.meta.url));
 
-const scratch = (): string => mkdtempSync(join(tmpdir(), 'runtime-publish-'));
+// Scratch lives in the package's gitignored node_modules/.monochromatic, never the system temporary directory.
+const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'ide');
+mkdirSync(scratchBase, { recursive: true });
+const scratch = (): string => mkdtempSync(join(scratchBase, 'runtime-publish-'));
 
 const namesBelow = (root: string): string[] => readdirSync(root, { recursive: true }).map(String).sort();
 

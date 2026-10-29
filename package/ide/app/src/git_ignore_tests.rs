@@ -24,7 +24,7 @@ fn put(root: &Path, name: &str, text: &str) {
 ///  `.git` is an empty folder,
 ///  because the rules are read from files and git itself is never run.
 fn work_tree() -> (tempfile::TempDir, Workspace) {
-    let directory = tempfile::tempdir().expect("disposable project");
+    let directory = crate::test_scratch::scratch().expect("disposable project");
     fs::create_dir(directory.path().join(".git")).expect("git folder");
     let workspace = Workspace::new(directory.path()).expect("open project");
     return (directory, workspace);
@@ -197,7 +197,7 @@ fn exclude_file_and_global_file_apply_below_gitignore() {
 ///  and says so with default stamps.
 #[test]
 fn outside_a_work_tree_nothing_is_ignored() {
-    let directory = tempfile::tempdir().expect("disposable folder");
+    let directory = crate::test_scratch::scratch().expect("disposable folder");
     put(directory.path(), ".gitignore", "*.log\n");
     put(directory.path(), "app.log", "x");
     let workspace = Workspace::new(directory.path()).expect("open folder");
@@ -238,7 +238,7 @@ fn rules_apply_from_the_top_of_the_work_tree_and_stop_at_a_nested_repository() {
 ///  whose `commondir` holds the shared `info/exclude`.
 #[test]
 fn a_git_file_finds_the_common_directory_of_a_linked_work_tree() {
-    let directory = tempfile::tempdir().expect("disposable folder");
+    let directory = crate::test_scratch::scratch().expect("disposable folder");
     let root = directory.path();
     put(root, "main/.git/info/exclude", "shared.txt\n");
     put(root, "main/.git/worktrees/linked/commondir", "../..\n");
