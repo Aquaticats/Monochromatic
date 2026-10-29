@@ -153,6 +153,14 @@ function coveredFunctions(script: V8Script,): number {
 //region Aggregation
 
 /**
+ One file path with its covered-function count.
+ */
+type CountEntry = readonly [
+  path: string,
+  count: number,
+];
+
+/**
  Reads and parses one `NODE_V8_COVERAGE` JSON file.
  
  @param path - Absolute path to a coverage JSON file.
@@ -230,8 +238,8 @@ async function aggregate(coverageDir: string,): Promise<CoverageCounts> {
     }
   return Object.fromEntries(
     [...counts.entries(),].toSorted(function byKey(
-      left,
-      right,
+      left: CountEntry,
+      right: CountEntry,
     ): number {
       return left[0]
         .localeCompare(right[0],);
@@ -268,7 +276,14 @@ function checkBaseline({
    Human-readable regression lines.
    */
   const regressions = [...baseline.entries(),]
-    .flatMap(function compare([file, expected],): readonly string[] {
+    .flatMap(function compare(entry: CountEntry,): readonly string[] {
+    /**
+     File and its baseline count.
+     */
+      const [
+        file,
+        expected,
+      ] = entry;
     /**
      Covered functions for this file in the current run.
      */
