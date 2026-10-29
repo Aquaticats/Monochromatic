@@ -35,7 +35,7 @@ function makePlanDir(
     artifactsSource = 'export const ARTIFACTS = {};',
   }: {
     readonly toolsSource: string;
-    readonly artifactsSource?: string | undefined;
+    readonly artifactsSource?: string;
   },
 ): string {
   /**
@@ -90,7 +90,7 @@ function entrySource(overrides: string,): string {
 //region Loading
 
 await describe({
-  name: 'loadPlanFromDir',
+  name: loadPlanFromDir.name,
   children: [
     it({
       name: 'merges generated artifact rows into typed entries in declaration order',
