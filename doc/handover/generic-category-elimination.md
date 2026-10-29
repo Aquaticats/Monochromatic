@@ -154,11 +154,46 @@ User decisions taken during execution
    `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published;
    `module-logger` and `module-fs-path` are deprecated ("Renamed to …", verified on the registry);
    the npm login was removed (`npm whoami` fails).
-  `npm-publish.yml` is registered as both packages' trusted publisher (`--allow-publish`),
-   which needs a login to list, so it is unverified here.
-  npm expires a trusted-publisher setup with no successful publish within 2 days (`docs.npmjs.com/trusted-publishers`):
-   if neither package is released through `npm-publish.yml` by 2026-10-31,
-   re-run the two `npm trust github` lines in `finish-renamed.sh`.
+  `npm-publish.yml` is registered as both packages' trusted publisher (`--allow-publish`).
+- First trusted-publisher releases (user:
+   "just do new releases through npm-publish.yml now"):
+   `logger-core` 0.4.6 and `fs-path-core` 0.2.2 (`66e9826bab`, version bump and changelog only).
+  Runs 40863033623 and 40863038503 succeeded (pack and publish);
+   npm printed `+ @monochromatic-dev/logger-core@0.4.6`,
+   a signed provenance statement (Sigstore log index 3565726298),
+   and "Your package is being processed".
+  At this update the registry did not list 0.4.6 or 0.2.2 yet;
+   a check was waiting up to 15 minutes.
+  Next:
+   confirm both versions and their provenance on the registry.
+  A successful trusted publish also keeps npm from expiring the trusted-publisher setup (2-day rule).
+- Three CI breakages surfaced on the way,
+   each fixed and pushed:
+  - `09b320f9c5`:
+     nine files built old paths from separate segments
+     (`join(..., 'package', 'dev-script', 'task-cli', ...)`),
+     which the move script cannot see;
+     the task runner re-invoked itself at the old path,
+     so every CI `task-run` failed with `MODULE_NOT_FOUND`.
+    Search used:
+     an old category name quoted and followed by another quoted segment.
+  - `9b5e5bf46a`:
+     `fs-path/core` had no `task.ts`,
+     which `task-run` requires;
+     it had been unbuildable in CI since the workflows dropped mise (`38cb13b4d1`),
+     not because of the move.
+  - `c5cfe8e3a3`:
+     the root `task.ts` still named `npm:module:pack` and `npm:module:publish`
+     (renamed only in `mise.no-env.toml`),
+     and ran `pnpm pack --recursive` and `pnpm publish --recursive`,
+     which would pack and publish every workspace package.
+    Both now match `mise.no-env.toml`:
+     pack `./package/$NPM_PACKAGE`,
+     publish that one tarball with provenance.
+- `npm-release.yml` (changesets) fails in its `select-mode` step on every run,
+   including before the moves,
+   so it never reaches publishing;
+   `doc/decision/npm-publishing.md` and `doc/runbook/publish-npm-package-first-time.md` still describe it as the release path.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,
