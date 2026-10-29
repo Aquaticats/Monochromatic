@@ -620,6 +620,58 @@ Especially with auto update."
 The per-user config and its subcommand stay,
 so IDE auto-updates get the policy reapplied by a command rather than a remembered manual import.
 
+#### mise.toml: question withdrawn until the evidence is complete
+
+Asked whether `.config/mise/conf.d/*.toml` can replace the generated root `mise.toml`;
+the user answered:
+"Question asked too early.
+Just a simple probe?
+You sure you have enough evidence that this works?"
+A source-level study of mise's `conf.d` loading is running
+(how `{{config_root}}` and relative `_.path` entries resolve inside `conf.d` files,
+merge order and precedence with `mise.toml` and `*.local.toml`,
+trust prompts,
+task discovery);
+the question returns only with that evidence.
+
+#### License copies: every package, as today
+
+The user answered:
+"Our disk space can handle a hundred extra 4kb txt files.
+I don't know where this question is coming from."
+Every package keeps its `LICENSES/` copies.
+The question had no motivation beyond file count.
+
+#### browserslist: the generated file stays
+
+The user answered:
+"But rolldown needs to go fast in the common case and we don't have 10ms to wait every build."
+The `browserslist-rs` rule kind stays as decided,
+because resolving live on every build costs too much time.
+
+#### Schema: golden test and IDE mapping
+
+The user chose "Golden test + IDE mapping".
+
+- `file-enforcer.schema.json` is committed.
+- A cargo test in `core-rust` asserts it equals the `schemars` output
+  and that the hand-written decoder accepts and rejects the same sample configs.
+- `.idea/jsonSchemas.xml` maps the config to it,
+  and `"$schema"` stays for VS Code.
+- This replaces the self-enforcing schema rule.
+
+#### Cargo.toml keys: written, as decided (not asked)
+
+No native mechanism shares these settings across independent Cargo roots
+(nested workspaces are open as rust-lang/cargo#5042),
+and `.cargo/config.toml` profiles both override manifest values and are found from the current directory,
+with per-package overrides unable to set `panic` or `lto`
+(`doc/research/file-enforcer-rust-rewrite-replacements.md`, "Per-crate Cargo.toml keys").
+The TOML editor is needed for the catalog anyway,
+so the metadata,
+lint,
+and profile keys stay written.
+
 ### Adopted defaults put to the user for confirmation
 
 Listed 2026-10-29 in the confirmation question;
