@@ -1453,11 +1453,15 @@ The reopened vet for the chosen candidate
  is closed with no disqualifying finding
  in
 [`doc/audit/tech-task-slice-owner-vet-2026-10-29.md`](../audit/tech-task-slice-owner-vet-2026-10-29.md).
-Remaining gate:
- explicit adoption acceptance,
- asked in
-[`doc/handover/task-slice-adoption.md`](../handover/task-slice-adoption.md),
-which unlocks the `doc/decision/` record
- and the migration of 1,811 task names,
-603 edges,
+The adoption answer came 2026-10-29:
+ "2,
+and we're still going to migrate off pants to meow later when we have capacity."
+So Pants is an interim owner,
+ `meow` stays the endpoint,
+ and the plan is written before the decision record:
+[`doc/planning/task-slice-pants-migration.md`](task-slice-pants-migration.md).
+That plan is the remaining gate;
+ reading it unlocks the `doc/decision/` record
+ and the migration of the task names,
+the `depends` edges,
 and the `//package/<path>:<task>` call sites.
