@@ -19,14 +19,27 @@ fn snapshot(entries: &[(&str, &str, &str)]) -> ConfigSnapshot {
     return ConfigSnapshot::parse(listing.as_slice(), true).expect("listing parses");
 }
 
-/// The keys `git lfs install` and a server URL write mark a repository as using LFS, in any scope.
+/// The keys the filter's first run and a server URL write mark a repository as using LFS in its own scopes.
 #[test]
-fn lfs_keys_in_any_scope_mark_the_repository_as_using_lfs() {
-    assert!(uses_lfs(&snapshot(&[("global", "filter.lfs.process", "git-lfs filter-process")])));
+fn lfs_keys_of_the_repository_mark_it_as_using_lfs() {
     assert!(uses_lfs(&snapshot(&[("local", "lfs.repositoryformatversion", "0")])));
     assert!(uses_lfs(&snapshot(&[("local", "lfs.https://example.invalid/x.git/info/lfs.access", "basic")])));
+    assert!(uses_lfs(&snapshot(&[("local", "filter.lfs.process", "git-lfs filter-process")])));
+    assert!(uses_lfs(&snapshot(&[("worktree", "lfs.url", "http://127.0.0.1:1")])));
     assert!(uses_lfs(&snapshot(&[("command", "lfs.url", "http://127.0.0.1:1")])));
-    assert!(uses_lfs(&snapshot(&[("local", "core.bare", "false"), ("system", "filter.lfs.clean", "git-lfs clean")])));
+    assert!(uses_lfs(&snapshot(&[("system", "core.autocrlf", "false"), ("local", "lfs.url", "x")])));
+}
+
+/// `git lfs install` in an account writes the filter to the global file, which says nothing about one repository.
+#[test]
+fn lfs_keys_of_the_machine_or_account_do_not_mark_a_repository_as_using_lfs() {
+    assert!(!uses_lfs(&snapshot(&[("global", "filter.lfs.process", "git-lfs filter-process")])));
+    assert!(!uses_lfs(&snapshot(&[("global", "lfs.customtransfer.xet.path", "git-xet")])));
+    assert!(!uses_lfs(&snapshot(&[("system", "filter.lfs.clean", "git-lfs clean")])));
+    assert!(!uses_lfs(&snapshot(&[
+        ("global", "filter.lfs.smudge", "git-lfs smudge"),
+        ("local", "core.bare", "false"),
+    ])));
 }
 
 /// Other keys, near misses in the section or subsection name, and an empty configuration are not LFS.

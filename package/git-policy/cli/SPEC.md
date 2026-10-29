@@ -750,8 +750,11 @@ Verdict per hook of the four `git lfs install` writes
 The step:
 
 - Trigger.
-  The wrapper puts the hook in effect for a push only when the Git configuration holds a key under `filter.lfs.` or
-  `lfs.` in any scope, and the push is not a dry run.
+  The wrapper puts the hook in effect for a push only when the repository's own Git configuration (local, worktree or
+  command-line scope) holds a key under `filter.lfs.` or `lfs.`, and the push is not a dry run.
+  A key in the global or system file does not count: `git lfs install` writes `filter.lfs.*` there for every
+  repository of the account, and the filter's first run in a repository writes `lfs.repositoryformatversion` to its
+  local file.
   The decision costs no extra process on the commit path:
   the configuration snapshot the commit already reads is searched in memory.
   A forwarded `git push` reads the configuration once (one `git config --list` start) before it runs;

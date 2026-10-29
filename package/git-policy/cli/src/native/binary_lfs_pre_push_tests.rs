@@ -216,6 +216,22 @@ fn the_caller_can_turn_the_hook_off_for_one_push() {
     remove_settled(&fixture);
 }
 
+/// `git lfs install` in an account writes the filter to the global file; that alone must not turn every repository
+///  into an LFS repository, or a push would need `git-lfs` everywhere.
+#[test]
+fn a_global_lfs_filter_alone_runs_no_upload() {
+    let fixture: Fixture = fixture("lfs-push-global-only");
+    let world: World = world(&fixture, false, None);
+    let global: PathBuf = fixture.root.join("global-gitconfig");
+    std::fs::write(&global, "[filter \"lfs\"]\n\tprocess = git-lfs filter-process\n\trequired = true\n").expect("global file");
+    let mut command = wrapped_commit(&fixture, world.repo.as_path(), &["push", "origin", "main"]);
+    command.env("GIT_CONFIG_GLOBAL", &global);
+    let pushed: Observed = observe(&mut command, b"");
+    assert_eq!(pushed.code, Some(0), "no git-lfs is installed here, so any upload attempt would stop the push: {}", stderr_of(&pushed));
+    assert_ne!(ref_of(&fixture, world.origin.as_path(), "refs/heads/main"), "absent");
+    remove_settled(&fixture);
+}
+
 /// A repository without LFS keys pushes as before: no upload step, and no need for `git-lfs` at all.
 #[test]
 fn a_repository_without_lfs_keys_runs_no_upload() {

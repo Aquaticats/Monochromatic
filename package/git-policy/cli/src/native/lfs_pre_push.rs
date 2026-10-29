@@ -43,21 +43,28 @@ const LFS_PROGRAM: &str = "git-lfs";
 /// Key prefixes whose presence means the repository is set up for Git LFS.
 const LFS_KEY_PREFIXES: [&str; 2] = ["filter.lfs.", "lfs."];
 
+/// Scopes that describe the machine or the account, not this repository.
+const MACHINE_SCOPES: [&str; 2] = ["system", "global"];
+
 /// What:
-///  Whether any configuration entry belongs to Git LFS.
+///  Whether a configuration entry of this repository, its worktree or the command line belongs to Git LFS.
 /// Why:
-///   `git lfs install` writes `filter.lfs.*` and `lfs.repositoryformatversion`, and a server is named by `lfs.url`;
-///  one such key, in any scope, is the sign that pushed pointers need their objects uploaded first.
+///   `git lfs install` in an account writes `filter.lfs.*` to the global file, which every repository then sees, so a
+///  global key says nothing about this repository.
+///  The filter's first run in a repository writes `lfs.repositoryformatversion` to its local file, and a server is
+///  named by `lfs.url`; one such key in the local, worktree or command scope is the sign that pushed pointers need
+///  their objects uploaded first, without making every repository of the machine an LFS repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// entries.some(({ key }) => key.startsWith('filter.lfs.') || key.startsWith('lfs.'));
+/// entries.some(({ scope, key }) => !['system', 'global'].includes(scope) && (key.startsWith('filter.lfs.') || key.startsWith('lfs.')));
 /// ```
 pub fn uses_lfs(snapshot: &ConfigSnapshot) -> bool {
     return snapshot.entries().iter().any(|entry| {
-        return LFS_KEY_PREFIXES.iter().any(|prefix| {
-            return entry.key.starts_with(prefix);
-        });
+        return !MACHINE_SCOPES.contains(&entry.scope.as_str())
+            && LFS_KEY_PREFIXES.iter().any(|prefix| {
+                return entry.key.starts_with(prefix);
+            });
     });
 }
 

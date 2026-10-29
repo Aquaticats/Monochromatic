@@ -43,7 +43,8 @@ Read-only commands,
   That includes the shims `git lfs install` writes: see "Git LFS" for what replaces them.
 - Git LFS.
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
-   in a repository whose Git configuration has a `filter.lfs.*` or `lfs.*` key.
+   in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
+   `lfs.*` key.
   The step is Git's own `pre-push` hook, put in effect by the wrapper for that one `git push` with
    `-c hook.cli-git-lfs-pre-push.event=pre-push` and a command that runs `git-lfs pre-push`;
    Git hands it the remote, the URL and the ref-update lines, and a failed upload stops the push.
@@ -131,7 +132,7 @@ Read-only commands,
    skipping itself and any shim that leads back to it.
 - `monochromatic-lint` on an absolute `PATH` entry,
    only when `markdown/autofix` is configured.
-- `git-lfs` on `PATH`, only in a repository whose Git configuration has `filter.lfs.*` or `lfs.*` keys.
+- `git-lfs` on `PATH`, only in a repository whose own Git configuration has `filter.lfs.*` or `lfs.*` keys.
 - The scanner is linked into the executable and needs no separate installation.
 
 ## Install
