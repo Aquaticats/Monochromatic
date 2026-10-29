@@ -941,6 +941,12 @@ Reviews:
 [`doc/research/file-enforcer-rust-rewrite-review2-astra.md`](../research/file-enforcer-rust-rewrite-review2-astra.md),
 [`doc/research/file-enforcer-rust-rewrite-review2-kimi.md`](../research/file-enforcer-rust-rewrite-review2-kimi.md).
 None found a contradiction between owner decisions.
+Unlike the first round,
+these findings were adopted without a repository verification pass,
+because nearly all are design-level gaps in the plan's text rather than claims about repository facts.
+The advisor was skipped when these were first adopted;
+the user asked "Did you skip the advisor?",
+and the advisor's corrections are folded in here.
 
 - Filesystem containment:
   mirror roots,
@@ -1011,12 +1017,30 @@ None found a contradiction between owner decisions.
 - `sync` and `status` refuse to run when plan and lock disagree,
   naming `mpm-shadow lock` or `mpm-shadow update`.
 - `update --check` never auto-syncs or installs.
-- `mpm outdated` reading:
-  a tool's latest version is the outdated row's when present,
-  otherwise the installed version from mpm;
-  that is compared with the lock,
-  and an absent or failed manager result is an error,
-  never "unchanged".
+- `mpm outdated` reading,
+  pending the `mpm outdated` probe gate (not adopted):
+  a candidate rule takes a tool's latest version from the outdated row when present,
+  otherwise from the installed version mpm reports,
+  then compares it with the lock;
+  it assumes `mpm installed --output-format json` reports versions for the pnpm and uv managers
+  and that an absent row means installed equals registry latest,
+  neither verified.
+  Settled either way:
+  an absent or failed manager result is never read as "unchanged".
+- mpm-shadow's own writes:
+  the snapshot revalidation rule applies to its lock publish step
+  (record the plan and lock revisions read,
+  refuse to publish if either changed);
+  an exclusive OS lock per scope in front of it is an implementation detail.
+  Put to the user as a question,
+  answered "?",
+  so adopted with the user's veto open.
+- `user` commands get their own auto-started server keyed by the canonical per-user config path,
+  independent of any worktree,
+  following the server-client decision.
+  Put to the user as a question,
+  answered "?",
+  so adopted with the user's veto open.
 - Rules list:
   each `FORBIDDEN_STRINGS_RULES` entry is anchored with `{{config_root}}`,
   cli-git array paths are relative to its config file,
