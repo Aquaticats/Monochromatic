@@ -42,12 +42,13 @@ await describe({
     },),
 
     it({
-      name: 'LANDS IN THE WORKSPACE CACHE DIRECTORY when run inside a checkout without an override',
-      fn: async function landsInTheWorkspaceCache() {
+      name: 'LANDS IN THE USER CACHE DIRECTORY without an override, outside every checkout, so a fixture is '
+        + 'never found by a tool that walks upward looking for a repository',
+      fn: async function landsInTheUserCache() {
         const previous = process.env['MONOCHROMATIC_TEST_SCRATCH'];
         delete process.env['MONOCHROMATIC_TEST_SCRATCH'];
         try {
-          expect(scratchRoot().endsWith('.cache/test-scratch',),).toBe(true,);
+          expect(scratchRoot().endsWith('monochromatic-dev/test-scratch',),).toBe(true,);
         } finally {
           if (previous !== undefined) {
             process.env['MONOCHROMATIC_TEST_SCRATCH'] = previous;
