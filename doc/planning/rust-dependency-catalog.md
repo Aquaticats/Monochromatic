@@ -26,8 +26,9 @@ Each item links to its decision section for evidence and rejected alternatives.
 - `rust-catalog.toml` at the repository root,
    in Cargo dependency syntax,
    with `[catalog]` and `[catalogs.<name>]` tables (pnpm's names).
-- Entries are `>=` floors;
-   named-catalog entries are bounded (caret or exact).
+- Registry entries are `>=` floors;
+   named-catalog entries are bounded (caret or exact);
+   git entries carry `git` plus `rev`.
 - Supply-chain keys with pnpm's names and the repo's values:
    `minimumReleaseAge = 1440`,
    `minimumReleaseAgeExclude = []`,
@@ -457,6 +458,19 @@ Owner rationale:
  the breakage risk of crossing a major is intentional;
  falling behind upstream is the failure to surface.
 
+Known consequence:
+ `i-slint-backend-testing` must stay an exact pin equal to the resolved `slint`
+ (its README requires `=` matching `slint`, noted in `package/desktop-app/ide/Cargo.toml`).
+A recursive update moves `slint` to its newest release while the exact pin stays,
+ so `package/desktop-app/ide` and `package/music-player/desktop-app` stop compiling their tests until the pin is raised
+ by hand.
+The nine `ra_ap_*` exact pins share one version and move together,
+ so they do not split.
+
+Git dependencies (the Helix crates,
+ `portable-pty`) are catalog entries with `git` and `rev`;
+ tighten skips them like every non-`>=` entry.
+
 ### Recursive no-save update
 
 Support the counterpart of `pnpm -r --no-save update`
@@ -609,8 +623,11 @@ Decided (owner, 2026-10-29):
 
 ### Owner of the recursive update
 
-A mise task written in TypeScript (owner decision),
- inline through `shell = "node --input-type=module-typescript -e"` as the repo's task rules require.
+A mise task written in TypeScript (owner decision).
+The repo's task rule allows two forms:
+ inline logic through `shell = "node --input-type=module-typescript -e"`,
+ or a package bin the task runs;
+ which form is open.
 
 ### Update selection features
 
@@ -757,4 +774,7 @@ Following pnpm,
    `package/desktop-app/file-manager-qt`)
    needs only the registry index,
    not their Podman build environment.
-- Name of the mise task.
+- Name of the mise task,
+   and whether its logic is inline or a package bin.
+- Where the trust cache lives (a committed file or a CI cache);
+   a cold full verification is about 17 minutes at 1 request per second for 1024 names.
