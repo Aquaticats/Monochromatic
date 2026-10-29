@@ -1120,12 +1120,17 @@ Remaining:
       Owner-approved cleanup: 99 ignored `.<doc>.markdown-lint-<pid>-<uuid>.tmp` files from a retired markdown linter
       (2026-06-29 and 2026-07-11, pids 1284792 and 307348; no code writes that format now) were deleted.
      Open, not this session's files:
-      `src/staleness-concurrency-regression.unit.test.ts` compares unresolved paths, so it fails when the fixture root
-      sits behind a symlink (macOS `/var`, or `TMPDIR` under `/var/home`); `realpath` on the fixture directory fixes
-      it, but another session has the file mid-edit (moving it to `scratchRoot()`, which also leaves the path
-      unresolved), so this session left it;
-      29 lint findings remain in `prune.ts`, `prune.unit.test.ts` and the CachyOS cells of
-      `src/package/mise.container-test.ts`, all other sessions' active work.
+      `src/staleness-concurrency-regression.unit.test.ts` is load-sensitive: its eight child writers share a fixed
+      10 s budget, and single runs on 2026-10-29 took 481 ms (load 28), 6.9 s (load 59) and over 10 s (load 31,
+      failed). A helper agent also saw it fail with `TMPDIR` under the symlinked `/var/home/user/temp`
+      (unreproduced here); `e655dcad15` (another session) moved its fixtures to `scratchRoot()`, whose
+      `~/.cache` default is not a symlink here;
+      `plan.unit.test.ts` (60 tools) and `generate.unit.test.ts` (17 cargo pins) fail since `027a620a9e`/`1ea12b8f37`
+      added `cargo:monochromatic-mpm-shadow` without updating the counts (owner session asked);
+      package lint after `64564dc323`: 1 warning, 0 errors (the CachyOS cells of `src/package/mise.container-test.ts`,
+      another session's active work); `lint:types` and `lint:config:types` exit 0 (`b06505e14e`);
+      the machine-global `~/.config/monochromatic-dev/toolchain/toolchain.lock.json` still holds 119 `null` keys,
+      because only `generate.ts --global` rewrites it and this session has not run it.
       done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps

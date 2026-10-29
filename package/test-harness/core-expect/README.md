@@ -16,13 +16,14 @@ The runner in [module-test](../core/README.md) still re-exports the existing int
   re-exported from `expect-type`.
 - `measureTwoSizeRatio` and `expectLinearTimeGrowth`,
   the two-size timing measurement and its linear-growth bound,
-  so a test proves work over unbounded input stays linear
+  so a test separates linear from quadratic growth on an exposing shape
   instead of trusting a complexity comment
   (`RG2`).
-  The caller owns the exposing shape:
-  an input whose early exit avoids the suspected path
+  Two finite sizes estimate growth and prove nothing asymptotic;
+  the caller owns the exposing shape,
+  since an input whose early exit avoids the suspected path
   passes a quadratic function,
-  so land the shape with a test that proves the path runs.
+  so land the shape with a test that shows the path runs.
 
 Chai and Sinon remain implementation dependencies.
 Importing this package does not execute a test or install the runner's rejection observer.

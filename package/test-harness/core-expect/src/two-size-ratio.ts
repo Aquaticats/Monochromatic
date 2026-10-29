@@ -1,6 +1,6 @@
 /**
  Two-size timing measurement and the linear-growth assertion built on it,
- so a test can prove work over unbounded input stays linear
+ so a test can separate linear from quadratic growth on an exposing shape
  instead of trusting a complexity comment.
 
  @module
@@ -66,6 +66,48 @@ const RATIO_DECIMALS = 2;
 const MS_DECIMALS = 3;
 
 /**
+ Smallest of a list of timings,
+ folded one element at a time
+ so no unbounded argument list reaches a call.
+
+ @param values - Timings to fold; at least one
+
+ @returns Smallest value,
+ or the positive infinity placeholder when the list is empty
+ */
+function smallest(values: readonly number[],): number {
+  /**
+   Smallest value seen so far.
+   */
+  let best = Number.POSITIVE_INFINITY;
+  for (const value of values) {
+    if (value < best) best = value;
+  }
+  return best;
+}
+
+/**
+ Largest of a list of timings,
+ folded one element at a time
+ so no unbounded argument list reaches a call.
+
+ @param values - Timings to fold; at least one
+
+ @returns Largest value,
+ or the negative infinity placeholder when the list is empty
+ */
+function largest(values: readonly number[],): number {
+  /**
+   Largest value seen so far.
+   */
+  let worst = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value > worst) worst = value;
+  }
+  return worst;
+}
+
+/**
  Times one call of the work under test.
 
  @param run - Work under test whose single call is timed
@@ -96,6 +138,13 @@ function timeOne<Input>({
 /**
  Times `run` on generated inputs at `size` and at its double.
 
+ Two finite sizes estimate growth,
+ they do not prove O(n) for unbounded input:
+ a ratio near 2 also fits n log n and n^1.2,
+ so this separates the linear and quadratic shapes on the caller's input
+ and nothing stronger.
+ Keep `repeats` independent of `size`,
+ since measurement cost is proportional to both.
  Rounds alternate between the two sizes
  so host load drift hits both arms alike,
  each size keeps its best and worst round,
@@ -109,7 +158,7 @@ function timeOne<Input>({
 
  @param size - Base input size; pick one whose base timing clears the clock floor
 
- @param repeats - Measured rounds per size; best of these feeds the ratio
+ @param repeats - Measured rounds per size; best of these feeds the ratio, and it must stay independent of size
 
  @returns Timing of both sizes and their ratio
 
@@ -182,16 +231,16 @@ export function measureTwoSizeRatio<Input>({
    */
   const base: SizeTiming = {
     size,
-    bestMs: Math.min(...baseRounds,),
-    worstMs: Math.max(...baseRounds,),
+    bestMs: smallest(baseRounds,),
+    worstMs: largest(baseRounds,),
   };
   /**
    Best and worst of the doubled-size rounds.
    */
   const doubled: SizeTiming = {
     size: size * 2,
-    bestMs: Math.min(...doubledRounds,),
-    worstMs: Math.max(...doubledRounds,),
+    bestMs: smallest(doubledRounds,),
+    worstMs: largest(doubledRounds,),
   };
   /**
    Denominator of the ratio,
@@ -316,12 +365,14 @@ export class TwoSizeRatioError extends Error {
 /**
  Asserts that doubling the input size stays within `maxRatio` of the base time.
 
- The bound is a claim about unbounded input,
+ The bound only reads the caller's input,
  so the caller must supply an exposing shape in `grow`
- and a test that proves the shape reaches the suspected code path;
+ and a test that shows the shape reaches the suspected code path;
  a shape that exits early passes a quadratic function
  (`doc/handover/superlinear-cost-dismissal-gate.md`,
  heading `The ratio gate separates the parsers only on an exposing shape`).
+ What passing means is that growth stayed near-linear on that shape;
+ it is not a proof of O(n) for unbounded input.
 
  @param grow - Produces the input at a given size, and owns the exposing shape
 
@@ -329,7 +380,7 @@ export class TwoSizeRatioError extends Error {
 
  @param size - Base input size; pick one whose base timing clears the clock floor
 
- @param repeats - Measured rounds per size; best of these feeds the ratio
+ @param repeats - Measured rounds per size; best of these feeds the ratio, and it must stay independent of size
 
  @param maxRatio - Largest acceptable time ratio per doubling
 
