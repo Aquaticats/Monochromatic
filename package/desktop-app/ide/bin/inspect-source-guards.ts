@@ -99,7 +99,8 @@ interface Guard extends Edit {
   lib?: boolean;
   integration?: string;
   test: string;
-  failure: string;
+  // Every message the test may fail with once the guard is removed; one list entry per assertion that can fire first.
+  failure: string | readonly string[];
 }
 
 /**
@@ -226,8 +227,8 @@ const cases: Guard[] = [
   {
     name: 'stack-slices-abut',
     file: 'src/native/gpu_tile/source.rs',
-    before: '                top += held.target.height;',
-    after: '                top += 0;',
+    before: '            top += held.target.height;',
+    after: '            top += 0;',
     native: true,
     test: 'the_window_shows_a_stacked_tile_as_the_one_texture_shows_it',
     failure: 'differs from the one texture'
@@ -320,7 +321,7 @@ const cases: Guard[] = [
     name: 'refused-tile-keeps-image',
     file: 'src/native/render.rs',
     before: '                current.frame_stamp = None;\n                drop(current);\n',
-    after: '                current.frame_stamp = None;\n                if let Some(view) = current.shaped.as_ref() {\n                    current.gpu.submit_tile(ide_app::tile_scene::TileStack {\n                        textures: vec![ide_app::tile_scene::TileScene {\n                            scene: vello::Scene::new(),\n                            width: view.width,\n                            height: view.height,\n                        }],\n                        width: view.width,\n                        height: view.height,\n                    });\n                }\n                drop(current);\n',
+    after: '                current.frame_stamp = None;\n                if let Some(view) = current.shaped.as_ref() {\n                    current.gpu.submit_tile(window, ide_app::tile_scene::TileStack {\n                        textures: vec![ide_app::tile_scene::TileScene {\n                            scene: vello::Scene::new(),\n                            width: view.width,\n                            height: view.height,\n                        }],\n                        width: view.width,\n                        height: view.height,\n                    });\n                }\n                drop(current);\n',
     native: true,
     test: 'a_refused_tile_keeps_the_text_on_screen_and_names_the_failure',
     failure: 'a refused tile blanked the source'
@@ -1463,8 +1464,8 @@ const cases: Guard[] = [
   },
   {
     name: 'minimap-press-column',
-    file: 'src/native/minimap/pointer.rs',
-    before: '    let across = text_x(\n        x,',
+    file: 'src/native/minimap/aim.rs',
+    before: '    let across = text_x(\n        press.x,',
     after: '    let across = text_x(\n        0.0,',
     native: true,
     test: 'a_press_across_the_minimap_puts_the_caret_in_the_same_share_of_the_text',
@@ -1472,7 +1473,7 @@ const cases: Guard[] = [
   },
   {
     name: 'minimap-press-centers',
-    file: 'src/native/minimap/pointer.rs',
+    file: 'src/native/minimap/aim.rs',
     before: '.centered(top + CODE_ROW / 2.0)',
     after: '.centered(top)',
     native: true,
@@ -1481,7 +1482,7 @@ const cases: Guard[] = [
   },
   {
     name: 'minimap-press-caret',
-    file: 'src/native/minimap/pointer.rs',
+    file: 'src/native/minimap/aim.rs',
     before: '    current.document.select(position);\n',
     after: '',
     native: true,
@@ -1490,8 +1491,8 @@ const cases: Guard[] = [
   },
   {
     name: 'minimap-shift-anchor',
-    file: 'src/native/minimap/pointer.rs',
-    before: '    if !shift {\n        position.anchor = hit;\n    }\n',
+    file: 'src/native/minimap/aim.rs',
+    before: '    if !press.shift {\n        position.anchor = hit;\n    }\n',
     after: '    position.anchor = hit;\n',
     native: true,
     test: 'a_press_outside_the_box_jumps_to_the_row_and_the_keyboard_still_works',
@@ -2498,9 +2499,10 @@ const cases: Guard[] = [
     after: '    let _ = (&language, character);',
     native: true,
     test: 'a_rest_that_was_asked_about_asks_once',
-    // Without the mark the request is made again at every tick and each one replaces the one before it,
-    // so no answer is ever shown.
-    failure: 'no hover appeared for the resting pointer'
+    // Without the mark the request is made again at every tick and each one replaces the one before it.
+    // When the host is quiet enough no answer is ever shown; when answers outpace the ticks the popup
+    // is shown, dismissed, and asked for again, which the second assertion names.
+    failure: ['no hover appeared for the resting pointer', 'the same rest asked again']
   },
   {
     name: 'hover-asked-about-marks',
@@ -2777,7 +2779,7 @@ function run({
   );
   if (result.error) throw result.error;
   const failedAsExpected = (result.status !== 0) && output.includes(item.test)
-    && output.includes(item.failure);
+    && [item.failure].flat().some(expected => output.includes(expected));
   const passedAsExpected = (result.status === 0) && output.includes(item.test)
     && /1 (?:test|passed)/.test(output);
   const accepted = phase === 'removed' ? failedAsExpected : passedAsExpected;

@@ -3,7 +3,10 @@
 //!  and the directories a launch creates and empties before it starts.
 
 /// A launch lists the directories to create and the scratch directories to empty.
-use super::ServerLaunch;
+use super::{
+    ServerLaunch,
+    scratch::{claim, reap_ended},
+};
 /// `Path` is a borrowed filesystem path and `PathBuf` its owned sibling.
 use std::path::{Path, PathBuf};
 
@@ -171,10 +174,12 @@ pub fn prepare(
     }
     for directory in &launch.scratch {
         check_below_state(directory, state)?;
+        claim(directory)?;
         empty_in_place(directory)?;
         if let Err(error) = std::fs::create_dir_all(directory) {
             return Err(format!("cannot create {}: {error}", directory.display()));
         }
+        reap_ended(directory);
     }
     return Ok(());
 }

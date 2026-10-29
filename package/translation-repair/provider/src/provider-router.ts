@@ -436,7 +436,10 @@ export function createRoutingClient(
     const caller = nonNullishOrThrow(callers[provider],);
     // HELD ON THE CALL ITSELF, so a first ask and the cross-provider re-ask
     // hold a provider the same way, through the one function.
-    return await callHoldingRefusedCredential({
+    /**
+     What the provider answered.
+     */
+    const reply = await callHoldingRefusedCredential({
       call: function askProvider(): Promise<ChatTextReply> {
         return caller.chatText(request,);
       },
@@ -454,6 +457,10 @@ export function createRoutingClient(
         signal: request.signal,
       },
     },);
+    // A CALL SERVED IS THE PROVIDER ANSWERING, which tells a refusal right after a cooldown ran out from a refusal of a
+    // provider that came back and refuses again later (`provider-budget-cooldown-marks.ts`).
+    budgets.markServed?.({ provider, },);
+    return reply;
   }
 
   /**

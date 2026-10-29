@@ -431,6 +431,33 @@ const cases: Guard[] = [
     test: 'language::launch::tests::preparation_empties_a_scratch_directory_without_replacing_it',
     failure: 'the scratch directory was removed'
   },
+  // Each process has a scratch directory of its own: a second window on the project must not empty the first one's.
+  {
+    name: 'scratch-per-process',
+    file: 'src/language/launch/scratch.rs',
+    before: '        return format!("{PREFIX}{}-{nanoseconds:x}", std::process::id());',
+    after: '        return "tmp".to_string();',
+    test: 'language::launch::scratch::tests::a_second_process_does_not_empty_the_scratch_directory_of_a_running_first_one',
+    failure: 'two processes were given one scratch directory'
+  },
+  // The lock a process holds for its life is what keeps another process from removing its directory as an ended one's.
+  {
+    name: 'scratch-lock-held',
+    file: 'src/language/launch/scratch.rs',
+    before: '    held.push((directory.to_path_buf(), file));',
+    after: '    drop(file);',
+    test: 'language::launch::scratch::tests::the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation',
+    failure: "a running process's directory was removed as if its owner had ended"
+  },
+  // The directory of a process that ended (or was killed) is removed by the next preparation.
+  {
+    name: 'scratch-ended-removed',
+    file: 'src/language/launch/state.rs',
+    before: '        reap_ended(directory);',
+    after: '        let _ = directory;',
+    test: 'language::launch::scratch::tests::the_scratch_directory_of_an_ended_process_is_removed_by_the_next_preparation',
+    failure: 'the directory of an ended process stayed'
+  },
   // A sandbox that stopped before the lookup ran is not blamed on the project's toolchain.
   {
     name: 'sandbox-stop-named',

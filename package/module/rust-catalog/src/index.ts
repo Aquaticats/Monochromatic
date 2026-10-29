@@ -19,6 +19,14 @@ export {
   RUST_CATALOG_FILENAME,
 } from './read.ts';
 export {
+  compareVersions,
+  formatVersion,
+  type ParsedVersion,
+  parseVersion,
+  satisfies,
+  splitRequirement,
+} from './semver.ts';
+export {
   floorVersion,
   isBoundedRequirement,
   isCrateName,

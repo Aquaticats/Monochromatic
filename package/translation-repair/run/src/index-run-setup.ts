@@ -52,6 +52,9 @@ export {
 export { RunConfigError, } from './corpus-run/run-config-error.ts';
 export {
   createRunClient,
+  runClientFrom,
+} from './corpus-run/run-client-create.ts';
+export {
   OWNER_CULLED,
   readHeadSha,
   RECALL_JUDGE_MODEL_IDS,
@@ -68,7 +71,6 @@ export {
   RUN_WRITING_PROVIDERS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
-  runClientFrom,
   type RunRepairModels,
   TRANSLATOR_DROPPED,
   WRITER_UNMEASURED,
@@ -105,8 +107,10 @@ export { seatWithoutWaiting, } from './corpus-run/run-seats-no-wait.ts';
 export { writtenRefusal, } from './corpus-run/run-seats-refusal.ts';
 export { holdsWithinPass, } from './corpus-run/run-seats-pass-bound.ts';
 export { writingProvidersOf, } from './corpus-run/run-writing-providers.ts';
+export { unmetBenchFloors, } from './corpus-run/run-seats-give-up-floors.ts';
 export {
   type BenchName,
+  BENCHES_ANY_PHASE_LEANS_ON,
   type JudgeSeatPhase,
   phaseBenches,
   reachableSeats,
