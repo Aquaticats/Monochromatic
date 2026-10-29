@@ -5,7 +5,7 @@ the lint,
 the scans or the type check that would have refused them,
 and a round landed without the round before it (M264).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M2: a wording change committed without the full suite

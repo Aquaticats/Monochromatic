@@ -51,6 +51,30 @@ import { relayingConsoleLog, } from '@monochromatic-dev/translation-repair-test-
 const GENERATION = `sha256-tree-v1:${'c'.repeat(64,)}`;
 
 /**
+ Instant the injected wall clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ The clock time every queue line a case prints carries.
+ */
+const AT = 'at=2026-10-22T08:10:11.123Z';
+
+/**
+ Wall clock that reads the same instant every time it is asked.
+
+ @returns The instant the lines are printed at
+
+ @example
+ ```ts
+ await runPassQueue({ ...input, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  A pair of invented pages.
 
  @param id - entry id
@@ -155,7 +179,8 @@ await describe({
   children: [
     it({
       name: 'COUNTS AND PERSISTS AN ATTEMPT BEFORE IT RUNS, and settles each entry under its own name and the '
-        + 'build, so a crash still records that the attempt happened',
+        + 'build and the attempt number it persisted, so a crash still records that the attempt happened and the lines '
+        + 'of the attempt, the logger\'s too, name it',
       fn: async (ctx) => {
         resetRunSpend();
         using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
@@ -181,9 +206,11 @@ await describe({
          */
         const seen: {
           readonly entry: string;
+          readonly attempt: number;
           readonly persisted: ReadonlyMap<string, number>;
           readonly context: string;
           readonly generation: string;
+          readonly contextAttempt: string;
         }[] = [];
 
         await runPassQueue({
@@ -203,12 +230,14 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
-          settle: async function settle({ entry, },) {
+          settle: async function settle({ entry, attempt, },) {
             seen.push({
               entry: entry.id,
+              attempt,
               persisted: await readAttemptMap(attemptsPath,),
               context: currentLogContext().entry,
               generation: currentLogContext().generation,
+              contextAttempt: currentLogContext().attempt,
             },);
             return { kind: 'settled', };
           },
@@ -217,6 +246,7 @@ await describe({
         expect(seen,).toEqual([
           {
             entry: 'tabby',
+            attempt: 3,
             persisted: new Map([
               [
                 'tabby',
@@ -225,9 +255,11 @@ await describe({
             ],),
             context: 'tabby',
             generation: GENERATION,
+            contextAttempt: '3',
           },
           {
             entry: 'mittens',
+            attempt: 1,
             persisted: new Map([
               [
                 'tabby',
@@ -240,6 +272,7 @@ await describe({
             ],),
             context: 'mittens',
             generation: GENERATION,
+            contextAttempt: '1',
           },
         ],);
         expect(attempts,).toEqual(new Map([
@@ -252,6 +285,46 @@ await describe({
             1,
           ],
         ],),);
+      },
+    },),
+    it({
+      name: 'HANDS THE CLOCK IT WAS GIVEN TO THE SETTLEMENT, so the lines the settlement prints for an attempt read the '
+        + 'same clock as the lines the queue prints for it, and a test that fixes the one fixes the other (ledger B960)',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         The instant each settlement read off the clock it was handed.
+         */
+        const read: string[] = [];
+
+        await runPassQueue({
+          pending: [pairOf({ id: 'tabby', },),],
+          attempts: new Map(),
+          attemptsPath: join(
+            scratch.path,
+            'attempts.json',
+          ),
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: HANG_STOP_MS,
+          spendCeilingUsd: 20,
+          start: 0,
+          now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
+          settle: async function settle({ wallClock, },) {
+            read.push(wallClock()
+              .toISOString(),);
+            return { kind: 'settled', };
+          },
+        },);
+
+        expect(read,).toEqual(['2026-10-22T08:10:11.123Z',],);
       },
     },),
     it({
@@ -288,6 +361,7 @@ await describe({
             100,
             1_100,
           ], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             settled.push(entry.id,);
             return { kind: 'settled', };
@@ -295,7 +369,7 @@ await describe({
         },);
 
         expect(settled,).toEqual(['tabby',],);
-        expect(printed.lines,).toEqual(['SOFT budget reached after 1000ms; not starting new entries',],);
+        expect(printed.lines,).toEqual([`SOFT budget reached after 1000ms; not starting new entries ${AT}`,],);
       },
     },),
     it({
@@ -330,6 +404,7 @@ await describe({
           spendCeilingUsd: 0,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             settled.push(entry.id,);
             return { kind: 'settled', };
@@ -339,6 +414,55 @@ await describe({
         expect(settled,).toEqual([],);
         expect(attempts,).toEqual(new Map(),);
         expect(printed.lines.length,).toBe(1,);
+        expect(printed.lines[0]?.startsWith('SPEND CEILING reached',),).toBe(true,);
+        expect(printed.lines[0]?.endsWith(` ${AT}`,),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'REFUSES AN ENTRY WHOSE COUNT ONE MORE ATTEMPT WOULD TAKE PAST THE SAFE INTEGERS, naming the attempts file '
+        + 'it was handed in the refusal, settling nothing and leaving the count as it was (ledger B963)',
+      fn: async (ctx) => {
+        resetRunSpend();
+        using _printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using scratch = await scratchDir({ prefix: 'corpus-pass-queue-', },);
+        /**
+         Entries settled.
+         */
+        const settled: string[] = [];
+        /**
+         Counts this run keeps, the entry's at the last the file can hold.
+         */
+        const attempts: AttemptMap = new Map([['tabby', Number.MAX_SAFE_INTEGER,],],);
+        /**
+         Where the attempts file would be.
+         */
+        const attemptsPath = join(
+          scratch.path,
+          'attempts.json',
+        );
+
+        await expect(runPassQueue({
+          pending: [pairOf({ id: 'tabby', },),],
+          attempts,
+          attemptsPath,
+          sliceCacheDir: join(
+            scratch.path,
+            'slice-cache',
+          ),
+          pipelineDigest: GENERATION,
+          dryStop: createPassDryStop(),
+          softBudgetMs: 1_000,
+          spendCeilingUsd: 100,
+          start: 0,
+          now: clockReading({ instants: [0, 0,], },),
+          wallClock: fixedWallClock,
+          settle: async function settle({ entry, },) {
+            settled.push(entry.id,);
+            return { kind: 'settled', };
+          },
+        },),).rejects.toThrow(`tabby holds an attempt count of 9007199254740991 in ${attemptsPath}`,);
+        expect(settled,).toEqual([],);
+        expect(attempts,).toEqual(new Map([['tabby', Number.MAX_SAFE_INTEGER,],],),);
       },
     },),
     it({
@@ -377,6 +501,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             made.push(entry.id,);
             /**
@@ -412,10 +537,11 @@ await describe({
           'tabby',
         ],);
         expect(printed.lines,).toEqual([
-          'REATTEMPT tabby queued: 1 more cache record than it had, so the next attempt starts further along',
-          'STALLED mittens: its 0 cache records are what it started with, so a further attempt in this '
+          `REATTEMPT tabby queued ${AT} attempt=1: 1 more cache record than it had, so the next attempt starts further `
+            + 'along',
+          `STALLED mittens ${AT} attempt=1: its 0 cache records are what it started with, so a further attempt in this `
             + 'invocation would repeat it',
-          'STALLED tabby: its 1 cache record is what it started with, so a further attempt in this '
+          `STALLED tabby ${AT} attempt=2: its 1 cache record is what it started with, so a further attempt in this `
             + 'invocation would repeat it',
         ],);
       },
@@ -460,6 +586,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle() {
             made += 1;
             if (made === 1) {
@@ -488,8 +615,9 @@ await describe({
 
         expect(made,).toBe(2,);
         expect(printed.lines,).toEqual([
-          'REATTEMPT tabby queued: 2 more cache records than it had, so the next attempt starts further along',
-          'STALLED tabby: its 2 cache records are what it started with, so a further attempt in this '
+          `REATTEMPT tabby queued ${AT} attempt=1: 2 more cache records than it had, so the next attempt starts further `
+            + 'along',
+          `STALLED tabby ${AT} attempt=2: its 2 cache records are what it started with, so a further attempt in this `
             + 'invocation would repeat it',
         ],);
       },
@@ -544,6 +672,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle({ entry, },) {
             made.push(entry.id,);
             await dryCallOf({ client: dryClient, signal: dryStop.signal, },);
@@ -555,6 +684,9 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toHaveLength(1,);
+        // THE STOP LINE BELONGS TO THE PASS: it ends with the clock time and names no attempt (ledger B960).
+        expect(printed.lines.at(-1,)?.endsWith(` ${AT}`,),).toBe(true,);
+        expect(printed.lines.at(-1,),).not.toContain('attempt=',);
         expect(printed.lines.some(function isReattempt(line,): boolean {
           return line.startsWith('REATTEMPT',);
         },),).toBe(false,);
@@ -735,6 +867,7 @@ await describe({
           spendCeilingUsd: 20,
           start: 0,
           now: clockReading({ instants: [0,], },),
+          wallClock: fixedWallClock,
           settle: async function settle() {
             dryStop.trip({ error: new EveryProviderDryError({ measured: 'meters read synthetic dry', },), },);
             return { kind: 'stopped', };
@@ -744,6 +877,7 @@ await describe({
         expect(printed.lines.filter(function isStop(line,): boolean {
           return line.startsWith('STOP ',);
         },),).toHaveLength(1,);
+        expect(printed.lines.at(-1,)?.endsWith(` ${AT}`,),).toBe(true,);
         expect(printed.lines.at(-1,),).toContain('meters read synthetic dry',);
       },
     },),

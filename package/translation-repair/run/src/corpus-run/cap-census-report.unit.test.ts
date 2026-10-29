@@ -56,6 +56,24 @@ const SEAT = SEAT_HYPER_OPENROUTER_UNMEASURED;
 const HYPER_ID = MODEL_CARDS[SEAT].hyper?.id ?? 'no hyper block';
 
 /**
+ The START line of a real pass: a commit id a repository could give, the digest of the pipeline it ran and the figures
+ a pass prints (`corpus-pass-lines.ts`).
+ */
+const PASS_START = 'START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815 '
+  + 'pipeline=sha256-tree-v1:5d4265e1c0a37b8f9d2e6a4c1b07f3e58d9a2c4b6e1f0a7d3c5b8e92f4a6d1c0 files=156 pending=2 '
+  + 'done=0 soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms '
+  + 'at=2026-09-28T09:59:00.000Z';
+
+/**
+ The START line a test suite prints from a fixture pass, whose commit id is one digit repeated forty times
+ (ledger B963).
+ */
+const FIXTURE_PASS_START = `START tip=${'f'.repeat(40,)} `
+  + 'pipeline=sha256-tree-v1:9ae510cf8a857e770845eabe23f4b2b24d4a2b36a317fbc6cec8d995a7fb834f files=1 pending=1 '
+  + 'done=0 soft=259200000ms hard=25200000ms hard-scope=per-attempt call=360000ms claude-call=460000ms '
+  + 'at=2026-09-28T09:59:00.000Z';
+
+/**
  Lines of a pass-run log holding two completed Hyper calls of the seat, one
  far under its cap and one at it, whose stream delivered content.
 
@@ -68,7 +86,7 @@ const HYPER_ID = MODEL_CARDS[SEAT].hyper?.id ?? 'no hyper block';
  */
 function passRunLines(): readonly string[] {
   return [
-    'START tip=tabby0001',
+    PASS_START,
     streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 7, },),
     spendLine({
       stamp: '2026-09-28T10:00:00.020Z',
@@ -93,7 +111,7 @@ function passRunLines(): readonly string[] {
 
  @example
  ```ts
- await writeLog({ directory: scratch.path, name: 'nap.log', lines: ['START tip=tabby',], },);
+ await writeLog({ directory: scratch.path, name: 'nap.log', lines: [PASS_START,], },);
  ```
  */
 async function writeLog(
@@ -139,7 +157,7 @@ await describe({
               directory: scratch.path,
               name: 'second.log',
               lines: [
-                'START tip=tabby0002',
+                PASS_START,
                 streamLine({ stamp: '2026-09-29T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 3, },),
                 spendLine({
                   stamp: '2026-09-29T10:00:00.020Z',
@@ -235,7 +253,7 @@ await describe({
               directory: scratch.path,
               name: 'only.log',
               lines: [
-                'START tip=tabby0003',
+                PASS_START,
                 ...passRunLines().slice(1, 3),
                 `SPEND provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
               ],
@@ -246,6 +264,29 @@ await describe({
             expect(printed.lines[0],).toBe(
               'cap-census: 1 log, 1 pass-run log, 1 completed call, 0 on ids no card names, 0 paths unreadable; '
                 + 'lines left out for a stamp the logger did not write: 1',
+            );
+          },
+        },),
+        it({
+          name: 'LEAVES A TEST-SUITE LOG OUT OF THE PASS-RUN COUNT where it printed the START line a fixture pass '
+            + 'prints, since the count of pass-run logs is a figure the report states (ledger B963)',
+          fn: async (ctx) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            await using scratch = await scratchDir({ prefix: 'cap-census-report-', },);
+            await writeLog({
+              directory: scratch.path,
+              name: 'suite.log',
+              lines: [
+                FIXTURE_PASS_START,
+                ...passRunLines().slice(1,),
+              ],
+            },);
+
+            await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
+
+            expect(printed.lines[0],).toBe(
+              'cap-census: 1 log, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable; '
+                + 'lines left out for a stamp the logger did not write: 0',
             );
           },
         },),
@@ -302,7 +343,7 @@ await describe({
                 scratch.path,
                 'notes.txt',
               ),
-              'START tip=tabby0002\n',
+              `${PASS_START}\n`,
               'utf8',
             );
             await mkdir(join(

@@ -452,6 +452,7 @@ naming the checkers that are padding the bench with no wet provider behind them.
     A run that overrides logs `SPEND CEILING OVERRIDDEN`.
 -   `TRANSLATION_REPAIR_HARD_CAP_MINUTES`.
     Overrides the per-entry ceiling,
+    which each attempt of an entry runs under afresh,
     a positive number of minutes.
     A value that is not one is refused rather than replaced by the default,
     including `30m`,
@@ -477,18 +478,122 @@ The cap ends an **attempt** rather than an entry.
 An entry the cap cut goes to the back of the queue and is attempted again inside the same invocation,
 against the same frozen pipeline digest,
 so an entry too large for one attempt no longer needs a relaunch per attempt.
+Each attempt begins under a fresh cap,
+so an entry can run for several times the cap in one invocation and no cap has failed to fire.
+The `START` line says so:
+`hard=25200000ms hard-scope=per-attempt` beside the other ceilings.
+A tally that reads `error=Timeout: ... exceeded its 25200000ms deadline`
+is followed by a `REATTEMPT` line when the attempt bought cache records,
+and the next attempt's own tally,
+at a later `at=`,
+is under a new cap
+(the `XingZ60` pass of 2026-10-22,
+ledger B960).
+
+Every line the pass prints for an entry's attempt carries the time it was rendered and the attempt it belongs to,
+as two fields straight after the line's opening words:
+`at=<time>`,
+an ISO 8601 UTC time with milliseconds,
+and `attempt=<n>`.
+The time is read when the line is rendered,
+not when it is printed.
+A settled `TALLY` is rendered before the entry's artifact and page are persisted and printed after,
+so its `at=` is a little earlier than the `at=` of the `DESTINATIONS` and `DEFECTS` lines printed beside it,
+which are rendered after the persistence.
+The opening words are the keyword and the entry,
+and the status where the line has one (`TALLY <id> status=ERROR at=... attempt=2 ms=... error=...`),
+or `queued` on a `REATTEMPT` line,
+so a search by line prefix still finds them.
+The attempt is the number `attempts.json` in the runs directory holds for the entry after the pass counts the attempt,
+which counts every attempt of every invocation,
+so a pass that finds an entry already at 4 prints `attempt=5` on its first attempt.
+A count in that file that is not a whole number from 0 to 9007199254740990 (a hand-edited `1.5`,
+`-3`,
+`1e999`,
+`1e20` or `9007199254740991`,
+whose successor is the first integer past the safe integers) is read as 0,
+beside a warning that names the entry,
+the file and the value,
+so the entry sorts first and the pass does not end on a count its stamp would refuse.
+The lines are `OVERLAP`,
+`TALLY` (settled,
+error,
+incomplete,
+parked and declined),
+`INTERRUPTED`,
+`DESTINATIONS`,
+`DEFECTS`,
+`CLEANUP`,
+`REATTEMPT`,
+`STALLED`,
+`INCOMPLETE` and `NOT RESUMED`.
+The lines of the pass itself belong to no attempt,
+and carry the time without an attempt:
+`START`,
+`DONE`,
+`SOFT budget reached`,
+`SPEND CEILING reached` and `STOP every provider is out of budget` end with `at=<time>`,
+so `START` keeps opening `START tip=` for the readers that find a pass by it.
+The `INCOMPLETE <id>: <side> page absent at the pin` line,
+printed before any attempt exists,
+carries `at=<time>` straight after the entry and never `attempt=`:
+that absent field is what tells it from the `INCOMPLETE <id> at=... attempt=<n>:` line
+of an attempt that ended with stage-local work remaining.
+The launch notes (`CAP OVERRIDDEN`,
+`SPEND CEILING OVERRIDDEN`,
+the window notes,
+`CORPUS PIN OVERRIDDEN`,
+`CAP TOO TIGHT`,
+`REQUIRED-PROVIDERS`,
+`PROVIDER OFF`) are read once after `START` and carry nothing.
+`CAP OVERRIDDEN` says each attempt of an entry runs under the cap,
+as `START` and `CAP TOO TIGHT` do.
+
+The lines the tagged logger writes carry its own time (`[level] [time] ...`).
+Those it writes inside an entry's attempt (`ARCHIVE ORIGINAL`,
+`FOOTNOTES`,
+the lane lines and the `SPEND` lines among them) name the attempt in a bracket of its own after the entry,
+`[attempt <n>]`,
+from the same number,
+and inside a slice a second bracket follows it at once,
+`[<lane> slice <i>]`,
+where the lane is `repair`,
+`translate`,
+`consolidation` or `contest` (a contest line reads `[contest slice <i>]`).
+The function tags the code adds sit among them in one of two places:
+before the pair where a lane tags the logger it was handed with its function and slice-tags that
+(`[<entry>] [runDocumentLanes] [repairPreparedDocument] [attempt <n>] [repair slice <i>]`),
+and after it everywhere else
+(`[<entry>] [attempt <n>] [repair slice <i>] [editor]`,
+`[<entry>] [attempt <n>] [contest slice <i>] [contestDocumentLanes]`),
+and a module's own root tag opens the line before the entry
+(`[translation-repair] [<entry>] [attempt <n>] ...`).
+A search that must find every line of an attempt anchors on the `[attempt <n>]` bracket
+and not on its place after the entry.
+`log-context.unit.test.ts` pins the orders.
+Every logger the pass builds for an entry is slice-tagged (`sliceTagged({ l: tagged({ tag: entry }) })`),
+so it reads the attempt,
+lane and slice from the log context at each line,
+and a line gets those tags once:
+a lane that slice-tags the logger an entry logger handed it does not repeat them,
+and neither does one that slice-tags a logger built over a module's root logger.
+A source scan (`entry-logger-scan.unit.test.ts`) reads the syntax tree of the pass's source and fails a plain
+`tagged({ tag: ... })` whose tag names an entry in any spelling,
+as long as no `sliceTagged` wraps it.
+`the pass resumes` and the parked warning are logger lines of the pass,
+so they carry the logger's time and no attempt.
 
 A re-attempt is **earned** rather than automatic.
 The pass counts the entry's cache records before and after each attempt,
 and re-queues only when that count grew.
-An attempt that bought nothing logs `STALLED` and the entry is dropped for this invocation,
+An attempt that bought nothing logs `STALLED <id> at=... attempt=<n>` and the entry is dropped for this invocation,
 because no progress guarantee holds:
 an abort can land before the first persistence,
 and the slices a lane deliberately leaves uncached produce no record however long they took.
 Without the earned rule a stuck entry would spend the whole soft budget.
 
-A re-attempt logs `REATTEMPT <id> queued`,
-naming what the attempt bought.
+A re-attempt logs `REATTEMPT <id> queued at=... attempt=<n>`,
+naming the attempt it follows and what that attempt bought.
 
 ## Pacing a run
 
@@ -508,7 +613,7 @@ section `Historical writer and editor runners`.
     and so does the editor calibration (`CALIBRATION_OVERLAP` in
     `package/translation-repair/slice-cache/src/corpus-run/slice-overlap.ts`);
     `1` reproduces the sequential driver.
-    The pass reads it once per entry and prints `OVERLAP <id> value=N source=...`,
+    The pass reads it once per entry and prints `OVERLAP <id> at=... attempt=<n> value=N source=...`,
     where the source is `fallback` or the variable's name.
     Anything but a canonical decimal whole number of at least 1 is refused.
 

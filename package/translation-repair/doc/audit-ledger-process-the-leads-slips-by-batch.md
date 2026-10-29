@@ -2,7 +2,7 @@
 
 The lead's own slips as they were collected at the close of each batch of work.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M132: further slips against the shell and task rules, the lead's and agents'

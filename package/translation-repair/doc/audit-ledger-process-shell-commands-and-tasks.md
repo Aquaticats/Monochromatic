@@ -9,7 +9,7 @@ a worktree added without the flag that stops the copy of ignored files (M224),
 a prescribed command changed and run from the wrong folder (M256),
 and the breaks that agents listed in their own notes (M272 and M273).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M1: `;` in shell commands

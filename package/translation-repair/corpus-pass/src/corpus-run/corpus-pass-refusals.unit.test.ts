@@ -150,6 +150,7 @@ await describe({
               stdout: '',
               stderr: 'corpus-pass: TRANSLATION_REPAIR_CORPUS_COMMIT must be one full lowercase hexadecimal commit '
                 + 'name, and whiskers is not one\n',
+              clockTimes: [],
             },);
             await expect(readFile(
               join(
@@ -185,8 +186,8 @@ await describe({
                 pending: 2,
                 hardMs: 60_000,
               },),
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 1 minute rather than '
-                + 'the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 1 minute '
+                + 'rather than the built-in 420',
               WRITER_GRACE_BUILT_IN,
               pinLine({ clone, },),
               'CAP TOO TIGHT: an attempt runs 60000ms, which is not longer than the 460000ms one model '
@@ -198,6 +199,8 @@ await describe({
               ...PROVIDERS_OFF_LINES,
               '',
             ].join('\n',),);
+            // THE START LINE ALONE CARRIES A TIME in a launch that stops at the key (ledger B960).
+            expect(run.clockTimes.length,).toBe(1,);
             expect(run.stderr,).toBe(NO_KEY_REFUSAL,);
           },
         },),
@@ -228,8 +231,8 @@ await describe({
                 pending: 2,
                 hardMs: 261_000,
               },),
-              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: entries run under 4.35 minutes rather than '
-                + 'the built-in 420',
+              'CAP OVERRIDDEN by TRANSLATION_REPAIR_HARD_CAP_MINUTES: each attempt of an entry runs under 4.35 minutes '
+                + 'rather than the built-in 420',
               WRITER_GRACE_BUILT_IN,
               pinLine({ clone, },),
               'CAP TOO TIGHT: an attempt runs 261000ms, which is not longer than the 460000ms one model '

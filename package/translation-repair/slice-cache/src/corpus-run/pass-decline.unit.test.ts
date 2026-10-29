@@ -35,12 +35,15 @@ import {
   assertPipelineDigest,
   type PipelineDigest,
 } from '@monochromatic-dev/translation-repair-glossary';
+import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography';
 import {
   entryArchiveOriginalOf,
   recordEntryDecline,
   removeDeclinedPages,
 } from '../../dist/final/node/index.mjs';
+import { divertingConsoleLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/console-log-capture.test-fixture.ts';
 import { capturingLogger, } from '@monochromatic-dev/translation-repair-test-fixture/ts/capturing-logger.test-fixture.ts';
+import { entryLinesWritten, } from '@monochromatic-dev/translation-repair-test-fixture/ts/entry-log-lines.test-fixture.ts';
 import { scratchDirWith, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
 /**
@@ -121,6 +124,30 @@ async function runsDirectory(): Promise<{
 }
 
 /**
+ Instant the injected clock reads, so no case waits on the real one.
+ */
+const PRINTED_AT = new Date('2026-10-22T08:10:11.123Z',);
+
+/**
+ Attempt the decline is printed for.
+ */
+const THIRD_ATTEMPT = 3;
+
+/**
+ Clock that reads the same instant every time it is asked.
+
+ @returns The instant the line is printed at
+
+ @example
+ ```ts
+ await recordEntryDecline({ ..., attempt: THIRD_ATTEMPT, wallClock: fixedWallClock, },);
+ ```
+ */
+function fixedWallClock(): Date {
+  return PRINTED_AT;
+}
+
+/**
  Declines the entry in one runs directory.
 
  @param run - directories to write
@@ -142,6 +169,8 @@ async function decline(
     corpusSha: DECLINE_COMMIT,
     note: '原文即英文',
     startedAt: monotonicMs(),
+    attempt: THIRD_ATTEMPT,
+    wallClock: fixedWallClock,
   },);
 }
 
@@ -217,6 +246,31 @@ await describe({
           },
         },),
         it({
+          name: 'PRINTS the DECLINED tally with the clock time it was printed at and the attempt it belongs to, '
+            + 'straight after the status, so a reader windowing the log by time can place the decline',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            await using run = await runsDirectory();
+
+            await decline({ run, },);
+
+            expect(printed.lines.length,).toBe(1,);
+
+            /**
+             Text the line opens with, up to the duration.
+             */
+            const opening = `TALLY ${ENTRY.id} status=DECLINED at=2026-10-22T08:10:11.123Z attempt=3 `
+              + 'reason=archive-original ms=';
+            expect(printed.lines[0]?.startsWith(opening,),).toBe(true,);
+
+            /**
+             Text after the opening, which is the duration in milliseconds.
+             */
+            const duration = Number(printed.lines[0]?.slice(opening.length,),);
+            expect(Number.isInteger(duration,),).toBe(true,);
+          },
+        },),
+        it({
           name: 'NAMES THE CORPUS COMMIT IT IS HANDED on the record, never one of its own',
           fn: async () => {
             await using run = await runsDirectory();
@@ -287,6 +341,50 @@ await describe({
              */
             const written = await readdir(dirname(run.declinedDir,),);
             expect(written,).toStrictEqual(['fixed',],);
+          },
+        },),
+      ],
+    },),
+
+    describe({
+      name: `${recordEntryDecline.name} inside an attempt (ledger B963)`,
+      // SEQUENTIAL: the case diverts the one global `console.info`, where the tagged logger's `info` sink resolves.
+      concurrency: 1,
+      children: [
+        it({
+          name: 'NAMES THE ATTEMPT on the ARCHIVE ORIGINAL line it logs for the entry, since the line is the entry '
+            + 'logger\'s and a reader windowing the log by attempt would otherwise place it nowhere',
+          fn: async (ctx,) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            await using run = await runsDirectory();
+
+            /**
+             Lines the entry logger wrote while the decline was recorded inside the attempt.
+             */
+            const entryLines = await entryLinesWritten({
+              sinon: ctx.sinon,
+              entryId: ENTRY.id,
+              run: async () => {
+                await inEntryLogContext({
+                  entry: ENTRY.id,
+                  generation: DIGEST_TEXT,
+                  attempt: THIRD_ATTEMPT,
+                  run: async () => {
+                    await decline({ run, },);
+                  },
+                },);
+              },
+            },);
+
+            expect(printed.lines.length,).toBe(1,);
+            /**
+             The lines among them that are the archive line.
+             */
+            const archiveLines = entryLines.filter(function isArchiveLine(line,): boolean {
+              return line.includes('ARCHIVE ORIGINAL',);
+            },);
+            expect(archiveLines.length,).toBe(1,);
+            expect(archiveLines[0],).toContain(`[${ENTRY.id}] [attempt 3] ARCHIVE ORIGINAL entry=${ENTRY.id}:`,);
           },
         },),
       ],

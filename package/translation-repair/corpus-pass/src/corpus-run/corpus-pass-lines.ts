@@ -1,4 +1,8 @@
-import { textsInCodePointOrder, } from '@monochromatic-dev/translation-repair-markup/ts';
+import {
+  lifecycleClockStamp,
+  textsInCodePointOrder,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   capOutlastsOneCall,
@@ -67,7 +71,13 @@ export function passOnlyLines({ onlyIds, }: { readonly onlyIds: ReadonlySet<stri
 /**
  Line saying that one entry has a page absent at the pin.
 
+ NO ATTEMPT, AND THAT IS THE DIFFERENCE. The queue prints an `INCOMPLETE <id> at=<time> attempt=<n>:` line for an
+ attempt that ended with stage-local work remaining; this line shares its first two words and is printed before any
+ attempt exists, so it carries the time alone and a reader tells the two by the absent `attempt=` (ledger B960).
+
  @param gap - entry, the side that was absent and what the read said
+
+ @param wallClock - clock the time is read on, printed as `at=`; the wall clock unless a test fixes it
 
  @returns The line
 
@@ -76,8 +86,16 @@ export function passOnlyLines({ onlyIds, }: { readonly onlyIds: ReadonlySet<stri
  const line = passIncompleteLine({ gap: { id: 'mittens', side: 'target', detail: 'missing-object', }, },);
  ```
  */
-export function passIncompleteLine({ gap, }: { readonly gap: IncompleteEntry; },): string {
-  return `INCOMPLETE ${gap.id}: ${gap.side} page absent at the pin (${gap.detail})`;
+export function passIncompleteLine(
+  {
+    gap,
+    wallClock = wallClockNow,
+  }: {
+    readonly gap: IncompleteEntry;
+    readonly wallClock?: () => Date;
+  },
+): string {
+  return `INCOMPLETE ${gap.id} ${lifecycleClockStamp({ wallClock, },)}: ${gap.side} page absent at the pin (${gap.detail})`;
 }
 
 /**
@@ -130,7 +148,7 @@ export type PassStartFacts = {
   readonly softBudgetMs: number;
 
   /**
-   Ceiling one entry runs under.
+   Ceiling one attempt of an entry runs under; the next attempt of the same entry begins under a fresh one.
    */
   readonly hardCapMs: number;
 
@@ -146,9 +164,26 @@ export type PassStartFacts = {
 };
 
 /**
+ What the hard ceiling counts over, said on the START line beside the ceiling itself.
+
+ THE CEILING ENDS AN ATTEMPT, NOT AN ENTRY. An entry the ceiling cut goes to the back of the queue and is attempted again
+ in the same invocation under a fresh ceiling (`package/translation-repair/doc/configuration.md`), so an entry can run
+ for several times the ceiling and a reader of the log cannot tell that from a ceiling that failed to fire. On
+ 2026-10-22 a fired 420-minute ceiling on `XingZ60` was followed by a second attempt, and the START line said only
+ `hard=25200000ms` (ledger B960).
+ */
+const HARD_CAP_SCOPE = 'per-attempt';
+
+/**
  The line that opens a pass's report.
 
+ THE TIME IS THE LAST FIELD, not the second, because the line opens `START tip=` for the readers that find a pass's
+ start by it (`cap-census-pass-run.ts`, and the cache-version comments that cite the `START tip=` lines as evidence), and
+ it belongs to the pass, so it carries no attempt (ledger B960).
+
  @param facts - what the line reports
+
+ @param wallClock - clock the time is read on, printed as `at=`; the wall clock unless a test fixes it
 
  @returns The line
 
@@ -157,12 +192,22 @@ export type PassStartFacts = {
  const line = passStartLine({ facts, },);
  ```
  */
-export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },): string {
+export function passStartLine(
+  {
+    facts,
+    wallClock = wallClockNow,
+  }: {
+    readonly facts: PassStartFacts;
+    readonly wallClock?: () => Date;
+  },
+): string {
   return `START tip=${facts.tip} pipeline=${facts.pipelineDigest} files=${String(facts.fileCount,)} pending=${
     String(facts.pending,)
-  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms call=${
-    String(facts.perCallMs,)
-  }ms claude-call=${String(facts.claudeCallMs,)}ms`;
+  } done=${String(facts.done,)} soft=${String(facts.softBudgetMs,)}ms hard=${String(facts.hardCapMs,)}ms hard-scope=${
+    HARD_CAP_SCOPE
+  } call=${String(facts.perCallMs,)}ms claude-call=${String(facts.claudeCallMs,)}ms ${
+    lifecycleClockStamp({ wallClock, },)
+  }`;
 }
 
 /**
@@ -171,7 +216,7 @@ export function passStartLine({ facts, }: { readonly facts: PassStartFacts; },):
  ran under, since an artifact settled under one is not comparable with one
  settled under another.
 
- @param hardCapMs - ceiling one entry runs under, after any override
+ @param hardCapMs - ceiling each attempt of an entry runs under, after any override
 
  @param builtInCapMinutes - ceiling the build ships, in minutes
 
@@ -234,7 +279,7 @@ export function passLaunchLines(
    */
   const capLine = (hardCapMs === (builtInCapMinutes * PASS_MS_PER_MINUTE))
     ? ''
-    : `CAP OVERRIDDEN by ${HARD_CAP_VAR}: entries run under ${String(capMinutes,)} ${
+    : `CAP OVERRIDDEN by ${HARD_CAP_VAR}: each attempt of an entry runs under ${String(capMinutes,)} ${
       wordForCount({
         count: capMinutes,
         one: 'minute',
@@ -444,6 +489,9 @@ function countAmong(
 
  @param elapsedMs - time the processing loop took
 
+ @param wallClock - clock the time the line ends with is read on, printed as `at=`; the wall clock unless a test fixes
+ it. The line belongs to the pass and carries no attempt (ledger B960)
+
  @returns The line
 
  @example
@@ -459,6 +507,7 @@ export function passDoneLine(
     settledIds,
     declinedIds,
     elapsedMs,
+    wallClock = wallClockNow,
   }: {
     readonly processed: number;
     readonly pending: number;
@@ -466,6 +515,7 @@ export function passDoneLine(
     readonly settledIds: ReadonlySet<string>;
     readonly declinedIds: ReadonlySet<string>;
     readonly elapsedMs: number;
+    readonly wallClock?: () => Date;
   },
 ): string {
   /**
@@ -500,7 +550,7 @@ export function passDoneLine(
     : ' (pairs counted over the entries --only named, not every pair at the pin)';
   return `DONE processed=${String(processed,)} of pending=${String(pending,)}; artifacts=${String(settled,)}/${
     String(ids.size - declined,)
-  } declined=${String(declined,)}${scope} elapsed=${String(elapsedMs,)}ms`;
+  } declined=${String(declined,)}${scope} elapsed=${String(elapsedMs,)}ms ${lifecycleClockStamp({ wallClock, },)}`;
 }
 
 //endregion Corpus pass lines

@@ -85,6 +85,12 @@ export {
   type SeedRestoration,
 } from './lexical-restoration.ts';
 export {
+  LifecycleAttemptError,
+  lifecycleClockStamp,
+  lifecycleStamp,
+  wallClockNow,
+} from './lifecycle-stamp.ts';
+export {
   type MarkupDelta,
   markupDelta,
   markupSourceKeys,

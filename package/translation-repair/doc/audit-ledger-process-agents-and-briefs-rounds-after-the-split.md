@@ -14,7 +14,7 @@ The entries before these are filed in
 [Audit ledger: process mistakes, agents and briefs in the review, docs, archive and empty link rounds](audit-ledger-process-agents-and-briefs-review-docs-archive-and-empty-link-rounds.md).
 Paths here are written in the layout after the split.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M259: a brief gave a proof pattern that matches nothing in the bundle it was meant to prove

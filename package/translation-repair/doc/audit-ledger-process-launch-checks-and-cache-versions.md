@@ -8,7 +8,7 @@ the handover,
 the log's two streams,
 and an audit that read nothing without saying so.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: process mistakes](audit-ledger-process-mistakes.md),
 which lists every file of this record.
 
 ## M19: a suite run against a stale build after a mutation was restored

@@ -357,9 +357,11 @@ function parseUsageSpec(usage: string | undefined): readonly UsageOption[] {
     const kind = match[1] === 'flag' ? 'flag' : 'arg';
     const body = match[2];
     if (body === undefined) { continue; }
-    const nameMatch = /^(?<name>[^\s<]+)/u.exec(body);
+    // A flag's name stops before its `<value>`; an arg's name is its whole first word, `<cache>` included.
+    const nameMatch = (kind === 'arg' ? /^(?<name>\S+)/u : /^(?<name>[^\s<]+)/u).exec(body);
     if (nameMatch === null) { continue; }
-    const name = nameMatch.groups?.['name']?.replace(/^-+/u, '');
+    // Flags drop their dashes; positional args drop the `[ ]` or `< >` that mark them optional or required.
+    const name = nameMatch.groups?.['name']?.replace(/^-+/u, '').replace(/^[[<]|[\]>]$/gu, '');
     if (name === undefined || name === '') { continue; }
     const valueName = /<(?<value>[^>]+)>/u.exec(body)?.groups?.['value'];
     options.push(valueName === undefined ? { kind, name, } : { kind, name, valueName, });
@@ -454,6 +456,14 @@ function usageEnvironment(options: readonly UsageOption[], argv: readonly string
     throw new Error(`task-cli: unexpected positional arguments: ${positional.join(' ')}`);
   if (args.length > 0 || rest.length > 0)
     env['usage_args'] = shellJoin([...positional, ...rest]);
+  // mise also set one `usage_<name>` variable per declared positional arg, in declaration order; bodies such as
+  // the IDE bundle inspection read `usage_file`, `usage_runtime` and `usage_only`. The variadic `args` name keeps
+  // meaning the whole word list in `usage_args` above.
+  const named = args.filter((option) => option.name !== 'args',);
+  for (const [index, option,] of named.entries()) {
+    const word = positional[index];
+    if (word !== undefined) { env[`usage_${option.name.replaceAll('-', '_')}`] = word; }
+  }
   return env;
 }
 

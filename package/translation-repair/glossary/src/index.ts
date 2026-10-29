@@ -18,6 +18,7 @@ export {
 export { readAskedCount, } from './corpus-run/asked-count.ts';
 export { writeFileAtomic, } from './corpus-run/atomic-write.ts';
 export {
+  AttemptCountError,
   type AttemptMap,
   attemptsOf,
   countAttempt,

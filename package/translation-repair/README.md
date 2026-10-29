@@ -462,7 +462,11 @@ which is never the same as the run having done nothing.
 
 The pass also prints,
 beside each settled entry's `TALLY` line,
-`DESTINATIONS <id> source=N page=M dropped=K`:
+`DESTINATIONS <id> at=<time> attempt=<n> source=N page=M dropped=K`
+(the time the line was rendered and the attempt it belongs to,
+which every per-entry line of the pass carries,
+`doc/configuration.md`,
+"Bounding one run"):
 how many distinct web addresses the source page links to,
 how many the published page carries,
 and how many of the source's the page lacks.
@@ -478,7 +482,8 @@ never to stdout.
 A dropped destination from a wording both deciders approved is a finding,
 not a late publish rewrite.
 
-A page that ships with a defect also prints `DEFECTS <id> checks=<a>,<b>` after its `DESTINATIONS` line.
+A page that ships with a defect also prints `DEFECTS <id> at=<time> attempt=<n> checks=<a>,<b>`
+after its `DESTINATIONS` line.
 The page ships regardless (`package/translation-repair/doc/design-commitments.md`),
 and each check names what it found:
 `archive-original`,

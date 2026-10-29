@@ -461,6 +461,8 @@ which lists every file of this record.
 - [B933 to B947, the weight floors removed, rounds 7 to 9](audit-ledger-weight-floors-removed-round-seven.md)
 - [B948 to B952, the weight floors removed, rounds 10 to 12](audit-ledger-weight-floors-removed-round-ten.md)
 - [B953, the named place, the carriers, the callbacks and the loaders of the schema source check][b953-ledger]
+- [B960, runner reports and probes](audit-ledger-runner-reports-and-probes.md)
+- [B961 to B964, the pass's lifecycle line stamps: an attempt count that ended the pass, tests that could not fail, lines without a time or an attempt, docs that disagreed with the code](audit-ledger-lifecycle-line-stamps-round-two.md)
 - [B970 to B979, the footnote readings, the containers regressions and the placing of the block comparison][b970-ledger]
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)

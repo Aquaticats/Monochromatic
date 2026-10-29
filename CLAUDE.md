@@ -179,6 +179,12 @@ EXT:
  fetch current doc/src before answering,
  never recall.
 
+TXF:
+ Link to selection where possible:
+cite web sources with `#:~:text=` text fragments
+or the platform's selection permalink,
+and confirm the match with `agent-browser` before publishing it.
+
 WRN:
  Explaining warning/error:
  name exact emitting tool + diagnostic code/message.
@@ -195,9 +201,12 @@ GAP:
 Remove superseded rules.
 
 EPR:
- Research ecosystem precedent before offering naming or technology options it could inform.
+ Research precedent before offering options;
+ for one the repo runs,
+ read its full docs and config,
+ adopting its answers unasked.
 "Think in X":
- list X's features,
+ list all X's features,
  ask which to omit.
 
 VHI:
@@ -395,10 +404,12 @@ OPT:
 
 OPA:
  `AskUserQuestion`:
- pros + cons in each `description`,
+ question text ranks options with adjacent-pair reasons;
+ each option's `description` and `preview` give pros,
+ cons,
+ and why it ranks there;
  best first,
- "(Recommended)" on top label;
- full ranking with adjacent-pair reasons in surrounding prose.
+ marked "(Recommended)".
 
 QRX:
  Asking for decisions:

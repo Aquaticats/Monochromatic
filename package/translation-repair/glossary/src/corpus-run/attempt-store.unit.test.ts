@@ -87,16 +87,16 @@ async function readWritten(
 
  @param contents - exact file bytes
 
- @returns Warnings the read printed
+ @returns Warnings the read printed, beside the path of the file it read
 
  @example
  ```ts
- const warned = await warningsReading({ contents: '{"Kitten":', },);
+ const { lines, attemptsPath, } = await warningsReading({ contents: '{"Kitten":', },);
  ```
  */
 async function warningsReading(
   { contents, }: { readonly contents: string; },
-): Promise<readonly string[]> {
+): Promise<{ readonly lines: readonly string[]; readonly attemptsPath: string; }> {
   await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
   /**
    Warnings the read printed.
@@ -119,7 +119,13 @@ async function warningsReading(
     directory: scratch.path,
     contents,
   },);
-  return lines;
+  return {
+    lines,
+    attemptsPath: join(
+      scratch.path,
+      'attempts.json',
+    ),
+  };
 }
 
 await describe({
@@ -250,6 +256,54 @@ await describe({
         },),
 
         it({
+          name: 'READS A COUNT THAT IS NOT A NON-NEGATIVE WHOLE NUMBER AS ZERO (1.5, -3, 1e999 and 1e20), keeping the '
+            + 'entry and its neighbours, since the pass adds one to a count it reads and a stamp refuses a count that '
+            + 'is not a whole number from 1, which a hand-edited file would otherwise turn into a crash at every launch',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
+
+            // Written as text: `JSON.stringify` writes the 1e999 that parses to Infinity as null.
+            const maps = await Promise.all([
+              '1.5',
+              '-3',
+              '1e999',
+              '1e20',
+            ].map(async function toMap(written, index,) {
+              return await readWritten({
+                directory: scratch.path,
+                contents: `{"Mittens": ${written}, "Marmalade": 5}`,
+                name: `hand-edited-${String(index,)}.json`,
+              },);
+            },),);
+
+            for (const map of maps)
+              expect(map,).toStrictEqual(new Map([
+                ['Mittens', 0,],
+                ['Marmalade', 5,],
+              ],),);
+          },
+        },),
+
+        it({
+          name: 'READS THE LARGEST SAFE INTEGER AS ZERO, keeping the entry and its neighbours, since the pass adds one '
+            + 'to a count it reads and that sum is no safe integer, which a stamp refuses, so a hand-edited '
+            + '9007199254740991 would end the pass at its first entry and again at every launch',
+          fn: async () => {
+            await using scratch = await scratchDir({ prefix: 'whiskers-attempts-', },);
+
+            expect(
+              await readWritten({
+                directory: scratch.path,
+                contents: '{"Mittens": 9007199254740991, "Marmalade": 5}',
+              },),
+            ).toStrictEqual(new Map([
+              ['Mittens', 0,],
+              ['Marmalade', 5,],
+            ],),);
+          },
+        },),
+
+        it({
           name: 'THROWS on a read fault that is neither absence nor malformed '
             + 'JSON. Pointing the path at a directory is the shape a misconfigured '
             + 'runs directory produces, and swallowing it would make every run '
@@ -290,27 +344,90 @@ await describe({
           name: 'SAYS it starts the counts over for malformed JSON and for JSON that is no object, and names a '
             + 'count it read as zero, since each silently forgets which entries kept failing (ledger A11)',
           fn: async () => {
-            expect((await warningsReading({ contents: '{"Mittens": 2,', },)).length,).toBe(1,);
-            expect((await warningsReading({ contents: '42', },)).length,).toBe(1,);
+            expect((await warningsReading({ contents: '{"Mittens": 2,', },)).lines.length,).toBe(1,);
+            expect((await warningsReading({ contents: '42', },)).lines.length,).toBe(1,);
 
             /**
              Warnings for a count that is no number.
              */
-            const coerced = await warningsReading({
+            const coerced = (await warningsReading({
               contents: JSON.stringify({
                 Mittens: 'many',
                 Marmalade: 5,
               },),
-            },);
+            },)).lines;
             expect(coerced.length,).toBe(1,);
             expect(coerced[0],).toContain('Mittens',);
+          },
+        },),
+        it({
+          name: 'NAMES THE ENTRY, THE FILE AND THE VALUE of a count it reads as zero because it is no non-negative '
+            + 'whole number, since a reader of the log cannot tell which hand-edited count was thrown away from a '
+            + 'warning that names only the entry',
+          fn: async () => {
+            for (
+              const [
+                written,
+                shown,
+              ] of [
+                [
+                  '1.5',
+                  '1.5',
+                ],
+                [
+                  '-3',
+                  '-3',
+                ],
+                [
+                  '1e999',
+                  'Infinity',
+                ],
+                [
+                  '1e20',
+                  '100000000000000000000',
+                ],
+                [
+                  '9007199254740991',
+                  '9007199254740991',
+                ],
+                // A count written as text keeps its quotes, which tell "5" from the number 5.
+                [
+                  '"5"',
+                  '"5"',
+                ],
+              ] as const
+            ) {
+              /* oxlint-disable no-await-in-loop -- each read diverts the one global console.warn, so they run in turn */
+              /**
+               What the read of this file printed, and the file's path.
+               */
+              const { lines, attemptsPath, } = await warningsReading({
+                contents: `{"Mittens": ${written}, "Marmalade": 5}`,
+              },);
+              /* oxlint-enable no-await-in-loop */
+              expect(lines.length,).toBe(1,);
+              expect(lines[0],).toContain('Mittens',);
+              expect(lines[0],).toContain(attemptsPath,);
+              expect(lines[0],).toContain(`counts Mittens as ${shown},`,);
+              // The range a count may hold is part of the warning, since it is what the operator edits the file to.
+              expect(lines[0],).toContain('no whole number from 0 to 9007199254740990; read as 0, so Mittens sorts first',);
+            }
           },
         },),
         it({
           name: 'STAYS QUIET for a well-formed map, so the warnings the "SAYS it starts the counts over" case '
             + 'reads are worth reading',
           fn: async () => {
-            expect(await warningsReading({ contents: '{"Mittens": 2}', },),).toStrictEqual([],);
+            expect((await warningsReading({ contents: '{"Mittens": 2}', },)).lines,).toStrictEqual([],);
+          },
+        },),
+        it({
+          name: 'STAYS QUIET for the smallest and the largest count a file can hold, which is the largest safe integer '
+            + 'less one since the pass adds one to it, so the whole-number rule does not throw away a count that is one',
+          fn: async () => {
+            expect(
+              (await warningsReading({ contents: '{"Mittens": 0, "Marmalade": 9007199254740990}', },)).lines,
+            ).toStrictEqual([],);
           },
         },),
       ],
@@ -402,6 +519,7 @@ await describe({
             countAttempt({
               attempts,
               id: '__proto__',
+              attemptsPath,
             },);
             expect(attemptsOf({
               attempts,
@@ -415,6 +533,84 @@ await describe({
               attempts: await readAttemptMap(attemptsPath,),
               id: '__proto__',
             },),).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'REFUSES TO COUNT an attempt past the largest safe integer, since the sum is no whole number a stamp or '
+            + 'the attempts file can hold, and leaves the count it was given',
+          fn: async () => {
+            /**
+             An entry whose count is the largest a number holds exactly.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER,],],);
+
+            expect(() => {
+              countAttempt({
+                attempts,
+                id: 'Mittens',
+                attemptsPath: '/runs/attempts.json',
+              },);
+            },).toThrow();
+            expect(attemptsOf({
+              attempts,
+              id: 'Mittens',
+            },),).toBe(Number.MAX_SAFE_INTEGER,);
+          },
+        },),
+
+        it({
+          name: 'SAYS, where it refuses to count, which entry and which file hold the count, what the count is, that '
+            + 'the next launch reads it as zero beside a warning, and what an operator can do, since the refusal ends '
+            + 'the pass between entries and reaches the person who ran it as the message alone (ledger B963)',
+          fn: async () => {
+            /**
+             An entry whose count is the largest a number holds exactly.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER,],],);
+
+            /**
+             Where the attempts file is.
+             */
+            const attemptsPath = '/runs/attempts.json';
+            for (
+              const piece of [
+                `Mittens holds an attempt count of 9007199254740991 in ${attemptsPath}`,
+                'one more attempt would be no safe integer',
+                'this pass ends here',
+                `The next launch reads that count as 0 beside a warning naming Mittens and ${attemptsPath}`,
+                `To go on, launch again, or set the count of Mittens in ${attemptsPath} to a whole number below ${
+                  String(Number.MAX_SAFE_INTEGER,)
+                }`,
+              ]
+            ) {
+              expect(() => {
+                countAttempt({
+                  attempts,
+                  id: 'Mittens',
+                  attemptsPath,
+                },);
+              },).toThrow(piece,);
+            }
+          },
+        },),
+
+        it({
+          name: 'COUNTS the attempt that reaches the largest safe integer, the last one it can hold',
+          fn: async () => {
+            /**
+             An entry one attempt short of the largest count.
+             */
+            const attempts: AttemptMap = new Map([['Mittens', Number.MAX_SAFE_INTEGER - 1,],],);
+            countAttempt({
+              attempts,
+              id: 'Mittens',
+              attemptsPath: '/runs/attempts.json',
+            },);
+            expect(attemptsOf({
+              attempts,
+              id: 'Mittens',
+            },),).toBe(Number.MAX_SAFE_INTEGER,);
           },
         },),
 

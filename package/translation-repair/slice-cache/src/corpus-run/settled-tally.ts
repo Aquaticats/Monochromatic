@@ -1,5 +1,9 @@
 import { nonNullishOrThrow, } from '@monochromatic-dev/module-or-throw/ts';
 
+import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import type { SettledArtifact, } from '@monochromatic-dev/translation-repair-artifact/ts';
 import { contestStandingMayShip, } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { ArtifactDeliveryRow, } from '@monochromatic-dev/translation-repair-artifact-pool/ts';
@@ -150,18 +154,36 @@ function standingsKeptUnendorsed(
 /**
  Renders the TALLY line for one settled entry.
 
+ The clock time and the attempt follow the status, so a reader windowing a log by time can place the line and tell
+ which attempt of a re-attempted entry it closed (ledger B960). The time is read when the line is rendered, which is just
+ before the entry's page and artifact are written; the duration is the artifact's own.
+
  @param artifact - what was written for this entry, which supplies every
  number here rather than being recounted beside it
 
+ @param attempt - number of the entry's attempt this line closes, as the pass's attempts file holds it
+
+ @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
+
  @returns Single line, no trailing newline
+
+ @throws `LifecycleAttemptError` when the attempt is not a whole number from 1
 
  @example
  ```ts
- console.log(settledTallyLine({ artifact, },),);
+ console.log(settledTallyLine({ artifact, attempt: 2, },),);
  ```
  */
 export function settledTallyLine(
-  { artifact, }: { readonly artifact: SettledArtifact; },
+  {
+    artifact,
+    attempt,
+    wallClock = wallClockNow,
+  }: {
+    readonly artifact: SettledArtifact;
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
+  },
 ): string {
   /**
    Both lanes as the artifact nests them.
@@ -288,6 +310,10 @@ export function settledTallyLine(
   return [
     `TALLY ${artifact.id}`,
     'status=SETTLED',
+    lifecycleStamp({
+      attempt,
+      wallClock,
+    },),
     `slices=${String(artifact.preparation
       .sliceCount,)}`,
     `repairStatus=${repair.result

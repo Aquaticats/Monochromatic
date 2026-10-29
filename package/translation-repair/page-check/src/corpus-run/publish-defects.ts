@@ -1,4 +1,8 @@
 import type { NamingError, } from '@monochromatic-dev/translation-repair-document-structure/ts';
+import {
+  lifecycleStamp,
+  wallClockNow,
+} from '@monochromatic-dev/translation-repair-markup/ts';
 import type { WouldShipSource, } from './would-ship-text.ts';
 
 //region Publish defects
@@ -188,20 +192,30 @@ export function archiveKeptDefects(
 
  @param defects - failed checks it shipped with
 
- @returns `DEFECTS <id> checks=<a>,<b>`, or empty for a clean page
+ @param attempt - number of the entry's attempt the page was published in, as the pass's attempts file holds it
+
+ @param wallClock - clock the line's time is read on; the wall clock unless a test fixes it
+
+ @returns `DEFECTS <id> at=<time> attempt=<n> checks=<a>,<b>`, or empty for a clean page
+
+ @throws `LifecycleAttemptError` (markup package) when the page has defects and the attempt is not a whole number from 1
 
  @example
  ```ts
- const line = defectsLine({ entryId: 'BookshopCat', defects, },);
+ const line = defectsLine({ entryId: 'BookshopCat', defects, attempt: 2, },);
  ```
  */
 export function defectsLine(
   {
     entryId,
     defects,
+    attempt,
+    wallClock = wallClockNow,
   }: {
     readonly entryId: string;
     readonly defects: readonly PublishDefect[];
+    readonly attempt: number;
+    readonly wallClock?: () => Date;
   },
 ): string {
   if (defects.length === 0)
@@ -212,7 +226,12 @@ export function defectsLine(
   const checks = defects.map(function checkOf({ check, },): string {
     return check;
   },);
-  return `DEFECTS ${entryId} checks=${checks.join(',',)}`;
+  return `DEFECTS ${entryId} ${
+    lifecycleStamp({
+      attempt,
+      wallClock,
+    },)
+  } checks=${checks.join(',',)}`;
 }
 
 //endregion Publish defects

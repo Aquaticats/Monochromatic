@@ -127,6 +127,7 @@ await describe({
           await inEntryLogContext({
             entry: 'Tabby',
             generation: 'nap-3',
+            attempt: 2,
             run: async () => {
               await Promise.all(SLICES.map(async function callFor(sliceIndex,): Promise<void> {
                 await inSliceLogContext({
@@ -154,7 +155,7 @@ await describe({
         expect(spent.length,).toBe(SLICES.length,);
         expect(SLICES.map(function spendLinesFor(sliceIndex,): number {
           return spent.filter(function namesSlice(line,): boolean {
-            return line.includes(`[Tabby] [repair slice ${String(sliceIndex,)}]`,);
+            return line.includes(`[Tabby] [attempt 2] [repair slice ${String(sliceIndex,)}]`,);
           },).length;
         },),).toStrictEqual([
           1,
