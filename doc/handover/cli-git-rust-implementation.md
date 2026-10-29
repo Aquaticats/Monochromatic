@@ -3156,3 +3156,19 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Sticking messages for `preparing.json`, landing, index-lock and ref-updated records name no file or transaction and carry an
   inapplicable fetch hint: a UX item still to fix.
 - No sync-budget ratchet test exists yet (the planning doc names one); still to write.
+
+## Update at 2026-10-29 (slice S4 report)
+
+- Small-natives agent (a22fc0d42c883a26c) finished on branch `worktree-agent-a22fc0d42c883a26c` (`748dd15e43`,
+  `db121b475c`, `dd8e563112`, `90ddcd4976`). Not merged; tests run were targeted, not the full suite or gate.
+- Replaces per commit: the empty-tree `hash-object`, both `symbolic-ref HEAD` reads (files backend only, strict shapes,
+  everything else spawns), the three sequencer-marker `rev-parse` calls (loose spellings plus a `packed-refs` substring
+  search, any hit spawns), and the `git version` spawn (cache keyed by Git identity, ELF files named `git` only).
+  Cold commit saves 6 starts, warm saves 7.
+- Deviation: the version cache lives in `$XDG_CACHE_HOME/cli-git/` (or `$HOME/.cache/cli-git/`), not under the repository,
+  because the version check runs before any repository path exists. A kill between temp write and rename leaves a
+  `.tmp-<uuid>` file nothing collects. Open choice: reorder the check after layout capture (changes when "Nothing was run"
+  is reported).
+- Review items: `ref_files::tests` is `pub(crate)` and borrowed by two other test files (move to a test-support file);
+  the sixth marker spelling is subsumed by the fifth and cannot be shown failing.
+- The planning doc and the optimizations log are untouched by S4; the integrator records S2, S4 and J results there.
