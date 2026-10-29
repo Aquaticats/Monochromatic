@@ -55,10 +55,10 @@ import type { ContainerSpan, } from '@monochromatic-dev/translation-repair-docum
 
  @param targetCount - translation blocks of the section
 
- @param freeOrder - the section's footnote definitions, whose order the
+ @param freeOrder - section's footnote definitions, whose order the
  reader leaves free as it does for a fresh reply
 
- @returns The refusal in a one-element list, or an empty list when the
+ @returns Refusal in a one-element list, or an empty list when the
  record fits
 
  @throws The caught value unchanged when the check fails other than by

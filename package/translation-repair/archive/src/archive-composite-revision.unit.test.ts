@@ -230,7 +230,7 @@ function logged(
 
  @param lines - lines the stage logged
 
- @returns The line saying how many candidates the judges compared
+ @returns Line saying how many candidates the judges compared
  */
 function slateLine({ lines, }: { readonly lines: readonly string[]; },): string {
   return lines.find(function isSlate(line,): boolean {
@@ -269,7 +269,7 @@ type SelectSheet = {
 
  @param prompts - serialized requests of the bench
 
- @returns The first select sheet: its candidates and its prior review assessments
+ @returns First select sheet: its candidates and its prior review assessments
 
  @example
  ```ts

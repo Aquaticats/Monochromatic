@@ -21,7 +21,7 @@ import type { ArchiveBlockReviewWire, } from './archive-block-review-wire.ts';
 
  @param voices - replies heard
 
- @returns The same replies, a replacement that shows nothing spelled empty
+ @returns Same replies, a replacement that shows nothing spelled empty
 
  @example
  ```ts

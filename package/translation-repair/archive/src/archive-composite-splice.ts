@@ -86,7 +86,7 @@ function settledPositions(
 
  @param revisions - each revision's hunks, none colliding with another revision's
 
- @returns The combined lines, and the combined lines each revision put there
+ @returns Combined lines, and the combined lines each revision put there
 
  @example
  ```ts

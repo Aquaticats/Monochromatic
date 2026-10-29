@@ -68,7 +68,7 @@ function occurrencesOf({ text, needle, }: { readonly text: string; readonly need
 
  @param subject - what the review is asked about
 
- @returns The sheet's user message for each responsibility
+ @returns Sheet's user message for each responsibility
  */
 function userSheetsOf(
   { subject, }: { readonly subject: AbsoluteNaturalnessReviewSubject; },

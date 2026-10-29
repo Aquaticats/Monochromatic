@@ -120,7 +120,7 @@ function keptTable(
 /**
  The hunk a stretch of the walk closes, when it changed anything.
 
- @param revision - the revision's lines between the common prefix and suffix
+ @param revision - revision's lines between the common prefix and suffix
 
  @param anchor - positions in the block's and the revision's lines after the last kept line pair
 
@@ -128,7 +128,7 @@ function keptTable(
 
  @param prefix - count of lines both texts start with, which positions in the block are counted from
 
- @returns The one hunk from the anchor to here, none when both stayed where they were
+ @returns One hunk from the anchor to here, none when both stayed where they were
 
  @example
  ```ts
@@ -167,13 +167,13 @@ function closedHunk(
 /**
  Walks the table from the start of both texts, keeping equal lines and collecting the stretches between them.
 
- @param base - the block's lines between the common prefix and suffix
+ @param base - block's lines between the common prefix and suffix
 
- @param revision - the revision's lines between them
+ @param revision - revision's lines between them
 
  @param prefix - count of lines both texts start with
 
- @returns The hunks in block order
+ @returns Hunks in block order
 
  @example
  ```ts
@@ -278,7 +278,7 @@ function walkedHunks(
 
  @param cellLimit - most table cells to fill after the common prefix and suffix are cut; a larger stretch is one hunk
 
- @returns The hunks in block order, empty when the lines are the same
+ @returns Hunks in block order, empty when the lines are the same
 
  @example
  ```ts
@@ -448,7 +448,7 @@ function meetingGaps(
 
  @param right - second revision's hunks
 
- @returns The block lines both replace and the gaps an insertion of either meets, each ascending and without repeats
+ @returns Block lines both replace and gaps an insertion of either meets, each ascending and without repeats
 
  @example
  ```ts

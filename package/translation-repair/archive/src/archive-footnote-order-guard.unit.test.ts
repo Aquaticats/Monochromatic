@@ -10,8 +10,8 @@ const CAT_NOTE = '<!-- 这句猫的翻译不确定 -->';
  Label of the definition whose opener is the nearest one before a note.
 
  @param text - page holding the note once
- @param note - the note as the page writes it
- @returns The label, empty when no definition opens before the note
+ @param note - note as the page writes it
+ @returns Label, empty when no definition opens before the note
  */
 function ownerOf(
   {

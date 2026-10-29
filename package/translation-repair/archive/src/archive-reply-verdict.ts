@@ -125,14 +125,14 @@ export type ArchiveReplyVerdict = {
 
  @param disposition - what the reply claimed
 
- @param sourceQuote - the reply's support claim
+ @param sourceQuote - reply's support claim
 
  @param sourceContext - expected section with the picture transcripts the sheet carried
 
  @param referenceContext - reference lines, with any attested lines under them, empty when the original
  links nowhere
 
- @param blockText - the block under review
+ @param blockText - block under review
 
  @returns That the reply stands, or the sentence saying which test refused it and the numbers that decided it
 

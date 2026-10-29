@@ -104,7 +104,7 @@ export function acceptedRepairClaimsNote(
 
  @param chunks - every chunk the repair lane settled
 
- @param disputes - the disputes read off the same chunks, by slice index
+ @param disputes - disputes read off the same chunks, by slice index
 
  @returns Notes keyed by slice index, in chunk order, none for a slice the
  panel accepted nothing on
@@ -156,7 +156,7 @@ export function acceptedRepairClaimNotesOf(
  the consolidation reads it: the disputes over archive renderings, and the
  notes of the accepted claims no dispute carries.
 
- @param repair - the repair lane's chunks and the slices its assembly withdrew
+ @param repair - repair lane's chunks and slices its assembly withdrew
 
  @returns Disputes and claim notes keyed by slice index, read from the same
  chunks, so the notes leave out exactly the claims the disputes carry

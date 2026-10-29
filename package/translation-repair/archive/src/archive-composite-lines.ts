@@ -48,7 +48,7 @@ export function linesOf({ text, }: { readonly text: string; },): readonly string
 
  @param many - noun for any other count
 
- @returns The count and its noun
+ @returns Count and its noun
 
  @example
  ```ts

@@ -159,7 +159,7 @@ type ChangingRevision = {
 
  @param l - stage logger
 
- @returns The composite candidate when built and passed through the gates,
+ @returns Composite candidate when built and passed through the gates,
  with what each revision it carries contributed, and the findings the gates
  refused it under when they did
 

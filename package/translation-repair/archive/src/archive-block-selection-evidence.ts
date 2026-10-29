@@ -235,7 +235,7 @@ export function withArchiveOriginal(
 
  @param candidates - actual anonymous order shown to selectors
 
- @param composite - the composite candidate on the slate and what each revision
+ @param composite - composite candidate on the slate and what each revision
  it carries contributed, in slate order; absent where the slate holds none.
  The composite earns its entries from its contributors', since no reviewer
  proposed it (ledger B716)

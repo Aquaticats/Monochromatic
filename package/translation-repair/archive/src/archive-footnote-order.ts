@@ -202,7 +202,7 @@ function tailContinuesDefinition({ tail, }: { readonly tail: string; },): boolea
 
  @param protectedRanges - original-English intervals in current text coordinates
 
- @returns The text, moved or standing, and why it stands: a move that would
+ @returns Text, moved or standing, and why it stands: a move that would
  change how the page parses its definitions, or leave a comment that continues
  the last definition behind, stands with a note
 

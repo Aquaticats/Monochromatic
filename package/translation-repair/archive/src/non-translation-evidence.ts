@@ -282,7 +282,7 @@ export function nonTranslationVotesStand(
  is a translation being critiqued, not a wholly unrelated pairing. Callers
  guard slices not yet settled; an unsettled slice anchors nothing.
 
- @param outcome - the slice's settled repair outcome
+ @param outcome - slice's settled repair outcome
 
  @returns True when the slice proves translated content
 

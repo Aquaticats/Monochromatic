@@ -29,9 +29,9 @@ import {
 /**
  Lines of a block with their endings, the last without one, as a block is cut.
 
- @param names - the lines' words
+ @param names - lines' words
 
- @returns The lines
+ @returns Lines
 
  @example
  ```ts
@@ -101,7 +101,7 @@ function keptCount(
 
  @param length - how many lines
 
- @returns The lines, each ending in a line feed
+ @returns Lines, each ending in a line feed
 
  @example
  ```ts

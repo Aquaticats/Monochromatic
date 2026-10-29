@@ -259,11 +259,11 @@ function disputesArchive(
 /**
  One claim as a sheet and a log line state it: "category severity: summary".
 
- @param member - the claim the issue holds, as the critic filed it
+ @param member - claim the issue holds, as the critic filed it
 
- @param severity - the severity the panel settled the issue at
+ @param severity - severity the panel settled the issue at
 
- @returns The claim's category, the settled severity and the critic's summary
+ @returns Claim's category, settled severity and critic's summary
 
  @example
  ```ts
@@ -418,7 +418,7 @@ export function archiveDisputesOf(
  Reads the disputed slices off a repair lane result, the one reading the
  translate lane and the consolidation both take.
 
- @param repair - the repair lane's chunks and the slices its assembly withdrew
+ @param repair - repair lane's chunks and slices its assembly withdrew
 
  @returns Disputes keyed by slice index, in chunk order
 

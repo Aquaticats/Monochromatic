@@ -223,7 +223,7 @@ function roundKey(
 
  @param targetCount - translation sections of the document
 
- @returns The refusal in a one-element list, or an empty list when the
+ @returns Refusal in a one-element list, or an empty list when the
  record fits
 
  @throws The caught value unchanged when the reader fails other than by
