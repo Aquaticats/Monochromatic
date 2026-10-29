@@ -3861,3 +3861,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   the next release (carries the `doctor` help text and the test fixes; fix `wait-publish.ts` to the tag
   `monochromatic-git-policy-cli-v<version>` first); cleanup list in the earlier block, plus worktrees `integrate-7`
   and `integrate-8` and images `w3*`, `w4*`.
+
+## Update at 2026-10-29 (night, survivors killed)
+
+- Landed on main: tests killing the `scratch_location.rs` survivors (46, 170, 202, 273; commit `e88e18dc09`) and all 11
+  `merge_isolation.rs` survivors (commits `945dc4d1fb`, `0e38a8ac28`; new sidecar
+  `merge_isolation_repository_tests.rs` and a pseudo-terminal binary test for the editor decision). No production
+  code changed.
+- Unkillable on Linux, to exclude or leave: `scratch_location.rs` 221:5 and 221:8 and `doctor.rs` 100:5 are all in
+  `#[cfg(not(unix))]` variants (task 30 covers Windows).
+- Found by the merge_isolation agent: `unsaved_paths` reads the original-path field of a staged rename in
+  `status -z` as a status entry, so a source path starting with `U`, `AA` or `DD` forwards the merge to native Git
+  (safe fallback, wrong decision). Agent `a06fecbc07efeef53` is fixing it tests first on its branch; I land it.
+- Wave 4 (task 65) is running over `push_stacking`, `command_push`, `auto_push_reconcile` and `entry`.
