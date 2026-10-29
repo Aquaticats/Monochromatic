@@ -406,3 +406,20 @@ with every reviewer blind to the fix and its message.
 Record catch and miss per commit here.
 The ratio-test gate stays ranked second;
 the Luna direction stays open under the thinking-text constraint.
+
+## Recall measurement in flight
+
+Scoring rule,
+written before the first verdict landed:
+a case is a catch when the review names the superlinear cost of the changed region
+(nested scan,
+repeated work per item,
+accumulator growth) at any severity;
+a miss is a review with no cost finding;
+partial when cost is gestured at but not named.
+One blind standards reviewer per case reads only its snippet and `AGENTS.md`;
+the corpus is the scratch `blind-recall/`
+(extracted by `recall-extract.ts`,
+hash-free so no reviewer can reach the fix).
+Queued behind the 8-child limit when this note was written:
+cases 09 to 13 launch as earlier ones finish.
