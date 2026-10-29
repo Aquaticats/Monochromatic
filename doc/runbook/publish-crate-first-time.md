@@ -359,8 +359,8 @@ which lints a small Markdown and Rust fixture.
 ## monochromatic-search-shadow 0.1.0
 
 Status:
-published on 2026-10-29,
-owner action remaining: replace the trusted publisher entry (see below).
+published on 2026-10-29 with Trusted Publishing configured for `Aquaticats/Monochromatic`;
+owner action remaining: revoke the `trusted-publishing` token.
 
 Crate `monochromatic-search-shadow`,
 version `0.1.0`,
@@ -391,21 +391,22 @@ as measured:
   The response was HTTP 200 with config id `29471` and `repository_owner_id` 66041952.
   The script read the token from the credential file in-process and printed only statuses.
   `GET` on the same path with `?crate=<name>` lists configurations and `DELETE .../{id}` removes one.
-- That entry is wrong. The runbook's own step 15 told the agent to use `Aquaticat`, but the repository's owner is
-  `Aquaticats` (id 343218767; `gh api repos/Aquaticats/Monochromatic --jq .owner.id`), and the workflow's OIDC identity
-  carries the repository's owner, so the first CI publish would have failed at authentication.
-  The agent found this when the workflow run URL showed `Aquaticats`.
-  A rerun of the fix script then received `403 authentication failed` on every call, including the list that had
-  returned 200 earlier the same day, so the bootstrap token had by then been revoked or had expired,
-  and the API route was no longer open. Step 15 above now names `Aquaticats`.
+- That entry was wrong, and was replaced the same day. The runbook's own step 15 had told the agent to use `Aquaticat`,
+  but the repository's owner is `Aquaticats` (id 343218767; `gh api repos/Aquaticats/Monochromatic --jq .owner.id`), and
+  the workflow's OIDC identity carries the repository's owner, so the first CI publish would have failed at authentication.
+  The agent found this when the workflow run URL showed `Aquaticats`. The first token then answered
+  `403 authentication failed` on every call (revoked or expired), so the owner created a second token with only the
+  `trusted-publishing` scope and ran `cargo login` again. With it the agent listed the other crates' publishers,
+  deleted config `29471` (HTTP 204) and created config `29473` with owner `Aquaticats`, owner id `343218767` (HTTP 200).
+  The listing showed that every other published crate here carries two rows, one for `Aquaticat` and one for `Aquaticats`;
+  the `Aquaticat` rows are legacy from before the repository moved, and `Aquaticats` is the current one.
+  Step 15 above now names `Aquaticats`.
 
 Still to do:
 
-1. In the crates.io dashboard, open <https://crates.io/crates/monochromatic-search-shadow/settings>,
-   **Trusted Publishing** tab, delete the GitHub Actions row (owner `Aquaticat`),
-   then add one with owner `Aquaticats`, repository `Monochromatic`, workflow `cargo-publish.yml` and no environment.
-2. Confirm the bootstrap token is revoked at <https://crates.io/settings/tokens>, then the agent runs `cargo logout`.
-3. Dispatch the workflow with dry-run off on a new version to prove the OIDC route; that run also builds and publishes
+1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish, but it can edit publishers),
+   then the agent runs `cargo logout`.
+2. Dispatch the workflow with dry-run off on a new version to prove the OIDC route; that run also builds and publishes
    the release archives once `Cargo.toml` carries `[package.metadata.binstall]`.
 
 ## monochromatic-nested-wayland-session releases after the first publication

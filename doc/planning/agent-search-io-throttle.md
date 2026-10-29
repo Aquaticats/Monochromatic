@@ -255,9 +255,10 @@ After the owner created a new token and ran `cargo login`, the publish succeeded
 (`search-shadow --version` printed `search-shadow 0.1.0`). A GitHub Actions trusted publisher was created through
 `POST /api/v1/trusted_publishing/github_configs` with the token's `trusted-publishing` scope (config id 29471,
 `cargo-publish.yml`, no environment), but with the wrong owner: the runbook said `Aquaticat` (id 66041952) and the repository's
-owner is `Aquaticats` (id 343218767). The error surfaced when the workflow run URL showed `Aquaticats`, and by then every API call
-with the token returned `403 authentication failed`, so the entry must be replaced in the crates.io dashboard
-(`doc/runbook/publish-crate-first-time.md`, which now names `Aquaticats`). One related line is unchecked:
+owner is `Aquaticats` (id 343218767). The error surfaced when the workflow run URL showed `Aquaticats`; the first token had
+meanwhile stopped working (`403` on every call), so the owner made a second token with only the `trusted-publishing` scope,
+and with it the entry was replaced (deleted config 29471, created config 29473 with owner `Aquaticats`).
+The runbook now names `Aquaticats`. One related line is unchecked:
 `.github/workflows/forbidden-strings.yml` passes `--signer-workflow Aquaticat/Monochromatic/...` to `gh attestation verify`,
 and a signer-workflow string may not follow a GitHub redirect the way a URL does.
 
