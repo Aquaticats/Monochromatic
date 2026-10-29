@@ -131,6 +131,7 @@ committed red,
 fix `1f2bb6aef6` across glossary,
 page-check,
 corpus-pass and run,
+with `c812c8fb92` for the findings of the source scans,
 cache versions none (the reason is under "Cache versions" in this entry),
 artifact generation unchanged (no field or kind is added to the artifact).
 
