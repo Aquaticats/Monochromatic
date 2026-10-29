@@ -70,9 +70,9 @@ export type TimedSample = {
 /**
  Prepare and time one sample; the preparation runs before the timer starts, so it never counts as latency.
 
- @param prepare - the scenario's optional per-sample setup
+ @param prepare - scenario's optional per-sample setup
 
- @param command - the scenario's Git arguments for a sample
+ @param command - scenario's Git arguments for a sample
 
  @param root - scratch root that holds `bin` and `home`
 
@@ -82,7 +82,7 @@ export type TimedSample = {
 
  @param wrapped - which side runs
 
- @param sample - the sample number
+ @param sample - sample number
 
  @returns the timing and exit status of the sample
  */
@@ -126,7 +126,7 @@ async function runSample({
  Run every sample of a scenario one at a time, alternating which side goes first so cache order cancels.
  Each yielded sample settles before the next one starts, because overlapping Git processes would distort the timings.
 
- @param setting - the scenario to sample
+ @param setting - scenario to sample
 
  @returns the samples in the order they ran
  */

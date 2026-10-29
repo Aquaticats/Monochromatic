@@ -75,7 +75,7 @@ async function readTail(file: string): Promise<string> {
 /**
  Read the executed-unit count libFuzzer prints at the end of a run.
 
- @param text - the tails of both streams
+ @param text - tails of both streams
  
  @returns the count, or 0 when the line is absent or has no number after whitespace
 
@@ -132,11 +132,11 @@ export type FuzzOutcome = {
 /**
  Run the target's fuzzer to its time limit.
 
- @param target - the target to fuzz
+ @param target - target to fuzz
 
- @param evidence - the evidence directory
+ @param evidence - evidence directory
 
- @param secondsPerTarget - the seconds to fuzz
+ @param secondsPerTarget - seconds to fuzz
 
  @returns what went wrong, or nothing when the target ran and executed inputs
 

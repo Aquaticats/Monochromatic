@@ -99,9 +99,9 @@ const inputs = [
  nextest prints `FAIL [ 0.012s] ( 3/38) <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a
  child process behind, and repeats each failure in its closing recap; the test name ends the line.
 
- @param output - the run's combined output
+ @param output - run's combined output
 
- @param keyword - the result kind
+ @param keyword - result kind
 
  @returns trimmed lines that start with the keyword and hold a `[`
  */
@@ -124,7 +124,7 @@ function resultLines({
 /**
  Run the generator controls in the disposable sidecar; report status and the failing control names.
 
- @param root - the disposable copy of the repository inputs
+ @param root - disposable copy of the repository inputs
 
  @returns exit status,
    the distinct failing test names, the number of passing tests and the combined output
@@ -187,7 +187,7 @@ async function controls({ root, }: {
 /**
  Apply one plant's edits to its file text, refusing an edit that does not match exactly once.
 
- @param plant - the plant
+ @param plant - plant
 
  @param original - its file's text
 
@@ -228,13 +228,13 @@ function planted({
 /**
  Plant one defect, run the controls, and put the file back.
 
- @param root - the disposable copy
+ @param root - disposable copy
 
- @param evidence - the evidence directory
+ @param evidence - evidence directory
 
- @param plant - the defect
+ @param plant - defect
 
- @param index - the defect's position, which names its log
+ @param index - defect's position, which names its log
 
  @returns what the controls observed
  */
@@ -308,9 +308,9 @@ async function runPlant({
  Plant each defect in table order. Each one starts after the previous one returned and restored its file,
  because every plant edits the same disposable copy.
 
- @param root - the disposable copy
+ @param root - disposable copy
 
- @param evidence - the evidence directory
+ @param evidence - evidence directory
 
  @returns one observation per defect
  */

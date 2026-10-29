@@ -40,7 +40,7 @@ export class InteropError extends Error {
 
  @param home - disposable home
 
- @param wrapperBin - the directory whose `git` the run starts (none means real Git)
+ @param wrapperBin - directory whose `git` the run starts (none means real Git)
 
  @param extra - added variables
 
@@ -240,7 +240,7 @@ export function runThrough({
 
  @param fixture - repository and home of the fixture
 
- @param args - the Git arguments
+ @param args - Git arguments
 
  @returns trimmed standard output
 

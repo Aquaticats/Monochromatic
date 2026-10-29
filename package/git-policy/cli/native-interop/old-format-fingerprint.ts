@@ -32,7 +32,7 @@ const KEEP_SUFFIX = '.keep';
 /**
  Files that a wrapper may retire on its own, whatever else it decides: a dead holder's lock record and a pack's keep marker.
 
- @param line - a line of a fingerprint
+ @param line - line of a fingerprint
  
  @returns whether losing the file is housekeeping
  */
@@ -78,7 +78,7 @@ export function lostEntries({
 
  @param repository - repository to describe
 
- @param subdirectories - the directories below `.git` to describe
+ @param subdirectories - directories below `.git` to describe
 
  @returns one `directory/name:size` line per file, in no particular order, none for a directory that is absent
 

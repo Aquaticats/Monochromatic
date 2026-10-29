@@ -37,9 +37,9 @@ export type SnapshotEntry = {
 
  @param context - build context
 
- @param crate - the crate's directory under `package`
+ @param crate - crate's directory under `package`
 
- @param names - the entries a library build of the crate reads
+ @param names - entries a library build of the crate reads
 
  @returns one entry per name, keeping the repository layout so relative path dependencies resolve
  */

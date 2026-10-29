@@ -22,7 +22,7 @@ export const LONG_EXCERPT = 400;
 
  @param text - text to excerpt
 
- @param limit - the longest excerpt wanted
+ @param limit - longest excerpt wanted
 
  @returns the excerpt
 

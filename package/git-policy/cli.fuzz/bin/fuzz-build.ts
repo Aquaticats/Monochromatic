@@ -161,11 +161,11 @@ async function proveGeneratorControls(compilerMount: readonly string[]): Promise
 /**
  Build the AddressSanitizer targets in a container and copy their binaries into the context.
 
- @param context - the build context
+ @param context - build context
 
- @param evidence - the evidence directory receiving the container state
+ @param evidence - evidence directory receiving the container state
 
- @param compilerMount - the read-only compiler mount
+ @param compilerMount - read-only compiler mount
 
  @throws NativeVerificationError when the instrumented build exits nonzero
  */
@@ -262,11 +262,11 @@ async function compileTargets({
 
  @param source - this package's directory
 
- @param context - the build context
+ @param context - build context
 
- @param evidence - the evidence directory
+ @param evidence - evidence directory
 
- @param compiler - the compiler sysroot to mount read-only
+ @param compiler - compiler sysroot to mount read-only
 
  @example
  ```ts

@@ -54,7 +54,7 @@ await mkdir(
 
  @param source - this package's directory
 
- @param context - the build context
+ @param context - build context
  */
 async function buildRunImage({
   source,
@@ -133,11 +133,11 @@ async function buildRunImage({
  Fuzz each selected target in turn. A failed target is recorded and the campaign goes on,
  so one finding never hides the targets after it.
 
- @param selected - the targets
+ @param selected - targets
 
- @param evidence - the evidence directory
+ @param evidence - evidence directory
 
- @param secondsPerTarget - the seconds each runs
+ @param secondsPerTarget - seconds each runs
 
  @returns one outcome per target: what went wrong, or nothing
  */

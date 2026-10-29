@@ -29,7 +29,7 @@ const unusableCandidateCodes = new Set([
 /**
  Whether a failure only says that a candidate path is not an executable file.
 
- @param error - the value an access check threw
+ @param error - value an access check threw
  
  @returns true for a missing, non-directory or unreadable path
  */
@@ -116,7 +116,7 @@ export type InputSet = {
 
  @param source - this package's directory
 
- @param context - the build context
+ @param context - build context
 
  @example
  ```ts

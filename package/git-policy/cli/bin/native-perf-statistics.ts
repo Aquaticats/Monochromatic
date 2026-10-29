@@ -10,6 +10,16 @@
 const HIGH_PERCENTILE = 0.95;
 
 /**
+ A statistic was asked of a sample set that cannot answer it, such as an empty one.
+ */
+export class SampleSetError extends Error {
+  /**
+   Stable class name that tells an unanswerable statistic apart from an unrelated error in a log.
+   */
+  override name = 'SampleSetError';
+}
+
+/**
  Sample at one index of an ascending set, which the median and percentile arithmetic keeps in range for a non-empty set.
 
  @param sorted - ascending samples
@@ -18,7 +28,7 @@ const HIGH_PERCENTILE = 0.95;
 
  @returns the sample, so an empty set fails loudly instead of yielding `undefined`
 
- @throws RangeError when the index is outside the set
+ @throws SampleSetError when the index is outside the set
  */
 function sampleAt({
   sorted,
@@ -32,7 +42,7 @@ function sampleAt({
    */
   const sample = sorted[index];
   if (sample === undefined)
-    throw new RangeError(`Sample index ${String(index)} is outside a set of ${String(sorted.length)} samples.`);
+    throw new SampleSetError(`Sample index ${String(index)} is outside a set of ${String(sorted.length)} samples.`);
   return sample;
 }
 

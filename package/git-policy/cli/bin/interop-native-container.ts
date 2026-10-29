@@ -147,21 +147,23 @@ async function copySnapshot({ context, }: {
     },
   ];
   /**
-   Errors of the copies that failed; a failed copy never stops the others, so none is still in flight afterwards.
+   Result of every copy; a failed copy never stops the others, so none is still in flight afterwards.
+   */
+  const copies = await Promise.allSettled(entries.map(function copyEntry(entry) {
+    return cp(
+      entry.from,
+      entry.to,
+      { recursive: true },
+    );
+  }));
+  /**
+   Reasons of the copies that failed.
    */
   const failures: unknown[] = [];
-  await Promise.all(entries.map(async function copyEntry(entry): Promise<void> {
-    try {
-      await cp(
-        entry.from,
-        entry.to,
-        { recursive: true },
-      );
-    }
-    catch (error) {
-      failures.push(error);
-    }
-  }));
+  for (const copy of copies) {
+    if (copy.status === 'rejected')
+      failures.push(copy.reason);
+  }
   if (failures.length > 0)
     throw new NativeVerificationError(
       `Copying ${String(failures.length)} snapshot entries into ${context} failed.`,

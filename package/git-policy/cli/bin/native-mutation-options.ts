@@ -42,9 +42,9 @@ const maximumTimeoutSeconds = 3_600;
 /**
  Check that every character of a text is one of the allowed characters.
 
- @param text - the value under test
+ @param text - value under test
 
- @param allowed - the characters it may use
+ @param allowed - characters it may use
 
  @returns true when the text is non-empty and uses only allowed characters
  */
@@ -120,7 +120,7 @@ function isTestPath(text: string): boolean {
 /**
  Read one `--timeout` value.
 
- @param value - the text after the flag
+ @param value - text after the flag
  
  @returns the whole number of seconds it names
  */

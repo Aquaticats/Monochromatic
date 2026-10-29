@@ -30,7 +30,7 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
 /**
  The environment of one sample: identical for the direct and the wrapped run apart from the PATH order.
 
- @param root - the scratch root that holds `bin` and `home`
+ @param root - scratch root that holds `bin` and `home`
 
  @param wrapped - whether the wrapper directory leads the PATH
 

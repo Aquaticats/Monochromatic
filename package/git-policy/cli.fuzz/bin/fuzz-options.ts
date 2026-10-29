@@ -116,9 +116,9 @@ function isAcceptedOption(argument: string): boolean {
 /**
  The values after an option prefix, none when the option is absent.
 
- @param options - the arguments
+ @param options - arguments
 
- @param prefix - the `--name=` prefix to find
+ @param prefix - `--name=` prefix to find
 
  @returns the text after the prefix of every matching argument, in argument order
  */
@@ -141,7 +141,7 @@ function valuesOf({
 /**
  Read the whole-number seconds each target fuzzes.
 
- @param text - the `--seconds-per-target` value, absent for the default
+ @param text - `--seconds-per-target` value, absent for the default
  
  @returns seconds from 1 to the maximum
  */
@@ -161,7 +161,7 @@ function secondsOf(text?: string): number {
 /**
  Pick the targets a `--targets` list names, or every target when none is given.
 
- @param text - the comma-separated names after `--targets=`
+ @param text - comma-separated names after `--targets=`
  
  @returns the chosen targets in registration order
  */

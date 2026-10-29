@@ -4,6 +4,7 @@
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
+
 import type { PlantedControl } from './native-planted-controls.ts';
 
 /**
