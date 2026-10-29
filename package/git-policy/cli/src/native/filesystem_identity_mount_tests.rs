@@ -139,9 +139,19 @@ fn pseudo_sources_need_no_lookup_to_succeed() {
     assert!(!pseudo_source_has_no_uuid(b"UUID=1234"));
     assert!(!pseudo_source_has_no_uuid(b"."));
     assert!(!pseudo_source_has_no_uuid(b".."));
-    // `cargo` runs the tests from the package directory,
-    // where `Cargo.toml` is a file `libblkid` would open by that relative name.
-    assert!(!pseudo_source_has_no_uuid(b"Cargo.toml"));
+    // A name that exists in the working directory is a file `libblkid` would open by that relative name.
+    let first_entry_here: Option<std::ffi::OsString> = std::fs::read_dir(".")
+        .ok()
+        .and_then(|mut entries| { return entries.next(); })
+        .and_then(|entry| { return entry.ok(); })
+        .map(|entry| { return entry.file_name(); });
+    match first_entry_here {
+        Some(name) => {
+            use std::os::unix::ffi::OsStrExt;
+            assert!(!pseudo_source_has_no_uuid(name.as_bytes()));
+        }
+        None => println!("skipped: the working directory is empty"),
+    }
     // A name in sysfs is a block device libudev finds.
     let first_block_device: Option<std::ffi::OsString> = std::fs::read_dir("/sys/class/block")
         .ok()
