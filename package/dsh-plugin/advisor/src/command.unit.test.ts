@@ -8,6 +8,8 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { SessionId, } from '@deepseek-ai/dsh-session';
+
 import {
   createDshAdvisorSessionState,
   runDshAdvisorCommand,
@@ -62,6 +64,7 @@ function commandFixture(
     rawInput,
     signal: new AbortController().signal,
     agent: {
+      sessionId: SessionId('session-command-fixture',),
       session: {
         deriveMessages: () => [],
       },

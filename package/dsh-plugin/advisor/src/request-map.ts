@@ -16,6 +16,9 @@ import type {
   RequestMessage,
 } from '@deepseek-ai/dsh-llm';
 import type {
+  SessionId,
+} from '@deepseek-ai/dsh-session/types';
+import type {
   ForeignBorrowed,
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { advisorContentText, } from './conversation-text.ts';
@@ -41,6 +44,10 @@ export type BuildDshAdvisorGenerateOptionsOptions = {
    */
   readonly reasoningEffort?: ReasoningEffortId;
   /**
+   Session identity stamped onto the request for provider routing.
+   */
+  readonly sessionId: SessionId;
+  /**
    Per-call output token budget from `maxAdvisorOutputTokens`.
    */
   readonly maxTokens?: number;
@@ -63,9 +70,10 @@ export type BuildDshAdvisorGenerateOptionsOptions = {
 
  The Advisor request is a one-shot call: the serialized conversation rides in
  a single user message and the system prompt maps to the `system` slot.
- `purpose` stays unset (capability gap 9), and `maxTokens` carries the
- configured `maxAdvisorOutputTokens` so an incapable route fails at dispatch
- into normal recovery.
+ `purpose` stays unset (capability gap 9), `sessionId` stamps the host session
+ identity onto the request so routes that key request routing on it accept the
+ call, and `maxTokens` carries the configured `maxAdvisorOutputTokens` so an
+ incapable route fails at dispatch into normal recovery.
 
  @param options - transcript context, model, and request controls
 
@@ -76,7 +84,7 @@ export type BuildDshAdvisorGenerateOptionsOptions = {
 
  @example
  ```ts
- const generate = buildDshAdvisorGenerateOptions({ context, model });
+ const generate = buildDshAdvisorGenerateOptions({ context, model, sessionId });
  ```
  */
 export function buildDshAdvisorGenerateOptions(
@@ -135,6 +143,7 @@ export function buildDshAdvisorGenerateOptions(
       .provider,
     model: options.model
       .id,
+    sessionId: options.sessionId,
     messages,
     ...(systemParts.length === 0
       ? {}

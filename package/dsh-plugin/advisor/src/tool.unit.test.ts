@@ -8,6 +8,8 @@ import {
   it,
 } from '@monochromatic-dev/module-test/ts';
 
+import { SessionId, } from '@deepseek-ai/dsh-session';
+
 import {
   executeDshAdvisorToolCall,
   type ExecuteDshAdvisorToolCallOptions,
@@ -55,6 +57,7 @@ function toolCallFixture(
       ? {}
       : {
         agent: {
+          sessionId: SessionId('session-tool-call-fixture',),
           session: {
             deriveMessages: () => [],
           },

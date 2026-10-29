@@ -135,6 +135,8 @@ export async function runDshAdvisorReview(
   ] = await Promise.all([
     buildDshAdvisorCatalog({
       llm: options.llm,
+      sessionId: options.agent
+        .sessionId,
       maxAdvisorOutputTokens: options.config
         .maxAdvisorOutputTokens,
       ...(options.signal === undefined
