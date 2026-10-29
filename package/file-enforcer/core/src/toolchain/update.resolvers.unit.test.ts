@@ -22,6 +22,7 @@ import {
   resolveNpm,
   resolveRust,
   resolveRustup,
+  resolveZigLatest,
   type Fetcher,
 } from './update.resolvers.ts';
 
@@ -53,13 +54,27 @@ function fixtureFetch(
 }
 
 /**
+ Plan entry fields a fixture case sets over the base entry.
+ */
+type FixtureOverrides = {
+  readonly id?: ToolPlanEntry['id'];
+  readonly request?: ToolPlanEntry['request'];
+  readonly version?: ToolPlanEntry['version'];
+  readonly route?: ToolPlanEntry['route'];
+  readonly packageId?: ToolPlanEntry['packageId'];
+  readonly bins?: ToolPlanEntry['bins'];
+  readonly env?: ToolPlanEntry['env'];
+  readonly artifacts?: ToolPlanEntry['artifacts'];
+};
+
+/**
  Builds a plan entry for one fixture case.
  
  @param overrides - Fields to set over the base entry
  
  @returns A plan entry shaped like the real plan
  */
-function fixtureEntry(overrides: Partial<ToolPlanEntry>,): ToolPlanEntry {
+function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
   return {
     id: 'fixture-tool',
     request: { track: 'latest' },
@@ -243,6 +258,42 @@ await describe({
                   sha256: 'a'.repeat(64,),
                 },
               },);
+          },
+        },),
+        it({
+          name: 'does not let the glob prefix and suffix share characters',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await mapGithubRows({
+                rows: {
+                  'linux-x64': {
+                    url: 'https://github.com/example/demo/releases/download/v1.0.0/legacy-binary.zip',
+                    sha256: '0'.repeat(64,),
+                  },
+                },
+                release: {
+                  tag_name: 'v1.1.0',
+                  assets: [
+                    {
+                      name: 'abc',
+                      digest: `sha256:${'a'.repeat(64,)}`,
+                      browser_download_url: 'https://github.com/example/demo/releases/download/v1.1.0/abc',
+                    },
+                  ],
+                },
+                oldVersion: '1.0.0',
+                newVersion: '1.1.0',
+                assetPattern: 'ab*bc',
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message,)
+              .toContain('matches 0',);
           },
         },),
       ],
@@ -781,12 +832,49 @@ await describe({
       ],
     },),
 
+    describe({
+      name: resolveZigLatest.name,
+      children: [
+        it({
+          name: 'returns the newest stable key and skips master and dev builds',
+          fn: async () => {
+            expect(await resolveZigLatest({
+              fetcher: fixtureFetch({
+                'https://ziglang.org/download/index.json': JSON.stringify({
+                  'master': { version: '0.17.0-dev.12+abc', },
+                  '0.9.1': {},
+                  '0.16.0': {},
+                  '0.15.1': {},
+                  '0.17.0-dev.3': {},
+                },),
+              },),
+            },),)
+              .toBe('0.16.0',);
+          },
+        },),
+        it({
+          name: 'returns an empty key when only dev builds are listed',
+          fn: async () => {
+            expect(await resolveZigLatest({
+              fetcher: fixtureFetch({
+                'https://ziglang.org/download/index.json': JSON.stringify({
+                  'master': {},
+                  '0.17.0-dev.3': {},
+                },),
+              },),
+            },),)
+              .toBe('',);
+          },
+        },),
+      ],
+    },),
+
     //endregion Rust channels
 
     //region rustup channel archive
 
     describe({
-      name: 'resolveRustup',
+      name: resolveRustup.name,
       children: [
         it({
           name: 'rebuilds the channel rows when the release manifest moves',
@@ -894,6 +982,39 @@ await describe({
               .toBeInstanceOf(Error,);
             expect((caught as Error).message,)
               .toContain('sha256',);
+          },
+        },),
+        it({
+          name: 'throws when a recorded row url carries no target triple',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await resolveRustup({
+                entry: fixtureEntry({
+                  id: 'rustup',
+                  request: { track: 'latest', },
+                  route: 'archive',
+                  version: '1.29.2',
+                  bins: ['rustup'],
+                  artifacts: {
+                    'linux-x64': {
+                      url: 'https://static.rust-lang.org/rustup/archive/1.29.2/rustup-init',
+                      sha256: 'b'.repeat(64,),
+                    },
+                  },
+                },),
+                fetcher: fixtureFetch({
+                  'https://static.rust-lang.org/rustup/release-stable.toml': `schema-version = '1'\nversion = '1.29.3'\n`,
+                },),
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(caught,)
+              .toBeInstanceOf(Error,);
+            expect((caught as Error).message,)
+              .toContain('carries no target triple',);
           },
         },),
       ],
