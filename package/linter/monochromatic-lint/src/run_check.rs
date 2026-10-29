@@ -32,6 +32,7 @@ use crate::{
     markdown_rule_settings::{MarkdownRuleSettings, markdown_rule_settings},
     markdown_source::MarkdownSource,
     processors::{ProcessorLanguage, VirtualSource, extract},
+    run_check_shell::shell_findings,
     run_failure::{host_span, processing_failure, processor_failure},
     run_lfs::LfsRepos,
     run_paths::{Language, logical_path},
@@ -40,9 +41,6 @@ use crate::{
     rust_file_engine::RustFileEngine,
     rust_rule_settings::{RustRuleSettings, rust_rule_settings},
     rust_source::RustSource,
-    shell_dialect::ShellDialect,
-    shell_rule_settings::{ShellRuleSettings, shell_rule_settings},
-    shell_rules::check_shell,
 };
 /// Import the JSONC value that carries a virtual file's resolved rules.
 use monochromatic_jsonc_edit::JsoncValue;
@@ -324,39 +322,6 @@ impl<'run> HostChecker<'run> {
     }
 
     /// What:
-    ///  Check one extracted workflow step under the `shell/` rules.
-    /// Why:
-    ///  The dialect comes from the virtual file's suffix,
-    ///  and every finding is mapped to the workflow's own bytes before it is kept.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// private checkVirtualShell(input, settings, source, findings): void
-    /// ```
-    fn check_virtual_shell(
-        &mut self,
-        input: &VirtualSource,
-        settings: &ShellRuleSettings,
-        source: &str,
-        findings: &mut Vec<Diagnostic>,
-    ) {
-        let Some(dialect): Option<ShellDialect> = ShellDialect::from_filename(input.filename())
-        else {
-            findings.push(processing_failure(
-                self.plan.display.as_str(),
-                host_span(self.plan.language, source, 0),
-                format!("Cannot tell the shell dialect of {}", input.filename()),
-            ));
-            return;
-        };
-        let virtual_findings: Vec<Diagnostic> =
-            check_shell(input.filename(), input.source(), dialect, settings);
-        for finding in virtual_findings {
-            self.project(input, finding, source, findings);
-        }
-    }
-
-    /// What:
     ///  Check one virtual file under the rules its logical path resolves to.
     /// Why:
     ///  `**/*.rs` reaches fenced Rust and `**/*.md` reaches rustdoc unless a block's `ignores`
@@ -385,11 +350,10 @@ impl<'run> HostChecker<'run> {
             Err(error) => return Err(error.to_string()),
         };
         if input.language() == ProcessorLanguage::Shell {
-            let settings: ShellRuleSettings = match shell_rule_settings(&rules) {
-                Ok(typed) => typed,
-                Err(error) => return Err(error.to_string()),
-            };
-            self.check_virtual_shell(input, &settings, source, findings);
+            // A workflow step's findings are in the step's coordinates; the processor maps them to the workflow.
+            for finding in shell_findings(input, &rules)? {
+                self.project(input, finding, source, findings);
+            }
             return Ok(());
         }
         if input.language() == ProcessorLanguage::Rust {

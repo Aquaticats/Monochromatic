@@ -11,8 +11,9 @@
 //! function captureShell(line: Line, value: string, offset: number): Shell;
 //! ```
 
-/// Import the line records and the result records.
+/// Import the line records and the comment remover.
 use crate::workflow_lines::{Line, without_comment};
+/// Import the result records.
 use crate::workflow_model::{BodyLine, RunBody, Shell, WalkError};
 
 /// Build a refusal at a workflow byte offset.

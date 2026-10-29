@@ -10,13 +10,15 @@
 //! function steps(parent: Mapping): Mapping[]; // throws ProcessorError
 //! ```
 
-/// Import the exact line copier and the immutable mapping records.
+/// Import the exact line copier.
 use crate::processors_lines::copy_line;
+/// Import the immutable mapping records.
 use crate::processors_model::{Guard, MappedLine, Mapping, ProcessorError, ProcessorLanguage};
 /// Import the dialect classification.
 use crate::shell_dialect::{ShellClass, ShellDialect, classify_shell};
-/// Import the walk and its records.
+/// Import the records the walk returns.
 use crate::workflow_model::{RunBody, Step, WalkError, Workflow};
+/// Import the walk.
 use crate::workflow_walk::walk;
 /// Share exact parent snapshots between sibling steps.
 use std::sync::Arc;

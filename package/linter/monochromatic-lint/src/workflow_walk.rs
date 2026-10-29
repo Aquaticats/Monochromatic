@@ -11,11 +11,14 @@
 //! function walk(text: string): Workflow; // throws WalkError
 //! ```
 
-/// Import the line reader,
-///  the value readers and the records.
+/// Import the line reader.
 use crate::workflow_lines::{Content, Entry, Line, parse_entry, read_lines, without_comment};
+/// Import the records the walk fills in.
 use crate::workflow_model::{Job, Step, WalkError, Workflow};
+/// Import the value readers.
 use crate::workflow_run::{capture_run, capture_shell};
+/// Import the key-path classification.
+use crate::workflow_shape::{Shape, shape};
 
 /// One open key or sequence item.
 struct Frame {
@@ -24,49 +27,6 @@ struct Frame {
     /// The key,
     ///  or `#` for a sequence item.
     name: String,
-}
-
-/// What a key at some path means to the walk.
-enum Shape {
-    /// A key that must be a block,
-    ///  not an inline value:
-    ///  `jobs`,
-    ///  `defaults`,
-    ///  `steps` and the like.
-    Structure,
-    /// A job's id key.
-    Job,
-    /// A job's `runs-on`.
-    RunsOn,
-    /// A `defaults.run.shell`,
-    ///  at the workflow level or a job's.
-    DefaultShell,
-    /// A key of a step mapping.
-    StepKey,
-    /// Anything else.
-    Other,
-}
-
-/// Classify a key by the names of the open keys above it,
-///  ending with its own.
-fn shape(path: &[&str]) -> Shape {
-    match path {
-        ["jobs"]
-        | ["jobs", _, "steps"]
-        | ["jobs", _, "defaults"]
-        | ["jobs", _, "defaults", "run"]
-        | ["defaults"]
-        | ["defaults", "run"]
-        | ["runs"]
-        | ["runs", "steps"] => return Shape::Structure,
-        ["jobs", _] => return Shape::Job,
-        ["jobs", _, "runs-on"] => return Shape::RunsOn,
-        ["jobs", _, "defaults", "run", "shell"] | ["defaults", "run", "shell"] => {
-            return Shape::DefaultShell;
-        }
-        ["jobs", _, "steps", "#", _] | ["runs", "steps", "#", _] => return Shape::StepKey,
-        _ => return Shape::Other,
-    }
 }
 
 /// The walk's state.
@@ -155,12 +115,15 @@ impl Walker<'_> {
         }
     }
 
-    /// Whether the open keys put a line inside a part of the file the walk reads.
-    fn inside_structure(&self) -> bool {
-        return self
-            .frames
-            .first()
-            .is_some_and(|top| matches!(top.name.as_str(), "jobs" | "runs" | "defaults"));
+    /// Whether an unread key form at `column` sits where the walk needs a plain key.
+    fn odd_key_matters(&self, column: usize) -> bool {
+        let mut names: Vec<&str> = Vec::new();
+        for frame in &self.frames {
+            if frame.indent < column {
+                names.push(frame.name.as_str());
+            }
+        }
+        return crate::workflow_shape::odd_key_matters(&names);
     }
 }
 
@@ -325,7 +288,7 @@ impl Walker<'_> {
         self.open_dashes(&entry.dashes, line_start);
         match &entry.content {
             Content::Key { .. } => return self.on_key(index, &entry),
-            Content::OddKey if self.inside_structure() => {
+            Content::OddKey { column } if self.odd_key_matters(*column) => {
                 return Err(refuse(
                     start,
                     "a quoted, anchored, aliased, tagged or merge key; write a plain key",

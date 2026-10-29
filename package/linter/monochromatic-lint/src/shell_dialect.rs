@@ -199,13 +199,18 @@ impl Construct {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ShellClass {
     /// A shell the rules check.
-    Dialect(ShellDialect),
+    Dialect(
+        /// The syntax family of the shell.
+        ShellDialect,
+    ),
     /// A known interpreter that is not a shell,
     ///  such as `node` or `python`.
     OutOfScope,
-    /// A value the rules cannot classify;
-    ///  the carried text says why.
-    Unknown(String),
+    /// A value the rules cannot classify.
+    Unknown(
+        /// Why the value cannot be classified.
+        String,
+    ),
 }
 
 /// Interpreter names that are known not to be shells.

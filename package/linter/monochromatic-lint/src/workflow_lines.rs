@@ -14,8 +14,9 @@
 //! function parseEntry(line: Line): Entry;
 //! ```
 
-/// Import the physical line splitter and the refusal record.
+/// Import the physical line splitter.
 use crate::processors_lines::physical_lines;
+/// Import the refusal record.
 use crate::workflow_model::WalkError;
 
 /// One physical line with its indentation removed.
@@ -107,7 +108,10 @@ pub(crate) enum Content<'a> {
     ///  a tag,
     ///  an alias,
     ///  a merge key or a complex key.
-    OddKey,
+    OddKey {
+        /// Column of the key.
+        column: usize,
+    },
     /// A scalar,
     ///  a flow collection or other text with no key.
     Scalar,
@@ -186,7 +190,7 @@ pub(crate) fn parse_entry<'a>(line: &Line<'a>) -> Entry<'a> {
     if ODD_KEY_START.contains(&first) || name == "<<" {
         return Entry {
             dashes,
-            content: Content::OddKey,
+            content: Content::OddKey { column },
         };
     }
     let after: &str = &rest[colon + 1..];

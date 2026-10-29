@@ -18,7 +18,7 @@ fn entry_of(text: &str) -> (usize, Vec<usize>, String) {
     let entry: Entry<'_> = parse_entry(&lines[0]);
     let shape: String = match &entry.content {
         Content::Nothing => String::from("nothing"),
-        Content::OddKey => String::from("odd"),
+        Content::OddKey { .. } => String::from("odd"),
         Content::Scalar => String::from("scalar"),
         Content::Key {
             name,

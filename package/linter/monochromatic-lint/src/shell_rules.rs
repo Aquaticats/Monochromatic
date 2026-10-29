@@ -12,9 +12,11 @@
 
 /// Import the finding model.
 use crate::diagnostic::{Diagnostic, Span};
-/// Import the dialect and the scan.
+/// Import the dialect and construct names.
 use crate::shell_dialect::{Construct, ShellDialect};
+/// Import the typed settings the checks read.
 use crate::shell_rule_settings::{ShellBudget, ShellRuleSettings};
+/// Import the scan.
 use crate::shell_scan::{Hit, scan};
 
 /// A zero-based line start and end of one code line,

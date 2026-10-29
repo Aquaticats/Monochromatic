@@ -162,6 +162,17 @@ fn odd_keys_are_refused_inside_structure() {
     }
 }
 
+/// A flow mapping in a build matrix,
+///  and a quoted key in an environment or input mapping,
+///  hold no step and are ignored.
+#[test]
+fn odd_keys_outside_steps_are_ignored() {
+    let text: &str = "jobs:\n  a:\n    strategy:\n      matrix:\n        include:\n        - { os: linux, runner: ubuntu-24.04 }\n        # note\n        - { os: windows, runner: windows-2025 }\n    env:\n      \"A B\": x\n    steps:\n      - run: one\n        env:\n          'Q': y\n          <<: *shared\n";
+    let workflow: Workflow = read(text);
+    assert_eq!(workflow.steps.len(), 1);
+    assert_eq!(script(text, &workflow, 0), "one");
+}
+
 /// Structure written inline,
 ///  and steps that are not block mappings,
 ///  are refused.

@@ -178,6 +178,8 @@ mod resolved_rules;
 /// Host rules plus always-on processors for one source snapshot.
 #[doc(hidden)]
 pub mod run_check;
+/// The `shell/` rules over one extracted workflow step.
+mod run_check_shell;
 /// Mode selection and the complete lint invocation with injected environment.
 #[doc(hidden)]
 pub mod run_command;
@@ -299,6 +301,8 @@ mod workflow_lines;
 mod workflow_model;
 /// Reading the values of `run:` and `shell:` keys.
 mod workflow_run;
+/// The meaning of a key at a path in a workflow or composite action.
+mod workflow_shape;
 /// The structural walk that finds every step of a workflow or composite action.
 mod workflow_walk;
 
