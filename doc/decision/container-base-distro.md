@@ -90,7 +90,8 @@ The owner chose to keep each release's current floor:
    IDE release binaries are compiled in `localhost/monochromatic/ide`,
    which is built from the terminal image,
    so `package/terminal/app` gets a CachyOS development image
-   and a release image that keeps its Fedora 41 base.
+   and a release image that keeps its Fedora 41 base
+   (`ldd --version` in `localhost/monochromatic/terminal` printed `ldd (GNU libc) 2.40` on 2026-10-29).
 
 ### Kept on purpose
 
