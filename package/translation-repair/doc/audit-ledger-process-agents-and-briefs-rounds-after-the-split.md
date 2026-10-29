@@ -8,6 +8,9 @@ The first two are the lead's own.
 The third is the tool's behaviour and no agent's breach,
 and is filed because it came again.
 
+M304 was added on 2026-10-29 (UTC) from the hand-back of the agent of round 8,
+which listed the rules it broke.
+
 Written on 2026-10-19 (UTC) from the lead's notes after the split (`s245/ledger-notes-after-split.md`).
 M270 was added on the same day from the notes of the seat round (`s245/w191-notes.md`).
 The entries before these are filed in
@@ -102,3 +105,59 @@ or the brief marks it as unchecked and the agent measures it first,
 as this agent did.
 `mistake-prevention-guards-searches-and-claims.md`,
 "Claims without their evidence".
+
+## M304: the agent of round 8 broke the shell, edit, output and worktree rules and said so in its hand-back
+
+Status:
+recorded on 2026-10-29 (UTC) from the agent's hand-back
+(`report.md` of `w357-dx1r8`,
+outside the repository).
+The work is in the file of the footnote readings,
+round 8 (B970 to B979).
+
+The agent listed these breaches:
+- Repository files were edited through `node --eval` and `sed` several times,
+  and not through the Edit and Write tools.
+- One command was chained with `;`,
+  and another git call was left outside the keyless wrapper.
+- Very large outputs were read in full:
+  a list of docs from a scan failure,
+  a listing of the `altfuzz` runs,
+  and the whole `git worktree list` at the end.
+- Evidence was capped with `rg --max-count` and `rg --context`.
+- Placeholder commands were run to see what a script prints:
+  `search.ts --help` and `pair.ts --help`.
+- Scratch worktrees `base`,
+  `red`
+  and `red2` were added to the shared `.git`
+  (removed at the end),
+  and `git -C base checkout --detach` was used to bisect.
+- A red case was made by temporarily reverting a fix file (`a9b77b764e`,
+  `4a70e75162`).
+- The growth case of the placing (B977) was not red first.
+- `mise run` was run through a wrapper script that spawned `systemd-run`.
+- One `rg` call had a stray empty pattern argument;
+  it failed with no effect.
+- A directory with one symbolic link to the `monochromatic-lint` binary of `.cargo/bin` (version 0.3.0,
+  which is the pinned version) was added to the keyless `PATH`,
+  because `cli-git` refused to stage a Markdown file that the policy lints when it found no such program.
+  Nothing was installed and no guard was bypassed.
+
+Cause:
+the tree of the agent predated the cutover of the toolchain and had never been synced (B980),
+so `monochromatic-lint` was missing from its `PATH`,
+and the symbolic link stood in for the tool that `toolchain:sync` would have made.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools",
+for the cause,
+and the rules the agent broke stand as written in `mistake-prevention-shell-edits-commits-and-agents.md`,
+"Shell commands",
+"Lint and edits" and "Briefs and hand-backs".
+A brief names the source-scan Markdown check and not the root task (M300),
+and the lead syncs the tree of an agent that merged main across a change of the toolchain.
+
+Recurrence:
+M116,
+which records that writing a slip down has not stopped it.
