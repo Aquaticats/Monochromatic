@@ -18,5 +18,9 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Reviewer route:
 - Wall-clock cost:
 - Named superlinear cost:
-  yes or no
+  yes,
+  no,
+  or unjudged
+  (the runner writes `unjudged`;
+  a scorer reads the findings and settles it)
 - Findings kept:

@@ -12,15 +12,13 @@ so the gate stays this runbook until it graduates.
 
 ## When it fires
 
-When a candidate diff touches code that consumes unbounded input
-(text,
-rows,
-file trees,
-anything whose length the code itself does not bound).
-In shadow phase the run is governed by the `May run it` entry of `Definitions`:
-permitted,
-required by nothing,
-checked by nothing.
+On every landing whose candidate diff touches code
+(TypeScript,
+JavaScript,
+Rust),
+started by the `Trigger` entry of `Definitions`.
+Commits without code files are skipped with a one-line log entry,
+so coverage stays visible.
 
 ## Definitions
 
@@ -53,14 +51,25 @@ Every term below is operational;
   a fresh session or subagent that is not the author
   (`doc/agent/self-review.md`),
   shown only the candidate diff's code and `AGENTS.md`.
+- Trigger:
+  the local git config hook `hook.standards-review-shadow`
+  (event `post-commit`),
+  whose command starts `mise run shadow-review`
+  in a detached systemd user unit
+  (`--collect`,
+  `MemoryMax`,
+  `CPUQuota`,
+  `WorkingDirectory`,
+  `PATH`,
+  `HOME`),
+  so a landing never waits on the review.
 - May run it:
-  permitted,
-  required by nothing,
-  and checked by nothing.
-  A `cli-git` landing completes unchanged
-  whether a shadow run happens or not,
-  and skipping costs exactly one missing entry
-  in `doc/audit/standards-review-gate-shadow.md`.
+  anyone may invoke `mise run shadow-review` by hand
+  and nobody needs to:
+  the `Trigger` starts it on every landing.
+  Its findings are required by nothing
+  and checked by nothing,
+  so a landing completes unchanged either way.
 
 ## Whose landings it shadows
 
@@ -69,16 +78,21 @@ Claude Code first,
 since its dismissals started this work.
 A shadow run attaches to the candidate diff it sits beside.
 
-In shadow phase the session landing the candidate diff
-starts the run itself.
-Nothing forces it,
-so an empty log means no run happened
-and never means there was nothing to catch.
-A non-blocking landing hook that starts the run
-and only logs is the unvolunteered alternative,
-kept for the graduation discussion.
+The `Trigger` starts the run on each landing,
+independent of the session that landed,
+so coverage depends on nobody remembering.
+An empty log now means the trigger did not run
+(no landings yet,
+or a misconfiguration),
+never that there was nothing to catch.
+Each run appends its entry as an uncommitted change
+that some later commit carries.
 
 ## How to run it
+
+`mise run shadow-review` performs these steps
+(`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
+`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`):
 
 1.
    Isolate the code the reviewer sees:
@@ -120,6 +134,15 @@ whether the review named superlinear cost,
 and the findings it kept.
 Those fields are the graduation evidence:
 per-diff cost and run-to-run determinism on real diffs.
+
+The runner judges nothing,
+so it writes `Named superlinear cost` as `unjudged`
+and a scorer reads the findings to settle `yes` or `no`.
+The reviewer route is pinned to `openai/gpt-6.1-sol` through `pi`
+because `pi`'s default provider answered a `402` `billing_error` on 2026-10-29
+(`doc/troubleshooting/pi-advisor-provider-billing.md`);
+`--no-tools` keeps the reviewer from running `git`,
+which is the recursion guard.
 
 ## Graduation
 

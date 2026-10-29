@@ -420,6 +420,18 @@ and safe to delete:
   (permitted,
   required by nothing,
   checked by nothing).
+- Built 2026-10-29 at the owner's "what are you even doing without a hook":
+  the mechanical trigger,
+  the local git config hook `hook.standards-review-shadow` on `post-commit`
+  starting `mise run shadow-review` in a detached systemd user unit,
+  with the runner living in the `shadow_review` var of `mise.no-env.toml`.
+  Reviewer route pinned to `openai/gpt-6.1-sol` through `pi`
+  after `pi`'s default route answered `402` `billing_error`
+  (`doc/troubleshooting/pi-advisor-provider-billing.md`),
+  and `--no-tools` is the recursion guard.
+  First measured per-diff cost:
+  195.5 s on a 106-line diff replay,
+  and the reviewer demanded linearity proof even on the fix diff.
 
 ## Next action
 
@@ -442,9 +454,10 @@ that everything runs as shadow
 and that no `AGENTS.md` rule backs it in that phase,
 since a mandate would not count as shadow.
 Next:
-run it on real candidate diffs as they appear
-and append each run to the log,
-which measures per-diff cost and determinism.
+the trigger is live,
+so runs accumulate on their own:
+score each `unjudged` entry `yes` or `no` as entries land,
+and watch the wall-clock column for per-diff cost.
 Graduation then goes back to the owner
 (`AGENTS.md` rule versus git-policy landing check).
 Then wire the two miss shapes into the gate:
