@@ -208,7 +208,10 @@ fn a_plain_push_keeps_its_options_and_drops_its_positionals() {
     );
     assert_eq!(stackable(&["--", "origin", "main"]), Some(vec![String::from("--")]));
     assert_eq!(stackable(&["--no-force", "origin", "main"]), Some(vec![String::from("--no-force")]));
-    assert_eq!(stackable(&["--force", "--no-force", "origin", "main"]).map(|tokens| tokens.len()), Some(2));
+    assert_eq!(
+        stackable(&["--force", "--no-force", "origin", "main"]),
+        Some(vec![String::from("--force"), String::from("--no-force")])
+    );
 }
 
 /// Every option that rewrites, removes or widens what is sent, or changes what the caller reads back, is never stacked.

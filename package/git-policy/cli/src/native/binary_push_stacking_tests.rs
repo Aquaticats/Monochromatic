@@ -107,6 +107,23 @@ fn record_lines(race: &Race) -> Vec<String> {
         .collect();
 }
 
+/// How many times the hook ran, one `marker=` line each.
+fn hook_runs(race: &Race) -> usize {
+    return record_lines(race)
+        .iter()
+        .filter(|line| {
+            return line.starts_with("marker=");
+        })
+        .count();
+}
+
+/// Whether a push that carried the stacked-push marker reached the hook.
+fn stacked_push_ran(race: &Race) -> bool {
+    return record_lines(race).iter().any(|line| {
+        return line == "marker=1";
+    });
+}
+
 /// A push that lost a race is published as a merge, and Git's own report of the loss is still on standard error.
 #[test]
 fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
@@ -122,9 +139,9 @@ fn a_push_that_lost_a_race_is_published_as_a_merge_through_the_gates() {
     assert!(reachable(&fixture, &race, &landed, &published));
     assert!(reachable(&fixture, &race, &oid(&fixture, race.rival.as_path(), "HEAD"), &published));
     let lines = record_lines(&race);
-    assert_eq!(lines.iter().filter(|line| line.starts_with("marker=")).count(), 2, "{lines:?}");
+    assert_eq!(hook_runs(&race), 2, "{lines:?}");
     assert_eq!(lines.first().map(String::as_str), Some("marker=unset"), "{lines:?}");
-    assert!(lines.iter().any(|line| line == "marker=1"), "the merge went through a stacked push: {lines:?}");
+    assert!(stacked_push_ran(&race), "the merge went through a stacked push: {lines:?}");
     assert!(lines.contains(&format!("pushed={published}")), "the hook saw the merge: {lines:?}");
     remove(&fixture);
 }
@@ -140,6 +157,11 @@ fn a_gate_that_refuses_the_merge_stops_the_stacking() {
     assert_eq!(observed.code, Some(1), "{stderr}");
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
     assert!(!stderr.contains("had new commits"), "{stderr}");
+    assert!(
+        stacked_push_ran(&race),
+        "the merge was pushed through a stacked push and the hook refused it: {:?}",
+        record_lines(&race)
+    );
     remove(&fixture);
 }
 
@@ -153,7 +175,7 @@ fn a_dry_run_runs_no_stacked_push() {
     assert_eq!(oid(&fixture, race.origin.as_path(), "main"), before);
     assert!(!stderr_of(&observed).contains("had new commits"));
     assert!(
-        !record_lines(&race).iter().any(|line| line == "marker=1"),
+        !stacked_push_ran(&race),
         "a dry run runs no stacked push: {:?}",
         record_lines(&race)
     );
