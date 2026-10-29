@@ -11,9 +11,6 @@ Owner follow-ups the same day:
 
 ## In flight (2026-10-29)
 
-- Subagent in `test-harness/core-matrix`: the CPU-level resolver (`--build-arg CACHYOS_IMAGE=<image>`),
-   plus a check for non-x86-64 container builds and images built in one place and run elsewhere.
-  When it lands, the tool and desktop agents wire it into their image builds.
 - `terminal/app` and `ide/app` are held until the dev/release split lands;
    monochromatic-ec dry-runs the IDE release on that commit before any real release, so send them the hash.
 - monochromatic-71 wants the `search-shadow/cli` `test:container` result line.
@@ -37,7 +34,15 @@ Owner follow-ups the same day:
    `nested-wayland-session/cli` `7c448d8a3e`, `2f68ce13f8`.
 - pacman hooks need `--disable-sandbox` in rootless podman builds:
    `doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md` (`bd06f4c440`).
-- Fedora dropped from the test matrices (owner decision, `8627135ed7`).
+- Fedora dropped from the test matrices (owner decision, `8627135ed7`; code `a055954b40`).
+- `test-harness/core-matrix`: `cachyos` distro (`98c49b0603`), CPU-level resolver and `cachyos-image` bin (`6204200b67`),
+   pacman installs with a full sync and no hook sandbox (`038e3d9077`; lint, types and 19 test suites pass).
+- file-enforcer ensure-package container matrix: CachyOS cells (`15cfc9951d`, `04d9489934`, `241bc0c9b0`, `8c4ad0e59d`);
+   final run `4 cells passed` (ubuntu and cachyos, root and user).
+- Survey: `ide-release.yml:193` builds the IDE image natively on `ubuntu-24.04-arm`,
+   so the IDE release path must use the multi-arch Ubuntu 24.04 release image;
+   no workflow moves images between machines.
+- Known gap left alone: `container:arch` resolves to `arch:latest`, which does not exist (the image is `archlinux`).
 
 ## Found during verification, not caused by the base change
 
