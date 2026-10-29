@@ -238,6 +238,8 @@ fn known_merge(work: &Path) {
     )
     .expect("a");
     commit_all(repo.as_path(), "left");
+    // The branch moves when the merge lands on it, so the commit that introduced the file is kept by name.
+    let introducing: ObjectId = oid(repo.as_path(), "HEAD");
     git(repo.as_path(), &["switch", "--quiet", "--create", "right", "main"]);
     std::fs::write(repo.join("other.txt"), b"clean\n").expect("other");
     commit_all(repo.as_path(), "right");
@@ -250,7 +252,11 @@ fn known_merge(work: &Path) {
     );
     // The commit that introduced the file is scanned on its own.
     assert_eq!(
-        check(repo.as_path(), &landed(repo.as_path(), "left"), &chosen),
+        check(
+            repo.as_path(),
+            &LifecycleContent::Requested(CandidateRequest::Landed(introducing.clone())),
+            &chosen
+        ),
         a_match
     );
     // A push of the merge alone has both parents already published.
@@ -267,7 +273,7 @@ fn known_merge(work: &Path) {
         check(
             repo.as_path(),
             &pushed(
-                vec![oid(repo.as_path(), "left"), oid(repo.as_path(), "HEAD")],
+                vec![introducing.clone(), oid(repo.as_path(), "HEAD")],
                 Vec::new()
             ),
             &chosen
@@ -287,7 +293,7 @@ fn known_merge(work: &Path) {
         a_match
     );
     // A merge commit that brings new content of its own: only that content is reported.
-    git(repo.as_path(), &["switch", "--quiet", "--create", "evil", "left"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "evil", introducing.as_str()]);
     git(
         repo.as_path(),
         &["merge", "--quiet", "--no-ff", "--no-commit", "right"],
