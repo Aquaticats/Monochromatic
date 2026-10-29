@@ -1,3 +1,5 @@
-FROM registry.fedoraproject.org/fedora:43
-RUN dnf install -y unzip sysbench nodejs
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
+RUN pacman --sync --refresh --sysupgrade --noconfirm --needed unzip sysbench nodejs \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 WORKDIR /app
