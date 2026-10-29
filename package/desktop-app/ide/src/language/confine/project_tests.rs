@@ -7,7 +7,7 @@
 
 use super::{PROJECT_MOUNT, project_binds, read_only_binds, replaced_location};
 use crate::language::confine::recipe::recipe;
-use crate::language::launch::LaunchRequest;
+use crate::language::launch::{LaunchRequest, scratch_name};
 use std::{collections::HashMap, path::Path, path::PathBuf};
 
 fn request(project: &str, spellings: &[&str]) -> LaunchRequest {
@@ -65,7 +65,12 @@ fn project_below_tmp_and_run_is_bound_back_after_the_replacements() {
             break;
         }
     }
-    let tmp = triple(args, "--bind", "/state/p/rust-analyzer/tmp", "/tmp");
+    let tmp = triple(
+        args,
+        "--bind",
+        &format!("/state/p/rust-analyzer/{}", scratch_name()),
+        "/tmp",
+    );
     assert!(
         run.is_some() && tmp.is_some(),
         "the replacements are missing: {args:?}"
@@ -179,7 +184,12 @@ fn read_only_directories_below_replaced_locations_are_bound_back_read_only() {
     let state = "/state/p/rust-analyzer";
     let launch = recipe(&wanted, Path::new(state), "/usr/bin/bwrap", &[]).expect("recipe");
     let args = &launch.args;
-    let tmp = triple(args, "--bind", "/state/p/rust-analyzer/tmp", "/tmp");
+    let tmp = triple(
+        args,
+        "--bind",
+        &format!("/state/p/rust-analyzer/{}", scratch_name()),
+        "/tmp",
+    );
     let project = triple(args, "--ro-bind", "/work/project", "/work/project");
     let node = triple(
         args,
