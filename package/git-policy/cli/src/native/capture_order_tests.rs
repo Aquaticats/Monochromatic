@@ -4,6 +4,7 @@
 use super::*;
 use crate::capture_records::read_captured_record;
 use crate::capture_store::CAPTURE_STORE_NAME;
+use crate::private_storage::take_directory_syncs;
 use crate::test_support::{fixture, git, git_context, remove, repository};
 use crate::transaction_git::run_git_checked;
 
@@ -46,6 +47,36 @@ fn captures_take_increasing_sequences_under_one_identity() {
         0,
         "no temporary sequence file is left behind"
     );
+    remove(root.as_path());
+}
+
+/// The worktree identity syncs the store when it writes the identity and never when it only reads it.
+#[test]
+fn the_identity_syncs_the_store_only_when_it_writes() {
+    let root: PathBuf = fixture("capture-order-identity-sync");
+    let store: PathBuf = root.join("store");
+    std::fs::create_dir(&store).expect("store");
+    take_directory_syncs();
+    let written: String = ensure_worktree_id(store.as_path()).expect("written");
+    assert_eq!(take_directory_syncs(), vec![store.clone()]);
+    assert_eq!(ensure_worktree_id(store.as_path()).expect("read"), written);
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
+    remove(root.as_path());
+}
+
+/// A first capture syncs what it created (the Git directory for the store, the store for the identity and for the
+///  sequence); a later capture syncs only the store, for its sequence rename.
+#[test]
+fn only_the_first_capture_syncs_the_creations() {
+    let root: PathBuf = fixture("capture-order-creation-sync");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let store: PathBuf = git_dir.join(CAPTURE_STORE_NAME);
+    take_directory_syncs();
+    capture_in_order(git_dir.as_path(), nothing).expect("first");
+    assert_eq!(take_directory_syncs(), vec![git_dir.clone(), store.clone(), store.clone()]);
+    capture_in_order(git_dir.as_path(), nothing).expect("second");
+    assert_eq!(take_directory_syncs(), vec![store]);
     remove(root.as_path());
 }
 

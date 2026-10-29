@@ -31,16 +31,16 @@ fn hooks_with_plan(root: &Path, plan: &HookDispatchPlan) -> PathBuf {
 }
 
 /// A plan whose real Git is the given executable and whose lock is at the given directory.
-fn plan_for(git_path: &Path, hooks_path: &Path, lock: &Path, skip_hook_lock: bool) -> HookDispatchPlan {
+fn plan_for(git_path: &Path, lock: &Path, skip_hook_lock: bool) -> HookDispatchPlan {
     return HookDispatchPlan {
         git_path: String::from(git_path.to_str().expect("UTF-8")),
-        hooks_path: String::from(hooks_path.to_str().expect("UTF-8")),
         disabled_events: Vec::new(),
         config_parameters: ConfigParameters::Absent,
         worktree_root: String::from("/repo"),
         lease: String::from("lease"),
         hook_lock_path: String::from(lock.to_str().expect("UTF-8")),
         skip_hook_lock,
+        named_hooks_possible: true,
     };
 }
 
@@ -49,7 +49,7 @@ fn plan_for(git_path: &Path, hooks_path: &Path, lock: &Path, skip_hook_lock: boo
 #[test]
 fn preparation_entries_in_a_transaction_are_recognized() {
     let root: PathBuf = fixture("dispatch-recognized");
-    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/h"), Path::new("/l"), true);
+    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/l"), true);
     let hooks: PathBuf = hooks_with_plan(root.as_path(), &plan);
     for event in PREPARATION_HOOK_EVENTS {
         let target: Option<DispatchTarget> = dispatch_target_for_start_name(hooks.join(event).as_path());
@@ -71,7 +71,7 @@ fn preparation_entries_in_a_transaction_are_recognized() {
 #[test]
 fn every_other_start_name_is_not_a_dispatch() {
     let root: PathBuf = fixture("dispatch-refused");
-    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/h"), Path::new("/l"), true);
+    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/l"), true);
     let hooks: PathBuf = hooks_with_plan(root.as_path(), &plan);
     assert_eq!(dispatch_target_for_start_name(hooks.join("post-commit").as_path()), None);
     assert_eq!(dispatch_target_for_start_name(hooks.join("pre-push").as_path()), None);
@@ -122,7 +122,7 @@ fn relative_start_names_are_not_recognized_without_their_directories() {
 /// The dispatched environment restores or removes the config parameters and sets the worktree and lease.
 #[test]
 fn the_dispatched_environment_carries_the_plan() {
-    let mut plan: HookDispatchPlan = plan_for(Path::new("/g"), Path::new("/h"), Path::new("/l"), false);
+    let mut plan: HookDispatchPlan = plan_for(Path::new("/g"), Path::new("/l"), false);
     let inherited: Vec<(OsString, OsString)> = vec![
         pair("PATH", "/bin"),
         pair("GIT_CONFIG_PARAMETERS", "'stale=1'"),
@@ -145,7 +145,6 @@ fn a_disabled_event_succeeds_without_starting_git() {
     let root: PathBuf = fixture("dispatch-disabled");
     let mut plan: HookDispatchPlan = plan_for(
         root.join("no-such-git").as_path(),
-        root.as_path(),
         root.join("no-such-dir").join("hook.lock").as_path(),
         false,
     );
@@ -167,7 +166,6 @@ fn a_missing_git_exits_one_and_releases_the_lock() {
     std::fs::create_dir_all(root.join("cli-git")).expect("cli-git directory");
     let plan: HookDispatchPlan = plan_for(
         root.join("no-such-git").as_path(),
-        root.as_path(),
         lock.as_path(),
         false,
     );
@@ -204,7 +202,7 @@ fn a_malformed_plan_exits_one() {
 #[test]
 fn written_entries_are_recognized_by_the_dispatcher() {
     let root: PathBuf = fixture("dispatch-round-trip");
-    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/h"), Path::new("/l"), true);
+    let plan: HookDispatchPlan = plan_for(Path::new("/usr/bin/git"), Path::new("/l"), true);
     let hooks: PathBuf = root
         .join(TRANSACTION_ROOT_NAME)
         .join(TRANSACTION)
@@ -214,5 +212,44 @@ fn written_entries_are_recognized_by_the_dispatcher() {
     let target: Option<DispatchTarget> =
         dispatch_target_for_start_name(hooks.join("commit-msg").as_path());
     assert_eq!(target.map(|found| { return found.event; }), Some("commit-msg"));
+    remove(root.as_path());
+}
+
+/// The inner hook run looks for traditional hooks in the transaction's absent directory, never in the dispatcher
+/// directory (which would start the entry again) and never in the repository's own directories.
+#[cfg(unix)]
+#[test]
+fn the_inner_run_points_core_hooks_path_at_the_absent_directory() {
+    let root: PathBuf = fixture("dispatch-inner-run");
+    let log: PathBuf = root.join("arguments.log");
+    let stand_in: PathBuf = root.join("git");
+    crate::test_support::executable(
+        stand_in.as_path(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n", log.display()).as_bytes(),
+    );
+    let plan: HookDispatchPlan = plan_for(stand_in.as_path(), Path::new("/l"), true);
+    let hooks: PathBuf = hooks_with_plan(root.as_path(), &plan);
+    let target: DispatchTarget = DispatchTarget {
+        event: "pre-commit",
+        hooks_directory: hooks.clone(),
+    };
+    let arguments: Vec<OsString> = vec![OsString::from("first")];
+    assert_eq!(run_hook_dispatch(&target, arguments.as_slice(), &[]), 0);
+    let no_hooks: PathBuf = hooks.parent().expect("transaction").join("no-hooks");
+    let expected: Vec<String> = vec![
+        String::from("-c"),
+        String::from("hook.pre-commit.enabled=true"),
+        String::from("-c"),
+        format!("core.hooksPath={}", no_hooks.display()),
+        String::from("hook"),
+        String::from("run"),
+        String::from("--ignore-missing"),
+        String::from("pre-commit"),
+        String::from("--"),
+        String::from("first"),
+    ];
+    let seen: String = std::fs::read_to_string(log.as_path()).expect("the stand-in ran");
+    assert_eq!(seen.lines().map(String::from).collect::<Vec<String>>(), expected);
+    assert!(!no_hooks.exists(), "the absent directory stays absent");
     remove(root.as_path());
 }

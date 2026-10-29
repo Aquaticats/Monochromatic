@@ -1,6 +1,7 @@
 //! Controls for the landed-or-not decision and index completion against real repositories.
 
 use super::*;
+use crate::content_digest::digest_file;
 use crate::recovery_files::file_identity_of;
 use crate::recovery_files::tests::lock_identity_of;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
@@ -45,6 +46,8 @@ fn landing_for(directory: &Path, new_oid: &str, lock: LockIdentity) -> LandingRe
         pack_name: None,
         added_paths: Vec::new(),
         selected_worktree_paths: Vec::new(),
+        pre_landing_digest: None,
+        post_digest: None,
     };
 }
 
@@ -330,6 +333,52 @@ fn indexes_install_from_the_pre_landing_state() {
             .exists()
     );
     assert!(scene.directory.join("post-1.index.recovery").exists());
+    remove(scene.root.as_path());
+}
+
+/// A snapshot that differs from the digest its landing record holds is never installed as the real index,
+///  whichever way it differs, and the real index, the owned lock and the snapshots stay as they were.
+///  A record without digests installs as before, and a landing whose install already happened needs neither snapshot.
+#[test]
+fn a_torn_snapshot_is_never_installed() {
+    let scene: Scene = scene("completion-torn");
+    let preparing: PreparingRecord = preparing_for(scene.repo.as_path());
+    let real_index: PathBuf = PathBuf::from(preparing.real_index_path.clone());
+    std::fs::write(&real_index, b"pre").expect("pre-landing real index");
+    let lock: PathBuf = PathBuf::from(format!("{}.lock", preparing.real_index_path));
+    std::fs::write(&lock, b"").expect("owned lock");
+    let mut landing: LandingRecord = landing_for(
+        scene.directory.as_path(),
+        scene.second.as_str(),
+        lock_identity_of(lock.as_path()),
+    );
+    landing.pre_landing_digest = Some(digest_file(scene.directory.join("pre-landing-1.index").as_path()).expect("pre digest"));
+    landing.post_digest = Some(digest_file(scene.directory.join("post-1.index").as_path()).expect("post digest"));
+    let damages: [(&str, &[u8]); 3] = [("emptied", b""), ("halved", b"po"), ("zero-filled", &[0; 4])];
+    for file in ["post-1.index", "pre-landing-1.index"] {
+        let intact: Vec<u8> = std::fs::read(scene.directory.join(file)).expect("intact snapshot");
+        for (name, bytes) in damages {
+            // A damaged copy is a new file under the recorded name, as a torn write leaves it.
+            std::fs::write(scene.directory.join(file), bytes).expect("damage");
+            let error: String = complete_index(scene.directory.as_path(), &preparing, &landing)
+                .expect_err(format!("{file} {name}").as_str())
+                .0;
+            assert!(
+                error.contains(&scene.directory.join(file).display().to_string()) && error.contains("landing-1.json"),
+                "{file} {name}: {error}"
+            );
+            assert_eq!(std::fs::read(&real_index).expect("real index"), b"pre", "{file} {name}");
+            assert!(lock.exists(), "{file} {name}: the owned lock is kept");
+        }
+        std::fs::write(scene.directory.join(file), &intact).expect("restore");
+    }
+    // The install marker means the install happened: a torn snapshot no longer matters.
+    std::fs::write(scene.directory.join("post-1.index"), b"").expect("torn after install");
+    std::fs::write(scene.directory.join(INDEX_INSTALLED_FILENAME), b"").expect("marker");
+    assert_eq!(
+        complete_index(scene.directory.as_path(), &preparing, &landing).expect("marker"),
+        IndexCompletion::AlreadyInstalled
+    );
     remove(scene.root.as_path());
 }
 

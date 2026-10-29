@@ -1,6 +1,6 @@
 //! What:
 //!  Running automatic maintenance after a landing:
-//!  one `git config` read for the maintenance keys,
+//!  one `git config` read for the maintenance keys (or the commit's configuration snapshot),
 //!  then `git maintenance run --auto --quiet`, detached or not, in the real worktree.
 //!  Its exit status is returned for the caller to ignore, as native Git does.
 //! Why:
@@ -14,6 +14,7 @@
 //! ```
 
 /// The decision and its error type.
+use super::config_snapshot::ConfigSnapshot;
 use super::maintenance_decision::{
     MAINTENANCE_CONFIG_PATTERN, MaintenanceDecision, MaintenanceError, auto_maintenance_arguments,
     parse_config_records,
@@ -22,6 +23,8 @@ use super::maintenance_decision::{
 use super::diagnostic_log;
 /// The real-Git context and the captured output of one start.
 use super::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+/// Ordered map of the maintenance keys to their canonical text.
+use std::collections::BTreeMap;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -80,19 +83,31 @@ fn start_failure(command: &str, error: std::io::Error) -> MaintenanceError {
 }
 
 /// What:
-///  Run automatic maintenance in the real worktree with the caller's global options.
+///  The maintenance keys as the decision reads them, or the status of a config read that failed.
 /// Why:
-///   The read and the run happen in the same order the incumbent uses,
-///  so the decision and its effect agree on one configuration snapshot per read.
+///   A failed read ends maintenance with Git's status, which is not an error and not a decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // config read, then `git maintenance run --auto --quiet --detach|--no-detach`; retry without the flag on 129
+/// type MaintenanceConfig = { records: Map<string, string> } | { exited: number };
 /// ```
-pub fn run_auto_maintenance(
-    context: &GitContext,
-    cwd: &Path,
-) -> Result<AutoMaintenanceOutcome, MaintenanceError> {
+enum MaintenanceConfig {
+    /// Each set key with the text Git prints for its last value.
+    Records(BTreeMap<String, String>),
+    /// The read failed with this status.
+    Exited(i32),
+}
+
+/// What:
+///  Read the maintenance keys by starting `git config`.
+/// Why:
+///   The incumbent's read, kept for a repository whose snapshot is missing or holds a value it does not model.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['config', '--type=bool-or-int', '--null', '--get-regexp', PATTERN]);
+/// ```
+fn read_maintenance_config(context: &GitContext, cwd: &Path) -> Result<MaintenanceConfig, MaintenanceError> {
     // Config lookup; exit 1 means no key is set.
     let lookup: GitOutput = run_git(
         context,
@@ -118,7 +133,7 @@ pub fn run_auto_maintenance(
             )
             .as_str(),
         );
-        return Ok(AutoMaintenanceOutcome::Exited(lookup_code));
+        return Ok(MaintenanceConfig::Exited(lookup_code));
     }
     // An unset key prints nothing, so an exit of 1 parses as an empty configuration.
     let config_bytes: &[u8] = if lookup_code == 0 {
@@ -126,7 +141,54 @@ pub fn run_auto_maintenance(
     } else {
         &[]
     };
-    let config = parse_config_records(config_bytes)?;
+    return Ok(MaintenanceConfig::Records(parse_config_records(config_bytes)?));
+}
+
+/// What:
+///  Run automatic maintenance in the real worktree with the caller's global options,
+///  reading the maintenance keys by starting `git config`.
+/// Why:
+///   The read and the run happen in the same order the incumbent uses,
+///  so the decision and its effect agree on one configuration snapshot per read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runAutoMaintenance({ gitPath, cwd, globalArgs });
+/// ```
+pub fn run_auto_maintenance(
+    context: &GitContext,
+    cwd: &Path,
+) -> Result<AutoMaintenanceOutcome, MaintenanceError> {
+    return run_auto_maintenance_with(context, cwd, None);
+}
+
+/// What:
+///  Run automatic maintenance, taking the maintenance keys from the commit's configuration snapshot when it
+///  models them.
+/// Why:
+///   The snapshot was read when the commit began, so a configuration that changed during the commit is not seen
+///  (a hook that sets `maintenance.auto` is the example);
+///  a snapshot read with global options, or one holding a value it does not model, starts `git config` as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // config from the snapshot, else a read; then `git maintenance run --auto --quiet --detach|--no-detach`
+/// ```
+pub fn run_auto_maintenance_with(
+    context: &GitContext,
+    cwd: &Path,
+    snapshot: Option<&ConfigSnapshot>,
+) -> Result<AutoMaintenanceOutcome, MaintenanceError> {
+    let from_snapshot: Option<BTreeMap<String, String>> = snapshot
+        .filter(|candidate| { return candidate.without_global_options(); })
+                .and_then(ConfigSnapshot::maintenance_records);
+    let config: BTreeMap<String, String> = match from_snapshot {
+        Some(records) => records,
+        None => match read_maintenance_config(context, cwd)? {
+            MaintenanceConfig::Records(records) => records,
+            MaintenanceConfig::Exited(code) => return Ok(AutoMaintenanceOutcome::Exited(code)),
+        },
+    };
     // Native maintenance arguments, or the disabled outcome.
     let arguments: Vec<&'static str> = match auto_maintenance_arguments(&config) {
         MaintenanceDecision::Disabled => {

@@ -25,10 +25,18 @@
 use super::transaction_journal::{Base, Conclusion, RefFormat, SymbolicHead};
 /// Failure text of one Git start that the layout reports as unusable.
 use super::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git, run_git_checked};
+/// The files-backend `HEAD` reader and where one worktree's ref files live.
+use super::ref_files::{RefFilesLayout, read_symbolic_head};
+/// Proof that a sequencer marker names nothing, without a Git process.
+use super::sequencer_marker::markers_maybe_present;
+/// The empty tree's name per object format, known without a Git process.
+use super::empty_tree::empty_tree_name;
 /// Trim with JavaScript's whitespace rules, as `String.prototype.trim` does.
 use super::js_text::trim_javascript;
 /// Invocation start time, ISO-8601 with milliseconds.
 use super::iso_time::now_iso;
+/// The one configuration read the invocation's consumers share.
+use super::config_snapshot::{ConfigSnapshot, read_config_snapshot};
 /// `PathBuf` is an owned filesystem path.
 use std::path::{Path, PathBuf};
 
@@ -75,6 +83,8 @@ pub struct InvocationLayout {
     pub empty_tree_oid: String,
     /// ISO-8601 invocation start time.
     pub invoked_at: String,
+    /// The Git configuration read once with the caller's global options, or `None` when Git must answer per key.
+    pub config_snapshot: Option<ConfigSnapshot>,
 }
 
 /// What:
@@ -217,6 +227,9 @@ fn pseudoref_exists(context: &GitContext, cwd: &Path, name: &str) -> Result<bool
 /// Why:
 ///   An amend always wins;
 ///  otherwise the first present marker in the incumbent's order decides.
+///  A marker whose every lookup place is empty on the files backend is absent without asking Git;
+///  any entry in any place, of any content, is resolved by `rev-parse --verify`,
+///  so a marker naming a missing object stays a conclusion.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -226,18 +239,18 @@ pub fn resolve_conclusion_kind(
     context: &GitContext,
     cwd: &Path,
     amend: bool,
+    ref_files: &RefFilesLayout<'_>,
 ) -> Result<Conclusion, GitFailure> {
     if amend {
         return Ok(Conclusion::Amend);
     }
-    if pseudoref_exists(context, cwd, "MERGE_HEAD")? {
-        return Ok(Conclusion::Merge);
-    }
-    if pseudoref_exists(context, cwd, "CHERRY_PICK_HEAD")? {
-        return Ok(Conclusion::CherryPick);
-    }
-    if pseudoref_exists(context, cwd, "REVERT_HEAD")? {
-        return Ok(Conclusion::Revert);
+    let names: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+    let kinds: [Conclusion; 3] = [Conclusion::Merge, Conclusion::CherryPick, Conclusion::Revert];
+    let maybe_present: Vec<bool> = markers_maybe_present(ref_files, &names);
+    for ((name, kind), maybe) in names.into_iter().zip(kinds).zip(maybe_present) {
+        if maybe && pseudoref_exists(context, cwd, name)? {
+            return Ok(kind);
+        }
     }
     return Ok(Conclusion::None);
 }
@@ -245,14 +258,23 @@ pub fn resolve_conclusion_kind(
 /// What:
 ///  Resolves the symbolic `HEAD` target in the owning worktree.
 /// Why:
-///   Exit 1 from `symbolic-ref --quiet` means detached;
-///  any other failure is an error.
+///   The `HEAD` file answers when it is one of the two plain spellings on the files backend,
+///  read afresh on every call so the landing's re-read stays a read at landing time;
+///  anything else asks Git,
+///  where exit 1 from `symbolic-ref --quiet` means detached and any other failure is an error.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await resolveSymbolicHead({ gitPath, cwd });
+/// readHeadFile(refFiles) ?? (await resolveSymbolicHeadWithGit({ gitPath, cwd }));
 /// ```
-pub fn resolve_symbolic_head(context: &GitContext, cwd: &Path) -> Result<SymbolicHead, GitFailure> {
+pub fn resolve_symbolic_head(
+    context: &GitContext,
+    cwd: &Path,
+    ref_files: &RefFilesLayout<'_>,
+) -> Result<SymbolicHead, GitFailure> {
+    if let Some(read) = read_symbolic_head(ref_files) {
+        return Ok(read);
+    }
     let output: GitOutput = probe(context, cwd, &["symbolic-ref", "--quiet", "HEAD"])?;
     if output.code == Some(1) {
         return Ok(SymbolicHead::Detached);
@@ -296,9 +318,49 @@ pub fn resolve_ref_commit(context: &GitContext, cwd: &Path, reference: &str) -> 
 /// await resolveRefFormat({ gitPath, cwd });
 /// ```
 pub fn resolve_ref_format(context: &GitContext, cwd: &Path) -> Result<RefFormat, GitFailure> {
+    return resolve_ref_format_with(context, cwd, None);
+}
+
+/// What:
+///  Reads the ref storage backend, from the configuration snapshot when it proves `files`.
+/// Why:
+///   `rev-parse --show-ref-format` prints `reftable` only for a repository whose configuration names
+///  `extensions.refStorage`, so a snapshot read without global options that has no such key proves `files`
+///  without starting Git; any other snapshot, and a missing one, asks Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// snapshot?.provesFilesRefStorage() ? 'files' : await resolveRefFormat({ gitPath, cwd });
+/// ```
+pub fn resolve_ref_format_with(
+    context: &GitContext,
+    cwd: &Path,
+    snapshot: Option<&ConfigSnapshot>,
+) -> Result<RefFormat, GitFailure> {
+    if snapshot.is_some_and(ConfigSnapshot::proves_files_ref_storage) {
+        return Ok(RefFormat::Files);
+    }
     let output: GitOutput = probe(context, cwd, &["rev-parse", "--show-ref-format"])?;
     let reftable: bool = output.code == Some(0) && decoded_trimmed(&output)? == "reftable";
     return Ok(if reftable { RefFormat::Reftable } else { RefFormat::Files });
+}
+
+/// What:
+///  The empty tree's object name under the repository's object format.
+/// Why:
+///   The name is a constant per object format, so a known format needs no Git process;
+///  a format the table does not know is hashed by Git, which stays the authority.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// emptyTreeName(objectFormat) ?? (await runTransactionGit({ args: ['hash-object', '-t', 'tree', '--stdin'] })).trim()
+/// ```
+fn resolve_empty_tree(context: &GitContext, cwd: &Path, object_format: &str) -> Result<String, GitFailure> {
+    if let Some(known) = empty_tree_name(object_format) {
+        return Ok(String::from(known));
+    }
+    let hashed: GitOutput = required(context, cwd, &["hash-object", "-t", "tree", "--stdin"])?;
+    return decoded_trimmed(&hashed);
 }
 
 /// What:
@@ -319,6 +381,7 @@ pub fn capture_invocation_layout(
 ) -> Result<InvocationLayout, GitFailure> {
     // Taken before any Git runs, as the incumbent does.
     let invoked_at: String = now_iso();
+    let config_snapshot: Option<ConfigSnapshot> = read_config_snapshot(context, cwd);
     let report: GitOutput = required(
         context,
         cwd,
@@ -339,28 +402,40 @@ pub fn capture_invocation_layout(
     )?;
     let text: String = decoded_trimmed(&report)?;
     let lines: Vec<&str> = text.split('\n').collect();
-    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd)?;
+    let git_dir: PathBuf = absolute_reported(cwd, &lines, 1)?;
+    let common_dir: PathBuf = absolute_reported(cwd, &lines, 2)?;
+    let object_format: String = required_line(&lines, 6)?;
+    // The ref storage backend is read first: the `HEAD` file only answers for the files backend.
+    let ref_format: RefFormat = resolve_ref_format_with(context, cwd, config_snapshot.as_ref())?;
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: git_dir.as_path(),
+        common_dir: common_dir.as_path(),
+        ref_format,
+        object_format: object_format.as_str(),
+    };
+    let symbolic_head: SymbolicHead = resolve_symbolic_head(context, cwd, &ref_files)?;
     let target_ref: String = match &symbolic_head {
         SymbolicHead::Branch(reference) => reference.clone(),
         SymbolicHead::Detached => String::from("HEAD"),
     };
-    let empty_tree: GitOutput = required(context, cwd, &["hash-object", "-t", "tree", "--stdin"])?;
+    let empty_tree_oid: String = resolve_empty_tree(context, cwd, object_format.as_str())?;
     let repository_root: PathBuf = std::fs::canonicalize(absolute_reported(cwd, &lines, 0)?)
         .map_err(|error| { return GitFailure(format!("repository root is unreadable: {error}")); })?;
     return Ok(InvocationLayout {
         symbolic_head,
         target_ref,
-        conclusion: resolve_conclusion_kind(context, cwd, amend)?,
+        conclusion: resolve_conclusion_kind(context, cwd, amend, &ref_files)?,
         repository_root,
-        git_dir: absolute_reported(cwd, &lines, 1)?,
-        common_dir: absolute_reported(cwd, &lines, 2)?,
+        git_dir,
+        common_dir,
         real_index_path: absolute_reported(cwd, &lines, 3)?,
         object_directory: absolute_reported(cwd, &lines, 4)?,
         registry_root: absolute_reported(cwd, &lines, 5)?,
-        ref_format: resolve_ref_format(context, cwd)?,
-        object_format: required_line(&lines, 6)?,
-        empty_tree_oid: decoded_trimmed(&empty_tree)?,
+        ref_format,
+        object_format,
+        empty_tree_oid,
         invoked_at,
+        config_snapshot,
     });
 }
 
