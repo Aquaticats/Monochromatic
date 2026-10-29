@@ -237,7 +237,7 @@ function rankedByPreference<ValueT,>(
 
  @param perCandidate - what each position drew
 
- @returns The preferred of the tied finalists two or more judges named, or
+ @returns Preferred of the tied finalists two or more judges named, or
  `unbroken` where fewer than two drew weight, some candidate drew less than the
  leaders, or no tied finalist drew two ballots
 
@@ -319,21 +319,21 @@ export function breakRunoffTie<ValueT,>(
  decline: the wording the archive has stays, with
  {@link DECLINE_KEEPS_ARCHIVE_FINDING}.
 
- @param outcome - the declined challenge round
+ @param outcome - declined challenge round
 
  @param rotated - candidates in the order the judges saw them
 
- @param keepIncumbent - the stage's record shape, whose slate and counts the
+ @param keepIncumbent - stage's record shape, whose slate and counts the
  shipped candidate keeps, and whose text stays where none ships
 
  @param declineFindings - findings the decline reports
 
- @param declined - the decline in the stage's vocabulary, the decision of a
+ @param declined - decline in the stage's vocabulary, decision of a
  round that keeps the archive wording
 
  @param l - logger of the judging stage
 
- @returns The shipped candidate's record, or the record of the archive
+ @returns Shipped candidate's record, or the record of the archive
  wording staying
 
  @example
@@ -488,16 +488,16 @@ function shipPreferredPastDecline(
 
  @param challenged - whether this round challenges an earlier decline
 
- @param outcome - the declined round
+ @param outcome - declined round
 
  @param rotated - candidates in the order the judges saw them
 
- @param keepIncumbent - the stage's record shape, whose slate and counts the
+ @param keepIncumbent - stage's record shape, whose slate and counts the
  shipped finalist keeps
 
  @param declineFindings - findings the decline reports
 
- @param declined - the decline in the stage's vocabulary
+ @param declined - decline in the stage's vocabulary
 
  @param finalists - candidates a partial tie backed, for the next run-off
 
@@ -511,7 +511,7 @@ function shipPreferredPastDecline(
 
  @param l - logger of the judging stage
 
- @returns The shipped finalist's record
+ @returns Shipped finalist's record
 
  @throws {@link TranslateAbsenceError} when no tie across every candidate
  was broken and nothing ships past the decline

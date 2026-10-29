@@ -478,14 +478,14 @@ export async function judgeSlateWithRetry(
  @param judging - everything {@link judgeTranslateSlate} needs, forwarded
  unchanged except for the slate it is asked over
 
- @param first - the single round's decline, which kept the incumbent
+ @param first - single round's decline, which kept the incumbent
 
  @param finalists - candidates the round backed, fewer than the whole slate
 
  @param basis - why they are the finalists: tied at the top, or the leader and its runner-up where one candidate led and
  one judge alone named it, which the line announcing the run-off says (ledger B806)
 
- @returns The run-off's decision, or the first round's decline, with the
+ @returns Run-off's decision, or the first round's decline, with the
  findings of both rounds
 
  @example

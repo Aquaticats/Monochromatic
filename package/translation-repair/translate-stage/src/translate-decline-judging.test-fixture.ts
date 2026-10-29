@@ -122,7 +122,7 @@ const YAWNING ='The cat yawns on the sill, tail resting against the pipe.';
 /**
  A fresh rendering written by a model.
 
- @param rendering - the rendering
+ @param rendering - rendering
 
  @param writer - model that wrote it
 
@@ -163,7 +163,7 @@ function freshBy(
  @param secondIsJudgesOwn - whether the second candidate was written by the second judge, whose vote for it then carries
  half weight, so that a plurality can stand over a vote the second judge cast for its own work
 
- @returns The slate's candidates in the order the producers gave them
+ @returns Slate's candidates in the order the producers gave them
 
  @example
  ```ts
@@ -214,9 +214,9 @@ export function slateOf(
 
  A block reads its number, the opening fence, the text, and the closing fence, which equals the opening one.
 
- @param block - the sheet from the number after the opening of a candidate block to the opening of the next
+ @param block - sheet from the number after the opening of a candidate block to the opening of the next
 
- @returns The text between the fences
+ @returns Text between the fences
 
  @example
  ```ts
@@ -251,7 +251,7 @@ function candidateTextOf({ block, }: { readonly block: string; },): string {
 
  @param sheet - rendered selection sheet
 
- @returns The text of each fenced candidate block
+ @returns Text of each fenced candidate block
 
  @example
  ```ts
@@ -292,7 +292,7 @@ function unexpectedQuotas(): never {
 
  @param sheets - where each sheet is recorded, in the order asked
 
- @param plan - the text each judge votes for, a judge it leaves out declining
+ @param plan - text each judge votes for, judge it leaves out declining
 
  @returns Client over the candidate ballots only
 
@@ -357,9 +357,9 @@ function votingClient(
 
  @param sheets - where each sheet is recorded
 
- @param candidates - the slate
+ @param candidates - slate
 
- @param plan - the text each judge votes for; the default has every judge decline
+ @param plan - text each judge votes for; the default has every judge decline
 
  @param shipPastDecline - whether the caller ships past a decline, left to the judging's default when absent
 
@@ -421,7 +421,7 @@ export async function judgedOver(
 
  @param sheet - rendered selection sheet
 
- @returns The text between the line that calls declining a real answer and the line that asks for the reply
+ @returns Text between the line that calls declining a real answer and the line that asks for the reply
 
  @throws {@link Error} when the sheet carries neither line, or the reply line stands before the sentence
 
@@ -454,7 +454,7 @@ function sentenceOf({ sheet, }: { readonly sheet: string; },): string {
 
  @param round - zero for the first ask, one for the challenge
 
- @returns The round's sheet
+ @returns Round's sheet
 
  @example
  ```ts
@@ -478,13 +478,13 @@ export function sheetOfRound(
 
  @param sheets - every sheet the judging sent, one per judge in each round
 
- @param mode - the round the sentence is told in
+ @param mode - round the sentence is told in
 
  @param round - zero for the first ask, one for the challenge
 
  @param shape - what the declined round came to, when the case names it
 
- @returns The failures of the clause reader for that round
+ @returns Failures of the clause reader for that round
 
  @example
  ```ts

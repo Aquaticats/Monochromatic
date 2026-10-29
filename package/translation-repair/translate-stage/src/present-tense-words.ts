@@ -100,7 +100,7 @@ export function isWhitespace({ character, }: { readonly character: string; },): 
 
  @param word - word as written
 
- @returns The folded word
+ @returns Folded word
 
  @example
  ```ts
@@ -125,7 +125,7 @@ function foldWord({ word, }: { readonly word: string; },): string {
 
  @param end - exclusive end offset
 
- @returns The word with its text, folded form and offsets
+ @returns Word with its text, folded form and offsets
 
  @example
  ```ts
@@ -267,7 +267,7 @@ export function isBlankSpan(
 
  @param start - offset where the run begins
 
- @returns The offset of the first character after the run, equal to start when no whitespace begins there
+ @returns Offset of the first character after the run, equal to start when no whitespace begins there
 
  @example
  ```ts
@@ -305,7 +305,7 @@ function skipWhitespace(
 
  @param end - offset just past the word before the run of whitespace
 
- @returns The following word in a one-element array, or an empty array when no whitespace or no word follows
+ @returns Following word in a one-element array, or an empty array when no whitespace or no word follows
 
  @example
  ```ts

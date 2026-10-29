@@ -290,7 +290,7 @@ async function judgeSheetFor(
 
  @param candidateText - text one candidate holds, written on its own line
 
- @returns The number printed on the line that opens that candidate's block
+ @returns Number printed on the line that opens that candidate's block
 
  @throws {@link Error} when no candidate block holds that text
 

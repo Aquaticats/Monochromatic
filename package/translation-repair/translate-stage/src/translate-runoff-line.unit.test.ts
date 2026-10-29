@@ -320,7 +320,7 @@ async function judgeFirstRound(
 
  @param scenario - how the judges vote
 
- @returns The first round's decline and the lines logged while the run-off was announced
+ @returns First round's decline and lines logged while the run-off was announced
 
  @example
  ```ts

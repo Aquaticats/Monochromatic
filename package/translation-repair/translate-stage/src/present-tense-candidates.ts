@@ -97,7 +97,7 @@ type RuleHit = {
 
  @param start - offset where the subject begins
 
- @param verbs - the word after the subject, empty when none follows
+ @param verbs - word after the subject, empty when none follows
 
  @param pronoun - whether the subject is a pronoun rather than the declared name
 
@@ -157,7 +157,7 @@ function ruleForSubject(
 
  @param sentence - sentence the word sits in
 
- @param word - the word to read
+ @param word - word to read
 
  @param wordsByStart - words keyed by their start offset
 
@@ -259,9 +259,9 @@ function subjectHits(
 
  @param sentence - sentence the word sits in, quotes already blanked
 
- @param word - the word to read
+ @param word - word to read
 
- @param previous - the word before it, empty for the first word
+ @param previous - word before it, empty for the first word
 
  @param wordsByStart - words keyed by their start offset
 
@@ -376,7 +376,7 @@ function hitsAtWord(
 
  @param sentence - sentence as the page reads it, for display
 
- @param masked - the same sentence with quoted speech blanked, read by the rules
+ @param masked - same sentence with quoted speech blanked, read by the rules
 
  @param names - declared names, trimmed, longest first, none empty
 

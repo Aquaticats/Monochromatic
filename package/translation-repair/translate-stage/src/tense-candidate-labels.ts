@@ -46,7 +46,7 @@ export const CONTEST_TENSE_LABELS: readonly string[] = [
 
  @param kind - which wording the slice ships
 
- @returns The label its finding is recorded under
+ @returns Label its finding is recorded under
 
  @example
  ```ts

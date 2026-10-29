@@ -66,7 +66,7 @@ export function unflooredFinding(
 
  @param l - stage logger
 
- @returns The archive standing, with nobody asked
+ @returns Archive standing, with nobody asked
 
  @throws {@link TranslateAbsenceError} carrying `unfloored` where the archive
  holds no translation, since nothing may be written and nothing kept

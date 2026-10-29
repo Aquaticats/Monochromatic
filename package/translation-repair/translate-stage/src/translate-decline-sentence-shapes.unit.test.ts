@@ -73,7 +73,7 @@ type ShapeCase = {
 
  @param position - position, from zero
 
- @returns The judge
+ @returns Judge
 
  @example
  ```ts
@@ -177,7 +177,7 @@ const SHAPE_CASES: readonly ShapeCase[] = [
  Reads one shape of declined round for one kind of caller: the candidates each round was put to, and the sentences of
  the first ask and of the challenge against the clause of the shape.
 
- @param shapeCase - the shape and the judging that comes to it
+ @param shapeCase - shape and judging that comes to it
 
  @param shipPastDecline - whether the caller ships past a decline in its challenge
 

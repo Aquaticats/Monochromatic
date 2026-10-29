@@ -47,7 +47,7 @@ export type SelectionBench = {
 
  @param unreachable - seats the router refused for want of a wet provider
 
- @returns The reachable count, the quorum of the seated bench, and whether the bench was short
+ @returns Reachable count, quorum of the seated bench, and whether the bench was short
 
  @example
  ```ts

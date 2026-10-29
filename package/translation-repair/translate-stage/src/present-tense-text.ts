@@ -31,7 +31,7 @@ const SENTENCE_ENDINGS: string = '.!?…';
 
  @param text - text to collapse
 
- @returns The collapsed text
+ @returns Collapsed text
 
  @example
  ```ts
@@ -69,7 +69,7 @@ function collapseSpaces({ text, }: { readonly text: string; },): string {
 
  @param text - text that may contain links
 
- @returns The text with each complete link replaced by its label
+ @returns Text with each complete link replaced by its label
 
  @example
  ```ts
@@ -141,7 +141,7 @@ function unwrapLinks({ text, }: { readonly text: string; },): string {
 
  @param text - paragraph text as the parse holds it, newlines included
 
- @returns The paragraph words on one line
+ @returns Paragraph words on one line
 
  @example
  ```ts
@@ -180,7 +180,7 @@ export function visibleWords({ text, }: { readonly text: string; },): string {
 
  @param text - visible words of one paragraph
 
- @returns The same text with the characters of quotations in double marks replaced by spaces
+ @returns Same text with the characters of quotations in double marks replaced by spaces
 
  @example
  ```ts
@@ -234,7 +234,7 @@ function maskDoubleQuotations({ text, }: { readonly text: string; },): string {
 
  @param text - visible words of one paragraph, its double quotations already blanked
 
- @returns The same text with the characters of each paired quotation in single curly marks replaced by spaces
+ @returns Same text with the characters of each paired quotation in single curly marks replaced by spaces
 
  @example
  ```ts
@@ -340,7 +340,7 @@ function maskSingleCurlyQuotations({ text, }: { readonly text: string; },): stri
 
  @param text - visible words of one paragraph
 
- @returns The same text with quoted characters replaced by spaces
+ @returns Same text with quoted characters replaced by spaces
 
  @example
  ```ts

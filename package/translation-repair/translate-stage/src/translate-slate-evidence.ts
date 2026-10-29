@@ -43,7 +43,7 @@ import {
  name and its aliases, read as named subjects by the tense candidates; omitted
  when it declares none
 
- @param ballotTexts - the texts on the ballot as the judges see them, one per
+ @param ballotTexts - texts on the ballot as the judges see them, one per
  candidate in the order the sheet numbers them, read only for tense candidates
 
  @returns Labelled evidence entries, in the order the judges read them

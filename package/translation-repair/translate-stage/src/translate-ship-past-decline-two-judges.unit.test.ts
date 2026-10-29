@@ -105,7 +105,7 @@ const TEXTS = {
 /**
  A fresh rendering written by a model.
 
- @param text - the rendering
+ @param text - rendering
 
  @returns Candidate as the slate carries it
 
@@ -131,7 +131,7 @@ function writtenCandidate({ text, }: { readonly text: string; },): Candidate<Tra
 /**
  Client whose judges answer as the script says and every other ask fails.
 
- @param wants - the needle each seat backs in every judging, or `reject`
+ @param wants - needle each seat backs in every judging, or `reject`
 
  @returns Client over the candidate ballots only
 
@@ -190,7 +190,7 @@ function judgeClient(
  Judges a withheld passage's slate through the retry: the archive wording exists and cannot ship, so it is not on the
  slate, and the slate offers two fresh renderings and both lane texts.
 
- @param wants - the needle each seat backs in every judging
+ @param wants - needle each seat backs in every judging
 
  @param withheldStanding - whether the archive wording exists and was refused, or the passage has none
 
@@ -249,9 +249,9 @@ async function judgedWith(
 
  @param best - one-based candidate the judge named, zero for none
 
- @param reason - the judge's stated reason
+ @param reason - judge's stated reason
 
- @param modelId - the judge, the first of the written judges by default
+ @param modelId - judge, first of the written judges by default
 
  @returns Ballot at a whole weight
 
@@ -326,7 +326,7 @@ function drew(
 
  @param challenged - whether this is the challenge round
 
- @returns The stage result the decline comes to
+ @returns Stage result the decline comes to
 
  @example
  ```ts

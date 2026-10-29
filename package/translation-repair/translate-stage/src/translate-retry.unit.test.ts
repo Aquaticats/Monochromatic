@@ -507,7 +507,7 @@ const TIE_BROKEN = 'translate-runoff-tie-broken';
  @param laneTexts - lane texts the slate offers beside the proposals
  @param ballotFor - what the judges say per judging
 
- @returns The raised error, or the string `settled` where the judging did not raise
+ @returns Raised error, or the string `settled` where the judging did not raise
 
  @example
  ```ts
