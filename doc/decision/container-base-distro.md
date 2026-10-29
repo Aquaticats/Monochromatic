@@ -84,14 +84,20 @@ The owner chose to keep each release's current floor:
    (`cargo-publish.yml`, `music-player-release.yml`) keep their Ubuntu 24.04 runners.
 - An image that serves both development and a shipped release is split:
    the development Containerfile moves to CachyOS,
-   and a separate release Containerfile keeps the current base,
+   and a separate release Containerfile starts `FROM docker.io/library/ubuntu:24.04`,
    which every release path builds from.
+  The owner chose Ubuntu 24.04 for release images ("Do Ubuntu 24.04 for release images instead."),
+   so container-built releases share the floor of the Ubuntu 24.04 release runners.
+  Release images carry the `24.04` tag on purpose:
+   the tag is what fixes the glibc floor.
   Example:
    IDE release binaries are compiled in `localhost/monochromatic/ide`,
    which is built from the terminal image,
-   so `package/terminal/app` gets a CachyOS development image
-   and a release image that keeps its Fedora 41 base
-   (`ldd --version` in `localhost/monochromatic/terminal` printed `ldd (GNU libc) 2.40` on 2026-10-29).
+   so `package/terminal/app` gets a CachyOS development image and an Ubuntu 24.04 release image.
+  Before the split that image was Fedora 41
+   (`ldd --version` in `localhost/monochromatic/terminal` printed `ldd (GNU libc) 2.40` on 2026-10-29),
+   while the IDE release workflow's glibc floor check already targets 2.39
+   (dry run 40877021793 on `e3ec1a5ff4`, reported by the IDE release owner session).
 
 ### Kept on purpose
 
