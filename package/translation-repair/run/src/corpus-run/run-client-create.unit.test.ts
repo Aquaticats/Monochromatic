@@ -487,7 +487,7 @@ await describe({
         },);
         expect(kept.length,).toBe(1,);
         expect(kept[0],).toContain('with synthetic back',);
-        expect(kept[0],).toContain('wide 3 of 8 reachable, quorum 4',);
+        expect(kept[0],).toContain('wide 2 of 7 reachable, quorum 4',);
       },
     },),
 

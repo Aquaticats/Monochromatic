@@ -12,7 +12,10 @@
  THE LANES ROW IS RIGHT IN EFFECT: the lanes seat the slate judges of both lanes from the select judges, which the row
  does not name, but across all 256 dryness views the select judges stand short only where the wide bench does, so the
  row never starts a phase past a short select bench. The select case checks that over every view, and the checkers case
- names the four views in which the checkers, a bench padded by design that the row leaves out, stand short alone.
+ names the eight views in which the checkers, a bench padded by design that the row leaves out, stand short alone. Four
+ stood so until Qwen3.8-27B left the checker order on 2026-10-29, and four more joined them: Synthetic and Hyper wet
+ with Xiaomi, the Claude key, Bedrock and OpenRouter dry, where Kimi-K3 is the one checker seat a wet provider serves
+ and Qwen3.8-27B used to be the second.
 
  Fixtures are cat-themed invention; every view is scripted and no HTTP is made.
 
@@ -46,7 +49,7 @@ import {
 import { shortWarningOf, } from './run-seats-short-warning.test-fixture.ts';
 
 /**
- Bedrock, DeepSeek, Xiaomi and the Claude key wet and the rest dry: the wide bench is 4 of 8 reachable against a quorum
+ Bedrock, DeepSeek, Xiaomi and the Claude key wet and the rest dry: the wide bench is 4 of 7 reachable against a quorum
  of 4, and the roster is 4 of 10 against a quorum of 5.
  */
 const ROSTER_SHORT: BudgetView = {
@@ -61,7 +64,7 @@ const ROSTER_SHORT: BudgetView = {
 };
 
 /**
- NeuralWatt and Bedrock wet and every other provider dry: the wide bench is 3 of 8, and the slate and the late bench
+ NeuralWatt and Bedrock wet and every other provider dry: the wide bench is 3 of 7, and the slate and the late bench
  are each 3 of 7, against a quorum of 4.
  */
 const GATE_SHORT: BudgetView = {
@@ -146,7 +149,7 @@ await describe({
   children: [
     it({
       name: 'READS THE ROSTER IN THE PREPARATION, which pairs blocks and reviews the archive with `seats.roster`: '
-        + 'the wide bench is 4 of 8 and at its quorum, the roster is 4 of 10 against a quorum of 5, and the warning '
+        + 'the wide bench is 4 of 7 and at its quorum, the roster is 4 of 10 against a quorum of 5, and the warning '
         + 'says so',
       fn: async () => {
         const { lines, } = await readOver({ phase: 'preparation', view: ROSTER_SHORT, },);
@@ -186,9 +189,9 @@ await describe({
     },),
 
     it({
-      name: 'LEAVES THE CHECKERS OUT OF THE LANES ROW, A BENCH PADDED BY DESIGN, though in four of the 256 dryness '
+      name: 'LEAVES THE CHECKERS OUT OF THE LANES ROW, A BENCH PADDED BY DESIGN, though in eight of the 256 dryness '
         + 'views it stands short while every bench the row reads is at its quorum: Hyper wet beside at most NeuralWatt '
-        + 'and DeepSeek',
+        + 'and DeepSeek, with Synthetic dry in four and wet in four',
       fn: async () => {
         /**
          Wet providers of each view where the checker bench is short and no bench of the lanes row is.
@@ -226,8 +229,12 @@ await describe({
         expect(unmatched,).toEqual([
           'deepseek+hyper',
           'deepseek+hyper+neuralwatt',
+          'deepseek+hyper+neuralwatt+synthetic',
+          'deepseek+hyper+synthetic',
           'hyper',
           'hyper+neuralwatt',
+          'hyper+neuralwatt+synthetic',
+          'hyper+synthetic',
         ],);
       },
     },),

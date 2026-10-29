@@ -82,10 +82,11 @@ export type JudgeSeatPhase =
  THE ROW NAMES THE BENCH THE STAGE SEATS, not a neighbour that looks like it. The wide bench (`seats.wideSeats`),
  the late bench (`seats.lateJudges`), the select judges (`seats.selectJudges`) and the roster (`seats.roster`) are
  different lists. Neither of the first two holds the other: the wide bench is the roster less the two GLM-5.3 models
- that hold `wide-seat-dropped`, and the late bench is the roster less GLM-5.3-Flash, Qwen3.8-27B and Haiku 5.5, which
- hold `late-judge-dropped` (the owner's answer of 2026-10-22 for Qwen; `RUN_WIDE_SEATS` and `RUN_LATE_JUDGES` in
- `run-config.ts`). So `glm-5.3` is a late seat and no wide one, and Qwen3.8-27B and Haiku are wide seats and no late
- ones. A row that read the wide bench for a stage that seats the late one waited out a Claude hold for a quorum the
+ and Qwen3.8-27B, which hold `wide-seat-dropped` (the owner's answer of 2026-10-29 for Qwen), and the late bench is the
+ roster less GLM-5.3-Flash, Qwen3.8-27B and Haiku 5.5, which hold `late-judge-dropped` (the owner's answer of
+ 2026-10-22 for Qwen; `RUN_WIDE_SEATS` and `RUN_LATE_JUDGES` in `run-config.ts`). So `glm-5.3` is a late seat and no
+ wide one, Haiku is a wide seat and no late one, and Qwen3.8-27B is neither. A row that read the wide bench for a
+ stage that seats the late one waited out a Claude hold for a quorum the
  stage never gained, because Haiku is a wide seat served by the Claude key alone (the re-check of fix round 9).
 
  Preparation pairs blocks and reviews the archive with the roster (`seats.roster`, `pass-prepare-reseat.ts`); the

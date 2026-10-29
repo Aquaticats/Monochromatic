@@ -290,7 +290,9 @@ await describe({
               l,
             },);
             expect(dry.dry,).toEqual(SYNTHETIC_DRY,);
-            expect(dry.wideSeats.includes(QWEN,),).toBe(false,);
+            // Qwen3.8-27B holds no wide seat since 2026-10-29, so the roster is the bench that still tells a
+            // Hyper-served reading from a Synthetic-served one for it.
+            expect(dry.roster.includes(QWEN,),).toBe(false,);
 
             const wet = await readJudgeSeats({
               client: viewClient({ providerDryness: async () => ALL_WET, },),
@@ -299,7 +301,8 @@ await describe({
               l,
             },);
             expect(wet.dry,).toEqual(ALL_WET,);
-            expect(wet.wideSeats.includes(QWEN,),).toBe(true,);
+            expect(wet.roster.includes(QWEN,),).toBe(true,);
+            expect(wet.wideSeats.includes(QWEN,),).toBe(false,);
 
             const unread = await readJudgeSeats({
               client: viewClient({
@@ -312,7 +315,8 @@ await describe({
               l,
             },);
             expect(unread.dry,).toEqual(ALL_WET,);
-            expect(unread.wideSeats.includes(QWEN,),).toBe(true,);
+            expect(unread.roster.includes(QWEN,),).toBe(true,);
+            expect(unread.wideSeats.includes(QWEN,),).toBe(false,);
           },
         },),
         it({
@@ -332,7 +336,7 @@ await describe({
             },);
             expect(lines,).toEqual([
               'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
-                + 'hyper=wet openrouter=wet wide=8 select=9 '
+                + 'hyper=wet openrouter=wet wide=7 select=8 '
                 + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 withheld=none unserved=none '
                 + 'threw-withheld=hf:Qwen/Qwen3.8-27B (threw 4 of 4 asks) waited=0ms',
             ],);
@@ -351,7 +355,7 @@ await describe({
             },);
             expect(mixedLines,).toEqual([
               'info JUDGE SEATS phase=lanes neuralwatt=wet synthetic=wet bedrock=wet deepseek=wet xiaomi=wet anthropic=wet '
-                + 'hyper=wet openrouter=wet wide=8 select=9 '
+                + 'hyper=wet openrouter=wet wide=7 select=8 '
                 + 'late=7 slate=7 checkers=3 translators=8 readers=6 seeing=6 writers=9 roster=10 withheld=none unserved=none '
                 + 'threw-withheld=none waited=0ms',
             ],);
@@ -619,8 +623,10 @@ await describe({
             },);
 
             expect(dryLines.length,).toBe(1,);
+            // BENCH ORDER: glm-5.3 sits on the late bench, which the line names before the translators that
+            // Qwen3.8-27B is named on since it left the wide bench (the owner's answer of 2026-10-29).
             expect(dryLines[0],).toContain(
-              ' unserved=hf:Qwen/Qwen3.8-27B,glm-5.3 threw-withheld=none waited=0ms',
+              ' unserved=glm-5.3,hf:Qwen/Qwen3.8-27B threw-withheld=none waited=0ms',
             );
             expect(wetLines.length,).toBe(1,);
             expect(wetLines[0],).toContain(' unserved=none threw-withheld=none waited=0ms',);
