@@ -19,7 +19,7 @@
 /**
  Reads the wall clock, for the lines that stamp a moment and are given no clock of their own.
 
- @returns The instant now
+ @returns Instant now
 
  @example
  ```ts
@@ -47,7 +47,7 @@ export class LifecycleAttemptError extends Error {
   /**
    Names the number a line was asked to carry.
 
-   @param attempt - the number that is not an attempt count
+   @param attempt - number that is not an attempt count
    */
   public constructor({ attempt, }: { readonly attempt: number; },) {
     super(

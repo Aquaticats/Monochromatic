@@ -143,7 +143,7 @@ const COUNTED_BOUND: Readonly<Record<Counted, number>> = {
 
  @param grammar - grammar that will read the body
 
- @returns The count it opens, or that it opens none
+ @returns Count it opens, or that it opens none
 
  @example
  ```ts
@@ -179,7 +179,7 @@ function opensOf(
 
  @param grammar - grammar that will read the body
 
- @returns The count it closes, or that it closes none
+ @returns Count it closes, or that it closes none
 
  @example
  ```ts
@@ -252,7 +252,7 @@ function opened(
 
  @param line - one line without its newline
 
- @param lineGoingOn - the same line with `LINE_GOES_ON` after it, which a tag's
+ @param lineGoingOn - same line with `LINE_GOES_ON` after it, which a tag's
  name is read in
 
  @param index - index of the character, an angle bracket
@@ -382,7 +382,7 @@ function stringEnd(
 
  @param line - one line without its newline
 
- @param lineGoingOn - the same line with `LINE_GOES_ON` after it, which a tag's
+ @param lineGoingOn - same line with `LINE_GOES_ON` after it, which a tag's
  name is read in
 
  @param index - index of the character
@@ -482,7 +482,7 @@ function readCharacter(
 
  @param skipDelimiters - whether this line's emphasis delimiters nest nothing
 
- @returns The first excess on the line, or that it stays within
+ @returns First excess on the line, or that it stays within
 
  @example
  ```ts

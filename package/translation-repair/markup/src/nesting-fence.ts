@@ -41,7 +41,7 @@ export const NO_FENCE: FenceRun = {
 
  @param line - one line with its container markers and indentation removed
 
- @returns The fence run it begins with, or none
+ @returns Fence run it begins with, or none
 
  @example
  ```ts
@@ -88,7 +88,7 @@ export function fenceOf({ line, }: { readonly line: string; },): FenceRun {
 
  @param line - one whole line, container markers and indentation included
 
- @returns The fence run the line opens a block with, or none
+ @returns Fence run the line opens a block with, or none
 
  @example
  ```ts

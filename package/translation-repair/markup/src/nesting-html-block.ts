@@ -52,9 +52,9 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 /**
  Which kind of html block a line opens, when it opens one.
 
- @param rest - the line after its container markers and blanks
+ @param rest - line after its container markers and blanks
 
- @returns The kind of block the line opens, `none` for a line that does not
+ @returns Kind of block the line opens, `none` for a line that does not
  begin with an angle bracket, `blank` for any other line that does
 
  @example
@@ -110,7 +110,7 @@ function htmlBlockOpenedBy({ rest, }: { readonly rest: string; },): HtmlBlock {
  How many characters of a line the opening of a kind of block takes, which
  its end marker is looked for after.
 
- @param kind - the kind of block the line opens
+ @param kind - kind of block the line opens
 
  @returns Characters the opener takes
 
@@ -133,9 +133,9 @@ function openerWidth({ kind, }: { readonly kind: HtmlBlock; },): number {
 /**
  Whether a line carries the marker that ends a kind of block.
 
- @param kind - the kind of block that is open
+ @param kind - kind of block that is open
 
- @param line - the line, without case folding
+ @param line - line, without case folding
 
  @param from - index to look from, after the opener when the line opened the block
 
@@ -195,7 +195,7 @@ function endsBlock(
 
  @param before - what the lines before it left open
 
- @param rest - the line after its container markers and blanks
+ @param rest - line after its container markers and blanks
 
  @returns What stays open after the line: a block that ends at a blank line
  stays until one comes, a block that ends at a marker stays until the line

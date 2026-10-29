@@ -115,11 +115,11 @@ function fenceIsCertain(
  blanks after it, wherever it is indented: closing a fence the parser still
  reads only makes the lines after it count.
 
- @param open - the fence that is open
+ @param open - fence that is open
 
- @param run - the fence run the line begins with after its markers and blanks
+ @param run - fence run the line begins with after its markers and blanks
 
- @param line - the whole line
+ @param line - whole line
 
  @param restStart - index where the line's text begins after its markers and blanks
 
@@ -166,7 +166,7 @@ function closesFence(
 
  @param line - one line without its newline, not blank
 
- @param rest - the line after its container markers and blanks
+ @param rest - line after its container markers and blanks
 
  @param restStart - index where `rest` begins in the line
 
@@ -267,7 +267,7 @@ function readFence(
 
  @param state - counts carried from line to line, updated in place
 
- @returns The first excess on the line, or that it stays within
+ @returns First excess on the line, or that it stays within
 
  @example
  ```ts
@@ -482,7 +482,7 @@ export function nestingAccount({ excess, }: { readonly excess: NestingExcess; },
 
  @param reading - where the body passed the bound, or `'stack-exhausted'`
 
- @returns The account {@link nestingAccount} gives for a place, or
+ @returns Account {@link nestingAccount} gives for a place, or
  {@link STACK_OVERFLOW_ACCOUNT} for an exhaustion
 
  @example

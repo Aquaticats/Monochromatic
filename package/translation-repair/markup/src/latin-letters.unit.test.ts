@@ -193,8 +193,8 @@ function answersOf(
 /**
  The same answer for each of a list of characters.
 
- @param answer - the answer
- @param characters - the characters
+ @param answer - answer
+ @param characters - characters
 
  @returns One answer for each character
 

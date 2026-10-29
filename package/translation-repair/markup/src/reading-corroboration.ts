@@ -215,7 +215,7 @@ export function characterTrigrams({ text, }: { readonly text: string; },): Reado
 
  @param left - one reading
 
- @param right - the other
+ @param right - other
 
  @returns Share between zero and one; zero when either carries no trigram
 
@@ -270,7 +270,7 @@ export function trigramOverlap(
 
  @param left - one reading
 
- @param right - the other, from a different model shown the same picture
+ @param right - other, from a different model shown the same picture
 
  @returns Whether they agree, and by how much
 

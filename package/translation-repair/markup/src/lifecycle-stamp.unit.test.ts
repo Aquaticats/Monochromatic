@@ -37,7 +37,7 @@ const WALL_CLOCK_FLOOR = '2026-01-01T00:00:00.000Z';
 /**
  Clock that reads the same instant every time it is asked.
 
- @returns The instant the line is printed at
+ @returns Instant the line is printed at
 
  @example
  ```ts

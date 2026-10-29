@@ -8,9 +8,9 @@ import { compareCodePoints, } from '../dist/final/node/index.mjs';
 /**
  Puts things that carry a model id in order of the id, in code-point order.
 
- @param items - the things, left as they are
+ @param items - things, left as they are
 
- @returns A new list of the same things, sorted by model id
+ @returns New list of the same things, sorted by model id
 
  @example
  ```ts

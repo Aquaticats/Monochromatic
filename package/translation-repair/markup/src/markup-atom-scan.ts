@@ -179,7 +179,7 @@ function runLength(
 
  @param at - offset of the opening run
 
- @returns The span, or where to resume past an opening run nothing closes
+ @returns Span, or where to resume past an opening run nothing closes
 
  @example
  ```ts
@@ -406,7 +406,7 @@ function tagEnd({
 
  @param at - offset under the cursor
 
- @returns The atom there, or where to resume
+ @returns Atom there, or where to resume
 
  @example
  ```ts
@@ -437,7 +437,7 @@ function atomAt({
 
    @param end - offset past its closer, -1 when none
 
-   @returns The atom, or the miss
+   @returns Atom, or the miss
 
    @example
    ```ts

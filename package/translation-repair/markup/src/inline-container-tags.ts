@@ -101,7 +101,7 @@ export function tagEnd(
 
  @param name - element name to read
 
- @returns The tag as a one-element list, empty when there is none there or it closes itself
+ @returns Tag as a one-element list, empty when there is none there or it closes itself
 
  @example
  ```ts

@@ -128,7 +128,7 @@ export function isTagWhitespace({ character, }: { readonly character: string; },
  Whether a character right after `<` leaves it text: markdown's space, tab or
  line ending, which the compiler does not step over as it does other whitespace.
 
- @param character - the character right after the bracket, empty at the text's end
+ @param character - character right after the bracket, empty at the text's end
 
  @returns True for markdown's space, tab and line endings
 
@@ -333,7 +333,7 @@ export type TagNameReading = {
 
  @param at - offset of the `<`
 
- @returns The tag as a one-element list, empty where no tag with a name opens
+ @returns Tag as a one-element list, empty where no tag with a name opens
  there
 
  @example
@@ -535,7 +535,7 @@ export type AttributeNameReading = {
 
  @param at - offset of the name's first character
 
- @returns The name as a one-element list, empty where the grammar reads no
+ @returns Name as a one-element list, empty where the grammar reads no
  attribute name starting there
 
  @example

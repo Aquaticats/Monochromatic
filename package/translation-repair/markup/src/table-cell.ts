@@ -17,7 +17,7 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
  @param column - column inside the row
 
- @returns The cell
+ @returns Cell
 
  @throws Error when the table has no such row or the row no such cell
 

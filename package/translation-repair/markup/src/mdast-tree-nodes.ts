@@ -11,7 +11,7 @@ import type { Nodes, } from 'mdast';
 
  @param root - tree's top node
 
- @returns The tree's nodes
+ @returns Tree's nodes
 
  @example
  ```ts

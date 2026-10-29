@@ -26,7 +26,7 @@ const BMP_MAX = 0xFF_FF;
 
  @param at - offset of the code point wanted
 
- @returns The code point there, as a string of one or two units
+ @returns Code point there, as a string of one or two units
 
  @example
  ```ts
@@ -58,7 +58,7 @@ export function codePointAt({
 
  @param at - offset of the character whose predecessor is wanted
 
- @returns The code point before, as a string of one or two units
+ @returns Code point before, as a string of one or two units
 
  @example
  ```ts
@@ -173,7 +173,7 @@ export function codePointCount({ text, }: { readonly text: string; },): number {
 
  @param units - most UTF-16 units the opening may run to
 
- @returns The whole text where it fits, else its longest opening within the
+ @returns Whole text where it fits, else its longest opening within the
  limit that ends on a whole character
 
  @throws {@link Error} when no code point starts at the limit's last unit of a
@@ -278,7 +278,7 @@ export function compareCodePoints({
  @param texts - text to order, left as it is, whose own text type the result
  keeps (a file name ending in `.json`, a provider's name)
 
- @returns A new list holding the same text in code-point order
+ @returns New list holding the same text in code-point order
 
  @example
  ```ts
