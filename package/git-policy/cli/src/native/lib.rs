@@ -508,6 +508,10 @@ pub mod candidate_private_index;
 ///  and the worktree files a direct command selects.
 pub mod candidate_prediction;
 
+/// Which candidates hold content that a parent commit's tree already holds,
+///  found by exact object name.
+pub mod candidate_known_content;
+
 /// The linked forbidden-strings scanner:
 ///  one load per invocation,
 ///  typed redacted findings.
