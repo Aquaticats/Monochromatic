@@ -171,7 +171,8 @@ Measured with `node sync-count.ts` and `node sync-count.ts warm` before and afte
 (wrapper 31 to 29 warm). The pins are `removing_a_registry_directory_syncs_nothing` and
 `disposal_syncs_no_directory`; both fail with a `sync_parent` restored after the rename (and the earlier form of the
 pin failed with the post-deletion `sync_parent` restored). No test in the repository counts syncs of the built binary
-(`strace` appears only in `binary_fork_failure_tests.rs`), so the sync budget named under Budgets does not exist yet.
+(`strace` appeared only in `binary_fork_failure_tests.rs` then); the sync budget named under Budgets is now
+`binary_budget_tests.rs`.
 
 ### J3 outcome: what recovery does with emptied, halved and dropped records
 
@@ -429,6 +430,22 @@ storage, the maintenance keys and the shadow format, because those reads ignore 
 
 The host and gate suites carry a spawn budget (from `GIT_TRACE2_PERF`) and the host suite a sync budget (from
 `strace`); each slice lowers its budget to the measured count. Starting point: 45 processes, 41 syncs.
+
+The ratchet tests are `src/native/binary_budget_tests.rs` (the constants and the three scenarios) and
+`src/native/binary_budget_trace.rs` (the `strace` reader) in `package/git-policy/cli`. Run them with
+`mise run //package/git-policy/cli:native:test:binary:host -- budget::`. A wrapped explicit-path commit
+(`git commit --quiet --message=x -- a.txt`) runs under `strace --follow-forks` on a disposable repository in three
+scenarios: no hooks, one hook defined in the configuration (`hook.<name>.event` and `hook.<name>.command`), and
+`--amend`. The tests count every `execve` of Git by subcommand, every start of another program, and every `fsync`,
+`fdatasync`, `syncfs` and `sync_file_range` call, attributed to the wrapper process (threads included) or to the Git
+subcommand that made it. They compare exact counts with the constants, so a rise and a saving both fail, naming each
+figure that moved, and the constants are lowered in the same change that makes a commit cheaper; a rise needs a recorded
+reason. Zero entries (`findmnt`, `hash-object`) keep removed starts from returning. Background maintenance is kept in
+the foreground (`maintenance.autoDetach=false`, as `keep_maintenance_in_the_foreground` does), so a landing's
+`maintenance run --auto` is one counted start with no repack child. The `stat` figure depends on the temporary
+directory's filesystem (three `stat --file-system` starts without a filesystem UUID, such as tmpfs or overlayfs, none
+with one) and the test adjusts for it. A host without `strace` skips the tests with a printed message. Counts were
+measured with the host's Git 2.56.0, the version the gate builds; the gate run is the authority.
 
 ## Filesystem identity without `findmnt` (slice S2)
 
