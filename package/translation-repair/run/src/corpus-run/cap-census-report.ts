@@ -51,6 +51,7 @@ export async function reportCapCensus({ line, }: { readonly line: CommandLineOf<
   const {
     logs,
     unreadable,
+    danglingLinks,
   } = await capCensusLogsUnder({ roots, },);
 
   /**
@@ -112,6 +113,7 @@ export async function reportCapCensus({ line, }: { readonly line: CommandLineOf<
       passRunLogs: passRunLogs.length,
       samples: samples.length,
       unreadable: unreadableCount.paths,
+      danglingLinks,
       unstampedLines: unstamped.lines,
     },
   },);

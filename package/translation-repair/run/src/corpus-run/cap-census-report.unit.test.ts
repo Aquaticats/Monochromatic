@@ -13,6 +13,7 @@
 import {
   chmod,
   mkdir,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -179,7 +180,8 @@ await describe({
             await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
 
             expect(printed.lines,).toEqual([
-              'cap-census: 3 logs, 2 pass-run logs, 4 completed calls, 0 on ids no card names, 0 paths unreadable; '
+              'cap-census: 3 logs, 2 pass-run logs, 4 completed calls, 0 on ids no card names, 0 paths unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 0',
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads nothing (too few calls)`,
               `  hyper: 4 calls, p99 ${String(COMPLETION_CAP[SEAT],)}; since the caps 4 calls, 1 at the cap (25.00%): `
@@ -235,11 +237,51 @@ await describe({
               header: printed.lines[0],
               stderr: stderr.args,
             },).toEqual({
-              header: 'cap-census: 2 logs, 1 pass-run log, 2 completed calls, 0 on ids no card names, 1 path unreadable; '
+              header: 'cap-census: 2 logs, 1 pass-run log, 2 completed calls, 0 on ids no card names, 1 path unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 0',
               stderr: [[
                 `cap-census: cannot read ${sealed}: Error: EACCES: permission denied, open '${sealed}'`,
               ],],
+            },);
+          },
+        },),
+        it({
+          name: 'COUNTS A DANGLING LINK WITH NO LOG NAME in the summary, apart from the unreadable paths, and '
+            + 'says nothing of it on stderr (ledger B991)',
+          fn: async (ctx) => {
+            using printed = divertingConsoleLog({ sinon: ctx.sinon, },);
+            const stderr = ctx.sinon.stub(
+              console,
+              'error',
+            );
+            await using scratch = await scratchDir({ prefix: 'cap-census-report-', },);
+            await writeLog({
+              directory: scratch.path,
+              name: 'first.log',
+              lines: passRunLines(),
+            },);
+            await symlink(
+              join(
+                scratch.path,
+                'no-such-nest',
+              ),
+              join(
+                scratch.path,
+                'SingletonLock',
+              ),
+            );
+
+            await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
+
+            expect({
+              header: printed.lines[0],
+              stderr: stderr.args,
+            },).toEqual({
+              header: 'cap-census: 1 log, 1 pass-run log, 2 completed calls, 0 on ids no card names, 0 paths unreadable, '
+                + '1 dangling link with no log name passed over; '
+                + 'lines left out for a stamp the logger did not write: 0',
+              stderr: [],
             },);
           },
         },),
@@ -262,7 +304,8 @@ await describe({
             await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
 
             expect(printed.lines[0],).toBe(
-              'cap-census: 1 log, 1 pass-run log, 1 completed call, 0 on ids no card names, 0 paths unreadable; '
+              'cap-census: 1 log, 1 pass-run log, 1 completed call, 0 on ids no card names, 0 paths unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 1',
             );
           },
@@ -285,7 +328,8 @@ await describe({
             await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
 
             expect(printed.lines[0],).toBe(
-              'cap-census: 1 log, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable; '
+              'cap-census: 1 log, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 0',
             );
           },
@@ -304,7 +348,8 @@ await describe({
             await reportCapCensus({ line: lineOf({ command: 'cap-census', typed: [scratch.path,], },), },);
 
             expect(printed.lines,).toEqual([
-              'cap-census: 1 log, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable; '
+              'cap-census: 1 log, 0 pass-run logs, 0 completed calls, 0 on ids no card names, 0 paths unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 0',
               CAP_CENSUS_CLOSING_NOTE,
             ],);
@@ -386,7 +431,8 @@ await describe({
               `cap-census: cannot read ${missing}: Error: ENOENT: no such file or directory, stat '${missing}'\n`,
             );
             expect(run.stdout,).toBe([
-              'cap-census: 2 logs, 1 pass-run log, 2 completed calls, 0 on ids no card names, 1 path unreadable; '
+              'cap-census: 2 logs, 1 pass-run log, 2 completed calls, 0 on ids no card names, 1 path unreadable, '
+                + '0 dangling links with no log name passed over; '
                 + 'lines left out for a stamp the logger did not write: 0',
               `${SEAT}: card cap ${String(COMPLETION_CAP[SEAT],)}, rule reads nothing (too few calls)`,
               `  hyper: 2 calls, p99 ${String(COMPLETION_CAP[SEAT],)}; since the caps 2 calls, 1 at the cap (50.00%): `

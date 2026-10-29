@@ -3231,12 +3231,37 @@ A file with CRLF content receives one terminal LF without normalizing interior l
 Preserve these exclusion families exactly:
 
 ```text
-package/forbidden-strings/cli.fuzz/seed/**
 package/forbidden-strings/core.fuzz/seed/**
 package/test-fixture/toml-edit/src/**
 **/dist/final/node/**
 **/bundle/node/**
 ```
+
+A file whose Git `text` attribute is unset (`-text`, which the `binary` macro includes) keeps its exact bytes.
+Only the value `unset` preserves a file:
+`set`, `auto`, an unspecified attribute, and any other value leave the file checked.
+A package declares its exact-byte inputs in its own `.gitattributes`,
+for example `seed/** -text` beside a fuzz target,
+so the exemption moves with the package and no path list in this policy needs to follow it.
+The path families above are the directories that declare nothing;
+a family is removed when the directory it names declares `-text` for the same files.
+
+The attribute is read from the state the candidates were listed from, never from the worktree:
+
+- Candidates of `git add`, of a direct command, and of a commit transaction are read from the private index,
+  so a `.gitattributes` staged by the same command or commit applies to it,
+  and an unstaged edit of one does not.
+- Candidates of a landed commit are read from that commit's tree.
+- Candidates of a manual push are read from the tree of the commit,
+  or the pushed tip tree,
+  that first lists each path.
+
+Git resolves the attribute, so nested `.gitattributes` files, macros,
+the repository's `info/attributes` and the configured global attributes file apply as they do for Git itself.
+The attribute of a file is asked only when its bytes are not canonical,
+in one batch for the whole lifecycle,
+so a lifecycle whose files all end with one LF starts no attribute query.
+A lookup that fails fails the policy: the file is never assumed to be text or binary.
 
 Patch-capable commit transactions automatically normalize would-be-committed bytes.
 At default warning severity,

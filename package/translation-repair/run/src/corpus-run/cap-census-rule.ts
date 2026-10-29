@@ -189,6 +189,20 @@ const SEAT_OF_SERVED: ReadonlyMap<string, RosterModelId> = new Map(
 );
 
 /**
+ Seats whose card names the pooled 99th percentile, the placeholder for a model with no calls of its own. Empty
+ while every seat the census reads carries a measured cap (ledger B990).
+ */
+const PLACEHOLDER_SEATS: ReadonlySet<RosterModelId> = new Set(
+  ROSTER_MODEL_IDS.filter(function namesPooled99(modelId,): boolean {
+    /**
+     Cap the card carries: a measured number or a pooled percentile's name.
+     */
+    const { completionCap, } = MODEL_CARDS[modelId];
+    return completionCap === 'pooled-p99';
+  },),
+);
+
+/**
  Reads a 99th percentile off counts.
 
  @param values - completion counts, any order
@@ -287,6 +301,9 @@ function providerReading(
 
  @param samples - completed calls from pass-run logs
 
+ @param placeholderSeats - seats to name as pooled placeholders, the roster's own by default; a caller passes its own
+ to exercise the placeholder reading while no card names the pool
+
  @returns A row per seat, and how many calls went to ids no card names
 
  @example
@@ -294,7 +311,15 @@ function providerReading(
  const census = capCensus({ samples, },);
  ```
  */
-export function capCensus({ samples, }: { readonly samples: readonly CapSample[]; },): CapCensus {
+export function capCensus(
+  {
+    samples,
+    placeholderSeats = PLACEHOLDER_SEATS,
+  }: {
+    readonly samples: readonly CapSample[];
+    readonly placeholderSeats?: ReadonlySet<RosterModelId>;
+  },
+): CapCensus {
   /**
    Seat of each sample, or that no card names its id.
    */
@@ -359,9 +384,7 @@ export function capCensus({ samples, }: { readonly samples: readonly CapSample[]
         // THE POOLED 99TH IS THE PLACEHOLDER, for a model with no calls of
         // its own; the pooled 90th is a measured result, a model whose own
         // 99th fell under the floor (`completion-cap.ts`).
-        placeholder: MODEL_CARDS[modelId]
-          .completionCap
-          === 'pooled-p99',
+        placeholder: placeholderSeats.has(modelId,),
         ruleCap: (eligible.length === 0) ? 'too-few-calls' : Math.max(
           POOLED_P90,
           ...eligible,

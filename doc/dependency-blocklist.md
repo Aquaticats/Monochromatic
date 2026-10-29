@@ -17,7 +17,7 @@ They differ in what lands in `node_modules` after the install.
     or an API-compatible shim on disk**:
     edit the `overrides` block in `pnpm-workspace.yaml`.
    pnpm's native `"name": "-"` primitive removes the package from the resolved graph entirely.
-   The same block also accepts `link:package/shim/<name>` to substitute the package with a workspace shim that
+   The same block also accepts `link:package/pnpm-override/shim-<name>` to substitute the package with a workspace shim that
    re-exports the real API.
 
 The split is intentional.
@@ -85,7 +85,7 @@ Pick the lightest action that surfaces the problem at the right place.
    and `new` invocations all return the stub itself.
   `in` checks return `false`.
 
-- **API-compatible shim** (create `package/shim/<name>/`,
+- **API-compatible shim** (create `package/pnpm-override/shim-<name>/`,
    wire via `pnpm-workspace.yaml` `overrides`):
    an importer hard-imports the package and relies on its constructor or function shape,
    the package is deprecated or unwanted as a direct source,
@@ -168,7 +168,7 @@ See `TROUBLESHOOTING.dependencies.md` for the audit trail behind each one.
 
 ## How to add an API-compatible shim
 
-Create a workspace package under `package/shim/<name>/` with five files (mirror `package/pnpm-override/shim-node-domexception/`):
+Create a workspace package under `package/pnpm-override/shim-<name>/` with five files (mirror `package/pnpm-override/shim-node-domexception/`):
 
 - `package.json`:
    private,
@@ -193,7 +193,7 @@ Wire the substitution by adding one line to `pnpm-workspace.yaml`'s `overrides` 
 
 ```yaml
 overrides:
-  '<blocked-name>': 'link:package/shim/<name>'
+  '<blocked-name>': 'link:package/pnpm-override/shim-<name>'
 ```
 
 pnpm rewrites every transitive edge that resolved `<blocked-name>` to point at the workspace path;
@@ -427,7 +427,7 @@ on `node:stream`'s classes directly) and makes the transitive `abort-controller`
    the workspace stub used by `action: 'throw'`.
 - `package/pnpm-override/stub-silent/`:
    the workspace stub used by `action: 'silent'`.
-- `package/shim/<name>/`:
+- `package/pnpm-override/shim-<name>/`:
    workspace shims for API-compatible substitution;
    current entries are `package/pnpm-override/shim-node-domexception/` and `package/pnpm-override/shim-readable-stream/`.
 - `TROUBLESHOOTING.dependencies.md`:

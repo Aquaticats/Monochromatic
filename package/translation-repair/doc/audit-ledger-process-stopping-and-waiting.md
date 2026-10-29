@@ -135,3 +135,35 @@ the output of a background command is read only after the harness reports that i
 Recurrence:
 M162,
 where a wait was replaced by counting the lines of a growing log.
+
+## M305: the output of a background command was read before the harness reported that it had finished, three times in a day
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes,
+after M301 and its rule.
+
+The lead's count for 2026-10-29 is three reads that came too early:
+the log of a comment post,
+the output of a commit (the file was empty),
+and the log of a worktree retire (the file was empty).
+M301 records the first two kinds;
+the notes do not say whether the first two reads are the ones M301 records.
+The retire log is the kind it does not record.
+Two of the three files were empty when read,
+and an empty file was taken to say that the command had printed nothing,
+where it said that the command had not yet finished.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"How an agent waits".
+The rule of M301 stands,
+and its wording is tightened where this slip showed a gap:
+an empty output file of a background command is the sign of a command still running,
+never a result,
+and the turn ends until the harness reports that the command finished.
+
+Recurrence:
+M301,
+the same read made twice the same day,
+and M162,
+where a wait was replaced by counting the lines of a growing log.

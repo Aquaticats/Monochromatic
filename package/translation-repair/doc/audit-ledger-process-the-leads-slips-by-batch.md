@@ -651,3 +651,104 @@ Prevention:
 Recurrence:
 M288,
 which records a gate time that was read as a cost and not as a measurement.
+
+## M308: an install on main rewrote `pnpm-lock.yaml` in every gate tree, and the checkout and the retire refused the dirty tree
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+The lockfile belongs to another session,
+and this round did not change it.
+
+An install on the current main rewrites `pnpm-lock.yaml`:
+149 changed lines in the gate tree `tr-g227`,
+and a 229-line diff in `tr-g228`.
+Main's lockfile is not stable under an install.
+Two effects followed:
+
+- The `git checkout --detach` of gate g227 was refused by cli-git over the dirty tree,
+  and the gate exited "checkout failed" after 1.4 s.
+- Each gate tree was dirty again when it was retired,
+  so the retire script refused to remove it.
+
+The fix is in the lead's scratch tooling and not in the repository.
+The tree setup saves the lock diff,
+then restores the file with `git restore --no-enforce-worktree -- pnpm-lock.yaml`,
+and the lead repeats that restore before it retires a gate tree.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools":
+a gate tree is checked for a rewritten lockfile after its install,
+the diff is saved before the file is restored,
+and the restore is repeated before the tree is retired.
+
+Recurrence:
+none found.
+The nearest records are M280 and M285,
+where an install did not match the commit under test,
+and neither concerns a lockfile that an install rewrites.
+
+## M309: a gate ran beside two rotation sweeps, and a step went red on a timeout
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Gate g228 (the caps round,
+head `5f9a726c61`) ran while two rotation sweeps also ran.
+Its `probe.test-unit` step exited 1 with 11 failing built-command cases,
+all in the `rendering-audit-settled` and `recall-benchmark` suites.
+The stderr of each carried the line
+`logger internal error: sink verification failed ... Timed out after 5000ms`.
+The step was run again alone in the same tree:
+296 pass,
+0 fail,
+and both suites were present in the output.
+Both runs were in the same tree:
+the first ran beside the sweeps,
+and the second ran alone.
+
+Prevention:
+`mistake-prevention-tasks-builds-and-bulk-output.md`,
+"Gate trees and their tools":
+at most one sweep runs beside a gate,
+and a red step of a gate is run again alone in its tree before it is judged.
+The second half was written for M299.
+This entry adds its recurrence and the limit on sweeps.
+
+Recurrence:
+M297,
+a sweep beside a gate in the gate's own tree,
+and M299,
+a case that failed under host load and passed alone.
+
+## M310: two rounds that added lines to the ledger indexes collided at landing
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+The caps round and the real-clock round both added lines to `audit-ledger-entries-by-id.md` and `audit-ledger.md`.
+The real-clock round landed in `422063bf09`.
+The landing script then refused the caps round with
+"main 716016163e touches paths this branch changed".
+The recovery was to merge `origin/main` into the round's tree,
+keep every index line in id order (`639185472b`),
+and run the source-scan unit tests again (70 pass,
+0 fail).
+The round landed in `de333806b6`,
+on the third attempt.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Work merged from parallel briefs":
+when two rounds run at once,
+one lands first,
+then main is merged into the other,
+and the source-scan unit tests run again before that one lands.
+
+Recurrence:
+M264,
+a range landed without the round before it,
+M294,
+a merge that brought in lines no gate had seen,
+and M238,
+a merge of two rounds' work on the same file.
