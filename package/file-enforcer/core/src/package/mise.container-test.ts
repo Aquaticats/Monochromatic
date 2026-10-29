@@ -11,7 +11,7 @@
  killed.
 
  Test matrix:
- - OS: ubuntu (apt), fedora (dnf)
+ - OS: ubuntu (apt), fedora (dnf), cachyos (pacman)
  - User: root, non-root (uid 1000)
 
  @example
@@ -24,6 +24,7 @@ import { resolve, } from 'node:path';
 import {
   buildContainerCommand,
   parseOs,
+  resolveImage,
   type Combination,
   type UserContext,
 } from '@monochromatic-dev/test-harness-core-matrix/ts';
@@ -79,6 +80,14 @@ const CELLS: readonly {
     os: 'container:fedora',
     user: 'user',
   },
+  {
+    os: 'container:cachyos',
+    user: 'root',
+  },
+  {
+    os: 'container:cachyos',
+    user: 'user',
+  },
 ] as const;
 
 //endregion Matrix definition
@@ -122,15 +131,9 @@ async function runCell(cell: (typeof CELLS)[number],): Promise<boolean> {
     monorepoRoot: MONOREPO_ROOT,
   },);
   /**
-   Distro half of the cell's `os` spec, tagged for `podman run`.
+   Fully tagged image reference for the cell's distro (CachyOS maps to its Docker Hub repository).
    */
-  const {distro} = parseOs(cell.os,);
-  /**
-   Fully tagged image reference.
-   */
-  const image = distro.includes(':',)
-    ? distro
-    : `${distro}:latest`;
+  const image = resolveImage(parseOs(cell.os,).distro,);
   console.log(
     `[ensure-package-matrix] ${cell.os} user=${cell.user}: podman run ${
       PODMAN_BOUNDS.join(' ',)
