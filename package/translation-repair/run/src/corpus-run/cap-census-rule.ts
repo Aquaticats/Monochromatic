@@ -47,7 +47,7 @@ export type CapFlag = 'placeholder-with-calls' | 'rule-off-card' | 'cuts-over-sh
 
  @example
  ```ts
- const reading: ProviderCapReading = { provider: 'hyper', calls: 4_062, p99: 13_082, sinceCaps: 4_062, atCap: 75, atCapWithContent: 1, atCapNoContent: 74, atCapUnpaired: 0, };
+ const reading: ProviderCapReading = { provider: 'hyper', calls: 4_062, p99: 13_082, sinceCaps: 4_062, atCap: 75, atCapWithContent: 1, atCapNoContent: 74, atCapUnpaired: 0, atCapAmbiguous: 0, };
  ```
  */
 export type ProviderCapReading = {
@@ -90,6 +90,12 @@ export type ProviderCapReading = {
    Calls at the cap no stream line paired with.
    */
   readonly atCapUnpaired: number;
+
+  /**
+   Calls at the cap that two or more stream lines could each be the pair of, counted apart because nothing says which
+   delivered content.
+   */
+  readonly atCapAmbiguous: number;
 };
 
 /**
@@ -150,6 +156,31 @@ export type CapCensus = {
 };
 
 /**
+ Ids a seat was served under before its card moved to others, keyed by seat, each `provider id`, for the logs written
+ while they were current (ledger B1070).
+
+ THE DEEPSEEK SEAT'S PRE-1017 IDS ONLY. `deepseek-v4.1-flash` is the roster id of DeepSeek V4.1 Flash, which Hyper
+ served as `deepseek-v4.1-flash` and OpenRouter as `deepseek/deepseek-v4.1-flash` from its approval on 2026-09-11
+ until the migration to the 1017 weights on 2026-10-20, after which the cards name `deepseek-v4.1-flash-1017` and
+ `deepseek/deepseek-v4.1-flash-1017` (`package/translation-repair/doc/roster-changes.md`,
+ `package/translation-repair/shared-contract/src/model-cards.ts`). The card was measured on the older ids and its cap
+ carries over, so their calls belong to the seat. Over the agent root's pass-run logs on 2026-10-29 they were 6,785
+ calls on Hyper and 64,526 on OpenRouter.
+ Other retired ids stay unlisted: `deepseek-v4-flash-0731` was a separate version whose ratings "did not transfer"
+ (`package/translation-repair/doc/roster-changes.md`), and no card or document ties `deepseek-v4-pro-0813` or the
+ other ids that still count as ids no card names to a seat.
+ */
+const RETIRED_SERVED_IDS: ReadonlyMap<RosterModelId, readonly string[]> = new Map<RosterModelId, readonly string[]>([
+  [
+    'deepseek-v4.1-flash',
+    [
+      'hyper deepseek-v4.1-flash',
+      'openrouter deepseek/deepseek-v4.1-flash',
+    ],
+  ],
+],);
+
+/**
  Roster seat each provider's served id belongs to, keyed `provider id`.
  */
 const SEAT_OF_SERVED: ReadonlyMap<string, RosterModelId> = new Map(
@@ -176,6 +207,9 @@ const SEAT_OF_SERVED: ReadonlyMap<string, RosterModelId> = new Map(
         .id}`,]),
       ...((card.anthropic === undefined) ? [] : [`anthropic ${card.anthropic
         .id}`,]),
+      ...((card.neuralwatt === undefined) ? [] : [`neuralwatt ${card.neuralwatt
+        .id}`,]),
+      ...(RETIRED_SERVED_IDS.get(modelId,) ?? []),
     ].map(function keyed(key,): readonly [
       string,
       RosterModelId
@@ -282,7 +316,7 @@ function providerReading(
     sinceCaps: since.length,
     atCap: atCap.length,
     atCapWithContent: atCap.filter(function answered(sample,): boolean {
-      return (sample.content !== 'unpaired') && (sample.content > 0);
+      return ((typeof sample.content) === 'number') && (sample.content > 0);
     },)
       .length,
     atCapNoContent: atCap.filter(function ranAway(sample,): boolean {
@@ -291,6 +325,10 @@ function providerReading(
       .length,
     atCapUnpaired: atCap.filter(function unpaired(sample,): boolean {
       return sample.content === 'unpaired';
+    },)
+      .length,
+    atCapAmbiguous: atCap.filter(function ambiguous(sample,): boolean {
+      return sample.content === 'ambiguous';
     },)
       .length,
   };

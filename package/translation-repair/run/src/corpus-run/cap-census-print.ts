@@ -91,7 +91,7 @@ export function capCensusProviderLine({ reading, }: { readonly reading: Provider
       },)
     }, ${String(reading.atCap,)} at the cap (${share}): `
     + `${String(reading.atCapWithContent,)} with content, ${String(reading.atCapNoContent,)} with none, `
-    + `${String(reading.atCapUnpaired,)} unpaired`;
+    + `${String(reading.atCapUnpaired,)} unpaired, ${String(reading.atCapAmbiguous,)} ambiguous`;
 }
 
 /**

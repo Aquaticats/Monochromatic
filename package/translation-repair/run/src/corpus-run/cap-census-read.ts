@@ -27,12 +27,19 @@ import {
 // least one percent ran into it", and the cut reading says whether those were
 // answers or reasoning runaways.
 //
-// PAIRED BY LABEL AND CLOCK. A stream's completion line and its `SPEND` line
-// are written by the same exchange within milliseconds, so a `SPEND` line takes
-// the latest unpaired completion of the same served id within the window; one
-// with none is counted as unpaired, never guessed. A line whose stamp the
-// logger did not write is left out and counted, since no clock pairs or dates
-// it (ledger B73).
+// PAIRED BY LABEL, FILE ORDER AND CLOCK (ledger B1070). A stream's completion
+// line and its `SPEND` line are written by the same exchange, the stream line
+// first, but not within milliseconds: the gap grows with the body the stream
+// read, from 1 to 10 ms under 300,000 raw characters to 139 to 589 ms near 4.1
+// million, and 1,107 ms at the longest among capped calls, so a window of 50 ms
+// left every capped call of a long body unpaired. A `SPEND` line looks at the
+// completed streams of its served id that come before it in the file, that no
+// earlier `SPEND` line has taken, and that sit within `PAIR_WINDOW_MS` of its
+// stamp. One such stream is its own and is taken. None is counted as unpaired.
+// Two or more are counted as ambiguous, never guessed, and all stay waiting,
+// since nothing in either line says which belongs to which. A line whose stamp
+// the logger did not write is left out and counted, since no clock pairs or
+// dates it (ledger B73).
 //
 // NO PATTERNS AND NO WORDING. Both lines are this codebase's own, read by index
 // scans; the census carries ids and numbers only.
@@ -43,9 +50,18 @@ import {
 const NOT_FOUND = -1;
 
 /**
- Most milliseconds between a stream's completion line and its `SPEND` line.
+ Most milliseconds between a stream's completion line and its `SPEND` line, three seconds.
+
+ MEASURED OVER THE 447 PASS-RUN LOGS UNDER THE AGENT ROOT ON 2026-10-29 (582,710 reported `SPEND` lines, each against
+ the latest completed stream of its label that no earlier line had taken; ledger B1070): the gap is 1 ms at the
+ median, 4 ms at the 90th percentile, 40 ms at the 99th and 115 ms at the 99.9th, and 36 calls sit past two seconds,
+ the longest 13.5 seconds. Among the 34,255 calls of 3,800 completion tokens or more, which takes in the cap of every
+ card, the longest gap is 2,096 ms, and 3 calls sit past one second. Three seconds holds all of those with room, and
+ leaves 23 of the 582,710 calls outside it.
+ The window is no wider because a wider one puts a second stream in reach of more calls, and the calls that read as
+ ambiguous grow with it: 502 at one second, 871 at two, 1,335 at three and 2,947 at five.
  */
-const PAIR_WINDOW_MS = 50;
+const PAIR_WINDOW_MS = 3_000;
 
 /**
  Text a completed stream line carries after its label.
@@ -113,11 +129,71 @@ export type CapSample = {
   readonly at: number;
 
   /**
-   Content characters the paired stream delivered, or that no stream line
-   paired with it.
+   Content characters the paired stream delivered, that no stream line paired
+   with it (`unpaired`), or that two or more streams could each be its own and
+   none was chosen (`ambiguous`).
    */
-  readonly content: number | 'unpaired';
+  readonly content: number | 'unpaired' | 'ambiguous';
 };
+
+/**
+ One completed stream waiting for its `SPEND` line.
+
+ @example
+ ```ts
+ const waiting: WaitingStream = { at: 0, content: 59, };
+ ```
+ */
+type WaitingStream = {
+  /**
+   Epoch milliseconds the stream line was written.
+   */
+  readonly at: number;
+
+  /**
+   Content characters the stream delivered.
+   */
+  readonly content: number;
+};
+
+/**
+ Removes, in place, the streams at the front of a queue that are too old for any later line to pair with.
+
+ Lines come in file order, whose stamps rise, so a stream older than the window against the newest line of its
+ label is older than the window against every line after it.
+
+ @param queue - waiting streams of one label, oldest first, shortened where it stands so no line copies a queue that
+ every line of a large log walks (ledger B74)
+
+ @param now - epoch milliseconds of the line being read
+
+ @mutates queue - loses the streams at its front that are older than the window
+
+ @example
+ ```ts
+ dropStale({ queue, now: Date.now(), },);
+ ```
+ */
+function dropStale(
+  {
+    queue,
+    now,
+  }: {
+    readonly queue: WaitingStream[];
+    readonly now: number;
+  },
+): void {
+  /**
+   Where the first stream within the window sits, or that none does.
+   */
+  const firstFresh = queue.findIndex(function withinWindow(entry,): boolean {
+    return (now - entry.at) <= PAIR_WINDOW_MS;
+  },);
+  queue.splice(
+    0,
+    (firstFresh === NOT_FOUND) ? queue.length : firstFresh,
+  );
+}
 
 /**
  Reads the epoch milliseconds a logged line was written at.
@@ -267,12 +343,10 @@ export function readCapLog(
 ): CapLogReading {
   /**
    Completed streams not yet paired, by label, oldest first. Each queue grows
-   and shrinks in place, so no line copies it (ledger B74).
+   and shrinks in place, so no line copies it (ledger B74), and holds only
+   streams within the window of the newest line of its label.
    */
-  const waiting = new Map<string, {
-    readonly at: number;
-    readonly content: number
-  }[]>();
+  const waiting = new Map<string, WaitingStream[]>();
 
   /**
    Samples read so far.
@@ -300,7 +374,7 @@ export function readCapLog(
       /**
        The stream, as its label's queue holds it.
        */
-      const entry = {
+      const entry: WaitingStream = {
         at: streamAt,
         content: stream.content,
       };
@@ -314,8 +388,13 @@ export function readCapLog(
           [entry,],
         );
       }
-      else
+      else {
+        dropStale({
+          queue: labelQueue,
+          now: streamAt,
+        },);
         labelQueue.push(entry,);
+      }
       continue;
     }
 
@@ -337,35 +416,57 @@ export function readCapLog(
     }
 
     /**
-     Streams of this label still unpaired.
+     Streams of this label still unpaired, before this line in the file.
      */
     const queue = waiting.get(record.model,) ?? [];
-
-    /**
-     Latest of them within the window, or none.
-     */
-    const index = queue.findLastIndex(function inWindow(entry,): boolean {
-      return Math.abs(at - entry.at,) <= PAIR_WINDOW_MS;
+    dropStale({
+      queue,
+      now: at,
     },);
 
     /**
-     The stream this line pairs with, taken off the queue, or that none does.
-     The index comes from the queue itself, so the entry is present.
+     Places in the queue of the streams within the window of this line.
      */
-    const paired = (index === NOT_FOUND) ? 'unpaired' : nonNullishOrThrow(queue[index],)
-      .content;
-    if (index !== NOT_FOUND) {
-      queue.splice(
-        index,
+    const candidates = queue.flatMap(function inWindow(
+      entry,
+      place,
+    ): readonly number[] {
+      return (Math.abs(at - entry.at,) <= PAIR_WINDOW_MS) ? [place,] : [];
+    },);
+
+    /**
+     The one candidate's place, when there is exactly one.
+     */
+    const [only,] = candidates;
+
+    // ONE CANDIDATE IS THE STREAM OF THIS CALL AND IS TAKEN; TWO OR MORE ARE
+    // NOT CHOSEN BETWEEN AND STAY WAITING, so the next line of the label reads
+    // the same streams and is ambiguous as well, as it is.
+    if ((candidates.length === 1) && (only !== undefined)) {
+      /**
+       The stream this line pairs with, off the queue. The place comes from the
+       queue itself, so the entry is present.
+       */
+      const [taken,] = queue.splice(
+        only,
         1,
       );
+      samples.push({
+        provider: record.provider,
+        model: record.model,
+        completion: record.completion,
+        at,
+        content: nonNullishOrThrow(taken,)
+          .content,
+      },);
+      continue;
     }
     samples.push({
       provider: record.provider,
       model: record.model,
       completion: record.completion,
       at,
-      content: paired,
+      content: (candidates.length === 0) ? 'unpaired' : 'ambiguous',
     },);
   }
   return {
