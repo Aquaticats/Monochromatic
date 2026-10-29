@@ -445,6 +445,43 @@ and safe to delete:
   whose self-test shows a synthetic quadratic tripping the bound
   while one-pass work passes it.
 
+## Shadow runs so far
+
+Seventeen scored entries by 2026-10-29 evening,
+settled under the pre-registered rule:
+
+- Named superlinear cost (`yes`):
+  2 of 17.
+  The scratch-plumbing commit whose `scratchParent` re-walked the ancestor chain per command
+  (O(r x d)),
+  and the ratio helper's own commit,
+  whose three `RG2` findings were real enough to fix forward.
+- Cost gestured at as unverified,
+  never named (`partial`):
+  7 of 17.
+  The runner sends the diff only,
+  so a callee outside the diff draws a "remains unverified" hedge
+  instead of a cost finding.
+- Named nothing (`no`):
+  5 of 17.
+
+The determinism pair on `d4988f4c9b57` agrees at the verdict level
+(both runs named cost,
+and the `Math.min` spread finding and the O(n)-proof claim recurred),
+while run 2 found three defects run 1 missed
+(`repeats: 0` passing vacuously on `NaN`,
+thenable `run` outliving the timing call,
+verdict ignoring the spread),
+all fixed in `9d2deb9bf7`.
+Cost spread on the identical diff:
+332.7 s against 158.1 s.
+
+Design finding from the `partial` cluster:
+the corpus reviews that reached 6 of 8 saw whole files,
+these see diffs.
+Sending the touched files' text beside the diff
+is the queued runner improvement.
+
 ## Next action
 
 Build the standards-review gate as the procedure

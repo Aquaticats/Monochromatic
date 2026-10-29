@@ -52,15 +52,18 @@ async function writeTempSource({
   /**
    Node fs imported here (not at module top) so this module stays loadable where filesystem access is absent.
    */
-  const { writeFile, } = await import('node:fs/promises');
+  const { mkdir, writeFile, } = await import('node:fs/promises');
+  const { resolve, } = await import('node:path');
   /**
-   System temp directory, the disposable home for fixture files this test reads back.
+   Gitignored scratch directory inside this package (not under node_modules, whose frames the source reader skips), the disposable home for fixture files this test reads back;
+   never the system temporary directory, whose backing device is unknowable.
    */
-  const { tmpdir, } = await import('node:os');
+  const directory = resolve(import.meta.dirname, '..', '.cache', 'test-scratch',);
+  await mkdir(directory, { recursive: true, },);
   /**
    Absolute fixture path, unique per process and test index.
    */
-  const path = `${tmpdir()}/assertion-source-${String(process.pid,)}-${String(index,)}.ts`;
+  const path = `${directory}/assertion-source-${String(process.pid,)}-${String(index,)}.ts`;
   await writeFile(
     path,
     lines.join('\n',),

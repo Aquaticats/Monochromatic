@@ -101,6 +101,24 @@ The owner chose to keep each release's current floor:
    while the IDE release workflow's glibc floor check already targets 2.39
    (dry run 40877021793 on `e3ec1a5ff4`, reported by the IDE release owner session).
 
+### Tools missing from the CachyOS repositories
+
+- `osslsigncode` (Windows Authenticode signing, `package/music-player/desktop-app/Containerfile.sign`)
+   is in neither the Arch nor the CachyOS repositories.
+  Signing compiles nothing, so the release glibc floor does not apply;
+   the owner chose "CachyOS, build from source" (2026-10-29):
+   the image builds the latest upstream release from source.
+  Ubuntu 24.04 was the alternative: it packages osslsigncode 2.8, older than the 2.9 the signing check verified.
+- `ack` is likewise missing; the search-shadow test image installs App::Ack from CPAN.
+
+### Binaries a development image builds for the host
+
+A CachyOS-built binary needs CachyOS's glibc (2.44 on 2026-10-29) and does not start on an older host
+ (a Fedora 44 host has 2.43).
+Where a development task builds in the container and runs the result on the host
+ (music-player's `run` fallback),
+ it targets glibc 2.39 with cargo-zigbuild (owner chose "Build for an older glibc", 2026-10-29).
+
 ### Kept on purpose
 
 - `package/test-harness/core-matrix` tests across several distros:

@@ -16,6 +16,7 @@ export {
   expectLinearTimeGrowth,
   measureTwoSizeRatio,
   TwoSizeRatioError,
+  TwoSizeRatioInputError,
 } from './two-size-ratio.ts';
 export type {
   SizeTiming,
