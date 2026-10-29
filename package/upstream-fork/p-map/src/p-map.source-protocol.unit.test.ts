@@ -18,6 +18,10 @@ import { pMap, } from '../dist/final/neutral/index.mjs';
 import {
   createGate,
   type Gate,
+  pullAt,
+  scriptedAsyncSource,
+  yieldDone,
+  yieldElement,
   yieldTurn,
 } from './test-support.ts';
 
@@ -153,6 +157,60 @@ await describe({
           options: { concurrency: 3, },
         },);
         expect(results,).toEqual([1],);
+      },
+    },),
+
+    it({
+      name: 'ignores the failure of a pull that started after the source reported done',
+      fn: async () => {
+        const source = scriptedAsyncSource<string>();
+        const gate = createGate();
+        const running = pMap({
+          iterable: source.iterable,
+          mapper: async function holdFirst(value: string,): Promise<string> {
+            if (value === 'a')
+              await gate.open;
+            return value;
+          },
+          options: { concurrency: 3, },
+        },);
+        await yieldTurn();
+        yieldElement({
+          pull: pullAt({
+            source,
+            index: 0,
+          },),
+          value: 'a',
+        },);
+        await yieldTurn();
+        yieldElement({
+          pull: pullAt({
+            source,
+            index: 1,
+          },),
+          value: 'b',
+        },);
+        await yieldTurn();
+        // Pull 2 comes from the spawn loop and pull 3 from the runner of 'b',
+        // which finished at once.
+        expect(source.pulls,).toHaveLength(4,);
+        yieldDone(pullAt({
+          source,
+          index: 2,
+        },),);
+        await yieldTurn();
+        pullAt({
+          source,
+          index: 3,
+        },).reject(new Error('late failure',),);
+        await yieldTurn();
+        gate.release();
+
+        // The run was still waiting for 'a' when the late pull failed.
+        expect(await running,).toEqual([
+          'a',
+          'b',
+        ],);
       },
     },),
 

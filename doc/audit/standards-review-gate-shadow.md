@@ -749,7 +749,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   158.1 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     - `expectLinearTimeGrowth`:
       **major**,
@@ -810,7 +810,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   195.1 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     - `git`:
       minor,
@@ -869,7 +869,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   157.7 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     - `makeScratchBase` (module initialization in all changed scripts) — **minor** — `ATH`:
       The new `scratchBase` constants place scratch under package-local `node_modules/.monochromatic`,
@@ -896,7 +896,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   418.1 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     - `runOneShard` / `orchestrateRun`:
       **major**,
@@ -943,7 +943,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   118.5 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     No confirmed findings in the supplied diff.
@@ -951,12 +952,19 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
     Cross-call complexity and scratch-directory safety remain unverified because `scratchRoot()` is not shown. Fixture-producer path consistency and the new imports’ dependency/export resolution also cannot be established from the supplied files; these are review limits, not confirmed violations.
     `````
 
-- Date: 2026-10-29T14:40:19.291Z
-  Subject: 8b773b22ac5e `fix(ide/app): inspection scripts and the runtime-publish test keep scratch under node_modules/.monochromatic (Refs #1810)`
-  Input size: 3 code files, 70 diff lines
-  Reviewer route: openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files
-  Wall-clock cost: 88.4 s
-  Named superlinear cost: unjudged
+- Date:
+  2026-10-29T14:40:19.291Z
+  Subject:
+  8b773b22ac5e `fix(ide/app): inspection scripts and the runtime-publish test keep scratch under node_modules/.monochromatic (Refs #1810)`
+  Input size:
+  3 code files,
+  70 diff lines
+  Reviewer route:
+  openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files
+  Wall-clock cost:
+  88.4 s
+  Named superlinear cost:
+  no
   Findings kept:
     `````text
     - `sweep`: **minor**, `PP4`. The new `XDG_RUNTIME_DIR` guard throws a plain `Error`, whereas the standard requires custom error classes and an `@throws` contract. The new failure condition is therefore neither distinctly typed nor documented as required.
@@ -967,3 +975,407 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   2625b5785f10 (no code files):
   `feat(mise): shadow entries arrive in the gate's own markdown shape`
+- Skipped:
+  6758b98f1279 (no code files):
+  `docs(audit): score every shadow entry and fence quoted findings`
+- Date:
+  2026-10-29T14:43:52.296Z
+  Subject:
+  c1367ce73bad `fix(*): wg-quicker and OCR working directories leave /tmp, and the tmpdir rule gets its exceptions (Refs #1810)`
+  Input size:
+  `5 code files, 202 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  143.5 s
+  Named superlinear cost:
+  yes
+  Findings kept:
+    `````text
+    - `scratchParent` (both new modules), called by `scratchDirectory` / `makeTempDir`: **major**, `RG2`. Every allocation now calls `findNodeModulesUp`, introducing unbounded ancestor discovery at a per-allocation boundary. Repeating a depth-\(d\) traversal across \(r\) allocations costs \(O(rd)\); the supplied diff establishes no bound, caching, or amortization proving end-to-end linearity.
+    
+    - `systemTmpdirComparisonOverride` (module scope): **major**, `LN7`. Setting `no-restricted-syntax/no-system-tmpdir` to `off` loosens lint policy without prior approval shown in the review context. The `**/upstream-fork/**` exemption disables enforcement throughout matching directories, not merely for the two documented comparison tests.
+    
+    - `scratchParent` (both new modules): **major**, `XTD`. The fallback accepts `XDG_CACHE_HOME` unchanged, so a value such as `/tmp` still selects scratch storage inside the expressly forbidden directory. Removing the `tmpdir()` call therefore does not enforce the stated scratch-location constraint.
+    
+    - `scratchParent` (both new modules): **minor**, no specific tag. An empty or relative `XDG_CACHE_HOME` produces a relative `parent`, contradicting the documented absolute-path guarantee. Outside a project, this makes scratch placement depend on the working directory and can cause creation failures despite an available home directory.
+    
+    - `scratchParent` (both new modules): **minor**, `LOG`, `LG1`. Neither new module establishes a tagged logger or logs function entry and the project-versus-cache decision. The new filesystem operations therefore lack the required function-boundary logging and diagnostic context.
+    
+    No direct recursion or accumulator-rebuilding findings (`ITR`) in the shown functions; this does not establish the transitive complexity of `findNodeModulesUp`.
+    `````
+
+- Skipped:
+  8c25047a0b57 (no code files):
+  `docs(handover): record the merge-beside-staged-changes agent result and the integration under verification`
+- Skipped:
+  f515aba20688 (no code files):
+  `docs(troubleshooting): record the git signing-buffer TMPDIR failure and the pnpm repeat-install fast path that skips a missing workspace link`
+- Skipped:
+  10cd29f4d75d (no code files):
+  `docs(*): record the osslsigncode and host-binary decisions for CachyOS images`
+- Date:
+  2026-10-29T14:46:58.763Z
+  Subject:
+  052e20cb3134 `fix(test-harness/core-diagnostic): the assertion-source test keeps its fixture in the package .cache, not the system temporary directory (Refs #1810)`
+  Input size:
+  `1 code files, 28 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  86.7 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `writeTempSource` | **minor** | `ATH`, `XTD`: The new fixture directory is package-local `.cache/test-scratch`, rather than `${HOME}/temp/agent` or the build directory permitted by these standards. Its creation also does not enforce the `0700` permissions required by `ATH`.
+    
+    No additional correctness or algorithmic-complexity findings in the supplied diff.
+    `````
+
+- Skipped:
+  2bb5eb751c5d (no code files):
+  `docs(handover): record the scored shadow runs and the determinism pair`
+- Date:
+  2026-10-29T14:51:07.937Z
+  Subject:
+  9d2deb9bf723 `fix(test-harness-core-expect): reject vacuous rounds, thenable runs, noise-blind verdicts`
+  Input size:
+  `3 code files, 226 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  243.3 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `isThenable` — **minor**: Callable thenables are missed because every function-valued return is rejected by the initial object-only check. A function with a callable `then` member therefore bypasses the new asynchronous-work guard.
+    
+    - `timeOne` — **major**: Throwing `TwoSizeRatioInputError` when `run` returns a promise does not handle that promise’s rejection. If the asynchronous work rejects, it can produce an unhandled rejection and terminate the process even after the caller catches the intended input error.
+    
+    - `expectLinearTimeGrowth` — **minor**: `maxRatio` is validated only after `measureTwoSizeRatio` finishes, so an invalid bound still executes all warmup and measurement callbacks. This permits unnecessary work and side effects, or an unrelated callback exception, instead of rejecting the invalid request before timing as the new error class documents.
+    
+    - `measureTwoSizeRatio` / `expectLinearTimeGrowth` unit tests — **minor**, `TCV`: The added tests leave new rejection branches uncovered, including unsafe or fractional `repeats`, invalid `size`, and non-positive `maxRatio`. Testing zero rounds, one native promise, and a NaN bound does not establish coverage of every new implementation branch.
+    
+    No additional traversal-complexity or recursion findings under `RG2` or `ITR` in the changed logic; this does not establish a complexity bound for caller-supplied callbacks.
+    `````
+
+- Skipped:
+  5a497e0f07c7 (no code files):
+  `docs(handover): record the updated IDE release docs`
+- Skipped:
+  4cd0af74597c (no code files):
+  `docs(handover): record the landed guards and what is still red for issue 1810 (Refs #1810)`
+- Date:
+  2026-10-29T14:52:38.115Z
+  Subject:
+  26146d128a09 `fix(music-player-desktop-app): give the container cargo runs a private XDG_RUNTIME_DIR tmpfs so the notification bus tests can bind their socket`
+  Input size:
+  `1 code files, 120 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  60.0 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    No findings in the changed `containerCargo` code in `mise.toml` or its `task.ts` copies. No correctness, security, unbounded-input complexity, or applicable `AGENTS.md` violations identified in the diff.
+    `````
+
+- Skipped:
+  8ff6727144ee (no code files):
+  `fix(music-player-desktop-app): drop the zlib package from the signing build stage, since CachyOS ships zlib-ng-compat in its place and the two conflict`
+- Date:
+  2026-10-29T14:53:17.106Z
+  Subject:
+  bf3cf4220fb2 `feat(music-player-desktop-app): build the signing image on CachyOS with osslsigncode compiled from the latest upstream release`
+  Input size:
+  `1 code files, 89 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  146.1 s
+  Named superlinear cost:
+  partial (cost gestured as unverified,
+  not named)
+  Findings kept:
+    `````text
+    - `cachyosBuildArguments` in `sign:windows` (`mise.toml`, mirrored in `task.ts`): **major**, `BXD`. The new signing path unconditionally invokes the CachyOS resolver, whose accompanying contract says it rejects non-x86-64 hosts, and supplies no Alpine fallback. This conflicts with the required Alpine base on non-x86-64 and removes the previous multi-architecture base path.
+    
+    - `sign:windows` source-build `RUN` (`Containerfile.sign`): **minor**, `XTD`. The added commands download, extract, and compile osslsigncode under `/tmp`. The standard explicitly prohibits `/tmp` for scratch and requires the injected home’s scratch directory or a build directory instead.
+    
+    - `cachyosBuildArguments` (`mise.toml`, mirrored in `task.ts`): **nit**, `AD4`. The new single-expression helper chains calls through `process.getBuiltinModule(...).resolve(...)` and `execFileSync(...).trim()`, with additional calls nested inside. This violates the preference for nested calls over method chaining and the requirement to split nesting deeper than two calls across lines.
+    
+    No unbounded-input complexity or recursion findings are established by the supplied changes. The external image resolver’s implementation is not included, so its internal traversal costs cannot be verified.
+    `````
+
+- Date:
+  2026-10-29T14:53:49.113Z
+  Subject:
+  bf3cf4220fb2 `feat(music-player-desktop-app): build the signing image on CachyOS with osslsigncode compiled from the latest upstream release`
+  Input size:
+  `1 code files, 89 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  178.6 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `sign:windows` / `cachyosBuildArguments`, **major**, `BXD`: The new signing path provides no Alpine fallback for non-x86-64 hosts. Both stages in `Containerfile.sign` unconditionally use `pacman`, so overriding the image with Alpine cannot satisfy the required architecture fallback either.
+    
+    - `sign:windows` (source-build `RUN` in `Containerfile.sign`), **minor**, `XTD`: The downloaded archive, extracted source, and CMake build tree all use `/tmp`. The standard explicitly prohibits that location for scratch data and requires the designated agent scratch directory or a build directory.
+    
+    - `sign:windows` (source-build `RUN` in `Containerfile.sign`), **minor**, `1CB`: The new source-build shell invocation chains nine steps with `&&`. This exceeds the standard’s maximum of three chained steps per shell call.
+    
+    No blocker findings or established `RG2`/`ITR` complexity violations in the supplied changed code.
+    `````
+
+- Date:
+  2026-10-29T14:54:24.337Z
+  Subject:
+  4723d28bc9f0 `feat(music-player-desktop-app): build the run task's container binary for glibc 2.39 with cargo-zigbuild`
+  Input size:
+  `1 code files, 94 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  136.1 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `run` → `containerCargo` (major; correctness): The new `zigbuild` invocation requires tools added by this Containerfile change, but `containerCargo` rebuilds only when the image does not exist. An existing `localhost/monochromatic/music-player` image from before this change is reused without those tools, causing the newly changed fallback to fail before launching the application.
+    
+    - `containerCargo` (minor; XTD): The Containerfile’s new Zig-installation step downloads and extracts an archive through `/tmp/zig.tar.xz`. This directly violates XTD’s prohibition on using `/tmp` for scratch or caches; removing the archive afterward does not eliminate that use.
+    
+    - `run` / `verify:container` (minor; TCV): The diff introduces a distinct `zigbuild` branch and target-specific executable path without corresponding test coverage. The shown `verify:container` task continues to exercise plain Cargo builds, so its success would not validate either new behavior.
+    
+    No new RG2 or ITR complexity violations found in the changed code, including the helper calls reached by the new branch.
+    `````
+
+- Skipped:
+  35e9853f824a (no code files):
+  `feat(mise): shadow reviews see the changed code beside the diff`
+- Date:
+  2026-10-29T14:55:17.077Z
+  Subject:
+  b6f605101b13 `fix(*): lock fixture and two paused packages take scratch from scratchRoot; corpus-source joins the tmpdir exceptions (Refs #1810)`
+  Input size:
+  `4 code files, 99 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  98.3 s
+  Named superlinear cost:
+  partial (cost gestured as unverified,
+  not named)
+  Findings kept:
+    `````text
+    - `systemTmpdirComparisonOverride` (module-level configuration): **major**, `LN7`. Adding `corpus-source.unit.test.ts` disables `no-system-tmpdir` for that entire file, loosening lint enforcement without prior approval shown in the supplied material. The explanatory comment provides a rationale, not the required approval.
+    
+    - No additional runtime, security, or complexity findings are established from the supplied excerpts. The implementation of `scratchRoot()` and the affected package manifests are absent, so its behavior, cumulative cost across repeated calls, and dependency resolution remain unverified.
+    `````
+
+- Skipped:
+  495f4e12a4fe (no code files):
+  `docs(handover): record the excerpt runner and the resolution guard`
+- Date:
+  2026-10-29T14:57:21.564Z
+  Subject:
+  5c30c5eb8040 `feat(oxlint-plugin/no-restricted-syntax): no-system-tmpdir also reports a tmpdir destructured from await import('node:os') (Refs #1810)`
+  Input size:
+  `3 code files, 75 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  131.9 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `VariableDeclarator` | **major** | No specific tag: The new visitor skips string-literal and computed keys, so destructuring `'tmpdir': scratchDir` or `['tmpdir']: scratchDir` from an awaited `node:os` import bypasses the restriction. These access the same export as the identifier-key form that is reported.
+    
+    - `VariableDeclarator` | **minor** | No specific tag: Accepting an unawaited `ImportExpression` treats the import’s promise as the OS module namespace. Valid JavaScript such as `const { tmpdir = safeFallback } = import('node:os')` is consequently reported even though the binding receives the fallback, not `os.tmpdir`.
+    
+    - `fn` in `no-system-tmpdir forms` | **minor** | `TCV`: The added test exercises only the awaited, identifier-key positive case. It does not cover the new unawaited path or negative branches such as unrelated modules and nonmatching properties, leaving the visitor’s reporting boundaries unverified by this addition.
+    
+    No complexity findings (`RG2`, `ITR`): the added visitor scans each matched declarator’s immediate properties once, without recursion or a per-property helper that rescans unbounded data.
+    `````
+
+- Skipped:
+  d4c45847eefb (no code files):
+  `docs(troubleshooting): record the osslsigncode 2.14 verification on the CachyOS signing image`
+- Date:
+  2026-10-29T14:58:08.348Z
+  Subject:
+  b3c6836984fa `fix(test-harness-core-expect): refuse a base timing below the readable floor`
+  Input size:
+  `2 code files, 82 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  166.5 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `fn` (test `rejects a base timing below the readable floor instead of flooring it`) — **minor**, `QNB`: With `repeats: 1`, the assertion depends on a single real-time measurement of a no-op being below `0.01 ms`, without establishing measurement spread. A scheduling interruption or coarse clock can put that sample at or above the floor, failing the test despite correct rejection logic.
+    
+    No production-correctness or new complexity findings in the supplied change. The extrema helpers scan timing arrays after the measurement loop; the changed test callback performs constant work per character with a fixed repeat count.
+    `````
+
+- Date:
+  2026-10-29T14:59:11.937Z
+  Subject:
+  91946922e07a `fix(ide/app): disposable inspection projects live below the agent scratch root, not the system temporary directory (Refs #1810)`
+  Input size:
+  `3 code files, 125 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  128.3 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `inspect:listview-algorithm`, `inspect:layout-constraints`, `inspect:search-accessibility`, and `inspect:native` task bodies: **major**, `ATH`. The migrated `mkdtempSync` calls assume `${HOME}/temp/agent` already exists, but none initializes that parent directory. On a clean home without that directory, each call throws `ENOENT` instead of running the inspection.
+    
+    - `inspect-cadence` module initialization: **minor**, `ATH`. The new `mkdirSync(disposableRoot, { recursive: true })` can create the scratch root with group/other permissions because it omits private permissions and performs no subsequent `chmod`. The later creation of the identical `privateRoot` with `mode: 0o700` does not tighten an existing directory’s permissions.
+    
+    - `systemTmpdirComparisonOverride` configuration: **major**, `XTD`. The added exemption explicitly permits the language-toolchain inspection to retain project fixtures below the system temporary directory, with `/tmp` named in its rationale. Testing that sandbox mount arrangement does not establish an exception to the standard’s unconditional prohibition on `/tmp` fixtures.
+    
+    - `inspect:native` task body: **nit**, `AD4`. The changed project-boundary guard nests `homedir`, `join`, `realpathSync`, and `startsWith` calls on one line. This exceeds the standard’s nesting limit without the required line separation.
+    
+    No unbounded-input complexity findings in the supplied changed code; the changes introduce no repeated traversal of unbounded data across helper-call boundaries.
+    `````
+
+- Skipped:
+  8fab09587e64 (no code files):
+  `docs(troubleshooting): drop a date for the earlier osslsigncode verification that the record does not give`
+- Date:
+  2026-10-29T15:07:08.502Z
+  Subject:
+  c42e90ea0240 `fix(file-enforcer-core): keep CR-separated rows, normalize both version columns`
+  Input size:
+  `2 code files, 149 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  179.5 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - `splitRows` · **minor** · **LOG**: The new production helper records neither entry nor its row-boundary decisions. This leaves the added parsing path without the entry-point and branch logging required by the standard.
+    
+    - `describe` (provider-output parser test module) · **nit** · **ST2**: The new test file contains no `//region` / `//endregion` markers identifying and explaining its logical sections.
+    
+    - `describe` (provider-output parser test module) · **nit** · **TD2**: The opening `/** ... */` block precedes imports rather than a declaration. It uses TSDoc for module-level introductory prose, contrary to the declaration-only rule.
+    
+    No functional or **RG2** complexity findings in the supplied changes. `splitRows` slices disjoint input ranges, both parsers process disjoint rows, and `readBinRow`’s searches after successive gaps scan disjoint word ranges, with only one additional scan of the selected version word. These operations remain O(n) overall with O(1) stack.
+    `````
+
+- Skipped:
+  d57c74f2539a (no code files):
+  `docs(planning): start the file-enforcer Rust rewrite record with the request and the no-weight-to-the-original constraint`
+- Skipped:
+  3a934eb91339 (no code files):
+  `docs(handover): record the by-product fixes and the parse contract question`
+- Skipped:
+  4170543db25f (no code files):
+  `fix(test-fixture/file-enforcer-perf): perf:teardown removes the fixture directory scratchRoot uses (Refs #1810)`
+- Date:
+  2026-10-29T15:07:47.089Z
+  Subject:
+  c42e90ea0240 `fix(file-enforcer-core): keep CR-separated rows, normalize both version columns`
+  Input size:
+  `2 code files, 149 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  217.7 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    - **`parseCargoBinstallList` tests: minor, `TCV`.** Both added cargo tests use single-row, `v`-prefixed inputs. The added suite does not exercise this parser’s changed CR/Unicode row splitting or the ordinary, unprefixed `binstallVer` path through `withoutVersionPrefix`.
+    
+    - **`splitRows`: nit, `TD4`.** The new TSDoc example places its expected-result comment after the example call. The standard requires comments on their own line before code, including code examples.
+    
+    - **`describe` (provider output parsers suite): nit, `TD2`.** The new test file begins with a TSDoc block describing the module, followed by imports rather than a documented declaration. `TD2` reserves TSDoc for declaration documentation.
+    
+    - **`describe` (provider output parsers suite): nit, `ST2`.** The new test module has no purpose-labelled `//region` sections, leaving its imports and test suite without the required logical-section markers.
+    
+    **No correctness or `RG2` complexity findings in the supplied code.** Accounting for helper calls, row slices cover disjoint input segments, and `readBinRow`’s per-gap `indexOf` searches stop before subsequent gaps. These costs sum to O(n), rather than multiplying into a superlinear scan; the conclusion does not rely on the inline complexity comments.
+    `````
+
+- Skipped:
+  438e76d488b7 (no code files):
+  `docs(planning): record the standalone-but-embeddable decision for the Rust file-enforcer and the points the request settles`
+- Date:
+  2026-10-29T15:08:36.696Z
+  Subject:
+  be0fed7618ea `fix(test-fixture/file-enforcer-perf): the raw IO benchmark writes under scratchRoot, not /tmp (Refs #1810)`
+  Input size:
+  `1 code files, 23 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  93.6 s
+  Named superlinear cost:
+  partial (cost gestured as unverified,
+  not named)
+  Findings kept:
+    `````text
+    No findings established in the supplied changes to `runIoBenchmark`.
+    
+    The implementation of `scratchRoot()` is not provided, so its cross-call complexity, directory isolation, and permissions remain unverified. The excerpt alone does not establish an RG2 violation or prove compliance.
+    `````
+
+- Skipped:
+  4a8c52f1b63c (no code files):
+  `docs(planning): adopt JSON-lines output for the Rust file-enforcer from the meow and cli-git precedent`
+- Skipped:
+  36b528d12d9a (no code files):
+  `docs(planning): the user confirms JSON-lines-only output for the Rust file-enforcer`
+- Skipped:
+  d74a7297b91c (no code files):
+  `docs(handover): record the file-enforcer retirement ruling`
+- Skipped:
+  b675244b70a2 (no code files):
+  `docs(planning): record the jsonc-edit choice and the drops and defaults the inventory settles for the Rust file-enforcer`
+- Skipped:
+  766bcde08435 (no code files):
+  `docs(handover): record the final state of the first pass over issue 1810 (Refs #1810)`
+- Date:
+  2026-10-29T15:13:53.934Z
+  Subject:
+  86bf2c19fe97 `style(oxlint-plugin/no-restricted-syntax): no-system-tmpdir lints clean (Refs #1810)`
+  Input size:
+  `1 code files, 113 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  49.4 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    No findings in the supplied changes to `ImportDeclaration`, `VariableDeclarator`, or `CallExpression`.
+    
+    No correctness or applicable `AGENTS.md` violations identified. No complexity findings: the loops process each declaration’s own specifiers or properties without repeated unbounded helper scans or recursion.
+    `````
+
+- Skipped:
+  7411f706c807 (no code files):
+  `fix(mutation-test-cli): leave .claude out of the runtime image build context`
+- Skipped:
+  5ef6f9e4ceb3 (no code files):
+  `docs(handover): record the mutation-test copy fix, the probe result and the running full mutation runs`
+- Skipped:
+  5ef6f9e4ceb3 (no code files):
+  `docs(handover): record the mutation-test copy fix, the probe result and the running full mutation runs`

@@ -56,16 +56,24 @@ Owner follow-ups the same day:
   Local reproduction of the IDE release gates passed (glibc 2.39, needed libraries match, bundle inspections pass).
   music-player `test:windows-gnu`: same 4 failed and 2 timed out as the recorded Fedora run.
 
-## In flight: music-player follow-ups (owner decisions 2026-10-29)
+## music-player follow-ups (owner decisions 2026-10-29)
 
-- `Containerfile.sign` still Fedora: build osslsigncode from source on CachyOS.
-- `run` fallback binary needs GLIBC_2.44: build it with cargo-zigbuild for glibc 2.39.
-- `verify:container`: three `unplayable_notification` tests need `XDG_RUNTIME_DIR` (since `438bc434e4`);
-   same tmpfs fix as nested-wayland-session.
-  One more failure, `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`,
-   fails identically on the old Fedora image.
-- Asked monochromatic-ec to update `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md`,
-   which still say Fedora 41 for the IDE build container.
+- `Containerfile.sign` on CachyOS, osslsigncode 2.14 built from the latest upstream release (`bf3cf4220f`, `8ff6727144`):
+   `sign:windows` signed a mingw-built PE with a throwaway PFX (`Signature verification: ok`).
+  Upstream publishes no checksum or signature for its source; TLS to github.com is the only check.
+  Not run: the PKCS#11 path (needs a real certificate) and `verify:signing`.
+- `run` fallback built with cargo-zigbuild for glibc 2.39 (`4723d28bc9`, `dc88d327e4`):
+   prints `music-player 0.1.13` on this glibc 2.43 host, newest symbol `GLIBC_2.39`.
+  Extended to `run-quick` and `run-debug` (owner choice; `21e72de5c0`, docs `ba5582e60c`):
+   both print `music-player 0.1.13` on this host from the container path; the container path of `run-quick`
+   also stopped ignoring its own `CARGO_TARGET_DIR` and LTO settings.
+- `XDG_RUNTIME_DIR` tmpfs in container cargo runs (`26146d128a`): the three `unplayable_notification` tests pass.
+- `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis` fails on both images
+   and stops nextest before 267 tests: owner chose an issue, #1815.
+- Docs: `doc/troubleshooting/cachyos-container-binary-needs-newer-glibc-than-host.md`,
+   `doc/troubleshooting/cachyos-image-migration-package-differences.md` (`533ed23205`).
+- `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md` now name the Ubuntu 24.04 release image
+   (monochromatic-ec, `8e843b1aa5`); remaining Fedora 41 mentions there are dated history notes.
 
 ## Found during verification, not caused by the base change
 
@@ -92,10 +100,35 @@ Owner follow-ups the same day:
    the checkout is 14 GB after excludes (11 GB of ignored `.claude/worktrees`), so rsync exits 11 in every container.
   The p-map run (55 of 55 shards failed) and the p-memoize rerun were stopped.
   Copying only `git ls-files --cached --others --exclude-standard` is 804 MB.
-- In flight: a subagent passes that list to each shard and copies with `--files-from`,
-   then proves it with a narrow p-map run (`src/errors.ts`) on the CachyOS image.
-- Queued for this session after it lands:
-   full `test:mutation` runs of `upstream-fork/p-map` and `upstream-fork/p-memoize`, then survivor triage.
+- Fixed: each shard gets the `git ls-files` list and copies with `--files-from` (`8b4374358e`, tests `b7c1773fd1`).
+  Narrow p-map probe on the `cachyos-v4` runtime image: 19515 files copied, 6 shards, no copy failure;
+   `src/errors.ts` Killed 5, Survived 5, CompileError 11.
+- `.claude` left out of the image build context (`containerignore`), which had made `COPY . /baked` take about 25 minutes.
+- Running since 11:13 local: units `mutation-p-map-3` (551 mutants) and `mutation-p-memoize-3` (363 mutants),
+   reusing image `baa75398fb47`; logs `~/temp/agent/package-category-elimination/mutation-p-{map,memoize}.log`.
+  Finished 11:19 (p-memoize) and 11:30 (p-map), no infrastructure errors:
+   p-map killed 219, survived 89, timeout 9, compileError 234, ignored 58 (135 shards);
+   p-memoize killed 142, survived 15, compileError 206, ignored 9 (37 shards).
+  Survivors by file: p-map `p-map-iterable.ts` 40, `map-iterator.ts` 25, `p-map.ts` 16, `errors.ts` 5,
+   `map-options.ts`, `p-map-keyed.ts`, `p-map-stop.ts` 1 each;
+   p-memoize `p-memoize-decorator.ts` 6, `memoized-cache-store.ts` 5, `p-memoize-clear.ts` 4.
+  Correction (2026-10-29): the report's survivor entries carry no field saying whether tests ran,
+   so an earlier claim here that every survivor ran against its own tests had no basis;
+   p-memoize's `memoized-cache-store.ts` had no stem-matching test file, so its 5 survivors were never tested.
+  Every p-map file with survivors does have a stem-matching `*.unit.test.ts`.
+  Owner chose "Kill or justify all": one subagent per package adds killing tests or justified
+   `mutation-test-disable` suppressions, then reruns `test:mutation`
+   (units `pmap-survivors-final`, `pmemoize-survivors-final`; report copies in `~/temp/agent/mutation-survivors/`).
+  p-memoize done: final run killed 151, survived 0, compileError 210, ignored 11 (`6fb171e256`, `d511882404`);
+   new `memoized-cache-store.unit.test.ts`, clear-thenable and decorator-receiver tests,
+   one suppression at `p-memoize-decorator.ts:69` with an equivalence proof. No fork bug against upstream 9.0.0.
+  p-map: in flight.
+
+## music-player `run`: zigbuild adopted for now
+
+Owner adopted cargo-zigbuild "for now" for the `run` fallback (glibc 2.39) and asked for issue #1814 to replace it
+ after a choosing-technology pass, because Zig's upstream cannot take this project's issue reports.
+Declined for now: distrobox ("Must be podman"), an Ubuntu 24.04 build image and running inside podman ("Neither").
 
 ## Out of scope by owner choice
 

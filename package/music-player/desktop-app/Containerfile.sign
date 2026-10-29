@@ -5,18 +5,46 @@
 #   osslsigncode  Authenticode-signs a PE/.exe from Linux, with RFC3161
 #                 timestamping; drives either a .pfx (self-signed test path) or a
 #                 PKCS#11 cloud/token key (the real Certum cert; see
-#                 HANDOVER.windows-signing-credentials.md)
+#                 HANDOVER.windows-signing-credentials.md). Neither the Arch nor
+#                 the CachyOS repositories package it, so the build stage compiles the
+#                 latest upstream release from source with CMake against the image's OpenSSL and curl.
 #   opensc        PKCS#11 framework (pkcs11-tool etc.) for the cloud/token path
 #   openssl       generates the throwaway self-signed cert for the test path
 # The real Certum SimplySign PKCS#11 module is a proprietary download, not a
-# Fedora package; the runbook installs/mounts it. This image covers the
+# distro package; the runbook installs/mounts it. This image covers the
 # self-signed test path and the PKCS#11 framework out of the box.
-# Pinned by digest (the multi-arch index of fedora:41, resolved 2026-10-18) so a moving tag cannot change the build
-# input. Refresh on purpose: skopeo inspect --raw docker://registry.fedoraproject.org/fedora:41 | sha256sum
-FROM registry.fedoraproject.org/fedora@sha256:893f7eeffce8e3e2bb2bc62786ba5603fb1e0bd6ba07091acb892266b95bafdf
-RUN dnf install -y \
-      osslsigncode \
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE} AS build
+
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
+      gcc cmake ninja pkgconf openssl curl \
+    && rm --recursive --force /var/cache/pacman/pkg/*
+
+# The newest release is resolved at build time, as the always-latest rule asks: the redirect of
+# https://github.com/mtrojnar/osslsigncode/releases/latest names its tag, which avoids the rate-limited GitHub API.
+# Upstream publishes no checksum or signature for the source (the release has only macOS and Windows zips, and its tag
+# is unsigned), so the only integrity check is TLS to github.com.
+RUN tag="$(curl --silent --show-error --fail --head --output /dev/null --write-out '%{redirect_url}' \
+        https://github.com/mtrojnar/osslsigncode/releases/latest | sed 's#.*/tag/##')" \
+    && test -n "${tag}" \
+    && curl --silent --show-error --fail --location \
+        "https://github.com/mtrojnar/osslsigncode/archive/refs/tags/${tag}.tar.gz" --output /tmp/osslsigncode.tar.gz \
+    && mkdir /tmp/osslsigncode \
+    && tar --extract --gzip --file /tmp/osslsigncode.tar.gz --directory /tmp/osslsigncode --strip-components=1 \
+    && cmake -S /tmp/osslsigncode -B /tmp/osslsigncode/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+    && cmake --build /tmp/osslsigncode/build \
+    && cmake --install /tmp/osslsigncode/build \
+    && osslsigncode --version
+
+FROM ${CACHYOS_IMAGE}
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
       opensc \
       openssl \
-    && dnf clean all
+      curl \
+    && rm --recursive --force /var/cache/pacman/pkg/*
+COPY --from=build /usr/local/bin/osslsigncode /usr/local/bin/osslsigncode
 WORKDIR /work

@@ -336,7 +336,12 @@ const readonlyEffectSelfHostingOverride = {
 /**
  Two tests read the system temporary directory only to prove that a scratch
  directory is not inside it, which is the property the `no-system-tmpdir` rule
- protects, so they must name `tmpdir()` to compare against it. Vendored
+ protects, so they must name `tmpdir()` to compare against it. The corpus-source
+ test uses it to build a clone path that must not exist and creates nothing
+ there; `translation-repair/source-scan` keeps the same use in its own list. The
+ `ide/app` language-toolchain inspection tests the language-server sandbox, which
+ replaces `/tmp` and binds a project below it back read-only, so it needs a
+ project below the system temporary directory by design. Vendored
  `upstream-fork` code follows its upstream and is not rewritten to this
  repository's scratch conventions.
  */
@@ -344,6 +349,8 @@ const systemTmpdirComparisonOverride = {
   files: [
     '**/test-harness/core/src/scratch-root.unit.test.ts',
     '**/git-clone-size/cli/src/temp-dir.unit.test.ts',
+    '**/translation-repair/adjudication/src/corpus-source.unit.test.ts',
+    '**/ide/app/bin/inspect-language-toolchain.ts',
     '**/upstream-fork/**',
   ],
   rules: {

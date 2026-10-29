@@ -35,8 +35,8 @@ so the failure had nothing to do with the repository's own storage.
 ## Root cause
 
 Git writes the buffer it is about to sign into a temporary file before it runs `ssh-keygen -Y sign`.
-`gpg-interface.c:1092` creates that file,
-and `gpg-interface.c:1098-1100` writes it and reports a failed write with the observed message:
+[`gpg-interface.c:1092`][git-signing-buffer] creates that file,
+and [`gpg-interface.c:1098-1100`][git-signing-buffer] writes it and reports a failed write with the observed message:
 
 ```c
 	buffer_file = mks_tempfile_t(".git_signing_buffer_tmpXXXXXX");
@@ -54,7 +54,7 @@ and `gpg-interface.c:1098-1100` writes it and reports a failed write with the ob
 ```
 
 `mks_tempfile_t` takes no directory argument.
-`tempfile.c:188-194` shows where the file lands:
+[`tempfile.c:188-194`][git-tempfile-tmpdir] shows where the file lands:
 
 ```c
 	const char *tmpdir;
@@ -67,7 +67,7 @@ and `gpg-interface.c:1098-1100` writes it and reports a failed write with the ob
 ```
 
 So the directory is `TMPDIR` when set and `/tmp` otherwise.
-The message text in the symptom matches `gpg-interface.c:1100` exactly,
+The message text in the symptom matches [`gpg-interface.c:1100`][git-signing-buffer] exactly,
 which places the failure in the write (`write_in_full`) and not in the creation of the file.
 The create step has its own message (`could not create temporary file`,
 line 1094),
@@ -198,8 +198,8 @@ which belong to other sessions and was not done here.
 
 - Looking in repository or user configuration for a signing-buffer directory:
   there is none.
-  The call at `gpg-interface.c:1092` takes only a filename template,
-  and `tempfile.c:188-194` reads only `TMPDIR`.
+  The call at [`gpg-interface.c:1092`][git-signing-buffer] takes only a filename template,
+  and [`tempfile.c:188-194`][git-tempfile-tmpdir] reads only `TMPDIR`.
 - Reading the failure as a repository disk problem:
   the repository filesystem had 784 GB free,
   and the error names the `/tmp` path.
@@ -230,3 +230,6 @@ nothing to file.
 `.out-of-scope/` lists no entry for git or temporary-file handling (checked against the directory listing on 2026-10-29),
 so no exemption applies.
 No duplicate search was run because nothing is drafted.
+
+[git-signing-buffer]: https://github.com/git/git/blob/8d1b215c01512b9658d4525c54ff9b9245f9a7e8/gpg-interface.c#L1092-L1100
+[git-tempfile-tmpdir]: https://github.com/git/git/blob/8d1b215c01512b9658d4525c54ff9b9245f9a7e8/tempfile.c#L188-L194

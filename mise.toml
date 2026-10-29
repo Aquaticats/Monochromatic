@@ -168,12 +168,36 @@ const scratch = `${process.env.HOME}/temp/agent/shadow-review`
 mkdirSync(scratch, { recursive: true, mode: 0o700 })
 const diffPath = `${scratch}/${sha.slice(0, 12)}.diff`
 writeFileSync(diffPath, `${lines.slice(0, capLines).join('\\n')}\\n`)
+const MAX_EXCERPT_FILES = 8
+const EXCERPT_CONTEXT = 30
+const EXCERPT_LINE_CAP = 4000
+const excerptPath = `${scratch}/${sha.slice(0, 12)}.candidate`
+const excerptParts = []
+let excerptLines = 0
+for (const name of codeFiles.slice(0, MAX_EXCERPT_FILES)) {
+  if (excerptLines >= EXCERPT_LINE_CAP) break
+  const fileLines = git('show', `${sha}:${name}`).split('\\n')
+  let firstHunk = fileLines.length
+  let lastHunk = 1
+  for (const match of git('diff', '-U0', `${sha}^`, sha, '--', name).matchAll(/^@@ -(\\d+)(?:,(\\d+))? /gm)) {
+    const start = Number(match[1])
+    const end = start + Number(match[2] ?? 1)
+    if (start < firstHunk) firstHunk = start
+    if (end > lastHunk) lastHunk = end
+  }
+  const from = Math.max(1, firstHunk - EXCERPT_CONTEXT)
+  const to = Math.min(fileLines.length, lastHunk + EXCERPT_CONTEXT)
+  excerptParts.push(`// candidate excerpt of ${name}, lines ${from} to ${to} of ${fileLines.length}`)
+  excerptParts.push(fileLines.slice(from - 1, to).join('\\n'))
+  excerptLines += to - from + 1
+}
+writeFileSync(excerptPath, `${excerptParts.join('\\n\\n')}\\n`)
 const route = 'openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files'
-const prompt = 'Review the candidate diff in the second file against the standards in the first file, AGENTS.md. Report findings only: each with the function name, a severity (blocker, major, minor, nit), the tag code of the standard it violates when one applies, and one or two sentences of rationale. Account cost across call boundaries: a per-entry or per-run call into a helper that walks unbounded data is superlinear. Never accept an inline complexity claim as proof: an O(n) or one-linear-pass comment is a claim, not evidence. If you have no findings in some respect, say so explicitly. Do not propose rewritten code. Keep the review under 400 words.'
+const prompt = 'Review the candidate diff in the second file and the changed code in the third file against the standards in the first file, AGENTS.md. Report findings only: each with the function name, a severity (blocker, major, minor, nit), the tag code of the standard it violates when one applies, and one or two sentences of rationale. Account cost across call boundaries: a per-entry or per-run call into a helper that walks unbounded data is superlinear. Never accept an inline complexity claim as proof: an O(n) or one-linear-pass comment is a claim, not evidence. If you have no findings in some respect, say so explicitly. Do not propose rewritten code. Keep the review under 400 words.'
 const started = Date.now()
 let outcome = ''
 try {
-  outcome = execFileSync('pi', ['--model', 'openai/gpt-6.1-sol', '--print', '--no-session', '--no-tools', '--no-skills', '--no-themes', '--no-context-files', '--thinking', 'xhigh', '--system-prompt', prompt, `@${repo}/AGENTS.md`, `@${diffPath}`], { encoding: 'utf8', maxBuffer: 1 << 26, cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  outcome = execFileSync('pi', ['--model', 'openai/gpt-6.1-sol', '--print', '--no-session', '--no-tools', '--no-skills', '--no-themes', '--no-context-files', '--thinking', 'xhigh', '--system-prompt', prompt, `@${repo}/AGENTS.md`, `@${diffPath}`, `@${excerptPath}`], { encoding: 'utf8', maxBuffer: 1 << 26, cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 } catch (error) {
   outcome = `Reviewer failed: ${error instanceof Error ? error.message : String(error)}`
 }

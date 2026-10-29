@@ -314,6 +314,19 @@ await describe({
       },),
     },),
     describe({
+      name: 'no-system-tmpdir forms',
+      children: [
+        it({
+          name: 'reports a tmpdir destructured from a dynamic import of node:os',
+          fn: async () => {
+            const diagnostics = await lint('invalid/no-system-tmpdir-dynamic.ts',);
+            const rules = uniqueRules(diagnostics,);
+            expect(rules,).toContain('no-restricted-syntax(no-system-tmpdir)',);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'no-disable-prefer-readonly-parameter-types forms',
       children: [
         it({

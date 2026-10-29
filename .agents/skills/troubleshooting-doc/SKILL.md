@@ -139,6 +139,15 @@ clone in "Auto-prototype when constraints 1-5 hold or sorta-hold".
    rewrite is not allowed;
     this is the doc-writing specialization of
    `AGENTS.md`'s broader source-citation rule.
+    Link every citation of a source this repository does not own to the
+   selection itself:
+    a web page gets a `#:~:text=` text fragment,
+    and a file in a hosted repository gets the platform's selection
+   permalink (on GitHub, a commit-pinned URL with a line range, for
+   example `blob/<commit>/path/file.ext#L10-L20`).
+    Load each link in `agent-browser` and confirm it lands on the quoted
+   text before it goes into the doc or into an issue draft.
+    Files in this repository keep repo-relative paths.
     If a previous reading or
    hypothesis was wrong,
     name it explicitly and quote the evidence
@@ -503,6 +512,60 @@ to add,
  say so explicitly so a future session does not re-derive the
 same empty comment.
 
+## Risk to the poster before any filing
+
+Always draft the artifact;
+ drafting is never held back by this section.
+ Filing is what puts a real person's account in front of strangers,
+ so this section governs what the doc says about filing:
+ weigh that person's risk before saying anything about whether to file
+and before marking a draft fileable.
+
+- Some repositories run trust or blocklist systems.
+   Vouch is one;
+   others exist,
+   some more thorough,
+   and this skill does not survey them.
+   They close or lock issues and pull requests from unvouched users,
+   and a maintainer can denounce a poster.
+- The lists are files in a repository or published service,
+   and projects can aggregate each other's lists,
+   so a denouncement can follow a person from one project to others.
+   Other people may see it:
+   interviewers,
+   employers,
+   colleagues,
+   and maintainers of unrelated projects.
+   Do not assume it stays private or can be undone.
+- An agent-written report that a maintainer judges low-effort is exactly
+  the case these systems exist for.
+   A reproduction, a source trace and a prototype lower that risk
+   and do not remove it.
+- A recommendation to file is allowed,
+   and only when the work earns it:
+   all six constraints hold,
+   the reproduction was re-run,
+   the prototype was verified against a baseline,
+   the duplicate search and the trust-system search were done and
+  recorded with dates,
+   and no known limit leaves the evidence weak.
+   When any of those is missing,
+   say plainly what is missing and make no recommendation.
+- Every statement about filing,
+   a recommendation included,
+   names this risk next to it and says filing is the poster's decision.
+   A recommendation that skips the risk,
+   or that rests on unchecked work,
+   is the bad recommendation this section exists to prevent.
+- Before the draft is marked fileable,
+   search the target repository for a trust or blocklist system
+   (workflow files,
+   a `VOUCHED` or similar list,
+   contribution-policy text),
+   record what was searched with the date and the commit,
+   and tell the filer to check the live repository again on the day of
+   posting.
+
 ## Upstream filing artifact format
 
 Keep the draft whatever the decision:
@@ -535,6 +598,13 @@ nothing to add),
    line number,
    and
   code excerpt next to it.
+- Every citation of a source this repository does not own links to its
+  selection (a `#:~:text=` fragment or a commit-pinned line-range
+  permalink),
+   and `agent-browser` confirmed each link lands on the quoted text.
+- If a filing artifact exists, the doc states the risk to the poster
+  (see "Risk to the poster before any filing"),
+   and any recommendation to file meets the conditions listed there.
 - The harness reproduces the failure when run as written.
 - Every workaround names a tradeoff.
 - The 6-constraint subsection is present even when you decide to file,

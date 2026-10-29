@@ -259,8 +259,13 @@ in production:
 a path column containing a two-character space run parses its tail as the version;
 `parseBinList` splits on `\n` while `readBinRow` guards other line terminators;
 `parseCargoBinstallList` normalizes `cargoVer` but not `binstallVer`.
-Not investigated here,
-recorded so they are not lost.
+Two are fixed in `c42e90ea02`:
+`splitRows` keeps every terminator-separated row in one pass,
+and both version columns normalize alike.
+The first is dropped:
+it would change `readBinRow`'s documented shortest-prefix contract,
+and the owner ruled on 2026-10-29
+that `file-enforcer` is dead and nothing new gets built on it.
 
 ## Open
 
@@ -336,9 +341,46 @@ so it needed the owner's authorization first.
 On 2026-10-29 the owner ruled thinking-block text off limits to external providers,
 even mere summaries,
 which blocks the replay-through-Luna shape as proposed.
-The direction stays open:
-the owner corrected a wider reading that day,
-and any detector it yields must keep thinking text on this machine.
+ The direction stays open:
+ the owner corrected a wider reading that day,
+ and any detector it yields must keep thinking text on this machine.
+
+### Local calibration, 2026-10-29
+
+The named experiment ran locally,
+in the shape the text rule allows
+(`dismissal-calibrate.ts` in the scratch directory):
+a rule detector flags a thinking block
+when one sentence carries both a cost term and a size-dismissal term.
+It caught both known dismissal blocks of session `73f0639e`
+(blocks 1201 and 1202),
+and flagged 128 of 48,252 thinking blocks
+across an 11-transcript negative sample
+(0.27 percent,
+an upper bound since flagged negatives are unreviewed).
+Scanning is local and stream-based;
+output carries session id,
+block index and pattern ids only,
+never thinking text.
+The shadow trigger is built
+(commit `ee637f1b3b`,
+then moved off `Stop` alone on the owner's steer):
+the `cctd` Claude Code hook
+of `package/claude-code-plugin/thinking-dismissal`,
+one handler registered at `PreToolUse`,
+`PostToolUse`,
+and `Stop` in `.claude/settings.local.json`,
+appending one metadata-only record per event to
+`~/.local/state/monochromatic/thinking-dismissal/shadow.jsonl`.
+Each event sees a part of the turn the others miss:
+`PreToolUse` names the action a dismissal led to before it runs
+(and is where a graduated gate could demand a proof),
+`PostToolUse` proves the action ran,
+`Stop` sees turn-ending thinking with no tool call after it.
+Observations are kept once per event type,
+joinable on the block hash.
+It records and never denies.
+Any Luna leg over non-thinking text stays open.
 
 ## Scratch artifacts
 
@@ -444,6 +486,21 @@ and safe to delete:
   (commit `d4988f4c9b`),
   whose self-test shows a synthetic quadratic tripping the bound
   while one-pass work passes it.
+- Ruled by the owner 2026-10-29:
+  `file-enforcer` is dead as of that day
+  and nothing new gets built on it,
+  which drops the third blind-review by-product
+  rather than changing `readBinRow`'s parse contract.
+- Corrected by the owner 2026-10-29:
+  fixing the repository's other superlinear sites
+  was never requested work,
+  so the tier-3 hit list stays a research artifact
+  and no site gets fixed without a separate request.
+- Ruled by the owner 2026-10-29:
+  graduation is premature ("Not yet"),
+  and the missing piece is a Claude Code hook,
+  which is now built as `cctd`
+  (commit `ee637f1b3b`).
 
 ## Shadow runs so far
 
@@ -480,7 +537,13 @@ Design finding from the `partial` cluster:
 the corpus reviews that reached 6 of 8 saw whole files,
 these see diffs.
 Sending the touched files' text beside the diff
-is the queued runner improvement.
+landed as the runner improvement in `35e9853f82`,
+and a replay of `d4988f4c9b57` with it
+returned the union of both diff-only runs' findings
+(six major ones in 235.6 s),
+then named one more defect,
+a base timing below the resolution floor suppressing the ratio,
+fixed in `b3c6836984`.
 
 ## Next action
 

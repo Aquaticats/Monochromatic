@@ -142,11 +142,17 @@ The reasons are in the tasks themselves:
 
 The steps are:
 
-1. Build the base image with `mise run //package/terminal/app:image`.
-   The IDE image is `FROM localhost/monochromatic/terminal` (`package/ide/app/Containerfile`,
-   line 2),
+1. Build the base image with `mise run //package/terminal/app:image:release`.
+   The release workflow builds in Ubuntu 24.04 images, not the CachyOS development images
+   (`doc/decision/container-base-distro.md`):
+   the base is `localhost/monochromatic/terminal-release`, built from `package/terminal/app/Containerfile.release`.
+   The IDE release image is `FROM localhost/monochromatic/terminal-release` (`package/ide/app/Containerfile.release`),
    and the tasks build the IDE image on demand but not its base.
-2. Build the IDE image with `mise run //package/ide/app:image`.
+   The job sets `IDE_RELEASE=1`, which makes every IDE task use the release image.
+   (Until 2026-10-29 the release built in the Fedora 41 images of `Containerfile`;
+   the decisions and measurements here that name Fedora 41 describe those.)
+2. Build the IDE image with `mise run //package/ide/app:image:release`;
+   it is tagged `localhost/monochromatic/ide-release`.
 3. Run a bounded container once to print `rustc --version --verbose`,
    `cargo --version` and `cargo-about --version`,
    with the same kinds of limits the tasks pass (memory,
@@ -542,10 +548,11 @@ and a dry run is most useful when it shows both results.
 The build is native on both and needs no cross compiler and no emulation.
 The tasks start the IDE image in podman,
 and the image is built for the architecture of the host.
-The base `Containerfile` (`package/terminal/app/Containerfile`) has branches for `x86_64` and `aarch64`
+The base release `Containerfile.release` (`package/terminal/app/Containerfile.release`) has branches for `x86_64` and `aarch64`
 where the architecture matters (the Zig tarball with its SHA-256,
 and the `cargo-nextest` download),
-and everything else is a Fedora 41 package or a rustup download that exists for both.
+and everything else is an Ubuntu 24.04 package or a rustup download that exists for both
+(until 2026-10-29 the packages were Fedora 41 packages of `Containerfile`).
 The compositor release and the music player release use the same two runners
 (`doc/decision/nested-wayland-session-releases.md`,
 `doc/decision/music-player-releases.md`).
@@ -713,6 +720,10 @@ with the reason:
   `mesa-vulkan-drivers`)
   and builds `cargo-about` from source,
   none of which names an architecture.
+  (Written about the Fedora 41 image.
+  Since 2026-10-29 the release image is Ubuntu 24.04: `package/ide/app/Containerfile.release` installs `g++`,
+  `ripgrep`, `libvulkan1` and `mesa-vulkan-drivers` with `apt` and builds the same `cargo-about` 0.9.2,
+  and dry run 40887621364 built it on both architectures.)
 - The base `Containerfile` already had the `aarch64` branches for Zig and `cargo-nextest`.
   They were checked against their sources on 2026-10-22:
   the Zig 0.15.2 index at `ziglang.org` lists the SHA-256 `958ed7d1...` for `aarch64-linux` and `02aa270f...` for
@@ -757,6 +768,7 @@ All of this ran on 2026-10-22 on the author's x86_64 machine.
   the rustup installer (`stable-aarch64-unknown-linux-gnu`,
   rustc 1.99.1),
   the `cargo-nextest` download and the `cargo-about` build for aarch64.
+  (Measured on 2026-10-22 with the Fedora 41 images, which the release has not used since 2026-10-29.)
 - `inspect:no-software-renderer` passed on x86_64 with the two-target loop,
   and the positive controls reached the renderer on both targets.
 - `linked-crates` and `notices` ran on x86_64 with the changed tasks;
@@ -788,7 +800,8 @@ the same Containerfiles,
 the same tasks,
 the compiler `rustc 1.99.1 (58cf8f9c3 2026-10-13)` of the image
 (host `aarch64-unknown-linux-gnu`),
-and a native aarch64 link by Fedora 41's toolchain.
+and a native aarch64 link by Fedora 41's toolchain
+(the image of 2026-10-22; the release image is Ubuntu 24.04 since 2026-10-29).
 It is not the runner:
 the CPU is emulated,
 and the host is not Ubuntu.
@@ -803,10 +816,14 @@ and the host is not Ubuntu.
 - The dynamic section lists `libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6` and nothing else.
   The loader `ld-linux-aarch64.so.1` is not in it,
   although the x86_64 executable lists `ld-linux-x86-64.so.2`.
+  (This is the executable linked in the Fedora 41 image.
+  The arm64 executable linked in the Ubuntu 24.04 release image does list `ld-linux-aarch64.so.1`:
+  dry run 40883876777 failed this gate on it, and the matrix entry gained the loader in `cb03f20350`.)
   The first plan for the gate (replace the loader name with the aarch64 one) would have failed on the first run,
   so the gate now takes the whole expected list from the matrix entry:
   the x64 list is unchanged,
-  and the arm64 list is `libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6`.
+  and the arm64 list was `libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6`
+  (it is `ld-linux-aarch64.so.1 libc.so.6 libfontconfig.so.1 libgcc_s.so.1 libm.so.6` since the Ubuntu 24.04 release image).
   `objdump -T` gave the newest glibc symbol versions 2.34,
   2.35 and 2.39,
   so the ceiling of 2.39 holds with no change.
@@ -849,7 +866,9 @@ and the host is not Ubuntu.
 - That the executable the runner links has the dynamic section the gate expects and a glibc ceiling of 2.39 or less.
   The emulated build measured both with the same Containerfiles and a native aarch64 link,
   so the runner is expected to agree,
-  but the image is rebuilt on the day with whatever Fedora 41 and `stable` Rust then are.
+  but the image is rebuilt on the day with whatever the Fedora 41 packages and `stable` Rust then were.
+  (Resolved by the dry runs on the Ubuntu 24.04 release image: 40877021793 and 40887621364 measured the newest glibc symbol at 2.39 on both runners.
+  The Rust toolchain is now the nightly pinned in `toolchain.lock.json`.)
 - That the `--version` smoke test,
   the archive check and `desktop-file-validate` run on that runner.
 - Attestation,
@@ -922,11 +941,13 @@ and the host is not Ubuntu.
   The build has no `--locked`,
   and the workflow's lock check fails when the build rewrites the lock file.
 - The release is not reproducible bit for bit,
-  and a day's change in Fedora 41,
-  `stable` Rust,
-  the Zig download or `cargo-nextest` `latest` can fail or alter a build with no repository change.
-  The image installs them unpinned (`package/terminal/app/Containerfile`).
-  Pinning them changes what developers build with and is a separate decision.
+  and a day's change in the Ubuntu 24.04 packages (the `ubuntu:24.04` tag follows point releases)
+  or the `cargo-nextest` `latest` download can fail or alter a build with no repository change.
+  The release image installs them unpinned (`package/terminal/app/Containerfile.release`).
+  The Rust toolchain is pinned to the nightly of `toolchain.lock.json` (`ARG RUST_TOOLCHAIN`, kept in step by hand),
+  and Zig by version and SHA-256, so those two no longer move on their own.
+  Pinning the rest changes what developers build with and is a separate decision.
+  (Until 2026-10-29 the list also named Fedora 41 and floating `stable` Rust.)
 - The Rust toolchain of a release is not the `mise.lock` nightly.
   Each release names its compiler in the notes.
 - The release job's checks open no window.
@@ -951,8 +972,9 @@ and the host is not Ubuntu.
 ## Alternatives rejected
 
 - A native `cargo build` on the runner with the `mise.lock` toolchain:
-  it needs Ubuntu equivalents of the Fedora packages and a re-implementation of `runtime` and `notices` outside mise,
+  it needs the image's packages installed on the runner and a re-implementation of `runtime` and `notices` outside mise,
   and it has never been run for this package.
+  (Written when the image was Fedora 41, where it needed Ubuntu equivalents of the Fedora packages.)
 - Building the executable once in a separate job and checking it in another:
   there is one platform and one build,
   and a second job would repeat the container image build.

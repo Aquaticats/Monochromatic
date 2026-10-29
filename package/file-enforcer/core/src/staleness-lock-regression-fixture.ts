@@ -3,7 +3,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { pathToFileURL, } from 'node:url';
 
@@ -46,7 +46,7 @@ export const DEAD_OWNER_PROCESS_ID: number = 999_999_999;
  */
 export async function setupStalenessLockFixture(): Promise<string> {
   return await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-staleness-lock-regression-',
   ),);
 }

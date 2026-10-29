@@ -38,7 +38,7 @@ a valid symlink to `package/config/typescript`.
 
 ## Root cause
 
-The fast path is `check_optimistic_repeat_install` in `pnpm/crates/package-manager/src/optimistic_repeat_install.rs`.
+The fast path is `check_optimistic_repeat_install` in [`pnpm/crates/package-manager/src/optimistic_repeat_install.rs`][pnpm-fast-path-comment].
 Its module comment (lines 4-9) says what it compares:
 
 ```rust
@@ -55,7 +55,7 @@ Its module comment (lines 4-9) says what it compares:
 
 After the settings,
 catalog and project-structure comparisons,
-`freshness.rs:257-265` runs the two filesystem checks that "prove installed":
+[`freshness.rs:257-265`][pnpm-freshness-checks] runs the two filesystem checks that "prove installed":
 
 ```rust
     if !project_structure_matches(state, project_manifests.as_slice()) {
@@ -72,7 +72,7 @@ catalog and project-structure comparisons,
 
 The first check asks whether a project's modules directory exists at all.
 The second,
-`modules_dirs.rs:164-207`,
+[`modules_dirs.rs:164-168`][pnpm-dangling-doc] (its documentation) and [`modules_dirs.rs:205-207`][pnpm-is-dangling] (`is_dangling_link`),
 asks about links,
 and its documentation excludes the missing case on purpose:
 
@@ -159,6 +159,22 @@ install 3 exit 0 output: Scope: all 3 workspace projects | Already up to date | 
 install --force exit 0 link exists: true
 ```
 
+### The draft's own reproduction
+
+The steps of the issue draft (an `app` project depending on `lib` through `workspace:*`) were run exactly as written on 2026-10-29,
+in a throwaway workspace with its own `HOME`,
+with the installed `pnpm` 12.16.1.
+The first harness above used a different layout,
+so this run is what backs the draft:
+
+```text
+pnpm 12.16.1
+step 1: install exit 0 | app/node_modules/lib: symlink -> ../../lib | output: Scope: all 3 workspace projects / Already up to date / Done in 135ms using pnpm v12.16.1
+step 2: after rm: absent
+step 3: install exit 0 | link: absent | output: Scope: all 3 workspace projects / Already up to date / Done in 20ms using pnpm v12.16.1
+step 4: install --force exit 0 | link: symlink -> ../../lib
+```
+
 ### Patterns that work
 
 - The first install after a manifest change (install 2):
@@ -213,6 +229,103 @@ because Node resolution reaches the root link.
   so the fast path declined;
   with unchanged manifests it does not.
 
+## Prototype
+
+A fix compatible with pnpm's architecture,
+prototyped on a disposable clone of `https://github.com/pnpm/pnpm.git`
+at commit `f7d7e6173ad68ee44918173bdded12602966cb80`
+(origin and commit confirmed with `git remote get-url origin` and `git rev-parse HEAD` before editing).
+The diff is [pnpm-missing-workspace-link-repeat-install-fast-path.patch](pnpm-missing-workspace-link-repeat-install-fast-path.patch)
+(7 files,
+120 insertions,
+2 deletions).
+
+What it changes:
+
+- `modules_dirs.rs`:
+  new `workspace_dependency_link_missing`,
+  which reports a `workspace:` dependency with no entry at all in its project's modules directory.
+  It applies only under the isolated linker without `dedupeDirectDeps`,
+  and only to the non-optional groups the install includes,
+  because skipped optional dependencies and deduplicated siblings have no entry by design.
+- `freshness.rs`:
+  a new `Stale::MissingWorkspaceLink`,
+  checked next to the dangling-link check under the same gate policy,
+  and only when the scope holds every project,
+  because a filtered install leaves unselected projects as they are and could not fix an absent link there.
+- `optimistic_repeat_install.rs` and `deps_status.rs`:
+  the two `match` arms the new variant needs.
+- `pnpm/crates/cli/tests/suite/repeat_install.rs`:
+  `repeat_install_relinks_a_missing_workspace_dependency_link`,
+  which installs a two-project workspace,
+  deletes `app/node_modules/lib`,
+  installs again and asserts the link is back.
+- `optimistic_repeat_install/tests.rs` and `tests/injected.rs`:
+  two fixtures that simulate an install now create the `node_modules` entry a real install makes for a `workspace:` dependency.
+  Without that,
+  five unit tests in `pnpm-package-manager` that assert "up to date" for a workspace dependency with no link failed with the fix,
+  which is the buggy state.
+
+How it was verified (`proto-run.ts` under `${HOME}/temp/agent/`,
+one container,
+no credentials,
+10 GiB and 6 CPUs,
+only the disposable clone mounted):
+
+1. Stash the fix (`git stash push -- pnpm/crates/package-manager`) and run the new test.
+2. Run the neighbouring selections with the fix stashed and record the failing test names:
+   `repeat_install` (CLI suite,
+   includes the oracle suites),
+   `install_filters`,
+   `workspace_install`,
+   and `optimistic_repeat_install` in `pnpm-package-manager`.
+3. Restore the fix and repeat both steps.
+4. Compare the failing lists.
+
+Recorded output of the last run:
+
+```text
+PRE-PATCH new-test exit=101
+PRE repeat_install failing=190
+PRE install_filters failing=3
+PRE workspace_install failing=16
+PRE package-manager failing=0
+POST-PATCH new-test exit=0
+POST repeat_install failing=189
+POST install_filters failing=3
+POST workspace_install failing=16
+POST package-manager failing=0
+-- repeat: only pre
+test repeat_install::repeat_install_relinks_a_missing_workspace_dependency_link ... FAILED
+```
+
+Every other "only post" and "only pre" list was empty,
+so no test fails only with the fix,
+and the only difference is the new test going from failing to passing.
+
+Limits of this evidence:
+
+- The container fails about 190 CLI repeat-install tests,
+  3 filter tests and 16 workspace tests in both arms
+  (lifecycle-script errors such as `ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED`),
+  so a regression in one of those could not show up.
+  The package-manager unit tests listed no failures in either arm
+  (the last run recorded failing counts,
+  not pass counts;
+  an earlier run of the same selection reported 186 passed and the five failures the fixture change removed).
+- An earlier run of the same prototype failed five package-manager unit tests;
+  the fixture change above is what removed them,
+  and that is the part a reviewer should read most closely.
+- Not changed:
+  after the fix a repeat install still prints `Already up to date` even though it has relinked the missing link
+  (the pipeline runs,
+  as the `Lockfile is up to date, resolution step is skipped` line shows),
+  so the test asserts the link and not the message.
+- Not built or run:
+  the hoisted and `pnp` linkers,
+  `dedupeDirectDeps` and optional dependencies,
+  which the fix skips on purpose and which have no test of their own here.
+
 ## Upstream filing decision
 
 Walk of the six constraints,
@@ -220,7 +333,7 @@ with the default policy of not filing.
 
 1. Is it really upstream's fault?
    Partly.
-   The behavior follows a documented choice (`modules_dirs.rs:167-168`:
+   The behavior follows a documented choice ([`modules_dirs.rs:167-168`][pnpm-dangling-doc]:
    a missing entry is not a broken link because skipped optional and excluded dependencies have none).
    The gap is that a declared non-optional workspace dependency is treated the same,
    so the message `Already up to date` is wrong for that case.
@@ -235,7 +348,7 @@ with the default policy of not filing.
    and `repeat_install.rs` and `relocated_install.rs` under `pnpm/crates/cli/tests/suite/` test repeat-install behavior,
    so a link-repair expectation is plausible but was not confirmed in those tests.
 4. Would the repository welcome our contribution?
-   `CONTRIBUTING.md` (section "AI-assisted contributions",
+   [`CONTRIBUTING.md`][pnpm-contributing-ai] (section "AI-assisted contributions",
    lines 325-345) welcomes agent-assisted contributions with a disclosure footer such as `Written by an agent (Claude Code, claude-opus-4-7).`,
    and warns that unvetted agent output,
    duplicate PRs and PRs that do not compile may be closed.
@@ -244,17 +357,23 @@ with the default policy of not filing.
    No signal either way.
    `gh search issues --repo pnpm/pnpm` for `missing workspace link Already up to date` and for `repeat install missing symlink node_modules not relinked` each returned no issues (checked 2026-10-29).
 6. Have we prototyped a minimal fix compatible with their architecture?
-   Not yet.
-   The prototype is a change to `direct_dependency_link_dangling` (or a sibling check next to it) plus a test in `pnpm/crates/cli/tests/suite/repeat_install.rs`,
-   built and run in a secret-free container;
-   it was not attempted in this session because building the Rust workspace is heavy and outside the investigation that produced this doc.
+   Yes,
+   see "Prototype" above:
+   a sibling check next to `direct_dependency_link_dangling` (`workspace_dependency_link_missing`),
+   a new `Stale` variant,
+   and a test.
+   The new test fails without the fix and passes with it,
+   and no other test in the four selections run differs between the two arms.
+   The container could not run the CLI repeat-install suites meaningfully
+   (about 190 of them fail with and without the fix),
+   so that part of the regression evidence is weak and the doc says so.
 
 Decision:
-do not file as-is.
-The audit is incomplete,
-not closed:
-constraints 1 to 5 hold or sorta-hold and constraint 6 reads "not yet",
-so the next step is the auto-prototype in a fork or a disposable clone with the verification harness above (expect install 3 to relink after the fix).
+constraints 1 to 6 now hold or hold with the caveats written above,
+so the draft below is fileable once a human has read it and decided to file;
+nothing was filed or posted in this session.
+Filing is an outward-facing action on a third-party tracker,
+so it waits for the repository owner's go-ahead.
 `.out-of-scope/` was listed on 2026-10-29:
 its entries (bun install,
 cargo workspace,
@@ -269,3 +388,104 @@ terminal title fork parity tests,
 typescript project references) do not name pnpm repeat-install behavior,
 so no exemption applies,
 though `bun-install.md` and `cargo-workspace.md` were not opened to rule out a broader class.
+
+## Upstream filing artifact
+
+Draft of a new issue,
+not filed.
+The duplicate search found nothing,
+so this is a new-issue draft and not a comment.
+The block below is the issue exactly as it would be posted:
+it holds no notes to the filer,
+and it carries the disclosure footer that pnpm's `CONTRIBUTING.md` asks for.
+
+Before anyone posts it:
+
+- Re-run the reproduction (with the setup in the block) and read the cited source,
+  because no human has yet done either,
+  and the footer claims an agent wrote it,
+  not that a person checked it.
+- Attach the patch file `pnpm-missing-workspace-link-repeat-install-fast-path.patch` from this directory;
+  the block says it is attached.
+- Pick labels from the tracker's own set;
+  none were looked up here.
+- Weigh the risk to the poster's account before posting anything.
+  Some repositories run trust or blocklist systems (Vouch is one;
+  others exist and this doc did not survey them) that close or lock issues and pull requests from unvouched users,
+  and a maintainer can denounce a poster,
+  which can follow that person across projects that share lists.
+  Other people may see it,
+  interviewers and employers among them.
+  An agent-written report that a maintainer judges low-effort is the case these systems exist for.
+  At the commit pinned above,
+  pnpm's `.github`,
+  `AGENTS.md` and `CONTRIBUTING.md` mention neither `vouch` nor `denounce`;
+  check the live repository and its contribution policy again on the day of posting.
+  Filing is the poster's decision.
+  This doc makes no recommendation to file,
+  because the conditions for one are not met:
+  no human has re-run the reproduction,
+  the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change),
+  and the trust-system search covers a snapshot,
+  not the live repository.
+- Decide whether to open a pull request instead of an issue.
+  `CONTRIBUTING.md` warns that unvetted agent output can be closed without review.
+
+~~~md
+Title: `pnpm install` reports "Already up to date" and leaves a declared `workspace:` dependency link missing (12.16.1)
+
+When manifests, lockfile and settings still match the digests in `node_modules/.pnpm-workspace-state-v1.json`,
+the repeat-install fast path returns before linking.
+Its check on individual links, `direct_dependency_link_dangling` in
+[`pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168),
+treats a link that exists but points nowhere as stale and an absent entry as healthy
+([`is_dangling_link`](https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207): `fs::metadata(path).is_err() && fs::symlink_metadata(path).is_ok()`).
+The doc comment says a missing entry is not a broken link because skipped optional and excluded dependencies have none,
+but a non-optional `workspace:` dependency under the isolated linker has no such reason.
+
+Reproduction (pnpm 12.16.1, default linker, no registry access needed):
+
+```text
+pnpm-workspace.yaml:   packages:
+                         - app
+                         - lib
+package.json:          {"name":"ws-root","private":true,"version":"1.0.0"}
+lib/package.json:      {"name":"lib","version":"1.0.0"}
+app/package.json:      {"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:*"}}
+```
+
+1. `pnpm install --offline`; `app/node_modules/lib` exists, a symlink to `../../lib` (this install also ends with `Already up to date`).
+2. `rm app/node_modules/lib`.
+3. `pnpm install --offline` prints `Already up to date`, exits 0 and leaves the link absent.
+4. `pnpm install --offline --force` restores it.
+
+The same steps run as a GitHub Actions workflow in
+https://github.com/Aquaticat/pnpm-missing-workspace-link-repro
+(pnpm 12.16.1 installed from its release and checked against a pinned SHA-256).
+A red run means the bug reproduced:
+the step named "Expected" fails with `ls: cannot access 'app/node_modules/lib': No such file or directory`.
+Runs:
+[40909405945](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909405945) and
+[40909700195](https://github.com/Aquaticat/pnpm-missing-workspace-link-repro/actions/runs/40909700195).
+
+Suggested fix: a sibling check beside the dangling-link check that reports a non-optional `workspace:` dependency with no
+entry in its project's modules directory, limited to the isolated linker without `dedupeDirectDeps`, and only when the
+install's scope holds every project.
+A prototype patch is attached (7 files, 120 insertions, 2 deletions).
+Its new integration test, `repeat_install_relinks_a_missing_workspace_dependency_link`, fails without the change and passes with it,
+and no other test in the four selections compared (`repeat_install`, `install_filters` and `workspace_install` in `pnpm-cli`,
+and `optimistic_repeat_install` in `pnpm-package-manager`) fails only with the change.
+Known limits: with the change the install pipeline runs and the link is restored (the new test asserts the link),
+but the output still ends with `Already up to date`;
+that message also ends the first install above, which does create the link, so it is not specific to this case.
+About 190 of the `pnpm-cli` repeat-install tests could not pass in the sandbox used, with or without the change,
+so the regression evidence for those is limited.
+
+Written by an agent (Claude Code, claude-sonnet-5-5).
+~~~
+
+[pnpm-fast-path-comment]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install.rs#L4-L9
+[pnpm-freshness-checks]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/freshness.rs#L257-L265
+[pnpm-dangling-doc]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L164-L168
+[pnpm-is-dangling]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/pnpm/crates/package-manager/src/optimistic_repeat_install/modules_dirs.rs#L205-L207
+[pnpm-contributing-ai]: https://github.com/pnpm/pnpm/blob/f7d7e6173ad68ee44918173bdded12602966cb80/CONTRIBUTING.md?plain=1#L325-L345
