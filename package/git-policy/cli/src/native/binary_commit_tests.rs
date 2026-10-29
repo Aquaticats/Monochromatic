@@ -29,7 +29,7 @@ pub(super) fn remove_settled(fixture: &Fixture) {
 }
 
 /// A command for the fixture's `bin/git` with the wrapper first on PATH and the commit bound.
-fn wrapped_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
+pub(super) fn wrapped_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Command {
     let mut command: Command = bounded_for(
         fixture,
         fixture.root.join("bin/git").as_path(),
@@ -41,7 +41,7 @@ fn wrapped_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Co
 }
 
 /// Run one wrapped commit command to its end.
-fn run_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
+pub(super) fn run_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Observed {
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 
