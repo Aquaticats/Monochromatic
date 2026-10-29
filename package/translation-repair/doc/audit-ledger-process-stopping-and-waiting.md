@@ -80,3 +80,58 @@ process loop
 or line count.
 `doc/mistake-prevention.md` (moved on 2026-10-18 to `package/translation-repair/doc/mistake-prevention.md`) holds it
 under "How an agent waits".
+
+## M296: a branch was held for a clean re-check, and there was no rule for when it lands
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+The owner's rule is dated 2026-10-25 ("Land on real impact").
+
+What happened:
+the Claude route took 20 re-checks and 22 fix rounds,
+and the lead's count of what they found is that only re-checks 13 and 14 found a major issue.
+The cause the lead recorded has four parts:
+no stopping rule,
+landing only on a clean re-check,
+guard evasions that only adversarial inputs reach treated as mistakes of the package,
+and a round for each nit.
+
+The rule as the owner gave it,
+checked against the wording that the ledger already held:
+the record of the plain reading with tables and the containers states the first half
+(a branch lands once a re-check finds no major issue and nothing that changes behaviour on real sources or the real
+corpus,
+and gaps that only invented inputs show become stated limits and a later item)
+and lacked three parts.
+They are that behaviour is judged on runs as well as sources and the corpus,
+that nits go into the same docs round and not a round of their own,
+and the measure of what the missing rule cost.
+They are written here and in the prevention.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"Briefs and hand-backs",
+beside the rule of M219 that a review loop stops when the checks that measure what ships stay identical.
+
+Recurrence:
+M218 and M219,
+ten fix rounds without a commit and a review loop that was not stopped.
+
+## M301: the output of a background command was read before the harness reported that it had finished
+
+Status:
+recorded on 2026-10-29 (UTC) from the lead's notes.
+
+Two reads came too early.
+A commit's result was read before the commit finished,
+so the head looked unchanged.
+A log of comment posts was read after one of three posts.
+
+Prevention:
+`mistake-prevention-shell-edits-commits-and-agents.md`,
+"How an agent waits":
+the output of a background command is read only after the harness reports that it finished.
+
+Recurrence:
+M162,
+where a wait was replaced by counting the lines of a growing log.

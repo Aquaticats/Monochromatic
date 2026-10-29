@@ -233,14 +233,8 @@ while without it at least one is
 (the writing floors and the judging quorums,
 read from the seat reader's own helpers over every bench any phase leans on).
 Otherwise the give-up holds.
-The wording of round 3,
-that the give-up holds only while the providers left meet every bench floor,
-was the lead's error and is superseded:
-it set the give-up aside whenever the providers left fell short,
-whether or not the provider's return would help,
-and in XingZ6020 the 58 waits would have recurred,
-because five benches stay short there with the provider back as well.
-Reading (b) as "the return lifts any unmet floor" is not the rule either.
+The wording of round 3 was superseded in round 4,
+and [the entry B965 of the ledger][b965-entry] keeps the account of it.
 The decision is taken for each provider given up,
 and the floors are read twice,
 with the providers left and with that provider added.
@@ -281,3 +275,6 @@ a hold or a window to end and then asks the same party again,
 and for each ask what the code knows after the second refusal that it did not know before the first wait.
 A positive control comes first:
 script the party to refuse at once after every wait and count the waits on a fake clock.
+
+[b965-entry]:
+  audit-ledger-providers-and-seats-a-run-holds-out.md#b965-the-seat-reader-waited-out-the-refusal-cooldown-of-a-provider-that-refused-at-once-after-it-for-every-slice
