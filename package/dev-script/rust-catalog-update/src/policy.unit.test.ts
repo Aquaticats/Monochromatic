@@ -25,7 +25,7 @@ import {
  */
 const SETTINGS: RustCatalogSettings = {
   catalogPrune: false,
-  minimumReleaseAge: 1440,
+  minimumReleaseAge: 1_440,
   minimumReleaseAgeExclude: [],
   minimumReleaseAgeExcludePrune: false,
   minimumReleaseAgeIgnoreMissingTime: false,

@@ -52,7 +52,13 @@ export class RustCatalogPolicyError extends Error {
 
    @param problems - findings
    */
-  constructor({ heading, problems, }: { readonly heading: string; readonly problems: readonly string[]; },) {
+  constructor({
+    heading,
+    problems,
+  }: {
+    readonly heading: string;
+    readonly problems: readonly string[]
+  },) {
     super([
       `${heading}: ${String(problems.length,)} finding(s).`,
       ...problems.map(function bullet(problem: string,): string {
@@ -98,9 +104,18 @@ type Mode = 'update' | 'dry-run' | 'verify' | 'help';
  Mode for each accepted flag.
  */
 const FLAG_MODES: ReadonlyMap<string, Mode> = new Map([
-  ['--dry-run', 'dry-run',],
-  ['--verify', 'verify',],
-  ['--help', 'help',],
+  [
+    '--dry-run',
+    'dry-run',
+  ],
+  [
+    '--verify',
+    'verify',
+  ],
+  [
+    '--help',
+    'help',
+  ],
 ],);
 
 /**
@@ -147,8 +162,16 @@ export function parseMode(args: readonly string[],): Mode {
  printReport({ report, dryRun: true, });
  ```
  */
-function printReport({ report, dryRun, }: { readonly report: UpdateReport; readonly dryRun: boolean; },): void {
-  console.info(`${String(report.crateDirs.length,)} lockfiles, ${String(report.added.length,)} newly locked versions:`,);
+function printReport({
+  report,
+  dryRun,
+}: {
+  readonly report: UpdateReport;
+  readonly dryRun: boolean
+},): void {
+  console.info(`${String(report.crateDirs
+    .length,)} lockfiles, ${String(report.added
+      .length,)} newly locked versions:`,);
   for (const added of report.added)
     console.info(`  ${added.name} ${added.version}`,);
   for (const crateDir of report.fellBack)
@@ -197,27 +220,52 @@ export async function main(args: readonly string[],): Promise<void> {
   /**
    Registry with the history cache under the root.
    */
-  const registry = createRegistry({ root, fetchText: fetchTextWithUserAgent, },);
+  const registry = createRegistry({
+    root,
+    fetchText: fetchTextWithUserAgent,
+  },);
   if (mode === 'verify') {
     /**
      Trust findings.
      */
-    const problems = await verifyRustLockfiles({ root, now: Date.now(), registry, },);
+    const problems = await verifyRustLockfiles({
+      root,
+      now: Date.now(),
+      registry,
+    },);
     if (problems.length > 0)
-      throw new RustCatalogPolicyError({ heading: 'Trust verification failed', problems, },);
+      throw new RustCatalogPolicyError({
+        heading: 'Trust verification failed',
+        problems,
+      },);
     console.info('Every locked registry version passes the trust policy.',);
     return;
   }
   /**
    Update outcome.
    */
-  const report = await updateRustLockfiles({ root, dryRun: mode === 'dry-run', now: Date.now(), runCargo: spawnCargo, registry, },);
-  printReport({ report, dryRun: mode === 'dry-run', },);
-  if (report.problems.length > 0)
-    throw new RustCatalogPolicyError({ heading: 'Update refused; every Cargo.lock was restored', problems: report.problems, },);
+  const report = await updateRustLockfiles({
+    root,
+    dryRun: mode === 'dry-run',
+    now: Date.now(),
+    runCargo: spawnCargo,
+    registry,
+  },);
+  printReport({
+    report,
+    dryRun: mode === 'dry-run',
+  },);
+  if (report.problems
+    .length
+    > 0)
+    throw new RustCatalogPolicyError({
+      heading: 'Update refused; every Cargo.lock was restored',
+      problems: report.problems,
+    },);
 }
 
-if (import.meta.main === true)
-  await main(process.argv.slice(2,),);
+if (import.meta.main)
+  await main(process.argv
+    .slice(2,),);
 
 //endregion Main

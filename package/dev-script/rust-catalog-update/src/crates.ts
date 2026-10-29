@@ -47,7 +47,10 @@ export async function lockedCrateDirs(root: string,): Promise<readonly string[]>
    */
   const locks = await Promise.all(MANIFEST_GLOBS.map(async function collect(pattern,): Promise<readonly string[]> {
     return await Array.fromAsync(glob(
-      pattern.replace('Cargo.toml', LOCKFILE_NAME,),
+      pattern.replace(
+        'Cargo.toml',
+        LOCKFILE_NAME,
+      ),
       { cwd: root, },
     ),);
   },),);
@@ -91,11 +94,24 @@ export type LockSnapshot = {
  await readLocks({ root, crateDirs, });
  ```
  */
-export async function readLocks({ root, crateDirs, }: { readonly root: string; readonly crateDirs: readonly string[]; },): Promise<readonly LockSnapshot[]> {
+export async function readLocks({
+  root,
+  crateDirs,
+}: {
+  readonly root: string;
+  readonly crateDirs: readonly string[]
+},): Promise<readonly LockSnapshot[]> {
   return await Promise.all(crateDirs.map(async function read(crateDir: string,): Promise<LockSnapshot> {
     return {
       crateDir,
-      source: await readFile(join(root, crateDir, LOCKFILE_NAME,), 'utf8',),
+      source: await readFile(
+        join(
+          root,
+          crateDir,
+          LOCKFILE_NAME,
+        ),
+        'utf8',
+      ),
     };
   },),);
 }
@@ -112,9 +128,22 @@ export async function readLocks({ root, crateDirs, }: { readonly root: string; r
  await restoreLocks({ root, snapshots, });
  ```
  */
-export async function restoreLocks({ root, snapshots, }: { readonly root: string; readonly snapshots: readonly LockSnapshot[]; },): Promise<void> {
+export async function restoreLocks({
+  root,
+  snapshots,
+}: {
+  readonly root: string;
+  readonly snapshots: readonly LockSnapshot[]
+},): Promise<void> {
   await Promise.all(snapshots.map(async function restore(snapshot: LockSnapshot,): Promise<void> {
-    await writeFile(join(root, snapshot.crateDir, LOCKFILE_NAME,), snapshot.source,);
+    await writeFile(
+      join(
+        root,
+        snapshot.crateDir,
+        LOCKFILE_NAME,
+      ),
+      snapshot.source,
+    );
   },),);
 }
 

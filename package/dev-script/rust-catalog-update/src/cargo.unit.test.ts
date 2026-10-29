@@ -70,7 +70,7 @@ await describe({
     it({
       name: 'subtracts the release age and drops milliseconds',
       fn: async () => {
-        expect(publishTimeCutoff({ now: Date.parse('2026-10-29T12:00:00.789Z',), minutes: 1440, },),).toBe('2026-10-28T12:00:00Z',);
+        expect(publishTimeCutoff({ now: Date.parse('2026-10-29T12:00:00.789Z',), minutes: 1_440, },),).toBe('2026-10-28T12:00:00Z',);
       },
     },),
   ],

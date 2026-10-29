@@ -22,7 +22,10 @@ import {
 import spawn, { SubprocessError, } from 'nano-spawn';
 
 import { l, } from './logger.ts';
-import { parseSelector, matchesPattern, } from './selectors.ts';
+import {
+  parseSelector,
+  matchesPattern,
+} from './selectors.ts';
 
 //region Runner
 
@@ -50,7 +53,10 @@ export type CargoOutcome = {
  const runCargo: RunCargo = async ({ cwd, args, }) => ({ ok: true, output: '', });
  ```
  */
-export type RunCargo = (request: { readonly cwd: string; readonly args: readonly string[]; },) => Promise<CargoOutcome>;
+export type RunCargo = (request: {
+  readonly cwd: string;
+  readonly args: readonly string[]
+},) => Promise<CargoOutcome>;
 
 /**
  Default {@link RunCargo} through `nano-spawn`.
@@ -66,22 +72,41 @@ export type RunCargo = (request: { readonly cwd: string; readonly args: readonly
  await spawnCargo({ cwd: 'package/cli/a', args: ['generate-lockfile',], });
  ```
  */
-export async function spawnCargo({ cwd, args, }: { readonly cwd: string; readonly args: readonly string[]; },): Promise<CargoOutcome> {
+export async function spawnCargo({
+  cwd,
+  args,
+}: {
+  readonly cwd: string;
+  readonly args: readonly string[]
+},): Promise<CargoOutcome> {
   /**
    Logger for cargo runs.
    */
-  const log = tagged({ tag: spawnCargo.name, l, },);
+  const log = tagged({
+    tag: spawnCargo.name,
+    l,
+  },);
   log.debug(`cargo ${args.join(' ',)} in ${cwd}`,);
   try {
     /**
      Finished run.
      */
-    const result = await spawn('cargo', [...args,], { cwd, },);
-    return { ok: true, output: result.output, };
+    const result = await spawn(
+      'cargo',
+      [...args,],
+      { cwd, },
+    );
+    return {
+      ok: true,
+      output: result.output,
+    };
   } catch (error) {
     if ((error instanceof SubprocessError) && (error.exitCode !== undefined)) {
       log.debug(`cargo ${args.join(' ',)} in ${cwd} exited ${String(error.exitCode,)}`,);
-      return { ok: false, output: error.output, };
+      return {
+        ok: false,
+        output: error.output,
+      };
     }
     throw error;
   }
@@ -114,7 +139,15 @@ export class CargoResolveError extends Error {
 
    @param output - cargo output
    */
-  constructor({ crateDir, command, output, }: { readonly crateDir: string; readonly command: string; readonly output: string; },) {
+  constructor({
+    crateDir,
+    command,
+    output,
+  }: {
+    readonly crateDir: string;
+    readonly command: string;
+    readonly output: string
+  },) {
     super([
       `\`${command}\` failed in ${crateDir}; every lockfile was restored.`,
       'Cargo output:',
@@ -155,9 +188,18 @@ const ISO_SECONDS_LENGTH = 19;
  publishTimeCutoff({ now: Date.parse('2026-10-29T12:00:00Z'), minutes: 1440, }); // '2026-10-28T12:00:00Z'
  ```
  */
-export function publishTimeCutoff({ now, minutes, }: { readonly now: number; readonly minutes: number; },): string {
+export function publishTimeCutoff({
+  now,
+  minutes,
+}: {
+  readonly now: number;
+  readonly minutes: number
+},): string {
   return `${new Date(now - (minutes * MS_PER_MINUTE),).toISOString()
-    .slice(0, ISO_SECONDS_LENGTH,)}Z`;
+    .slice(
+      0,
+      ISO_SECONDS_LENGTH,
+    )}Z`;
 }
 
 /**
@@ -183,7 +225,13 @@ export function publishTimeCutoff({ now, minutes, }: { readonly now: number; rea
  ```
  */
 export async function resolveCrate(
-  { root, crateDir, cutoff, strict, runCargo, }: {
+  {
+    root,
+    crateDir,
+    cutoff,
+    strict,
+    runCargo,
+  }: {
     readonly root: string;
     readonly crateDir: string;
     readonly cutoff: string;
@@ -194,30 +242,55 @@ export async function resolveCrate(
   /**
    Logger for this crate.
    */
-  const log = tagged({ tag: resolveCrate.name, l, },);
+  const log = tagged({
+    tag: resolveCrate.name,
+    l,
+  },);
   /**
    Absolute crate directory.
    */
-  const cwd = join(root, crateDir,);
+  const cwd = join(
+    root,
+    crateDir,
+  );
   /**
    Constrained resolution arguments.
    */
-  const constrained = cutoff === '' ? ['generate-lockfile',] : ['-Zunstable-options', 'generate-lockfile', '--publish-time', cutoff,];
+  const constrained = cutoff === '' ? ['generate-lockfile',] : [
+    '-Zunstable-options',
+    'generate-lockfile',
+    '--publish-time',
+    cutoff,
+  ];
   /**
    First attempt.
    */
-  const first = await runCargo({ cwd, args: constrained, },);
+  const first = await runCargo({
+    cwd,
+    args: constrained,
+  },);
   if (first.ok)
     return { fellBack: false, };
   if (strict || (cutoff === ''))
-    throw new CargoResolveError({ crateDir, command: `cargo ${constrained.join(' ',)}`, output: first.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: `cargo ${constrained.join(' ',)}`,
+      output: first.output,
+    },);
   log.warn(`${crateDir}: no resolution satisfies the release-age cutoff ${cutoff}; minimumReleaseAgeStrict is false, so resolving without it`,);
   /**
    Unconstrained fallback.
    */
-  const fallback = await runCargo({ cwd, args: ['generate-lockfile',], },);
+  const fallback = await runCargo({
+    cwd,
+    args: ['generate-lockfile',],
+  },);
   if (!fallback.ok)
-    throw new CargoResolveError({ crateDir, command: 'cargo generate-lockfile', output: fallback.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: 'cargo generate-lockfile',
+      output: fallback.output,
+    },);
   return { fellBack: true, };
 }
 
@@ -240,22 +313,35 @@ export async function resolveCrate(
  excludedUpdateSpecs({ lock, selectors: ['ring',], }); // ['ring@0.17.8']
  ```
  */
-export function excludedUpdateSpecs({ lock, selectors, }: { readonly lock: string; readonly selectors: readonly string[]; },): readonly string[] {
+export function excludedUpdateSpecs({
+  lock,
+  selectors,
+}: {
+  readonly lock: string;
+  readonly selectors: readonly string[]
+},): readonly string[] {
   /**
    Name patterns that exempt every version.
    */
-  const patterns = selectors.map(parseSelector,).filter(function isNameOnly(selector,): boolean {
-    return selector.versions.length === 0;
-  },)
+  const patterns = selectors.map(parseSelector,)
+    .filter(function isNameOnly(selector,): boolean {
+      return selector.versions
+        .length
+        === 0;
+    },)
     .map(function toPattern(selector,): string {
       return selector.pattern;
     },);
   if (patterns.length === 0)
     return [];
-  return [...new Set(parseCargoLock(lock,).filter(isRegistryPackage,)
+  return [...new Set(parseCargoLock(lock,)
+    .filter(isRegistryPackage,)
     .filter(function isExempt(locked,): boolean {
       return patterns.some(function matches(pattern: string,): boolean {
-        return matchesPattern({ pattern, name: locked.name, },);
+        return matchesPattern({
+          pattern,
+          name: locked.name,
+        },);
       },);
     },)
     .map(function toSpec(locked,): string {
@@ -282,7 +368,12 @@ export function excludedUpdateSpecs({ lock, selectors, }: { readonly lock: strin
  ```
  */
 export async function updateExempt(
-  { root, crateDir, specs, runCargo, }: {
+  {
+    root,
+    crateDir,
+    specs,
+    runCargo,
+  }: {
     readonly root: string;
     readonly crateDir: string;
     readonly specs: readonly string[];
@@ -294,9 +385,22 @@ export async function updateExempt(
   /**
    Update outcome.
    */
-  const outcome = await runCargo({ cwd: join(root, crateDir,), args: ['update', ...specs,], },);
+  const outcome = await runCargo({
+    cwd: join(
+      root,
+      crateDir,
+    ),
+    args: [
+      'update',
+      ...specs,
+    ],
+  },);
   if (!outcome.ok)
-    throw new CargoResolveError({ crateDir, command: `cargo update ${specs.join(' ',)}`, output: outcome.output, },);
+    throw new CargoResolveError({
+      crateDir,
+      command: `cargo update ${specs.join(' ',)}`,
+      output: outcome.output,
+    },);
 }
 
 //endregion Resolve

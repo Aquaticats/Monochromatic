@@ -44,12 +44,23 @@ import type { Registry, } from './registry.ts';
  ```
  */
 export async function verifyRustLockfiles(
-  { root, now, registry, }: { readonly root: string; readonly now: number; readonly registry: Registry; },
+  {
+    root,
+    now,
+    registry,
+  }: {
+    readonly root: string;
+    readonly now: number;
+    readonly registry: Registry
+  },
 ): Promise<readonly string[]> {
   /**
    Logger for the run.
    */
-  const log = tagged({ tag: verifyRustLockfiles.name, l, },);
+  const log = tagged({
+    tag: verifyRustLockfiles.name,
+    l,
+  },);
   /**
    Catalog settings.
    */
@@ -57,7 +68,10 @@ export async function verifyRustLockfiles(
   /**
    Every lockfile.
    */
-  const locks = await readLocks({ root, crateDirs: await lockedCrateDirs(root,), },);
+  const locks = await readLocks({
+    root,
+    crateDirs: await lockedCrateDirs(root,),
+  },);
   /**
    Distinct locked registry versions.
    */
@@ -65,7 +79,12 @@ export async function verifyRustLockfiles(
     return snapshot.source;
   },),);
   log.info(`verifying ${String(versions.length,)} locked versions from ${String(locks.length,)} lockfiles`,);
-  return await checkTrust({ versions, settings: document.settings, registry, now, },);
+  return await checkTrust({
+    versions,
+    settings: document.settings,
+    registry,
+    now,
+  },);
 }
 
 //endregion Verify

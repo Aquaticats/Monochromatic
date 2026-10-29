@@ -32,7 +32,7 @@ import {
 const VERSIONS_BODY = JSON.stringify({
   versions: [
     { num: '1.0.1', created_at: '2026-02-01T00:00:00Z', published_by: null, trustpub_data: { provider: 'github', repository: 'o/r', }, repository: 'https://github.com/o/r', },
-    { num: '1.0.0', created_at: '2026-01-01T00:00:00Z', published_by: { id: 3618, login: 'x', }, trustpub_data: null, repository: null, },
+    { num: '1.0.0', created_at: '2026-01-01T00:00:00Z', published_by: { id: 3_618, login: 'x', }, trustpub_data: null, repository: null, },
   ],
   meta: { total: 2, next_page: null, },
 },);

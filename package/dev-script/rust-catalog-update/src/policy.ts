@@ -91,7 +91,11 @@ export function releaseAgeProblems(
     readonly now: number;
   },
 ): readonly string[] {
-  if (isExcluded({ selectors: settings.minimumReleaseAgeExclude, name, version, },))
+  if (isExcluded({
+    selectors: settings.minimumReleaseAgeExclude,
+    name,
+    version,
+  },))
     return [];
   if (pubtime === '') {
     return settings.minimumReleaseAgeIgnoreMissingTime
@@ -126,7 +130,9 @@ export function releaseAgeProblems(
  ```
  */
 function isPrerelease(version: string,): boolean {
-  return version.split('+',)[0]?.includes('-',) === true;
+  return version.split('+',)[0]
+    ?.includes('-',)
+    === true;
 }
 
 /**
@@ -143,7 +149,13 @@ function isPrerelease(version: string,): boolean {
  trustLevel({ record, earlier: [], }); // 1 or 3
  ```
  */
-export function trustLevel({ record, earlier, }: { readonly record: VersionRecord; readonly earlier: readonly VersionRecord[]; },): number {
+export function trustLevel({
+  record,
+  earlier,
+}: {
+  readonly record: VersionRecord;
+  readonly earlier: readonly VersionRecord[]
+},): number {
   if (record.trustpubRepository !== '')
     return 3;
   return earlier.some(function samePublisher(previous: VersionRecord,): boolean {
@@ -188,7 +200,11 @@ export function trustProblems(
     readonly now: number;
   },
 ): readonly string[] {
-  if ((settings.trustPolicy === 'off') || isExcluded({ selectors: settings.trustPolicyExclude, name, version, },))
+  if ((settings.trustPolicy === 'off') || isExcluded({
+    selectors: settings.trustPolicyExclude,
+    name,
+    version,
+  },))
     return [];
   /**
    The release being checked.
@@ -198,16 +214,20 @@ export function trustProblems(
   },);
   if (record === undefined)
     return [`${name}@${version} is not in the crates.io version list, so its trust cannot be checked; add it to trustPolicyExclude if it is expected`,];
-  if ((settings.trustPolicyIgnoreAfter !== undefined) && (Date.parse(record.createdAt,) + (settings.trustPolicyIgnoreAfter * MS_PER_MINUTE) <= now))
+  if ((settings.trustPolicyIgnoreAfter !== undefined) && ((Date.parse(record.createdAt,) + (settings.trustPolicyIgnoreAfter * MS_PER_MINUTE)) <= now))
     return [];
   /**
    Releases published before this one, oldest first.
    */
   const earlier = history.filter(function isEarlier(entry: VersionRecord,): boolean {
     return Date.parse(entry.createdAt,) < Date.parse(record.createdAt,);
-  },).toSorted(function byDate(left: VersionRecord, right: VersionRecord,): number {
-    return Date.parse(left.createdAt,) - Date.parse(right.createdAt,);
-  },);
+  },)
+    .toSorted(function byDate(
+      left: VersionRecord,
+      right: VersionRecord,
+    ): number {
+      return Date.parse(left.createdAt,) - Date.parse(right.createdAt,);
+    },);
   /**
    Problems found.
    */
@@ -215,17 +235,36 @@ export function trustProblems(
   /**
    This release's level.
    */
-  const level = trustLevel({ record, earlier, },);
+  const level = trustLevel({
+    record,
+    earlier,
+  },);
   /**
    Highest level among earlier stable releases (prereleases do not raise the bar for a stable release).
    */
-  const best = earlier.reduce(function highest(top: number, entry: VersionRecord, index: number,): number {
+  const best = earlier.reduce(
+    function highest(
+      top: number,
+      entry: VersionRecord,
+      index: number,
+    ): number {
     // Each entry is rated against the releases before it in `earlier`, so the
     // slice uses the unfiltered position; prereleases are only skipped as candidates.
-    if (!isPrerelease(version,) && isPrerelease(entry.num,))
-      return top;
-    return Math.max(top, trustLevel({ record: entry, earlier: earlier.slice(0, index,), },),);
-  }, 0,);
+      if ((!isPrerelease(version,)) && isPrerelease(entry.num,))
+        return top;
+      return Math.max(
+        top,
+        trustLevel({
+          record: entry,
+          earlier: earlier.slice(
+            0,
+            index,
+          ),
+        },),
+      );
+    },
+    0,
+  );
   if (best > level)
     problems.push(`${name}@${version} has trust level ${String(level,)}, below an earlier release's ${String(best,)} (3 trusted publishing, 2 known publisher, 1 first-time publisher)`,);
   /**
@@ -233,10 +272,12 @@ export function trustProblems(
    */
   const trustedRepositories = new Set(earlier.map(function toRepo(entry: VersionRecord,): string {
     return entry.trustpubRepository;
-  },).filter(function isSet(repository: string,): boolean {
-    return repository !== '';
-  },),);
-  if ((record.trustpubRepository !== '') && (trustedRepositories.size > 0) && !trustedRepositories.has(record.trustpubRepository,))
+  },)
+    .filter(function isSet(repository: string,): boolean {
+      return repository !== '';
+    },),);
+  if ((record.trustpubRepository !== '') && (trustedRepositories.size > 0)
+    && (!trustedRepositories.has(record.trustpubRepository,)))
     problems.push(`${name}@${version} was trusted-published from ${record.trustpubRepository}, not ${[...trustedRepositories,].join(', ',)}`,);
   /**
    The release just before this one.

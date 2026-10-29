@@ -24,8 +24,14 @@ import { pruneSelectors, } from './selectors.ts';
  Exclude settings that can be pruned, with the flag that enables each.
  */
 const PRUNABLE = [
-  { key: 'minimumReleaseAgeExclude', flag: 'minimumReleaseAgeExcludePrune', },
-  { key: 'trustPolicyExclude', flag: 'trustPolicyExcludePrune', },
+  {
+    key: 'minimumReleaseAgeExclude',
+    flag: 'minimumReleaseAgeExcludePrune',
+  },
+  {
+    key: 'trustPolicyExclude',
+    flag: 'trustPolicyExcludePrune',
+  },
 ] as const;
 
 /**
@@ -47,12 +53,19 @@ const PRUNABLE = [
  ```
  */
 export function pruneExcludes(
-  { source, settings, locked, }: {
+  {
+    source,
+    settings,
+    locked,
+  }: {
     readonly source: string;
     readonly settings: RustCatalogSettings;
     readonly locked: readonly LockedVersion[];
   },
-): { readonly source: string; readonly removed: readonly string[]; } {
+): {
+  readonly source: string;
+  readonly removed: readonly string[]
+} {
   /**
    Locked `name@version` keys.
    */
@@ -71,26 +84,51 @@ export function pruneExcludes(
       /**
        Selectors kept.
        */
-      const after = pruneSelectors({ selectors: before, locked: lockedKeys, },);
-      return { key: prunable.key, before, after, };
+      const after = pruneSelectors({
+        selectors: before,
+        locked: lockedKeys,
+      },);
+      return {
+        key: prunable.key,
+        before,
+        after,
+      };
     },)
     .filter(function changed(change,): boolean {
-      return change.before.join('\u0000',) !== change.after.join('\u0000',);
+      return change.before
+        .join('\u0000',)
+        !== change.after
+          .join('\u0000',);
     },);
   if (changes.length === 0)
-    return { source, removed: [], };
+    return {
+      source,
+      removed: [],
+    };
   /**
    Edited document.
    */
-  const edit = changes.reduce(function apply(state, change,) {
-    return tomlSet({ edit: state, path: [change.key,], value: [...change.after,], },);
-  }, parseTomlEdit({ source, },),);
+  const edit = changes.reduce(
+    function apply(
+      state,
+      change,
+    ) {
+      return tomlSet({
+        edit: state,
+        path: [change.key,],
+        value: [...change.after,],
+      },);
+    },
+    parseTomlEdit({ source, },),
+  );
   return {
     source: tomlStringify({ edit, },),
     removed: changes.flatMap(function removedOf(change,): readonly string[] {
-      return change.before.filter(function isGone(selector: string,): boolean {
-        return !change.after.includes(selector,);
-      },)
+      return change.before
+        .filter(function isGone(selector: string,): boolean {
+          return !change.after
+            .includes(selector,);
+        },)
         .map(function label(selector: string,): string {
           return `${change.key}: ${selector}`;
         },);

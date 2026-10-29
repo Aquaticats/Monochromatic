@@ -40,15 +40,25 @@ export function parseSelector(selector: string,): ParsedSelector {
    Position of the version separator.
    */
   const at = selector.indexOf('@',);
-  if (at === -1)
-    return { pattern: selector.trim(), versions: [], };
+  if (at === (-1))
+    return {
+      pattern: selector.trim(),
+      versions: [],
+    };
   return {
-    pattern: selector.slice(0, at,).trim(),
-    versions: selector.slice(at + 1,).split('||',).map(function trimVersion(version: string,): string {
-      return version.trim();
-    },).filter(function isPresent(version: string,): boolean {
-      return version.length > 0;
-    },),
+    pattern: selector.slice(
+      0,
+      at,
+    )
+      .trim(),
+    versions: selector.slice(at + 1,)
+      .split('||',)
+      .map(function trimVersion(version: string,): string {
+        return version.trim();
+      },)
+      .filter(function isPresent(version: string,): boolean {
+        return version.length > 0;
+      },),
   };
 }
 
@@ -70,7 +80,13 @@ export function parseSelector(selector: string,): ParsedSelector {
  matchesPattern({ pattern: 'tokio*', name: 'tokio-util', }); // true
  ```
  */
-export function matchesPattern({ pattern, name, }: { readonly pattern: string; readonly name: string; },): boolean {
+export function matchesPattern({
+  pattern,
+  name,
+}: {
+  readonly pattern: string;
+  readonly name: string
+},): boolean {
   /**
    Literal pieces between wildcards.
    */
@@ -85,18 +101,26 @@ export function matchesPattern({ pattern, name, }: { readonly pattern: string; r
    Last literal piece, which must end the name.
    */
   const last = pieces.at(-1,) ?? '';
-  if (!name.startsWith(first,) || !name.endsWith(last,) || (name.length < first.length + last.length))
+  if ((!name.startsWith(first,)) || (!name.endsWith(last,))
+    || (name.length < (first.length
+      + last.length)))
     return false;
   /**
    Search state: offset after the last matched piece.
    */
   const cursor = { offset: first.length, };
-  for (const piece of pieces.slice(1, -1,)) {
+  for (const piece of pieces.slice(
+    1,
+    -1,
+  )) {
     /**
      Next occurrence of the middle piece.
      */
-    const found = name.indexOf(piece, cursor.offset,);
-    if ((found === -1) || (found + piece.length > name.length - last.length))
+    const found = name.indexOf(
+      piece,
+      cursor.offset,
+    );
+    if ((found === (-1)) || ((found + piece.length) > (name.length - last.length)))
       return false;
     cursor.offset = found + piece.length;
   }
@@ -120,14 +144,29 @@ export function matchesPattern({ pattern, name, }: { readonly pattern: string; r
  ```
  */
 export function isExcluded(
-  { selectors, name, version, }: { readonly selectors: readonly string[]; readonly name: string; readonly version: string; },
+  {
+    selectors,
+    name,
+    version,
+  }: {
+    readonly selectors: readonly string[];
+    readonly name: string;
+    readonly version: string
+  },
 ): boolean {
   return selectors.some(function covers(selector: string,): boolean {
     /**
      Parsed selector.
      */
     const parsed = parseSelector(selector,);
-    return matchesPattern({ pattern: parsed.pattern, name, },) && ((parsed.versions.length === 0) || parsed.versions.includes(version,));
+    return matchesPattern({
+      pattern: parsed.pattern,
+      name,
+    },) && ((parsed.versions
+      .length
+      === 0)
+      || parsed.versions
+        .includes(version,));
   },);
 }
 
@@ -145,7 +184,13 @@ export function isExcluded(
  pruneSelectors({ selectors: ['gone@1.0.0',], locked: new Set(), }); // []
  ```
  */
-export function pruneSelectors({ selectors, locked, }: { readonly selectors: readonly string[]; readonly locked: ReadonlySet<string>; },): readonly string[] {
+export function pruneSelectors({
+  selectors,
+  locked,
+}: {
+  readonly selectors: readonly string[];
+  readonly locked: ReadonlySet<string>
+},): readonly string[] {
   /**
    Selectors kept so far.
    */
@@ -155,11 +200,14 @@ export function pruneSelectors({ selectors, locked, }: { readonly selectors: rea
      Parsed selector.
      */
     const parsed = parseSelector(selector,);
-    if (parsed.pattern.includes('*',)) {
+    if (parsed.pattern
+      .includes('*',)) {
       kept.push(selector,);
       continue;
     }
-    if (parsed.versions.length === 0) {
+    if (parsed.versions
+      .length
+      === 0) {
       /**
        Whether any locked version has this name.
        */
@@ -173,9 +221,10 @@ export function pruneSelectors({ selectors, locked, }: { readonly selectors: rea
     /**
      Versions of this selector still locked.
      */
-    const remaining = parsed.versions.filter(function isLocked(version: string,): boolean {
-      return locked.has(`${parsed.pattern}@${version}`,);
-    },);
+    const remaining = parsed.versions
+      .filter(function isLocked(version: string,): boolean {
+        return locked.has(`${parsed.pattern}@${version}`,);
+      },);
     if (remaining.length > 0)
       kept.push(`${parsed.pattern}@${remaining.join(' || ',)}`,);
   }
