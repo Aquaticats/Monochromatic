@@ -12,34 +12,69 @@ so the gate stays this runbook until it graduates.
 
 ## When it fires
 
-When a diff about to land touches code that consumes unbounded input
+When a candidate diff touches code that consumes unbounded input
 (text,
 rows,
 file trees,
 anything whose length the code itself does not bound).
-In shadow phase any agent may run it on such a diff;
-nothing is required,
-and nothing is blocked either way.
+In shadow phase the run is governed by the `May run it` entry of `Definitions`:
+permitted,
+required by nothing,
+checked by nothing.
+
+## Definitions
+
+Every term below is operational;
+ nothing here is a label only.
+
+- Landing:
+  the step of a `cli-git` commit transaction
+  that places the commit on the real index and branch,
+  after its hooks and content policies ran in a private index and a shadow repository
+  (`package/git-policy/cli/README.md`,
+  heading `What it does`,
+  bullet `Commits as transactions`).
+  Auto-push then publishes the branch to `origin`.
+- Agent:
+  a session that edits this repository under `AGENTS.md`
+  and lands commits through `cli-git`.
+  The named kinds are Claude Code
+  (guidance in the generated `CLAUDE.md`),
+  DeepSeek Harness sessions,
+  and `pi` sessions.
+  The gate's subject is the diff such a session lands,
+  never the harness name.
+- Candidate diff:
+  the exact diff one `cli-git` commit transaction lands,
+  read as its explicit pathspecs
+  (the wrapper rejects bulk staging,
+  so the paths are always named).
+- Reviewer:
+  a fresh session or subagent that is not the author
+  (`doc/agent/self-review.md`),
+  shown only the candidate diff's code and `AGENTS.md`.
+- May run it:
+  permitted,
+  required by nothing,
+  and checked by nothing.
+  A `cli-git` landing completes unchanged
+  whether a shadow run happens or not,
+  and skipping costs exactly one missing entry
+  in `doc/audit/standards-review-gate-shadow.md`.
 
 ## Whose landings it shadows
 
-Agent sessions landing diffs in this repo:
+Every agent defined above,
 Claude Code first,
-since its dismissals started this work
-and `CLAUDE.md` is generated for it,
-and every other harness that lands here,
-this one included.
-The subject is the diff,
-not the harness:
-a shadow run attaches to the landing it sits beside.
+since its dismissals started this work.
+A shadow run attaches to the candidate diff it sits beside.
 
-In shadow phase the landing session triggers the run
-on its own diffs
-and appends to the log.
+In shadow phase the session landing the candidate diff
+starts the run itself.
 Nothing forces it,
 so an empty log means no run happened
 and never means there was nothing to catch.
-A non-blocking landing hook that runs the review
+A non-blocking landing hook that starts the run
 and only logs is the unvolunteered alternative,
 kept for the graduation discussion.
 

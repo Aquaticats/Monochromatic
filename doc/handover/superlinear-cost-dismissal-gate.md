@@ -410,6 +410,16 @@ and safe to delete:
   triggered by the landing session on its own diffs while shadowing.
   An empty log means no run happened,
   never that there was nothing to catch.
+- Terms defined 2026-10-29 at the owner's "define it":
+  `doc/runbook/standards-review-gate.md` now defines landing
+  (the `cli-git` transaction step that places the commit on the real index and branch),
+  agent (a session editing under `AGENTS.md` and landing through `cli-git`),
+  candidate diff,
+  reviewer,
+  and `May run it`
+  (permitted,
+  required by nothing,
+  checked by nothing).
 
 ## Next action
 
