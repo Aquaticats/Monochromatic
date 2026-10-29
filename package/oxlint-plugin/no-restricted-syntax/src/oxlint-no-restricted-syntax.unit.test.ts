@@ -244,6 +244,7 @@ const SUBSTANTIVE_RULES = [
   'no-rest-params',
   'no-switch',
   'no-sync',
+  'no-system-tmpdir',
   'no-trim-left-right',
   'no-try-finally',
   'no-variable-function-expression',
