@@ -221,6 +221,15 @@ export type ProviderBudgets = {
   readonly markServed?: (args: { readonly provider: ProviderName; },) => void;
 
   /**
+   Which providers' last return served nothing, so that a stage short of a bench does not wait for their holds to end:
+   each such provider with its return (the hold that ended and how soon after it the provider refused again), when its
+   hold ended in the entry, no call it answered came after the end, it refused again, and waiting for it is not what lets
+   the entry finish. A SERVED CALL CLEARS IT, and the next entry begins with none. ABSENT ON A VIEW THAT SEES NO SERVICE,
+   whose providers are then waited for as before.
+   */
+  readonly futileReturns?: ReturnType<typeof createRefusalHolds>['futileReturns'];
+
+  /**
    Starts an entry with no provider given up on, so a provider an entry that ended had stopped waiting for is waited for
    and asked again, and writes the entry's name where a provider is given up on. ABSENT ON A VIEW THAT HAS NO ENTRIES,
    which keeps one mark set for its whole life.
@@ -248,6 +257,14 @@ export type ProviderBudgets = {
 };
 
 /**
+ What the layer the run builds sees and the narrower view leaves absent: the service (`markServed`), the returns that
+ served nothing (`futileReturns`) and the entries (`beginEntry`).
+
+ @internal
+ */
+type RunLayerMembers = Required<Pick<ProviderBudgets, 'beginEntry' | 'futileReturns' | 'markServed'>>;
+
+/**
  The budget view with the meter states beside it, which is what the run
  builds: the router needs only the view, the holds and the correction
  (`ProviderBudgets`), and a seat reading that names how each provider reads
@@ -263,7 +280,7 @@ export type ProviderBudgets = {
  },);
  ```
  */
-export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
+export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & RunLayerMembers & {
   /**
    What each meter said in the reading `read` decides on, re-reading the
    meters when the cached one has aged out: `wet` and `dry` for a meter that
@@ -289,16 +306,6 @@ export type ProviderBudgetsWithStates = ProviderBudgets & NeuralWattCause & {
    day start, and the decided time of day once it has. READ OFF THE CLIENT'S DECISION, not off the `METERS` text.
    */
   readonly neuralwattReturn: () => NeuralWattReturn;
-
-  /**
-   The layer the run builds sees the service and the entries, which the narrower view leaves absent.
-   */
-  readonly markServed: NonNullable<ProviderBudgets['markServed']>;
-
-  /**
-   Starts an entry (`ProviderBudgets`).
-   */
-  readonly beginEntry: NonNullable<ProviderBudgets['beginEntry']>;
 };
 
 /**
@@ -870,6 +877,8 @@ export function createProviderBudgets(
     },
 
     markServed: refusals.noteServed,
+
+    futileReturns: refusals.futileReturns,
 
     beginEntry: refusals.beginEntry,
 

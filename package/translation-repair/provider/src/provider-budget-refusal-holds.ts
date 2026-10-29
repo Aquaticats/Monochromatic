@@ -12,6 +12,10 @@ import {
   type WritingReach,
 } from './budget-routing.ts';
 import {
+  createFutileReturns,
+  type FutileReturn,
+} from './provider-budget-futile-returns.ts';
+import {
   createGiveUpAside,
   type UnmetFloors,
   writingProviderFloor,
@@ -55,6 +59,13 @@ import {
 // no bench floor the entry needs would be left unmet while without it one is. Otherwise it holds
 // (`provider-budget-give-up-aside.ts`). The decision is taken from each meter reading (`noteReading`) and from the
 // holds as they stand, for each given-up provider.
+//
+// A RETURN THAT SERVED NOTHING IS MARKED BESIDE THE GIVE-UP, ON THE SAME EVIDENCE (`provider-budget-futile-returns.ts`):
+// a hold ended in the entry, nothing the provider answered came after the end, and it refused again. The give-up reads
+// that for a refusal cooldown and takes the provider out of routing; the mark reads it for every hold and takes nothing
+// out, and a served call clears it. The seat reader skips a marked provider's holds, so a stage goes on short instead of
+// waiting for a provider that has refused its last return. The mark yields to the give-up's two exceptions, decided by
+// the same weighing (`waitingHelps`), so no wait that lets the entry finish is skipped.
 
 /**
  The last hold a refusal set on one provider.
@@ -144,6 +155,17 @@ export type RefusalHolds = {
    @returns Whether it refused right after a cooldown ran out and the entry has not ended since
    */
   readonly givenUp: (args: { readonly provider: ProviderName; },) => boolean;
+
+  /**
+   What the budgets know of a provider whose last return served nothing and whose holds the seat reader is therefore not
+   to wait for: the hold ended in this entry, no call the provider answered came after the end, it refused again, and
+   waiting for it is not what lets the entry finish (the provider is not the only writing provider not dry, and its
+   return would not leave every bench floor met where without it one is not).
+
+   @returns Each provider whose last return served nothing and whose holds are not worth waiting for, with that return;
+   a provider that has none, served a call since, or must be waited for is not in it
+   */
+  readonly futileReturns: () => ReadonlyMap<ProviderName, FutileReturn>;
 
   /**
    Records which providers the last meter reading found dry apart from refusal holds and give-ups, and decides again
@@ -305,6 +327,14 @@ export function createRefusalHolds(
     l,
   },);
 
+  /**
+   The returns that served nothing, marked on the same evidence as the give-up.
+   */
+  const futile = createFutileReturns({
+    l,
+    entryWords,
+  },);
+
   return {
     left,
 
@@ -330,6 +360,14 @@ export function createRefusalHolds(
         holdMs,
         endsAt: at + holdMs,
       };
+      // A RETURN THAT SERVED NOTHING IS MARKED FOR EVERY KIND OF HOLD, before the give-up reads the cooldowns alone.
+      futile.note({
+        provider,
+        earlier,
+        at,
+        servedAt: servedAt[provider],
+        entryStartedAt: entry.startedAt,
+      },);
       if (!cooldown)
         return;
       if (!earlier.cooldown)
@@ -386,8 +424,25 @@ export function createRefusalHolds(
       return given.has(provider,);
     },
 
+    futileReturns: function futileReturns(): ReadonlyMap<ProviderName, FutileReturn> {
+      /**
+       The marks that stand: the providers whose wait would not make the entry finishable.
+       */
+      const standing = new Map<ProviderName, FutileReturn>();
+      for (const [provider, mark,] of futile.all()) {
+        // THE MARK YIELDS WHERE WAITING IS WHAT LETS THE ENTRY FINISH, as the give-up does.
+        if (!aside.waitingHelps({ provider, },))
+          standing.set(
+            provider,
+            mark,
+          );
+      }
+      return standing;
+    },
+
     noteServed: function noteServed({ provider, },): void {
       servedAt[provider] = now();
+      futile.served({ provider, },);
     },
 
     beginEntry: function beginEntry({ entryId, },): void {
@@ -399,6 +454,7 @@ export function createRefusalHolds(
       entry.startedAt = now();
       given.clear();
       aside.forget();
+      futile.forgetAll();
       if (forgotten.length > 0) {
         tagged({
           tag: beginEntry.name,

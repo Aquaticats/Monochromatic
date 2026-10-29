@@ -150,11 +150,11 @@ await describe({
         await consoleLinesDuring({
           run: async function refuse(): Promise<void> {
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
 
             clock.now += COOLDOWN_MS / 3;
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);
@@ -177,11 +177,11 @@ await describe({
               clock,
               holdMs: COOLDOWN_MS,
             },);
-            expect(budgets.futileReturns().synthetic,).toEqual({
+            expect(budgets.futileReturns().get('synthetic',),).toEqual({
               holdMs: COOLDOWN_MS,
               refusedAfterMs: AFTER_MS,
             },);
-            expect(budgets.futileReturns().hyper,).toBeUndefined();
+            expect(budgets.futileReturns().get('hyper',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);
@@ -205,7 +205,7 @@ await describe({
               holdMs: STATED_MS,
               statedWaitMs: STATED_MS,
             },);
-            expect(budgets.futileReturns().synthetic,).toEqual({
+            expect(budgets.futileReturns().get('synthetic',),).toEqual({
               holdMs: STATED_MS,
               refusedAfterMs: AFTER_MS,
             },);
@@ -232,7 +232,7 @@ await describe({
             budgets.markServed({ provider: 'synthetic', },);
             clock.now += AFTER_MS;
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);
@@ -255,15 +255,15 @@ await describe({
               clock,
               holdMs: COOLDOWN_MS,
             },);
-            expect(budgets.futileReturns().synthetic,).toBeDefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeDefined();
 
             budgets.markServed({ provider: 'synthetic', },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
 
             // Its hold runs out again, and the next refusal comes with nothing served after the end.
             clock.now += COOLDOWN_MS + AFTER_MS;
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toEqual({
+            expect(budgets.futileReturns().get('synthetic',),).toEqual({
               holdMs: COOLDOWN_MS,
               refusedAfterMs: AFTER_MS,
             },);
@@ -290,15 +290,15 @@ await describe({
               clock,
               holdMs: COOLDOWN_MS,
             },);
-            expect(budgets.futileReturns().synthetic,).toBeDefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeDefined();
 
             budgets.beginEntry({ entryId: 'CatEntry2', },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
 
             // The hold that was running when the second entry began ends inside it, and the provider refuses again.
             clock.now += COOLDOWN_MS + AFTER_MS;
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toEqual({
+            expect(budgets.futileReturns().get('synthetic',),).toEqual({
               holdMs: COOLDOWN_MS,
               refusedAfterMs: AFTER_MS,
             },);
@@ -325,7 +325,7 @@ await describe({
             clock.now += COOLDOWN_MS + AFTER_MS;
             budgets.beginEntry({ entryId: 'CatEntry2', },);
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, },);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);
@@ -351,11 +351,11 @@ await describe({
             },);
             expect(budgets.holds().synthetic,).toBe(0,);
             expect((await budgets.read({ signal: SIGNAL, },)).synthetic,).toBe(true,);
-            expect(budgets.futileReturns().synthetic,).toBeDefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeDefined();
 
             await budgets.markRefused({ provider: 'synthetic', signal: SIGNAL, statedWaitMs: STATED_MS, },);
             expect(budgets.holds().synthetic,).toBe(STATED_MS,);
-            expect(budgets.futileReturns().synthetic,).toBeDefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeDefined();
           },
           sinon: ctx.sinon,
         },);
@@ -379,7 +379,7 @@ await describe({
               holdMs: COOLDOWN_MS,
             },);
             expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);
@@ -417,7 +417,7 @@ await describe({
               holdMs: COOLDOWN_MS,
             },);
             expect(budgets.holds().synthetic,).toBe(COOLDOWN_MS,);
-            expect(budgets.futileReturns().synthetic,).toBeUndefined();
+            expect(budgets.futileReturns().get('synthetic',),).toBeUndefined();
           },
           sinon: ctx.sinon,
         },);

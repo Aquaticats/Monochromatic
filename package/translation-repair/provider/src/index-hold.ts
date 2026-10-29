@@ -56,6 +56,11 @@ export {
   type PaymentMarks,
 } from './provider-budget-payment-marks.ts';
 export {
+  createFutileReturns,
+  type EarlierHold,
+  type FutileReturns,
+} from './provider-budget-futile-returns.ts';
+export {
   createGiveUpAside,
   type GiveUpAside,
   type UnmetFloors,
