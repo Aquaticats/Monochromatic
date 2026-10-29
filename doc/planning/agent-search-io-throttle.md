@@ -173,6 +173,14 @@ Read-only probe of `/dev/nvme0` on 2026-10-29 (`nvme id-ctrl`, `nvme get-feature
   at this load cannot resolve a dm-crypt effect; p99 spikes of 100 to 212 ms hit both devices alike.
   A fair test of the workqueue flags needs concurrent reads, which is synthetic load and needs an explicit waiver.
 
+- dm-crypt workqueue trial, user ran `cryptsetup refresh luks-a968fc93-... --allow-discards --perf-no_read_workqueue
+  --perf-no_write_workqueue` (no `--persistent`); `dmsetup table` then showed `3 allow_discards no_read_workqueue
+  no_write_workqueue`. Same interleaved probe, other processes at 52 to 121 reads per second. Medians, spread then window:
+  raw 1.406 / 0.658 ms and 1.145 / 0.232 ms; `dm-1` 1.174 / 0.265 ms and 1.152 / 0.245 ms. Against the baseline
+  (`dm-1` 1.160 / 0.238 ms and 0.936 / 0.253 ms) there is no change beyond run-to-run spread. This is a null result from
+  a single-read probe that could not resolve a difference to begin with, not evidence that the flags do nothing under
+  concurrent reads.
+
 Implication for the I/O limit: a broad search by an agent produces exactly the spread-out cold-read pattern that is
 slowest on this drive, and concurrent readers multiply the wait for everyone, so bounding the agents' read rate
 (the bandwidth cap on `/dev/nvme0n1` is shown to work) addresses the actual bottleneck.
