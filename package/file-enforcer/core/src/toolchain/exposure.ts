@@ -367,27 +367,38 @@ export async function runPostinstallCommands(
     if ((postinstall === undefined) || (!('run' in postinstall)))
       continue;
     /**
+     Command the step runs: a bin of this entry plus its arguments.
+     */
+    const { run: step, } = postinstall;
+    /**
      Absolute bin behind the step's `sourceBin`.
      */
     const target = findToolBin({
       entry,
-      name: postinstall.run.sourceBin,
+      name: step.sourceBin,
       paths,
       env,
       extraDirs,
     },);
     if (target === null)
       continue;
-    // oxlint-disable-next-line no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time
+    /* oxlint-disable no-await-in-loop -- commands of different entries may depend on each other's links, so one at a time */
+    /**
+     Outcome of the step's command.
+     */
     const result = await run({
       command: target,
-      args: postinstall.run.args,
+      args: step.args,
       env: commandEnv,
       cwd: paths.worktreeRoot,
     },);
+    /* oxlint-enable no-await-in-loop */
     if (result.code !== 0) {
       failed[entry.id] = `postinstall command failed with exit code ${String(result.code,)}: `
-        + `${target} ${postinstall.run.args.join(' ',)}\n${result.stdout}${result.stderr}`;
+        + `${target} ${
+          step.args
+            .join(' ',)
+        }\n${result.stdout}${result.stderr}`;
       continue;
     }
     succeeded.push(entry.id,);

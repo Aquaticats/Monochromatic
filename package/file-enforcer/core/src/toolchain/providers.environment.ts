@@ -85,11 +85,15 @@ export async function resolveGithubToken(
     ],
   },);
   /**
-   Trimmed `gh` output, or the no-token marker when `gh` failed.
+   `gh` output without the trailing newline.
    */
-  const fromGh = (viaGh.code === 0) && (viaGh.stdout.trim() !== '')
-    ? viaGh.stdout
-      .trim()
+  const ghOutput = viaGh.stdout
+    .trim();
+  /**
+   Trimmed `gh` output, or the no-token marker when `gh` failed or printed nothing.
+   */
+  const fromGh = (viaGh.code === 0) && (ghOutput !== '')
+    ? ghOutput
     : NO_GITHUB_TOKEN;
   githubTokenCache.set(
     GITHUB_TOKEN_CACHE_KEY,

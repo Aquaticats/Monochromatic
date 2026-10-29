@@ -166,7 +166,7 @@ impl Fixture {
     // Why:      Every test needs identical plumbing; constructing it in one
     //           place keeps the tests about scope selection, not setup.
     fn new(label: &str) -> Fixture {
-        let root = std::env::temp_dir().join(format!(
+        let root = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
             "forbidden-strings-ci-scan-{}-{}",
             label,
             std::process::id(),

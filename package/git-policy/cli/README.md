@@ -38,6 +38,8 @@ Read-only commands,
   Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
   Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported:
    any use of them with the wrapper is undefined behavior.
+  A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event
+   (code `traditional-hooks-unsupported`) that says so; `git cli-git doctor` lists the scripts.
 - Content policies.
   `final-newline`,
    `markdown/autofix`,
@@ -162,6 +164,8 @@ The wrapper adds one namespace to Git.
 git cli-git check --all
 git cli-git fix -- docs/ README.md
 git cli-git check --all --policy final-newline
+# List the traditional hooks the repository holds; they are unsupported.
+git cli-git doctor
 git cli-git --help
 ```
 
@@ -170,6 +174,17 @@ Exactly one scope is required:
  or pathspecs after `--`.
 `--policy <id>` limits the run to one policy and may be repeated.
 Events are JSON lines on standard output.
+
+`git cli-git doctor` takes no options.
+It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,
+ and prints the path of every traditional hook it finds, one per line, on standard output:
+ each executable regular file and each symbolic link, except names ending in `.sample`.
+It exits 0 when it finds none, 1 when it finds any, and 2 when it cannot locate or read the repository.
+Traditional hooks are not supported,
+ so the commands that need a hook to keep working should become config hooks
+ (`hook.<name>.event` with `hook.<name>.command`).
+A commit does not scan for them: it only warns when the configuration sets `core.hooksPath`,
+ which it already knows without any extra file system access.
 
 The former `trust`,
  `untrust` and `status` commands are retired.

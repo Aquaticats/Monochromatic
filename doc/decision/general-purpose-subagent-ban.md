@@ -4,8 +4,11 @@ Decision record for whether Claude Code may use the general-purpose (catch-all) 
 Decision:
  lifted on 2026-06-12.
 General-purpose subagents are allowed,
- as a peer to `spawn-claude` child sessions,
-and should be used only in interactive sessions where a human supervises in the Claude Code UI.
+ as a peer to `spawn-claude` child sessions.
+The supervision restriction (interactive sessions with a human watching the Claude Code UI) was removed on 2026-10-29:
+the user reported that Claude Code updates fixed most of the problems behind it,
+so the `CLAUDE.md` preamble no longer carries a subagent rule.
+The sections below record the original reasoning as history.
 
 ## Background
 
@@ -55,6 +58,8 @@ With a human supervising in the UI,
  which `spawn-claude` does not.
 
 ## Scope and boundary
+
+Superseded on 2026-10-29 for the supervision requirement; the list records the boundary as of 2026-06-12.
 
 - Allowed in interactive sessions where a human watches the Claude Code UI.
 - Autonomous and headless contexts are out of scope and unsupported in this repo:

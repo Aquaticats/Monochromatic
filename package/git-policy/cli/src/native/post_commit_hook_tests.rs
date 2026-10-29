@@ -4,14 +4,13 @@
 use super::*;
 use crate::owner_lock::{DEFAULT_POLL_DELAY, SilentWait, acquire_owner_lock};
 use crate::hook_dispatch_plan::ConfigParameters;
-use crate::test_support::{executable, fixture, git_context, git_text, remove, repository};
+use crate::test_support::{executable, fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
 
 /// Builds a plan whose only meaningful fields are the disabled events and the hook lock.
 fn plan(lock: &Path, skip_lock: bool, disabled: &[&str]) -> HookDispatchPlan {
     return HookDispatchPlan {
         git_path: String::from(crate::test_support::REAL_GIT),
-        hooks_path: String::new(),
         disabled_events: disabled
             .iter()
             .map(|name| {
@@ -23,23 +22,27 @@ fn plan(lock: &Path, skip_lock: bool, disabled: &[&str]) -> HookDispatchPlan {
         lease: String::new(),
         hook_lock_path: lock.display().to_string(),
         skip_hook_lock: skip_lock,
+        named_hooks_possible: true,
     };
 }
 
-/// Installs a `post-commit` hook that records its environment, whether the lock exists, and its own exit.
+/// Defines a config hook for `post-commit` (`hook.recorder.event` and `hook.recorder.command`) that records its
+///  environment, whether the lock exists, and its own exit.
 fn install_hook(repo: &Path, lock: &Path, record: &Path, exit_code: u8) {
     let script: String = format!(
         "#!/bin/sh\n{{\n  printf 'name=%s\\n' \"$GIT_AUTHOR_NAME\"\n  printf 'email=%s\\n' \"$GIT_AUTHOR_EMAIL\"\n  printf 'date=%s\\n' \"$GIT_AUTHOR_DATE\"\n  printf 'index=%s\\n' \"$GIT_INDEX_FILE\"\n  printf 'editor=%s\\n' \"$GIT_EDITOR\"\n  if [ -d '{}' ]; then printf 'locked=yes\\n'; else printf 'locked=no\\n'; fi\n}} > '{}'\nexit {exit_code}\n",
         lock.display(),
         record.display(),
     );
-    executable(
-        repo.join(".git")
-            .join("hooks")
-            .join("post-commit")
-            .as_path(),
-        script.as_bytes(),
-    );
+    let script_path: PathBuf = repo.join(".git").join("recorder.sh");
+    executable(script_path.as_path(), script.as_bytes());
+    git(repo, &["config", "hook.recorder.event", "post-commit"]);
+    git(repo, &["config", "hook.recorder.command", script_path.to_str().expect("UTF-8")]);
+}
+
+/// The absent hooks directory the run names, which no test creates.
+fn absent(repo: &Path) -> PathBuf {
+    return repo.join(".git").join("cli-git-transactions").join("tx").join("no-hooks");
 }
 
 /// The fields the hook recorded, as text.
@@ -109,10 +112,111 @@ fn disabled_post_commit_runs_nothing() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: landed.as_str(),
         plan: &disabled_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect("disabled run");
     assert_eq!(outcome, PostCommitHookOutcome::Disabled);
     assert!(!record.exists());
+    remove(root.as_path());
+}
+
+/// A configuration with no hook defined by name runs nothing: no author lookup, no lock and no hook runner start.
+#[test]
+fn an_absent_post_commit_hook_starts_nothing() {
+    let root: PathBuf = fixture("post-commit-absent");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let lock: PathBuf = repo.join(".git").join("cli-git").join("hook.lock");
+    let (stand_in, log) = logging_git(root.as_path());
+    let context: GitContext = GitContext {
+        real_git: stand_in,
+        overlay: Vec::new(),
+        global_prefix: Vec::new(),
+    };
+    let absent_plan: HookDispatchPlan = HookDispatchPlan {
+        named_hooks_possible: false,
+        ..plan(lock.as_path(), false, &[])
+    };
+    let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+        context: &context,
+        worktree: repo.as_path(),
+        real_index: repo.join(".git").join("index").as_path(),
+        landed_oid: "unused",
+        plan: &absent_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
+    })
+    .expect("absent run");
+    assert_eq!(outcome, PostCommitHookOutcome::Absent);
+    assert!(!log.exists(), "nothing started: {:?}", std::fs::read_to_string(log.as_path()));
+    assert!(!lock.exists());
+    remove(root.as_path());
+}
+
+/// A traditional `post-commit` hook is unsupported and does not run, whether or not the configuration names hooks.
+#[test]
+fn a_traditional_post_commit_hook_does_not_run() {
+    let root: PathBuf = fixture("post-commit-traditional");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let lock: PathBuf = repo.join(".git").join("cli-git").join("hook.lock");
+    let record: PathBuf = root.join("traditional.txt");
+    executable(
+        repo.join(".git").join("hooks").join("post-commit").as_path(),
+        format!("#!/bin/sh\ntouch '{}'\n", record.display()).as_bytes(),
+    );
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let context = git_context();
+    for named_hooks_possible in [false, true] {
+        let kept_plan: HookDispatchPlan = HookDispatchPlan {
+            named_hooks_possible,
+            ..plan(lock.as_path(), true, &[])
+        };
+        let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+            context: &context,
+            worktree: repo.as_path(),
+            real_index: repo.join(".git").join("index").as_path(),
+            landed_oid: landed.as_str(),
+            plan: &kept_plan,
+            no_hooks_directory: absent(repo.as_path()).as_path(),
+        })
+        .expect("run");
+        let expected: PostCommitHookOutcome = if named_hooks_possible {
+            PostCommitHookOutcome::Ran(0)
+        } else {
+            PostCommitHookOutcome::Absent
+        };
+        assert_eq!(outcome, expected, "named {named_hooks_possible}");
+        assert!(!record.exists(), "the traditional hook ran (named {named_hooks_possible})");
+    }
+    remove(root.as_path());
+}
+
+/// A configuration that names a hook runs it, and a traditional hook beside it still does not.
+#[test]
+fn a_config_hook_runs_and_a_traditional_one_beside_it_does_not() {
+    let root: PathBuf = fixture("post-commit-config-beside-traditional");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let lock: PathBuf = repo.join(".git").join("cli-git").join("hook.lock");
+    let record: PathBuf = root.join("config-hook.txt");
+    let traditional: PathBuf = root.join("traditional.txt");
+    install_hook(repo.as_path(), lock.as_path(), record.as_path(), 0);
+    executable(
+        repo.join(".git").join("hooks").join("post-commit").as_path(),
+        format!("#!/bin/sh\ntouch '{}'\n", traditional.display()).as_bytes(),
+    );
+    let landed: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let context = git_context();
+    let named_plan: HookDispatchPlan = plan(lock.as_path(), true, &[]);
+    let outcome: PostCommitHookOutcome = run_post_commit_hook(PostCommitHookRequest {
+        context: &context,
+        worktree: repo.as_path(),
+        real_index: repo.join(".git").join("index").as_path(),
+        landed_oid: landed.as_str(),
+        plan: &named_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
+    })
+    .expect("run");
+    assert_eq!(outcome, PostCommitHookOutcome::Ran(0));
+    assert!(record.exists(), "the config hook ran");
+    assert!(!traditional.exists(), "the traditional hook did not");
     remove(root.as_path());
 }
 
@@ -134,6 +238,7 @@ fn hook_runs_under_the_lock_with_the_native_environment() {
         real_index: index.as_path(),
         landed_oid: landed.as_str(),
         plan: &locked_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect("run");
     assert_eq!(outcome, PostCommitHookOutcome::Ran(0));
@@ -170,6 +275,7 @@ fn skipped_hook_lock_runs_without_the_lock() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: landed.as_str(),
         plan: &skipped_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect("run");
     assert!(recorded(record.as_path()).contains("locked=no"));
@@ -193,6 +299,7 @@ fn a_failing_hook_status_is_reported_not_raised() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: landed.as_str(),
         plan: &skipped_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect("run");
     assert_eq!(outcome, PostCommitHookOutcome::Ran(3));
@@ -218,6 +325,7 @@ fn a_lock_that_cannot_be_taken_fails_before_the_hook() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: landed.as_str(),
         plan: &locked_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect_err("lock failure");
     assert!(!failure.0.is_empty());
@@ -242,6 +350,7 @@ fn an_unreadable_landed_commit_fails_before_the_hook() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: missing,
         plan: &skipped_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect_err("author lookup");
     assert!(!failure.0.is_empty());
@@ -272,6 +381,7 @@ fn the_run_starts_show_then_the_hook_runner_with_the_global_options() {
         real_index: repo.join(".git").join("index").as_path(),
         landed_oid: landed.as_str(),
         plan: &skipped_plan,
+        no_hooks_directory: absent(repo.as_path()).as_path(),
     })
     .expect("run");
     let calls: String = std::fs::read_to_string(log).expect("calls");
@@ -282,7 +392,11 @@ fn the_run_starts_show_then_the_hook_runner_with_the_global_options() {
         "{calls}"
     );
     assert_eq!(
-        lines[1], "-c maintenance.auto=false hook run --ignore-missing post-commit",
+        lines[1],
+        format!(
+            "-c maintenance.auto=false -c core.hooksPath={} hook run --ignore-missing post-commit",
+            absent(repo.as_path()).display()
+        ),
         "{calls}"
     );
     remove(root.as_path());
@@ -311,6 +425,7 @@ fn the_hook_waits_while_another_owner_holds_the_lock() {
             real_index: waiter_repo.join(".git").join("index").as_path(),
             landed_oid: landed.as_str(),
             plan: &locked_plan,
+            no_hooks_directory: absent(waiter_repo.as_path()).as_path(),
         });
     });
     std::thread::sleep(std::time::Duration::from_millis(600));

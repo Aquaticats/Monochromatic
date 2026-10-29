@@ -183,3 +183,97 @@ fn failing_commands_are_no_answer() {
     );
     assert_eq!(linux_fs_id(Path::new("/nonexistent/path")), None);
 }
+
+#[cfg(target_os = "linux")]
+thread_local! {
+    /// The commands the replaced mechanism was asked to start, in order.
+    static STARTED_COMMANDS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// A mechanism that starts nothing:
+/// it records the command and answers an empty line for `findmnt` and a fixed `f_fsid` for `stat`.
+#[cfg(target_os = "linux")]
+fn recording_runner(command: &str, _arguments: &[&std::ffi::OsStr]) -> Option<String> {
+    STARTED_COMMANDS.with(|started: &std::cell::RefCell<Vec<String>>| {
+        return started.borrow_mut().push(String::from(command));
+    });
+    if command == "stat" {
+        return Some(String::from("abc\n"));
+    }
+    return Some(String::from("\n"));
+}
+
+/// The commands recorded since the last call,
+/// cleared.
+#[cfg(target_os = "linux")]
+fn take_started_commands() -> Vec<String> {
+    return STARTED_COMMANDS.with(|started: &std::cell::RefCell<Vec<String>>| {
+        return std::mem::take(&mut *started.borrow_mut());
+    });
+}
+
+/// A pseudo filesystem needs no `findmnt`;
+/// only the `f_fsid` fallback starts.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_pseudo_filesystem_starts_only_stat() {
+    if !Path::new("/proc/self/mountinfo").exists() {
+        println!("skipped: /proc/self/mountinfo is absent");
+        return;
+    }
+    take_started_commands();
+    assert_eq!(
+        linux_fs_id_with(Path::new("/proc"), recording_runner).as_deref(),
+        Some("f-fsid_abc")
+    );
+    assert_eq!(
+        take_started_commands(),
+        vec![String::from("stat")],
+        "in-process verdict for /proc: {:?}",
+        super::super::filesystem_identity_mount::mount_uuid(Path::new("/proc"))
+    );
+}
+
+/// A device-backed path with a udev record starts no command at all.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_device_with_a_udev_record_starts_nothing() {
+    let Ok(directory) = std::fs::canonicalize(env!("CARGO_MANIFEST_DIR")) else {
+        println!("skipped: the package directory is absent here");
+        return;
+    };
+    let super::super::filesystem_identity_mount::MountUuid::Text(text) =
+        super::super::filesystem_identity_mount::mount_uuid(directory.as_path())
+    else {
+        println!("skipped: the package directory is not on a device with a udev record");
+        return;
+    };
+    take_started_commands();
+    assert_eq!(
+        linux_fs_id_with(directory.as_path(), recording_runner),
+        Some(format!("fs-uuid_{}", text.to_lowercase()))
+    );
+    assert_eq!(take_started_commands(), Vec::<String>::new());
+}
+
+/// A shape the in-process lookup cannot prove still starts `findmnt` first.
+#[cfg(target_os = "linux")]
+#[test]
+fn an_unprovable_path_still_starts_findmnt() {
+    let stacked: &Path = Path::new("/proc/sys/fs/binfmt_misc");
+    if super::super::filesystem_identity_mount::mount_uuid(stacked)
+        != super::super::filesystem_identity_mount::MountUuid::Unknown
+    {
+        println!("skipped: {} is not an unprovable mount here", stacked.display());
+        return;
+    }
+    take_started_commands();
+    assert_eq!(
+        linux_fs_id_with(stacked, recording_runner).as_deref(),
+        Some("f-fsid_abc")
+    );
+    assert_eq!(
+        take_started_commands(),
+        vec![String::from("findmnt"), String::from("stat")]
+    );
+}

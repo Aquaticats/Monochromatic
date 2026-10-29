@@ -166,6 +166,13 @@ pub fn engine_failure_hint(code: &str) -> Option<&'static str> {
                  cli-git.config.jsonc holds the settings; they are no longer read.",
             );
         }
+        "traditional-hooks-unsupported" => {
+            return Some(
+                "Hint: if scripts in the hooks directory still do work for you, move each into a config hook with \
+                 `git config hook.<name>.event <event>` and `git config hook.<name>.command <command>`; \
+                 `git cli-git doctor` lists the scripts it finds and exits 1 while any remain.",
+            );
+        }
         _ => return None,
     }
 }

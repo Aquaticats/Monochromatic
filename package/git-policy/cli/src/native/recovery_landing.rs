@@ -29,10 +29,14 @@ use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 use super::diagnostic_log::debug;
 /// Transaction keeps.
 use super::pack_keep::remove_transaction_keeps;
+/// The refusal to discard a transaction whose branch moved without a usable landing record.
+use super::recovery_contradiction::refuse_unreconciled_landing;
 /// The landed-or-not decision and index completion.
 use super::recovery_completion::{IndexCompletion, commit_landed, complete_index};
 /// The fail-closed recovery failure.
 use super::recovery_error::RecoveryError;
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+use super::recovery_record_failure::{RecordKind, name_record_failure};
 /// Attempt evidence.
 use super::recovery_evidence::{
     LANDING_RECORD_PREFIX, RECORD_SUFFIX, attempt_numbers, directory_names, release_recorded_locks,
@@ -176,9 +180,9 @@ fn read_preparing(directory: &Path) -> Result<Option<PreparingRecord>, RecoveryE
     if !recovery_path_exists(path.as_path())? {
         return Ok(None);
     }
-    return Ok(Some(parse_preparing(
-        read_recovery_file(path.as_path())?.as_slice(),
-    )?));
+    let parsed: PreparingRecord = parse_preparing(read_recovery_file(path.as_path())?.as_slice())
+        .map_err(|error| { return name_record_failure(error, path.as_path(), RecordKind::Preparing); })?;
+    return Ok(Some(parsed));
 }
 
 /// What:
@@ -235,7 +239,9 @@ pub fn recover_dead_transaction(
             directory.display()
         )));
     }
-    let Some(preparing) = read_preparing(directory)? else {
+    let preparing_record: Option<PreparingRecord> = read_preparing(directory)?;
+    refuse_unreconciled_landing(&place.git, place.cwd.as_path(), directory, names.as_slice(), preparing_record.as_ref())?;
+    let Some(preparing) = preparing_record else {
         debug(
             "recoverDeadTransaction",
             format!("dead owner stopped before capture: {}", directory.display()).as_str(),
@@ -255,14 +261,9 @@ pub fn recover_dead_transaction(
         discard_transaction(directory, transaction_id, &preparing)?;
         return Ok(RecoveryAction::CommitNotCreated);
     };
-    let landing: LandingRecord = parse_landing(
-        read_recovery_file(
-            directory
-                .join(format!("{LANDING_RECORD_PREFIX}{latest}{RECORD_SUFFIX}"))
-                .as_path(),
-        )?
-        .as_slice(),
-    )?;
+    let landing_path: PathBuf = directory.join(format!("{LANDING_RECORD_PREFIX}{latest}{RECORD_SUFFIX}"));
+    let landing: LandingRecord = parse_landing(read_recovery_file(landing_path.as_path())?.as_slice())
+        .map_err(|error| { return name_record_failure(error, landing_path.as_path(), RecordKind::Landing); })?;
     if landing.operation == LandingOperation::Commit
         && !commit_landed(
             &place.git,

@@ -17,7 +17,7 @@ use super::{source_path_still_matches, path::source_digest};
 #[test]
 fn source_revalidation_rejects_changed_or_missing_bytes() {
     // PathBuf owns a private fixture pathname derived from this process, never a real rules file.
-    let directory = std::env::temp_dir().join(format!("scanner-source-revalidation-{}", std::process::id()));
+    let directory = crate::test_scratch::scratch_root().join(format!("scanner-source-revalidation-{}", std::process::id()));
     std::fs::create_dir(&directory).expect("fresh fixture");
     let path = directory.join("rules");
     std::fs::write(&path, b"ORIGINAL_FIXTURE_LONG\n").expect("original fixture");

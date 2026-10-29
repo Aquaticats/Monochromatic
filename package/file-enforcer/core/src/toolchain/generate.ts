@@ -229,21 +229,25 @@ export async function writeArtifacts(
   /**
    One write job per artifact that has an output path.
    */
-  const jobs = Object.entries(artifacts,).flatMap(function toJob([name, content,]: readonly [string, string,],): readonly ArtifactJob[] {
-    /**
-     Absolute output path for this artifact.
-     */
-    const target = targets[name];
-    return target === undefined
-      ? []
-      : [
-        {
-          name,
-          target,
-          content,
-        },
-      ];
-  },);
+  const jobs = Object.entries(artifacts,)
+    .flatMap(function toJob([name, content,]: readonly [
+      string,
+      string,
+    ],): readonly ArtifactJob[] {
+      /**
+       Absolute output path for this artifact.
+       */
+      const target = targets[name];
+      return target === undefined
+        ? []
+        : [
+          {
+            name,
+            target,
+            content,
+          },
+        ];
+    },);
   /**
    Each artifact with whether it was written; the files are independent, so they are written concurrently.
    */
@@ -311,5 +315,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();

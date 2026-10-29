@@ -19,6 +19,7 @@ import {
   run,
   type RunResult,
 } from './exec.ts';
+import { isErrnoException, } from './fs-probe.ts';
 import { homeDirFromEnv, } from './paths.ts';
 import {
   artifactForHost,
@@ -176,7 +177,8 @@ async function readBinConfig(configPath: string,): Promise<Readonly<Record<strin
   }
   catch (error) {
     // An absent file starts empty and a malformed one is replaced; any other failure is the caller's.
-    if (Error.isError(error,) && ('code' in error) && (error.code === MISSING_ENTRY_CODE))
+    if (isErrnoException(error,)
+      && (error.code === MISSING_ENTRY_CODE))
       return {};
     if (!(error instanceof SyntaxError))
       throw error;

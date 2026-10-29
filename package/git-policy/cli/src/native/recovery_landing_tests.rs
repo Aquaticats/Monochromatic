@@ -175,6 +175,12 @@ impl Scene {
             pack_name: None,
             added_paths: added,
             selected_worktree_paths: Vec::new(),
+            pre_landing_digest: Some(
+                crate::content_digest::digest_file(self.directory.join("pre-landing-1.index").as_path()).expect("pre-landing digest"),
+            ),
+            post_digest: Some(
+                crate::content_digest::digest_file(self.directory.join("post-1.index").as_path()).expect("post digest"),
+            ),
         };
         std::fs::write(
             self.directory.join("landing-1.json"),

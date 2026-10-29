@@ -48,6 +48,7 @@ import {
   installRustToolchain,
   type ProviderContext,
 } from './providers.ts';
+import { pruneStaleOwnCrates, } from './prune.ts';
 import {
   observeTool,
   versionMatches,
@@ -375,6 +376,11 @@ export async function syncToolchain(
         tools,
       },);
       installed.push(entry.id,);
+      // oxlint-disable-next-line no-await-in-loop -- the prune follows its own install, before the next entry starts
+      await pruneStaleOwnCrates({
+        entry,
+        env: e,
+      },);
     } catch (error) {
       failed[entry.id] = caughtValueText(error,);
     }
@@ -400,7 +406,10 @@ export async function syncToolchain(
     entries,
   },);
 
-  // Postinstall commands run last: they find the other tools through the rebuilt exposure directory.
+  /**
+   Outcome of the postinstall commands. They run last because they find the
+   other tools through the rebuilt exposure directory.
+   */
   const commands = await runPostinstallCommands({
     paths,
     entries,
@@ -506,5 +515,5 @@ export async function main(): Promise<void> {
 
 //endregion CLI
 
-if (isMainModule(import.meta.filename,))
+if (await isMainModule(import.meta.filename,))
   await main();

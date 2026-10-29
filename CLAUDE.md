@@ -1,16 +1,5 @@
 Generated from `AGENTS.md` by file-enforcer.
 
-In-process subagents (the Agent tool,
-including the general-purpose type) run inside this session and forward their results back to you reliably.
-General-purpose subagents are allowed.
-Caveat:
-you cannot enumerate how many subagents are running,
-and SendMessage steering is unreliable,
-so fan out general-purpose subagents only in interactive sessions
-where the user watches and steers them in the Claude Code UI.
-Rationale:
-`doc/decision/general-purpose-subagent-ban.md`.
-
 Reset times provided by the harness are unreliable:
 never record one or wait for one;
 when a subagent model is refused,

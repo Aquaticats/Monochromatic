@@ -242,6 +242,16 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
     };
 }
 
+/// Define a `pre-commit` hook in the repository's configuration that runs `script`.
+///  The script sits in the fixture root, outside the worktree, so it never shows up as a change.
+///  Traditional hooks (scripts in the hooks directory) are unsupported, so controls of hook behavior use this.
+pub fn configure_pre_commit_hook(fixture: &Fixture, repo: &Path, script: &[u8]) {
+    let path: PathBuf = fixture.root.join("pre-commit-hook-script");
+    executable(path.as_path(), script);
+    git(fixture, repo, &["config", "hook.control.event", "pre-commit"]);
+    git(fixture, repo, &["config", "hook.control.command", path.to_str().expect("UTF-8")]);
+}
+
 /// Run real Git directly inside a fixture and require success.
 pub fn git<S: AsRef<OsStr>>(fixture: &Fixture, directory: &Path, arguments: &[S]) -> Output {
     let output: Output = direct(fixture)
