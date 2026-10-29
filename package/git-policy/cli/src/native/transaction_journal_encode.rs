@@ -17,6 +17,8 @@
 /// The ordered writer and array encoding.
 /// The event form of a pathname and the base64 of its bytes.
 use super::event_path::{EventPath, base64_standard};
+/// The digest of an index snapshot.
+use super::content_digest::ContentDigest;
 use super::json_record::{ObjectWriter, string_array};
 /// The record types and their wire names.
 use super::transaction_journal::{
@@ -61,6 +63,23 @@ fn encode_identity(identity: &FileIdentity) -> String {
     writer
         .string("device", identity.device.as_str())
         .string("inode", identity.inode.as_str());
+    return writer.finish();
+}
+
+/// What:
+///  Encode the content digest of an index snapshot.
+/// Why:
+///   Recovery compares the snapshot with it before installing the snapshot as the real index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// JSON.stringify({ length, fnv1a64 })
+/// ```
+fn encode_digest(digest: &ContentDigest) -> String {
+    let mut writer: ObjectWriter = ObjectWriter::new();
+    writer
+        .integer("length", digest.length as i64)
+        .string("fnv1a64", digest.hash_text().as_str());
     return writer.finish();
 }
 
@@ -335,6 +354,12 @@ pub fn encode_landing(record: &LandingRecord) -> String {
             "selectedWorktreePaths",
             encode_added_paths(record.selected_worktree_paths.as_slice()).as_str(),
         );
+    if let Some(digest) = &record.pre_landing_digest {
+        writer.raw("preLandingDigest", encode_digest(digest).as_str());
+    }
+    if let Some(digest) = &record.post_digest {
+        writer.raw("postDigest", encode_digest(digest).as_str());
+    }
     return format!("{}\n", writer.finish());
 }
 

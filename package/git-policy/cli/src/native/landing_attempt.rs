@@ -32,6 +32,8 @@ use super::ref_files::RefFilesLayout;
 use super::conclusion_cleanup::reproduce_conclusion_cleanup;
 /// The index copy that keeps the timestamps Git reads.
 use super::commit_index::copy_index_with_timestamps;
+/// The digest of an index snapshot.
+use super::content_digest::{ContentDigest, digest_file};
 /// Debug and warning text to the diagnostic log.
 use super::diagnostic_log::{debug, warn};
 /// Failure of waiting for or creating the real index lock.
@@ -319,6 +321,21 @@ fn artifact_identity(path: &Path) -> Result<FileIdentity, LandingError> {
         Ok((device, inode, _)) => Ok(FileIdentity { device, inode }),
         Err(error) => Err(LandingError::Journal(format!("reading the identity of {} failed: {error}", path.display()))),
     };
+}
+
+/// What:
+///  The length and hash of a landing artifact as it is on disk now.
+/// Why:
+///   The index snapshots are not synced (a sync of each costs about 2 ms), so the landing record carries their
+///  digests and recovery refuses to install a snapshot that differs from them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await digestFile(path)
+/// ```
+fn artifact_digest(path: &Path) -> Result<ContentDigest, LandingError> {
+    return digest_file(path)
+        .map_err(|error| { return LandingError::Journal(format!("reading {} to digest it failed: {error}", path.display())); });
 }
 
 /// What:
@@ -634,6 +651,8 @@ fn record_landing(
         pack_name: pack_name.cloned(),
         added_paths: request.added_paths.to_vec(),
         selected_worktree_paths: request.selected_worktree_paths.to_vec(),
+        pre_landing_digest: Some(artifact_digest(pre_landing.as_path())?),
+        post_digest: Some(artifact_digest(post.as_path())?),
     };
     write_journal(
         workspace.directory.as_path(),

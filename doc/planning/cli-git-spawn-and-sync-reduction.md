@@ -338,7 +338,7 @@ Undamaged: completes.
 - `T/index-lock-1.json`: all applicable damages completes
 - `T/landing-1.json`: empty sticks; half sticks; delete inconsistent (exit 0)
 - `T/owner.json`: all applicable damages sticks
-- `T/post-1.index`: empty corrupt index (exit 128); half corrupt index (exit 128); delete sticks
+- `T/post-1.index`: empty sticks; half sticks; delete sticks
 - `T/pre-landing-1.index`: all applicable damages sticks
 - `T/prepared.json`: all applicable damages completes
 - `T/preparing.json`: empty sticks; half sticks; delete inconsistent (exit 0)
@@ -370,6 +370,60 @@ Undamaged: completes.
 - `T/preparing.json`: empty sticks; half sticks; delete completes
 - `T/ref-updated.json`: empty sticks; half sticks; delete completes
 - `L/landing.lock/owner.json`: empty sticks; half sticks; delete completes
+
+### J3 follow-up 1: torn index snapshots
+
+Two remedies were measured on the same machine (btrfs on `/var/home`, host Git 2.55.0, a repository of 5,000 tracked
+files whose index is 521,631 bytes, one wrapped `git commit --quiet --message=x -- a.txt` under
+`strace --follow-forks --trace=fsync,fdatasync -y -T`; scratch scripts `measure-landing.ts` and `raw-fsync.ts` in
+`~/temp/agent/j3-snapshots`).
+
+- Baseline: 35, 31, 35 and 31 sync calls in four warm rounds (36 in the cold first round), each journal sync 1.8 to
+  2.2 ms, 82 to 97 ms inside syncs in total. A raw write and `fsync` of a 600,000-byte file took 1.1 ms (median, `/var/home`)
+  to 3.0 ms (median, `/var/mnt/encrypted`).
+- Remedy (a), sync both snapshots before `landing-1.json` (prototype, since reverted): 38 calls in the cold first round,
+  then 37, 33, 37, 33 and 37, so exactly two more than the baseline round for round; the two snapshot syncs took 3.9
+  (cold), 4.0, 4.3, 4.0, 4.2 and 5.5 ms per commit (about 2 ms each). The total inside syncs (67.6 to 85.4 ms) was below
+  the baseline's, which shows the run-to-run noise exceeds the added cost.
+- Remedy (b), record length and hash of each snapshot: FNV-1a 64 over the same 521,631 bytes took 0.38 ms in a release
+  build (`rustc -O`, median of 200 reads; the read itself 0.02 ms), so about 0.8 ms per landing for both snapshots,
+  growing linearly with the index. No syncs.
+
+Chosen: (b). It costs about 3 ms less per landing than (a) on this index, and it also catches damage that has nothing to
+do with unwritten data. FNV-1a is specified by two constants, needs no dependency (`sha1` and `sha2` are in the lockfile
+only through the scanner; a direct dependency would go through the catalog and `file-enforcer`), and does not change
+across Rust versions as `std::hash::DefaultHasher` may. It detects damage; it does not resist someone who edits the file
+on purpose, which is outside what these records defend against. The accepted cost: after a power loss that persisted
+`landing-1.json` and the moved branch but not a snapshot, the landing is not completed (remedy (a) would have completed
+it). Recovery fails closed with a message that names the snapshot, the landing record and the directory and lists the
+steps that finish the commit by hand. Regenerating the post-index from `landedTreeOid` was not attempted.
+
+How it works:
+
+- `landing-<n>.json` ends with `preLandingDigest` and `postDigest` (`{ "length", "fnv1a64" }`). A record without them
+  (written by an older build) reads as having none and recovery trusts its identities as before; no such record is
+  verified, which is the remaining exposure for a transaction left by an older binary across an upgrade.
+- Recovery verifies both snapshots on the install path only, after the `index-installed` marker and the "real index
+  already equals the post-index" checks, and before the comparison of the real index with the pre-landing snapshot.
+  Verifying earlier would turn every `index-installed|post-1.index|*` and `index-installed|pre-landing-1.index|*` case
+  from completes into sticks, because a landing that already installed needs neither snapshot.
+
+Outcome table changes (247 cases regenerated; exactly these two lines differ, every other cell is identical):
+
+- `ref-updated|cli-git-transactions/<id>/post-1.index|empty`: `exit-128!commit-exit-1` becomes `sticks`.
+- `ref-updated|cli-git-transactions/<id>/post-1.index|half`: `exit-128!commit-exit-1` becomes `sticks`.
+
+The `pre-landing-1.index` cases at `ref-updated` (empty, half and delete, all `sticks` before) stay `sticks`; for empty
+and half what changed is the message, which now says the snapshot differs from the recorded length and hash instead of claiming the real index
+changed. The totals become: corrupt real index 2 to 0, sticks 63 to 65.
+
+Guards shown failing: with the comparison in `verify_snapshot` forced to accept, `damage_at_ref_updated` fails at the
+emptied `post-1.index` case with `fatal: .git/index: index file smaller than expected` (left `sticks`, right
+`exit-128!commit-exit-1`), and three unit tests fail (`a_torn_snapshot_is_never_installed`,
+`a_snapshot_that_differs_from_its_digest_is_refused_by_name`,
+`a_normalization_names_the_branch_it_left_alone_and_a_missing_snapshot_names_the_file`). With `postDigest` no longer
+written, `damage_at_ref_updated` fails the same way. All passed again after restoring.
+
 ## Results of the hook-entry and configuration-snapshot slices
 
 Method: `strace --follow-forks -e trace=execve,fsync,fdatasync,syncfs,sync_file_range` over one wrapped

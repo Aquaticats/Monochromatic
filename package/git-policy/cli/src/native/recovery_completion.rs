@@ -25,6 +25,8 @@ use super::recovery_files::{
 };
 /// The reflog nonce search.
 use super::recovery_reflog::list_nonce_reflog_oids;
+/// The check of the snapshots' bytes.
+use super::recovery_snapshot::{SnapshotRole, verify_snapshot};
 /// Running real Git.
 use super::transaction_git::{GitContext, GitRequest, run_git};
 /// Journal records and artifact names.
@@ -219,6 +221,16 @@ pub fn complete_index(
         release_owned_lock(&landing.lock, lock_path.as_path())?;
         return Ok(IndexCompletion::AlreadyInstalled);
     }
+    // Only the install path trusts the snapshots' bytes: a landing whose install already happened needs neither.
+    verify_snapshot(
+        directory,
+        preparing,
+        landing,
+        pre_landing.as_path(),
+        SnapshotRole::PreLanding,
+        landing.pre_landing_digest,
+    )?;
+    verify_snapshot(directory, preparing, landing, post.as_path(), SnapshotRole::Post, landing.post_digest)?;
     if !files_equal(pre_landing.as_path(), real_index)? {
         return Err(RecoveryError(format!(
             "Real index no longer matches the pre-landing snapshot; recovery retained at {}",

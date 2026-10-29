@@ -582,6 +582,9 @@ pub mod transaction_owner;
 /// The per-worktree registry of commit-transaction directories.
 pub mod transaction_registry;
 
+/// The length and hash of an index snapshot that a landing record keeps.
+pub mod content_digest;
+
 /// The schema-version-2 journal records of one commit transaction and their filenames.
 pub mod transaction_journal;
 
@@ -634,6 +637,9 @@ pub mod recovery_reflog;
 /// Deciding whether a landing landed,
 ///  and installing its recorded post-index.
 pub mod recovery_completion;
+
+/// The check that an index snapshot still holds the bytes the landing wrote.
+pub mod recovery_snapshot;
 
 /// The `.keep` files protecting a landing's migrated pack.
 pub mod pack_keep;
