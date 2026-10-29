@@ -48,7 +48,6 @@ import {
   installRustToolchain,
   type ProviderContext,
 } from './providers.ts';
-import { pruneStaleOwnCrates, } from './prune.ts';
 import { NOT_INSTALLED, } from './status.observe.ts';
 import {
   appliesToHost,
@@ -327,12 +326,6 @@ export async function syncToolchain(
         tools,
       },);
       installed.push(entry.id,);
-      // oxlint-disable-next-line no-await-in-loop -- the prune follows its own install, before the next entry starts
-      await pruneStaleOwnCrates({
-        entry,
-        tools,
-        env: e,
-      },);
     } catch (error) {
       failed[entry.id] = caughtValueText(error,);
     }
