@@ -62,7 +62,8 @@ RUN --mount=type=secret,id=github_token \
         && git config --global url."https://${TOKEN}@github.com/".insteadOf "https://github.com/" ; \
     fi
 
-# Build and install libversion + pg extension
+# Build and install libversion + pg extension. Arch's PostgreSQL is configured with LLVM JIT, so pgxs would compile
+# LLVM bitcode with clang; the extension needs no JIT bitcode, so `with_llvm=no` skips that and the clang dependency.
 RUN git clone --depth 1 https://github.com/repology/libversion.git /tmp/libversion \
     && cd /tmp/libversion \
     && cmake -DCMAKE_INSTALL_PREFIX=/usr . \
@@ -73,8 +74,8 @@ RUN git clone --depth 1 https://github.com/repology/libversion.git /tmp/libversi
 
 RUN git clone --depth 1 https://github.com/repology/postgresql-libversion.git /tmp/pg-libversion \
     && cd /tmp/pg-libversion \
-    && make -j"$(nproc)" \
-    && make install \
+    && make with_llvm=no -j"$(nproc)" \
+    && make with_llvm=no install \
     && rm -rf /tmp/pg-libversion
 
 # Clone repology-updater and rules
