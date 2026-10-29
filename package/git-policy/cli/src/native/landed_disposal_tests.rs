@@ -46,14 +46,14 @@ fn disposal_removes_the_shadow_and_the_directory() {
     scene.finish();
 }
 
-/// Disposal syncs the registry once, for the rename that retires the directory, and not after the deletions.
+/// Disposal syncs no directory: removal needs no durability because recovery finishes what a power loss leaves.
 #[test]
-fn disposal_syncs_the_registry_once() {
+fn disposal_syncs_no_directory() {
     let scene: Scene = Scene::new("landed-disposal-sync", false);
     std::fs::create_dir_all(scene.shadow.join("objects")).expect("shadow");
     crate::private_storage::take_directory_syncs();
     dispose_landed_transaction(paths(&scene)).expect("disposed");
-    assert_eq!(crate::private_storage::take_directory_syncs(), vec![scene.registry.clone()]);
+    assert_eq!(crate::private_storage::take_directory_syncs(), Vec::<std::path::PathBuf>::new());
     scene.finish();
 }
 

@@ -513,8 +513,8 @@ fn fill_candidate(staging: &Path, owner_bytes: &[u8]) -> Result<(), RecoveryErro
 ///   A reader listing the registry must never see a published directory without its
 ///       owner record;
 ///  the retired name is ignored by every reader.
-///  The rename is synced before the deletions and nothing is synced after them, because recovery removes a retired
-///       directory that outlives a power loss and completes a landed transaction directory that is still published.
+///  A registry removal syncs nothing, because recovery removes a retired directory that outlives a power loss and
+///       completes a landed transaction directory that is still published.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -561,9 +561,8 @@ pub fn remove_transaction_directory(directory: &Path) -> Result<(), RecoveryErro
             &error,
         ));
     }
-    // This sync orders the rename before the deletions below, so a power loss cannot keep deletions inside the
-    // published name (an owner record gone, the name still published) after losing the rename.
-    sync_parent(parent)?;
+    // No sync around the rename or the deletions. Journaling filesystems apply metadata operations in order, so a power
+    // loss leaves the published name, the retired name with some contents, or nothing, and recovery handles each.
     if let Err(error) = remove_tree(retired.as_path()) {
         return Err(io_failure(
             "removing the retired transaction",
@@ -571,7 +570,6 @@ pub fn remove_transaction_directory(directory: &Path) -> Result<(), RecoveryErro
             &error,
         ));
     }
-    // No sync after the deletions: a retired directory that survives a power loss is removed by recovery.
     return Ok(());
 }
 
@@ -592,8 +590,7 @@ fn is_registry_name(name: &std::ffi::OsStr) -> bool {
 ///  Sync a parent directory,
 ///  naming it on failure.
 /// Why:
-///   Removal syncs the registry once, after the rename that retires a directory and before its contents go,
-///  and after deleting a legacy directory in place.
+///   Only the in-place removal of a legacy directory, which has no retired name for recovery to find, syncs its parent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

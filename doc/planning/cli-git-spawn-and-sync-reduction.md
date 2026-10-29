@@ -120,27 +120,29 @@ The deliverable is the pin: a test-only recorder in `sync_directory` (`take_dire
 creates and the empty list when it finds. With the three guards broken (sync also on the already-exists and
 already-written paths) all six tests fail; they pass restored.
 
-### J2 outcome: one of the two post-removal syncs dropped
+### J2 outcome: both post-removal syncs dropped
 
-`remove_transaction_directory` (called by `dispose_landed_transaction` and by recovery) syncs the registry twice:
-after renaming the directory to `<id>.retired`, and after deleting the retired tree. The second is dropped. A
-retired directory that survives a power loss is removed by the next recovery (`recover_registered_transactions`
-removes every `Retired` entry), and a landed directory that is still published is classified `AlreadyInstalled` and
-cleaned; `a_completed_landing_that_is_still_published_is_cleaned_by_recovery` runs both together and fails when the
+`remove_transaction_directory` (called by `dispose_landed_transaction` and by recovery) synced the registry twice:
+after renaming the directory to `<id>.retired`, and after deleting the retired tree. Both are dropped; the in-place
+removal of a legacy directory, which has no retired name, keeps its one sync. A retired directory that survives a
+power loss is removed by the next recovery (`recover_registered_transactions` removes every `Retired` entry), and a
+landed directory that is still published is classified `AlreadyInstalled` and cleaned;
+`a_completed_landing_that_is_still_published_is_cleaned_by_recovery` runs both together and fails when the
 retired-entry removal is disabled.
 
-The first is kept, and this departs from the instruction to drop both. It is not a durability sync of a removal but
-an ordering barrier: the rename must reach the disk before the deletions inside the directory do. Without it a
-filesystem that persists the unlinks but not the rename leaves the published name `<id>` with `owner.json` gone, and a
-published directory without a valid owner record is a fail-closed exit 2 that keeps its contents (J3 outcome below:
-deleting `owner.json` sticks at every phase). Dropping it too saves one more sync (about 2 ms
-here) and is a one-line change if the user accepts that filesystem ordering assumption.
+The rename sync was an ordering barrier between the rename and the deletions inside the directory, not a durability
+sync of a removal. Dropping it rests on an assumption that is not sourced here: the filesystems this repository
+targets (ext4, XFS and btrfs, per the handover) apply metadata operations in order, so a power loss leaves the
+published name, the retired name with some contents, or nothing. If a filesystem persisted the unlinks but not the
+rename, the published name `<id>` would be left without `owner.json`, and the J3 outcome below shows that this state
+sticks (deleting `owner.json` fails closed at every phase, naming the directory). No such state was produced by any
+test; it is the risk accepted by the decision to drop the sync.
 
-Measured with `node sync-count.ts` and `node sync-count.ts warm` before and after: 42 to 41 cold and 41 to 40 warm
-(wrapper 31 to 30 warm). The pin is `removal_syncs_the_registry_only_for_the_rename` and
-`disposal_syncs_the_registry_once`; both fail with the final `sync_parent` restored. No test in the repository counts
-syncs of the built binary (`strace` appears only in `binary_fork_failure_tests.rs`), so the sync budget named under
-Budgets does not exist yet.
+Measured with `node sync-count.ts` and `node sync-count.ts warm` before and after: 42 to 40 cold and 41 to 39 warm
+(wrapper 31 to 29 warm). The pins are `removing_a_registry_directory_syncs_nothing` and
+`disposal_syncs_no_directory`; both fail with a `sync_parent` restored after the rename (and the earlier form of the
+pin failed with the post-deletion `sync_parent` restored). No test in the repository counts syncs of the built binary
+(`strace` appears only in `binary_fork_failure_tests.rs`), so the sync budget named under Budgets does not exist yet.
 
 ### J3 outcome: what recovery does with emptied, halved and dropped records
 
@@ -179,7 +181,9 @@ recovered.
   `fatal: .git/index: index file smaller than expected` or `fatal: unable to read <object>` (`git status` exits 128,
   the next commit exits 1); an emptied or halved `pre-landing-1.index` sticks with "Real index no longer matches
   the pre-landing snapshot". A power loss that persists `landing-1.json` and the ref but not the snapshots' data
-  produces exactly this. This is a real exposure in the current code, not only a constraint on removing syncs. The
+  can produce exactly this, depending on the filesystem (ext4 in `data=ordered` mode writes the data of files
+  allocated in a committing transaction first; XFS and btrfs do not promise that). This is a possible exposure in the
+  current code, not only a constraint on removing syncs. The
   remedies are a sync of both snapshots before `landing-1.json`, or recovery verifying their content. Neither is done
   here.
 - Records that are synced today and must stay synced, because tearing them sticks every command: `owner.json` (all
@@ -187,8 +191,9 @@ recovered.
   (empty and half before the ref moves), `landing-1.json` and `ref-updated.json` (empty and half), `store-held.json`
   after the ref moved, and the `owner.json` of `landing.lock`. Their messages are fail-closed by design.
 - Silent inconsistency: with `landing-1.json` or `preparing.json` missing at `ref-updated`, `git status` exits 0
-  although the branch moved and the index and worktree were never reconciled (the observed outcome is neither completes nor
-  discards; the likely cause is that a transaction without its landing record is treated as never landed). For
+  although the branch moved and the index and worktree were never reconciled (the observed outcome is neither
+  completes nor discards; the likely cause is that a transaction without its landing record is treated as never
+  landed). For
   `landing-1.json` the next commit then also succeeds; for `preparing.json` it exits 2. Only the sync of
   `landing-1.json` and its directory before the compare-and-swap prevents this; no later sync may replace it.
 - A torn capture `sequence` or an emptied `worktree-id` leaves `git status` working while every later commit exits 2
@@ -200,8 +205,9 @@ recovered.
 - Deleting `index.lock` at `ref-updated` sticks ("opening the index lock ... No such file or directory"): the lock's
   directory entry is not synced before the compare-and-swap. This one is reachable only by losing the entry while the
   ref update persists.
-- The J2 link: deleting `owner.json` sticks at every phase. That is the case the kept rename-barrier sync in
-  `remove_transaction_directory` prevents.
+- The J2 link: deleting `owner.json` sticks at every phase. That is the state a filesystem that persisted the deletions
+  inside a removed transaction directory but not its rename would leave, which is the unsourced ordering assumption
+  recorded under the J2 outcome.
 - What the user is told: only the owner-record messages name a path. The messages for `preparing.json`, the landing
   record, the index-lock record and the ref-updated record say that the record "is not a schema-version-2 ... record"
   without naming the file or the transaction, and every message carries the hint about fetching history, which does not

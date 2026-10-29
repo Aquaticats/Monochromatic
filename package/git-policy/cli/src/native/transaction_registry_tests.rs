@@ -234,10 +234,10 @@ fn removal_retires_registry_directories() {
     remove(git_dir.as_path());
 }
 
-/// Removing a registry directory syncs the registry once, for the rename that must reach the disk before the
-///  contents go, and not again after the deletions: a retired directory that survives is removed by recovery.
+/// Removing a registry directory syncs nothing: a retired directory that survives a power loss is removed by
+///  recovery, and a published one that survives is cleaned as a landed transaction.
 #[test]
-fn removal_syncs_the_registry_only_for_the_rename() {
+fn removing_a_registry_directory_syncs_nothing() {
     let git_dir: PathBuf = fixture("registry-remove-sync");
     let root: PathBuf = git_dir.join(TRANSACTION_ROOT_NAME);
     ensure_transaction_root(root.as_path()).expect("create");
@@ -246,7 +246,7 @@ fn removal_syncs_the_registry_only_for_the_rename() {
     std::fs::write(directory.join("preparing.json"), b"{}").expect("state");
     take_directory_syncs();
     remove_transaction_directory(directory.as_path()).expect("remove");
-    assert_eq!(take_directory_syncs(), vec![root]);
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new());
     remove(git_dir.as_path());
 }
 
