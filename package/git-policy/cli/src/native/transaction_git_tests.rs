@@ -302,7 +302,9 @@ const SLOW_GIT: &[u8] = b"#!/bin/sh\nsleep \"$FAKE_SECONDS\"\necho slow\n";
 fn slow_run(root: &Path, seconds: &str) -> (GitContext, GitRequest) {
     let program: PathBuf = root.join("slow-git");
     executable(program.as_path(), SLOW_GIT);
-    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new() };
+    // The request sends no input, so it needs no scratch directory.
+    let context: GitContext =
+        GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
     let mut request: GitRequest = GitRequest::new(root, &["add", "--", "a.md"]);
     request.environment = vec![(OsString::from("FAKE_SECONDS"), OsString::from(seconds))];
     return (context, request);

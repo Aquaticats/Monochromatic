@@ -180,6 +180,8 @@ pub fn executable_linter(environment: &[(OsString, OsString)]) -> ProcessLinter 
         prepared_scratch: None,
         executable: None,
         configuration: None,
+        cadence: Cadence::from_environment(),
+        notices: Box::new(std::io::stderr()),
     };
 }
 
