@@ -383,8 +383,8 @@ files whose index is 521,631 bytes, one wrapped `git commit --quiet --message=x 
 `~/temp/agent/j3-snapshots`).
 
 - Baseline: 35, 31, 35 and 31 sync calls in four warm rounds (36 in the cold first round), each journal sync 1.8 to
-  2.2 ms, 82 to 97 ms inside syncs in total. A raw write and `fsync` of a 600,000-byte file took 1.1 ms (median, `/var/home`)
-  to 3.0 ms (median, `/var/mnt/encrypted`).
+  2.2 ms, 82 to 97 ms inside syncs in total. A raw write and `fsync` of a 600,000-byte file took 1.1 ms (median,
+  `/var/home`) to 3.0 ms (median, `/var/mnt/encrypted`).
 - Remedy (a), sync both snapshots before `landing-1.json` (prototype, since reverted): 38 calls in the cold first round,
   then 37, 33, 37, 33 and 37, so exactly two more than the baseline round for round; the two snapshot syncs took 3.9
   (cold), 4.0, 4.3, 4.0, 4.2 and 5.5 ms per commit (about 2 ms each). The total inside syncs (67.6 to 85.4 ms) was below
@@ -418,8 +418,8 @@ Outcome table changes (247 cases regenerated; exactly these two lines differ, ev
 - `ref-updated|cli-git-transactions/<id>/post-1.index|half`: `exit-128!commit-exit-1` becomes `sticks`.
 
 The `pre-landing-1.index` cases at `ref-updated` (empty, half and delete, all `sticks` before) stay `sticks`; for empty
-and half what changed is the message, which now says the snapshot differs from the recorded length and hash instead of claiming the real index
-changed. The totals become: corrupt real index 2 to 0, sticks 63 to 65.
+and half what changed is the message, which now says the snapshot differs from the recorded length and hash instead
+of claiming the real index changed. The totals become: corrupt real index 2 to 0, sticks 63 to 65.
 
 Guards shown failing: with the comparison in `verify_snapshot` forced to accept, `damage_at_ref_updated` fails at the
 emptied `post-1.index` case with `fatal: .git/index: index file smaller than expected` (left `sticks`, right
@@ -430,11 +430,11 @@ written, `damage_at_ref_updated` fails the same way. All passed again after rest
 
 ### J3 follow-up 2: the two silent-inconsistency cases
 
-Cause, read from `recover_dead_transaction` in `recovery_landing.rs`: a directory without `preparing.json` was removed as
-"stopped before capture", and a directory with `preparing.json` but no `landing-<n>.json` was discarded as "never landed",
-whatever else it held. At `ref-updated` both deletions left `ref-updated.json` (and, for the second, the landing record)
-in place, so recovery removed the directory of a commit that was already on the branch and exited 0 with the index
-never reconciled.
+Cause, read from `recover_dead_transaction` in `recovery_landing.rs`: a directory without `preparing.json` was removed
+as "stopped before capture", and a directory with `preparing.json` but no `landing-<n>.json` was discarded as "never
+landed", whatever else it held. At `ref-updated` both deletions left `ref-updated.json` (and, for the second, the
+landing record) in place, so recovery removed the directory of a commit that was already on the branch and exited 0
+with the index never reconciled.
 
 Detection is possible without any extra sync, because the journal writes `preparing.json` first, `landing-<n>.json`
 before the compare-and-swap and `ref-updated.json` after it, each synced before the next. `recovery_contradiction.rs`
@@ -450,12 +450,13 @@ now refuses to discard, and fails closed with the evidence, the directory and th
 An `index-installed` marker exempts the directory (the install finished, nothing remains to reconcile), which keeps
 `index-installed|landing-1.json|delete` and `index-installed|preparing.json|delete` at `completes`.
 
-Repair was judged not possible: the landing record held the post-index identity and digest, the pre-landing identity, the
-real index lock identity and the expected old value, and `preparing.json` held the target, the real index path and the
-shadow path. Without the first, recovery cannot tell which file is the post-index, whether it is intact, or whether the
-`index.lock` on disk is the transaction's; without the second it does not know the branch or the index. Regenerating the
-post-index from the branch tip was not attempted. What cannot be detected: a directory that lost `preparing.json` and
-every landing record and marker (nothing in it shows the move), and a branch whose reflog is off or unreadable.
+Repair was judged not possible: the landing record held the post-index identity and digest, the pre-landing identity,
+the real index lock identity and the expected old value, and `preparing.json` held the target, the real index path
+and the shadow path. Without the first, recovery cannot tell which file is the post-index, whether it is intact, or
+whether the `index.lock` on disk is the transaction's; without the second it does not know the branch or the index.
+Regenerating the post-index from the branch tip was not attempted. What cannot be detected: a directory that lost
+`preparing.json` and every landing record and marker (nothing in it shows the move), and a branch whose reflog is off
+or unreadable.
 
 Outcome table changes (247 cases regenerated; exactly these two lines differ, every other cell is identical):
 
@@ -501,8 +502,8 @@ Tests: `recovery_record_failure_tests.rs` (every kind names file, transaction an
 wraps each of the four reads), `transaction_gate_tests.rs` (no hint field and no fetch text), and
 `the_messages_of_damaged_records_name_the_file_and_the_ways_out` in the tearing harness, which kills real commits,
 damages `preparing.json`, `index-lock-1.json`, `landing-1.json` and `ref-updated.json` (emptied and halved) and reads
-the standard error of two repeated commands (exit 2 both times). Shown failing by making `name_record_failure` return the
-parser's failure unchanged (both unit tests and the harness test fail) and by giving the gate a hint again
+the standard error of two repeated commands (exit 2 both times). Shown failing by making `name_record_failure`
+return the parser's failure unchanged (both unit tests and the harness test fail) and by giving the gate a hint again
 (`gates_follow_recovery` fails); restored, all pass.
 
 ## Results of the hook-entry and configuration-snapshot slices
