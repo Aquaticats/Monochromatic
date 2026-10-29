@@ -3348,3 +3348,20 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
   sessions hold staged file-enforcer and ide/app changes there, and the landing lock was busy. Merge
   `worktree-agent-afe3b1e78082f5280` into main when the checkout is clean (the branch touches only
   `package/git-policy/cli/bin/native-perf*.mjs` and four `e2e/*-fixture.ts` files). Do not touch the other sessions' files.
+
+## Update at 2026-10-29 (user directive: merges must succeed with other sessions' staged changes)
+
+- The user decided: a `git merge` refused by native Git because other sessions have staged changes in the shared main
+  checkout is a problem this wrapper owns and must make succeed. Observed: `error: Your local changes to the following
+  files would be overwritten by merge` listing the other sessions' staged files, although the merge touches none of them.
+  The wrapper classes `merge` as an index writer (`index_writer_commands.rs`) and forwards it, so the refusal reaches the
+  user.
+- Agent afb65bb9babbe8ffa measures what native Git refuses, then implements the isolated merge: reuse the auto-push
+  reconcile machinery (`auto_push_reconcile.rs`: merge in a private context, fast-forward branch and worktree around local
+  changes), land with the commit path's compare-and-swap, update the worktree and index for exactly the merged paths, leave
+  other staged and unstaged work untouched; conflicts and overlaps with others' work refuse with a finding that names the
+  paths and every way forward and change nothing; clean-index and fast-forward merges still forward natively. `git pull`
+  is to be handled if the same mechanism applies. Merge its branch after reading the diff, verify, then release (read the
+  crate version first). Until it lands, the pending merge of `worktree-agent-afe3b1e78082f5280` (oxlint cleanup) into
+  main fails for this very reason.
+- Task list updated: tasks 67, 68, 70, 71 and 72 are completed (released in 0.3.0).
