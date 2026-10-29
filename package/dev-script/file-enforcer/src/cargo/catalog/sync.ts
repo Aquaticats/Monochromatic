@@ -170,6 +170,10 @@ function resolveCrate(
      Resolved entry.
      */
     const entry = catalogName === undefined ? defaultCatalog.get(site.name,) : namedCatalogs.get(catalogName,)?.get(site.name,);
+    // A literal without an entry already failed adoption, which reported why;
+    // a second "missing entry" issue would blame crates that are not at fault.
+    if ((entry === undefined) && (site.kind === 'literal'))
+      continue;
     if (entry === undefined) {
       issues.push({
         file: info.manifest.path,
