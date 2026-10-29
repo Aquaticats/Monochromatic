@@ -863,6 +863,9 @@ pub mod manual_push_range;
 /// An explicit push that lost a race: run as a child, merge in what landed on the remote and publish the merge.
 pub mod push_stacking;
 
+/// Starting a child again when the operating system refuses it for lack of processes, within a bounded wait.
+pub mod start_retry;
+
 /// The manual-push candidate scope of one push: the commits and trees the destination lacks.
 pub mod manual_push_lifecycle;
 /// The one failure type of the linked-worktree ignored-state copy and its diagnostics.

@@ -23,6 +23,8 @@
 use super::forwarding::git_command;
 /// Private exclusive files for standard input.
 use super::private_storage::write_exclusive_scratch;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Unique temporary names.
 use super::random_id::random_uuid;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
@@ -310,7 +312,7 @@ pub fn run_git(context: &GitContext, request: &GitRequest) -> std::io::Result<Gi
             command.stdin(Stdio::null());
         }
     }
-    let output: std::process::Output = command.output()?;
+    let output: std::process::Output = command.output_retrying()?;
     return Ok(GitOutput {
         code: output.status.code(),
         stdout: output.stdout,

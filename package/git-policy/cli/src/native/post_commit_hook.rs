@@ -14,6 +14,7 @@
 use super::diagnostic_log::debug;
 use super::forwarding::git_command;
 use super::hook_dispatch_plan::HookDispatchPlan;
+use super::start_retry::RetryStart;
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
 use super::transaction_git::{GitContext, GitRequest, run_git};
@@ -214,7 +215,7 @@ fn run_hook(
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
-    let finished = command.status().map_err(|error| {
+    let finished = command.status_retrying().map_err(|error| {
         return PostCommitHookError(format!(
             "{} could not start: {error}",
             context.real_git.display()

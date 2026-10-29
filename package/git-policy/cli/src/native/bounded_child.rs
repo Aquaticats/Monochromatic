@@ -542,7 +542,7 @@ pub fn run_bounded_child(request: &ChildRequest<'_>) -> Result<FinishedChild, Ch
     for (name, value) in request.environment {
         command.env(name, value);
     }
-    let mut child: Child = match command.spawn() {
+    let mut child: Child = match super::start_retry::RetryStart::spawn_retrying(&mut command) {
         Ok(started) => started,
         Err(error) => return Err(ChildFailure::Start(error.to_string())),
     };

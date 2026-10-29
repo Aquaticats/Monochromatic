@@ -69,6 +69,8 @@ pub fn is_guard_active_refusal(error: &io::Error) -> bool {
 use std::ffi::c_int;
 /// `io` is the input and output error type the spawn and wait calls return.
 use std::io;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// `Command` builds the child, and `ExitStatus` is how it ended.
 use std::process::{Command, ExitStatus};
 
@@ -381,7 +383,7 @@ impl SignalGuard {
 /// The PID is published before the drain, so that signal is relayed here, not lost.
 #[cfg(unix)]
 fn run_relayed(command: &mut Command) -> io::Result<ChildOutcome> {
-    let mut child: std::process::Child = command.spawn()?;
+    let mut child: std::process::Child = command.spawn_retrying()?;
     let pid: libc::pid_t = libc::pid_t::try_from(child.id())
         .map_err(|error| return io::Error::other(error))?;
     CHILD_PID.store(pid, std::sync::atomic::Ordering::SeqCst);
@@ -446,7 +448,7 @@ impl SignalGuard {
     /// async runChild(command): Promise<ChildOutcome>
     /// ```
     pub fn run_child(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        let mut child: std::process::Child = command.spawn()?;
+        let mut child: std::process::Child = command.spawn_retrying()?;
         let status: ExitStatus = child.wait()?;
         return Ok(super::forwarding::outcome_of(status));
     }

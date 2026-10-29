@@ -18,6 +18,8 @@
 
 /// Trimming with the incumbent's `.trim()` semantics.
 use super::js_text::trim_javascript;
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -228,7 +230,7 @@ fn command_output(command: &str, arguments: &[&std::ffi::OsStr]) -> Option<Strin
         .args(arguments)
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .output()
+        .output_retrying()
         .ok()?;
     if !output.status.success() {
         return None;

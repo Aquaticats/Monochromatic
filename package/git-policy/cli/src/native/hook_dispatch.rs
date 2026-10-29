@@ -22,6 +22,7 @@ use super::hook_dispatch_entries::hook_entry_name;
 /// Lock acquisition and release shared with the other owner locks.
 use super::live_lock::acquire_live_owner_lock;
 use super::owner_lock::OwnerLock;
+use super::start_retry::RetryStart;
 /// Bounded no-follow reads of the plan.
 use super::private_storage::read_regular_file;
 /// Preparation lease variable name.
@@ -232,7 +233,7 @@ fn run_git_hook(
         .args(arguments)
         .env_clear()
         .envs(environment.iter().map(|(name, value)| { return (name.clone(), value.clone()); }))
-        .status();
+        .status_retrying();
     let Ok(finished) = status else {
         return dispatch_failure(
             format!("cannot start {}", plan.git_path).as_str(),

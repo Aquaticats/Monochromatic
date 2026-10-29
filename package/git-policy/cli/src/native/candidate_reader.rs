@@ -17,6 +17,8 @@
 use super::candidate_batch::{BatchReply, ObjectKind, read_batch_reply};
 /// Import the layer's failure type and its closed list of causes.
 use super::candidate_error::{CandidateError, CandidateFailure};
+/// Starts that ride out a short shortage of processes.
+use super::start_retry::RetryStart;
 /// Import the validated object name.
 use super::candidate_object::ObjectId;
 /// Import the shared child-command builder.
@@ -177,7 +179,7 @@ pub fn start_object_reader(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .spawn();
+        .spawn_retrying();
     let mut child: Child = match started {
         Ok(spawned) => spawned,
         Err(error) => {

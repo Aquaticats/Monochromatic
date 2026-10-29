@@ -19,6 +19,7 @@
 
 /// One required Git start, its request builder and the failure text.
 use super::capture_order::{CaptureIndexes, indexed_request};
+use super::start_retry::RetryStart;
 use super::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
 /// Commit selection mode of the transaction.
 use super::transaction_journal::TransactionMode;
@@ -366,7 +367,7 @@ pub fn prepare_interactive_selection(
         .env("GIT_INDEX_FILE", commit_index)
         .env("GIT_OBJECT_DIRECTORY", object_directory);
     let status: std::process::ExitStatus = command
-        .status()
+        .status_retrying()
         .map_err(|error| { return GitFailure(format!("git {shown} could not start: {error}")); })?;
     if !status.success() {
         return Err(GitFailure(format!(
