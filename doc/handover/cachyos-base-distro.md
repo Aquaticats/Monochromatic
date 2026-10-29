@@ -64,8 +64,8 @@ Owner follow-ups the same day:
    same tmpfs fix as nested-wayland-session.
   One more failure, `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`,
    fails identically on the old Fedora image.
-- Asked monochromatic-ec to update `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md`,
-   which still say Fedora 41 for the IDE build container.
+- `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md` now name the Ubuntu 24.04 release image
+   (monochromatic-ec, `8e843b1aa5`); remaining Fedora 41 mentions there are dated history notes.
 
 ## Found during verification, not caused by the base change
 
