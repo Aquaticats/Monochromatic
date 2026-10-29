@@ -41,6 +41,9 @@ pub mod config_rules_file;
 /// Typed settings and their defaults.
 pub mod config_schema;
 
+/// One `git config --list` read, parsed, and the lookups the commit path makes against it.
+pub mod config_snapshot;
+
 /// Key-naming typed readers over parsed JSONC values.
 mod config_values;
 
