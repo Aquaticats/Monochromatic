@@ -3,6 +3,7 @@
 Rules for running the repository's tasks and builds:
 where a task runs from,
 which install a build uses,
+which tools a gate tree runs,
 and where large output goes.
 
 Part of [Preventing this package's mistakes](mistake-prevention.md),
@@ -143,3 +144,60 @@ habit for the names,
 the directories,
 the sources a brief names
 and the file-enforcer run before a package lands.
+
+## Gate trees and their tools
+
+What happened:
+after the repository moved its tools to MPM,
+gate g219 on the merge of main passed 3181 cases and failed 694,
+and its source scans exited 1.
+The typography package runs `monochromatic-lint` by name,
+and on the gate's `PATH` that name reached the shim of `mise`,
+which printed `mise ERROR No version is set for shim`.
+The tools now live in a directory of each worktree,
+`.cache/toolchain-bin`,
+which `mise run toolchain:sync` makes.
+The gate's `PATH` builder had dropped the entries of the main checkout,
+and the fresh gate trees had never been synced.
+Round 8's own red cases in `tr-w357` were the same missing program in a tree that predated the cutover (ledger B980).
+
+A rotation sweep started in `tr-g224` while gate g224 rebuilt `dist` in the same tree,
+and its salt-9 canary failed with `ERR_MODULE_NOT_FOUND` on `translation-repair-markup/dist/final/node/index.mjs`
+(ledger M297).
+Gate g223 on the merge `b12cdc5d23` of main into the cooldown branch went red in the type check,
+the oxlint run and the unit tests of `pass-entry`,
+though the merge itself was clean:
+the branch's begin-entry case at `pass-entry.unit.test.ts:1501` lacked `attempt`,
+which the stamps that main carried at `112f6274fc` had made required (ledger M298).
+Gate g215 failed `run-client-create.unit.test.ts:480` under host load,
+and the case passed alone:
+the rig counted turns of the event loop (fixed in `df2350a6ee`,
+ledger B965 and M299).
+
+The rule:
+a gate tree is set up in this order before its first gate:
+`mise run prepare:pnpm:install`,
+then `mise run toolchain:sync`,
+which needs the installed `node_modules`.
+The gate's `PATH` puts `<tree>/.cache/toolchain-bin`,
+`<tree>/.cache/cli-git-bin` and `<tree>/node_modules/.bin` first
+and leaves out the directory of the `mise` shims.
+A subagent never runs `toolchain:sync`:
+after a subagent merges main across a change to the toolchain,
+the lead syncs that subagent's tree.
+A failure that names a missing program or a shim with no version is read as a tree with no sync
+before it is read as a case that is red.
+A rotation sweep runs beside a gate only in another worktree:
+in the gate's own tree it starts after the gate ends,
+since the gate rebuilds `dist` and the sweep reads it.
+After main is merged into a branch,
+`lint:types` runs on the merged head before a full gate,
+because a merge with no conflict can still make a field required that the branch's cases leave out.
+A red case is run alone before it is judged:
+a case that fails under the load of a gate and passes alone is looked at for a rig that depends on timing,
+and one that fails alone is read for its message.
+
+What enforces it:
+habit,
+and the lead's `PATH` builder for gates,
+which is scratch tooling outside the repository.
