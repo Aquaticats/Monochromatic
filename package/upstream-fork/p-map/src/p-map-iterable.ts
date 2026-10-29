@@ -19,6 +19,7 @@ import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 import {
   closeIterator,
+  createPuller,
   selectIterator,
   type SourceIterator,
   validateInput,
@@ -195,24 +196,17 @@ export function pMapIterable<Element, NewElement>(
   },);
 
   return {
-    async *[Symbol.asyncIterator](): AsyncGenerator<Exclude<NewElement, typeof pMapSkip>, void, undefined> {
-      /**
-       Source iterator, created once per iteration like upstream `p-map`.
-       */
-      const iterator: SourceIterator<Element> = selectIterator(iterable,);
-      /**
-       Spawned pulls awaiting collection, in yield order.
-       */
-      const promises: Promise<PullOutcome<NewElement>>[] = [];
+    [Symbol.asyncIterator](): AsyncGenerator<Exclude<NewElement, typeof pMapSkip>, void, undefined> {
       /**
        Mutable iteration state, kept in one record because function-root
        `let` bindings are banned by repository lint.
        */
       const state = {
         /**
-         Pulls spawned and not yet finished, bounded by `concurrency`.
+         Index in `promises` of the oldest entry the consumer has not
+         collected, moved forward instead of shifting every entry per element.
          */
-        pendingPromisesCount: 0,
+        headIndex: 0,
         /**
          Whether iteration stopped, halting every further spawn and dropping
          pending elements.
@@ -223,199 +217,344 @@ export function pMapIterable<Element, NewElement>(
          */
         isIterableDone: false,
         /**
-         Position handed to the next element's mapper call.
+         Position handed to the next pull, taken when the pull starts.
          */
         index: 0,
+        /**
+         Lowest position whose pull, element, or mapper threw. The stream ends
+         there, like a `throw` in a loop: nothing past it is pulled and no
+         pending element past it is mapped, while the earlier elements still
+         finish and are yielded first.
+         */
+        stopIndex: Number.POSITIVE_INFINITY,
+        /**
+         Elements being read, or waiting for a mapper slot. They do not hold a
+         mapper slot, so the next element can be read while the mappers run;
+         they have their own cap of `concurrency`, so the source never sees
+         more than `concurrency` overlapping `next()` calls.
+         */
+        readingCount: 0,
+        /**
+         Mapper calls holding a slot, bounded by `concurrency`.
+         */
+        runningMappersCount: 0,
+        /**
+         Workers that have started waiting for a mapper slot so far.
+         */
+        mapperWaiterCount: 0,
+        /**
+         Waiting workers that a finished mapper has handed its slot to so far.
+         */
+        wokenMapperWaiterCount: 0,
       };
-
       /**
-       Spawns one pull when the concurrency and backpressure bounds allow it,
-       exactly where upstream `p-map` re-spawns: at the start,
-       after each
-       source pull,
-       after each mapper completion,
-       and after each collection.
+       Resolvers of the workers waiting for a mapper slot, in the order they
+       started waiting. A finished mapper hands its slot to the oldest one.
        */
-      function trySpawn(): void {
+      const mapperWaiters = new Map<number, () => void>();
+      /**
+       Spawned pulls awaiting collection, in yield order; a consumed entry is
+       replaced by `consumedSlot` and the consumed prefix is dropped in halves.
+       */
+      const promises: Promise<PullOutcome<NewElement>>[] = [];
+      /**
+       Shared placeholder for a collected entry, so the queue releases the
+       collected outcome without holding an absent value.
+       */
+      const consumedSlot = Promise.resolve<PullOutcome<NewElement>>({ kind: 'done', },);
+      /**
+       Collects the spawned pulls in yield order and yields their results.
+
+       @yields Each non-skip mapper result, in input order.
+
+       @returns Nothing; the stream ends when the source is done.
+
+       @throws The first failure of the stream, at its own position.
+       */
+      async function* consume(): AsyncGenerator<Exclude<NewElement, typeof pMapSkip>, void, undefined> {
+        // Created when the first `next()` arrives, not when the iterable is asked for its iterator, like upstream `p-map`'s generator body.
         /**
-         Whether iteration stopped or the source reported `done`.
+         Source iterator, created once per iteration like upstream `p-map`.
          */
-// mutation-test-disable-next-line conditional, logical -- spawn-gate control only: trySpawn after stop is reached solely from pending continuations whose outcomes are dropped
-        const stopped = state.isDone || state.isIterableDone;
+        const iterator: SourceIterator<Element> = selectIterator(iterable,);
         /**
-         Whether both bounds still allow a spawn, matching upstream `p-map`'s
-         gate exactly.
+         Source puller that latches `done`, so a source like a queue is never
+         pulled again after it reported `done`.
          */
-        const withinBounds = (state.pendingPromisesCount < concurrency)
-          && (promises.length < backpressure);
-        if (stopped || (!withinBounds))
-          return;
-
-        state.pendingPromisesCount += 1;
+        const pull = createPuller(iterator,);
 
         /**
-         Deferred outcome of this pull; its promise exists before the pull
-         body starts, so the body can locate itself in the spawn queue
-         without capturing its own binding.
+         Frees one mapper slot: hands it to the oldest waiting worker, or gives
+         it back to the pool when none waits.
          */
-        const pull = Promise.withResolvers<PullOutcome<NewElement>>();
-
-        /**
-         Awaits this pull's source item,
-         runs its mapper call,
-         then settles
-         the deferred at the points upstream `p-map`'s spawned continuation
-         returns its result forms.
-         
-         @throws Nothing; failures settle the deferred with the error outcome
-         instead, so a promise the consumer abandons after an earlier error
-         never becomes an unhandled rejection.
-         */
-        async function runPull(): Promise<void> {
-          try {
-            /**
-             Next source item, or its `done` report.
-             */
-            const nextItem: IteratorResult<Element | Promise<Element>, unknown> = await iterator.next();
-
-            // oxlint-disable-next-line typescript/strict-boolean-expressions -- upstream `p-map` checks `if (nextItem.done)` with truthiness, so a non-conforming source's truthy `done` must terminate the pull exactly like upstream
-            if (nextItem.done) {
-              state.isIterableDone = true;
-              state.pendingPromisesCount -= 1;
-              pull.resolve({
-                kind: 'done',
-              },);
-              return;
-            }
-
-            // Spawn if still below concurrency and backpressure limit.
-            trySpawn();
-
-            /**
-             Position of this element in the input, assigned before the
-             element's await like upstream `p-map`.
-             */
-            const currentIndex = state.index;
-            state.index += 1;
-
-            /**
-             Element after awaiting the source's yielded value.
-             */
-            const element = await nextItem.value;
-
-            // The consumer stopped iterating or an earlier mapper failed
-            // while this input was pending, so drop it instead of doing work
-            // nobody will consume.
-// mutation-test-disable-next-line conditional, block -- dropped-work path only: the consumer already left the iteration, so whether the pending mapper runs changes no yielded value, error, or close
-            if (state.isDone) {
-              state.pendingPromisesCount -= 1;
-              pull.resolve({
-                kind: 'value',
-                value: pMapSkip,
-              },);
-              return;
-            }
-
-            /**
-             Mapper result for this element, awaited when thenable.
-             */
-            const returnValue = await mapper(
-              element,
-              currentIndex,
-            );
-
-            state.pendingPromisesCount -= 1;
-
-// mutation-test-disable-next-line conditional, block -- backpressure-capacity bookkeeping only: the skip outcome is dropped at the consumer either way, with identical yields and errors
-            if (returnValue === pMapSkip) {
-              /**
-               Own position in the spawn queue, matching upstream `p-map`'s
-               self-removal: a skipped pull leaves the queue so the consumer
-               never collects it.
-               */
-              const spawnedPosition = promises.indexOf(pull.promise,);
-// mutation-test-disable-next-line conditional -- backpressure-capacity bookkeeping only: the skip outcome is dropped at the consumer either way, with identical yields and errors
-              if (spawnedPosition > 0)
-                void promises.splice(
-                  spawnedPosition,
-                  1,
-                );
-            }
-
-            // Spawn if still below backpressure limit and just dropped below
-            // the concurrency limit.
-            trySpawn();
-
-            pull.resolve({
-              kind: 'value',
-              value: returnValue,
-            },);
+        function releaseMapperSlot(): void {
+          if (state.wokenMapperWaiterCount === state.mapperWaiterCount) {
+            state.runningMappersCount -= 1;
+            return;
           }
-          catch (error) {
-            state.pendingPromisesCount -= 1;
-// mutation-test-disable-next-line boolean -- error-path stop flag only: the failing outcome is already queued and the consumer throws it regardless
-            state.isDone = true;
-            // Failures settle as a value instead of rejecting: a promise the
-            // consumer abandons after an earlier error would otherwise become
-            // an unhandled rejection.
-            pull.resolve({
-              kind: 'error',
-              error,
-            },);
-          }
+
+          nonNullishOrThrow(mapperWaiters.get(state.wokenMapperWaiterCount,),)();
+          mapperWaiters.delete(state.wokenMapperWaiterCount,);
+          state.wokenMapperWaiterCount += 1;
         }
 
-        void runPull();
-        promises.push(pull.promise,);
-      }
-
-      trySpawn();
-
-      /**
-       Source shutdown on every exit from the consumption below: the consumer
-       stopping early must end pending pulls and close the source exactly the
-       way upstream `p-map`'s `finally` block does. The disposer detaches the
-       close like upstream, so a source blocked inside `next()` can never
-       block the consumer's exit.
-       */
-      using sourceShutdown: Disposable = {
-        [Symbol.dispose]: function disposeSource(): void {
-// mutation-test-disable-next-line boolean -- dispose stop flag only: the consumer already left the iteration and the source close is gated separately
-          state.isDone = true;
-
-          if (!state.isIterableDone)
-            void closeIterator(iterator,);
-        },
-      };
-      void sourceShutdown;
-
-      /* oxlint-disable no-await-in-loop -- the consumer collects pulls one at a time, in yield order */
-// mutation-test-disable-next-line conditional, equality -- loop-shape only: the queue empties through the `done` outcome before the length check is reached
-      while (promises.length > 0) {
         /**
-         Oldest spawned pull's outcome; only the head is awaited so results
-         leave the queue in yield order.
+         Spawns one pull when the reading, concurrency, and backpressure bounds
+         allow it, where upstream `p-map` re-spawns: at the start, after each
+         source pull, once an element no longer waits for a mapper slot, and
+         after each collection.
          */
-        const outcome = await nonNullishOrThrow(promises[0],);
-        void promises.shift();
+        function trySpawn(): void {
+          // Do not spawn once the consumer is gone, the source is done, or the
+          // stream ends at an earlier element: the pull would be wasted work,
+          // and for a one-shot source, like a queue, it takes an item nobody is
+          // going to ask for.
+// mutation-test-disable-next-line conditional, logical, equality -- spawn-gate control only: trySpawn after stop is reached solely from pending continuations whose outcomes are dropped
+          if (state.isDone
+            || state.isIterableDone
+            || (state.index > state.stopIndex))
+            return;
 
-        if (outcome.kind === 'error')
-          throw outcome.error;
+          /**
+           Whether every bound still allows a spawn. Skipped results stay in the
+           queue until collected, so they count toward `backpressure` too.
+           */
+          const withinBounds = (state.readingCount < concurrency)
+            && ((promises.length - state.headIndex) < backpressure);
+          if (!withinBounds)
+            return;
 
-        if (outcome.kind === 'done')
-          return;
+          state.readingCount += 1;
 
-        // Spawn if just dropped below backpressure limit and below the
-        // concurrency limit.
+          // Taken when the pull starts, not when it resolves, so a source that
+          // settles its `next()` calls out of call order still gets the right
+          // position.
+          /**
+           Position of this element in the input, assigned before the pull.
+           */
+          const currentIndex = state.index;
+          state.index += 1;
+
+          /**
+           Awaits this pull's source item, waits for a mapper slot, runs its
+           mapper call, and returns the outcome as a value.
+
+           @returns Outcome of this pull; failures come back as the error
+           outcome instead of rejecting, so a promise the consumer abandons after
+           an earlier error never becomes an unhandled rejection.
+           */
+          async function runPull(): Promise<PullOutcome<NewElement>> {
+            /**
+             Which resources this pull still holds, so every exit gives them
+             back exactly once.
+             */
+            const holds = {
+              isReading: true,
+              hasMapperSlot: false,
+            };
+
+            try {
+              /**
+               Next source item, or its `done` report.
+               */
+              const nextItem = await pull();
+
+              // oxlint-disable-next-line typescript/strict-boolean-expressions -- upstream `p-map` checks truthiness of `done`, so a non-conforming source's truthy `done` must terminate the pull exactly like upstream
+              if (nextItem.done) {
+                state.isIterableDone = true;
+                holds.isReading = false;
+                state.readingCount -= 1;
+                return { kind: 'done', };
+              }
+
+              // Spawn if still below the reading and backpressure limits.
+              trySpawn();
+
+              /**
+               Element after awaiting the source's yielded value.
+               */
+              const element = await nextItem.value;
+
+              if (state.runningMappersCount < concurrency)
+                state.runningMappersCount += 1;
+              else {
+                // `releaseMapperSlot` hands the slot over without decrementing
+                // `runningMappersCount`, so it is already counted.
+                /**
+                 Deferred wake-up for this pull, resolved when a finished
+                 mapper hands its slot over.
+                 */
+                const slot = Promise.withResolvers<void>();
+                mapperWaiters.set(
+                  state.mapperWaiterCount,
+                  slot.resolve,
+                );
+                state.mapperWaiterCount += 1;
+                await slot.promise;
+              }
+
+              holds.hasMapperSlot = true;
+              holds.isReading = false;
+              state.readingCount -= 1;
+
+              // Spawn now that this element no longer waits for a mapper slot,
+              // so the next one is read while this one is mapped.
+              trySpawn();
+
+              // The consumer stopped iterating, or the stream ends before this
+              // element, while this element was being read or waiting for a
+              // mapper slot, so drop it instead of doing work nobody will
+              // consume.
+// mutation-test-disable-next-line conditional, logical, equality, block -- dropped-work path only: the consumer already left the iteration or the stream ends earlier, so whether the pending mapper runs changes no yielded value, error, or close
+              if (state.isDone || (currentIndex > state.stopIndex)) {
+                holds.hasMapperSlot = false;
+                releaseMapperSlot();
+                return {
+                  kind: 'value',
+                  value: pMapSkip,
+                };
+              }
+
+              /**
+               Mapper result for this element, awaited when thenable.
+               */
+              const returnValue = await mapper(
+                element,
+                currentIndex,
+              );
+
+              holds.hasMapperSlot = false;
+              releaseMapperSlot();
+
+              return {
+                kind: 'value',
+                value: returnValue,
+              };
+            }
+            catch (error) {
+              if (holds.isReading)
+                state.readingCount -= 1;
+
+              if (holds.hasMapperSlot)
+                releaseMapperSlot();
+
+              // The error is thrown at its own position, after the results
+              // before it, so those still finish.
+              state.stopIndex = Math.min(
+                state.stopIndex,
+                currentIndex,
+              );
+              return {
+                kind: 'error',
+                error,
+              };
+            }
+          }
+
+          promises.push(runPull(),);
+        }
+
         trySpawn();
 
-        if (outcome.value === pMapSkip)
-          continue;
+        /**
+         Source shutdown on every exit from the consumption below: the
+         consumer stopping early must end pending pulls and close the source
+         exactly the way upstream `p-map`'s `finally` block does. The disposer
+         detaches the close like upstream, so a source blocked inside `next()`
+         can never block the consumer's exit.
+         */
+        using sourceShutdown: Disposable = {
+          [Symbol.dispose]: function disposeSource(): void {
+// mutation-test-disable-next-line boolean -- dispose stop flag only: the consumer already left the iteration and the source close is gated separately
+            state.isDone = true;
 
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the skip check above proved the value is not pMapSkip
-        yield outcome.value as Exclude<NewElement, typeof pMapSkip>;
+            if (!state.isIterableDone)
+              void closeIterator(iterator,);
+          },
+        };
+        void sourceShutdown;
+
+        /* oxlint-disable no-await-in-loop -- the consumer collects pulls one at a time, in yield order */
+// mutation-test-disable-next-line conditional, equality -- loop-shape only: the queue empties through the `done` outcome before the length check is reached
+        while (state.headIndex < promises.length) {
+          /**
+           Oldest spawned pull's outcome; only the head is awaited so results
+           leave the queue in yield order.
+           */
+          const outcome = await nonNullishOrThrow(promises[state.headIndex],);
+
+          // Release the entry instead of leaving it for a `shift()` to move,
+          // and drop the consumed prefix once it is at least half the array.
+          // That keeps the backing store proportional to the results still in
+          // flight rather than to the total ever spawned, which matters for an
+          // endless source, while costing one copy per half of the array, so
+          // it stays O(1) per element.
+          promises[state.headIndex] = consumedSlot;
+          state.headIndex += 1;
+
+          if ((state.headIndex * 2) >= promises.length) {
+            void promises.splice(
+              0,
+              state.headIndex,
+            );
+            state.headIndex = 0;
+          }
+
+          if (outcome.kind === 'error')
+            throw outcome.error;
+
+          if (outcome.kind === 'done')
+            return;
+
+          // Spawn if just dropped below the backpressure limit and still below
+          // the reading limit.
+          trySpawn();
+
+          // A skipped result stays in the queue and is stepped over here:
+          // removing it from the queue in the worker instead would make every
+          // skip an O(n) scan and move.
+          if (outcome.value === pMapSkip)
+            continue;
+
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the skip check above proved the value is not pMapSkip
+          yield outcome.value as Exclude<NewElement, typeof pMapSkip>;
+        }
+        /* oxlint-enable no-await-in-loop */
       }
-      /* oxlint-enable no-await-in-loop */
+
+      /**
+       The consuming generator, with `return()` and `throw()` replaced below so
+       a stop is seen by the workers at once.
+       */
+      const generator = consume();
+
+      /**
+       The generator's own `return`, called after the stop is recorded.
+       */
+      const generatorReturn = generator.return
+        .bind(generator,);
+      /**
+       The generator's own `throw`, called after the stop is recorded.
+       */
+      const generatorThrow = generator.throw
+        .bind(generator,);
+
+      // Override `return()` and `throw()` on the generator itself instead of
+      // wrapping it, so it keeps what it inherits, like `Symbol.asyncDispose`
+      // for `await using`, and `next()` stays the native one. Plain functions,
+      // not `async`: the generator already returns a promise, and an `async`
+      // function would wrap it in two more promises and two more microtask
+      // hops.
+      generator.return = function returnAndStop(value: Parameters<typeof generatorReturn>[0],): Promise<IteratorResult<Exclude<NewElement, typeof pMapSkip>, void>> {
+        state.isDone = true;
+        return generatorReturn(value,);
+      };
+      generator.throw = function throwAndStop(error: unknown,): Promise<IteratorResult<Exclude<NewElement, typeof pMapSkip>, void>> {
+        state.isDone = true;
+        return generatorThrow(error,);
+      };
+
+      return generator;
     },
   };
 }
