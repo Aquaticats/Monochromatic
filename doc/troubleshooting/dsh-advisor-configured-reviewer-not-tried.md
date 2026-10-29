@@ -150,7 +150,8 @@ Avoidance is skipped when `agent.options.provider` is absent
 - The operation ledger (attempt diagnostics, aggregate usage, selection reason)
   is not persisted for completed operations.
   Session records store rendered text only,
-  and `advisor/operation` events persist only when the whole operation fails,
+  and `advisor/operation` events (record name renamed to `plugin:advisor/operation` on 2026-10-29)
+  persist only when the whole operation fails,
   so historical failure diagnostics are unrecoverable.
   The 400 cause above was reconstructed by probe on 2026-10-29.
 - The exact reasoning versus text token split of the truncated call is unrecoverable
