@@ -53,7 +53,7 @@ impl Fixture {
         // Relaxed ordering still gives each caller a distinct number; no other memory is coordinated.
         let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
         let name = format!("monochromatic-lint-test-{}-{sequence}", std::process::id());
-        let path = std::env::temp_dir().join(name);
+        let path = crate::test_scratch::scratch_root().join(name);
         std::fs::create_dir(&path).expect("exclusively create test directory");
         return Fixture { path };
     }

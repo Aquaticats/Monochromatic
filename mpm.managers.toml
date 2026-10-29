@@ -127,6 +127,17 @@ args = ["binstall", "--no-confirm", "--version", "0.2.0", "{package_id}"]
 [mpm.overrides.cargo-binstall-monochromatic-search-shadow.operations.remove]
 args = ["uninstall", "{package_id}"]
 
+[mpm.overrides.cargo-binstall-monochromatic-mpm-shadow]
+name = "cargo-binstall monochromatic-mpm-shadow 0.1.1"
+platforms = ["linux"]
+cli_names = ["cargo"]
+
+[mpm.overrides.cargo-binstall-monochromatic-mpm-shadow.operations.install]
+args = ["binstall", "--no-confirm", "--version", "0.1.1", "{package_id}"]
+
+[mpm.overrides.cargo-binstall-monochromatic-mpm-shadow.operations.remove]
+args = ["uninstall", "{package_id}"]
+
 [mpm.overrides.cargo-binstall-monochromatic-nested-wayland-session]
 name = "cargo-binstall monochromatic-nested-wayland-session 0.6.2"
 platforms = ["all_platforms"]

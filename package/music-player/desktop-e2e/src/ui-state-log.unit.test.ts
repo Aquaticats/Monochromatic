@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -81,7 +81,7 @@ function stateLine(seq: number, fields: Readonly<Record<string, unknown>> = {},)
  @returns the directory and the log path
  */
 async function scratchLog(content: string,): Promise<{ readonly dir: string; readonly logPath: string; }> {
-  const dir = await mkdtemp(join(tmpdir(), 'e2e-log-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'e2e-log-',),);
   const logPath = join(dir, 'wide.log',);
   await writeFile(logPath, content,);
   return { dir, logPath, };
@@ -222,7 +222,7 @@ await describe({
     it({
       name: 'reads no lines when the file does not exist',
       fn: async ({ expect, }) => {
-        const log = createUiStateLog({ logPath: join(tmpdir(), 'e2e-no-such-log.log',), },);
+        const log = createUiStateLog({ logPath: join(scratchRoot(), 'e2e-no-such-log.log',), },);
         expect(await log.lines(),).toEqual([],);
         expect(await log.used(),).toBe(0,);
       },

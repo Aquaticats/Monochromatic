@@ -24,13 +24,14 @@
  when the imported name, the module or the file does not match. Fixtures
  are cat-themed; the package case reads this package's own tests.
 
- KEPT SITES build a path that is deliberately absent, or move the process
- to the real OS temp root, and create nothing; wrapping either in
- `scratchDir` would create and later remove a directory for no reason, so
- each stays direct and is named here with why, keyed `path: form`. A kept
- site that stops matching, because the call was removed or moved onto
- `scratchDir` after all, fails this scan until its `KEPT` entry is removed
- too.
+ KEPT SITES build a path that is deliberately absent and create nothing;
+ wrapping one in `scratchDir` would create and later remove a directory for
+ no reason, so each stays direct and is named here with why, keyed
+ `path: form`. A kept site that stops matching, because the call was
+ removed or moved onto `scratchDir` or the repository's `scratchRoot()`
+ after all, fails this scan until its `KEPT` entry is removed too.
+ `scratchRoot()` (`@monochromatic-dev/test-harness-core`) names the shared
+ scratch root and creates nothing, so this scan does not read its calls.
 
  A SECOND RULE GUARDS THE SETUP WINDOW ITSELF (still ledger B108): every
  call to `scratchDir`, imported by name from the scratch-dir fixture, in a
@@ -95,31 +96,9 @@ const TMPDIR_MODULE = 'node:os';
  replace it.
  */
 const KEPT: Readonly<Record<string, string>> = {
-  'corpus-pass/corpus-run/artifact-pool-conflict.unit.test.ts: tmpdir()':
-    'builds an artifacts directory path guaranteed not to exist, for a pool conflict refusal; nothing is '
-      + 'created, so scratchDir would create and dispose of a directory for no reason',
-  'slice-cache/corpus-run/entry-pictures.unit.test.ts: tmpdir()':
-    'builds a clone directory path guaranteed not to exist, standing in for a pin no read may touch; nothing '
-      + 'is created, so scratchDir would create and dispose of a directory for no reason',
-  'slice-cache/corpus-run/entry-reattempt.unit.test.ts: tmpdir()':
-    'builds a cache directory path guaranteed not to exist, for the count a never-bought entry reads as zero; '
-      + 'nothing is created, so scratchDir would create and dispose of a directory for no reason',
-  'slice-cache/corpus-run/pass-eligibility.unit.test.ts: tmpdir()':
-    'builds a clone directory path guaranteed not to exist, for a walk over a clone that has gone away; '
-      + 'nothing is created, so scratchDir would create and dispose of a directory for no reason',
-  'run/corpus-run/run-config.unit.test.ts: tmpdir()':
-    'moves the process working directory to the real OS temp root for a case about reading outside any '
-      + 'git-tracked directory; the root always exists and needs no disposal, which scratchDir would add for no '
-      + 'behavioural gain',
-  'insertion/corpus-run/runner-closure.unit.test.ts: tmpdir()':
-    'builds an entry path guaranteed not to exist, for the closure reader\'s "unavailable" answer; nothing is '
-      + 'created, so scratchDir would create and dispose of a directory for no reason',
   'adjudication/corpus-source.unit.test.ts: tmpdir()':
     'builds a clone directory path guaranteed not to exist, for a corpus read against a missing clone; '
       + 'nothing is created, so scratchDir would create and dispose of a directory for no reason',
-  'shared-contract/run-json-read.unit.test.ts: tmpdir()':
-    'reads the literal OS temp root string to assert a refusal never names it; scratchDir\'s own directory is '
-      + 'a subdirectory of that root and would not stand in for the value under test',
 };
 
 /**

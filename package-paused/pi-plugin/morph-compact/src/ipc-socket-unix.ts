@@ -3,7 +3,7 @@
  
  Creates a one-shot server that writes compressed context to the
  first client connection, then closes. Used as a fallback when
- the temp-file tier fails (e.g. `/tmp` is read-only).
+ the temp-file tier fails (e.g. the tool's scratch directory is read-only).
  
  @module
  */
@@ -15,7 +15,6 @@ import {
   createServer,
   type Server,
 } from 'node:net';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
@@ -67,7 +66,7 @@ export type OneShotSocketServerResult = {
 /**
  Create a one-shot Unix domain socket server.
  
- Listens on a unique socket path under the system tmpdir.
+ Listens on a unique socket path under `XDG_RUNTIME_DIR`, whose path stays short enough for a Unix socket.
  When a client connects, the entire `text` is written to that
  single connection, the server closes, and the socket file is unlinked.
  
@@ -89,10 +88,18 @@ export function createOneShotSocketServer(
   text: string,
 ): OneShotSocketServerResult {
   /**
-   Unique socket path under the system tmpdir for this one-shot run.
+   Per-user runtime directory, the only place a short socket path is guaranteed; the system temporary directory is
+   never used because its backing device is unknowable.
+   */
+  const runtimeDirectory = process.env['XDG_RUNTIME_DIR'];
+  if (runtimeDirectory === undefined || runtimeDirectory === '') {
+    throw new Error('XDG_RUNTIME_DIR is not set; the one-shot socket needs the per-user runtime directory',);
+  }
+  /**
+   Unique socket path for this one-shot run.
    */
   const socketPath = join(
-    tmpdir(),
+    runtimeDirectory,
     `morph-compact-${randomUUID()}.sock`,
   );
 

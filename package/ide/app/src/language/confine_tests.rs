@@ -304,9 +304,9 @@ fn only_paths_below_proc_refuse() {
 
 #[test]
 fn state_root_is_resolved_before_it_is_checked_and_bound() {
-    let project = tempfile::tempdir().expect("project");
-    let elsewhere = tempfile::tempdir().expect("elsewhere");
-    let links = tempfile::tempdir().expect("links");
+    let project = crate::test_scratch::scratch().expect("project");
+    let elsewhere = crate::test_scratch::scratch().expect("elsewhere");
+    let links = crate::test_scratch::scratch().expect("links");
     let project_root = project.path().canonicalize().expect("canonical project");
     let target = elsewhere.path().canonicalize().expect("canonical target");
     std::os::unix::fs::symlink(&target, links.path().join("away")).expect("link away");

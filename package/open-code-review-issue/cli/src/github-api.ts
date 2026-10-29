@@ -8,7 +8,6 @@ import {
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import {
@@ -22,6 +21,7 @@ import {
   type IncludedResponse,
 } from './github-response.ts';
 
+import { scratchParent, } from './scratch-parent.ts';
 /**
  HTTP methods used by adapter GitHub boundary.
  */
@@ -147,7 +147,7 @@ async function executeBodyRequest({
    Private disposable directory owning request file cleanup.
    */
   await using directory = await mkdtempDisposable(join(
-    tmpdir(),
+    await scratchParent(),
     'ocr-issue-gh-',
   ),);
   /**

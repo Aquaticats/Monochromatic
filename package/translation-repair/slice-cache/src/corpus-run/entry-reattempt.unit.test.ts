@@ -33,7 +33,7 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -209,7 +209,7 @@ await describe({
           fn: async () => {
             expect(await countCachedSlices({
               dir: join(
-                tmpdir(),
+                scratchRoot(),
                 'whiskers-cache-that-was-never-created',
               ),
             },),).toBe(0,);

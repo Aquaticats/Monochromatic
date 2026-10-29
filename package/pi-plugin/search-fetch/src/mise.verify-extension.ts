@@ -5,7 +5,7 @@
  */
 
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   createEventBus,
@@ -65,7 +65,7 @@ async function verifyBuiltExtension(): Promise<string> {
    Temp home directory avoiding real user config during verification.
    */
   const tempHome = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     TEMP_HOME_PREFIX,
   ),);
   process.env

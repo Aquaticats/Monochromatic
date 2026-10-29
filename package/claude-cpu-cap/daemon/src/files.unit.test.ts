@@ -2,7 +2,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -30,7 +30,7 @@ async function sensorDir({ name, text, }: Readonly<{ name: string; text: string;
   /**
    Fresh directory so cases cannot share files.
    */
-  const dir = await mkdtemp(join(tmpdir(), 'cpu-cap-files-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'cpu-cap-files-',),);
   await writeFile(join(dir, name,), text,);
   return dir;
 }

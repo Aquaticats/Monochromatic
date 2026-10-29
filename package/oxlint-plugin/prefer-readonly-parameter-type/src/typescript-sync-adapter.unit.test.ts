@@ -6,7 +6,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   relative,
@@ -408,7 +408,7 @@ await describe({
           name: 'rejects inferred project and recovers for next configured source',
           fn: async () => {
             /** Disposable source outside every configured project. */
-            const unconfiguredRoot = mkdtempSync(join(tmpdir(), 'semantic-unconfigured-',),);
+            const unconfiguredRoot = mkdtempSync(join(scratchRoot(), 'semantic-unconfigured-',),);
             using unconfigured: SemanticFixtureDirectory = {
               path: unconfiguredRoot,
               [Symbol.dispose]: function removeUnconfiguredFixture(): void {
@@ -456,7 +456,7 @@ await describe({
               hasBOM: false,
             },);
             /** Disposable source outside every configured project. */
-            const unconfiguredRoot = mkdtempSync(join(tmpdir(), 'semantic-unconfigured-',),);
+            const unconfiguredRoot = mkdtempSync(join(scratchRoot(), 'semantic-unconfigured-',),);
             using unconfigured: SemanticFixtureDirectory = {
               path: unconfiguredRoot,
               [Symbol.dispose]: function removeUnconfiguredFixture(): void {
@@ -500,7 +500,7 @@ await describe({
           fn: async () => {
             closeSemanticBridge();
             /** Disposable dependency directory outside every configured project. */
-            const dependencyRoot = mkdtempSync(join(tmpdir(), 'semantic-refused-',),);
+            const dependencyRoot = mkdtempSync(join(scratchRoot(), 'semantic-refused-',),);
             using dependencyDirectory: SemanticFixtureDirectory = {
               path: dependencyRoot,
               [Symbol.dispose]: function removeRefusedFixture(): void {
@@ -577,7 +577,7 @@ await describe({
              * the bridge used to throw away. */
             rmSync(heldPath,);
             /** Disposable source outside every configured project. */
-            const unconfiguredRoot = mkdtempSync(join(tmpdir(), 'semantic-unconfigured-',),);
+            const unconfiguredRoot = mkdtempSync(join(scratchRoot(), 'semantic-unconfigured-',),);
             using unconfigured: SemanticFixtureDirectory = {
               path: unconfiguredRoot,
               [Symbol.dispose]: function removeUnconfiguredFixture(): void {

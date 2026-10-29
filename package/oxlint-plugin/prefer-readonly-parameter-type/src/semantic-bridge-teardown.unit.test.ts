@@ -7,7 +7,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   fileURLToPath,
@@ -62,7 +62,7 @@ type ScriptDirectory = {
  */
 function createScriptDirectory(): ScriptDirectory {
   /** Unique directory path under the host temp directory. */
-  const path = mkdtempSync(join(tmpdir(), 'semantic-bridge-teardown-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'semantic-bridge-teardown-',),);
   return {
     path,
     [Symbol.dispose]: function removeScriptDirectory(): void {

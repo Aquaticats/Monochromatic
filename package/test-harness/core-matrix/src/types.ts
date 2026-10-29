@@ -7,7 +7,7 @@
  @example
  ```ts
  await matrix({
-   os: ['container:ubuntu', 'container:fedora'],
+   os: ['container:cachyos', 'container:ubuntu'],
    user: ['root', 'user'],
    runtime: ['bun'],
  });
@@ -27,7 +27,7 @@ export type MatrixOptions = {
    - `host:`: run directly on the host (no container, runtime must be pre-installed)
    - `vm:`: mvm (not yet implemented, throws)
    
-   @example `['container:ubuntu', 'container:fedora']`
+   @example `['container:cachyos', 'container:ubuntu']`
    
    @example `['host:']`
    */
@@ -156,7 +156,7 @@ export type ParsedOs = {
    */
   readonly protocol: 'container' | 'host' | 'vm';
   /**
-   Distro name used as the container image tag (e.g. `'ubuntu'`, `'fedora'`). Empty string for `host:`.
+   Distro name used as the container image tag (e.g. `'ubuntu'`, `'cachyos'`). Empty string for `host:`.
    */
   readonly distro: string;
 };

@@ -57,7 +57,7 @@ use std::{
 #[test]
 #[ignore = "measurement; run through inspect:refresh-latency with the filter write_wait_timer"]
 fn write_wait_timer_coincidence() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let folder = fixture.path().join("nested");
     fs::create_dir(&folder).expect("collapsed folder");
     let displayed = folder.join("view.txt");

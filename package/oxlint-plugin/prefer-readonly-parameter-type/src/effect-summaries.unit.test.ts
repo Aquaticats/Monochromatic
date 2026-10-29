@@ -6,7 +6,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { fileURLToPath, } from 'node:url';
 
@@ -141,7 +141,7 @@ type DisposableCacheDirectory = {
  @returns cache directory removed after test scope.
  */
 function disposableCacheDirectory(): DisposableCacheDirectory {
-  const path = mkdtempSync(join(tmpdir(), 'readonly-effect-cache-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-effect-cache-',),);
   return {
     path,
     [Symbol.dispose](): void {

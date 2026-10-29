@@ -150,7 +150,7 @@ fn mostly(pixel: Rgba8Pixel, color: Color, background: Rgba8Pixel) -> bool {
 /// A reader over the shared fixture in a fresh disposable project;
 ///  the directory lives as long as the reader.
 pub(super) fn fixture_reader(text: &str) -> (tempfile::TempDir, Reader) {
-    let directory = tempfile::tempdir().expect("disposable paint project");
+    let directory = crate::test_scratch::scratch().expect("disposable paint project");
     fs::write(directory.path().join("main.rs"), text).expect("paint fixture");
     let opened = reader(directory.path(), "main.rs");
     return (directory, opened);

@@ -72,7 +72,7 @@ async fn the_actor_stores_a_backlog_larger_than_one_batch() {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock is after the epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("mp_peakcache_batch_{nanos}"));
+    let dir = crate::test_scratch::scratch_root().join(format!("mp_peakcache_batch_{nanos}"));
     std::fs::create_dir_all(&dir).expect("scratch dir should be created");
     let (read_tx, write_tx) = spawn(Some(dir.join("decisions.db")));
     for fingerprint in 1..=rows {

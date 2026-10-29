@@ -14,7 +14,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -96,7 +96,7 @@ async function systemTar(files: Readonly<Record<string, string>>,): Promise<Asyn
   /**
    Fixture directory.
    */
-  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-tar-',),);
+  const root = await mkdtemp(join(scratchRoot(), 'rust-catalog-update-tar-',),);
   await Promise.all(Object.entries(files,).map(async function writeEntry([path, content,],): Promise<void> {
     await mkdir(join(root, 'src', path, '..',), { recursive: true, },);
     await writeFile(join(root, 'src', path,), content,);

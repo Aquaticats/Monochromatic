@@ -268,9 +268,10 @@ overrides:
   # must stay installed or the package crashes at module load with
   # `Cannot find package ...`.
   # `package/pi-plugin/auto-mode` imports both pi-ai and pi-coding-agent at runtime;
-  # `package/pi-plugin/{morph-compact,terminal-title}` use pi-coding-agent type-only
+  # `package/pi-plugin/terminal-title` and the paused
+  # `package-paused/pi-plugin/morph-compact` use pi-coding-agent type-only
   # and re-implement the runtime helpers locally in
-  # `package/pi-plugin/morph-compact/src/pi-utils.ts`.
+  # `package-paused/pi-plugin/morph-compact/src/pi-utils.ts`.
   # See doc/troubleshooting/dependencies.md for the audit.
   '@earendil-works/pi-ai>@aws-sdk/client-bedrock-runtime': '-'
   '@earendil-works/pi-ai>@google/genai': '-'

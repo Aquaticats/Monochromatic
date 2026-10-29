@@ -10,7 +10,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import spawn from 'nano-spawn';
 import {
@@ -28,7 +28,7 @@ await describe({
     it({
       name: 'config file that copies one file to another',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -65,7 +65,7 @@ await describe({
     it({
       name: 'config file that concatenates multiple sources',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -99,7 +99,7 @@ await describe({
     it({
       name: 'config file using dedup transform',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -132,7 +132,7 @@ await describe({
     it({
       name: 'config file using getJsonProperty transform',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -169,7 +169,7 @@ await describe({
     it({
       name: 'config file tracks both reads and writes',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -200,7 +200,7 @@ await describe({
     it({
       name: 'config using addWatchedPaths for exec dependencies',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -238,7 +238,7 @@ await describe({
     it({
       name: 'config with overwriteIfNotExists skips existing files',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {
@@ -272,7 +272,7 @@ await describe({
     it({
       name: 'direct file-enforcer config reruns builders when manifest is fresh',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         await using _cleanup = {
           [Symbol.asyncDispose](): Promise<void> {
             return rm(tempDir, { recursive: true, force: true, },);
@@ -308,7 +308,7 @@ await describe({
     it({
       name: 'config with glob-based overwriteEach mirrors files',
       fn: async () => {
-        const tempDir = await mkdtemp(join(tmpdir(), 'file-enforcer-integ-',),);
+        const tempDir = await mkdtemp(join(scratchRoot(), 'file-enforcer-integ-',),);
         reset();
         resetWriteTimestamps();
         await using _cleanup = {

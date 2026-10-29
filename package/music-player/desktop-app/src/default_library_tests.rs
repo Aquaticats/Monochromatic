@@ -10,7 +10,7 @@ fn scratch_home(tag: &str) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let home: PathBuf = std::env::temp_dir().join(format!("music-player-home-{}-{nanos}-{tag}", std::process::id()));
+    let home: PathBuf = crate::test_scratch::scratch_root().join(format!("music-player-home-{}-{nanos}-{tag}", std::process::id()));
     std::fs::create_dir_all(&home).expect("the scratch home is created");
     return home;
 }

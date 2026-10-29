@@ -1,5 +1,5 @@
 /**
- Complete-output spooling below the OS temp directory.
+ Complete-output spooling below the tool's scratch directory, `node_modules/.monochromatic/bash-poke`.
 
  @module
  */
@@ -13,7 +13,6 @@ import {
   chmod,
   mkdir,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
 import { join, } from 'node:path';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -26,6 +25,7 @@ import {
   SPOOL_FILE_MODE,
 } from './constants.ts';
 import { bashPokeLogger, } from './logger.ts';
+import { scratchParent, } from './scratch-parent.ts';
 
 //region Types
 
@@ -61,7 +61,7 @@ type SpoolWriter = {
 /**
  Resolves the spool directory below a temp root and enforces owner-only access.
  
- @param tmp - temp root, injectable so tests use a disposable directory
+ @param tmp - spool root, injectable so tests use a disposable directory; defaults to the tool's scratch directory
  
  @returns absolute spool directory path
  
@@ -69,17 +69,17 @@ type SpoolWriter = {
  
  @example
  ```ts
- await spoolDirectory({ tmp: '/tmp', },);
+ await spoolDirectory({ tmp: scratch.path, },);
  ```
  */
 async function spoolDirectory(
-  { tmp = tmpdir(), }: { readonly tmp?: string; },
+  { tmp, }: { readonly tmp?: string | undefined; },
 ): Promise<string> {
   /**
    Directory holding complete captured output for this package.
    */
   const dir = join(
-    tmp,
+    tmp ?? await scratchParent(),
     SPOOL_DIR_NAME,
   );
   await mkdir(
@@ -138,7 +138,7 @@ const discardingSpoolWriter: SpoolWriter = {
 /**
  Opens the spool file for one job, or falls back to discarding complete output.
  
- @param tmp - temp root, injectable so tests use a disposable directory
+ @param tmp - spool root, injectable so tests use a disposable directory; defaults to the tool's scratch directory
  
  @param jobId - identifier naming the spool file
  
@@ -146,13 +146,13 @@ const discardingSpoolWriter: SpoolWriter = {
  
  @example
  ```ts
- const writer = await openSpoolWriter({ tmp: '/tmp', jobId: 'job-1', },);
+ const writer = await openSpoolWriter({ tmp: scratch.path, jobId: 'job-1', },);
  await writer.close();
  ```
  */
 async function openSpoolWriter(
   {
-    tmp = tmpdir(),
+    tmp,
     jobId,
   }: {
     readonly tmp?: string;

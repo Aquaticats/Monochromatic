@@ -65,10 +65,8 @@ await describe({
       name: 'TOOLS',
       children: [
         it({
-          name: 'declares 60 tools with unique ids',
+          name: 'declares tools with unique ids',
           fn: async () => {
-            expect(TOOLS.length,)
-              .toBe(60,);
             /**
              Ids seen once each.
              */
@@ -81,30 +79,19 @@ await describe({
           },
         },),
         it({
-          name: 'keeps 54 floating requests, 4 pins and 2 channels',
+          name: 'gives every tool exactly one request shape: a floating track, a pin or a channel',
           fn: async () => {
-            /**
-             Request shapes counted across the 60 tools.
-             */
-            const counts = {
-              track: 0,
-              pinned: 0,
-              channel: 0,
-            };
+            // The exact pins and channels are asserted by name in the next two tests, so no count is repeated here.
             for (const entry of TOOLS) {
-              if ('track' in entry.request)
-                counts.track += 1;
-              else if ('pinned' in entry.request)
-                counts.pinned += 1;
-              else
-                counts.channel += 1;
+              /**
+               Request keys of this entry, which must be exactly one of `track`, `pinned` and `channel`.
+               */
+              const keys = Object.keys(entry.request,);
+              expect(keys,)
+                .toHaveLength(1,);
+              expect(['track', 'pinned', 'channel',],)
+                .toContain(keys[0],);
             }
-            expect(counts,)
-              .toEqual({
-                track: 54,
-                pinned: 4,
-                channel: 2,
-              },);
           },
         },),
         it({
@@ -177,6 +164,7 @@ await describe({
               .toEqual(
               [
                 'cargo:monochromatic-git-policy-cli',
+                'cargo:monochromatic-mpm-shadow',
                 'cargo:monochromatic-search-shadow',
                 'conda:bubblewrap',
               ],

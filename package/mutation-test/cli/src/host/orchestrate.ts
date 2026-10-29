@@ -20,6 +20,7 @@ import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import { enumeratePackage, } from './enumerate-package.ts';
 import { ensureRuntimeImage, } from './image.ts';
 import { runOneShard, } from './run-one-shard.ts';
+import { listSourceFiles, } from './source-file-list.ts';
 import {
   composeReshard,
   composeShards,
@@ -126,6 +127,11 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
     repoRoot: options.repoRoot,
     skipImageBuild: options.skipImageBuild,
   },);
+  /**
+   Source files every shard container copies into its work tree, computed
+   once per run so all shards see the same checkout state.
+   */
+  const sourceFileList = await listSourceFiles({ repoRoot: options.repoRoot, },);
   /**
    Bounded concurrency gate across shard containers.
    */
@@ -268,6 +274,7 @@ export async function orchestrateRun(options: OrchestrateOptions,): Promise<RunO
           async function launch(): Promise<ShardReport> {
             return await runOneShard({
               manifest,
+              sourceFileList,
               image,
               repoRoot: options.repoRoot,
               resources: options.resources,

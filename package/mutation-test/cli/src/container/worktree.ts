@@ -1,6 +1,12 @@
 /**
- Container work-tree preparation: rsync source, recreate dependency
- symlink farms from the baked layer.
+ Container work-tree preparation: rsync the host-listed source files,
+ recreate dependency symlink farms from the baked layer.
+ 
+ The source copy is driven by the file list the host writes into the
+ manifest mount (`git ls-files`: tracked plus untracked-not-ignored), never
+ by walking the whole checkout: ignored build output and nested agent
+ worktrees can be gigabytes and overflow the work-tree tmpfs. The copy
+ targets a fresh tmpfs, so it needs no `--delete`.
  
  Ported from the proven dev-script-mutation-test worktree module; the
  mechanics (excluding heavyweight artifacts, copying symlink farms
@@ -30,6 +36,8 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import {
   BAKED_ROOT,
+  MANIFEST_MOUNT,
+  SOURCE_FILE_LIST_NAME,
   SOURCE_MOUNT,
   WORK_MOUNT,
 } from '../mounts.ts';
@@ -63,7 +71,48 @@ export const RSYNC_EXCLUDES: readonly string[] = [
 ];
 
 /**
- Copies current repository source into the writable work tree.
+ Builds the rsync argument list that copies the host-listed source files
+ from the source mount into the work tree.
+ 
+ `--files-from` with `--from0` reads NUL-separated paths relative to the
+ source root and implies `--relative`, so parent directories are created and
+ recursion is off: only listed paths are copied. `--ignore-missing-args`
+ lets a tracked file deleted in the working tree stay listed without failing
+ the copy. Each exclude is passed twice, bare (matches a listed directory
+ entry) and with `/***` (matches listed files beneath a generated
+ directory, which a bare pattern does not reach under `--files-from`).
+ There is no `--delete`: the work tree is a fresh tmpfs, so nothing exists
+ to delete.
+ 
+ @returns rsync arguments, excluding the `rsync` program name.
+ 
+ @example
+ ```ts
+ await spawn('rsync', rsyncSourceArgs());
+ ```
+ */
+export function rsyncSourceArgs(): readonly string[] {
+  return [
+    '--archive',
+    '--from0',
+    `--files-from=${MANIFEST_MOUNT}/${SOURCE_FILE_LIST_NAME}`,
+    '--ignore-missing-args',
+    ...RSYNC_EXCLUDES.flatMap(function excludeArgs(pattern,): readonly string[] {
+      return [
+        '--exclude',
+        pattern,
+        '--exclude',
+        `${pattern}/***`,
+      ];
+    },),
+    `${SOURCE_MOUNT}/`,
+    `${WORK_MOUNT}/`,
+  ];
+}
+
+/**
+ Copies the host-listed repository source files into the writable work
+ tree.
  
  @example
  ```ts
@@ -73,18 +122,7 @@ export const RSYNC_EXCLUDES: readonly string[] = [
 export async function rsyncSourceToWorkTree(): Promise<void> {
   await spawn(
     'rsync',
-    [
-      '--archive',
-      '--delete',
-      ...RSYNC_EXCLUDES.flatMap(function excludeArgs(pattern,): readonly string[] {
-        return [
-          '--exclude',
-          pattern,
-        ];
-      },),
-      `${SOURCE_MOUNT}/`,
-      `${WORK_MOUNT}/`,
-    ],
+    rsyncSourceArgs(),
     {
       stdout: 'inherit',
       stderr: 'inherit',
@@ -345,7 +383,7 @@ export async function materialiseGitMarker({
 }
 
 /**
- Prepares the full work tree: source rsync plus dependency farms, then the
+ Prepares the full work tree: listed-source rsync plus dependency farms, then the
  `.git` marker from {@link materialiseGitMarker}.
  
  @example

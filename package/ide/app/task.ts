@@ -15,6 +15,15 @@ const { execFileSync } = await import('node:child_process')
 execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide', '--file', 'Containerfile', '.'], { stdio: 'inherit' })
 ` },
   },
+  "image:release": {
+    description: "Rebuild the Ubuntu 24.04 release image that shipped IDE binaries are compiled in (FROM localhost/monochromatic/terminal-release, built by //package/terminal/app:image:release); the other tasks use it when IDE_RELEASE=1",
+    run: { shell: "node --input-type=module-typescript -e", run: `const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
+const containerLimits = containerBounds()
+console.error(containerLimits.summary)
+const { execFileSync } = await import('node:child_process')
+execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', 'localhost/monochromatic/ide-release', '--file', 'Containerfile.release', '.'], { stdio: 'inherit' })
+` },
+  },
   "fetch": {
     description: "Fetch the selected Rust dependencies in the bounded build container",
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
@@ -22,10 +31,12 @@ execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag'
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -56,10 +67,12 @@ runCargo(['fetch'], { network: true })
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -155,10 +168,12 @@ await withExclusiveLock({ lockFile: 'target/runtime.lock', work: () => {
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -221,10 +236,12 @@ if (existsSync(output) && existsSync(stamp) && readFileSync(stamp, 'utf8').trim(
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -264,10 +281,12 @@ console.log('Wrote target/linked-crates.txt: ' + crates.length + ' crates, the p
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -327,10 +346,12 @@ console.log('Slint software renderer is not linked into any build of this packag
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -362,10 +383,12 @@ runCargo(['build'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -449,10 +472,12 @@ arg "[only]" help="Comma-separated case names to run; default is every case"
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -485,10 +510,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib', '--tests', ...filt
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -520,10 +547,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'wrap', '--test',
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -556,10 +585,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'minimap', '--tes
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -606,10 +637,12 @@ flag "--deadline-minutes <n>" default="60" help="The container is removed after 
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -640,10 +673,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'font_fe
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -674,10 +709,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'search_
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -709,10 +746,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -744,10 +783,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'file_open'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -786,10 +827,12 @@ runCargo(['nextest', 'run', '--test', 'cli_args', '--test', 'cli_process'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -824,10 +867,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'change_watch', '
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -859,10 +904,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'file_tree', '--t
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -894,10 +941,12 @@ runCargo(['clippy', '--all-targets', '--', '--deny', 'warnings'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -929,10 +978,12 @@ runBounded(['env', '--unset=SLINT_EMIT_DEBUG_INFO', 'cargo', 'clippy', '--releas
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1013,10 +1064,12 @@ console.log(JSON.stringify({ directory, results }, null, 2))
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1047,10 +1100,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'find', 
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1082,10 +1137,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'row_map', '--tes
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1116,10 +1173,12 @@ runBounded(['cargo', 'nextest', 'run', '--bin', 'monochromatic-ide', '--no-captu
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1259,10 +1318,12 @@ arg "[runs]" default="3" help="Alternating runs per scope, for run-to-run spread
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1331,10 +1392,12 @@ console.log(JSON.stringify(record, null, 2))
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1373,10 +1436,12 @@ runCargo(['fmt', '--check'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1408,10 +1473,12 @@ runCargo(['fmt'])
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1444,10 +1511,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--test', 'syntax', '--test
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1479,10 +1548,12 @@ runCargo(['nextest', 'run', '--no-default-features', '--lib', '--test', 'languag
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1514,10 +1585,12 @@ execFileSync('node', ['bin/inspect-language.ts'], { stdio: 'inherit' })
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1549,10 +1622,12 @@ execFileSync('node', ['bin/inspect-language-lifecycle.ts'], { stdio: 'inherit' }
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1584,10 +1659,12 @@ execFileSync('node', ['bin/inspect-language-confinement.ts'], { stdio: 'inherit'
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1665,10 +1742,12 @@ arg "[fixture]" default="basic" help="Source fixture: basic, scroll, syntax, or 
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an
@@ -1860,10 +1939,12 @@ arg "[steps]" default="120" help="Pointer events of the input, sent 16 ms apart"
 const { containerBounds } = await import((await import('node:path')).resolve('bin/container-bounds.ts'))
 const containerLimits = containerBounds()
 console.error(containerLimits.summary)
-const image = 'localhost/monochromatic/ide'
+// IDE_RELEASE=1 selects the Ubuntu 24.04 release image that shipped binaries are compiled in (Containerfile.release).
+const release = process.env.IDE_RELEASE === '1'
+const image = release ? 'localhost/monochromatic/ide-release' : 'localhost/monochromatic/ide'
 const imageCheck = (await import('node:child_process')).spawnSync('podman', ['image', 'exists', image])
 if (imageCheck.status !== 0) {
-  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', 'Containerfile', '.'], { stdio: 'inherit' })
+  execFileSync('podman', ['build', ...containerLimits.imageBuildArguments, '--tag', image, '--file', release ? 'Containerfile.release' : 'Containerfile', '.'], { stdio: 'inherit' })
 }
 // The repository-root clippy.toml holds the fleet-wide disallowed-methods ban that [lints.clippy] only activates.
 // It is mounted read-only outside /work and named by CLIPPY_CONF_DIR: a mount over /work/clippy.toml would leave an

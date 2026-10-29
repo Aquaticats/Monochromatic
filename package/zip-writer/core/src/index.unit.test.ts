@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
@@ -34,7 +34,7 @@ type DisposableTempDir = {
  @returns Async-disposable temp directory handle
  */
 async function makeTempDir(): Promise<DisposableTempDir> {
-  const path = await mkdtemp(join(tmpdir(), 'zip-writer-test-',),);
+  const path = await mkdtemp(join(scratchRoot(), 'zip-writer-test-',),);
   return {
     path,
     async [Symbol.asyncDispose](): Promise<void> {

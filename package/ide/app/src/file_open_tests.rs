@@ -8,7 +8,7 @@ use crate::{reload_worker::ReloadWorker, workspace::Workspace};
 /// Caller-side pending state is released together with the failed worker slot.
 #[test]
 fn disconnected_opener_clears_pending_work_after_reporting_failure() {
-    let fixture = tempfile::tempdir().expect("disposable project");
+    let fixture = crate::test_scratch::scratch().expect("disposable project");
     let workspace = Workspace::new(fixture.path()).expect("workspace");
     let mut opener = FileOpener {
         workspace,

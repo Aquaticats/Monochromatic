@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -174,7 +174,7 @@ function scratchSource(
 ): ScratchSource {
   /** Unique temp directory. */
   const dirPath = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'oxlint-spread-rules-',
   ),);
   /** Source file path. */

@@ -5,7 +5,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   fileURLToPath,
 } from 'node:url';
@@ -53,7 +53,7 @@ function disposableProject(): DisposableProject {
   /**
    Temporary project root outside repository lockfile ancestry.
    */
-  const path = mkdtempSync(join(tmpdir(), 'readonly-omission-diagnostics-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'readonly-omission-diagnostics-',),);
   return {
     path,
     [Symbol.dispose](): void {

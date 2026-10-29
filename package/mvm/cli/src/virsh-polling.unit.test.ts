@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -71,7 +71,7 @@ else {
 
 async function installFakeVirsh(mode: FakeVirshMode,): Promise<FakeVirshFixture> {
   const directory = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'mvm-virsh-polling-',
   ),);
   const virshPath = join(

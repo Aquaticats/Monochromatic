@@ -15,7 +15,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   delimiter,
   join,
@@ -34,7 +34,7 @@ import {
  Home directory for this test process; the package under test is loaded after it is set.
  */
 const home = await mkdtemp(join(
-  tmpdir(),
+  scratchRoot(),
   'mvm-guest-exec-home-',
 ),);
 process.env.HOME = home;
@@ -124,7 +124,7 @@ type FakeVirsh = AsyncDisposable & {
  */
 async function installFakeVirsh(scenario: Readonly<Record<string, unknown>>,): Promise<FakeVirsh> {
   const directory = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'mvm-fake-virsh-',
   ),);
   await writeFile(

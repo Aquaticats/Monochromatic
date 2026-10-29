@@ -1098,10 +1098,44 @@ Remaining:
       absence and sync-API cascade (`paths.ts` including `isMainModule`, `layout.ts` `findToolBin`, `exec.ts`,
       `exposure.ts`, `providers.context.ts`, `providers.environment.ts`, `status.ts`, and their callers);
       it edits tests only for forced call-site changes.
-     Queued after that agent reports: message `monochromatic-71` the commit to build on (it waits to add an owner-approved
-      `toolchain:sync` warning in `sync.ts` `isAtLockedVersion` when an installed version differs from the lock);
-      then the toolchain tests' `require-eventual-artifact` imports (35 findings in 10 test
-      files) through `src/index.ts`, then a full toolchain test pass and a final lint count.
+     Landed after that (2026-10-29): the cascade (`8f56c31d0d`, `11d5330ea9`; `observeTool` returns `NOT_INSTALLED`,
+      `findToolBin` returns `BIN_NOT_FOUND`, `isMainModule` async, `PathEnv` is `Readonly<NodeJS.ProcessEnv>`);
+      `monochromatic-71`'s replacement warning (`75dcb0dd7b`); the test-import migration (`4f8573c5bb`, toolchain names
+      re-exported `@internal` from `src/index.ts`); the `sync.order.ts` split (`703a69cd12`); the container-test
+      resolver walking up to the root link (`dedupeDirectDeps`) instead of a wrong "run pnpm install" warning.
+      Test isolation: four suites contended on the real staleness lock; owner chose per-call `manifestPath`
+      (`35386af393`, `9ae7e793e3`, `b844b29921`) and an options object for `manageLsp4ijServerSettings` (`5a0d1d1d5d`).
+      Remaining package lint after `703a69cd12`: 29 findings, all in other sessions' active work
+      (`prune.ts` and `prune.unit.test.ts` from the prune commits `2565250e26`/`71a5a49845`, and one in the
+      CachyOS cells being added to `src/package/mise.container-test.ts`).
+     Queued (2026-10-29):
+      done: the owner ran `pnpm prune && pnpm i` at the root for the 181 extraneous `node_modules/@monochromatic-dev/*`
+      links (166 dead into the removed `package/module/`, 15 live but undeclared;
+      `doc/troubleshooting/pnpm-undeclared-workspace-links-survive-install.md`); afterwards the dead-link count read 0
+      and `package/file-enforcer/core/node_modules/@monochromatic-dev/` holds only declared links;
+      done: the staleness manifest's orphan `.tmp` files (a writer that dies before its rename leaves a 1.5 MB temp
+      file) are swept under the lock before each write (`fcdf928c72`, `73fd3b40c6`, `26e248e58d`, guard test proven);
+      the three existing orphans go on the next real locked write. Owner decision: no such sweep in
+      `writeFileAtomically` ("Leave it": 0 orphans of its `<file>.<pid>.<uuid>.tmp` format in the worktree).
+      Owner-approved cleanup: 99 ignored `.<doc>.markdown-lint-<pid>-<uuid>.tmp` files from a retired markdown linter
+      (2026-06-29 and 2026-07-11, pids 1284792 and 307348; no code writes that format now) were deleted.
+     Open, not this session's files:
+      `src/staleness-concurrency-regression.unit.test.ts` is load-sensitive: its eight child writers share a fixed
+      10 s budget, and single runs on 2026-10-29 took 481 ms (load 28), 6.9 s (load 59) and over 10 s (load 31,
+      failed). A helper agent also saw it fail with `TMPDIR` under the symlinked `/var/home/user/temp`
+      (unreproduced here); `e655dcad15` (another session) moved its fixtures to `scratchRoot()`, whose
+      `~/.cache` default is not a symlink here;
+      the `plan.unit.test.ts` and `generate.unit.test.ts` count failures after `cargo:monochromatic-mpm-shadow` landed
+      were fixed by their owner `monochromatic-04` (`3659c961a1`, then invariants in `ee9a4848c9`);
+      package lint after `64564dc323`: 1 warning, 0 errors (the CachyOS cells of `src/package/mise.container-test.ts`,
+      another session's active work); `lint:types` and `lint:config:types` exit 0 (`b06505e14e`);
+      done (owner-approved): `generate.ts --global` rewrote the machine-global lock and mpm manifests in
+      `~/.config/monochromatic-dev/toolchain/`; the global lock went from 119 `null` keys to 0, and its stale
+      `package/dev-script/...` provenance lines now name `package/file-enforcer/core/...`;
+      owner-approved AGENTS.md rule `FDL` (list `find` matches, then delete them separately, because `-delete`
+      implies `-depth` and disables `-prune`), added after this session's own `-prune -delete` walked into
+      `node_modules` (it deleted nothing outside the 99 intended files).
+      done: the post-cascade toolchain container matrix run (`fe-toolchain-matrix-cascade`) reported "2 cells passed".
      Separate incident under investigation by a second helper agent: `pnpm i` printed "Already up to date" while
       `package/file-enforcer/core/node_modules` lacks the declared `@monochromatic-dev/config-typescript` link and keeps
       stale `module-*` links into the removed `package/module`; its write-up goes to `doc/troubleshooting/`.
@@ -1114,9 +1148,8 @@ Remaining:
       or keeps `null` in the on-disk mirror type behind a documented scoped disable.
      `paths.ts`'s `isMainModule` uses `realpathSync` at every toolchain entry point's top level,
       so its `no-sync` fix changes callers in all three clusters (now inside the cascade agent's scope).
-5.  Open, not fixed:
-     the overwrite, TOML-write, JetBrains, and Mise-manifest suites time out on
-     `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` when the whole suite runs in parallel,
-     and `src/io/write.unit.test.ts` passes alone; there is no baseline from before the import change,
-     and tests sharing one real lock path is itself a defect to propose to the owner.
-     The toolchain plan and generator tests still expect `nightly-2026-10-28` and node `26.12.1`.
+5.  Done (2026-10-29): the overwrite, TOML-write, JetBrains, and Mise-manifest suites timed out on the real
+     `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` because they wrote through the default
+     manifest path; they now pass a per-test `manifestPath` (`35386af393`, `9ae7e793e3`, see item 4).
+     The plan and generator tests no longer expect `nightly-2026-10-28` or node `26.12.1`; those strings remain only
+     as fixture inputs in `update.unit.test.ts`.

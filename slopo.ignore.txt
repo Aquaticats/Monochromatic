@@ -126,7 +126,7 @@ a1b664fb91ed
 # failingMapper and failingIterable.
 099dfffc5387
 # registerPokeRenderer (pi-plugin/bash-poke/src/message-renderer.ts) and
-# registerVisibleContextRenderer (pi-plugin/morph-compact/src/visible-context.ts) both call
+# registerVisibleContextRenderer (package-paused/pi-plugin/morph-compact/src/visible-context.ts) both call
 # pi.registerMessageRenderer with a plugin-specific custom type and return a plugin-specific
 # render result (a Text built from pokeCardText with options.outputPad,
 # versus renderVisibleContextMessage with options.expanded).

@@ -2,7 +2,7 @@
 # binary: without the dependency a task passes against a binary built from older sources, as inspect:resize-callbacks
 # did with its fix removed.
 # Cargo work runs on the HOST when the native dev libraries are present, and falls
-# back to the Fedora build container otherwise (see Containerfile and
+# back to the CachyOS build container otherwise (see Containerfile and
 # doc/decision/desktop-app-podman-build.md). Unlike the desktop apps this package
 # is Linux-only: it is a Wayland compositor, so there is no macOS/Windows branch.
 #
@@ -23,6 +23,8 @@
 #   read-only at /clippy-conf and named by CLIPPY_CONF_DIR, so the container lint applies the same
 #   disallowed-methods ban as the host, where clippy finds that file in an ancestor directory.
 #   A mount over /work/clippy.toml would leave an empty clippy.toml in the host package directory.
+#   A private tmpfs at /run/user/0 is the container's XDG_RUNTIME_DIR, because the tests' private
+#   D-Bus socket needs the per-user runtime directory (45cec40b27) and a container has none.
 # Its imported binding (execFileSync) is reused by inline follow-ups, so those must
 # not reimport it.
 cargo_dispatch = """
@@ -32,11 +34,15 @@ const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'i
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'wayland-server', 'xkbcommon', 'libdrm'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && pkgConfigOk()
 const IMAGE = 'localhost/monochromatic/nested-wayland-session'
+// CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (docker.io/cachyos/cachyos-v4, -v3 or plain), resolved by the
+// repository's cachyos-image command; it throws on a host that is not x86-64, because this image has no Alpine variant.
+const cachyosImageCommand = (await import('node:path')).resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts')
+const baseImageArgument = () => execFileSync('node', [cachyosImageCommand, '--image-name', 'nested-wayland-session', '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
 const containerCargo = (cargoArgs) => {
   let imageExists = true
   try { execFileSync('podman', ['image', 'exists', IMAGE], { stdio: 'ignore' }) } catch { imageExists = false }
-  if (!imageExists) { execFileSync('podman', ['build', '-t', IMAGE, '-f', 'Containerfile', '.'], { stdio: 'inherit' }) }
-  execFileSync('podman', ['run', '--rm', '--memory=2g', '--cpus=2', '--pids-limit=512', '--ulimit', 'nofile=4096:4096', '--env', 'CARGO_BUILD_JOBS=2', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', `${rootClippyConfig}:/clippy-conf/clippy.toml:ro`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'nested-wayland-session-cargo:/cargo', '--workdir', '/work', IMAGE, 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  if (!imageExists) { execFileSync('podman', ['build', '--build-arg', baseImageArgument(), '-t', IMAGE, '-f', 'Containerfile', '.'], { stdio: 'inherit' }) }
+  execFileSync('podman', ['run', '--rm', '--memory=2g', '--cpus=2', '--pids-limit=512', '--ulimit', 'nofile=4096:4096', '--env', 'CARGO_BUILD_JOBS=2', '--security-opt', 'label=disable', '--volume', `${process.cwd()}:/work`, '--volume', `${rootClippyConfig}:/clippy-conf/clippy.toml:ro`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--tmpfs', '/run/user/0:mode=0700', '--env', 'XDG_RUNTIME_DIR=/run/user/0', '--volume', 'nested-wayland-session-cargo:/cargo', '--workdir', '/work', IMAGE, 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit' }) } else { containerCargo(cargoArgs) } }
 """
@@ -245,8 +251,14 @@ const runInDecoy = async ({ prefix, sessionOptions, client, clientArguments = []
 '''
 
 [tasks.image]
-description = "Build the Fedora build container image"
-run = "podman build -t localhost/monochromatic/nested-wayland-session -f Containerfile ."
+description = "Build the CachyOS build container image"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { resolve } = await import('node:path')
+const baseImageArgument = execFileSync('node', [resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', 'nested-wayland-session', '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
+execFileSync('podman', ['build', '--build-arg', baseImageArgument, '-t', 'localhost/monochromatic/nested-wayland-session', '-f', 'Containerfile', '.'], { stdio: 'inherit' })
+"""
 
 [tasks.build]
 description = "Release build (host if dev libs present, else container)"

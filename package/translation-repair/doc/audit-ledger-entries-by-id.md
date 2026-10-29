@@ -472,6 +472,7 @@ which lists every file of this record.
 - [B995, two 40 ms sleeps behind a scan that could not see polls, elapsed readings or clockless budgets](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [B996, the hold-wait cases still on the real clock, and eight of ten that passed with the wait removed](audit-ledger-real-clock-waits-left-after-the-cooldown.md)
 - [B1005, a run waited for NeuralWatt's day to start again, and the owner chose to stop at once and relaunch](audit-ledger-neuralwatt-day-start-never-waited-for.md)
+- [B1015, the lint binary pin that said 0.3.0 while the lock recorded 0.4.0, and the refusals that named dropped tools](audit-ledger-copies-in-production-code.md)
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

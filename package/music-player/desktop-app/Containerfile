@@ -3,54 +3,58 @@
 # work happens inside this container (see mise.toml tasks). The image also
 # carries the GUI/audio runtime libraries so the `run` task can drive the
 # Slint UI against the host's Wayland + PipeWire sockets (passed through).
-# Pinned by digest (the multi-arch index of fedora:41, resolved 2026-10-18) so a moving tag cannot change the build
-# input. Refresh on purpose: skopeo inspect --raw docker://registry.fedoraproject.org/fedora:41 | sha256sum
-FROM registry.fedoraproject.org/fedora@sha256:893f7eeffce8e3e2bb2bc62786ba5603fb1e0bd6ba07091acb892266b95bafdf
+# The base is CachyOS, unpinned (doc/decision/container-base-distro.md): an upstream update that breaks this build is
+# a bug to fix at once, never a reason to pin. CACHYOS_IMAGE lets the caller choose the CPU-level variant of the image.
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos:latest
+FROM ${CACHYOS_IMAGE}
 
 # Build toolchain:
-#   rustup-installed nightly Rust compiler + cargo + clippy. NOT Fedora's `rust`
-#                          package: Slint 1.17.0 declares rust-version 1.92,
-#                          while Fedora 41 ships 1.91.1. rustup installs the
-#                          nightly toolchain.lock.json pins (see the rustup RUN below).
+#   rustup-installed nightly Rust compiler + cargo + clippy. NOT the distro's `rust`
+#                          package: the repository builds with the nightly
+#                          toolchain.lock.json pins (see the rustup RUN below).
 #   gcc                    cc for building C dependencies (libopus is compiled
 #                          from source by opusic-sys, the opus crate's -sys
 #                          backend; see the opus pin in Cargo.toml)
-#   cmake, ninja-build     opusic-sys builds vendored libopus 1.6.1 via CMake
+#   cmake, ninja           opusic-sys builds vendored libopus 1.6.1 via CMake
 #                          (Ninja generator); the host gets cmake from mise, but
 #                          the container does not see host mise tools, so install
 #                          it here. See
 #                          doc/troubleshooting/audiopus-cmake4-libopus-min-version.md
-#   clang, clang-devel     libclang for bindgen used by pipewire's libspa-sys
-#   pkgconf-pkg-config     pkg-config used to locate libpipewire (no longer opus:
+#   clang                  libclang for bindgen used by pipewire's libspa-sys (Arch has no
+#                          separate clang-devel: the one package carries headers and libclang)
+#   pkgconf                pkg-config used to locate libpipewire (no longer opus:
 #                          opusic-sys vendors and statically links libopus)
-#   *-devel                headers for the native audio dependencies
+#   Arch packages carry their headers, so no separate *-devel packages exist.
+#   pipewire               libpipewire and its headers for the native audio dependencies
 # Runtime (for `run`):
-#   mesa-*                 OpenGL/EGL for the femtovg renderer + DRI drivers
+#   mesa, libglvnd         OpenGL/EGL for the femtovg renderer + DRI drivers + libgbm
 #   libxkbcommon, wayland  winit Wayland backend
-#   fontconfig, freetype   Slint font loading
-#   google-noto-sans-cjk-fonts  CJK glyph coverage. Slint 1.16's femtovg
+#   fontconfig, freetype2  Slint font loading
+#   noto-fonts-cjk         CJK glyph coverage. Slint 1.16's femtovg
 #                          renderer lays text out with parley + fontique
 #                          (system_fonts enabled), which falls back per script
 #                          to a system font. Without a CJK font installed,
 #                          Japanese/Chinese/Korean filenames render as blanks.
 #   xdg-desktop-portal     rfd file picker over the portal (when D-Bus passed)
-#   dbus-daemon            the notification tests (D122, D107) start a private
+#   dbus                   the notification tests (D122, D107) start a private
 #                          session bus of their own; they never use a host bus
-RUN dnf install -y \
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
       gcc \
-      cmake ninja-build \
-      clang clang-devel \
-      pkgconf-pkg-config \
-      pipewire-devel \
-      mesa-dri-drivers mesa-libgbm libglvnd-glx libglvnd-egl \
-      libwayland-client libwayland-cursor libwayland-egl libxkbcommon \
-      fontconfig fontconfig-devel freetype freetype-devel \
-      google-noto-sans-cjk-fonts \
-      dbus-daemon \
-    && dnf clean all
+      cmake ninja \
+      clang \
+      pkgconf \
+      pipewire \
+      mesa libglvnd \
+      wayland libxkbcommon \
+      fontconfig freetype2 \
+      noto-fonts-cjk \
+      dbus \
+    && rm --recursive --force /var/cache/pacman/pkg/*
 
-# Rust toolchain via rustup, not Fedora's `rust` package (1.91.1), because
-# Slint 1.17.0 declares rust-version 1.92. RUSTUP_HOME holds the toolchain and
+# Rust toolchain via rustup, not the distro's `rust` package, because the
+# repository builds with the pinned nightly. RUSTUP_HOME holds the toolchain and
 # persists in the image. The install uses a throwaway
 # CARGO_HOME=/usr/local so the cargo/rustc/clippy proxy shims land in
 # /usr/local/bin (already on PATH, persistent in the image); the real CARGO_HOME
@@ -72,7 +76,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 # /usr/local/bin (already on PATH, persistent in the image) rather than
 # `cargo install cargo-nextest`, which would add a multi-minute source compile
 # to every image rebuild. Arch-aware: get.nexte.st serves separate x86_64 and
-# aarch64 builds. The standard Fedora image already ships `tar`/`gzip` for the
+# aarch64 builds. The CachyOS image already ships `tar`/`gzip` for the
 # `tar zxf` extraction.
 RUN arch="$(uname -m)" \
     && case "$arch" in \

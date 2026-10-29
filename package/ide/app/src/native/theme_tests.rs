@@ -332,7 +332,7 @@ fn assert_scheme(reader: &Reader, dark: bool) -> SharedPixelBuffer<Rgba8Pixel> {
 /// function themedReader(): [TempDir, Reader];
 /// ```
 fn themed_reader() -> (tempfile::TempDir, Reader) {
-    let fixture = tempfile::tempdir().expect("disposable theme project");
+    let fixture = crate::test_scratch::scratch().expect("disposable theme project");
     let text = "const label = \"needle and needle\";\nconst count = 1;\n";
     fs::write(fixture.path().join("theme.ts"), text).expect("theme fixture");
     // A second, unselected tree row is drawn in ordinary ink rather than selection ink.

@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { inflateSync } from 'node:zlib';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
 import { compositor, demandCurrentCompositor } from './nested-compositor.ts';
@@ -178,7 +178,10 @@ const sampledColors = (png: Buffer): number => {
 // A compositor that ends by a signal leaves its hosted application, its private bus daemon, and that daemon's
 // directory, which carries the compositor's process id; a compositor that ends on `quit` leaves none of them.
 const sweep = ({ compositorProcess, application }: { compositorProcess: number | undefined; application: string }): string[] => {
-  const directory = join(tmpdir(), 'monochromatic-nested-wayland-session-' + compositorProcess + '-0');
+  // The compositor's private bus directory lives in the per-user runtime directory (see private_bus.rs).
+  const runtimeDirectory = process.env.XDG_RUNTIME_DIR;
+  if (runtimeDirectory === undefined || runtimeDirectory === '') throw new Error('XDG_RUNTIME_DIR is not set; the compositor bus directory lives there');
+  const directory = join(runtimeDirectory, 'monochromatic-nested-wayland-session-' + compositorProcess + '-0');
   const found: string[] = [];
   for (const entry of readdirSync('/proc')) {
     if (!/^\d+$/.test(entry)) continue;

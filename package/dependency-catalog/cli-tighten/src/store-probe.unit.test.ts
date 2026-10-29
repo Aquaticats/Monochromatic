@@ -13,9 +13,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import {
-  tmpdir,
-} from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
 } from 'node:path';
@@ -58,7 +56,7 @@ async function makeTempRoot(): Promise<TempRoot> {
    Freshly created throwaway root path.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'catalog-tighten-store-',
   ),);
   return {

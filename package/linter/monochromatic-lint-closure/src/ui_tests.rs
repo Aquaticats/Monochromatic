@@ -82,7 +82,7 @@ fn stage(source: &Path, target: &Path) {
 /// ```
 #[test]
 fn ui() {
-    let root: PathBuf = std::env::temp_dir().join(format!(
+    let root: PathBuf = crate::test_scratch::scratch_root().join(format!(
         "monochromatic-lint-closure-ui-{}",
         std::process::id()
     ));

@@ -104,11 +104,14 @@ alternative considered are recorded in
 
 ## Requirements
 
-At build time (supplied by the Fedora build container,
+At build time (supplied by the CachyOS build container,
  see [Building](#building-and-testing)):
-`wayland-devel`,
+`wayland`,
+ `libxkbcommon`,
+ `libdrm`
+ (on Fedora, `wayland-devel`,
  `libxkbcommon-devel`,
- `libdrm-devel`,
+ and `libdrm-devel`),
  plus a Rust toolchain.
 
 At run time (present on virtually every Linux desktop):
@@ -1945,7 +1948,7 @@ holds while hosting a client that saturates every core.
 
 The host usually lacks the development headers Smithay links against,
  so cargo work runs
-in a Fedora build container (see `Containerfile`);
+in a CachyOS build container (see `Containerfile`);
  the resulting binary runs on the host.
 Tasks fall back to the host automatically when the development libraries are present.
 

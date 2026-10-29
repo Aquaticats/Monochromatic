@@ -17,7 +17,7 @@ use crate::json_value;
 
 /// The settings Helix will send rust-analyzer for a registry built with `setup`.
 fn settings(setup: LanguageSetup) -> serde_json::Value {
-    let directory = tempfile::tempdir().expect("disposable project");
+    let directory = crate::test_scratch::scratch().expect("disposable project");
     let root = directory.path().canonicalize().expect("canonical root");
     let languages = Languages::new(&root, setup).expect("registry");
     let loader = languages.loader.load();

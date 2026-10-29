@@ -8,7 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   describe,
@@ -51,7 +51,7 @@ function fixtureWorktree(
    Disposable fixture root.
    */
   const root = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'toolchain-bin-paths-',
   ),);
   /**
@@ -137,14 +137,14 @@ await describe({
             const fixture = fixtureWorktree({
               links: {
                 taplo: join(
-                  tmpdir(),
+                  scratchRoot(),
                   'toolchain-bin-paths-target-taplo',
                 ),
               },
             },);
             symlinkSync(
               join(
-                tmpdir(),
+                scratchRoot(),
                 'toolchain-bin-paths-missing',
               ),
               join(

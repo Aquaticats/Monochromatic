@@ -15,7 +15,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
@@ -220,7 +220,7 @@ export async function createDisposableHome(): Promise<{
    Throwaway root holding everything this run writes.
    */
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-model-retirement-host-',
   ),);
   /**

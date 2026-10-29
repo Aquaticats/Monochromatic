@@ -5,7 +5,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -32,7 +32,7 @@ type DeclarationFixture = {
  */
 function createDeclarationFixture(): DeclarationFixture {
   /** Unique fixture path under operating-system temporary root. */
-  const path = mkdtempSync(join(tmpdir(), 'mutates-declaration-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'mutates-declaration-',),);
   return {
     path,
     [Symbol.dispose]: function removeDeclarationFixture(): void {

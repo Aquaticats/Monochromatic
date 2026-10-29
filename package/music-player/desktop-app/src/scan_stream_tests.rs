@@ -13,7 +13,7 @@ fn fixture(files_per_folder: usize) -> PathBuf {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let root: PathBuf = std::env::temp_dir().join(format!("music-player-scan-{}-{nanos}", std::process::id()));
+    let root: PathBuf = crate::test_scratch::scratch_root().join(format!("music-player-scan-{}-{nanos}", std::process::id()));
     for folder in ["B Artist", "A Artist", "A Artist/Album 1", "A Artist/Album 2", "C Artist/Deep/Deeper"] {
         std::fs::create_dir_all(root.join(folder)).expect("the fixture folder is created");
         for number in 0..files_per_folder {
@@ -150,7 +150,7 @@ fn the_walk_lists_numbered_names_in_natural_order() {
     let nanos: u128 = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |elapsed| return elapsed.as_nanos());
-    let root: PathBuf = std::env::temp_dir().join(format!("music-player-natural-{}-{nanos}", std::process::id()));
+    let root: PathBuf = crate::test_scratch::scratch_root().join(format!("music-player-natural-{}-{nanos}", std::process::id()));
     for folder in ["Album 10", "Album 2"] {
         std::fs::create_dir_all(root.join(folder)).expect("the fixture folder is created");
         std::fs::write(root.join(folder).join("x.flac"), b"x").expect("the fixture file is written");

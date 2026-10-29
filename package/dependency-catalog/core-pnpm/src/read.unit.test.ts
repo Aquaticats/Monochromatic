@@ -10,7 +10,7 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -40,7 +40,7 @@ async function createWorkspace(): Promise<{
   /**
    Temporary root whose name cannot collide with another test fixture.
    */
-  const dir = await mkdtemp(join(tmpdir(), 'pnpm-workspace-catalog-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'pnpm-workspace-catalog-',),);
   return {
     dir,
     [Symbol.asyncDispose]: async function dispose(): Promise<void> {

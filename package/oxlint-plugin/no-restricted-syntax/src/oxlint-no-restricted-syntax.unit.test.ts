@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   join,
   resolve,
@@ -156,7 +156,7 @@ function createGeneratedSource(
   { fileName, source, }: { readonly fileName: string; readonly source: string; },
 ): GeneratedSource {
   const dirPath = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'oxlint-low-info-symbol-',
   ),);
   const filePath = resolve(
@@ -244,6 +244,7 @@ const SUBSTANTIVE_RULES = [
   'no-rest-params',
   'no-switch',
   'no-sync',
+  'no-system-tmpdir',
   'no-trim-left-right',
   'no-try-finally',
   'no-variable-function-expression',

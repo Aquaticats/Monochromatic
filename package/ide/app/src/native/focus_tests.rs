@@ -82,7 +82,7 @@ fn shift_tab(window: &AppWindow, count: usize) -> Vec<&'static str> {
 ///  in both directions.
 #[test]
 fn tab_cycles_tree_divider_and_source_while_find_is_closed() {
-    let fixture = tempfile::tempdir().expect("disposable focus project");
+    let fixture = crate::test_scratch::scratch().expect("disposable focus project");
     fs::write(fixture.path().join("focus.txt"), "one\ntwo\n").expect("focus fixture");
     let reader = reader(fixture.path(), "focus.txt");
     let window = &reader.window;
@@ -115,7 +115,7 @@ fn tab_cycles_tree_divider_and_source_while_find_is_closed() {
 ///  then the tree again.
 #[test]
 fn tab_visits_tree_source_and_open_find_bar_in_reading_order() {
-    let fixture = tempfile::tempdir().expect("disposable focus project");
+    let fixture = crate::test_scratch::scratch().expect("disposable focus project");
     fs::write(fixture.path().join("focus.txt"), "one\ntwo\n").expect("focus fixture");
     let reader = reader(fixture.path(), "focus.txt");
     let window = &reader.window;
@@ -156,7 +156,7 @@ fn tab_visits_tree_source_and_open_find_bar_in_reading_order() {
 ///  and line breaks in the focused source view change neither text nor file.
 #[test]
 fn typing_in_the_source_view_is_ignored() {
-    let fixture = tempfile::tempdir().expect("disposable focus project");
+    let fixture = crate::test_scratch::scratch().expect("disposable focus project");
     let path = fixture.path().join("focus.txt");
     fs::write(&path, "one\ntwo\n").expect("focus fixture");
     let reader = reader(fixture.path(), "focus.txt");

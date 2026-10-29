@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -47,7 +47,7 @@ function createCopyBuildFixture(): CopyBuildFixture {
   /**
    Fresh fixture directory under the system temp root.
    */
-  const path = mkdtempSync(join(tmpdir(), 'copied-assets-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'copied-assets-',),);
   writeFileSync(join(path, 'entry.ts',), 'export const cat = 1;\n',);
   return {
     path,

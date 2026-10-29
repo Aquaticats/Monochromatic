@@ -33,10 +33,10 @@ fn temp_cache(tag: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after Unix epoch")
         .as_nanos();
-    // What:     `std::env::temp_dir().join(format!(...))`. Join a formatted filename
+    // What:     `crate::test_scratch::scratch_root().join(format!(...))`. Join a formatted filename
     //           under the system temp directory. Tail expression returns it.
     // Why:      Keep disposable cache state out of the repo and real config dir.
-    return std::env::temp_dir().join(format!(
+    return crate::test_scratch::scratch_root().join(format!(
         "mp-peak-swap-{}-{}-{}.db",
         std::process::id(),
         nanos,

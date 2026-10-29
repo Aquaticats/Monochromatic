@@ -33,6 +33,7 @@
   "dependencies": {
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/test-harness-core-matrix": "workspace:*",
     "@optique/core": "catalog:",
     "@optique/run": "catalog:",
     "nano-spawn": "catalog:",

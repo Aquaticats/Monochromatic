@@ -9,7 +9,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { dirname, join, } from 'node:path';
 
 import {
@@ -326,7 +326,7 @@ function requireError(value: unknown,): Error {
  */
 async function tempHome(): Promise<string> {
   return mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'pi-search-fetch-config-test-',
   ),);
 }

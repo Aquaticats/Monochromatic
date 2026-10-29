@@ -379,6 +379,33 @@ export const TOOLS: readonly ToolPlanEntry[] = [
     env: {},
     artifacts: {},
   },
+  // The postinstall links `mpm-shadow` as `mpm` under `.cache/mpm-shadow-bin`, the way `cli-git-native` is linked as
+  // `git`. That directory precedes `.cache/toolchain-bin` on PATH, so `mpm` in the mise environment runs the real mpm
+  // as a child and then deletes the superseded cached copies of the repository's own crates from cargo's registry
+  // (doc/decision/mpm-toolchain-adoption.md, section on pruning the repository's own crates). Linux only: the release
+  // archives are Linux builds.
+  {
+    id: 'cargo:monochromatic-mpm-shadow',
+    request: { track: 'latest' },
+    version: '0.1.1',
+    route: 'cargo-binstall',
+    manager: 'cargo',
+    packageId: 'monochromatic-mpm-shadow',
+    bins: ['mpm-shadow'],
+    os: ['linux'],
+    options: {
+      postinstall: {
+        when: 'always',
+        link: {
+          sourceBin: 'mpm-shadow',
+          linkName: 'mpm',
+          linkDir: '.cache/mpm-shadow-bin',
+        },
+      },
+    },
+    env: {},
+    artifacts: {},
+  },
   {
     id: 'cargo:monochromatic-nested-wayland-session',
     request: { track: 'latest' },

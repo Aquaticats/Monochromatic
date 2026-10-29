@@ -16,7 +16,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -64,7 +64,7 @@ async function createTempDir(): Promise<TempDir> {
    Fresh directory under the system temporary root.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'fs-path-empty-',
   ),);
   return {

@@ -60,7 +60,7 @@ impl Fixture {
     /// Exclusively create a fresh directory under the system temporary directory.
     fn new() -> Fixture {
         let sequence: u64 = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let path: PathBuf = std::env::temp_dir().join(format!(
+        let path: PathBuf = crate::test_scratch::scratch_root().join(format!(
             "monochromatic-lint-binary-{}-{sequence}",
             std::process::id()
         ));
@@ -1421,3 +1421,7 @@ fn directives_through_the_executable() {
     assert_eq!(listed[1]["suppressible"], false);
     assert_eq!(listed[2]["suppressible"], true);
 }
+
+/// The unit-test scratch root, shared with the library test build and placed in the build directory.
+#[path = "test_scratch.rs"]
+mod test_scratch;
