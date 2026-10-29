@@ -53,7 +53,8 @@ Run repository policies directly.
 Commands:
   check    Check policies over an explicit scope.
   fix      Apply policy fixes over an explicit scope.
-  doctor   List traditional hooks (unsupported); exit 1 when any are found.
+  doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
+           1 when any other hook is found, 2 outside a repository.
 
 Scope (exactly one):
   --all             The whole repository.
