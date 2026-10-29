@@ -24,6 +24,7 @@ export default {
       'node src/distro.unit.test.ts',
       'node src/runtime.unit.test.ts',
       'node src/container.unit.test.ts',
+      'node src/cachyos-image.unit.test.ts',
       'node src/discover.unit.test.ts',
     ],
   },

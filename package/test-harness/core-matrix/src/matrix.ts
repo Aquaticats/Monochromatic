@@ -27,6 +27,7 @@ import {
   parseOs,
   runContainer,
 } from './container.ts';
+import { resolveBaseImage, } from './cachyos-image.ts';
 import { discoverTestFiles, } from './discover.ts';
 import { runHost, } from './host.ts';
 import type {
@@ -236,6 +237,8 @@ function shortFileName(filePath: string,): string {
  
  @param monorepoRoot - Absolute path to the monorepo root on the host
  
+ @param cachyosImage - CachyOS image resolved once for the matrix; absent when no entry uses `cachyos`
+ 
  @returns stdout from the execution
  
  @throws Error when the combination fails or uses an unimplemented protocol
@@ -243,9 +246,11 @@ function shortFileName(filePath: string,): string {
 function executeCombination({
   combination,
   monorepoRoot,
+  cachyosImage,
 }: {
   readonly combination: Combination;
   readonly monorepoRoot: string;
+  readonly cachyosImage?: string;
 },): Promise<string> {
   /**
    Protocol drives the backend choice; parsed once and inspected by each branch.
@@ -261,6 +266,7 @@ function executeCombination({
     return runContainer({
       combination,
       monorepoRoot,
+      ...(cachyosImage === undefined ? {} : { cachyosImage, }),
     },);
   }
 
@@ -336,6 +342,26 @@ export async function matrix({
     }
   }
   //endregion Validate OS specifications
+
+  //region Resolve the CachyOS image
+  /**
+   Whether any cell runs the `cachyos` distro.
+   */
+  const usesCachyos = os.includes('container:cachyos',);
+  /**
+   Probed once so every `container:cachyos` cell runs the same image; empty when no cell needs it.
+   A host that is not x86-64 throws here, before any work, because a `cachyos` row is a pacman test.
+   */
+  const cachyosOption: { readonly cachyosImage?: string; } = usesCachyos
+    ? {
+      cachyosImage: (await resolveBaseImage({
+        imageName: 'container:cachyos',
+        alpineVariant: false,
+        l,
+      },)).image,
+    }
+    : {};
+  //endregion Resolve the CachyOS image
 
   //region Discover monorepo root
   /**
@@ -445,6 +471,7 @@ export async function matrix({
                 const output = await executeCombination({
                   combination,
                   monorepoRoot,
+                  ...cachyosOption,
                 },);
                 if (output !== '')
                   l.info(output,);

@@ -236,14 +236,13 @@ The package manager is detected from the distro name:
 A distro name becomes the image reference `<distro>:latest`
 (`ubuntu` runs `ubuntu:latest`,
  `fedora:39` runs `fedora:39`).
-`cachyos` is the one name that maps to a different repository:
-it runs `docker.io/cachyos/cachyos:latest`,
-the unpinned image of the repository's container base distro
-(see `doc/decision/container-base-distro.md`).
-An explicit tag after the name (`cachyos:testing`) is kept on that repository.
-Docker Hub publishes `cachyos/cachyos` for `amd64` only,
-so a CachyOS cell cannot run on another architecture;
-use `alpine` or another distro there.
+`cachyos` is the exception:
+it runs the CachyOS image for the host CPU level,
+chosen once when `matrix()` starts (see "CachyOS base image selection").
+`cachyos:<tag>` is an explicit choice:
+it runs `docker.io/cachyos/cachyos:<tag>`,
+the plain image,
+and skips the CPU-level choice.
 
 `cachyos` is the repository's primary matrix target:
 list `'container:cachyos'` first in the `os` array,
@@ -259,6 +258,81 @@ await matrix({
 The package picks no default `os`:
 the option is required,
 so each consumer chooses its own list.
+
+A `container:cachyos` cell is a pacman test,
+so on a host that is not x86-64 `matrix()` throws `NoAlpineVariantError` before running anything.
+List `container:alpine` explicitly in the portability rows instead.
+
+## CachyOS base image selection
+
+Per the owner's 2026-10-29 decision (`doc/decision/container-base-distro.md`),
+containers this repository builds start from the most optimized CachyOS image the host CPU runs,
+unpinned.
+`resolveBaseImage` picks it:
+
+- `docker.io/cachyos/cachyos-v4:latest` when the glibc loader reports `x86-64-v4 (supported, searched)`
+- `docker.io/cachyos/cachyos-v3:latest` when it reports `x86-64-v3 (supported, searched)` and not v4
+- `docker.io/cachyos/cachyos:latest` otherwise,
+  including when the loader is missing or prints no levels
+  (the reason is logged at warn level)
+- `docker.io/library/alpine:latest` when `process.arch` is not `x64`
+  and the caller says its image has an Alpine variant;
+  without one,
+  `NoAlpineVariantError` names the image and says no Alpine variant exists
+
+Docker Hub has no v2 image.
+The package writes no Alpine Containerfiles:
+a caller that passes `alpineVariant: true` owns its Alpine build.
+
+```ts
+import {
+  cachyosBuildArguments,
+  resolveBaseImage,
+} from '@monochromatic-dev/test-harness-core-matrix/ts';
+
+// \{ image: 'docker.io/cachyos/cachyos-v4:latest', kind: 'cachyos-v4', reason: '...' \}
+const resolution = await resolveBaseImage({ imageName: 'terminal', alpineVariant: false, },);
+
+// ['--build-arg', 'CACHYOS_IMAGE=docker.io/cachyos/cachyos-v4:latest']
+const args = await cachyosBuildArguments({ imageName: 'terminal', alpineVariant: false, },);
+```
+
+A Containerfile declares `ARG CACHYOS_IMAGE` before its `FROM ${CACHYOS_IMAGE}`.
+`resolveBaseImage`, `detectCachyosLevel` and `readLoaderOutput` take injected architecture, loader output and logger,
+so every branch is testable without depending on the host.
+
+Shell callers use the `cachyos-image` bin:
+
+```sh
+podman build --build-arg "$(cachyos-image --image-name terminal --build-argument)" --tag terminal .
+cachyos-image --image-name terminal --alpine-variant
+```
+
+It prints the image (or `CACHYOS_IMAGE=<image>` with `--build-argument`) on stdout,
+sends the logged reasoning to stderr,
+and exits 1 when no base image exists for the host,
+2 for a usage error.
+
+### How the CPU level is detected
+
+The loader report comes from `/lib64/ld-linux-x86-64.so.2 --help`
+(then `/lib/ld-linux-x86-64.so.2`),
+the method of the [CachyOS repository installer][cachyos-repo-script]
+(`check_supported_isa_level` greps `x86-64-v4 (supported, searched)` in the loader's `--help`),
+which the [CachyOS wiki's optimized repositories page][cachyos-wiki-repos] documents as
+`/lib/ld-linux-x86-64.so.2 --help | grep supported`.
+The installer chooses its v4 repository on that line alone and its v3 repository otherwise.
+
+The wiki page also warns that Intel 12th generation and newer CPUs may report v4 support
+yet "cannot run AVX-512 instructions",
+and says to treat them as v3.
+The installer script does not act on that warning,
+and neither does this package:
+it follows the loader's report and adds no CPU model check,
+so a host whose loader wrongly reports v4 would build and run the v4 image and fail at run time.
+
+[cachyos-repo-script]: https://mirror.cachyos.org/cachyos-repo.tar.xz
+[cachyos-wiki-repos]: https://wiki.cachyos.org/features/optimized_repos/
 
 ## Supported runtimes
 

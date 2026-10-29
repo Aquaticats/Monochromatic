@@ -92,43 +92,58 @@ await describe({
         it({
           name: 'appends latest to a bare distro name',
           fn: async () => {
-            expect(resolveImage('ubuntu',),).toBe('ubuntu:latest',);
+            expect(resolveImage({ distro: 'ubuntu', },),).toBe('ubuntu:latest',);
           },
         },),
 
         it({
           name: 'keeps an explicit tag on an unmapped distro',
           fn: async () => {
-            expect(resolveImage('fedora:39',),).toBe('fedora:39',);
+            expect(resolveImage({ distro: 'fedora:39', },),).toBe('fedora:39',);
           },
         },),
 
         it({
-          name: 'cachyos resolves to the unpinned CachyOS Docker Hub image',
+          name: 'a bare cachyos uses the image the matrix resolved for the host CPU level',
           fn: async () => {
-            expect(resolveImage('cachyos',),).toBe('docker.io/cachyos/cachyos:latest',);
+            expect(resolveImage({
+              distro: 'cachyos',
+              cachyosImage: 'docker.io/cachyos/cachyos-v4:latest',
+            },),).toBe('docker.io/cachyos/cachyos-v4:latest',);
           },
         },),
 
         it({
-          name: 'cachyos keeps an explicit tag on the CachyOS repository',
+          name: 'a bare cachyos without a pre-resolved image is refused',
           fn: async () => {
-            expect(resolveImage('cachyos:latest',),).toBe('docker.io/cachyos/cachyos:latest',);
-            expect(resolveImage('cachyos:testing',),).toBe('docker.io/cachyos/cachyos:testing',);
+            expect(function bareCachyos() {
+              resolveImage({ distro: 'cachyos', },);
+            },).toThrow('pass cachyosImage from resolveBaseImage',);
+          },
+        },),
+
+        it({
+          name: 'cachyos with an explicit tag skips the ladder and keeps the tag on the plain repository',
+          fn: async () => {
+            expect(resolveImage({
+              distro: 'cachyos:latest',
+              cachyosImage: 'docker.io/cachyos/cachyos-v4:latest',
+            },),).toBe('docker.io/cachyos/cachyos:latest',);
+            expect(resolveImage({ distro: 'cachyos:testing', },),).toBe('docker.io/cachyos/cachyos:testing',);
           },
         },),
 
         it({
           name: 'a name that only starts with cachyos is not remapped',
           fn: async () => {
-            expect(resolveImage('cachyos-v3',),).toBe('cachyos-v3:latest',);
+            expect(resolveImage({ distro: 'cachyos-v3', },),).toBe('cachyos-v3:latest',);
           },
         },),
 
         it({
           name: 'a name inherited from Object.prototype is treated as an ordinary distro',
           fn: async () => {
-            expect(resolveImage('constructor',),).toBe('constructor:latest',);
+            expect(resolveImage({ distro: 'constructor', },),).toBe('constructor:latest',);
           },
         },),
       ],
