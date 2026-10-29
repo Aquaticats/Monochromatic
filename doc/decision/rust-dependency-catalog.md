@@ -1,0 +1,94 @@
+# Rust dependencies come from one pnpm-style catalog without a root Cargo workspace
+
+## Status
+
+Accepted 2026-10-29 by the owner,
+ resolving the design of [issue #1800](https://github.com/Aquaticat/Monochromatic/issues/1800).
+Evidence,
+ probes,
+ rejected alternatives,
+ and the pnpm feature map are in `doc/planning/rust-dependency-catalog.md`.
+Complements `.out-of-scope/cargo-workspace.md` and `doc/planning/cargo-toml-file-enforcer.md`.
+
+## Context
+
+Every Rust crate is its own Cargo workspace root,
+ so Cargo's `[workspace.dependencies]` cannot span them,
+ and Cargo has no cross-root inheritance (rust-lang/cargo#5042 and #15435 are open without a design).
+No tool was found that syncs one catalog across independent roots.
+The JS side already runs pnpm catalogs (`catalogMode: strict`),
+ `catalog:tighten`,
+ `minimumReleaseAge`,
+ and `trustPolicy: no-downgrade`;
+ the Rust catalog follows what pnpm offers.
+
+## Decision
+
+### Catalog file
+
+- `rust-catalog.toml` at the repository root,
+   in Cargo dependency syntax,
+   with `[catalog]` (default) and `[catalogs.<name>]` (named) tables.
+- Registry entries are `>=` floors;
+   named-catalog entries are caret or exact;
+   git entries carry `git` and `rev`.
+- Supply-chain keys use pnpm's names:
+   `minimumReleaseAge` (1440),
+   `minimumReleaseAgeExclude`,
+   `minimumReleaseAgeStrict` (true),
+   `minimumReleaseAgeIgnoreMissingTime` (false),
+   `trustPolicy` (`no-downgrade`),
+   `trustPolicyExclude`,
+   `trustPolicyIgnoreAfter`,
+   `trustPolicyExcludePrune`.
+- No version-family grouping.
+
+### Crate manifests
+
+- `file-enforcer` renders a generated `[workspace.dependencies]` table in each crate holding the catalog entries it uses.
+   Use sites reference it with `workspace = true` and keep crate-local `features`,
+   `optional`,
+   and `default-features`,
+   in every dependency table.
+- Every registry and git dependency comes from the catalog.
+- A crate selects a named catalog in `[package.metadata.rust-catalog.catalogs]`.
+- Internal crates stay out of the catalog;
+   they are path dependencies whose `version` the sync writes as `=<target package.version>`,
+   the counterpart of `workspace:*`.
+
+### Sync and check
+
+- `file-enforcer` adopts literals left by `cargo add` into the catalog as `>=` floors,
+   prunes unused entries,
+   and has a check-only mode with named diagnostics and a list of affected crates.
+- The check runs in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`,
+   beside the JS `pnpm install --frozen-lockfile` gate.
+
+### Update and tightening
+
+- A new `package/dev-script` package bin,
+   run by a thin mise task,
+   runs `cargo update` in every crate root
+   (the `pnpm -r --no-save update` counterpart),
+   with dry run,
+   strict release age from the sparse index `pubtime`,
+   and a heuristic `no-downgrade` trust policy from the crates.io API
+   (Trusted Publishing above a known token publisher above a first-time publisher;
+   a changed trusted-publishing repository or declared `repository` fails),
+   cached per `name@version`.
+   The CI check re-verifies every locked registry version.
+- `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
+   it writes no lockfiles.
+
+## Consequences
+
+- Upstream majors arrive through the update by design;
+   the owner treats falling behind as the failure.
+- `i-slint-backend-testing` stays an exact pin equal to `slint`,
+   so an update that moves `slint` breaks the tests of `package/desktop-app/ide` and `package/music-player/desktop-app`
+   until the pin is raised by hand.
+- `package/dev-script/deps-update` is not built on;
+   its audit is [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
+- Lockfile drift reporting and transitive policy are
+   [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801);
+   change intents for Rust crates are [issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802).

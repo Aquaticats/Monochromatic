@@ -1,10 +1,11 @@
 # Planning: shared Rust dependency catalog
 
 Status:
- proposal,
- awaiting the owner's acceptance of the summary in "Proposed design".
+ accepted 2026-10-29;
+ the decision record is `doc/decision/rust-dependency-catalog.md`.
 Three veto lists asked as multi-select questions came back without any answer;
- their items are recorded as accepted and repeated in the summary for veto.
+ the owner then accepted every item explicitly in the two acceptance questions.
+Implementation in progress.
 Tracks [issue #1800](https://github.com/Aquaticat/Monochromatic/issues/1800).
 Builds on `doc/planning/cargo-toml-file-enforcer.md` and respects `.out-of-scope/cargo-workspace.md`.
 
@@ -86,7 +87,8 @@ Each item links to its decision section for evidence and rejected alternatives.
 - Change intents for Rust crates:
    [issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802).
 - `package/dev-script/deps-update`:
-   treated as unusable.
+   treated as unusable;
+   audit tracked in [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
 
 ## Measured facts (2026-10-29)
 
@@ -765,7 +767,6 @@ Following pnpm,
 
 ## Open questions
 
-- Owner acceptance of "Proposed design".
 - To verify at implementation start,
    not yet probed:
    that a `>=` requirement in a per-crate `[workspace.dependencies]` entry inherits cleanly,
@@ -774,7 +775,8 @@ Following pnpm,
    `package/desktop-app/file-manager-qt`)
    needs only the registry index,
    not their Podman build environment.
-- Name of the mise task,
-   and whether its logic is inline or a package bin.
+- Name of the mise task and of its package
+   (decided:
+   a package bin under `package/dev-script/` run by a thin mise task).
 - Where the trust cache lives (a committed file or a CI cache);
    a cold full verification is about 17 minutes at 1 request per second for 1024 names.
