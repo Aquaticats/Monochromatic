@@ -194,6 +194,8 @@ The merge of `main` that carried release 0.1.1 failed that step on every job (ru
 The image build downloads hundreds of megabytes of packages (gcc, mingw, Wine).
 `podman build --build-arg FEDORA_MIRROR=https://mirrors.kernel.org/fedora` replaces the metalink with that mirror;
  package signatures are still checked.
+(Since 2026-10-29 `Containerfile.windows-gnu` is CachyOS and has no `FEDORA_MIRROR` argument; `pacman` takes its mirrors
+ from the image's mirror list. The Test runner there is `wine`, because the Arch `wine` package installs no `wine64`.)
 
 ## Wine differs from Windows in ways the real runners do not show
 
