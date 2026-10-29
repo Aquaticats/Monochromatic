@@ -52,7 +52,7 @@ fn facts(directory: &str, root: Option<&str>) -> RequireRootFacts {
 fn violation(root: &str, directory: &str) -> RequireRootVerdict {
     return RequireRootVerdict::NotAtRoot(RequireRootViolation {
         message: format!(
-            "cli-git: not at the root of the git repository. Repo root is {root} but effective cwd is {directory}. Tip: cd to {root} or pass -C {root} before the subcommand."
+            "cli-git: not at the root of the git repository. Repo root is {root} but effective cwd is {directory}. This rule exists because agents and humans frequently forget which directory they are in. Tip: cd to {root} or pass -C {root} before the subcommand."
         ),
     });
 }
