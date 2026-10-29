@@ -8,16 +8,12 @@
       },
       "version": "0.29.4",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "bin"
       ],
-      "os": null,
       "env": {},
       "options": {
         "bootstrap": {
-          "requiresTool": null,
           "distribution": "standalone-binary"
         }
       },
@@ -60,7 +56,6 @@
         "mpm",
         "meta-package-manager"
       ],
-      "os": null,
       "env": {},
       "options": {
         "bootstrap": {
@@ -93,13 +88,10 @@
       },
       "version": "1.3.14",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "bun",
         "bunx"
       ],
-      "os": null,
       "env": {},
       "options": {
         "binAliases": {
@@ -139,15 +131,12 @@
       },
       "version": "12.16.1",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "pn",
         "pnpm",
         "pnpx",
         "pnx"
       ],
-      "os": null,
       "env": {},
       "options": {
         "binAliases": {
@@ -186,7 +175,6 @@
       "bins": [
         "fd"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -197,12 +185,9 @@
       },
       "version": "15.2.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "rg"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -235,7 +220,6 @@
       "bins": [
         "fastmod"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -251,7 +235,6 @@
       "bins": [
         "cargo-fuzz"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -262,14 +245,11 @@
       },
       "version": "26.13.0",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "node",
         "npm",
         "npx"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -297,12 +277,9 @@
       },
       "version": "3.0.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "harper-cli"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -330,12 +307,9 @@
       },
       "version": "0.64.3",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "dprint"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -363,13 +337,10 @@
       },
       "version": "0.13.6",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "uv",
         "uvx"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -397,12 +368,9 @@
       },
       "version": "2.0.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "hyperfine"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -430,12 +398,9 @@
       },
       "version": "2.11.7",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "caddy"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -463,12 +428,9 @@
       },
       "version": "2.8.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "watchexec"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -496,12 +458,9 @@
       },
       "version": "3.13.3",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "sops"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -529,8 +488,6 @@
       },
       "version": "1.3.2",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "age",
         "age-inspect",
@@ -540,7 +497,6 @@
         "age-plugin-tag",
         "age-plugin-tagpq"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -583,7 +539,6 @@
         "rustfmt",
         "rustup"
       ],
-      "os": null,
       "env": {
         "RUSTUP_TOOLCHAIN": "nightly-2026-10-29"
       },
@@ -607,12 +562,9 @@
       },
       "version": "1.26.1",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "cargo-binstall"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -645,7 +597,6 @@
       "bins": [
         "timeout"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -661,7 +612,6 @@
       "bins": [
         "cargo-dylint"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -677,7 +627,6 @@
       "bins": [
         "dylint-link"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -693,7 +642,6 @@
       "bins": [
         "cargo-nextest"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -709,7 +657,6 @@
       "bins": [
         "cargo-about"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -725,7 +672,6 @@
       "bins": [
         "monochromatic-lint"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -761,7 +707,7 @@
       "request": {
         "track": "latest"
       },
-      "version": "0.1.1",
+      "version": "0.2.0",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-search-shadow",
@@ -775,10 +721,12 @@
       "options": {
         "postinstall": {
           "when": "always",
-          "link": {
+          "run": {
             "sourceBin": "search-shadow",
-            "linkName": "rg",
-            "linkDir": ".cache/search-shadow-bin"
+            "args": [
+              "link",
+              ".cache/search-shadow-bin"
+            ]
           }
         }
       },
@@ -795,7 +743,6 @@
       "bins": [
         "monochromatic-nested-wayland-session"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -806,8 +753,6 @@
       },
       "version": "4.4.5",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "ccmake",
         "cmake",
@@ -815,7 +760,6 @@
         "cpack",
         "ctest"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -848,7 +792,6 @@
       "bins": [
         "rcodesign"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -859,12 +802,9 @@
       },
       "version": "0.15.2",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "zig"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -897,7 +837,6 @@
       "bins": [
         "slint-lsp"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -913,7 +852,6 @@
       "bins": [
         "slint-viewer"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -959,13 +897,10 @@
       },
       "version": "0.10.0",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "taplo",
         "taplo-linux-x86_64"
       ],
-      "os": null,
       "env": {},
       "options": {
         "binAliases": {
@@ -997,12 +932,9 @@
       },
       "version": "1.9.7",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "tombi"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1030,12 +962,9 @@
       },
       "version": "2026-02-08",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "marksman"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1063,12 +992,9 @@
       },
       "version": "0.3.2",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "rumdl"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1096,12 +1022,9 @@
       },
       "version": "0.25.12",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "markdown-oxide"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1129,12 +1052,9 @@
       },
       "version": "1.31.1",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "zizmor"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1167,7 +1087,6 @@
       "bins": [
         "yaml-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1183,7 +1102,6 @@
       "bins": [
         "actions-languageserver"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1199,7 +1117,6 @@
       "bins": [
         "ansible-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1219,7 +1136,6 @@
         "vscode-json-language-server",
         "vscode-markdown-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1230,12 +1146,9 @@
       },
       "version": "0.7.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "superhtml"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1268,7 +1181,6 @@
       "bins": [
         "bash-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1284,7 +1196,6 @@
       "bins": [
         "docker-langserver"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1300,7 +1211,6 @@
       "bins": [
         "docker-compose-langserver"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1311,12 +1221,9 @@
       },
       "version": "0.20.1",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "docker-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1344,8 +1251,6 @@
       },
       "version": "b9829",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "ggml-rpc-server",
         "llama",
@@ -1371,7 +1276,6 @@
         "llama-tokenize",
         "llama-tts"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1399,12 +1303,9 @@
       },
       "version": "1.13.2",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "tofu"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1432,12 +1333,9 @@
       },
       "version": "1.70.2",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "hcloud"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1470,7 +1368,6 @@
       "bins": [
         "typescript-language-server"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1486,7 +1383,6 @@
       "bins": [
         "coreutils"
       ],
-      "os": null,
       "env": {},
       "options": {
         "cargoFeatures": [
@@ -1510,7 +1406,6 @@
         "socket-pnpm",
         "socket-yarn"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1528,7 +1423,6 @@
         "wrangler",
         "wrangler2"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1544,7 +1438,6 @@
       "bins": [
         "pagefind"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1555,12 +1448,9 @@
       },
       "version": "1.9.0",
       "route": "bin-sourced",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "betterleaks"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {
@@ -1588,8 +1478,6 @@
       },
       "version": "temurin-21.0.13+9.0.LTS",
       "route": "archive",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "jar",
         "jarsigner",
@@ -1621,7 +1509,6 @@
         "rmiregistry",
         "serialver"
       ],
-      "os": null,
       "env": {
         "JAVA_HOME": "java/temurin-21.0.13+9.0.LTS"
       },
@@ -1651,8 +1538,6 @@
       },
       "version": "23.0",
       "route": "android-sdk",
-      "manager": null,
-      "packageId": null,
       "bins": [
         "android",
         "apkanalyzer",
@@ -1672,7 +1557,6 @@
         "make_f2fs_casefold",
         "mke2fs"
       ],
-      "os": null,
       "env": {
         "ANDROID_HOME": "android-sdk/23.0",
         "ANDROID_SDK_ROOT": "android-sdk/23.0"
@@ -1718,7 +1602,6 @@
         "cargo-ndk-runner",
         "cargo-ndk-test"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
@@ -1734,7 +1617,6 @@
       "bins": [
         "slopo"
       ],
-      "os": null,
       "env": {},
       "options": {},
       "artifacts": {}
