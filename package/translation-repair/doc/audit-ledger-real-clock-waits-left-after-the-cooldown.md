@@ -15,7 +15,8 @@ which lists every file of this record.
 Status:
 fixed on 2026-10-29 (UTC),
 tests `be445c4aa6`
-(corpus-pass, with the scan's list in `source-scan`)
+(corpus-pass,
+with the scan's list in `source-scan`)
 and `6c4e41e410`
 (provider),
 cache versions none.
