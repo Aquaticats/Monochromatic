@@ -4,7 +4,6 @@
 import type { ForeignHostCapability, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import { resolveEffectiveScope, } from '@monochromatic-dev/agent-harness-shared-model-selection/ts';
 import { buildAdvisorSystemPromptForProject, } from './advisor-client.ts';
-import { filterAdvisorScopeByOutputCapacity, } from './output-eligibility.ts';
 import {
   selectAdvisorRunContext,
   type AdvisorSelectionContext,
@@ -93,11 +92,7 @@ export async function prepareAdvisorRun(options: ForeignHostCapability<AdvisorRu
       === undefined ? {} : { rankDefaultCandidates: options.rankDefaultCandidates, }),
   },);
   return {
-    scope: filterAdvisorScopeByOutputCapacity({
-      scope,
-      maxAdvisorOutputTokens: options.config
-        .maxAdvisorOutputTokens,
-    },),
+    scope,
     initial,
     candidates: initial.candidates ?? [{
       scopedModel: initial.selection

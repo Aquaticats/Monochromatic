@@ -35,7 +35,6 @@ export * from './operation-error.ts';
 export * from './operation-attempt.ts';
 export * from './operation-progress.ts';
 export * from './operation.ts';
-export * from './output-eligibility.ts';
 export * from './project-context.ts';
 export * from './provider-credit.ts';
 export * from './default-ranking.ts';

@@ -305,8 +305,8 @@ await describe({
       },
     },),
     it({
-      name: 'excludes higher-cost default model below configured output capacity',
-      fn: async function testDefaultExcludesInsufficientOutputModel() {
+      name: 'selects the higher-cost model regardless of declared output capacity',
+      fn: async function testDefaultKeepsInsufficientOutputModel() {
         const mixedCapacityScope: EffectiveModelScope = {
           source: 'available',
           entries: [
@@ -327,13 +327,13 @@ await describe({
           modelRegistry,
         },);
 
-        expect(result.selected.canonicalSlug,).toBe('cheap/reviewer',);
+        expect(result.selected.canonicalSlug,).toBe('limited/limited-reviewer',);
         expect(
           result.defaultSelection?.ranking.map(function mapScore(score,) {
             return score.slug;
           },),
         )
-          .toEqual(['cheap/reviewer',],);
+          .toEqual(['limited/limited-reviewer', 'cheap/reviewer',],);
       },
     },),
     it({
@@ -365,8 +365,8 @@ await describe({
       },
     },),
     it({
-      name: 'rejects explicit model below configured output capacity',
-      fn: async function testExplicitRejectsInsufficientOutputModel() {
+      name: 'resolves explicit model below configured output capacity',
+      fn: async function testExplicitAcceptsInsufficientOutputModel() {
         const mixedCapacityScope: EffectiveModelScope = {
           source: 'available',
           entries: [
@@ -380,28 +380,20 @@ await describe({
             },
           ],
         };
-        const caught = captureError(function selectInsufficientOutputModel() {
-          return selectAdvisorModel({
-            scope: mixedCapacityScope,
-            requestedSlug: 'limited/limited-reviewer',
-            config: advisorConfig,
-            estimatedInputTokens: ADVISOR_INPUT_TOKENS,
-            modelRegistry,
-          },);
+        const result = selectAdvisorModel({
+          scope: mixedCapacityScope,
+          requestedSlug: 'limited/limited-reviewer',
+          config: advisorConfig,
+          estimatedInputTokens: ADVISOR_INPUT_TOKENS,
+          modelRegistry,
         },);
 
-        expect(caught,).toBeInstanceOf(Error,);
-        expect((caught as Error).message,).toContain(
-          `requires ${String(ADVISOR_OUTPUT_TOKENS,)} output tokens`,
-        );
-        expect((caught as Error).message,).toContain(
-          `advertises ${String(INSUFFICIENT_MAX_TOKENS,)} output tokens`,
-        );
+        expect(result.selected.canonicalSlug,).toBe('limited/limited-reviewer',);
       },
     },),
     it({
-      name: 'rejects default selection when every model lacks output capacity',
-      fn: async function testDefaultRejectsInsufficientOutputScope() {
+      name: 'selects the only scoped model when it advertises less output than the budget',
+      fn: async function testDefaultAcceptsInsufficientOutputScope() {
         const insufficientCapacityScope: EffectiveModelScope = {
           source: 'available',
           entries: [{
@@ -409,19 +401,14 @@ await describe({
             canonicalSlug: 'limited/limited-reviewer',
           },],
         };
-        const caught = captureError(function selectWithoutEligibleModel() {
-          return selectAdvisorModel({
-            scope: insufficientCapacityScope,
-            config: advisorConfig,
-            estimatedInputTokens: ADVISOR_INPUT_TOKENS,
-            modelRegistry,
-          },);
+        const result = selectAdvisorModel({
+          scope: insufficientCapacityScope,
+          config: advisorConfig,
+          estimatedInputTokens: ADVISOR_INPUT_TOKENS,
+          modelRegistry,
         },);
 
-        expect(caught,).toBeInstanceOf(Error,);
-        expect((caught as Error).message,).toContain(
-          `no scoped models advertise at least ${String(ADVISOR_OUTPUT_TOKENS,)} output tokens`,
-        );
+        expect(result.selected.canonicalSlug,).toBe('limited/limited-reviewer',);
       },
     },),
     it({
@@ -498,8 +485,8 @@ await describe({
       },
     },),
     it({
-      name: 'builds context only for models meeting configured output capacity',
-      fn: async function testRunContextExcludesInsufficientOutputModel() {
+      name: 'builds context for every scoped model regardless of declared output capacity',
+      fn: async function testRunContextKeepsInsufficientOutputModel() {
         const mixedCapacityScope: EffectiveModelScope = {
           source: 'available',
           entries: [
@@ -522,8 +509,8 @@ await describe({
           modelRegistry,
         },);
 
-        expect(result.selection.selected.canonicalSlug,).toBe('cheap/reviewer',);
-        expect(result.selection.defaultSelection?.ranking,).toHaveLength(1,);
+        expect(result.selection.selected.canonicalSlug,).toBe('limited/limited-reviewer',);
+        expect(result.selection.defaultSelection?.ranking,).toHaveLength(2,);
       },
     },),
   ],

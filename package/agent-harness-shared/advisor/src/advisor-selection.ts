@@ -10,10 +10,6 @@ import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import { resolveAdvisorRequestedModel, } from './advisor-requested-model.ts';
 import { rankDefaultAdvisorCandidates, } from './default-ranking.ts';
-import {
-  assertAdvisorEndpointOutputCapacity,
-  requireAdvisorScopeWithOutputCapacity,
-} from './output-eligibility.ts';
 import type { AdvisorModelResolution, } from './ports.ts';
 import type {
   AdvisorConfig,
@@ -209,7 +205,7 @@ export function applyConfiguredInitialReviewer(
       return defaultSelection;
     return {
       ...defaultSelection,
-      reason: `${defaultSelection.reason}; defaultReviewerModel "${keyText}" did not resolve among output-eligible scoped models, so the default ranking applies`,
+      reason: `${defaultSelection.reason}; defaultReviewerModel "${keyText}" did not resolve among scoped models, so the default ranking applies`,
     };
   }
   /**
@@ -259,7 +255,7 @@ export function applyConfiguredInitialReviewer(
  Select explicit model, configured initial reviewer, or default highest expected-cost non-current model.
  
  Selection order: an explicit slug is exact; otherwise `defaultReviewerModel`
- picks the initial reviewer when it resolves in the output-eligible scope;
+ picks the initial reviewer when it resolves in scope;
  otherwise the ranking policy (or the built-in expected-cost ranking when no
  policy is supplied) picks one. Only explicit requests disable fallback and
  overlap.
@@ -308,44 +304,29 @@ export function selectAdvisorModel(
   if ((requestedSlug !== undefined) && (requestedSlug.trim()
     !== '')) {
     /**
-     Explicit model resolved against authenticated scope before output eligibility validation.
+     Explicit model resolved against authenticated scope; the request budget
+     clamps to the endpoint's advertised capacity at dispatch.
      */
-    const selection = resolveAdvisorRequestedModel({
+    return resolveAdvisorRequestedModel({
       scope,
       requestedSlug,
       modelRegistry,
     },);
-    assertAdvisorEndpointOutputCapacity({
-      endpointSlug: selection.selected
-        .canonicalSlug,
-      advertisedOutputTokens: selection.selected
-        .model
-        .maxTokens,
-      maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-    },);
-    return selection;
   }
 
-  /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = requireAdvisorScopeWithOutputCapacity({
-    scope,
-    maxAdvisorOutputTokens: config.maxAdvisorOutputTokens,
-  },);
   /**
    Configured initial reviewer lookup, resolved before the variant ranking runs.
    */
   const configuredReviewerResolution = resolveConfiguredDefaultReviewer({
     config,
-    scope: eligibleScope,
+    scope,
     modelRegistry,
   },);
   /**
    Default-selection scope with current main model removed when alternatives exist.
    */
   const defaultScope = scopeAvoidingCurrentMainModel({
-    scope: eligibleScope,
+    scope,
     ...(currentMainModel
       === undefined ? {} : { currentMainModel, }),
   },);

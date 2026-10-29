@@ -18,7 +18,6 @@ import {
   selectAdvisorModel,
 } from './advisor-selection.ts';
 import { rankDefaultAdvisorCandidates, } from './default-ranking.ts';
-import { requireAdvisorScopeWithOutputCapacity, } from './output-eligibility.ts';
 import type {
   AdvisorModelResolution,
   AdvisorSessionEntry,
@@ -243,26 +242,18 @@ export function selectAdvisorRunContext(
   }
 
   /**
-   Scoped models whose endpoints advertise configured output capacity.
-   */
-  const eligibleScope = requireAdvisorScopeWithOutputCapacity({
-    scope: options.scope,
-    maxAdvisorOutputTokens: options.config
-      .maxAdvisorOutputTokens,
-  },);
-  /**
    Configured initial reviewer lookup, resolved before the variant ranking runs.
    */
   const configuredReviewerResolution = resolveConfiguredDefaultReviewer({
     config: options.config,
-    scope: eligibleScope,
+    scope: options.scope,
     modelRegistry: options.modelRegistry,
   },);
   /**
    Default-selection scope with current main model removed when alternatives exist.
    */
   const defaultScope = scopeAvoidingCurrentMainModel({
-    scope: eligibleScope,
+    scope: options.scope,
     ...(options.currentMainModel
       === undefined ? {} : { currentMainModel: options.currentMainModel, }),
   },);
