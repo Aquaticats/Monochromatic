@@ -1682,11 +1682,18 @@ The real index is computed at landing
 For injected commit-only semantics:
 
 1.  Build a commit index from the preparation base.
-2.  Add exact selected worktree paths to that index using Git pathspec semantics.
-3.  Apply policy patches to the commit index.
-4.  Remove pathspecs and internal `--only` before invoking native Git
+2.  Carry into that index every selected entry that the real index stages as an addition
+    (`git diff-index --cached --diff-filter=A` against the base, with the same pathspecs;
+    a pathspec file is read by the wrapper and passed as arguments, and a file it cannot read is left to Git alone).
+    Native Git tracks these paths through the real index and takes their worktree content without asking an ignore rule,
+    so the private index must track them too (issue 1807).
+3.  Add exact selected worktree paths to that index using Git pathspec semantics.
+    A selected path that an ignore rule matches and that no index stages is refused,
+    and the message says to stage it with `git add --force` first.
+4.  Apply policy patches to the commit index.
+5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.
-5.  Record `prepared.json`.
+6.  Record `prepared.json`.
 
 Merge,
 cherry-pick,
