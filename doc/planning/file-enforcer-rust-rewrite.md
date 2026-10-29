@@ -91,8 +91,32 @@ Reviews:
 [`doc/research/file-enforcer-rust-rewrite-review-sol.md`](../research/file-enforcer-rust-rewrite-review-sol.md)
 and
 [`doc/research/file-enforcer-rust-rewrite-review-astra.md`](../research/file-enforcer-rust-rewrite-review-astra.md);
-the kimi re-run is pending.
-Both reviews worked from the attached text only.
+and
+[`doc/research/file-enforcer-rust-rewrite-review-kimi.md`](../research/file-enforcer-rust-rewrite-review-kimi.md)
+(second run).
+All three worked from the attached text only.
+
+Raised only by kimi,
+for the root round:
+
+- No initial resolution file:
+  the conversion must split the existing repository and global locks into plan and resolution,
+  keeping every version,
+  URL,
+  and SHA-256,
+  and the new render must reproduce the old lock before the switch.
+- A new npm or PyPI tool cannot be added:
+  it has no resolved version for sync to install,
+  so "sync first and retry" cannot make `mpm outdated` see it.
+- Global lock and manifest rendering has no owner,
+  since "committed inputs only" excludes `~/.config`.
+- Global-only routes (`cargo-git`,
+  `go-install`) escape a repository-only comparison.
+- `update --check` has no recorded fate.
+- Output file modes (0600 for both forbidden-strings files and the global plan) are not part of the write contract.
+- The global plan's only backup would sit in agent scratch.
+- A GitHub token is a bootstrap input for containers and CI.
+- Catalog writes need whole-run validation before any file is replaced.
 
 Confirmed by reading the repository:
 
