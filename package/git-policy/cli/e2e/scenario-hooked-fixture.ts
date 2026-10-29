@@ -86,7 +86,7 @@ async function runHookedConcurrent(context: ScenarioContext,): ReturnType<Scenar
 
  @example
  ```ts
- hookedRepository({ hooks: 'hookdir', hookEvents: ALL_HOOK_EVENTS });
+ hookedRepository({ hooks: 'config', hookEvents: ALL_HOOK_EVENTS });
  ```
  */
 function hookedRepository(overrides: RepositoryOverrides,): ScenarioDefinition['repository'] {
@@ -109,21 +109,10 @@ function hookedRepository(overrides: RepositoryOverrides,): ScenarioDefinition['
 //region Scenarios
 
 /**
- Hookdir hooks under concurrency.
- */
-const hookdirConcurrent: ScenarioDefinition = {
-  name: 'hooks-hookdir-concurrent',
-  group: 'concurrency',
-  summary: `${String(HOOKED_WORKERS,)} agents commit at once with all four commit hooks in the hooks directory`,
-  repository: hookedRepository({
-    hooks: 'hookdir',
-    hookEvents: ALL_HOOK_EVENTS,
-  },),
-  run: runHookedConcurrent,
-};
-
-/**
  Config-based hooks under concurrency.
+ The former `hooks-hookdir-concurrent` twin (traditional hooks in the hooks directory) is removed:
+ traditional hooks are unsupported by the wrapper,
+ and this scenario ran the identical workload and assertions.
  */
 const configConcurrent: ScenarioDefinition = {
   name: 'hooks-config-concurrent',
@@ -155,9 +144,10 @@ const lintStagedConcurrent: ScenarioDefinition = {
   name: 'lint-staged-stash-concurrent',
   group: 'concurrency',
   summary: 'lint-staged backup-stash hook while 3 explicit-path agents and 1 partially staged index commit run at once (linked worktree)',
+  minimumGit: '2.54.0',
   repository: hookedRepository({
     worktree: 'linked',
-    hooks: 'hookdir',
+    hooks: 'config',
     hookEvents: ['pre-commit',],
     hookMode: 'lint-staged',
   },),
@@ -228,7 +218,6 @@ const lintStagedConcurrent: ScenarioDefinition = {
  and lint-staged scenarios in report order.
  */
 export const HOOKED_SCENARIOS: readonly ScenarioDefinition[] = [
-  hookdirConcurrent,
   configConcurrent,
   signingConcurrent,
   lintStagedConcurrent,

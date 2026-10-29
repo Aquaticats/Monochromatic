@@ -17,10 +17,7 @@ import {
   join,
 } from 'node:path';
 
-import {
-  configHookArguments,
-  installHookdirHooks,
-} from './hook-program-fixture.ts';
+import { configHookArguments, } from './hook-program-fixture.ts';
 import { runChecked, } from './process-fixture.ts';
 import {
   configure,
@@ -238,7 +235,8 @@ export async function createSeededRepository({
 }
 
 /**
- Installs hooks and signing requested by the options.
+ Registers config hooks and signing requested by the options.
+ Traditional hooks (files in the hooks directory) are unsupported by the wrapper and never installed.
 
  @param repository - repository whose setup finishes
 
@@ -259,19 +257,6 @@ export async function installExtras({
   if (repository.options
     .signing)
     await configureSigning(repository,);
-  if (repository.options
-    .hooks
-    === 'hookdir') {
-    await installHookdirHooks({
-      hooksDir: join(
-        repository.commonDir,
-        'hooks',
-      ),
-      hookProgram,
-      events: repository.options
-        .hookEvents,
-    },);
-  }
   if (repository.options
     .hooks
     === 'config') {
