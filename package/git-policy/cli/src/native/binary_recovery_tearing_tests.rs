@@ -447,6 +447,51 @@ fn sweep(phase: &str) {
     }
 }
 
+/// What:
+///  A damaged journal record stops the next wrapped command with a message that names the file and the transaction
+///  directory, says what the person can do and what the wrapper then does, and carries no hint about fetching history.
+/// Why:
+///   The recorded outcome says a command sticks; this says what the person who is stuck reads.
+///  Each case damages one record of a real killed commit and reads the standard error of the next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const [phase, file, phrase] of cases) expect(await stderrAfterDamage(phase, file)).toContain(phrase);
+/// ```
+#[test]
+fn the_messages_of_damaged_records_name_the_file_and_the_ways_out() {
+    let cases: [(&str, &str, &str); 4] = [
+        ("capture-locked", "preparing.json", "preparing.json is the first record of a transaction"),
+        ("landing-locked", "index-lock-1.json", "This record names the index.lock file the transaction created"),
+        ("ref-updated", "landing-1.json", "A landing record names the post-index"),
+        ("ref-updated", "ref-updated.json", "This record is written after the branch moved"),
+    ];
+    for (phase, file_name, phrase) in cases {
+        for damage in [Damage::Empty, Damage::Half] {
+            let paused: Paused = pause_at(phase);
+            let git_dir: PathBuf = paused.repo.join(".git");
+            let matching: Vec<PathBuf> = state_files(git_dir.as_path())
+                .into_iter()
+                .filter(|file| { return file.file_name().is_some_and(|name| { return name == file_name; }); })
+                .collect();
+            assert_eq!(matching.len(), 1, "exactly one {file_name} at {phase}: {matching:?}");
+            assert!(apply(damage, matching[0].as_path()), "{file_name} can be damaged by {}", damage.name());
+            let first: Probe = probe(&paused.fixture, paused.repo.as_path(), &["status", "--porcelain=v1"]);
+            let second: Probe = probe(&paused.fixture, paused.repo.as_path(), &["status", "--porcelain=v1"]);
+            let directory: &Path = matching[0].parent().expect("the record sits in a transaction directory");
+            let context: String = format!("{phase} {file_name} {}: {}", damage.name(), first.stderr);
+            assert_eq!(first.code, Some(2), "{context}");
+            assert_eq!(second.code, Some(2), "{context}");
+            assert!(first.stderr.contains(matching[0].to_string_lossy().as_ref()), "the file is named: {context}");
+            assert!(first.stderr.contains(directory.to_string_lossy().as_ref()), "the directory is named: {context}");
+            assert!(first.stderr.contains(phrase), "the way out is named: {context}");
+            assert!(first.stderr.contains("Every guarded command stops") || first.stderr.contains("every guarded command stops"), "{context}");
+            assert!(!first.stderr.contains("git fetch") && !first.stderr.contains("\"hint\""), "no inapplicable hint: {context}");
+            remove_settled(&paused.fixture);
+        }
+    }
+}
+
 /// A commit killed with its capture lock held.
 #[test]
 fn damage_at_capture_locked() {

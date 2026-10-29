@@ -25,6 +25,8 @@ use super::recovery_files::{
 };
 /// The reflog nonce search.
 use super::recovery_reflog::list_nonce_reflog_oids;
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+use super::recovery_record_failure::{RecordKind, name_record_failure};
 /// The check of the snapshots' bytes.
 use super::recovery_snapshot::{SnapshotRole, verify_snapshot};
 /// Running real Git.
@@ -98,7 +100,8 @@ pub fn commit_landed(
     let marker: PathBuf = directory.join(REF_UPDATED_FILENAME);
     let new_oid: &str = landing.new_oid.as_deref().unwrap_or("undefined");
     if recovery_path_exists(marker.as_path())? {
-        let landed: String = parse_ref_updated(read_recovery_file(marker.as_path())?.as_slice())?;
+        let landed: String = parse_ref_updated(read_recovery_file(marker.as_path())?.as_slice())
+            .map_err(|error| { return name_record_failure(error, marker.as_path(), RecordKind::RefUpdated); })?;
         if landing.new_oid.as_deref() != Some(landed.as_str()) {
             return Err(RecoveryError(format!(
                 "Landed marker names another commit than the landing record: {}",

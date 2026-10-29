@@ -240,7 +240,8 @@ follow-ups 1 and 2 after the phase listings record how each was resolved, and th
 - The J2 link: deleting `owner.json` sticks at every phase. That is the state a filesystem that persisted the deletions
   inside a removed transaction directory but not its rename would leave, which is the unsourced ordering assumption
   recorded under the J2 outcome.
-- What the user is told: only the owner-record messages name a path. The messages for `preparing.json`, the landing
+- What the user is told (resolved by follow-up 3; the text below is the state when the harness was written): only the
+  owner-record messages name a path. The messages for `preparing.json`, the landing
   record, the index-lock record and the ref-updated record say that the record "is not a schema-version-2 ... record"
   without naming the file or the transaction, and every message carries the hint about fetching history, which does not
   apply. Nothing says how to recover (remove the named transaction directory by hand). That is a diagnostic gap
@@ -467,6 +468,42 @@ Guards shown failing: with the check made to return at once, `damage_at_ref_upda
 `ref-updated|cli-git-transactions/<id>/landing-1.json|delete` (left `sticks`, the old cell right) and three of the four
 `recovery_contradiction` tests fail; with the install-marker exemption disabled,
 `installed_and_unmoved_transactions_are_discarded_as_before` fails. All passed again after restoring.
+
+### J3 follow-up 3: the messages of unreadable records
+
+Cause: the strict parsers (`open_record` in `transaction_journal_parse.rs`) know only the bytes, so their sentence named
+the kind of record ("Transaction record landing record is not a schema-version-2 landing record") and no path. The
+fetch hint came from the gate: `transaction_gate.rs` renders every recovery stop as the engine failure
+`content-unavailable`, whose generic hint (`event_hints.rs`) tells the person to fetch history.
+
+What changed:
+
+- `recovery_record_failure.rs` wraps the parser's failure at the four call sites (`preparing.json` in
+  `recovery_landing.rs`, `landing-<n>.json` there, `ref-updated.json` in `recovery_completion.rs`,
+  `index-lock-<n>.json` in `recovery_evidence.rs`). The message names the transaction, the file path and the directory,
+  keeps the parser's sentence as the detail, and gives the way out per record: remove `preparing.json` (the wrapper then
+  discards a transaction that holds no landing record or marker; an `index.lock` may remain and is removed by hand);
+  restore `landing-<n>.json` from a copy, or finish by hand; remove `index-lock-<n>.json` (the wrapper then handles the
+  transaction from its other records and leaves the lock file); remove `ref-updated.json` (the wrapper then reads the
+  branch's reflog to decide whether the commit landed). The by-hand steps (`recovery_manual_steps.rs`) are shared with
+  the snapshot and contradiction messages of follow-ups 1 and 2: check that no Git command runs, remove the lock, the
+  shadow repository and the transaction directory, then `git status` and, if needed, `git reset` (which unstages other
+  staged changes and leaves the worktree files alone).
+- The wire code stays `content-unavailable` (its documentation covers transaction state, and `SPEC.md` ties that code to
+  exit status 2), so a consumer matching on the code is unaffected. The gate now renders the failure with no `hint`
+  field (`render_engine_failure_with_hint` in `diagnostics.rs`), because the message itself carries the ways out. This
+  applies to every recovery stop, including the owner-record messages, which already named a path.
+- The outcome table is unchanged (regenerated: 247 cases, 0 changed); only text differs.
+- Declined: the same wording for `captured.json` (`capture_records.rs`), which is not in the named list and is read by
+  replay, not by recovery.
+
+Tests: `recovery_record_failure_tests.rs` (every kind names file, transaction and directory and a way out; recovery
+wraps each of the four reads), `transaction_gate_tests.rs` (no hint field and no fetch text), and
+`the_messages_of_damaged_records_name_the_file_and_the_ways_out` in the tearing harness, which kills real commits,
+damages `preparing.json`, `index-lock-1.json`, `landing-1.json` and `ref-updated.json` (emptied and halved) and reads
+the standard error of two repeated commands (exit 2 both times). Shown failing by making `name_record_failure` return the
+parser's failure unchanged (both unit tests and the harness test fail) and by giving the gate a hint again
+(`gates_follow_recovery` fails); restored, all pass.
 
 ## Results of the hook-entry and configuration-snapshot slices
 

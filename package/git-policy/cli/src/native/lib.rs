@@ -644,6 +644,9 @@ pub mod recovery_snapshot;
 /// The steps that finish a retained transaction by hand.
 pub mod recovery_manual_steps;
 
+/// The failure of a journal record that cannot be read, with its path and ways out named.
+pub mod recovery_record_failure;
+
 /// The refusal to discard a transaction whose branch moved but whose records say otherwise.
 pub mod recovery_contradiction;
 
