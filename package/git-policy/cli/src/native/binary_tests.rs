@@ -87,15 +87,13 @@ mod landing_crash;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
-<<<<<<< HEAD
 /// A commit killed at a phase marker whose transaction files are then torn, dropped or emptied: what recovery does.
 #[path = "binary_recovery_tearing_tests.rs"]
 mod recovery_tearing;
-=======
+
 /// The Git version text a commit records in the user's cache directory, and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
 mod version_cache;
->>>>>>> worktree-agent-a22fc0d42c883a26c
 
 /// A process start that fails anywhere in a commit never strands the repository.
 #[path = "binary_fork_failure_tests.rs"]
