@@ -220,6 +220,10 @@ In flight:
 the live-probe agent,
 checkpointing to `${HOME}/temp/agent/fe-rust/gate-probes.md` after each probe,
 with containers under `systemd-run` units named `fe-gate-*`.
+The user chose "Let it finish":
+reboot is called safe only after all three probes finish,
+their containers and units stop,
+and the report is committed.
 After the reboot:
 read that checkpoint,
 resume or rerun only the unfinished probes,
