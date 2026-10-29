@@ -17,14 +17,16 @@ import { join, } from 'node:path';
 import { tagged, } from '@monochromatic-dev/module-logger/ts';
 import {
   isRegistryPackage,
+  type LockedPackage,
   parseCargoLock,
 } from '@monochromatic-dev/module-rust-catalog/ts';
 import spawn, { SubprocessError, } from 'nano-spawn';
 
 import { l, } from './logger.ts';
 import {
-  parseSelector,
   matchesPattern,
+  type ParsedSelector,
+  parseSelector,
 } from './selectors.ts';
 
 //region Runner
@@ -61,7 +63,9 @@ export type RunCargo = (request: {
 /**
  Default {@link RunCargo} through `nano-spawn`.
 
- @param request - directory and arguments
+ @param cwd - directory cargo runs in
+
+ @param args - cargo arguments
 
  @returns whether cargo exited 0, with its output
 
@@ -323,20 +327,24 @@ export function excludedUpdateSpecs({
   /**
    Name patterns that exempt every version.
    */
-  const patterns = selectors.map(parseSelector,)
-    .filter(function isNameOnly(selector,): boolean {
+  const patterns = selectors.map(function parse(selector: string,): ParsedSelector {
+    return parseSelector(selector,);
+  },)
+    .filter(function isNameOnly(selector: ParsedSelector,): boolean {
       return selector.versions
         .length
         === 0;
     },)
-    .map(function toPattern(selector,): string {
+    .map(function toPattern(selector: ParsedSelector,): string {
       return selector.pattern;
     },);
   if (patterns.length === 0)
     return [];
   return [...new Set(parseCargoLock(lock,)
-    .filter(isRegistryPackage,)
-    .filter(function isExempt(locked,): boolean {
+    .filter(function isRegistry(locked: LockedPackage,): boolean {
+      return isRegistryPackage(locked,);
+    },)
+    .filter(function isExempt(locked: LockedPackage,): boolean {
       return patterns.some(function matches(pattern: string,): boolean {
         return matchesPattern({
           pattern,
@@ -344,7 +352,7 @@ export function excludedUpdateSpecs({
         },);
       },);
     },)
-    .map(function toSpec(locked,): string {
+    .map(function toSpec(locked: LockedPackage,): string {
       return `${locked.name}@${locked.version}`;
     },),),].toSorted();
 }

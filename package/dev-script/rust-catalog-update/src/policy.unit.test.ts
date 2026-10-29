@@ -52,8 +52,22 @@ const NOW = Date.parse('2026-10-29T12:00:00Z',);
  record({ num: '1.0.0', });
  ```
  */
-function record(overrides: Partial<VersionRecord> & { readonly num: string; readonly createdAt: string; },): VersionRecord {
-  return { publisherId: '7', trustpubRepository: '', repository: 'https://github.com/o/r', ...overrides, };
+function record(
+  {
+    num,
+    createdAt,
+    publisherId = '7',
+    trustpubRepository = '',
+    repository = 'https://github.com/o/r',
+  }: {
+    readonly num: string;
+    readonly createdAt: string;
+    readonly publisherId?: string;
+    readonly trustpubRepository?: string;
+    readonly repository?: string;
+  },
+): VersionRecord {
+  return { num, createdAt, publisherId, trustpubRepository, repository, };
 }
 
 //endregion Fixtures

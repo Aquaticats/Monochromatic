@@ -27,6 +27,29 @@ import {
 } from './registry.ts';
 
 /**
+ Creates a disposable repository root.
+
+ @returns root that `await using` removes
+
+ @example
+ ```ts
+ await using repo = await tempRoot();
+ ```
+ */
+async function tempRoot(): Promise<AsyncDisposable & { readonly root: string; }> {
+  /**
+   Root directory.
+   */
+  const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-registry-',),);
+  return {
+    root,
+    [Symbol.asyncDispose]: async function removeRoot(): Promise<void> {
+      await rm(root, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
  crates.io versions body with a token publish and a trusted publish.
  */
 const VERSIONS_BODY = JSON.stringify({
@@ -92,34 +115,34 @@ await describe({
         /**
          Disposable repository root.
          */
-        const root = await mkdtemp(join(tmpdir(), 'rust-catalog-update-registry-',),);
-        try {
-          /**
-           Requested URLs with their times.
-           */
-          const requests: { readonly url: string; readonly at: number; }[] = [];
-          /**
-           Registry over a fake fetcher.
-           */
-          const registry = createRegistry({
-            root,
-            minIntervalMs: 50,
-            fetchText: async function fakeFetch(url: string,): Promise<string> {
-              requests.push({ url, at: Date.now(), },);
-              return VERSIONS_BODY;
-            },
-          },);
-          await registry.history({ name: 'a', versions: ['1.0.0',], },);
-          await registry.history({ name: 'a', versions: ['1.0.1',], },);
-          expect(requests.length,).toBe(1,);
-          expect(await readFile(join(root, HISTORY_CACHE_DIR, 'a.json',), 'utf8',),).toContain('"trustpubRepository":"o/r"',);
-          await registry.history({ name: 'a', versions: ['2.0.0',], },);
-          expect(requests.length,).toBe(2,);
-          expect((requests[1]?.at ?? 0) - (requests[0]?.at ?? 0),).toBeGreaterThanOrEqual(45,);
-          expect(requests[0]?.url,).toBe('https://crates.io/api/v1/crates/a/versions',);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await tempRoot();
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Requested URLs with their times.
+         */
+        const requests: { readonly url: string; readonly at: number; }[] = [];
+        /**
+         Registry over a fake fetcher.
+         */
+        const registry = createRegistry({
+          root,
+          minIntervalMs: 50,
+          fetchText: async function fakeFetch(url: string,): Promise<string> {
+            requests.push({ url, at: Date.now(), },);
+            return VERSIONS_BODY;
+          },
+        },);
+        await registry.history({ name: 'a', versions: ['1.0.0',], },);
+        await registry.history({ name: 'a', versions: ['1.0.1',], },);
+        expect(requests.length,).toBe(1,);
+        expect(await readFile(join(root, HISTORY_CACHE_DIR, 'a.json',), 'utf8',),).toContain('"trustpubRepository":"o/r"',);
+        await registry.history({ name: 'a', versions: ['2.0.0',], },);
+        expect(requests.length,).toBe(2,);
+        expect((requests[1]?.at ?? 0) - (requests[0]?.at ?? 0),).toBeGreaterThanOrEqual(45,);
+        expect(requests[0]?.url,).toBe('https://crates.io/api/v1/crates/a/versions',);
       },
     },),
     it({

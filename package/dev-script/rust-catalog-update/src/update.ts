@@ -139,6 +139,9 @@ async function resolveAll(
   const fellBack: string[] = [];
   for (const crateDir of crateDirs) {
     log.info(`resolving ${crateDir}${cutoff === '' ? '' : ` with releases published before ${cutoff}`}`,);
+    /**
+     Whether this crate fell back to an unconstrained resolution.
+     */
     // oxlint-disable-next-line no-await-in-loop -- crates share cargo's package cache lock, so parallel runs only queue.
     const { fellBack: crateFellBack, } = await resolveCrate({
       root,
@@ -149,6 +152,9 @@ async function resolveAll(
     },);
     if (crateFellBack)
       fellBack.push(crateDir,);
+    /**
+     Lockfile this crate's resolution just wrote.
+     */
     // oxlint-disable-next-line no-await-in-loop -- the exempt update reads the lockfile this crate's resolution just wrote.
     const [snapshot,] = await readLocks({
       root,
@@ -224,6 +230,9 @@ export async function updateRustLockfiles(
    Catalog file and settings.
    */
   const catalog = await readRustCatalog({ rootDir: root, },);
+  /**
+   Release-age and trust settings.
+   */
   const { settings, } = catalog.document;
   /**
    Crate roots with a lockfile.

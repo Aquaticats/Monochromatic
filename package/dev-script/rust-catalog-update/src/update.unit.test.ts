@@ -96,14 +96,14 @@ function catalog(extra: readonly string[],): string {
 
  @param catalogText - `rust-catalog.toml` text
 
- @returns repository root
+ @returns repository root that `await using` removes
 
  @example
  ```ts
- await makeRepo(catalog([]));
+ await using repo = await makeRepo(catalog([]));
  ```
  */
-async function makeRepo(catalogText: string,): Promise<string> {
+async function makeRepo(catalogText: string,): Promise<AsyncDisposable & { readonly root: string; }> {
   /**
    Repository root.
    */
@@ -112,7 +112,12 @@ async function makeRepo(catalogText: string,): Promise<string> {
   await writeFile(join(root, 'rust-catalog.toml',), catalogText,);
   await writeFile(join(root, 'package/cli/a/Cargo.toml',), '[package]\nname = "a"\nversion = "0.1.0"\n\n[workspace]\n',);
   await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.0',),);
-  return root;
+  return {
+    root,
+    [Symbol.asyncDispose]: async function removeRepo(): Promise<void> {
+      await rm(root, { recursive: true, force: true, },);
+    },
+  };
 }
 
 /**
@@ -192,20 +197,20 @@ await describe({
         /**
          Repository with a stale trust exclude.
          */
-        const root = await makeRepo(catalog(['trustPolicyExclude = ["gone@1.0.0", "dep"]',],),);
-        try {
-          /**
-           Update outcome.
-           */
-          const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
-          expect(report.written,).toBe(true,);
-          expect(report.added,).toEqual([{ name: 'dep', version: '1.0.1', },],);
-          expect(report.pruned,).toEqual(['trustPolicyExclude: gone@1.0.0',],);
-          expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toContain('version = "1.0.1"',);
-          expect(await readFile(join(root, 'rust-catalog.toml',), 'utf8',),).toContain('trustPolicyExclude = [ "dep", ]',);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await makeRepo(catalog(['trustPolicyExclude = ["gone@1.0.0", "dep"]',],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Update outcome.
+         */
+        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        expect(report.written,).toBe(true,);
+        expect(report.added,).toEqual([{ name: 'dep', version: '1.0.1', },],);
+        expect(report.pruned,).toEqual(['trustPolicyExclude: gone@1.0.0',],);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toContain('version = "1.0.1"',);
+        expect(await readFile(join(root, 'rust-catalog.toml',), 'utf8',),).toContain('trustPolicyExclude = [ "dep", ]',);
       },
     },),
     it({
@@ -214,18 +219,18 @@ await describe({
         /**
          Repository.
          */
-        const root = await makeRepo(catalog([],),);
-        try {
-          /**
-           Update outcome.
-           */
-          const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(DOWNGRADED_HISTORY,), },);
-          expect(report.written,).toBe(false,);
-          expect(report.problems.length,).toBe(1,);
-          expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Update outcome.
+         */
+        const report = await updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(DOWNGRADED_HISTORY,), },);
+        expect(report.written,).toBe(false,);
+        expect(report.problems.length,).toBe(1,);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
       },
     },),
     it({
@@ -234,18 +239,18 @@ await describe({
         /**
          Repository.
          */
-        const root = await makeRepo(catalog([],),);
-        try {
-          /**
-           Update outcome.
-           */
-          const report = await updateRustLockfiles({ root, dryRun: true, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
-          expect(report.written,).toBe(false,);
-          expect(report.added,).toEqual([{ name: 'dep', version: '1.0.1', },],);
-          expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        /**
+         Update outcome.
+         */
+        const report = await updateRustLockfiles({ root, dryRun: true, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: true, },), registry: fakeRegistry(TRUSTED_HISTORY,), },);
+        expect(report.written,).toBe(false,);
+        expect(report.added,).toEqual([{ name: 'dep', version: '1.0.1', },],);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
       },
     },),
     it({
@@ -254,13 +259,13 @@ await describe({
         /**
          Repository.
          */
-        const root = await makeRepo(catalog([],),);
-        try {
-          await expect(updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: false, },), registry: fakeRegistry(TRUSTED_HISTORY,), },),).rejects.toThrow('failed to select a version',);
-          expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        await expect(updateRustLockfiles({ root, dryRun: false, now: NOW, runCargo: resolvingTo({ version: '1.0.1', ok: false, },), registry: fakeRegistry(TRUSTED_HISTORY,), },),).rejects.toThrow('failed to select a version',);
+        expect(await readFile(join(root, 'package/cli/a/Cargo.lock',), 'utf8',),).toBe(lock('1.0.0',),);
       },
     },),
   ],
@@ -275,14 +280,14 @@ await describe({
         /**
          Repository whose committed lock already holds the downgraded release.
          */
-        const root = await makeRepo(catalog([],),);
-        try {
-          await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.1',),);
-          expect((await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), },)).length,).toBe(1,);
-          expect(await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(TRUSTED_HISTORY,), },),).toEqual([],);
-        } finally {
-          await rm(root, { recursive: true, force: true, },);
-        }
+        await using repo = await makeRepo(catalog([],),);
+        /**
+         Repository root, removed when the test ends.
+         */
+        const { root, } = repo;
+        await writeFile(join(root, 'package/cli/a/Cargo.lock',), lock('1.0.1',),);
+        expect((await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(DOWNGRADED_HISTORY,), },)).length,).toBe(1,);
+        expect(await verifyRustLockfiles({ root, now: NOW, registry: fakeRegistry(TRUSTED_HISTORY,), },),).toEqual([],);
       },
     },),
   ],

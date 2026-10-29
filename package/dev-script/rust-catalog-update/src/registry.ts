@@ -249,6 +249,52 @@ function isObject(value: unknown,): value is Readonly<Record<string, unknown>> {
 }
 
 /**
+ A string field of parsed JSON, or empty when it is missing or not a string.
+
+ @param object - parsed JSON object
+
+ @param key - field name
+
+ @returns field text
+
+ @example
+ ```ts
+ stringField({ object: { num: '1.0.0', }, key: 'num', }); // '1.0.0'
+ ```
+ */
+function stringField({ object, key, }: { readonly object: Readonly<Record<string, unknown>>; readonly key: string; },): string {
+  /**
+   Field value.
+   */
+  const value = object[key];
+  return (typeof value) === 'string' ? value : '';
+}
+
+/**
+ A numeric or string id of parsed JSON as text, or empty when absent.
+
+ @param object - parsed JSON object
+
+ @param key - field name
+
+ @returns id text
+
+ @example
+ ```ts
+ idField({ object: { id: 3618, }, key: 'id', }); // '3618'
+ ```
+ */
+function idField({ object, key, }: { readonly object: Readonly<Record<string, unknown>>; readonly key: string; },): string {
+  /**
+   Field value.
+   */
+  const value = object[key];
+  if ((typeof value) === 'number')
+    return String(value,);
+  return (typeof value) === 'string' ? value : '';
+}
+
+/**
  Publish times per version from a sparse-index file.
 
  @param text - index file, one JSON object per line
@@ -274,11 +320,12 @@ export function parseIndexPubtimes(text: string,): ReadonlyMap<string, string> {
      One version record.
      */
     const record: unknown = JSON.parse(line,);
-    if (isObject(record,) && ((typeof record.vers) === 'string'))
+    if (isObject(record,) && ((typeof record.vers) === 'string')) {
       times.set(
-        String(record.vers,),
-        (typeof record.pubtime) === 'string' ? String(record.pubtime,) : '',
+        stringField({ object: record, key: 'vers', },),
+        stringField({ object: record, key: 'pubtime', },),
       );
+    }
   }
   return times;
 }
@@ -306,22 +353,24 @@ export function parseVersionHistory(text: string,): readonly VersionRecord[] {
    Raw version entries.
    */
   const versions = isObject(body,) && Array.isArray(body.versions,) ? body.versions : [];
-  return versions.filter(isObject,)
+  return versions.filter(function isEntry(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+    return isObject(entry,);
+  },)
     .map(function toRecord(version: Readonly<Record<string, unknown>>,): VersionRecord {
-    /**
-     Publishing account, absent for Trusted Publishing.
-     */
+      /**
+       Publishing account, absent for Trusted Publishing.
+       */
       const publisher = isObject(version.published_by,) ? version.published_by : {};
-    /**
-     Trusted Publishing provenance, absent for a token publish.
-     */
+      /**
+       Trusted Publishing provenance, absent for a token publish.
+       */
       const trustpub = isObject(version.trustpub_data,) ? version.trustpub_data : {};
       return {
-        num: (typeof version.num) === 'string' ? String(version.num,) : '',
-        createdAt: (typeof version.created_at) === 'string' ? String(version.created_at,) : '',
-        publisherId: (publisher.id === undefined) || (publisher.id === null) ? '' : String(publisher.id,),
-        trustpubRepository: (typeof trustpub.repository) === 'string' ? String(trustpub.repository,) : '',
-        repository: (typeof version.repository) === 'string' ? String(version.repository,) : '',
+        num: stringField({ object: version, key: 'num', },),
+        createdAt: stringField({ object: version, key: 'created_at', },),
+        publisherId: idField({ object: publisher, key: 'id', },),
+        trustpubRepository: stringField({ object: trustpub, key: 'repository', },),
+        repository: stringField({ object: version, key: 'repository', },),
       };
     },);
 }
@@ -380,16 +429,20 @@ async function readCachedHistory(path: string,): Promise<readonly VersionRecord[
       path,
       'utf8',
     ),);
-    return Array.isArray(parsed,) ? parsed.filter(isObject,)
-      .map(function toRecord(entry,): VersionRecord {
+    if (!Array.isArray(parsed,))
+      return [];
+    return parsed.filter(function isEntry(entry: unknown,): entry is Readonly<Record<string, unknown>> {
+      return isObject(entry,);
+    },)
+      .map(function toRecord(entry: Readonly<Record<string, unknown>>,): VersionRecord {
         return {
-          num: String(entry.num ?? '',),
-          createdAt: String(entry.createdAt ?? '',),
-          publisherId: String(entry.publisherId ?? '',),
-          trustpubRepository: String(entry.trustpubRepository ?? '',),
-          repository: String(entry.repository ?? '',),
+          num: stringField({ object: entry, key: 'num', },),
+          createdAt: stringField({ object: entry, key: 'createdAt', },),
+          publisherId: stringField({ object: entry, key: 'publisherId', },),
+          trustpubRepository: stringField({ object: entry, key: 'trustpubRepository', },),
+          repository: stringField({ object: entry, key: 'repository', },),
         };
-      },) : [];
+      },);
   } catch (error) {
     log.debug(`no usable cache at ${path} (${String(error,)}); fetching from crates.io`,);
     return [];

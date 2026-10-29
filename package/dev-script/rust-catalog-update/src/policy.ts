@@ -136,6 +136,21 @@ function isPrerelease(version: string,): boolean {
 }
 
 /**
+ Trust level of a release published through Trusted Publishing.
+ */
+const TRUSTED_PUBLISHING_LEVEL = 3;
+
+/**
+ Trust level of a token publish by an account that published an earlier release.
+ */
+const KNOWN_PUBLISHER_LEVEL = 2;
+
+/**
+ Trust level of a token publish by an account new to the crate.
+ */
+const FIRST_TIME_PUBLISHER_LEVEL = 1;
+
+/**
  Heuristic trust level of one release given the releases published before it.
 
  @param record - release to rate
@@ -157,12 +172,12 @@ export function trustLevel({
   readonly earlier: readonly VersionRecord[]
 },): number {
   if (record.trustpubRepository !== '')
-    return 3;
+    return TRUSTED_PUBLISHING_LEVEL;
   return earlier.some(function samePublisher(previous: VersionRecord,): boolean {
     return (previous.publisherId !== '') && (previous.publisherId === record.publisherId);
   },)
-    ? 2
-    : 1;
+    ? KNOWN_PUBLISHER_LEVEL
+    : FIRST_TIME_PUBLISHER_LEVEL;
 }
 
 /**
