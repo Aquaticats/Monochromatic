@@ -10,7 +10,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core';
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { H3, } from 'h3';
@@ -43,7 +43,7 @@ const STATUS_OK = 200;
  */
 async function buildApp(): Promise<H3> {
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-git-routes-',
   ),);
   process.env.WEBAPP_FORGE_GITDIR_ROOT = root;

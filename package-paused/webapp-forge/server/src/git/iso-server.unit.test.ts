@@ -12,7 +12,7 @@ import {
 } from '@monochromatic-dev/test-harness-core';
 import nodeFs from 'node:fs';
 import { mkdtemp, } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import * as git from 'isomorphic-git';
@@ -47,7 +47,7 @@ const ZERO = ZERO_OID;
  */
 async function freshGitdirRoot(): Promise<string> {
   const root = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-iso-server-',
   ),);
   process.env.WEBAPP_FORGE_GITDIR_ROOT = root;
@@ -99,7 +99,7 @@ async function fabricateSingleCommit(): Promise<{
   packfile: Uint8Array;
 }> {
   const gitdir = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'forge-fab-',
   ),);
   await git.init({

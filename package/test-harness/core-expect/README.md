@@ -14,6 +14,15 @@ The runner in [module-test](../core/README.md) still re-exports the existing int
   which supplies a fresh assertion tracker for the runner to validate.
 - `expectTypeOf`,
   re-exported from `expect-type`.
+- `measureTwoSizeRatio` and `expectLinearTimeGrowth`,
+  the two-size timing measurement and its linear-growth bound,
+  so a test proves work over unbounded input stays linear
+  instead of trusting a complexity comment
+  (`RG2`).
+  The caller owns the exposing shape:
+  an input whose early exit avoids the suspected path
+  passes a quadratic function,
+  so land the shape with a test that proves the path runs.
 
 Chai and Sinon remain implementation dependencies.
 Importing this package does not execute a test or install the runner's rejection observer.
@@ -26,6 +35,16 @@ import { expect, expectTypeOf, } from '@monochromatic-dev/test-harness-core-expe
 
 expect([1, 1,],).toAllBe();
 expectTypeOf<string>().toEqualTypeOf<string>();
+```
+
+```ts
+// linear-growth-proof.ts
+import { expectLinearTimeGrowth, } from '@monochromatic-dev/test-harness-core-expect/ts';
+
+expectLinearTimeGrowth({
+  grow: (n,) => `z${'  a b'.repeat(n,)}`,
+  run: (row,) => parseBinList(row,),
+},);
 ```
 
 Workspace consumers use `/ts`.

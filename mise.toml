@@ -1268,7 +1268,6 @@ _.path = [
   "package/pi-plugin/goal/node_modules/.bin",
   "package/pi-plugin/guardrail/node_modules/.bin",
   "package/pi-plugin/model-retirement/node_modules/.bin",
-  "package/pi-plugin/morph-compact/node_modules/.bin",
   "package/pi-plugin/openai-fast/node_modules/.bin",
   "package/pi-plugin/search-fetch/node_modules/.bin",
   "package/pi-plugin/spawn/node_modules/.bin",
