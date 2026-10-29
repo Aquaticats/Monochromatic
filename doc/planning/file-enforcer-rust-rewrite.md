@@ -225,6 +225,32 @@ the user chose "mpm-shadow bin-paths".
 `bins`) that `package/ide/app/src/language/toolchain.rs` parses today,
 so mpm-shadow stays the only owner of the exposure layout.
 
+### Update: mpm where it can, ported lookups elsewhere
+
+Asked 2026-10-29 (re-asked in plainer words after the user wrote "What is going on? I don't understand.")
+how `mpm-shadow update` finds new versions;
+the user chose "Ask mpm where it can" over porting every lookup (my recommendation).
+
+- npm and PyPI tools:
+  `mpm outdated --output-format json`.
+- Ported to Rust:
+  GitHub releases,
+  nodejs.org,
+  crates.io (mpm's `cargo` manager has no `outdated`,
+  `doc/research/mpm-run-capabilities.md`),
+  go,
+  zig,
+  Adoptium,
+  Android,
+  conda.
+- Accepted limits:
+  `mpm outdated` sees only tools installed on the machine running it,
+  and reports no download hashes.
+- Retracted from the first asking:
+  my con that mpm "drops versions" described mpm's restore (install) behavior
+  (`doc/decision/mpm-toolchain-adoption.md:389-399`),
+  not version lookup.
+
 ### browserslist through browserslist-rs
 
 Asked 2026-10-29 what happens to `.browserslistrc.resolved.local.json`;
