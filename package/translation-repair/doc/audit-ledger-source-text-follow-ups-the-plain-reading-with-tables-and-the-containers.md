@@ -713,8 +713,11 @@ None of these is a text that read the same before.
 The proof that a fix is impossible is not claimed for any of them:
 each is a limit not reached in the time of this round.
 
-Round 8 fixed four of these five kinds at source (the image alternative text, the tag-alone footnote,
-the list marker after indented code, and most of the fence marks indented four columns),
+Round 8 fixed four of these five kinds at source
+(the image alternative text,
+the tag-alone footnote,
+the list marker after indented code,
+and most of the fence marks indented four columns),
 and records what it left in [its ledger file][round-eight-file] (B970 to B979).
 
 ### Stated limits after the re-check
