@@ -14,12 +14,16 @@ Purpose:
  so the task-slice contract question can be asked with every candidate measured.
 
 Status:
+ all eight pilots complete 2026-10-29
+ (pnpm 12.16,
+ Nadle 0.6.1,
  Poe the Poet 0.49.0,
  Buck2 2026-10-14,
  Pants 2.33.1,
- and projen 0.104.19 pilots complete 2026-10-29;
- Please and Tilt pilots in flight;
- the ranking below is provisional until they return;
+ projen 0.104.19,
+ Please 17.34.0,
+ Tilt 0.37.8);
+ the ranking below is refrozen over every candidate;
  contract choice still open,
  no adoption performed.
 
@@ -54,9 +58,16 @@ under `~/temp/agent/`.
   report `~/temp/agent/projen-pilot-evidence/`,
   fixture `~/temp/agent/projen pilot spaces.x5`,
   clone `~/temp/agent/projen-src-2026-10-29` at `c8b3fee`.
-- Please and Tilt:
-  pilots in flight,
-  sections land when their reports return.
+- Please 17.34.0 (`thought-machine/please`,
+  Apache-2.0):
+  report `~/temp/agent/please-pilot-report-2026-10-29.md`,
+  fixture `~/temp/agent/please pilot spaces.x7`,
+  clone `~/temp/agent/please-src-2026-10-29` at `a07c97592aaafdb4daa8271796c924a2a14fe184`.
+- Tilt 0.37.8 (`tilt-dev/tilt`,
+  Apache-2.0):
+  report `~/temp/agent/tilt-pilot-report-2026-10-29.md`,
+  fixture `~/temp/agent/tilt pilot spaces.x8`,
+  clone `~/temp/agent/tilt-src-2026-10-29` at `f3acf27d8459924249776d72a82e1d5d99139c33`.
 - meow (selected 2026-09-17,
   plan-only):
   [`monorepo-manager-all-rust.md`](../decision/monorepo-manager-all-rust.md).
@@ -71,7 +82,9 @@ The repo's vocabulary is colon-shaped
 (`build:js:node`,
 `lint:types`)
 and its labels are `//package/<path>:<task>`.
-Only Poe the Poet and projen accept the names verbatim.
+Only Poe the Poet,
+projen,
+and Tilt accept the colon names verbatim.
 
 - Poe the Poet:
   `poe build:js:node` runs;
@@ -87,6 +100,12 @@ Error: Invalid task 'build.js.node'
 - projen:
   `npx projen build:js:node` and `npx projen build.js.node` both run;
   `addTask` rejects only empty names.
+- Tilt:
+  colon resource names run (`build:js:node`),
+  while `//package/<path>:<task>` is rejected as a resource name
+  (`may not contain '/'`)
+  and as a label,
+  and one flat namespace hard-errors on duplicates.
 - Buck2:
   dots and dashes are legal target names,
   colons are not
@@ -106,6 +125,18 @@ error: Invalid target name `build:js:node`. Target names are non-empty strings a
 [ERROR] Failed to parse address spec `pkgs/lib:build:js:node`: error at 1:16: expected EOF
 ```
 
+- Please:
+  the colon is reserved in target names
+  and label parsing splits on the first colon,
+  so `build:js:node` cannot exist in either position:
+
+```text
+# plz build //pkgs/lib:build:js:node
+Invalid build label: //pkgs/lib:build:js:node
+# plz build //pkgs/names:all (genrule name = "build:js:node")
+: is a reserved character in build target names
+```
+
 - Nadle:
   rejects colons at config load,
   as recorded in
@@ -117,18 +148,24 @@ error: Invalid target name `build:js:node`. Target names are non-empty strings a
 Consequences:
  Nadle,
  Buck2,
- and Pants each need a name-mangling compiler over 1,811 task names,
+ Pants,
+ and Please each need a name-mangling compiler over 1,811 task names,
  603 `depends` edges,
  `CM5` addressing,
  and every call site.
-Buck2 and Pants preserve more of the shape than Nadle
-(`build.js.node` keeps its separators;
+Buck2,
+ Pants,
+ and Please preserve more of the shape than Nadle
+(`build.js.node` keeps its separators in all three;
 Nadle allows only letters,
 numbers,
 and dashes).
-Poe the Poet and projen need no rename,
-but address tasks as a flat namespace,
-so `//package/<path>:<task>` still needs a mapping layer.
+Poe the Poet,
+projen,
+and Tilt keep the names
+but address tasks as one flat namespace,
+so `//package/<path>:<task>` still needs a mapping layer
+and Tilt makes the loss explicit in its name validator.
 
 ## Parity gate results
 
@@ -152,24 +189,36 @@ so `//package/<path>:<task>` still needs a mapping layer.
    pass with naming migration;
   address paths keep the shape,
   `tags` plus `--filter-tag-regex` cover grouping.
+- Please:
+   partial;
+  `//pkg:task` works with one colon,
+  colon task names are impossible,
+  package namespace survives in the label path.
+- Tilt:
+   fail;
+  colon names work,
+  `//package/<path>:<task>` is rejected as name and label,
+  duplicates hard-error in one flat namespace.
 - projen:
    fail;
   identity is project directory plus flat name.
 
 ### Partial invocation
 
-All six measured candidates pass:
+All eight measured candidates pass:
  one package,
  one task,
  one invocation.
 
 ### Paths containing spaces
 
-All six pass;
+All eight pass;
 every pilot ran its whole probe catalog from a spaced fixture root.
-Poe the Poet word-splits unquoted `${VAR}` expansions
-(demonstrated),
-so its compiler must quote.
+Two quoting caveats are measured:
+ Poe the Poet word-splits unquoted `${VAR}` expansions,
+ and Please word-splits unquoted `$OUT` and `$SRCS`
+ (the `build_rules` example idiom breaks verbatim),
+ so both compilers must quote.
 
 ### Sequential and parallel groups
 
@@ -191,6 +240,15 @@ so its compiler must quote.
    partial;
   parallel is the engine default,
   sequential is dep edges or one multi-goal invocation.
+- Please:
+   partial;
+  `plz run sequential` and `plz run parallel` exist
+  but only for targets marked `binary = True`.
+- Tilt:
+   partial;
+  `resource_deps` enforce ordering
+  and `allow_parallel = True` enables concurrency,
+  no group abstraction.
 - projen:
    sequential pass,
   parallel fail
@@ -203,6 +261,11 @@ This gate separates the field most sharply.
 - pnpm:
    pass;
   a missing script becomes `missingScript: true` and passes through.
+- Tilt:
+   pass,
+  the best measured behavior;
+  `resource app:lint specified a dependency on unknown resource optional:check - dependency ignored`
+  and the run proceeds.
 - Nadle:
    fail;
   `TaskNotFoundError` exit 3 unless `onlyIf` guards or generated empty tasks model absence.
@@ -228,6 +291,12 @@ Error: Invalid task 'needs:missing'
   (`./pants test pkgs/free/:: pkgs/bench/::` exits 0),
   while a declared missing address is a `ResolveError`
   that also poisons `::` queries.
+- Please:
+   fail;
+  `Parsed build file pkgs/opt2/BUILD but it doesn't contain target extra`
+  is a hard error;
+  lazy parsing spares unrelated single-target runs,
+  while wildcard and whole-graph operations break.
 - projen:
    fail;
   a missing name hard-errors,
@@ -244,12 +313,6 @@ Error: Invalid task 'needs:missing'
    partial;
   `--continue` continues independent work,
   dependents of a failure are blocked.
-- Poe the Poet:
-   fail;
-  `sequence` aborts hide independent siblings,
-  `ignore_fail = "return_non_zero"` recovers them
-  at the cost of double-running shared deps
-  and labeling never-run tasks as failed.
 - Buck2:
    pass;
   independent targets run in the same invocation,
@@ -261,6 +324,24 @@ Error: Invalid task 'needs:missing'
   the dependent is blocked and,
   unlike Buck2,
   silently omitted from the summary.
+- Please:
+   partial;
+  `--keep_going` builds other prerequisites of a doomed target
+  with causes retained,
+  but the default cancels unstarted work
+  and the flag is absent from the website docs.
+- Poe the Poet:
+   fail;
+  `sequence` aborts hide independent siblings,
+  `ignore_fail = "return_non_zero"` recovers them
+  at the cost of double-running shared deps
+  and labeling never-run tasks as failed.
+- Tilt:
+   fail;
+  `tilt ci` aborts at the first failure
+  and abandons unstarted resources with no flag to prevent it;
+  `tilt up` tolerates failures
+  but never exits with an aggregate status.
 - projen:
    fail;
   the first failure aborts everything after it.
@@ -277,9 +358,11 @@ still runs that package's tests.
 - Nadle:
    fail at scheduler level;
   a dependent of a failure is blocked.
-- Poe the Poet:
-   fail;
-  the graph aborts before the dependent test.
+- Please:
+   partial;
+  with `--keep_going` the independent test ran
+  while the build failed;
+  without it the schedule decides.
 - Buck2:
    partial;
   independent tests run,
@@ -287,6 +370,12 @@ still runs that package's tests.
 - Pants:
    pass for independent tests,
   same dependent-blocked shape.
+- Poe the Poet:
+   fail;
+  the graph aborts before the dependent test.
+- Tilt:
+   fail;
+  the independent test was never attempted under `tilt ci`.
 - projen:
    fail;
   sequential abort is the only semantics.
@@ -300,10 +389,6 @@ still runs that package's tests.
 - Nadle:
    pass;
   `--reporter agent` emits a typed cause.
-- Poe the Poet:
-   partial;
-  aggregates name failing subtasks,
-  skipped dependents are misreported as failures.
 - Buck2:
    pass;
   exact command line,
@@ -313,6 +398,18 @@ still runs that package's tests.
    pass;
   `ProcessExecutionFailure` with stdout,
   plus `--keep-sandboxes=on_failure`.
+- Please:
+   pass;
+  aggregates name the failing target with error text and stdout,
+  xUnit `test_results.xml` retains the cause.
+- Tilt:
+   pass;
+  `buildHistory[0].error` and `conditions` retain the cause,
+  `waiting-for-dep` distinguishes skips from pending.
+- Poe the Poet:
+   partial;
+  aggregates name failing subtasks,
+  skipped dependents are misreported as failures.
 - projen:
    pass with caveat;
   both layers name command and `cwd`,
@@ -328,10 +425,6 @@ still runs that package's tests.
   `--list`,
   `--dry-run`,
   `--graph` with `--json`.
-- Poe the Poet:
-   fail;
-  `_list_tasks` prints names only,
-  no JSON and no edge dump.
 - Buck2:
    pass;
   `targets --json`,
@@ -342,23 +435,45 @@ still runs that package's tests.
    pass;
   `peek` JSON with `execution_dependencies`,
   `help-all` JSON.
+- Please:
+   partial;
+  `plz query graph` is JSON
+  with per-target deps,
+  outs,
+  command,
+  and hash,
+  but no task catalog shape.
+- Tilt:
+   partial;
+  `tilt get ... -o json` is rich
+  but needs a live server,
+  and the offline snapshot writer corrupts longer existing files.
 - projen:
    partial;
   `.projen/tasks.json` is a stable manifest
   but the runner has no JSON output mode.
+- Poe the Poet:
+   fail;
+  `_list_tasks` prints names only,
+  no JSON and no edge dump.
 
 ### Correct aggregate exit status
 
-All six return nonzero on failure;
+All eight return nonzero on failure;
 Buck2 returns 3,
+Please returns 2 for builds and 7 for tests,
 Pants returns 1 or 241 by failure class,
-projen collapses every child code to 1.
+Tilt and projen collapse child codes to 1.
 
 ## Task bodies and escaping
 
 Typed argv bodies are safe wherever they exist;
 every shell-string form needs a quoting compiler,
-and naive compilation corrupts silently in pnpm and Buck2.
+and naive compilation corrupts silently
+in pnpm,
+Buck2,
+Please,
+and Tilt.
 
 - Nadle:
    typed TS in-process,
@@ -374,6 +489,18 @@ and naive compilation corrupts silently in pnpm and Buck2.
 - Pants:
    `adhoc_tool` typed argv is byte-exact;
   `shell_command` needs BUILD-string plus bash single-quote encoding.
+- Please:
+   BUILD string,
+  Please's own `\$` rewrite,
+  and shell quoting;
+  Please rewrites `\$` to `$` before bash sees the command,
+  so shell-level dollar escaping is silently undone
+  (measured),
+  while correct single-quote encoding is byte-exact.
+- Tilt:
+   argv-list form is byte-exact;
+  string form runs `sh -c`
+  and silently strips quotes and expands `${x}`.
 - projen:
    `execArgs` argv is byte-exact;
   `exec` shell strings are dialect-specific
@@ -393,6 +520,8 @@ Measured body:
  reproduced byte-exact by Poe the Poet `cmd`,
  Buck2 `escape-quoted`,
  Pants `adhoc_tool`,
+ Please `escape_safe`,
+ Tilt argv-list,
  and projen `execArgs`.
 
 ## Caching, watch, and affected selection
@@ -409,6 +538,14 @@ Measured body:
   `local_cache_requests_cached: 1`),
   `--loop` watch,
   `--changed-since`.
+- Please:
+   caching pass
+  (input-hash skip across separate invocations),
+  watch partial
+  (build targets rebuild;
+  watched test bodies served `[cached]` after source changes),
+  affected selection pass-with-caveat
+  (`plz query changes --since` checks the ref out in the live worktree).
 - pnpm:
    partial;
   experimental `pnpm pipeline` caching,
@@ -421,6 +558,12 @@ Measured body:
   no watch command
   (`subscribe` is an RPC channel),
   affected selection composes from `owner()` and `rdeps()`.
+- Tilt:
+   caching absent,
+  watch pass
+  (auto rerun under `tilt up`,
+  `tilt trigger` for manual runs),
+  affected selection absent.
 - Poe the Poet:
    absent;
   `uses` re-executes within a run,
@@ -442,6 +585,12 @@ Maintenance:
  no stable tag),
  pnpm is a large ecosystem,
  projen is org-owned with about two main humans behind heavy automation,
+ Please is single-maintainer-leaning
+ (Peter Ebden 22 of 28 recent human commits,
+ active releases),
+ Tilt is concentrated
+ (top human contributor about 3.5 times the second,
+ monthly releases),
  Poe the Poet is single-maintainer
  (`nat-n`,
  2,093 stars,
@@ -475,13 +624,28 @@ reproduces in every measured candidate:
   ([bash sentence, selected](https://github.com/facebook/buck2/blob/9ac63c5839fc5a874e766947e276a5fd0292789e/prelude/decls/genrule_common.bzl#L100))
   say `bash -c`,
   the observed invocation is `bash -e <script>`,
-  `--keep-going` means different things on `build` versus `targets`.
+  `--keep_going` means different things on `build` versus `targets`.
 - Pants:
    `pants help shell_command` advertises a goal that does not exist,
   the shell docs
   ([outputs sentence, selected](https://www.pantsbuild.org/stable/docs/shell/run-shell-commands#:~:text=list%20them%20in%20the%20outputs%20field))
   name a nonexistent `outputs` field,
   PyPI `pantsbuild.pants` is frozen at 2.17.1.
+- Please:
+   the commands doc
+  ([-a sentence, selected](https://please.build/commands.html#:~:text=arguments%20must%20be%20passed%20one%20by%20one%20via%20the))
+  documents an `-a` form that fails verbatim
+  (`the required argument 'target (at least 1 argument)' was not provided`),
+  `--keep_going` is absent from the website docs entirely,
+  and the build-rules example leaves `$SRCS` and `$OUT` unquoted.
+- Tilt:
+   the `tilt ci` doc
+  ([snapshot sentence, selected](https://docs.tilt.dev/cli/tilt_ci.html#:~:text=If%20specified%2C%20Tilt%20will%20dump%20a%20snapshot%20of%20its%20state))
+  promises a state snapshot
+  while the writer omits `O_TRUNC`
+  (invalid JSON over a longer existing file,
+  reproduced),
+  and `tilt trigger` reports success for resources that never run.
 - projen:
    the tasks doc
   ([POSIX sentence, selected](https://github.com/projen/projen/blob/c8b3fee593c07e38a258ccffd2e57c8eba505b8c/docs/concepts/tasks.md?plain=1#L241))
@@ -496,16 +660,20 @@ Finding:
 
 ## Ranking for the task slice
 
-Provisional until the Please and Tilt reports return.
+Refrozen after all six added pilots returned.
 
 1.  Pants 2.33.1 with a name-mangling compiler and generated BUILD files.
 2.  Nadle 0.6.1 with a rename and missing-optional modeling.
 3.  Buck2 2026-10-14 with name flattening and a target-generation layer.
-4.  pnpm 12.16 with adapters and the three recorded shifts.
-5.  Poe the Poet 0.49.0 with a quoting compiler and stub emission.
-6.  projen 0.104.19 with hand-written aggregation tasks.
-7.  meow as designed.
-8.  Keep Mise.
+4.  Please 17.34.0 with a rename,
+ stub emission,
+ and a `--keep_going` wrapper contract.
+5.  pnpm 12.16 with adapters and the three recorded shifts.
+6.  Tilt 0.37.8 with a `tilt up` wrapper that invents the aggregate exit.
+7.  Poe the Poet 0.49.0 with a quoting compiler and stub emission.
+8.  projen 0.104.19 with hand-written aggregation tasks.
+9.  meow as designed.
+10. Keep Mise.
 
 - Pants beats Nadle because both need the same name migration,
   while Pants passes missing-optional sweeps
@@ -521,13 +689,28 @@ Provisional until the Please and Tilt reports return.
   zero cache hits across daemon restarts),
   and Nadle's missing-optional gap is modelable with `onlyIf`
   while Buck2's cache gap is architectural.
-- Buck2 beats pnpm because edges are exact by construction,
-  against 476 over-approximated `^name` edges that change failure semantics,
-  and Buck2 runs independent work after a failure with retained causes
-  while pnpm dependents of a failure never run.
-- pnpm beats Poe the Poet because a missing optional script passes through,
-  while one missing Poe task reference poisons every run in the project,
-  and pnpm ships graph JSON where Poe has no machine-readable listing.
+- Buck2 beats Please because Buck2 passes intentional failure tolerance
+  by default with retained causes
+  and offers a typed argv escape hatch,
+  while Please reaches only partial tolerance behind an undocumented flag
+  and its shell-only bodies carry a measured `\$` un-escape hazard.
+- Please beats pnpm because edges are exact per target,
+  caching is input-hash based across invocations,
+  and watch and `--since` exist,
+  against 476 over-approximated `^name` edges that change failure semantics
+  and no watch at all;
+  the price is the same rename class plus missing-optional stubs.
+- pnpm beats Tilt because `--no-bail` continues independent work
+  while `tilt ci` abandons it with no flag,
+  pnpm caches where Tilt does not,
+  and pnpm keeps the colon names as script keys
+  where Tilt flattens 1,811 names into one namespace.
+- Tilt beats Poe the Poet because a missing optional dependency
+  warns and is ignored
+  instead of poisoning every run in the project,
+  watch works,
+  and `tilt get -o json` retains causes
+  where Poe has no JSON listing at all.
 - Poe the Poet beats projen because its dependency graph dedups
   and it offers parallel and `ignore_fail` modes,
   while projen has no parallel step type
@@ -542,16 +725,21 @@ Provisional until the Please and Tilt reports return.
 
 - Name migration is structural for Nadle,
   Buck2,
-  and Pants:
+  Pants,
+  and Please:
    1,811 names,
   603 edges,
   and the `//package/<path>:<task>` call sites.
-- Buck2 and Pants are build systems,
+- Buck2,
+  Pants,
+  and Please are build systems,
   not task runners;
-  both need a target-generation layer
-  and carry heavier daemons and config surfaces than `mise.toml`.
+  each needs a target-generation layer
+  and carries heavier daemons and config surfaces than `mise.toml`.
 - Silent body corruption is demonstrated for pnpm,
   Buck2 `genrule`,
+  Please (both quoting and the `\$` un-escape),
+  Tilt string commands,
   and double-quoted Poe `cmd`;
   any shell-string owner must ship the quoting compiler with tests.
 - Buck2 local actions have ambient filesystem and network access
@@ -559,7 +747,14 @@ Provisional until the Please and Tilt reports return.
   matching Mise's trust model but weaker than Pants' declared-input sandbox.
 - Exit-code handling must treat any nonzero as failure
   (Buck2 uses 3,
+  Please 2 and 7,
   Pants mixes 1 and 241).
+- Tilt's batch mode cannot own failure tolerance at all;
+  its only tolerant path (`tilt up`) never exits with a status,
+  so a wrapper must invent the aggregate exit.
+- Please's failure tolerance hides in `--help` only,
+  and its `--since` checks revisions out in the live worktree,
+  refusing dirty ones.
 - The Pants pilot committed once inside its scratch fixture
   (`8448e0e`,
   no remote)
@@ -567,9 +762,8 @@ Provisional until the Please and Tilt reports return.
 
 ## Next action
 
-Please and Tilt pilots return into this comparison,
-then the task-slice contract question is asked
-with every candidate,
-the ranking refrozen,
-and adoption still waits for explicit acceptance
+The contract question is asked with every candidate,
+including how the documentation-drift class should weigh now that
+every measured candidate shows it;
+adoption still waits for explicit acceptance
 (`doc/decision/` record plus a reopened vet for the chosen candidate).

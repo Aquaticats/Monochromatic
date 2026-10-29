@@ -253,5 +253,6 @@ Nadle,
 and meow in
 [`task-slice-comparison.md`](task-slice-comparison.md),
 which supersedes the ranking in this doc.
-Please and Tilt pilots follow the same pattern,
-then the contract question is asked again with every candidate.
+Please and Tilt are measured in the same comparison,
+which now covers every candidate
+and precedes the contract question.

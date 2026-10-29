@@ -529,16 +529,20 @@ Update 2026-10-29 (task-slice comparison):
 joins the measured Poe the Poet 0.49.0,
 Buck2 2026-10-14,
 Pants 2.33.1,
-and projen 0.104.19 pilots
+projen 0.104.19,
+Please 17.34.0,
+and Tilt 0.37.8 pilots
 with pnpm 12.16,
 Nadle 0.6.1,
 meow,
 and keeping Mise.
-Only Poe the Poet and projen keep the colon task names;
+Only Poe the Poet,
+projen,
+and Tilt keep the colon task names;
+Tilt fails the failure-tolerance gate outright in batch mode;
 the documented-drift class that culled Nadle reproduces in every candidate,
 so it is recorded per candidate rather than used as a cull.
-Please and Tilt pilots are in flight,
-then the contract question is asked with every candidate.
+The contract question follows with every candidate.
 
 Parity gate:
  preserve package namespaces,
