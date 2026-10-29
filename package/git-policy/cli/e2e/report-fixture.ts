@@ -89,7 +89,10 @@ export function summarize(results: readonly ScenarioResult[],): readonly string[
     function byGroupAndStatus(result,) {
       return `${result.group} ${result.status}`;
     },
-  ),].map(function countEntry([key, grouped,],) {
+  ),].map(function countEntry([key, grouped,]: readonly [
+    string,
+    readonly ScenarioResult[]
+  ],) {
     return [
       key,
       grouped.length,
