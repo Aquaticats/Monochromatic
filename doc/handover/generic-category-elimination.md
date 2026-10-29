@@ -232,7 +232,18 @@ User decisions taken during execution
   - `p-memoize`: upstream 9.0.0 (floating `>=9.0.0`) changed the clear message and the `cache: false` ordering;
      ported in `21bff0aa78`.
     User chose a full 9.0.0 port next; its subagent is in flight.
-  - `p-map`: subagent in flight.
+  - `p-map`: the lockfile moved the floating oracle from 7.0.8 to 7.1.1 (`755685da03`, 2026-10-14);
+     the 7.1.x engines were ported in `56aa14e30f` through `7c45cfd072`
+     (parity and coverage gates pass, confirmed by a rerun).
+    User chose to port the new 7.1 APIs too (`pMapSettled`, `pMapKeyed`, `pMapSettledKeyed`, `pMapStop`, `preserveOrder`),
+     mirroring upstream's shapes; its subagent is in flight.
+  - `jsonc-edit/core-ts.fuzz` coverage: `6d66763505` refroze four source-explained deltas
+     (removed `rebuildEntry` callbacks and the JSON.parse fast path)
+     and made the driver reach `emitPlainJson` again;
+     the gate passes (17 files).
+    Nothing outside tests constructs the public `plainJson` value kind any more.
+  - Each fuzz sidecar's `coverage-report.ts` still reports 3 `prefer-readonly-parameter-type` lint errors (pre-existing);
+     the porting subagents fix theirs if cheap.
 - `0c5e7be0ee`:
    ten fuzz sidecars built `SOURCE_MARKER` from `${sep}`-joined old segments (`package/module/<x>-fork/src`),
    a form the move rewrite could not see, so every `fuzz:coverage` gate projected nothing.
