@@ -85,18 +85,18 @@ export const noSystemTmpdir: CreateOnceRule = {
         }
       },
       VariableDeclarator(node: ForeignBorrowed<ESTree.VariableDeclarator>,): void {
-        if (node.id.type !== 'ObjectPattern' || node.init === null || node.init === undefined)
+        if ((node.id.type !== 'ObjectPattern') || (node.init === null) || (node.init === undefined))
           return;
         /**
          The imported module expression, unwrapped from an `await`.
          */
         const source = node.init.type === 'AwaitExpression' ? node.init.argument : node.init;
-        if (source.type !== 'ImportExpression' || source.source.type !== 'Literal')
+        if ((source.type !== 'ImportExpression') || (source.source.type !== 'Literal'))
           return;
         if (!OS_MODULE_SPECIFIERS.has(String(source.source.value,),))
           return;
         for (const property of node.id.properties) {
-          if (property.type !== 'Property' || property.computed || property.key.type !== 'Identifier')
+          if ((property.type !== 'Property') || property.computed || (property.key.type !== 'Identifier'))
             continue;
           if (property.key.name !== TMPDIR_NAME)
             continue;
@@ -111,9 +111,9 @@ export const noSystemTmpdir: CreateOnceRule = {
          Callee of the call under inspection.
          */
         const { callee, } = node;
-        if (callee.type !== 'MemberExpression' || callee.computed)
+        if ((callee.type !== 'MemberExpression') || callee.computed)
           return;
-        if (callee.property.type !== 'Identifier' || callee.property.name !== TMPDIR_NAME)
+        if ((callee.property.type !== 'Identifier') || (callee.property.name !== TMPDIR_NAME))
           return;
         context.report({
           node,
