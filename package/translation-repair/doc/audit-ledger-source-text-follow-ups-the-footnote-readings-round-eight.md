@@ -380,7 +380,15 @@ after the merge,
 package/translation-repair/typography/src/semantic-wrap.config.jsonc --stdin --stdin-filename passage.md --fix` printed
 `mise ERROR No version is set for shim: monochromatic-lint`,
 and the scan reads `monochromatic-lint ENOENT`.
-The tool is not installed by this branch and was not worked around.
+The tool was not installed and the scan was not worked around.
+One deviation:
+`cli-git` refused to stage a Markdown file because it found no `monochromatic-lint` in an absolute
+directory of the keyless path,
+so the commit of the ledger docs ran with one added directory that holds a single symbolic link to the
+`monochromatic-lint` binary of `.cargo/bin`,
+where the binary stands on disk.
+No guard was switched off.
+That task matched no file for an untracked Markdown file and passed the three edited ones.
 
 On the cache versions,
 `git log --extended-regexp -G '_CACHE_VERSION = [0-9]+' fd7f44c844..HEAD` prints nothing,
