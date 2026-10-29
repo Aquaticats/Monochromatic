@@ -194,7 +194,11 @@ const SEAT_OF_SERVED: ReadonlyMap<string, RosterModelId> = new Map(
  */
 const PLACEHOLDER_SEATS: ReadonlySet<RosterModelId> = new Set(
   ROSTER_MODEL_IDS.filter(function namesPooled99(modelId,): boolean {
-    return MODEL_CARDS[modelId].completionCap === 'pooled-p99';
+    /**
+     Cap the card carries: a measured number or a pooled percentile's name.
+     */
+    const { completionCap, } = MODEL_CARDS[modelId];
+    return completionCap === 'pooled-p99';
   },),
 );
 

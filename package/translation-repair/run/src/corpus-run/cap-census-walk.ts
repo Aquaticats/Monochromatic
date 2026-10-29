@@ -87,7 +87,9 @@ type Visit =
  ```
  */
 function isMissingPath({ error, }: { readonly error: unknown; },): boolean {
-  return (error instanceof Error) && ('code' in error) && (error.code === 'ENOENT');
+  if (!Error.isError(error,))
+    return false;
+  return ('code' in error) && (error.code === 'ENOENT');
 }
 
 /**
@@ -99,6 +101,7 @@ function isMissingPath({ error, }: { readonly error: unknown; },): boolean {
  command line is always reported, whatever it is.
 
  @param next - the path that failed
+
  @param error - what the read raised
 
  @returns Whether the failure may be passed over without a word
@@ -117,7 +120,16 @@ function isLogLessDanglingLink(
     readonly error: unknown;
   },
 ): boolean {
-  return next.link && (next.depth > 0) && (!next.path.endsWith('.log',)) && isMissingPath({ error, },);
+  if ((!next.link) || (next.depth === 0))
+    return false;
+
+  /**
+   The path the failed visit was for.
+   */
+  const { path, } = next;
+  if (path.endsWith('.log',))
+    return false;
+  return isMissingPath({ error, },);
 }
 
 /**
@@ -181,7 +193,11 @@ async function visit({ next, }: { readonly next: PendingPath; },): Promise<Visit
       children: entries
         .filter(function visited(entry,): boolean {
           // A REGULAR FILE THAT IS NO LOG IS DROPPED BY ITS NAME, before any stat: it would be read as nothing.
-          return (!SKIPPED_DIRS.has(entry.name,)) && ((!entry.isFile()) || entry.name.endsWith('.log',));
+          /**
+           The entry's name.
+           */
+          const { name, } = entry;
+          return (!SKIPPED_DIRS.has(name,)) && ((!entry.isFile()) || name.endsWith('.log',));
         },)
         .map(function child(entry,): PendingPath {
           return {
