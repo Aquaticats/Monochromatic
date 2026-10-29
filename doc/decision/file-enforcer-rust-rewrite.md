@@ -236,13 +236,27 @@ and accepted with this record:
 - Gates before implementation:
   a live forbidden-strings run on throwaway rules files (including a missing optional entry),
   `browserslist-rs` on the real `.browserslistrc` feeding the rolldown consumer,
-  `mpm outdated` probes varying installed,
+  and `mpm outdated` probes varying installed,
   locked,
-  and registry versions (the reading rule stays pending until then),
-  and choosing-technology vets for `toml_edit`,
+  and registry versions (the reading rule stays pending until then).
+- Dependencies,
+  decided 2026-10-29 without completed vets:
+  the user wrote "I'm approving toml_edit,
+  browserslist-rs,
+  schemars as-is.
+  For xml editor,
+  write one ourselves like what we did for jsonc."
+  `toml_edit`,
   `browserslist-rs`,
-  `schemars`,
-  and an XML editor.
+  and `schemars` enter `rust-catalog.toml` as approved;
+  the JetBrains rule's XML editing uses a new in-repo crate built the way `monochromatic-jsonc-edit` was
+  (`doc/decision/jsonc-edit-rust-foundation.md`:
+  an owned scanner,
+  parser,
+  and emitter with no third-party parser),
+  preserving comments and formatting outside edited elements
+  and rejecting malformed managed XML with a diagnostic.
+  The four halted vet drafts under `doc/audit/tech-file-enforcer-*-vet-2026-10-29.md` are superseded by this.
 - Follow-ups:
   process rules in issue #1817.
 
