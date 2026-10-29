@@ -506,6 +506,22 @@ The draft below was posted as
 [pnpm/pnpm.io#987](https://github.com/pnpm/pnpm.io/issues/987)
 on 2026-10-28
 after the user authorized filing.
+
+Update 2026-10-29:
+ the issue body was rewritten to link to selection,
+the `TXF` rule,
+after the user asked for it.
+Doc quotes now carry `#:~:text=` links to the rendered pages
+and source citations are commit-pinned line permalinks
+(`?plain=1` on Markdown files,
+whose rendered view carries no line anchors).
+Every link was opened with `agent-browser`;
+the text-fragment links scrolled the quoted sentences into view
+and the permalinks resolved their `#L` anchors.
+One caveat measured while verifying:
+ `pnpm.io`'s SPA hydration occasionally resets scroll after a match,
+so a failed first probe does not mean the link is wrong;
+re-opening the same URL scrolls correctly.
 The help-hidden flags in `pnpm/crates/cli/src/cli_args/cli_command.rs` are a
 separate code change in a separate repository.
 They are recorded above but not included in this draft,
