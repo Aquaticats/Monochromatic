@@ -651,9 +651,18 @@ Run this whenever the user asks whether a draft is ready,
    (for example showing the reproduction needs no runtime at all).
     Stop short of a recommendation only for a blocker the agent cannot clear:
    a field only the poster can answer,
-   a human re-run the user requires,
+   a step the user has actually said they require,
    or a rule that forbids posting.
     Name that blocker and what would clear it.
+    Never invent a requirement.
+   A gate counts only when a rule the agent can quote, the target's own policy, or the user's own words imposes it.
+   "A human must re-run it", "a maintainer must pre-approve it" and
+   "wait for the owner's go-ahead on a draft" are not requirements
+   unless one of those sources says so,
+   and a draft or checklist that lists one as unmet blocks a recommendation on nothing.
+   Before writing an item under "Not met" or "Before anyone posts it",
+   name the source that imposes it,
+   and delete the item when there is none.
     Put any choice the user has to make in a question tool,
    not in prose.
 

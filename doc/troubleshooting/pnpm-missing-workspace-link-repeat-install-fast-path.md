@@ -466,14 +466,9 @@ and it carries the disclosure footer that pnpm's `CONTRIBUTING.md` asks for.
 
 Before anyone posts it:
 
-- Re-run the reproduction (with the setup in the block) and read the cited source,
-  because no human has yet done either,
-  and the footer claims an agent wrote it,
-  not that a person checked it.
-- Attach the patch file `pnpm-missing-workspace-link-repeat-install-fast-path.patch` from this directory;
-  the block says it is attached.
-- Pick labels from the tracker's own set;
-  none were looked up here.
+- Attach the patch files `pnpm-missing-workspace-link-repeat-install-fast-path.patch` and
+  `pnpm-missing-workspace-link-repeat-install-fast-path.v11.patch` from this directory;
+  the block says they are attached.
 - Weigh the risk to the poster's account before posting anything.
   Some repositories run trust or blocklist systems (Vouch is one;
   others exist and this doc did not survey them) that close or lock issues and pull requests from unvouched users,
@@ -503,7 +498,6 @@ Before anyone posts it:
   and the reproduction needs no Node.js,
   which answers the form's Node.js field.
   Not met:
-  no human has re-run the reproduction;
   the pnpm 11 prototype was checked only as a function in isolation,
   not inside pnpm 11's build or test suite;
   the regression evidence for the CLI repeat-install suites is weak (about 190 of them fail in the sandbox with and without the change);
