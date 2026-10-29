@@ -2,7 +2,22 @@
 //!  the layout, the symbolic `HEAD`, the conclusion, the ref backend and the base.
 
 use super::*;
+use crate::ref_files::tests::{Probe, probe};
 use crate::test_support::{fixture, git, git_context, git_text, repository, remove};
+#[cfg(unix)]
+use crate::recording_git::{recorded_starts, recording_context};
+
+/// The conclusion kind of the repository at `repo`, with the layout Git reports for it.
+fn conclusion_of(repo: &Path, amend: bool) -> Result<Conclusion, GitFailure> {
+    let found: Probe = probe(repo);
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: found.git_dir.as_path(),
+        common_dir: found.common_dir.as_path(),
+        ref_format: found.ref_format,
+        object_format: found.object_format.as_str(),
+    };
+    return resolve_conclusion_kind(&git_context(), repo, amend, &ref_files);
+}
 
 /// Git's empty tree under SHA-1, the object format of every fixture.
 const SHA1_EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
@@ -36,6 +51,99 @@ fn branch_layout_names_the_branch_and_the_store() {
     remove(root.as_path());
 }
 
+/// The empty tree of a SHA-1 or SHA-256 repository is known without hashing:
+///  no `hash-object` start happens and the recorded name is what Git hashes.
+#[test]
+#[cfg(unix)]
+fn the_empty_tree_of_a_known_format_starts_no_hash_object() {
+    for format in ["sha1", "sha256"] {
+        let root: PathBuf = fixture(format!("capture-invocation-no-hash-{format}").as_str());
+        let repo: PathBuf = root.join("repo");
+        std::fs::create_dir(&repo).expect("fixture");
+        git(repo.as_path(), &["init", "--quiet", format!("--object-format={format}").as_str()]);
+        let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+        let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+        let starts: Vec<String> = recorded_starts(log.as_path());
+        assert!(!starts.is_empty(), "the recorder must see the layout's other starts");
+        for start in &starts {
+            assert!(!start.starts_with("hash-object"), "unexpected start: {start}");
+        }
+        let oracle: String = git_text(repo.as_path(), &["hash-object", "-t", "tree", "--stdin"]);
+        assert_eq!(layout.empty_tree_oid, oracle);
+        remove(root.as_path());
+    }
+}
+
+/// The symbolic `HEAD` of a plain branch or a detached `HEAD` is read from the file:
+///  no `symbolic-ref` start happens, and the answer equals Git's.
+#[test]
+#[cfg(unix)]
+fn a_plain_head_starts_no_symbolic_ref() {
+    let root: PathBuf = fixture("capture-invocation-no-symbolic-ref");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+    let branch: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(branch.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    git(repo.as_path(), &["checkout", "--quiet", "--detach"]);
+    let detached: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(detached.symbolic_head, SymbolicHead::Detached);
+    let starts: Vec<String> = recorded_starts(log.as_path());
+    assert!(!starts.is_empty(), "the recorder must see the layout's other starts");
+    for start in &starts {
+        assert!(!start.starts_with("symbolic-ref"), "unexpected start: {start}");
+    }
+    remove(root.as_path());
+}
+
+/// A `HEAD` the file reader declines is answered by Git with the same semantics as before:
+///  a symbolic branch resolves to the end of its chain, and a reftable repository names its real branch.
+#[test]
+#[cfg(unix)]
+fn a_declined_head_falls_back_to_git() {
+    let root: PathBuf = fixture("capture-invocation-head-fallback");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
+    git(repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/alias"]);
+    let (context, log): (GitContext, PathBuf) = recording_context(root.as_path());
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    assert_eq!(layout.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/main")));
+    assert_eq!(recorded_starts(log.as_path()).iter().filter(|start| { return start.starts_with("symbolic-ref"); }).count(), 1);
+
+    let reftable_repo: PathBuf = root.join("reftable");
+    std::fs::create_dir(&reftable_repo).expect("fixture");
+    git(reftable_repo.as_path(), &["init", "--quiet", "--initial-branch=trunk", "--ref-format=reftable"]);
+    let reftable: InvocationLayout =
+        capture_invocation_layout(&git_context(), reftable_repo.as_path(), false).expect("layout");
+    assert_eq!(reftable.ref_format, RefFormat::Reftable);
+    assert_eq!(reftable.symbolic_head, SymbolicHead::Branch(String::from("refs/heads/trunk")));
+    remove(root.as_path());
+}
+
+/// The landing's compare-and-swap protection: a `HEAD` rewritten after the capture is seen by the next call,
+///  because the call reads the file again.
+#[test]
+fn a_head_rewritten_after_the_capture_is_seen_by_the_next_call() {
+    let root: PathBuf = fixture("capture-invocation-head-rewrite");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["update-ref", "refs/heads/other", head.as_str()]);
+    let context = git_context();
+    let layout: InvocationLayout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let ref_files: RefFilesLayout<'_> = RefFilesLayout {
+        git_dir: layout.git_dir.as_path(),
+        common_dir: layout.common_dir.as_path(),
+        ref_format: layout.ref_format,
+        object_format: layout.object_format.as_str(),
+    };
+    assert_eq!(resolve_symbolic_head(&context, repo.as_path(), &ref_files), Ok(layout.symbolic_head.clone()));
+    std::fs::write(layout.git_dir.join("HEAD"), "ref: refs/heads/other\n").expect("fixture");
+    assert_eq!(
+        resolve_symbolic_head(&context, repo.as_path(), &ref_files),
+        Ok(SymbolicHead::Branch(String::from("refs/heads/other")))
+    );
+    remove(root.as_path());
+}
+
 /// A detached `HEAD` makes `HEAD` itself the ref the landing advances.
 #[test]
 fn detached_head_targets_head_itself() {
@@ -55,26 +163,25 @@ fn conclusion_markers_decide_the_kind() {
     let root: PathBuf = fixture("capture-invocation-conclusion");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let context = git_context();
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), true),
+        conclusion_of(repo.as_path(), true),
         Ok(Conclusion::Amend)
     );
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Merge)
     );
     std::fs::remove_file(repo.join(".git").join("MERGE_HEAD")).expect("fixture");
     std::fs::write(repo.join(".git").join("CHERRY_PICK_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::CherryPick)
     );
     std::fs::remove_file(repo.join(".git").join("CHERRY_PICK_HEAD")).expect("fixture");
     std::fs::write(repo.join(".git").join("REVERT_HEAD"), format!("{head}\n")).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&context, repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Revert)
     );
     remove(root.as_path());
@@ -87,7 +194,7 @@ fn garbage_marker_is_not_a_conclusion() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), "not-an-object\n").expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&git_context(), repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::None)
     );
     remove(root.as_path());
@@ -104,7 +211,7 @@ fn a_marker_naming_a_missing_object_is_still_a_conclusion() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::write(repo.join(".git").join("MERGE_HEAD"), format!("{}\n", "a".repeat(40))).expect("fixture");
     assert_eq!(
-        resolve_conclusion_kind(&git_context(), repo.as_path(), false),
+        conclusion_of(repo.as_path(), false),
         Ok(Conclusion::Merge)
     );
     remove(root.as_path());

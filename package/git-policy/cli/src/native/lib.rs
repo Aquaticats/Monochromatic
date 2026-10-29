@@ -92,6 +92,12 @@ pub mod real_git_candidate;
 #[cfg(test)]
 mod test_support;
 
+/// A Git stand-in that logs each start and runs the real Git;
+///  never part of the release executable.
+#[cfg(test)]
+#[cfg(unix)]
+mod recording_git;
+
 /// Repository and worktree identity as reported by real Git.
 pub mod worktree_identity;
 
@@ -704,6 +710,15 @@ pub mod replay_revalidation;
 
 /// Replay: one replay of a prepared commit onto a moved target, the integrator's replay result (`replay_commit`).
 pub mod replay_commit;
+/// The empty tree's object name under each known object format.
+pub mod empty_tree;
+
+/// Files-backend ref reads that answer without a Git process or decline.
+pub mod ref_files;
+
+/// Proof, without a Git process, that a sequencer marker names nothing on the files ref storage.
+pub mod sequencer_marker;
+
 /// The invocation capture:
 ///  repository layout, symbolic `HEAD`, conclusion kind, ref backend and base.
 pub mod capture_invocation;
@@ -773,6 +788,9 @@ pub mod process_start;
 
 /// The Git version check run once before work that depends on Git's behavior.
 pub mod git_version;
+
+/// The private per-user cache of the version text, keyed by the Git executable's identity.
+pub mod git_version_cache;
 
 /// Processes holding a lock file open,
 ///  found by device and inode.
