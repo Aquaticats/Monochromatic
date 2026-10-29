@@ -1065,6 +1065,16 @@ Remaining:
      `generate.ts`, their tests, `src/package/mise.container-test.ts`).
      This session keeps `types.ts`, `paths.ts`, `plan.ts`, `plan.load.ts`, `lock.ts`, `src/index.ts`,
      the toolchain tests' `require-eventual-artifact` imports, and any cross-cluster signature change the agents report.
+     `lock.ts` and `plan.ts` are done (0 findings).
+     Open question for the owner, to ask with the agents' reports:
+      `types.ts` mirrors `toolchain.lock.json`, which holds 120 JSON `null` values
+      (30 `manager`, 30 `packageId`, 59 `os`, 1 `requiresTool`)
+      and is read outside file-enforcer (`package/test-harness/core-matrix`, `package/ide/app/bin/inspect-language-toolchain.ts`,
+      `package/translation-repair/typography`);
+      `no-nullish-union` either becomes optional fields with omitted lock keys (a format change for those readers)
+      or keeps `null` in the on-disk mirror type behind a documented scoped disable.
+     `paths.ts`'s `isMainModule` uses `realpathSync` at every toolchain entry point's top level,
+      so its `no-sync` fix changes callers in all three clusters.
 5.  Open, not fixed:
      the overwrite, TOML-write, JetBrains, and Mise-manifest suites time out on
      `node_modules/.cache/file-enforcer/staleness-manifest.json.lock` when the whole suite runs in parallel,
