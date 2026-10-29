@@ -353,7 +353,7 @@ function judgingClient({ rendering, }: { readonly rendering: string; },): ModelC
  @param incumbentText - wording the archive carries for the slice, the
  archive's own wording when absent
 
- @param declaredSubjectForms - the forms among them that name the subject,
+ @param declaredSubjectForms - forms among them that name the subject,
  absent when preparation named none
 
  @returns Record the lane settled on

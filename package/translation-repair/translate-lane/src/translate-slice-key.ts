@@ -141,7 +141,7 @@ export function translateRunShape(
  side, shown so a passage missing here can be recognised next door rather than
  read as one the archive never had
 
- @param archiveDisputeNote - the dispute note a disputed slice is judged
+ @param archiveDisputeNote - dispute note a disputed slice is judged
  under, absent on an undisputed one
 
  @returns Hash keying this slice's record
