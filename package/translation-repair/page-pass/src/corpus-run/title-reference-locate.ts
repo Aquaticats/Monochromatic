@@ -272,7 +272,7 @@ function boundaryBefore(
 
  @param by - offset of the scope's first character
 
- @returns The one rendering against the whole text, or ambiguous or none as
+ @returns One rendering against the whole text, or ambiguous or none as
  found
 
  @example

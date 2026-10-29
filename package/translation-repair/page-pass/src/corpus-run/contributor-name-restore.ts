@@ -152,7 +152,7 @@ function titleNames(
 
  @param authorities - rendering per original name
 
- @returns The heading rewritten, or left alone
+ @returns Heading rewritten, or left alone
 
  @throws Error when the rewritten heading equals the heading as written,
  which a rendering the heading does not already carry cannot produce
@@ -260,7 +260,7 @@ function restoreHeading(
 
  @param authority - rendering the original's signer takes
 
- @returns The signature rewritten, or left alone
+ @returns Signature rewritten, or left alone
 
  @throws Error when the rewritten signature equals the signature as written,
  which a rendering the signature does not already carry cannot produce

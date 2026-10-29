@@ -299,7 +299,7 @@ export function spliceSlices(
 
  @param replacements - text to write, in any order
 
- @returns The translation, and for each replacement the range its words occupy and where its first character stands; an
+ @returns Translation, and for each replacement the range its words occupy and where its first character stands; an
  anchored fragment that shows a reader nothing writes nothing and has no entry
 
  @throws {@link Error} when a replacement names a slice that does not exist,

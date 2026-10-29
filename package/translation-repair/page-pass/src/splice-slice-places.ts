@@ -160,9 +160,9 @@ export type PlacedSlice = {
 
  @param replaced - text the span held, whose line-ending edges the write keeps
 
- @param text - the lane's text, whose own line-ending edges the write drops
+ @param text - lane's text, whose own line-ending edges the write drops
 
- @returns The text written, and the one place of its words: the offset where the lane's first character would stand, which is
+ @returns Text written, and the one place of its words: the offset where the lane's first character would stand, which is
  before the written text when the lane carried more line endings at its start than the span did
 
  @example
@@ -213,7 +213,7 @@ export function contentWrite(
  Writes run from the end of the document to its start, so the text before a write is untouched when it is made and each
  write is moved by the net growth of every write made after it, which stands before it.
 
- @param writes - the writes in the order they were made
+ @param writes - writes in the order they were made
 
  @returns One entry for each replacement that wrote something, in the order of the translation
 

@@ -159,7 +159,7 @@ function countStraightDoubles(
 
  @param mask - which units are prose
 
- @param paired - the offsets of the opening marks that a closing mark pairs with
+ @param paired - offsets of the opening marks that a closing mark pairs with
 
  @returns How many opening-shaped singles with no partner it holds
 
@@ -252,16 +252,16 @@ type Landing = {
  The prose reading of a replacement: the one a caller handed on, else the fragment's reading in the slice it lands in, else the
  reading of the text alone. A refusal of the grammar is logged, since the rule is then silent for want of a parse.
 
- @param written - the replacement as written
+ @param written - replacement as written
 
- @param given - the reading a caller made already
+ @param given - reading a caller made already
 
  @param landing - where the replacement lands, when it is a fragment of a slice
 
- @param definitions - the page's definitions, which a reference in the replacement resolves against; none when the caller holds
+ @param definitions - page's definitions, which a reference in the replacement resolves against; none when the caller holds
  no page
 
- @returns The reading of the replacement
+ @returns Reading of the replacement
 
  @throws {@link FragmentLandingError} when the landing is no whole numbers, lies outside its slice or ends before it starts, which is
  no refusal of the page grammar and is not logged as one
@@ -353,14 +353,14 @@ function readingForRestoration(
  @param convention - wider text whose quote style the replacement should
  match, ordinarily the whole document being repaired
 
- @param reading - the replacement's prose mask, which a caller that read it already hands on; read from the replacement (or from
+ @param reading - replacement's prose mask, which a caller that read it already hands on; read from the replacement (or from
  `landing`) where absent
 
  @param landing - where the replacement lands when it is a fragment of a slice: the slice, and the offsets of the region it
  replaces. The prose of the fragment is then the prose of the slice with the fragment in place, so a fragment that begins inside a
  tag or ends inside an element is read as the slice shows it and not as a text of its own
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), which a reference in the replacement resolves against
+ @param definitions - page's definitions (`pageDefinitionsOf`), which a reference in the replacement resolves against
  whichever slice holds the definition; none for a caller that holds no page
 
  @returns Replacement with the document's quote style restored

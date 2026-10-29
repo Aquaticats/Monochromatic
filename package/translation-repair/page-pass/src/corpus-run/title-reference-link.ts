@@ -217,7 +217,7 @@ function linkTextBefore(
 
  @param pageText - page text of the slice
 
- @param link - the original's link around the title
+ @param link - original's link around the title
 
  @returns Located link text, ambiguous, or none
 

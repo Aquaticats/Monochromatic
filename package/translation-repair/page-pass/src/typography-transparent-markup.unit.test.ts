@@ -50,7 +50,7 @@ type Row = {
 
  @param replacement - text the editor wrote
 
- @returns The restored text
+ @returns Restored text
 
  @example
  ```ts

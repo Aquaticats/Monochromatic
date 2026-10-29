@@ -65,9 +65,9 @@ function ellipsisFormOf(
 
  @param replacement - text a stage wrote
 
- @param given - the reading a caller made already
+ @param given - reading a caller made already
 
- @returns The reading of the replacement
+ @returns Reading of the replacement
 
  @example
  ```ts
@@ -113,7 +113,7 @@ function readingOf(
 
  @param convention - wider text whose form the replacement should match
 
- @param reading - the replacement's prose mask, which a caller that read it already hands on (the same units, whatever marks it
+ @param reading - replacement's prose mask, which a caller that read it already hands on (the same units, whatever marks it
  curled since); read from the replacement where absent, and a refusal of the grammar is then logged
 
  @returns Replacement in the document's ellipsis form

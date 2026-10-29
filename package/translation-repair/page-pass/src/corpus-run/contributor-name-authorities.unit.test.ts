@@ -20,7 +20,7 @@ import { pair, } from './title-reference.test-fixture.ts';
 
  @param pageName - name the page's signature carries
 
- @returns The authorities, as entries
+ @returns Authorities, as entries
 
  @example
  ```ts

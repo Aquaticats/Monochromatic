@@ -92,9 +92,9 @@ function headingLinesOf({ text, }: { readonly text: string; },): readonly Headin
  page carries as many as its archive text does. Anywhere else the page is left
  as it stands for the publish guard (ledger B83).
 
- @param sourceText - the original document
+ @param sourceText - original document
 
- @param targetText - the archive document the replacements address
+ @param targetText - archive document the replacements address
 
  @param slices - prepared pairs defining each slice's archive span
 

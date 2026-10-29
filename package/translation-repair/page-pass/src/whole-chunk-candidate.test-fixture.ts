@@ -14,7 +14,7 @@ import { SEAT_HYPER_OPENROUTER_VISION_EDITOR, } from '@monochromatic-dev/transla
 /**
  One whole-chunk candidate.
 
- @param patchedText - the candidate's chunk text
+ @param patchedText - candidate's chunk text
 
  @returns Candidate carrying that text
 

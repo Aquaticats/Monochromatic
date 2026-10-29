@@ -235,7 +235,7 @@ const ARCHIVE_SILENT: ArchiveSeriesStyle = { rendered: false, };
 
  @param slices - prepared pairs in slice order
 
- @returns The archive's style, or that there is none to read
+ @returns Archive's style, or that there is none to read
 
  @example
  ```ts
@@ -316,7 +316,7 @@ function archiveStyle({ slices, }: { readonly slices: readonly ChunkPair[]; },):
 
  @param archived - what the archive says about the series' style
 
- @returns The style, whose form is never `none`
+ @returns Style, whose form is never `none`
 
  @example
  ```ts

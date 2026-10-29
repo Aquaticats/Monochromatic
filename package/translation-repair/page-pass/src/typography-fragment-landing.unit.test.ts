@@ -44,8 +44,8 @@ const BAD_LANDINGS: readonly (readonly [name: string, start: number, end: number
 /**
  What a call threw, absent when it returned.
 
- @param run - the call
- @returns The thrown value as a list of zero or one
+ @param run - call
+ @returns Thrown value as a list of zero or one
 
  @example
  ```ts

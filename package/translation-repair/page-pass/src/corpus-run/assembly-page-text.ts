@@ -103,7 +103,7 @@ export class SliceNotOnPageError extends Error {
 
  @param sliceIndex - slice of the same list the map was built from
 
- @returns The slice's page text
+ @returns Slice's page text
 
  @throws SliceNotOnPageError where the map lacks the slice
 
@@ -135,7 +135,7 @@ export function pageTextOf(
 
  @param slices - prepared pairs in any order
 
- @returns The same pairs sorted by their archive slice index
+ @returns Same pairs sorted by their archive slice index
 
  @example
  ```ts
@@ -170,7 +170,7 @@ export function slicesInOrder({ slices, }: { readonly slices: readonly ChunkPair
 
  @param before - rows as the pass received them
 
- @param after - the same rows, in the same order, as the pass left them
+ @param after - same rows, in the same order, as the pass left them
 
  @returns Rows of `after` whose text differs from the row at their position
 

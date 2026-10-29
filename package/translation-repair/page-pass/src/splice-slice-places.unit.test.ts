@@ -25,9 +25,9 @@ import {
 
  @param startOffset - where the span starts
  @param replacedLength - how long the text it held was
- @param orderIndex - the slice written
- @param text - the text written
- @returns The write, whose words fill all the text it wrote and start at its start
+ @param orderIndex - slice written
+ @param text - text written
+ @returns Write, whose words fill all the text it wrote and start at its start
 
  @example
  ```ts

@@ -30,7 +30,7 @@ import { applyPatchOperations, } from '../dist/final/node/index.mjs';
 
  @param end - envelope end offset
 
- @param newText - the edit's replacement
+ @param newText - edit's replacement
 
  @param sourceText - original, which licenses nesting it has; omitted runs the
    gate-exempt path the naturalness lane takes

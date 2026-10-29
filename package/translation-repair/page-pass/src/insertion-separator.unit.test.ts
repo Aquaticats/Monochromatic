@@ -26,7 +26,7 @@ import { spliceSlices, } from '../dist/final/node/index.mjs';
 
  @param asked - what the boundary holds and the fragments anchored at it
 
- @returns The text to write
+ @returns Text to write
 
  @example
  ```ts
