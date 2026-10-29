@@ -28,6 +28,17 @@ export {
   type BlockDifference,
   blockDifferenceOf,
 } from './corpus-run/source-reading-blocks.ts';
+export { boundOf, } from './corpus-run/source-reading-bound.ts';
+export { cheapestPlacing, } from './corpus-run/source-reading-cheapest.ts';
+export {
+  type Lookahead,
+  lookaheadsOf,
+} from './corpus-run/source-reading-lookahead.ts';
+export {
+  type OverlapIndex,
+  overlapIndexOf,
+  reachesAny,
+} from './corpus-run/source-reading-overlap.ts';
 export {
   indexOfWords,
   matchesAt,
