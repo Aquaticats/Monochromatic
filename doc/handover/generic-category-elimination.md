@@ -148,18 +148,17 @@ User decisions taken during execution
 
 ## Open follow-ups
 
-- npm:
-   `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published
-   (the user ran `~/temp/agent/npm-first-publish/publish-renamed.sh`;
-    fs-path-core went through npm staged publishing,
-    shown as a `0.0.0-stage` placeholder until approved).
-  Its stage 3 failed because `npm trust` also needs `--allow-publish`.
-  Still to run:
-   `bash ~/temp/agent/npm-first-publish/finish-renamed.sh`
-   (trusted publisher for both,
-    `npm deprecate` of `module-logger` and `module-fs-path`,
-    `npm logout`;
-    the npm login token stays on disk until it runs).
+- npm rename done 2026-10-29
+   (the user ran `~/temp/agent/npm-first-publish/publish-renamed.sh`,
+    then `finish-renamed.sh` after its stage 3 needed `--allow-publish`):
+   `@monochromatic-dev/logger-core` 0.4.5 and `@monochromatic-dev/fs-path-core` 0.2.1 are published;
+   `module-logger` and `module-fs-path` are deprecated ("Renamed to …", verified on the registry);
+   the npm login was removed (`npm whoami` fails).
+  `npm-publish.yml` is registered as both packages' trusted publisher (`--allow-publish`),
+   which needs a login to list, so it is unverified here.
+  npm expires a trusted-publisher setup with no successful publish within 2 days (`docs.npmjs.com/trusted-publishers`):
+   if neither package is released through `npm-publish.yml` by 2026-10-31,
+   re-run the two `npm trust github` lines in `finish-renamed.sh`.
 - [labwc-config issue 3](https://github.com/Aquaticat/labwc-config/issues/3) already lists the final names
    (`logger-core`,
     `test-harness-core`,
