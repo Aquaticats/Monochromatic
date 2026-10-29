@@ -44,9 +44,11 @@ No code has been changed yet; the user has not confirmed the shared understandin
 - Lint scope: every tracked `package.json`, including the root and `package-paused/`.
   The hook covers only workspace manifests, identified by a workspace-name set.
 - The check reports every violation in one run, naming the file, the section and the dependency.
-- `zod` is already in the catalog as `'>=4.6.6'` (`pnpm-workspace.yaml`), so the fix is manifest-only:
-  `cost-dismissal` switches from `^4.6.7` to `catalog:`.
-  This corrects an earlier statement in this handover that the catalog entry had to be added.
+- `zod` moves into the catalog as `>=4.6.7` and `cost-dismissal` switches from `^4.6.7` to `catalog:`.
+  An intermediate edit of this handover wrongly said `zod` was already in the catalog;
+  the `'>=4.6.6'` hit at `pnpm-workspace.yaml` line 461 is the CVE floor in the `overrides:` block, not a catalog entry.
+  Measured: `pnpm-lock.yaml` records the `cost-dismissal` specifier as `'>=4.6.6'` (the override) resolving 4.6.7,
+  so the override already governs and the catalog range changes no effective resolution.
 
 ## Pre-implementation probes
 
@@ -75,6 +77,26 @@ A `pnpm` shadow could run the specifier check before pnpm starts,
 which would cover the no-op install that the `readPackage` hook cannot reach.
 That is an inference from the shadow design, not a measurement.
 The user delegated the timing and reach decisions, so these are agent recommendations, open to veto.
+
+## Independent review findings
+
+A `pi` review (model `openai/gpt-6.1-sol`, whole files pasted) and the advisor reviewed the design after the decisions.
+Verdict from `pi`: ship a source-manifest checker with CI enforcement, defer the hook and the Rust shadow.
+Verified by probe or file read:
+
+- A name-only workspace classifier misfires on a registry package that shares a workspace package's name:
+  registry `is-odd@3.0.1` matched `nameOnly=true` with `dist` present, while name plus no `dist` matched only the workspace package.
+  The hook must require both conditions, and the set must include the root manifest's name.
+- `pnpm-workspace.yaml` sets `savePrefix: ''` and `saveWorkspaceProtocol: false` (lines 537 and 538).
+  Under `catalogMode: strict`, `pnpm add @fx/b --workspace` writes `"@fx/b": "catalog:"` for both `false` and `rolling`,
+  and promotes the workspace package into the catalog as `workspace:^1.0.0`, which the manifest policy allows
+  but which differs from the repo's `workspace:*` convention.
+- The existing hook exports `export const hooks`; the fixture used `export default { hooks }`.
+  The implementation must be tested with the real export shape.
+- Not probed: whether CI invokes the root `lint` task, and the `pnpmfileChecksum` effect of an edited imported validator.
+- Lint checks syntax only; a `catalog:` reference to a missing entry in a tracked manifest outside the workspace
+  (for example `package-paused/`) is not caught by pnpm either.
+- A per-manifest hook throws on the first violating manifest, so "every violation in one run" holds for lint only.
 
 ## Shadow recommendations
 
