@@ -428,7 +428,7 @@ await describe({
             '  INTERIM PAGE: InterimCat5. A dry stop shipped it with 1 settled slice, 2 archive slices and 0 original '
               + 'slices; it stays open until a pass settles the entry again and overwrites it',
             'CatEntry1: wordings=2 silent=0 source-shipped=0 chars=81=expected '
-              + 'missing=0 consistency-groups=0 read-at-generation=21',
+              + 'missing=0 consistency-groups=0 read-at-generation=22',
             `verify-published: 1 of 1 page carries every wording its artifact promised; 1 of those at the length it implies, 0 ${ UNWEIGHED_NOTE }`,
           ],
         },);
