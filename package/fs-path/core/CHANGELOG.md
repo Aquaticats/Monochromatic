@@ -5,6 +5,16 @@
 > paths and names below this note are historical:
 > `@monochromatic-dev/module-fs-path` is now `@monochromatic-dev/fs-path-core`.
 
+## 0.2.2
+
+### Patch changes
+
+- First release of `@monochromatic-dev/fs-path-core` through `npm-publish.yml`,
+  so it carries npm provenance and validates the package's new trusted publisher.
+  0.2.1 under this name was the first, manual publish after the rename from `@monochromatic-dev/module-fs-path`,
+  which is now deprecated.
+  The public API is unchanged.
+
 ## 0.2.1
 
 ### Patch changes
