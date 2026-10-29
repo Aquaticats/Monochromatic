@@ -992,11 +992,14 @@ The deduction alone
    Flip condition:
   weight caching depth
   above body safety and watch cleanliness.
-- Please beats Buck2 on the totals,
-  and the tie at 26 breaks toward Please
+- Please and Buck2 tie on the totals
+  (26 each),
+  and the tie breaks toward Please
   on documentation trust
   (2 of 4 against 1 of 4)
-  and on two of the three weightings.
+  and on two of the three weightings
+  (duty only 15 to 14,
+  duty dominant 41 to 40).
   Buck2 is the better engine
   where it reaches:
    default failure tolerance
