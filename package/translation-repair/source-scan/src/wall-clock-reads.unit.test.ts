@@ -156,7 +156,7 @@ function destructuresNow({ pattern, }: { readonly pattern: TreeNode; },): boolea
 
  @param node - node read
 
- @returns The read's form as the key writes it, empty where the node reads no
+ @returns Read's form as the key writes it, empty where the node reads no
  wall clock
 
  @example

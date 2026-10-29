@@ -530,7 +530,7 @@ function placeOf({ file, node, }: { readonly file: SourceText; readonly node: Tr
  @param value - field the walk descends into, which holds one node, a list of
  them or a value that is no node, depending on the field
 
- @returns The nodes in it, so a list and a single child are walked alike;
+ @returns Nodes in it, so a list and a single child are walked alike;
  none for a field holding no node
 
  @example
@@ -570,7 +570,7 @@ function positionOf({ parent, field, }: { readonly parent: TreeNode; readonly fi
 
  @param parent - node holding it
 
- @returns The field holding it directly or in a list
+ @returns Field holding it directly or in a list
 
  @throws {@link Error} where no field of the parent holds the node, which the
  parent map never records
@@ -603,7 +603,7 @@ function fieldOf({ node, parent, }: { readonly node: TreeNode; readonly parent: 
  @param computed - whether the key is written in brackets, where only a
  string literal names it
 
- @returns The name, `#` before a private one, empty where the key is computed from anything but a string literal
+ @returns Name, `#` before a private one, empty where the key is computed from anything but a string literal
 
  @example
  ```ts
@@ -635,7 +635,7 @@ function keyName({ key, computed, }: { readonly key: unknown; readonly computed:
 
  @param member - member expression, whose key decides whether the scan can name what it reads
 
- @returns The member's name, or the key the scan cannot read
+ @returns Member's name, or the key the scan cannot read
 
  @throws {@link Error} where the expression holds no property node, which the parser never builds
 
@@ -675,7 +675,7 @@ function memberKeyOf({ member, }: { readonly member: TreeNode; },): MemberKey {
  @param call - call whose callee is named, so a catch's check can tell a named
  reader or a helper that throws from any other function
 
- @returns The callee's name, or a plainly named member's, empty for any other callee
+ @returns Callee's name, or a plainly named member's, empty for any other callee
 
  @example
  ```ts
@@ -747,10 +747,10 @@ function classNameOf(
 /**
  Name a function's calls are keyed by.
 
- @param visit - the function node where the walk met it, whose parent binds an
+ @param visit - function node where the walk met it, whose parent binds an
  unnamed function and whose class names a method
 
- @returns The class and method for a method or a class field, else its own
+ @returns Class and method for a method or a class field, else its own
  name, else the name a declaration, an assignment, a default or an object key
  binds it to; empty where it has none
 
@@ -860,7 +860,7 @@ function childVisits({ visit, }: { readonly visit: Visit; },): readonly Visit[] 
  @param called - member expressions met as a callee, which the read of
  `Promise` inside them is then no finding for
 
- @returns The combinator, empty where the call calls none
+ @returns Combinator, empty where the call calls none
 
  @example
  ```ts
@@ -888,7 +888,7 @@ function combinatorCalled({ call, called, }: { readonly call: TreeNode; readonly
 /**
  Words for a computed key the scan cannot read.
 
- @param key - the key node, whose kind is what a finding names
+ @param key - key node, whose kind is what a finding names
 
  @returns `a variable`, `a template` or `an expression`
 
@@ -924,11 +924,11 @@ function isPattern({ target, }: { readonly target: unknown; },): boolean {
 /**
  What a read of `Promise` that is neither a type, a name nor a followed call says.
 
- @param visit - the identifier where the walk met it, whose parent decides the form
+ @param visit - identifier where the walk met it, whose parent decides the form
 
  @param called - member expressions met as a callee, whose read is a call the scan follows
 
- @returns The finding's text after its place, empty where the read reaches no
+ @returns Finding's text after its place, empty where the read reaches no
  combinator or is a call the scan follows
 
  @example
@@ -992,11 +992,11 @@ function promiseReadText({ visit, called, }: { readonly visit: Visit; readonly c
 /**
  What a read of the global object that is neither a type nor a name says.
 
- @param visit - the identifier where the walk met it, whose parent decides the form
+ @param visit - identifier where the walk met it, whose parent decides the form
 
- @param name - the global object's name as written, which the finding repeats
+ @param name - global object's name as written, which the finding repeats
 
- @returns The finding's text after its place, empty for a member named plainly
+ @returns Finding's text after its place, empty for a member named plainly
  or by a string, which the read of that member is judged by
 
  @example
@@ -1026,7 +1026,7 @@ function globalReadText({ visit, name, }: { readonly visit: Visit; readonly name
  @param called - member expressions met as a callee, so a followed call's
  read of `Promise` is no finding
 
- @returns The finding, or none
+ @returns Finding, or none
 
  @example
  ```ts
@@ -1111,7 +1111,7 @@ function readsPromiseItself({ node, }: { readonly node: unknown; },): boolean {
 
  @param member - member expression, whose name and object decide the form
 
- @returns The finding's text after its place, empty for a member that reaches
+ @returns Finding's text after its place, empty for a member that reaches
  none or whose object's read is the finding
 
  @example
@@ -1161,7 +1161,7 @@ function memberReadText({ member, }: { readonly member: TreeNode; },): string {
 
  @param visit - node where the walk met it, read only where it is a member expression
 
- @returns The finding, placed at the member's name, or none
+ @returns Finding, placed at the member's name, or none
 
  @example
  ```ts
@@ -1259,7 +1259,7 @@ function destructuredAt({ file, visit, }: { readonly file: SourceText; readonly 
 
  @param file - package source, parsed so a mention in a comment or a string is no read
 
- @returns The keyed calls, which the list is checked against, and the findings
+ @returns Keyed calls, which the list is checked against, and the findings
  no list can excuse
 
  @example
@@ -1595,7 +1595,7 @@ function declaredNames({ statement, }: { readonly statement: TreeNode; },): read
 
  @param statement - statement read, whose read names link it to the statements declaring them
 
- @returns The names, each once
+ @returns Names, each once
 
  @example
  ```ts
@@ -1687,7 +1687,7 @@ function siblingsOf({ node, parent, }: { readonly node: TreeNode; readonly paren
 
  @param parent - node holding it, which may be a loop holding it as its body
 
- @returns The head as one part, or none where the parent is no loop or holds
+ @returns Head as one part, or none where the parent is no loop or holds
  the node outside its body
 
  @example
@@ -1721,7 +1721,7 @@ function loopHeadOf({ node, parent, }: { readonly node: TreeNode; readonly paren
 
  @param call - listed call, whose holder ends the walk
 
- @returns The call and each node holding it, innermost first, the holder left out
+ @returns Call and each node holding it, innermost first, the holder left out
 
  @throws {@link Error} where the walk passes the program without meeting the
  holder, which the walk that keyed the call met around it
@@ -1757,8 +1757,8 @@ function pathOutOf({ call, }: { readonly call: FoundCall; },): readonly TreeNode
 
  @param call - listed call, whose statement and surroundings an anchor is held to
 
- @returns The call's own statement, the code before it that could feed it,
- the statements after it in its block, and the handlers of the tries around it
+ @returns Call's own statement, code before it that could feed it,
+ statements after it in its block, and handlers of the tries around it
 
  @example
  ```ts
@@ -1941,9 +1941,9 @@ function holdsName({ roots, name, }: { readonly roots: readonly TreeNode[]; read
 
  @param anchor - what the entry rests on, whose kind decides where it must stand
 
- @param reason - the entry's reason, which decides where a name may stand
+ @param reason - entry's reason, which decides where a name may stand
 
- @param call - the call the entry excuses, never another of its site
+ @param call - call the entry excuses, never another of its site
 
  @returns Whether the anchor holds of that call
 
@@ -1985,7 +1985,7 @@ function holdsAnchor(
 
  @param anchor - what the entry rests on, whose kind says where it must stand
 
- @returns The words, saying where a name must stand where that is no call's statement
+ @returns Words, saying where a name must stand where that is no call's statement
 
  @example
  ```ts
@@ -2020,12 +2020,12 @@ function keyOf({ site, combinator, }: { readonly site: string; readonly combinat
  The finding of a site whose function holds a different number of calls than
  the list has entries for it.
 
- @param entries - the site's entries, at least one, which name its site and combinator
+ @param entries - site's entries, at least one, which name its site and combinator
 
- @param calls - the site's calls, each named by its place, since no entry can
+ @param calls - site's calls, each named by its place, since no entry can
  be paired with the one it was read against
 
- @returns The finding
+ @returns Finding
 
  @example
  ```ts

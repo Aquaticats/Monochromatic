@@ -205,7 +205,7 @@ function runtimeNames({ node, }: { readonly node: TreeNode; },): ReadonlySet<str
 
  @param statement - top-level statement
 
- @returns The statement, or the declaration its `export` wraps
+ @returns Statement, or the declaration its `export` wraps
 
  @example
  ```ts
@@ -480,7 +480,7 @@ function reachedDeclarations(
  are scanned and only source files reach, so a test naming a declaration
  never makes it reached.
 
- @param files - the package's files
+ @param files - package's files
 
  @param seams - declarations allowed to go unreached, each as `path#name`
 

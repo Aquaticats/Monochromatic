@@ -24,7 +24,7 @@ import { sourcePathOf, } from './family-source.test-fixture.ts';
 
  @param name - package directory and file name inside its `src`
 
- @returns The file's text
+ @returns File's text
 
  @example
  ```ts

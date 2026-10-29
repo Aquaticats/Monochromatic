@@ -138,7 +138,7 @@ type Binding = 'typed-array' | 'other value' | 'undeclared';
 /**
  Whether a type annotation names a typed array.
 
- @param annotation - a node's `typeAnnotation` field, of any kind or none
+ @param annotation - node's `typeAnnotation` field, of any kind or none
 
  @returns Whether it annotates a typed array's constructor name, with or
  without type arguments
@@ -164,7 +164,7 @@ function annotatesTypedArray({ annotation, }: { readonly annotation: unknown; },
  Whether an expression makes a typed array: its constructor called with `new`,
  or its `from` or `of`.
 
- @param expression - an initializer or a default, of any kind or none
+ @param expression - initializer or default, of any kind or none
 
  @returns Whether the expression, its type assertions aside, makes one
 
@@ -198,11 +198,11 @@ function makesTypedArray({ expression, }: { readonly expression: unknown; },): b
  What a name is to a declaration that binds it: a typed array where its type
  or its value says so, another value otherwise.
 
- @param annotation - the binding's own type annotation, of any kind or none
+ @param annotation - binding's own type annotation, of any kind or none
 
- @param value - the value it starts with, of any kind or none
+ @param value - value it starts with, of any kind or none
 
- @returns The binding
+ @returns Binding
 
  @example
  ```ts
@@ -219,7 +219,7 @@ function boundAs({ annotation, value, }: { readonly annotation: unknown; readonl
  Whether a pattern mentions a name anywhere in it, keys and defaults included,
  so a name it only mentions reads as another value and keeps its write found.
 
- @param pattern - a binding pattern
+ @param pattern - binding pattern
 
  @param name - name looked for
 
@@ -240,11 +240,11 @@ function patternMentions({ pattern, name, }: { readonly pattern: TreeNode; reado
  The type annotation a destructured parameter's type literal gives one of its
  members.
 
- @param pattern - an object pattern annotated with a type literal
+ @param pattern - object pattern annotated with a type literal
 
- @param key - the member's name
+ @param key - member's name
 
- @returns The member's annotation, or nothing where the pattern's type is no
+ @returns Member's annotation, or nothing where the pattern's type is no
  literal or names no such member
 
  @example
@@ -276,7 +276,7 @@ function memberAnnotation({ pattern, key, }: { readonly pattern: TreeNode; reado
 /**
  What one parameter of a function makes of a name.
 
- @param parameter - the parameter, plain, defaulted or destructured
+ @param parameter - parameter, plain, defaulted or destructured
 
  @param name - name looked for
 
@@ -338,7 +338,7 @@ function parameterBinding({ parameter, name, }: { readonly parameter: TreeNode; 
 /**
  What one statement of a block declares of a name.
 
- @param statement - a statement of the block's body, an export around a
+ @param statement - statement of the block's body, export around a
  declaration read as the declaration
 
  @param name - name looked for
@@ -383,7 +383,7 @@ function statementBinding({ statement, name, }: { readonly statement: TreeNode; 
  What one scope's own declarations make of a name: a function's parameters, a
  block's statements, a loop's head or a catch's parameter.
 
- @param scope - a node holding the write, of any kind
+ @param scope - node holding the write, of any kind
 
  @param name - name looked for
 
@@ -448,7 +448,7 @@ function scopeBinding({ scope, name, }: { readonly scope: TreeNode; readonly nam
  Whether a write's receiver is a typed array: a name whose nearest
  declaration, in the scopes holding the write, makes or annotates one.
 
- @param receiver - the object the write's `set` is called on
+ @param receiver - object the write's `set` is called on
 
  @param parents - each node's parent in the write's file
 
@@ -722,7 +722,7 @@ const WHITESPACE: ReadonlySet<string> = new Set([' ', '\n', '\t', '\r',],);
 
  @param node - node read
 
- @returns The node's text, joined
+ @returns Node's text, joined
 
  @example
  ```ts
@@ -854,9 +854,9 @@ function blindWrites({ file, }: { readonly file: SourceText; },): readonly strin
 /**
  First argument of a two-argument call, which the caller has counted.
 
- @param args - the call's arguments
+ @param args - call's arguments
 
- @returns The key argument
+ @returns Key argument
 
  @throws {@link Error} when the call has no argument, which the caller's count excludes
 

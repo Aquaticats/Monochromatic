@@ -47,7 +47,7 @@ export const EXIT_WITHOUT_CASE = '(the test file exited with an error and logged
 
  @param output - everything the test file wrote, standard output and standard error together
 
- @returns The tags before each failure marker, in order of appearance, a repeated one once
+ @returns Tags before each failure marker, in order of appearance, a repeated one once
 
  @example
  ```ts
@@ -156,7 +156,7 @@ export function caseKey({ failed, }: { readonly failed: FailedCase; },): string 
 
  @param salted - cases the salt failed
 
- @returns The salted failures salt 0 did not have, in the order given
+ @returns Salted failures salt 0 did not have, in the order given
 
  @example
  ```ts
@@ -243,7 +243,7 @@ type CaseBySalts = {
 
  @param outcome - what the sweep found
 
- @returns The cases in the order their first salt ran
+ @returns Cases in the order their first salt ran
 
  @example
  ```ts

@@ -60,7 +60,7 @@ function declarationStarts({ source, }: { readonly source: string; },): readonly
  Text of a salted wrapper for the declaration, written without type syntax so
  a bundle and a TypeScript source both parse it.
 
- @param exported - the `export ` keyword the declaration carried, or an empty string
+ @param exported - `export ` keyword the declaration carried, or an empty string
 
  @param salt - whole number added to the rotation start
 
@@ -91,7 +91,7 @@ function wrapperSource(
 
  @param salt - whole number added to the rotation start, below the largest bench of the family or above; zero shifts nothing
 
- @returns The rewritten text, or the text itself when the module declares no `benchRotation`
+ @returns Rewritten text, or the text itself when the module declares no `benchRotation`
 
  @throws Error when the salt is not a whole number from zero, or the module declares `benchRotation` more than once, since a rewrite of an unknown shape would leave the salt doing nothing and the sweep passing
 

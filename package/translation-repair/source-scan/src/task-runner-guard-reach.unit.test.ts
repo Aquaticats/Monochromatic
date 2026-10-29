@@ -104,7 +104,7 @@ const BUILT_STEM = 'dist/final/node/';
 /**
  The tasks of a `mise.toml` that start a built command.
 
- @param mise - the file's text
+ @param mise - file's text
 
  @returns Each such task with the command it starts and the marker it sets
 
@@ -151,7 +151,7 @@ function commandTasksOf({ mise, }: { readonly mise: string; },): readonly Comman
 /**
  Whether an entry's hand-off call is given the process's own environment.
 
- @param file - the entry's source
+ @param file - entry's source
 
  @returns Whether its one `reportingRefusals` call has an `env` property that
  reads `env` off `process`
@@ -197,7 +197,7 @@ function handsEnvironment({ file, }: { readonly file: SourceText; },): boolean {
 
  @param entries - each command and the path of its entry, relative to `src`
 
- @param files - the package's source files
+ @param files - package's source files
 
  @returns One finding per command or task that leaves a command unguarded,
  empty when every command is guarded

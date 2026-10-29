@@ -58,7 +58,7 @@ process.stdout.write(JSON.stringify(answers));
 
  @param salt - seats the rotation start is moved by
 
- @returns The rotations, one per prompt per bench size, sizes ascending
+ @returns Rotations, one per prompt per bench size, sizes ascending
 
  @throws Error when the program fails or prints anything but a list of numbers
 

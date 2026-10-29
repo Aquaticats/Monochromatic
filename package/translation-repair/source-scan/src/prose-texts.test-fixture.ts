@@ -55,7 +55,7 @@ export type PackageText = {
 
  @param path - path from the repository root
 
- @returns The path from the family directory, led by the package directory for a family package's file
+ @returns Path from the family directory, led by the package directory for a family package's file
 
  @example
  ```ts

@@ -145,7 +145,7 @@ const DEFAULT_CONCURRENCY = 16;
  @param bare - whether the global itself counts, as a call's first argument
  does, or only a member of it, as an assignment's target does
 
- @returns The global's name, empty for anything else
+ @returns Global's name, empty for anything else
 
  @example
  ```ts
@@ -180,7 +180,7 @@ function globalOf(
 
  @param callee - callee read
 
- @returns The dotted name, empty for any other callee
+ @returns Dotted name, empty for any other callee
 
  @example
  ```ts
@@ -645,7 +645,7 @@ function syntaxOf({ file, }: { readonly file: SourceText; },): FileSyntax {
 
  @param all - every test file read
 
- @returns The calls, each with its file
+ @returns Calls, each with its file
 
  @example
  ```ts

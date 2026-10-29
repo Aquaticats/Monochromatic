@@ -159,7 +159,7 @@ function isConstantName({ name, }: { readonly name: string; },): boolean {
 
  @param node - node read
 
- @returns The limit's name, empty where the node is no such cut
+ @returns Limit's name, empty where the node is no such cut
 
  @example
  ```ts
@@ -234,7 +234,7 @@ function fixedLengthCuts({ files, }: { readonly files: readonly SourceText[]; },
 
  @param text - file text
 
- @returns The file under a fixture path
+ @returns File under a fixture path
 
  @example
  ```ts

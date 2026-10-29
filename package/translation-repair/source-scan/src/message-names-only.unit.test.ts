@@ -1050,7 +1050,7 @@ function textNamesUnder({ roots, }: { readonly roots: readonly TreeNode[]; },): 
 /**
  Classes a catch clause narrows its binding to with `instanceof`.
 
- @param body - the clause's block
+ @param body - clause's block
 
  @param binding - name the clause binds its error to
 

@@ -372,7 +372,7 @@ export function staleStemFindings(
 
  @param path - record's path from the repository root
 
- @returns The record's index, then its files in name order
+ @returns Record's index, then its files in name order
 
  @example
  ```ts

@@ -404,7 +404,7 @@ function parameterNames({ fn, }: { readonly fn: TreeNode; },): readonly string[]
 
  @param expression - argument or spread operand
 
- @param inits - the file's single bindings
+ @param inits - file's single bindings
 
  @param parameters - names the enclosing functions' parameters bind
 

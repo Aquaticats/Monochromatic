@@ -1675,7 +1675,7 @@ type TimerNames = {
 
  @param program - file's program
 
- @returns The local names, empty sets where the file imports none
+ @returns Local names, empty sets where the file imports none
 
  @example
  ```ts
@@ -2572,7 +2572,7 @@ function pathOfKey({ key, }: { readonly key: string; },): string {
 
  @param deferred - files whose bounds wait for another change
 
- @returns The scan's findings outside the deferred files, and the entries
+ @returns Scan's findings outside the deferred files, and the entries
  they must equal, both sorted
 
  @example

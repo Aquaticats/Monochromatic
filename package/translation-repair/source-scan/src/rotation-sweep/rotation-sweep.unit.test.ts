@@ -54,7 +54,7 @@ const KNEADS: FailedCase = { file: 'probe/src/c.unit.test.ts', name: '[knead]', 
 
  @param outcome - what the injected sweep finds, or the error it throws
 
- @returns The command's result, its report lines and its refusal lines
+ @returns Command's result, its report lines and its refusal lines
 
  @example
  ```ts

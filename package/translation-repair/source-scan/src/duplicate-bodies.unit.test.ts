@@ -136,7 +136,7 @@ function isNamed(name: string,): boolean {
 
  @param field - field holding the name: `id` for a function or a variable, `key` for a property
 
- @returns The name, or `UNNAMED`
+ @returns Name, or `UNNAMED`
 
  @example
  ```ts
@@ -234,7 +234,7 @@ function byStart(left: BodySpan, right: BodySpan,): number {
 
  @param body - body node
 
- @param comments - the file's comments, in order
+ @param comments - file's comments, in order
 
  @returns Normalized body
 

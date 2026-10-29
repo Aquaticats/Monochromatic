@@ -94,7 +94,7 @@ export function insideQuotes(
 /**
  Length of the run of backticks starting at an offset, zero when none does.
 
- @param line - the line as written
+ @param line - line as written
 
  @param at - offset to read from
 
@@ -125,7 +125,7 @@ function backtickRun(
  Where the backtick run closing a code span starts: the next run of exactly
  the opening run's length, as CommonMark reads a span.
 
- @param line - the line as written
+ @param line - line as written
 
  @param from - offset just past the opening run
 
@@ -179,7 +179,7 @@ function closingRun(
  opened by two backticks can quote a single one, and a run nothing closes is
  plain text. Counting backticks for parity read such a span as outside.
 
- @param line - the line as written
+ @param line - line as written
 
  @param offset - offset of the phrase in it
 

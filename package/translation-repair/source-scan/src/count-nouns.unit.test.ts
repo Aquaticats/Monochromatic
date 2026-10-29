@@ -275,7 +275,7 @@ function callsNamed(
 
  @param files - files read; tests among them are passed over
 
- @returns The plural forms
+ @returns Plural forms
  */
 function countedNouns({ files, }: { readonly files: readonly SourceText[]; },): ReadonlySet<string> {
   /**
@@ -306,7 +306,7 @@ function countedNouns({ files, }: { readonly files: readonly SourceText[]; },): 
 
  @param text - text whose first character is the space before the word
 
- @returns The index just past the word
+ @returns Index just past the word
  */
 function wordEnd({ text, }: { readonly text: string; },): number {
   for (let index = 1; index < text.length; index += 1) {
@@ -331,7 +331,7 @@ function wordEnd({ text, }: { readonly text: string; },): number {
 
  @param index - interpolation's position among the template's expressions
 
- @returns The words in order, empty where none follows directly
+ @returns Words in order, empty where none follows directly
  */
 function wordsAfter(
   {

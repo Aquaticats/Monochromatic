@@ -369,7 +369,7 @@ function scratchDirNamesOf({ program, }: { readonly program: TreeNode; },): Read
 
  @param parents - each node's parent
 
- @returns The nearest ancestor that is not itself passed through further
+ @returns Nearest ancestor that is not itself passed through further
 
  @example
  ```ts

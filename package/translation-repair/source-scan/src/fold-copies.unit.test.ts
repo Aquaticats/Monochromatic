@@ -190,7 +190,7 @@ function innerOf({ node, }: { readonly node: TreeNode; },): unknown {
 
  @param node - call expression
 
- @returns The path `get` is called on, nothing for any other call
+ @returns Path `get` is called on, nothing for any other call
 
  @example
  ```ts
@@ -209,7 +209,7 @@ function entryMapOf({ node, }: { readonly node: TreeNode; },): unknown {
 
  @param node - expression read
 
- @returns The root identifier's name, empty when the path starts elsewhere
+ @returns Root identifier's name, empty when the path starts elsewhere
 
  @example
  ```ts
@@ -321,7 +321,7 @@ function copiesAny(
 
  @param node - call expression
 
- @returns The callback and its start, or nothing for any other call
+ @returns Callback and its start, or nothing for any other call
 
  @example
  ```ts
@@ -351,7 +351,7 @@ function foldOf({ node, }: { readonly node: TreeNode; },): readonly { readonly c
 
  @param program - parsed program
 
- @returns The map each such name was read from
+ @returns Map each such name was read from
 
  @example
  ```ts
@@ -396,7 +396,7 @@ function entryBindings({ program, }: { readonly program: TreeNode; },): Readonly
 
  @param entryNames - names bound to an entry read from a map, each with that map's name
 
- @returns The map's name, empty when the call sets no such copy
+ @returns Map's name, empty when the call sets no such copy
 
  @example
  ```ts

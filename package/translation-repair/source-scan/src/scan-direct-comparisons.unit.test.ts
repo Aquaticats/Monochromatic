@@ -473,7 +473,7 @@ function startLine({ text, node, }: { readonly text: string; readonly node: Tree
 
  @param node - node read
 
- @returns The matcher's name, empty for any other node
+ @returns Matcher's name, empty for any other node
 
  @example
  ```ts
@@ -510,7 +510,7 @@ function cuttingMatcherOf({ node, }: { readonly node: TreeNode; },): string {
 
  @param node - node read
 
- @returns The function handed to `it` as `fn`, absent for any other node
+ @returns Function handed to `it` as `fn`, absent for any other node
 
  @example
  ```ts
@@ -606,7 +606,7 @@ function scanCases(
 
  @param scans - scan paths relative to `src`
 
- @param files - the package's files
+ @param files - package's files
 
  @returns What the scan reads of each file reached, scans among them
 
@@ -671,7 +671,7 @@ function reachedSyntaxes(
 
  @param mise - text of `mise.toml`
 
- @param files - the family's files, tests and fixtures among them
+ @param files - family's files, tests and fixtures among them
 
  @param prefix - what the task file's `src/` paths are located under in `files`: the scan package's
  directory and a slash, empty where `files` belong to no package

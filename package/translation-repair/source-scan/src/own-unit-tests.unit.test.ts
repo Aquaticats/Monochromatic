@@ -125,7 +125,7 @@ function dirAndStem({ path, }: { readonly path: string; },): {
 
  @param path - module location, a package directory and a path under its `src`
 
- @returns The exact own-test path the scan looks for
+ @returns Exact own-test path the scan looks for
 
  @example
  ```ts
@@ -277,7 +277,7 @@ function topLevelStatementsOf({ module, }: { readonly module: SourceText; },): r
 
  @param statement - top-level statement read
 
- @returns The node whose kind the types-only check reads
+ @returns Node whose kind the types-only check reads
 
  @example
  ```ts
@@ -514,7 +514,7 @@ type RatchetFindings = {
 
  @param files - files read, production modules and their tests alike
 
- @param allowlist - the ratchet list compared against
+ @param allowlist - ratchet list compared against
 
  @returns Unlisted live entries and stale allowlist entries, each sorted
 

@@ -84,7 +84,7 @@ type SweepRequest = {
 
  @param args - words after the task name, `--package <directory>` and `--salt <n>` repeatable
 
- @returns The request
+ @returns Request
 
  @throws {@link SweepOptionRefusalError} on a word that is no option, an option without a value, or a salt that is not a whole number from 0 to 9
 
@@ -186,7 +186,7 @@ async function runAll(
 
  @param unsalted - cases salt 0 failed
 
- @returns The salt's findings, its flakes and its wall clock
+ @returns Salt's findings, its flakes and its wall clock
 
  @example
  ```ts
@@ -273,7 +273,7 @@ type AskedRequest =
 
  @param args - words after the task name
 
- @returns The request, or the sentence that refuses the command line
+ @returns Request, or the sentence that refuses the command line
 
  @throws Error on anything but a refusal of the command line, which is a fault of the reader
 
@@ -302,7 +302,7 @@ function requestOrRefusal({ args, }: { readonly args: readonly string[]; },): As
 /**
  Writes one line of the report to standard output.
 
- @param line - the line, without its line break
+ @param line - line, without its line break
 
  @example
  ```ts
@@ -407,7 +407,7 @@ async function runSweep(
 /**
  Writes one line of a refusal to standard error, where a reader collecting the report from standard output does not meet it.
 
- @param line - the line, without its line break
+ @param line - line, without its line break
 
  @example
  ```ts
@@ -427,13 +427,13 @@ function writeErrorLine({ line, }: { readonly line: string; },): void {
 
  @param args - words after the task name
 
- @param sweep - the machinery that runs the salts, injected so that a case need not run the family's tests
+ @param sweep - machinery that runs the salts, injected so that a case need not run the family's tests
 
  @param write - receives each line of the report
 
  @param writeError - receives each line of a refusal
 
- @returns The exit code: 0 for a clean sweep, `SWEEP_REFUSED_EXIT` for one that found cases to fix
+ @returns Exit code: 0 for a clean sweep, `SWEEP_REFUSED_EXIT` for one that found cases to fix
 
  @example
  ```ts

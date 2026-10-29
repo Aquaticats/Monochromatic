@@ -89,7 +89,7 @@ const EXTRA_DOCS: readonly string[] = [
 /**
  One linter finding as a line, read off the JSON it printed.
 
- @param record - the printed JSON, parsed
+ @param record - printed JSON, parsed
 
  @returns `path:line:column code`
 

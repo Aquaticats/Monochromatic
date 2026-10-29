@@ -414,7 +414,7 @@ function topLevelDeclarationsOf({ program, }: { readonly program: TreeNode; },):
 
  @param program - file's program
 
- @returns The binding identifier nodes
+ @returns Binding identifier nodes
 
  @example
  ```ts
@@ -454,7 +454,7 @@ function bindingIdentifiersOf({ program, }: { readonly program: TreeNode; },): R
 
  @param program - file's program
 
- @returns The names read
+ @returns Names read
 
  @example
  ```ts
@@ -582,7 +582,7 @@ function unfollowedFormsIn({ file, program, }: { readonly file: SourceText; read
  Top-level declarations in a set of test files and test fixtures that
  nothing reads, and the forms the scan cannot follow.
 
- @param files - the package's files; package source carries no declaration
+ @param files - package's files; package source carries no declaration
  the scan reads, but its imports count
 
  @returns Each as `path#name` or `path#<form>`, sorted without repeats

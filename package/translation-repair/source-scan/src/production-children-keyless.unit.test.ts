@@ -126,7 +126,7 @@ type Bindings = {
 
  @param program - file's program
 
- @returns The local names that start a child, and those of whole modules
+ @returns Local names that start a child, and those of whole modules
 
  @example
  ```ts
@@ -237,7 +237,7 @@ function lineOf({ file, node, }: { readonly file: SourceText; readonly node: Tre
 
  @param bindings - what the file's imports bind
 
- @returns The name as written, empty where the node starts no child
+ @returns Name as written, empty where the node starts no child
 
  @example
  ```ts
@@ -274,7 +274,7 @@ function spawnerName({ node, bindings, }: { readonly node: TreeNode; readonly bi
 
  @param node - call or construction that starts a child
 
- @returns The reason, empty where the options hold an `env` built by a builder
+ @returns Reason, empty where the options hold an `env` built by a builder
 
  @example
  ```ts

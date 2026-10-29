@@ -16,7 +16,7 @@
 
  @param words - words separated by single spaces
 
- @returns The words as a set
+ @returns Words as a set
 
  @example
  ```ts

@@ -64,7 +64,7 @@ type PackageEntry = {
 
  @param field - `dependencies` or `devDependencies`
 
- @returns The names, none when the field is absent
+ @returns Names, none when the field is absent
 
  @example
  ```ts

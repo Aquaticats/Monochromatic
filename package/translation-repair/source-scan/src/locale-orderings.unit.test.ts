@@ -83,7 +83,7 @@ const LOCALE_MEMBERS: ReadonlySet<string> = new Set([
 
  @param node - node read
 
- @returns The read's form as the key writes it, empty where the node makes
+ @returns Read's form as the key writes it, empty where the node makes
  none
 
  @example
@@ -204,7 +204,7 @@ const CODE_UNIT_ORDER_EXEMPTIONS: ReadonlySet<string> = new Set([
 
  @param node - node read
 
- @returns The call's arguments, or no record where the node calls no sort
+ @returns Call's arguments, or no record where the node calls no sort
 
  @example
  ```ts

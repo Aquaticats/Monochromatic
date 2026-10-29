@@ -92,7 +92,7 @@ function continuesFlagWord({ character, }: { readonly character: string; },): bo
  Whether a declared flag name is a word a long flag can carry: a lowercase
  ASCII letter, then lowercase letters and dashes.
 
- @param name - a flag name as a declaration writes it, without its dashes
+ @param name - flag name as a declaration writes it, without its dashes
 
  @returns True when `--` and the name spell a flag a description can name
 
@@ -145,9 +145,9 @@ function startsFlag({
 
  One pass from the start, so the time is linear in the text.
 
- @param text - a task description, or what a doc types after a runner
+ @param text - task description, or what a doc types after a runner
 
- @returns The flags, dashes included, as often as the text spells them
+ @returns Flags, dashes included, as often as the text spells them
 
  @example
  ```ts
@@ -196,7 +196,7 @@ function flagsSpelled({ text, }: { readonly text: string; },): readonly string[]
  runner whose task this cannot find is missing from the answer, which the
  case holds against the runner list, so a change of layout fails loudly.
 
- @param text - the family's task files, joined
+ @param text - family's task files, joined
 
  @returns Description of the task that runs each runner, by runner name
 
@@ -247,7 +247,7 @@ function taskDescriptions({ text, }: { readonly text: string; },): ReadonlyMap<s
 
  @param runner - runner name
 
- @returns The spellings, each ending where the typed arguments start
+ @returns Spellings, each ending where the typed arguments start
 
  @example
  ```ts
@@ -415,7 +415,7 @@ async function invokingDocs(): Promise<readonly string[]> {
 
  @param pair - runner's name, then the directory name of the package that owns it
 
- @returns The two joined by a space
+ @returns Two joined by a space
 
  @example
  ```ts

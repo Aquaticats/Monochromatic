@@ -465,7 +465,7 @@ export function unexempted(
 
  @param exemptions - references left, each with its reason
 
- @returns The stale ones' texts
+ @returns Stale ones' texts
 
  @example
  ```ts

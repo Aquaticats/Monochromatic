@@ -58,7 +58,7 @@ const FENCE_MIN = 3;
 
  @param line - one line of a TSDoc block
 
- @returns The line's text as Markdown reads it
+ @returns Line's text as Markdown reads it
 
  @example
  ```ts
@@ -109,9 +109,9 @@ function fenceRunOf({ line, }: { readonly line: string; },): number {
  inside a string (`longestRunOf({ text: 'a ``` b', ... })`) was cut short and
  read as leaving out its later keys.
 
- @param doc - the block, `/**` through its close
+ @param doc - block, `/**` through its close
 
- @returns The example's code, or empty where the block has none
+ @returns Example's code, or empty where the block has none
 
  @example
  ```ts
@@ -173,7 +173,7 @@ function exampleCodeOf({ doc, }: { readonly doc: string; },): string {
  The function declared right after a TSDoc block: its name and parameter
  list.
 
- @param text - the file
+ @param text - file
 
  @param from - index just past the block
 
@@ -294,7 +294,7 @@ function declarationAt(
  Keys the first parameter requires, when it is a destructured object whose
  type is written out.
 
- @param params - the parameter list's text
+ @param params - parameter list's text
 
  @returns Required key names, or `unreadable` where nothing can be said
 

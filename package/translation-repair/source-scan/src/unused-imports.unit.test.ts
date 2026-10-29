@@ -116,7 +116,7 @@ function namesOutsideImports({ program, }: { readonly program: TreeNode; },): Re
 /**
  Import bindings nothing in their file reads, across a set of files.
 
- @param files - the package's files
+ @param files - package's files
 
  @returns Each as `path#name`, sorted
 

@@ -80,7 +80,7 @@ export async function runSalted(
 
  @param salt - seats the rotation start is moved by
 
- @returns The failed cases, named by the file under the family directory
+ @returns Failed cases, named by the file under the family directory
 
  @example
  ```ts

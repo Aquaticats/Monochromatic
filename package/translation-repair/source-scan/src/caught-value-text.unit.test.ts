@@ -429,7 +429,7 @@ function findingsIn({ file, }: { readonly file: SourceText; },): readonly string
 
  @param bound - names the clauses around it caught
 
- @returns The name, or `<object>.reason` for a rejection member; empty for neither
+ @returns Name, or `<object>.reason` for a rejection member; empty for neither
 
  @example
  ```ts

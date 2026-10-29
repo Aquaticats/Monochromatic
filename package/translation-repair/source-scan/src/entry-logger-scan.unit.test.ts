@@ -47,7 +47,7 @@ const PASS_PACKAGES = [
 
  @param text - file contents
 
- @returns The file, named for the pass
+ @returns File, named for the pass
 
  @example
  ```ts

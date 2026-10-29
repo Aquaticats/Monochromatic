@@ -362,7 +362,7 @@ function stringMembers({ annotation, }: { readonly annotation: unknown; },): Rea
 
  @param parameter - parameter of a function, with or without a default
 
- @returns The names, none where the annotation names no string
+ @returns Names, none where the annotation names no string
 
  @example
  ```ts

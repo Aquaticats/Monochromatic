@@ -89,7 +89,7 @@ const RUNNER_FOLDER = '/corpus-run/';
  @param key - field holding the name: `property` for a member, `key` for a
  property
 
- @returns The name, empty when it is built at run time
+ @returns Name, empty when it is built at run time
 
  @example
  ```ts
@@ -117,7 +117,7 @@ function propertyName(
 /**
  Local names a file binds to a whole module, by default or namespace import.
 
- @param nodes - the file's nodes
+ @param nodes - file's nodes
 
  @param modules - specifiers of the module
 

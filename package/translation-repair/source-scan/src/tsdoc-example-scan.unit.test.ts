@@ -23,9 +23,9 @@ import { expectNoFindings, } from '@monochromatic-dev/translation-repair-test-fi
 /**
  A documented function, as the formatter writes one.
 
- @param example - the example's code line
+ @param example - example's code line
 
- @param declaration - the declaration's lines
+ @param declaration - declaration's lines
 
  @returns Source text
 

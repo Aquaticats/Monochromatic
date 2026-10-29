@@ -58,9 +58,9 @@ registerHooks({
 
    @param _context - what the loader knows of the import; the chain reads it itself
 
-   @param nextLoad - the rest of the chain
+   @param nextLoad - rest of the chain
 
-   @returns The loaded module, its text changed when it declares `benchRotation`
+   @returns Loaded module, its text changed when it declares `benchRotation`
    */
   load: function loadWithSalt(
     url: string,

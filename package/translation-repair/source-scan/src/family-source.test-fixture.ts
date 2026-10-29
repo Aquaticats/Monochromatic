@@ -125,7 +125,7 @@ export async function readPackageSource(): Promise<readonly SourceText[]> {
 
  @param path - location as `readPackageSource` names it
 
- @returns The path relative to the package's `src`
+ @returns Path relative to the package's `src`
 
  @example
  ```ts
@@ -141,7 +141,7 @@ export function pathUnderSrc({ path, }: { readonly path: string; },): string {
 
  @param path - location as `readPackageSource` names it
 
- @returns The absolute path of the file under its package's `src`
+ @returns Absolute path of the file under its package's `src`
 
  @example
  ```ts
@@ -162,7 +162,7 @@ export function sourcePathOf({ path, }: { readonly path: string; },): string {
 
  @param path - location as `readPackageSource` names it
 
- @returns The directory name of the package holding the file
+ @returns Directory name of the package holding the file
 
  @example
  ```ts
@@ -183,7 +183,7 @@ export function packageDirectoryOf({ path, }: { readonly path: string; }): strin
 
  @param specifier - relative specifier the import or re-export names
 
- @returns The location it names
+ @returns Location it names
 
  @example
  ```ts
@@ -402,7 +402,7 @@ export function namesFamilyModule({ specifier, }: { readonly specifier: string; 
 
  @param imported - name taken from the module, `*` for a namespace and `default` for a default
 
- @returns The declaring module's location, the package's index when it re-exports no such name, or the specifier
+ @returns Declaring module's location, package's index when it re-exports no such name, or specifier
  for a package outside the family
 
  @example

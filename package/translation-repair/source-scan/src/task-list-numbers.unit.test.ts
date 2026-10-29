@@ -478,7 +478,7 @@ function citedNumber({ citation, }: { readonly citation: string; },): number {
 
  @param left - one number
 
- @param right - the other
+ @param right - other
 
  @returns Negative when `left` comes first
 

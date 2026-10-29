@@ -288,7 +288,7 @@ const FUNCTION_KINDS: ReadonlySet<string> = new Set([
 
  @param node - parameter or pattern read
 
- @returns The annotated type, absent when it carries none
+ @returns Annotated type, absent when it carries none
 
  @example
  ```ts
@@ -382,7 +382,7 @@ function keyedNamesOf(
 /**
  Names of the parameters a file's functions type as keyed by any string.
 
- @param nodes - the file's nodes
+ @param nodes - file's nodes
 
  @param aliases - names of the package's type aliases keyed by any string
 
@@ -422,7 +422,7 @@ function keyedParameterNames(
  assignment or an update whose target indexes one of the names by anything
  but a written string or number.
 
- @param nodes - the file's nodes
+ @param nodes - file's nodes
 
  @param names - names to watch
 

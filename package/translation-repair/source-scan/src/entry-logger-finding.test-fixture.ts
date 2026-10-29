@@ -69,7 +69,7 @@ type ConstBinding = readonly [
 
  @param value - field of a node
 
- @returns The tree nodes in the list
+ @returns Tree nodes in the list
 
  @example
  ```ts
@@ -89,9 +89,9 @@ function nodeListOf({ value, }: { readonly value: unknown; },): readonly TreeNod
 
  @param nodes - every node of the file
 
- @param imported - the function's name where it is exported
+ @param imported - function's name where it is exported
 
- @returns The names a call of it can go by in the file
+ @returns Names a call of it can go by in the file
 
  @example
  ```ts
@@ -159,7 +159,7 @@ function localNamesOf(
 /**
  Whether a tag expression names an entry, following the const names of the file to what they were set to.
 
- @param tag - the tag's expression
+ @param tag - tag's expression
 
  @param bindings - what each const name of the file was set to
 
@@ -214,11 +214,11 @@ function namesAnEntry(
 /**
  Whether a call is the `l` of a call of the wrapper.
 
- @param call - the call of `tagged`
+ @param call - call of `tagged`
 
  @param parents - each node's parent
 
- @param wrapperNames - the names the wrapper goes by in the file
+ @param wrapperNames - names the wrapper goes by in the file
 
  @returns Whether `sliceTagged({ l: call })` holds it, with any wrapping of the expression between
 
@@ -271,7 +271,7 @@ function isWrapped(
 
  @param nodes - every node of the file
 
- @returns The initializer of every const declaration that names one variable
+ @returns Initializer of every const declaration that names one variable
 
  @example
  ```ts
@@ -305,7 +305,7 @@ function constBindingsOf({ nodes, }: { readonly nodes: readonly TreeNode[]; },):
 /**
  Entry loggers in one file that no `sliceTagged` wraps.
 
- @param file - the file read
+ @param file - file read
 
  @returns How many calls of `tagged` build a logger for an entry and stand without the wrapper
 

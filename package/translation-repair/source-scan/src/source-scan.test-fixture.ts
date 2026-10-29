@@ -224,7 +224,7 @@ export function identifierName({ node, }: { readonly node: unknown; },): string 
 
  @param node - member expression read
 
- @returns The member's name, empty where it is computed from anything but a
+ @returns Member's name, empty where it is computed from anything but a
  string literal
 
  @example

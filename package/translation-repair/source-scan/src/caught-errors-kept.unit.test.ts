@@ -78,7 +78,7 @@ type ClauseReading = {
 
  @param node - node whose children are about to be visited
 
- @returns The name-only child, or nothing when the node has none
+ @returns Name-only child, or nothing when the node has none
 
  @example
  ```ts
@@ -98,7 +98,7 @@ function namePositionOf({ node, }: { readonly node: TreeNode; },): unknown {
 /**
  Reads one catch clause's body, not entering functions nested in it.
 
- @param body - the clause's block
+ @param body - clause's block
 
  @param binding - name the clause binds its error to
 

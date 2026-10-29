@@ -132,7 +132,7 @@ await describe({
 
          @param point - code point
 
-         @returns The character
+         @returns Character
          */
         function literal(point: number,): string {
           return String.fromCodePoint(point,);

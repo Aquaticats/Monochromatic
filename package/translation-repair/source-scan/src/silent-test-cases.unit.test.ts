@@ -86,7 +86,7 @@ type WrittenName =
 
  @param node - name property's value
 
- @returns The string a literal or an expressionless template carries, or a
+ @returns String a literal or an expressionless template carries, or a
  computed name for any other expression
 
  @example
@@ -129,7 +129,7 @@ function plainName({ node, }: { readonly node: unknown; },): WrittenName {
 
  @param call - `describe(...)` or `it(...)` call
 
- @returns The value node, `undefined` when the argument is no object or has
+ @returns Value node, `undefined` when the argument is no object or has
  no plain `name` property
 
  @example

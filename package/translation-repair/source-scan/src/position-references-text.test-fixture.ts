@@ -126,7 +126,7 @@ function startsOf({ pieces, }: { readonly pieces: readonly string[]; },): readon
 
  @param text - file text
 
- @returns The joined text and where each line starts in it
+ @returns Joined text and where each line starts in it
 
  @example
  ```ts

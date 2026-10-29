@@ -55,7 +55,7 @@ export class SweepOptionRefusalError extends Error {
 
  @param failed - case and its file, a path under `package/translation-repair`
 
- @returns The first segment of the path
+ @returns First segment of the path
 
  @example
  ```ts

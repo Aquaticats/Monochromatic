@@ -161,7 +161,7 @@ const NOT_A_LEDGER_HEADING: LedgerHeading = { level: 0, ids: [], entry: false, }
 
  @param from - offset the run may start at
 
- @returns The digits, empty where the text has none there
+ @returns Digits, empty where the text has none there
 
  @example
  ```ts
@@ -186,13 +186,13 @@ function digitsAt({ text, from, }: { readonly text: string; readonly from: numbe
 /**
  Every id a number or a range of numbers names, with the letter in front.
 
- @param letter - the id letter
+ @param letter - id letter
 
  @param first - first number
 
  @param last - last number, the first one for a single id
 
- @returns The ids of the range, or the two ends where the range runs backward or is longer than the bound
+ @returns Ids of the range, or the two ends where the range runs backward or is longer than the bound
 
  @example
  ```ts
@@ -223,7 +223,7 @@ function idsOf(
 
  @param text - text read, starting at the letter
 
- @returns The ids and the length of text they took; no ids and no length where the text does not open with an id
+ @returns Ids and length of text they took; no ids and no length where the text does not open with an id
 
  @example
  ```ts
@@ -278,7 +278,7 @@ function namedIds({ text, }: { readonly text: string; },): NamedIds {
 
  @param text - one line of a doc
 
- @returns The level, the ids and whether it opens an entry; no ids for a line that is no heading of the second to
+ @returns Level, ids and whether it opens an entry; no ids for a line that is no heading of the second to
  fourth level or names no id at its start
 
  @example
@@ -320,7 +320,7 @@ function ledgerHeadingOf({ text, }: { readonly text: string; },): LedgerHeading 
 /**
  Every heading of the ledger docs that names ids, outside fenced code blocks.
 
- @param docs - the ledger docs
+ @param docs - ledger docs
 
  @returns Headings in the order of the docs and of the lines
 
@@ -354,7 +354,7 @@ function ledgerHeadings({ docs, }: { readonly docs: readonly LedgerDoc[]; },): r
 /**
  Every id that heads two entries, each as one finding naming both places.
 
- @param docs - the ledger docs, without the by-id index
+ @param docs - ledger docs, without the by-id index
 
  @returns Findings, in the order of the ids' first entries
 
@@ -388,9 +388,9 @@ function repeatedEntryFindings({ docs, }: { readonly docs: readonly LedgerDoc[];
 /**
  Every index line that lists an id no heading of the ledger docs defines, each as one finding.
 
- @param index - the by-id index
+ @param index - by-id index
 
- @param docs - the ledger docs, without the by-id index
+ @param docs - ledger docs, without the by-id index
 
  @returns Findings, in the order of the index lines
 
@@ -436,7 +436,7 @@ function unknownIndexIdFindings(
 /**
  The ledger docs of the package, split into the by-id index and the files that hold entries.
 
- @returns The index and the other `audit-ledger*.md` files, each with its path from the repository root
+ @returns Index and other `audit-ledger*.md` files, each with its path from the repository root
 
  @throws {@link Error} when the folder holds no by-id index
 

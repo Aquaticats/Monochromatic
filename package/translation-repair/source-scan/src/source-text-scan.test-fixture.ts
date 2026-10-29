@@ -195,7 +195,7 @@ export function topLevelPieces({
 
  @param text - type text
 
- @returns The text without comments
+ @returns Text without comments
 
  @example
  ```ts

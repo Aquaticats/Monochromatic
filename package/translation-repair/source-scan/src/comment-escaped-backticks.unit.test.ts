@@ -55,7 +55,7 @@ const ESCAPED_BACKTICK = '\\`';
 
  @param text - text before an escaped backtick
 
- @returns The text up to its trailing backslashes
+ @returns Text up to its trailing backslashes
 
  @example
  ```ts
