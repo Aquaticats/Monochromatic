@@ -48,6 +48,25 @@ Owner follow-ups the same day:
    no workflow moves images between machines.
 - Known gap left alone: `container:arch` resolves to `arch:latest`, which does not exist (the image is `archlinux`).
 
+- Desktop images (subagent, 2026-10-29):
+   terminal split `265c55d90c`, `024f973075`, `6168f6c2e2`;
+   ide split `fd1bd8caf8`, `150dca7169`, `e5d55a8d94`;
+   music-player `397b35d77a`, `c094db67d6` (Arch has no `wine64`), `7b1caae071` (`noto-fonts` for Slint under Wine).
+  Only `ide-release.yml` builds shipped artifacts in these images.
+  Local reproduction of the IDE release gates passed (glibc 2.39, needed libraries match, bundle inspections pass).
+  music-player `test:windows-gnu`: same 4 failed and 2 timed out as the recorded Fedora run.
+
+## In flight: music-player follow-ups (owner decisions 2026-10-29)
+
+- `Containerfile.sign` still Fedora: build osslsigncode from source on CachyOS.
+- `run` fallback binary needs GLIBC_2.44: build it with cargo-zigbuild for glibc 2.39.
+- `verify:container`: three `unplayable_notification` tests need `XDG_RUNTIME_DIR` (since `438bc434e4`);
+   same tmpfs fix as nested-wayland-session.
+  One more failure, `ui_lists_render_tests::a_search_result_title_wider_than_the_page_ends_in_an_ellipsis`,
+   fails identically on the old Fedora image.
+- Asked monochromatic-ec to update `doc/decision/ide-releases.md` and `doc/runbook/release-the-ide.md`,
+   which still say Fedora 41 for the IDE build container.
+
 ## Found during verification, not caused by the base change
 
 - `nested-wayland-session/cli` `verify:container`:
