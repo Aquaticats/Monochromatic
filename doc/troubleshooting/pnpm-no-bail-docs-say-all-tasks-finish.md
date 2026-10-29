@@ -102,7 +102,13 @@ Filed with the poster's approval:
 - A comment on the issue corrects its scope (10.x is unaffected) and points to the pull request:
   <https://github.com/pnpm/pnpm.io/issues/987#issuecomment-6502752064>.
 
-Outcome of the pull request is not yet known.
+State of the pull request on 2026-10-29,
+the day it was opened:
+CodeRabbit approved it with no inline comments,
+no check had failed,
+and one check ("Build and run pnpm in WebContainers") was still running.
+No human maintainer had reviewed it,
+so the outcome is not yet known.
 
 [old-sentence]: https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm/docs/cli/recursive.md?plain=1#L69-L71
 [orchestration-section]: https://github.com/pnpm/pnpm/blob/cf2556e97c3b344e63e9504cf2da3d96426f1748/pnpm/docs/workspace-task-orchestration.md?plain=1#L228-L230
