@@ -98,3 +98,7 @@ mod worktree_copy;
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;
+
+/// An explicit push that lost a race to another session: the merge is published through the executable's own push.
+#[path = "binary_push_stacking_tests.rs"]
+mod push_stacking;
