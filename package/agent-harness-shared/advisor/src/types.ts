@@ -259,8 +259,19 @@ export type AdvisorModelSelection = {
 
 /**
  Identity of the primary model, used to avoid self-review in default selection.
+
+ The display name, when known, extends the identity across provider routes:
+ the same model id under two routes with one name is still the primary model.
+ Ids repeat across unrelated models, so identity matching without a name stays
+ route-exact.
  */
-export type CurrentMainModelIdentity = Pick<AdvisorModelSelection['selected']['model'], 'provider' | 'id'>;
+export type CurrentMainModelIdentity = Pick<AdvisorModelSelection['selected']['model'], 'provider' | 'id'> & {
+  /**
+   Display name of the active primary model, used to recognize the same model
+   served on another provider route.
+   */
+  readonly name?: string;
+};
 
 //endregion Selection
 

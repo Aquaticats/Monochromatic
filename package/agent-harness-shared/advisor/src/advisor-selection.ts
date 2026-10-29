@@ -375,6 +375,10 @@ export function selectAdvisorModel(
 
 /**
  Return scope entries excluding current main model when at least one alternative remains.
+
+ Exclusion matches the active primary model by route slug, and by provider
+ independent identity (model id plus display name) so the same model served on
+ another route does not masquerade as an independent reviewer.
  
  @param scope - effective scoped model set
  
@@ -404,12 +408,24 @@ export function scopeAvoidingCurrentMainModel(
    */
   const currentMainModelSlug = `${currentMainModel.provider}/${currentMainModel.id}`;
   /**
-   Scoped entries that differ from active primary model.
+   Scoped entries that differ from active primary model, by route slug or by
+   provider independent identity (model id plus display name).
    */
   const alternativeEntries: EffectiveModelScope['entries'][number][] = [];
   for (const entry of scope.entries) {
-    if (entry.canonicalSlug
+    /**
+     Scoped model record compared against the active primary identity.
+     */
+    const { model: entryModel, } = entry;
+    /**
+     Whether the entry is the active primary model served on another route.
+     */
+    const sameModelDifferentRoute = (entryModel.id === currentMainModel.id)
+      && (currentMainModel.name !== undefined)
+      && (entryModel.name === currentMainModel.name);
+    if ((entry.canonicalSlug
       !== currentMainModelSlug)
+      && (!sameModelDifferentRoute))
       alternativeEntries[alternativeEntries.length] = entry;
   }
 

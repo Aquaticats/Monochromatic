@@ -27,6 +27,7 @@ import {
   rankDefaultAdvisorCandidates,
   resolveConfiguredDefaultReviewer,
   scopeIncludingConfiguredReviewer,
+  scopeAvoidingCurrentMainModel,
   selectAdvisorModel,
   selectAdvisorRunContext,
 } from '../dist/final/node/index.mjs';
@@ -1049,3 +1050,159 @@ await describe({
 },);
 
 //endregion rankDefaultAdvisorCandidates
+
+//region scopeAvoidingCurrentMainModel
+
+await describe({
+  name: scopeAvoidingCurrentMainModel.name,
+  children: [
+    it({
+      name: 'drops the same model on another route when the display name matches',
+      fn: async function testDropsSameModelDifferentRoute() {
+        /** Same model id and display name under two provider routes. */
+        const routeAModel = modelFixture({
+          provider: 'route-a',
+          id: 'mimo-v2.6-pro',
+          name: 'MiMo-V2.6-Pro',
+          inputCost: 1,
+          outputCost: 2,
+        },);
+        const routeBModel = modelFixture({
+          provider: 'route-b',
+          id: 'mimo-v2.6-pro',
+          name: 'MiMo-V2.6-Pro',
+          inputCost: 1,
+          outputCost: 2,
+        },);
+        /** Independent model kept in scope. */
+        const otherModel = modelFixture({
+          provider: 'route-b',
+          id: 'deepseek-v4-flash',
+          name: 'DeepSeek V4 Flash',
+          inputCost: 1,
+          outputCost: 2,
+        },);
+        const result = scopeAvoidingCurrentMainModel({
+          scope: {
+            source: 'available',
+            entries: [
+              {
+                model: routeAModel,
+                canonicalSlug: 'route-a/mimo-v2.6-pro',
+              },
+              {
+                model: routeBModel,
+                canonicalSlug: 'route-b/mimo-v2.6-pro',
+              },
+              {
+                model: otherModel,
+                canonicalSlug: 'route-b/deepseek-v4-flash',
+              },
+            ],
+          },
+          currentMainModel: {
+            provider: 'route-b',
+            id: 'mimo-v2.6-pro',
+            name: 'MiMo-V2.6-Pro',
+          },
+        },);
+
+        expect(
+          result.entries
+            .map(function mapSlug(entry,) {
+              return entry.canonicalSlug;
+            },),
+        )
+          .toEqual(['route-b/deepseek-v4-flash',],);
+      },
+    },),
+    it({
+      name: 'keeps same-id entries whose display names differ',
+      fn: async function testKeepsSameIdDifferentName() {
+        const result = scopeAvoidingCurrentMainModel({
+          scope,
+          currentMainModel: {
+            provider: 'expensive',
+            id: 'reviewer',
+            name: 'Reviewer Expensive',
+          },
+        },);
+
+        expect(
+          result.entries
+            .map(function mapSlug(entry,) {
+              return entry.canonicalSlug;
+            },),
+        )
+          .toEqual(['cheap/reviewer',],);
+      },
+    },),
+    it({
+      name: 'keeps the scope when every entry is the current model',
+      fn: async function testKeepsScopeOfOnlyCurrentModel() {
+        /** Same model id and display name under two provider routes. */
+        const routeAModel = modelFixture({
+          provider: 'route-a',
+          id: 'mimo-v2.6-pro',
+          name: 'MiMo-V2.6-Pro',
+          inputCost: 1,
+          outputCost: 2,
+        },);
+        const routeBModel = modelFixture({
+          provider: 'route-b',
+          id: 'mimo-v2.6-pro',
+          name: 'MiMo-V2.6-Pro',
+          inputCost: 1,
+          outputCost: 2,
+        },);
+        const result = scopeAvoidingCurrentMainModel({
+          scope: {
+            source: 'available',
+            entries: [
+              {
+                model: routeAModel,
+                canonicalSlug: 'route-a/mimo-v2.6-pro',
+              },
+              {
+                model: routeBModel,
+                canonicalSlug: 'route-b/mimo-v2.6-pro',
+              },
+            ],
+          },
+          currentMainModel: {
+            provider: 'route-b',
+            id: 'mimo-v2.6-pro',
+            name: 'MiMo-V2.6-Pro',
+          },
+        },);
+
+        expect(result.entries
+          .length,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'keeps the scope untouched when the current model is absent',
+      fn: async function testKeepsScopeWhenCurrentAbsent() {
+        const result = scopeAvoidingCurrentMainModel({
+          scope: {
+            source: 'available',
+            entries: [{
+              model: cheapModel,
+              canonicalSlug: 'cheap/reviewer',
+            },],
+          },
+          currentMainModel: {
+            provider: 'route-b',
+            id: 'mimo-v2.6-pro',
+            name: 'MiMo-V2.6-Pro',
+          },
+        },);
+
+        expect(result.entries
+          .length,).toBe(1,);
+      },
+    },),
+  ],
+},);
+
+//endregion scopeAvoidingCurrentMainModel
