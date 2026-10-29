@@ -78,6 +78,20 @@ Any mechanism must therefore key on something harness-neutral: a dedicated slice
 the terminal scopes as a class, or protecting the interactive desktop instead of limiting the agents.
 No `pi` process was running when this was checked, so its cgroup placement is unobserved.
 
+### Harness-neutral candidates checked
+
+- Name-prefix drop-in: a drop-in at `~/.config/systemd/user/zzprobe-.scope.d/io.conf` with `IOWeight=7` gave
+  `zzprobe-test.scope` an `io.weight` of 7, while the control `zzother-test.scope` kept 100.
+  This was verified with `systemd-run --scope`; scopes that Ghostty creates (`app-ghostty-surface-transient-<n>.scope`)
+  were not exercised, so a prefix drop-in for them is untested. The drop-in directory was removed afterwards.
+- Shadowing `rg`, `grep`, `find`: `mise.toml` puts `.cache/toolchain-bin` and `.cache/cli-git-bin` first on `PATH`
+  (generated from `file-enforcer.config.ts`), and `.cache/cli-git-bin/git` is already a shadow of `git`, so there is precedent.
+  The shadow reaches only shells where the mise environment is active. In Claude Code shells, `grep` and `find`
+  are shell functions that run Claude's embedded `ugrep` and `bfs` (with `--hidden`), and functions win over `PATH`,
+  so a `PATH` shadow never sees them; `rg` is not a function, so a shadow does apply to it.
+  Repository rules forbid bash wrappers, so a shadow would be a Node or Rust executable, whose start-up cost per call is unmeasured.
+  A shadow can throttle (run the real binary at a low I/O class or weight) or reject; throttling changes no results.
+
 ## Commits are a second I/O consumer
 
 While this note was committed, `ps` showed three concurrent shadow-repository `git commit` processes
