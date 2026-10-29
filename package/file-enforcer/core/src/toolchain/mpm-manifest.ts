@@ -155,7 +155,7 @@ export function renderMpmPackagesToml(
    */
   const byManager = new Map<string, ToolPlanEntry[]>();
   for (const entry of tools) {
-    if ((entry.manager === null) || (entry.packageId === null))
+    if ((entry.manager === undefined) || (entry.packageId === undefined))
       continue;
     /**
      Existing bucket for this manager, or a fresh one.

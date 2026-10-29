@@ -68,9 +68,7 @@ function moveVersionPins(
   return {
     ...entry,
     version: newVersion,
-    packageId: entry.packageId === oldVersion
-      ? newVersion
-      : entry.packageId,
+    ...(entry.packageId === oldVersion ? { packageId: newVersion, } : {}),
     env,
     artifacts,
   };

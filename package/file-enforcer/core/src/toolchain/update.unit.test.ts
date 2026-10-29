@@ -68,7 +68,7 @@ type FixtureOverrides = {
   readonly request?: ToolPlanEntry['request'];
   readonly version?: ToolPlanEntry['version'];
   readonly route?: ToolPlanEntry['route'];
-  readonly packageId?: ToolPlanEntry['packageId'];
+  readonly packageId?: string;
   readonly bins?: ToolPlanEntry['bins'];
   readonly env?: ToolPlanEntry['env'];
   readonly artifacts?: ToolPlanEntry['artifacts'];
@@ -87,10 +87,7 @@ function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
     request: { track: 'latest' },
     version: '1.0.0',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},
@@ -883,8 +880,8 @@ await describe({
               .toBe('nightly-2026-10-28',);
             expect(applied[1]?.env.JAVA_HOME,)
               .toBe('java/temurin-21.0.13+9.0.LTS',);
-            expect(applied[1]?.packageId,)
-              .toBe(null,);
+            expect((applied[1] !== undefined) && Object.hasOwn(applied[1], 'packageId',),)
+              .toBe(false,);
           },
         },),
       ],

@@ -61,7 +61,7 @@ type FixtureOverrides = {
   readonly request?: ToolPlanEntry['request'];
   readonly version?: ToolPlanEntry['version'];
   readonly route?: ToolPlanEntry['route'];
-  readonly packageId?: ToolPlanEntry['packageId'];
+  readonly packageId?: string;
   readonly bins?: ToolPlanEntry['bins'];
   readonly env?: ToolPlanEntry['env'];
   readonly artifacts?: ToolPlanEntry['artifacts'];
@@ -80,10 +80,7 @@ function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
     request: { track: 'latest' },
     version: '1.0.0',
     route: 'bin-sourced',
-    manager: null,
-    packageId: null,
     bins: ['fixture-tool'],
-    os: null,
     options: {},
     env: {},
     artifacts: {},

@@ -138,22 +138,49 @@ await describe({
             ) as {
               tools: Record<string, Record<string, unknown>>;
             };
+            /**
+             Every lock key in its fixed order; `manager`, `packageId` and `os` are omitted when absent.
+             */
+            const keyOrder = [
+              'request',
+              'version',
+              'route',
+              'manager',
+              'packageId',
+              'bins',
+              'os',
+              'env',
+              'options',
+              'artifacts',
+            ];
+            /**
+             Keys every tool record carries.
+             */
+            const required = new Set([
+              'request',
+              'version',
+              'route',
+              'bins',
+              'env',
+              'options',
+              'artifacts',
+            ],);
             for (const tool of Object.values(parsed.tools,)) {
-              expect(Object.keys(tool,),)
-                .toEqual(
-                [
-                  'request',
-                  'version',
-                  'route',
-                  'manager',
-                  'packageId',
-                  'bins',
-                  'os',
-                  'env',
-                  'options',
-                  'artifacts',
-                ],
-                );
+              /**
+               Keys this record carries, in file order.
+               */
+              const keys = new Set(Object.keys(tool,),);
+              expect([...keys,],)
+                .toEqual(keyOrder.filter(function present(key,): boolean {
+                  return keys.has(key,);
+                },),);
+              expect([...required,].every(function carried(key,): boolean {
+                return keys.has(key,);
+              },),)
+                .toBe(true,);
+              expect(Object.values(tool,)
+                .includes(null,),)
+                .toBe(false,);
             }
             expect(Object.keys(parsed.tools,)
               .length,)

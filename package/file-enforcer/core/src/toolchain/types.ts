@@ -139,9 +139,9 @@ export type ToolOptions = {
    */
   readonly bootstrap?: {
     /**
-     Tool that must exist before this one installs, or `null`.
+     Tool that must exist before this one installs; absent when none does.
      */
-    readonly requiresTool: string | null;
+    readonly requiresTool?: string;
     /**
      Distribution kind the provider installs.
      */
@@ -179,21 +179,21 @@ export type ToolPlanEntry = {
   readonly version: string;
   readonly route: ToolRoute;
   /**
-   MPM manager id declaring this tool in `mpm.packages.toml`, or `null`.
+   MPM manager id declaring this tool in `mpm.packages.toml`; absent when no MPM manager applies.
    */
-  readonly manager: string | null;
+  readonly manager?: string;
   /**
-   Package id under `manager`, or `null` when no MPM manager applies.
+   Package id under `manager`; absent when no MPM manager applies.
    */
-  readonly packageId: string | null;
+  readonly packageId?: string;
   /**
    Binary names the per-worktree exposure directory links.
    */
   readonly bins: readonly string[];
   /**
-   OS filter carried over from the tool's `os` option, or `null`.
+   OS filter carried over from the tool's `os` option; absent when the tool installs on every OS.
    */
-  readonly os: readonly ('linux' | 'macos' | 'windows')[] | null;
+  readonly os?: readonly ('linux' | 'macos' | 'windows')[];
   readonly options: ToolOptions;
   readonly env: ToolEnv;
   readonly artifacts: ToolArtifacts;
@@ -211,10 +211,19 @@ export type ToolchainLockTool = {
   readonly request: ToolRequest;
   readonly version: string;
   readonly route: ToolRoute;
-  readonly manager: string | null;
-  readonly packageId: string | null;
+  /**
+   Omitted when no MPM manager applies.
+   */
+  readonly manager?: string;
+  /**
+   Omitted when no MPM manager applies.
+   */
+  readonly packageId?: string;
   readonly bins: readonly string[];
-  readonly os: readonly ('linux' | 'macos' | 'windows')[] | null;
+  /**
+   Omitted when the tool installs on every OS.
+   */
+  readonly os?: readonly ('linux' | 'macos' | 'windows')[];
   readonly env: ToolEnv;
   readonly options: ToolOptions;
   readonly artifacts: ToolArtifacts;

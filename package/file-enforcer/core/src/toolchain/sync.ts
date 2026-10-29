@@ -141,7 +141,7 @@ export function syncOrder(
  ```
  */
 export function appliesToHost(entry: ToolPlanEntry,): boolean {
-  if (entry.os === null)
+  if (entry.os === undefined)
     return true;
   /**
    Platform family of the running host.

@@ -25,14 +25,15 @@ import type {
  ```
  */
 export function lockToolFromPlanEntry(entry: ToolPlanEntry,): ToolchainLockTool {
+  // Absent fields are omitted rather than written as null (owner decision, 2026-10-29).
   return {
     request: entry.request,
     version: entry.version,
     route: entry.route,
-    manager: entry.manager,
-    packageId: entry.packageId,
+    ...(entry.manager === undefined ? {} : { manager: entry.manager, }),
+    ...(entry.packageId === undefined ? {} : { packageId: entry.packageId, }),
     bins: entry.bins,
-    os: entry.os,
+    ...(entry.os === undefined ? {} : { os: entry.os, }),
     env: entry.env,
     options: entry.options,
     artifacts: entry.artifacts,

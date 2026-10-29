@@ -1066,7 +1066,17 @@ Remaining:
      This session keeps `types.ts`, `paths.ts`, `plan.ts`, `plan.load.ts`, `lock.ts`, `src/index.ts`,
      the toolchain tests' `require-eventual-artifact` imports, and any cross-cluster signature change the agents report.
      `lock.ts` and `plan.ts` are done (0 findings).
-     Open question for the owner, to ask with the agents' reports:
+     All three clusters landed (`e5cc3750e4` providers, `a11dc18d42` sync/status, `fca18e62d3` update,
+      plus `66f…` making the bin list row scan linear after the owner rejected a quadratic replacement:
+      "quadratic here isn't acceptable");
+      117 findings remained afterwards, all cross-cluster or in this session's files.
+     Owner decisions (2026-10-29):
+      lock absence is written by omitting the key ("Omit absent keys"), so `manager`, `packageId`, `os`,
+      and `bootstrap.requiresTool` become optional and the plan data drops its `null` literals;
+      none of the three outside readers uses those fields (checked: core-matrix reads only `.tools.node.artifacts`);
+      `bin-paths.ts` keeps Node built-ins only and takes one justified scoped disable for `prefer-caught-value-text`;
+      AGENTS.md MXL stays as written ("Leave MXL as is").
+     Former open question for the owner:
       `types.ts` mirrors `toolchain.lock.json`, which holds 120 JSON `null` values
       (30 `manager`, 30 `packageId`, 59 `os`, 1 `requiresTool`)
       and is read outside file-enforcer (`package/test-harness/core-matrix`, `package/ide/app/bin/inspect-language-toolchain.ts`,

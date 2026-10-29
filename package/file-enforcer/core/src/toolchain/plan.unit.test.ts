@@ -167,7 +167,7 @@ await describe({
              */
             const filtered = TOOLS
               .filter(
-              (entry,) => entry.os !== null,
+              (entry,) => entry.os !== undefined,
               )
               .map(
               (entry,) => entry.id,
@@ -292,7 +292,6 @@ await describe({
               .toBe('bin',);
             expect(BIN_BOOTSTRAP.options.bootstrap,)
               .toEqual({
-                requiresTool: null,
                 distribution: 'standalone-binary',
               },);
             expect(BIN_BOOTSTRAP.artifacts['linux-x64']?.sha256,)
