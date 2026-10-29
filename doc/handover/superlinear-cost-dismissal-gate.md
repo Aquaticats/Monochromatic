@@ -404,11 +404,16 @@ and safe to delete:
 
 Build the standards-review gate as the procedure
 that routes candidate diffs through a standards review before landing.
-First inspect the incumbents for where that duty already sits
-(the `project-code-review` skill,
-git-policy landing checks,
-the `ccsr` Stop hook)
-and extend the owner that already has it.
+Incumbent check done 2026-10-29:
+no repo owner carries a pre-landing review duty
+(nothing in `doc/agent/`,
+`doc/runbook/`,
+or git-policy package docs),
+`doc/agent/self-review.md` only obliges delegating to a separate reviewer when asked,
+git-policy owns landing without a review requirement,
+and `project-code-review` is a harness skill invoked on request.
+Where the gate lives is a flagged choice with the owner
+(procedure versus landing check).
 Then measure per-diff cost and run-to-run determinism,
 and wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
