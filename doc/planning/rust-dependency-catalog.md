@@ -916,6 +916,21 @@ Commit `8620661b05` first let an inherited `RUSTUP_TOOLCHAIN` win, which kept th
  the follow-up makes the `toolchain.lock.json` nightly pin win and logs a differing inherited value.
 Both failures restored every lockfile, as designed.
 
+The third run resolved all 24 crates on the pinned nightly and refused 6 first-publisher releases
+ ([issue #1806](https://github.com/Aquaticats/Monochromatic/issues/1806));
+ the owner approved all six (`trustPolicyExclude`, commit `f722a78ea5`)
+ and amended the trust policy (commit `81fbb6ae68`):
+ a listed individual crate owner counts as a known publisher,
+ and only a change between two declared repositories fails.
+Re-checked against crates.io, only `wayland-server@0.31.14` (published through a team owner) would still be refused.
+The fourth run passed:
+ 161 newly locked versions of 161 crates,
+ every check clean,
+ every lockfile restored (dry run).
+The host's `RUSTUP_TOOLCHAIN=1.98.1` stays on purpose as a canary for tools that do not pin the toolchain
+ (owner decision, [issue #1805](https://github.com/Aquaticats/Monochromatic/issues/1805)).
+The warm crates.io history cache (161 crates) is in the main checkout's gitignored `.cache/rust-catalog-update/`.
+
 Queued, waiting for another session's uncommitted package-rename batch,
  which holds edits to the files these steps touch
  (root `mise.toml`, `.github/workflows/advisory-core.yml`, `pnpm-lock.yaml`, and parts of `package/dev-script/file-enforcer`):
