@@ -283,11 +283,22 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included), except names ending in `.sample`.
   Plain files without an execute bit, directories and samples are not hooks.
-- It prints one hook path per line on stdout,
+- A hook file that is byte for byte the shim git-lfs writes for its own name
+  (`pre-push`, `post-checkout`, `post-commit` or `post-merge`; the text of git-lfs 3.8.0, `lfs/hook.go`, with its final
+  line feed) is a Git LFS shim.
+  Only a regular file counts; a link, a file that differs by one byte and a shim under another hook's name do not.
+  The comparison reads at most 1024 bytes of those four names and nothing else.
+- It prints one path per line on stdout for every hook that is not a Git LFS shim,
   the default directory first and each directory in name order,
   and nothing else on stdout.
   When it finds any it also explains on stderr that traditional hooks are unsupported.
-- Exit status: `0` when no hook is found, `1` when any is found,
+- Git LFS shims are reported on stderr only, apart from the other hooks, with their paths and an explanation:
+  git-lfs writes these files again whenever it cleans a file in a Git that the wrapper did not start,
+  so they can come back after deletion, and this is normal;
+  the wrapper does the LFS upload itself and starts Git with traditional hooks off, so the files never run through it;
+  nothing needs doing, and the files may be deleted or left.
+- Exit status: `0` when no hook is found or only Git LFS shims are found (they are expected and harmless),
+  `1` when any other hook is found, also when Git LFS shims are present beside it,
   and `2` when Git cannot locate a repository or a scanned directory cannot be read.
   A directory that does not exist holds no hooks.
 - It does not load configuration, recover transactions or take a lock, and it changes nothing.
@@ -724,6 +735,35 @@ Not yet met by the native executable: it handles updates one after another,
 with arguments, and reads each range commit's delta with its own `git diff-tree` process; the handover lists this as an
 open divergence.
 
+### Real Git starts with traditional hooks off
+
+Traditional hooks are not only unsupported: no start of the real Git by the wrapper runs them.
+Every such start, forwarded commands as well as the wrapper's own children (queries, the commit's native steps,
+the auto-push, the reconcile and integration pushes, maintenance), carries
+`-c core.hooksPath=/dev/null/cli-git-no-hooks` ahead of its arguments.
+The directory is below a device, so nothing can create it, and Git finds no hook file there.
+Hooks defined in the configuration (`hook.<name>.event` with `hook.<name>.command`) still run, the LFS upload hook
+and the commit dispatcher included; the dispatcher keeps its own `-c core.hooksPath=<tx>/no-hooks`.
+
+- The option is part of the argument vector, so it adds no system call and no process start.
+  The three commit controls of `binary_budget_tests.rs` pass with their counts unchanged.
+- It comes first, so a `-c core.hooksPath=<directory>` written by the caller, later on the command line, wins for that
+  command, and so does any later `-c` of the commit path (`<tx>/hooks`).
+- `git config` starts go without it, because they report what the repository configures and the wrapper reads
+  `core.hooksPath` that way (the commit warning, `doctor`); a command reached through an alias of `config` is not
+  recognized and gets the option.
+- A child of Git inherits the setting through `GIT_CONFIG_PARAMETERS`, so a config hook that starts `/usr/bin/git`
+  runs it with hooks off as well; a local-path remote's `receive-pack` does not inherit it (measured by
+  `a_local_remotes_server_side_hook_still_runs`), so server-side hooks of such a remote still run.
+  A script that starts Git outside any wrapper-started Git still runs traditional hooks.
+- git-lfs reads the same setting when it picks the directory for its shims: a clean filter started inside a
+  wrapper-started Git finds no directory it can write and writes none (measured with git-lfs 3.8.0;
+  `binary_hooks_off_tests.rs` has the positive control, a direct `git add` that writes all four).
+- A configuration hook also runs in the wrapper's dry-run probes, because the probe replaces only the hooks directory.
+- Measured with Git 2.56.0 only; Git 2.39 was not available on the host.
+  A missing `core.hooksPath` directory is the case the commit dispatcher already relies on (`<tx>/no-hooks`),
+  and the container end-to-end suite runs that on Git 2.39.5.
+
 ### Git LFS upload before a push
 
 A push publishes pointer files; the objects they name must reach the LFS server first, or collaborators fetch pointers
@@ -745,7 +785,7 @@ Verdict per hook of the four `git lfs install` writes
   and `git check-attr --all` on an LFS path lists none.
   A repository that adopts `lockable` reopens this verdict; until a hook or a wrapper step runs, its lockable files
   keep whatever write permission checkout gave them, and no content is lost.
-  The wrapper runs none of the three, and a shim file for any of them stays an unsupported traditional hook.
+  The wrapper runs none of the three, and a shim file for any of them never runs through the wrapper either.
 
 The step:
 
@@ -788,12 +828,12 @@ The step:
 - Bypass.
   `git push --no-verify` and `GIT_LFS_SKIP_PUSH` skip the upload, as they skipped the shim;
   `-c hook.cli-git-lfs-pre-push.enabled=false` after the wrapper's options turns the hook off for one command.
-- Limit.
+- Shims.
   `git lfs filter-process` and `git lfs clean` write the four shim files into the hooks directory whenever they run
-  (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is added.
-  A present `pre-push` shim runs in addition to this hook on a push real Git runs; the second upload finds every object
-  already stored and sends nothing.
-  `git cli-git doctor` lists the shims as unsupported traditional hooks.
+  (`setupRepository` then `installHooks(false)`), so deleting the files does not last once an LFS path is cleaned by
+  a Git that the wrapper did not start.
+  A shim never runs through the wrapper (see "Real Git starts with traditional hooks off"), so there is no second
+  upload; `git cli-git doctor` explains the shims apart from the unsupported hooks (see "Doctor").
 
 Verified by `src/native/binary_lfs_pre_push_tests.rs`
 (a stand-in `git-lfs` that records the arguments, the input and the origin's branch at the moment it ran)

@@ -3455,3 +3455,23 @@ Scratch tools (all in `~/temp/agent`): `attribute-commit.ts` (process starts by 
 - Tests: `lfs_pre_push_tests.rs` (unit), `binary_lfs_pre_push_tests.rs` (stand-in `git-lfs`), `binary_lfs_server_tests.rs`
   (real `git-lfs`, inline server; skipped without `git-lfs` on PATH). Shown failing by removing each guard in turn.
 - Not done: the container gate (the parent runs it); `post-*` hooks stay unrun (lockable not used).
+
+## Update at 2026-10-29 (traditional hooks never run through the wrapper; doctor and the git-lfs shims)
+
+- User decision on the shim-rewrite finding: "Make doctor say exactly what's happening and that this is normal and make our
+  wrapper invoke the real git w/o hooks." Done on branch `worktree-agent-ab2b64d9df753a15f`.
+- `hooks_off.rs`: every real-Git start (`forwarding::git_command`, the push coordinator's `git_command`) carries
+  `-c core.hooksPath=/dev/null/cli-git-no-hooks` first once `run_process` has called `hooks_off::activate()`. The switch is a
+  process flag so the library's unit controls, which fake Git with argument-recording scripts, stay exact; the binary
+  controls prove the option. `git config` starts are exempt (they must report the repository's own `core.hooksPath`; an alias
+  of `config` is not recognized). A caller's later `-c core.hooksPath` wins. The three budget ratchets pass unchanged.
+- Consequences found by measurement: (1) git-lfs reads the inherited setting, finds no hooks directory it can write, and
+  writes no shims inside a wrapper-started Git (a direct `git add` still writes all four, byte for byte the text doctor
+  recognizes); (2) a local-path remote's server-side hooks still run; (3) a configuration `pre-push` hook also runs in the
+  wrapper's dry-run probes (the probe replaces only the hooks directory), so `a_push_that_lost_a_race...` now counts 5 runs;
+  that is older behavior that traditional-hook fixtures used to hide; (4) the unit tests that used traditional hooks as
+  instruments (auto-push, reconcile, push stacking, worktree copy) now use configuration hooks.
+- `doctor`: a hook file whose bytes equal the git-lfs shim for its own name (regular file, four names, text of git-lfs
+  3.8.0 with the final line feed) is explained on stderr apart from other hooks and exits 0 when alone (user-chosen exit
+  code; the user may veto), 1 beside any other hook, 2 without a repository.
+- Git 2.39 was not available on the host; only 2.56.0 was measured.

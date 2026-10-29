@@ -36,11 +36,16 @@ Read-only commands,
   A transaction that an interrupted process left behind is recovered by the next invocation.
 - Hooks.
   Only hooks configured through Git config (`hook.<name>.event` with `hook.<name>.command`) are supported.
-  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported:
-   any use of them with the wrapper is undefined behavior.
+  Traditional hooks, executable scripts in `.git/hooks` or in a `core.hooksPath` directory, are not supported,
+   and they are never run through the wrapper:
+   every real Git it starts, forwarded commands and its own children alike, runs with
+   `-c core.hooksPath=/dev/null/cli-git-no-hooks` first, a directory that cannot exist.
+  Configured hooks still run.
+  A `-c core.hooksPath=<directory>` you write after the subcommand's global options wins for that command.
+  A script that starts `/usr/bin/git` directly, outside any Git the wrapper started, still runs them.
   A commit in a repository that sets `core.hooksPath` prints one non-blocking `configuration-warning` event
    (code `traditional-hooks-unsupported`) that says so; `git cli-git doctor` lists the scripts.
-  That includes the shims `git lfs install` writes: see "Git LFS" for what replaces them.
+  The shims `git lfs install` writes are the expected case: see "Git LFS" for what replaces them.
 - Git LFS.
   Every push the wrapper starts uploads the LFS objects it publishes pointers for, before any ref moves,
    in a repository whose own Git configuration (local, worktree or `-c`; not the global file) has a `filter.lfs.*` or
@@ -200,7 +205,12 @@ Events are JSON lines on standard output.
 It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,
  and prints the path of every traditional hook it finds, one per line, on standard output:
  each executable regular file and each symbolic link, except names ending in `.sample`.
-It exits 0 when it finds none, 1 when it finds any, and 2 when it cannot locate or read the repository.
+A hook file that is byte for byte the shim git-lfs writes for its own name is not listed there:
+ it is explained on standard error, with its path, as normal and harmless (git-lfs writes these files again whenever
+ it cleans a file in a Git the wrapper did not start; the wrapper does the LFS upload itself and never runs them;
+ delete them or leave them).
+It exits 0 when it finds none or only such shims, 1 when it finds any other hook, and 2 when it cannot locate or read
+ the repository.
 Traditional hooks are not supported,
  so the commands that need a hook to keep working should become config hooks
  (`hook.<name>.event` with `hook.<name>.command`).

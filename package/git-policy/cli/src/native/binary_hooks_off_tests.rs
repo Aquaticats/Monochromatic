@@ -151,6 +151,21 @@ fn a_failing_pre_push_hook_file_blocks_neither_a_push_nor_an_auto_push() {
     remove_settled(&fixture);
 }
 
+/// A local-path remote runs its own server-side hooks: the setting does not follow the push into the remote.
+#[test]
+fn a_local_remotes_server_side_hook_still_runs() {
+    let fixture: Fixture = fixture("hooks-off-remote-hook");
+    let world: World = world(&fixture, false);
+    executable(
+        world.origin.join("hooks/post-receive").as_path(),
+        format!("#!/bin/sh\necho post-receive >> '{}'\n", world.markers.display()).as_bytes(),
+    );
+    let pushed: Observed = wrapped(&fixture, &world, &["push", "origin", "main"]);
+    assert_eq!(pushed.code, Some(0), "{}", stderr_of(&pushed));
+    assert_eq!(markers(&world), "post-receive\n");
+    remove_settled(&fixture);
+}
+
 /// A regenerated `pre-push` shim does not upload a second time: only the wrapper's own step runs `git-lfs`.
 #[test]
 fn a_regenerated_pre_push_shim_does_not_double_the_upload() {
