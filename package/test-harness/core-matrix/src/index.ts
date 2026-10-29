@@ -28,12 +28,13 @@ export {
 } from './runtime.ts';
 
 /**
- @internal Container command building and OS specification parsing for
+ @internal Container command building, OS specification parsing and image resolution for
  built-artifact tests; not part of the supported matrix API.
  */
 export {
   buildContainerCommand,
   parseOs,
+  resolveImage,
 } from './container.ts';
 
 /**

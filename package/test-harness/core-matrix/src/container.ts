@@ -242,17 +242,62 @@ export function buildContainerCommand({
 }
 
 /**
+ Image repositories for distros whose Docker Hub repository name differs from the distro name.
+ Per the owner's 2026-10-29 container base distro decision
+ (`doc/decision/container-base-distro.md`), CachyOS resolves to the unpinned `latest` tag
+ of the plain `cachyos/cachyos` image, which runs on any x86-64 CPU
+ (`cachyos/cachyos-v3` needs AVX2 and fails on CPUs without it).
+ A `Map` keeps lookups of names like `constructor` from reaching the prototype.
+ */
+const IMAGE_REPOSITORY_BY_DISTRO: ReadonlyMap<string, string> = new Map([
+  [
+    'cachyos',
+    'docker.io/cachyos/cachyos',
+  ],
+],);
+
+/**
  Resolves a distro name to a container image reference.
  Appends `:latest` if no tag is specified.
+ Distros listed in `IMAGE_REPOSITORY_BY_DISTRO` resolve to their registry repository
+ (keeping an explicit tag); every other distro name is used as the image name.
  
- @param distro - Distro name (e.g. `'ubuntu'`, `'fedora:39'`)
+ @param distro - Distro name (e.g. `'ubuntu'`, `'fedora:39'`, `'cachyos'`)
  
- @returns container image reference (e.g. `'ubuntu:latest'`, `'fedora:39'`)
+ @returns container image reference (e.g. `'ubuntu:latest'`, `'fedora:39'`,
+ `'docker.io/cachyos/cachyos:latest'`)
+ 
+ @example
+ ```ts
+ resolveImage('ubuntu'); // 'ubuntu:latest'
+ resolveImage('cachyos'); // 'docker.io/cachyos/cachyos:latest'
+ ```
  */
-function resolveImage(distro: string,): string {
-  if (distro.includes(':',))
-    return distro;
-  return `${distro}:latest`;
+export function resolveImage(distro: string,): string {
+  /**
+   Split point between distro name and tag; -1 signals no tag.
+   */
+  const colonIndex = distro.indexOf(':',);
+  /**
+   Distro name without its tag, the key into the repository map.
+   */
+  const baseName = colonIndex === (-1)
+    ? distro
+    : distro.slice(
+      0,
+      colonIndex,
+    );
+  /**
+   Registry repository for distros whose image name differs from the distro name.
+   */
+  const repository = IMAGE_REPOSITORY_BY_DISTRO.get(baseName,);
+
+  if (repository === undefined)
+    return colonIndex === (-1) ? `${distro}:latest` : distro;
+
+  return colonIndex === (-1)
+    ? `${repository}:latest`
+    : `${repository}${distro.slice(colonIndex,)}`;
 }
 
 /**
