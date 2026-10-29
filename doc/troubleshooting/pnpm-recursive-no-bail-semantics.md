@@ -501,10 +501,11 @@ Constraint walk:
    Yes.
    See below.
 
-All six constraints hold,
-so the draft below is fileable as-is.
-It has not been posted;
-posting is an external action and waits for user authorization.
+All six constraints hold.
+The draft below was posted as
+[pnpm/pnpm.io#987](https://github.com/pnpm/pnpm.io/issues/987)
+on 2026-10-28
+after the user authorized filing.
 The help-hidden flags in `pnpm/crates/cli/src/cli_args/cli_command.rs` are a
 separate code change in a separate repository.
 They are recorded above but not included in this draft,
@@ -568,7 +569,7 @@ asserts in `workspace-task-scheduler/src/tests.rs:880`.
 No upstream build or test script was run;
 the clone was never committed to.
 
-### New-issue draft (fileable, not yet posted)
+### New-issue draft (posted as pnpm/pnpm.io#987)
 
 ~~~md
 Title: docs: cli/recursive says `--no-bail` finishes all tasks; the scheduler skips dependents
