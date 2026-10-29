@@ -163,11 +163,11 @@ const builds = { count: 0, };
  The text nodes of a tree that are prose, walked with a work stack rather than by recursion, since a tree is as deep as the
  nesting a page writes.
 
- @param root - the tree's top node
+ @param root - tree's top node
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
- @returns The offsets the text nodes cover, as start and exclusive end
+ @returns Offsets the text nodes cover, as start and exclusive end
 
  @example
  ```ts
@@ -253,7 +253,7 @@ function proseRangesOf(
 
  @param length - how long the body is
 
- @returns The stretches of the body
+ @returns Stretches of the body
 
  @example
  ```ts
@@ -292,9 +292,9 @@ function withinBody(
 
  @param body - text after any front matter
 
- @param definitions - the page's definitions, parsed after the body so a reference in it resolves; empty for a body read alone
+ @param definitions - page's definitions, parsed after the body so a reference in it resolves; empty for a body read alone
 
- @returns The text the parser read and the prose ranges as a list of one, none when the grammar refused the body; only the body's
+ @returns Text the parser read and prose ranges as a list of one, none when the grammar refused the body; only the body's
  own offsets are in the answer
 
  @throws The error of any failure that is no refusal of the grammar
@@ -360,7 +360,7 @@ function proseReadOf(
  Where the body of a text starts, past any front matter, none when the fences are there and the YAML between them refuses to
  parse (so the text has no prose that can be told).
 
- @param text - the whole text
+ @param text - whole text
 
  @returns Offset of the body in the text as a list of one, none when the front matter is refused
 
@@ -390,7 +390,7 @@ function bodyOffsetOf({ text, }: { readonly text: string; },): readonly number[]
 
  @param text - text to mask
 
- @param definitions - the page's definitions, empty for a text read alone
+ @param definitions - page's definitions, empty for a text read alone
 
  @returns One flag per UTF-16 unit, and whether the grammar refused the text
 
@@ -508,7 +508,7 @@ function buildMask(
 
  @param text - text to mask
 
- @param definitions - the page's definitions (`pageDefinitionsOf`), none for a text read alone
+ @param definitions - page's definitions (`pageDefinitionsOf`), none for a text read alone
 
  @returns One flag per unit, true where a typography rule may write, and whether the grammar refused the text
 
@@ -581,15 +581,15 @@ export function proseMaskReading(
  region it replaces is parsed, and the flags of the fragment's own units are returned. A fragment that begins inside a tag or ends
  inside an element parses alone as something else than the slice shows.
 
- @param slice - the slice the fragment lands in
+ @param slice - slice the fragment lands in
 
  @param start - offset where the replaced region starts in the slice
 
  @param end - exclusive offset where the replaced region ends in the slice
 
- @param replacement - the fragment that takes the region's place
+ @param replacement - fragment that takes the region's place
 
- @param definitions - the page's definitions, none for a slice read alone
+ @param definitions - page's definitions, none for a slice read alone
 
  @returns One flag per unit of the fragment, and whether the grammar refused the slice with the fragment in place
 
@@ -655,7 +655,7 @@ export function fragmentProseMask(
  How many masks were built, not answered from the memory since the process began. A test reads the difference over one piece of
  work to see how many texts it parsed.
 
- @returns The count of builds
+ @returns Count of builds
 
  @example
  ```ts

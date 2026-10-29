@@ -5,7 +5,7 @@ import { proseMaskReading, } from '../dist/final/node/index.mjs';
 
  @param text - text whose mask is read
 
- @param definitions - the page's definitions, none for a slice read alone
+ @param definitions - page's definitions, none for a slice read alone
 
  @returns `P` for a mark in prose, `N` for a mark that is not
 

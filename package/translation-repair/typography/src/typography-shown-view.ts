@@ -45,13 +45,13 @@ const SHOWN_NODE_TYPES: ReadonlySet<string> = new Set([
 /**
  How many backticks open an inline code span, counted from its start.
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @param start - offset where the span starts
 
  @param end - exclusive offset where the span ends
 
- @returns The length of the run of backticks at the start, at most half the span
+ @returns Length of the run of backticks at the start, at most half the span
 
  @example
  ```ts
@@ -85,11 +85,11 @@ function backtickRunAt(
  The stretches of a tree a reader sees although no rule writes in them: the content of inline code, inline math, math blocks and
  code blocks. Walked with a work stack rather than by recursion, since a tree is as deep as the nesting a page writes.
 
- @param root - the tree's top node
+ @param root - tree's top node
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
- @returns The stretches, in no promised order
+ @returns Stretches, in no promised order
 
  @example
  ```ts
@@ -162,11 +162,11 @@ export function shownRangesOf(
 /**
  The text a reader sees: the units a reader sees and every line break.
 
- @param text - the text as written
+ @param text - text as written
 
  @param visible - one flag per unit, true where a reader sees the unit
 
- @returns The view's text, and for each of its units the offset it has in the text
+ @returns View's text, and for each of its units the offset it has in the text
 
  @example
  ```ts
@@ -206,13 +206,13 @@ export function shownViewOf(
 /**
  Puts the units a rule wrote in the view back into the text as written.
 
- @param text - the text as written
+ @param text - text as written
 
  @param offsets - for each unit of the view, its offset in the text (`shownViewOf`)
 
- @param units - the view's units after the rule, one for each of the view's
+ @param units - view's units after the rule, one for each of the view's
 
- @returns The text with each view unit replaced by what the rule wrote for it
+ @returns Text with each view unit replaced by what the rule wrote for it
 
  @example
  ```ts

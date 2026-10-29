@@ -109,7 +109,7 @@ function semanticWrapConfigPath(): string {
 
  @param answer - standard output of the question, `monochromatic-lint 0.2.0` and a newline
 
- @returns The version token, or the stand-in for an answer that is not the program's name and one version token
+ @returns Version token, or the stand-in for an answer that is not the program's name and one version token
 
  @example
  ```ts

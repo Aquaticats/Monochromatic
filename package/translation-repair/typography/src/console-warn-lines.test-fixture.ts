@@ -104,7 +104,7 @@ async function flushBothLoggers(): Promise<void> {
  @param calls - each text the method was called with; the sink joins the
  lines of one turn into one call and passes that one text
 
- @returns The lines in the order written
+ @returns Lines in the order written
 
  @example
  ```ts

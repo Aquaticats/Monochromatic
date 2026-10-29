@@ -39,7 +39,7 @@ import {
 
  @param body - what to run
 
- @returns The thrown value
+ @returns Thrown value
 
  @throws {@link Error} when the body throws nothing, since every case here
  expects a failure
@@ -65,7 +65,7 @@ async function caughtFrom(
  A throwaway directory holding one regular file, and the two real failures
  reading under it raises.
 
- @returns The `ENOENT` of a file that is not there, the `ENOTDIR` of a path
+ @returns `ENOENT` of a file that is not there, `ENOTDIR` of a path
  through the regular file, and how to remove the directory
 
  @example

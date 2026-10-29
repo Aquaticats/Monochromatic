@@ -128,7 +128,7 @@ function marksStart({
 
  @param at - offset of the quote
 
- @returns The base code point and its marks, empty at the text's start;
+ @returns Base code point and its marks, empty at the text's start;
  marks alone where nothing but marks precedes them
 
  @example
@@ -451,7 +451,7 @@ const PUNCTUATION_BEFORE_CLOSING: ReadonlySet<string> = new Set(Array.from(',.;:
  Whether the character before a straight single mark with no word after it is punctuation that a closing single mark follows: a
  stop, a pause, a dash or a closing quotation mark.
 
- @param character - the character before the mark, empty at a text boundary
+ @param character - character before the mark, empty at a text boundary
 
  @returns Whether it is such punctuation
 

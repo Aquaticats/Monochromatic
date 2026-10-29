@@ -24,9 +24,9 @@ const NAME_LENGTH = 48;
 /**
  Names a text for a finding when no slice number is at hand.
 
- @param text - the text a reader was handed
+ @param text - text a reader was handed
 
- @returns The first characters of the text between quotation marks
+ @returns First characters of the text between quotation marks
 
  @example
  ```ts
@@ -43,9 +43,9 @@ export function textNamed({ text, }: { readonly text: string; },): string {
 /**
  Logs that a typography reader was handed a refusal of the page grammar, so it writes nothing in the slice.
 
- @param reader - the reader that got the all-false mask
+ @param reader - reader that got the all-false mask
 
- @param name - the slice, by number where the caller has one, else the text (`textNamed`)
+ @param name - slice, by number where the caller has one, else the text (`textNamed`)
 
  @example
  ```ts

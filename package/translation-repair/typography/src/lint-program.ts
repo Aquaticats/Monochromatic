@@ -33,7 +33,7 @@ import { LintBinaryRunError, } from './semantic-wrap-run-error.ts';
 
  @param cwd - directory to run in, the one holding the configuration
 
- @returns The finished run; its `error` is set where the program could not be started or read
+ @returns Finished run; its `error` is set where the program could not be started or read
 
  @example
  ```ts
@@ -74,7 +74,7 @@ export function startProgram(
 
  @param characters - length of the passage it was handed, zero for the version question
 
- @param run - the finished run
+ @param run - finished run
 
  @throws {@link LintBinaryMissingError} when nothing stands at the program's path
 

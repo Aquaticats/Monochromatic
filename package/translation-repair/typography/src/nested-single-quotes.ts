@@ -307,7 +307,7 @@ export function opensBeforeMarkup(
 
  @param at - offset of the opening mark
 
- @returns The offset of the closing mark as a list of one, none when the text after the mark reads any other way
+ @returns Offset of the closing mark as a list of one, none when the text after the mark reads any other way
 
  @example
  ```ts

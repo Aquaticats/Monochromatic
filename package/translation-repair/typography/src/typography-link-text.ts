@@ -20,9 +20,9 @@ export type TreeNode = DeepReadonlyData<Nodes>;
 /**
  Whether a link node is written between brackets, so its text is the label a reader reads and not the address itself.
 
- @param node - the link node
+ @param node - link node
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @returns Whether the node starts with an opening bracket; false for an autolink, a bare address and a node with no position
 
@@ -56,7 +56,7 @@ function writesLabel(
  definition is looked up by. A mark curled in the text no longer matches the definition's label, so the link stops working; the text
  is no prose. The text of a full reference (`[the dogs][b]`) is not its label, and a footnote reference holds no text.
 
- @param node - a node of the tree
+ @param node - node of the tree
 
  @returns Whether the node is a reference that resolved to a definition and uses its own text as the label
 
@@ -74,9 +74,9 @@ function namesItsDefinition({ node, }: { readonly node: TreeNode; },): boolean {
  autolink-literal reading finds an address (a protocol address, a `www.` address or an email address). The text of such a link is
  the address a reader copies, so it is no prose.
 
- @param node - the link node, written between brackets
+ @param node - link node, written between brackets
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @returns Whether the label is a single token that holds an address; false for a label with words, a label the grammar refuses
  and a node with no positioned label
@@ -161,9 +161,9 @@ function labelIsAddress(
  Whether the text nodes under a node are prose, given whether the text nodes over it are: the text of a link written between
  brackets is, unless the label is an address, and the text of a shortcut or collapsed reference is not.
 
- @param node - a node of the tree that holds children
+ @param node - node of the tree that holds children
 
- @param masked - the text the parser read
+ @param masked - text the parser read
 
  @param prose - whether the text nodes over the node are prose
 

@@ -333,7 +333,7 @@ function needlePreview(
 
  @param quote - substring the critic claims
 
- @param original - the original passage the sheet's translation was cut
+ @param original - original passage the sheet's translation was cut
  against, whose own comments stay in view; absent when the quote is stored text
  (a region a stage recorded from the document, a text no sheet cut), which is
  searched as it stands

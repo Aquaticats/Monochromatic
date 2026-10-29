@@ -27,7 +27,7 @@ export const UNREADABLE_ANSWER: unique symbol = Symbol('the program answered wit
 
  @param found - version token it answered with, or the stand-in for an answer that was not a version line
 
- @returns The clause naming that version, or saying the answer could not be read
+ @returns Clause naming that version, or saying the answer could not be read
 
  @example
  ```ts

@@ -14,7 +14,7 @@
 
  @param many - word at any other count
 
- @returns The word
+ @returns Word
 
  @example
  ```ts

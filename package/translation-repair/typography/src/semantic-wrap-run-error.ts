@@ -15,7 +15,7 @@ import {
 
  @param count - how many characters
 
- @returns The count and the noun
+ @returns Count and noun
 
  @example
  ```ts
@@ -37,7 +37,7 @@ export function countedCharacters({ count, }: { readonly count: number; },): str
 
  @param count - how many bytes
 
- @returns The count and the noun
+ @returns Count and noun
 
  @example
  ```ts
@@ -108,7 +108,7 @@ export type LintBinaryRunFailure = {
 
  @param failure - how it failed
 
- @returns The sentence
+ @returns Sentence
 
  @example
  ```ts

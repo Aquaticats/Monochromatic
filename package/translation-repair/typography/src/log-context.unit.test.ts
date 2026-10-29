@@ -72,7 +72,7 @@ async function infoLinesOf(
 
  @param stageLogger - logger that writes `stretches`
 
- @returns The printed lines one by one, since the logger hands a run of lines of one level to the console as one call
+ @returns Printed lines one by one, since the logger hands a run of lines of one level to the console as one call
 
  @example
  ```ts
@@ -412,7 +412,7 @@ await describe({
 
              @param level - level name recorded beside the message
 
-             @returns The recording method
+             @returns Recording method
              */
             function recording(level: string,): (message: string,) => void {
               return function record(message: string,): void {

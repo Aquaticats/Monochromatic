@@ -54,9 +54,9 @@ export const EMPTY_LINE: LineState = {
 /**
  How many pairs a line reading found.
 
- @param state - the reading
+ @param state - reading
 
- @returns The number of pairs
+ @returns Number of pairs
 
  @example
  ```ts
@@ -74,11 +74,11 @@ function pairCountOf({ state, }: { readonly state: LineState; },): number {
 /**
  A line reading after the closing mark at an offset pairs with the innermost opening mark that waits.
 
- @param state - the reading, whose innermost opening mark waits
+ @param state - reading, whose innermost opening mark waits
 
  @param close - offset of the closing mark
 
- @returns The reading with the pair found and the opening mark no longer waiting
+ @returns Reading with the pair found and opening mark no longer waiting
 
  @throws The error of `nonNullishOrThrow` when no opening mark waits
 
@@ -125,7 +125,7 @@ function closedBy(
 /**
  A line reading after the straight single mark at an offset, read by its shape.
 
- @param state - the reading before the mark
+ @param state - reading before the mark
 
  @param at - offset of the mark
 
@@ -133,7 +133,7 @@ function closedBy(
 
  @param elision - whether the mark starts a listed elision (`'em`, `'tis`)
 
- @returns The reading after the mark: an opening mark waits (a listed elision never joins the opening marks that wait, since
+ @returns Reading after the mark: an opening mark waits (a listed elision never joins the opening marks that wait, since
  inside a quotation it is an apostrophe), and a closing mark pairs with the innermost opening mark that waits
 
  @example
@@ -180,9 +180,9 @@ export function withMark(
  The line readings with one for each number of waiting marks: of the readings that wait with the same number of marks the future
  is the same, so the one with the most pairs is kept, and of equal ones the first, which keeps an elision.
 
- @param states - the readings, the reading that keeps an elision first
+ @param states - readings, reading that keeps an elision first
 
- @returns The kept readings in the order of their first appearance
+ @returns Kept readings in the order of their first appearance
 
  @example
  ```ts
@@ -216,7 +216,7 @@ export function distinctDepths({ states, }: { readonly states: readonly LineStat
 /**
  The line readings after a quoted two-digit number (`'42'`, `'90s'`) and the mark that closes it.
 
- @param states - the readings before the number, the reading that keeps an elision first
+ @param states - readings before the number, reading that keeps an elision first
 
  @param open - offset of the number's opening mark
 
@@ -285,9 +285,9 @@ export function withQuotedNumber(
 /**
  The pairs of the best reading of a line: the reading with the most pairs, and of equal ones the first, which keeps an elision.
 
- @param states - the readings of the line, at least one
+ @param states - readings of the line, at least one
 
- @returns The pairs of the winning reading
+ @returns Pairs of the winning reading
 
  @example
  ```ts

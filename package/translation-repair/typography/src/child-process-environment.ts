@@ -50,7 +50,7 @@ export function isCredentialName({ name, }: { readonly name: string; },): boolea
  @param parent - environment the child would inherit, passed in so a case can
  hand an invented one and the helper never reads the process's
 
- @returns A new object holding every name of the parent, with the value of a
+ @returns New object holding every name of the parent, with the value of a
  name ending in `_API_KEY` or starting with `TRANSLATION_REPAIR_` replaced by
  `undefined`; the parent is never changed
 

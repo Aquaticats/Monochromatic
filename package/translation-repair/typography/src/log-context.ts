@@ -96,7 +96,7 @@ export function currentLogContext(): LogContext {
  @param attempt - number of the entry's attempt, whole and from 1, as the attempts file holds it once the attempt is
  counted; required so a caller cannot forget it (ledger B960)
 
- @param run - the entry's work
+ @param run - entry's work
 
  @returns What the work returned
 
@@ -137,7 +137,7 @@ export async function inEntryLogContext<ResultT,>(
 
  @param sliceIndex - slice worked
 
- @param run - the lane's work on it
+ @param run - lane's work on it
 
  @returns What the work returned
 
@@ -460,7 +460,7 @@ function slicePrefix(): string {
  Hands a line on with the attempt, lane and slice tags, unless a slice-tagged logger that was called first has put them
  on it.
 
- @param message - the line as the logger was given it
+ @param message - line as the logger was given it
 
  @param send - hands the line to the logger beneath
 

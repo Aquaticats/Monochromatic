@@ -130,7 +130,7 @@ export async function standIn(
 
  @param body - what to run
 
- @returns The thrown value
+ @returns Thrown value
 
  @throws {@link Error} when the body throws nothing, since every case that
  calls this expects a refusal
