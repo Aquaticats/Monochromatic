@@ -22,6 +22,7 @@
  */
 import {
   cp,
+  mkdir,
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
@@ -32,16 +33,19 @@ import {
 
 import {
   scannerSnapshotEntries,
+  type SnapshotEntry,
   vendorLockedDependencies,
 } from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
+/**
+ Parent of every scratch directory this script creates.
+ */
 const scratchBase = join(
   import.meta.dirname,
   '..',
@@ -49,11 +53,10 @@ const scratchBase = join(
   '.monochromatic',
   'git-policy'
 );
-makeScratchBase(
+await mkdir(
   scratchBase,
   { recursive: true }
 );
-
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
@@ -88,18 +91,29 @@ const compilerImage = 'docker.io/library/rust:1.97-bookworm';
  Copy the native crate, its path dependencies and the scanner crates into the build context.
  Copies run concurrently, and every copy settles before this returns or throws.
 
- @param request - build context directory receiving the repository-shaped snapshot
+ @param context - build context directory receiving the repository-shaped snapshot
  */
-async function copySnapshot({ context }: { context: string }) {
+async function copySnapshot({ context, }: {
+  readonly context: string;
+},): Promise<void> {
+  /**
+   Where the wrapper crate lands in the repository-shaped snapshot.
+   */
   const subject = join(
     context,
     'package/git-policy/cli',
   );
+  /**
+   Where the JSONC crate the wrapper links lands in the snapshot.
+   */
   const dependency = join(
     context,
     'package/jsonc-edit/core-rust',
   );
-  const entries = [
+  /**
+   Everything the compile stage builds from: the wrapper, its path dependencies and the scanner crates.
+   */
+  const entries: readonly SnapshotEntry[] = [
     ...[
       'Cargo.toml',
       'Cargo.lock',
@@ -133,16 +147,22 @@ async function copySnapshot({ context }: { context: string }) {
     }),
     ...scannerSnapshotEntries({ context }),
   ];
-  const copies = await Promise.allSettled(entries.map(function copyEntry(entry) {
-    return cp(
-      entry.from,
-      entry.to,
-      { recursive: true },
-    );
+  /**
+   Errors of the copies that failed; a failed copy never stops the others, so none is still in flight afterwards.
+   */
+  const failures: unknown[] = [];
+  await Promise.all(entries.map(async function copyEntry(entry): Promise<void> {
+    try {
+      await cp(
+        entry.from,
+        entry.to,
+        { recursive: true },
+      );
+    }
+    catch (error) {
+      failures.push(error);
+    }
   }));
-  const failures = copies.filter(function isRejected(copy) {
-    return copy.status === 'rejected';
-  });
   if (failures.length > 0)
     throw new NativeVerificationError(
       `Copying ${String(failures.length)} snapshot entries into ${context} failed.`,
@@ -153,7 +173,10 @@ async function copySnapshot({ context }: { context: string }) {
 /**
  Build the base image (Git builds, Node, `ssh-keygen`) from the end-to-end Containerfile; nothing is copied in.
  */
-async function buildBase() {
+async function buildBase(): Promise<void> {
+  /**
+   Start time of the build, for the duration the log line reports.
+   */
   const startedAt = performance.now();
   await runCommand({
     command: 'podman',
@@ -173,7 +196,10 @@ async function buildBase() {
 /**
  Build the two-stage image: compile the release executable, then link it as `git` into the end-to-end image.
  */
-async function buildImage() {
+async function buildImage(): Promise<void> {
+  /**
+   Result of asking whether the base image exists; a missing image is built first.
+   */
   const base = await runCommand({
     command: 'podman',
     args: [
@@ -186,6 +212,9 @@ async function buildImage() {
   });
   if (base.status !== 0)
     await buildBase();
+  /**
+   Disposable build context that holds the snapshot, the vendored sources and the Containerfile.
+   */
   await using context = await mkdtempDisposable(join(
     scratchBase,
     'cli-git-e2e-native-',
@@ -236,7 +265,7 @@ async function buildImage() {
 /**
  Run the suite in the native image under the suite's bounds.
  */
-async function runSuite() {
+async function runSuite(): Promise<void> {
   await runCommand({
     command: 'podman',
     args: [
@@ -271,13 +300,22 @@ async function runSuite() {
 }
 
 // Dispatch on the subcommand.
+/**
+ The subcommand and any extra arguments, which are a usage error.
+ */
 const [subcommand, ...extra] = process.argv
   .slice(2);
+/**
+ The step each subcommand runs.
+ */
 const actions = {
   base: buildBase,
   image: buildImage,
   run: runSuite,
 };
+/**
+ The step the subcommand names, absent for an unknown subcommand.
+ */
 const action = Object.entries(actions)
   .find(function named([name]) {
     return name === subcommand;

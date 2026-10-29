@@ -31,11 +31,11 @@ import {
 import { parseArgs } from 'node:util';
 
 import { repository } from './native-perf-git.ts';
-import { measure } from './native-perf-measure.ts';
-import type {
-  SampleFailure,
-  ScenarioMeasurement,
-  ScenarioReport
+import {
+  measure,
+  type SampleFailure,
+  type ScenarioMeasurement,
+  type ScenarioReport,
 } from './native-perf-measure.ts';
 
 /**
@@ -63,6 +63,9 @@ const PRIVATE_DIRECTORY_MODE = 0o700;
  */
 const SCENARIO_COLUMN_WIDTH = 22;
 
+/**
+ Parsed command line: the binary to measure, the sample count and the optional report path.
+ */
 const { values } = parseArgs({
   options: {
     binary: { type: 'string' },
@@ -76,12 +79,18 @@ const { values } = parseArgs({
 if (values.binary === undefined) {
   throw new Error('--binary <path to the release cli-git-native> is required');
 }
+/**
+ Samples per scenario, validated below as an integer of at least the minimum.
+ */
 const samples = Number(values.samples);
 if ((!Number.isInteger(samples)) || (samples < MINIMUM_SAMPLES)) {
   throw new Error(`--samples must be an integer of at least ${String(MINIMUM_SAMPLES)}`);
 }
 
 if (values.output !== undefined) {
+  /**
+   Directory that must already hold the report, checked before any measurement starts.
+   */
   const outputDirectory = dirname(resolve(values.output));
   try {
     await access(outputDirectory);
@@ -94,6 +103,9 @@ if (values.output !== undefined) {
   }
 }
 
+/**
+ Private parent of the scratch root, outside the repository so no fixture is ever committed.
+ */
 const scratchParent = join(
   homedir(),
   'temp',
@@ -106,6 +118,9 @@ await mkdir(
     mode: PRIVATE_DIRECTORY_MODE,
   },
 );
+/**
+ Scratch root holding the wrapper `bin`, the empty `home` and both fixture repositories.
+ */
 const root = await mkdtemp(join(
   scratchParent,
   'native-perf-',
@@ -118,6 +133,9 @@ await mkdir(join(
   root,
   'home',
 ));
+/**
+ Copy of the release wrapper, so the measurement never races a rebuild of the original.
+ */
 const wrapperBinary = join(
   root,
   'bin',
@@ -140,10 +158,16 @@ await symlink(
   ),
 );
 
+/**
+ Fixture repository that the direct samples run in.
+ */
 const directRepository = await repository({
   root,
   name: 'direct-repo',
 });
+/**
+ Fixture repository that the wrapped samples run in.
+ */
 const wrappedRepository = await repository({
   root,
   name: 'wrapped-repo',
@@ -184,7 +208,13 @@ const forwarded = [
   },
 ];
 
+/**
+ Failed samples of every scenario, in the order they ran.
+ */
 const failures: SampleFailure[] = [];
+/**
+ Report of every scenario that had a successful sample on both sides.
+ */
 const report: ScenarioReport[] = [];
 
 /**
@@ -192,7 +222,7 @@ const report: ScenarioReport[] = [];
 
  @param measurement - what one scenario measured
  */
-function record(measurement: ScenarioMeasurement) {
+function record(measurement: ScenarioMeasurement): void {
   failures.push(...measurement.failures);
   if (measurement.entry !== undefined) {
     report.push(measurement.entry);
@@ -263,9 +293,15 @@ await rm(
   },
 );
 
+/**
+ Enforced scenarios whose added p95 reached the budget.
+ */
 const overBudget = report.filter(function overBudgetEntry(entry) {
   return entry.enforced && (entry.addedP95Milliseconds >= BUDGET_MILLISECONDS);
 });
+/**
+ The JSON document written when `--output` is given.
+ */
 const document = {
   schemaVersion: 1,
   date: new Date().toISOString(),
@@ -287,6 +323,9 @@ if (values.output !== undefined) {
   );
 }
 for (const entry of report) {
+  /**
+   One printed line of figures for a scenario.
+   */
   const line = [
     entry.scenario
       .padEnd(SCENARIO_COLUMN_WIDTH),
@@ -308,6 +347,9 @@ if (failures.length > 0) {
   process.exitCode = 1;
 }
 if (overBudget.length > 0) {
+  /**
+   Names of the scenarios that exceeded the budget.
+   */
   const overBudgetNames = overBudget.map(function scenarioName(entry) {
     return entry.scenario;
   });

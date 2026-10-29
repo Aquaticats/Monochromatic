@@ -30,10 +30,12 @@ import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
+/**
+ Parent of every scratch directory this campaign creates.
+ */
 const scratchBase = join(
   import.meta.dirname,
   '..',
@@ -41,11 +43,10 @@ const scratchBase = join(
   '.monochromatic',
   'git-policy'
 );
-makeScratchBase(
+await mkdir(
   scratchBase,
   { recursive: true }
 );
-
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never mutates another's image.
@@ -118,19 +119,22 @@ function isContentAddressedId(text: string): boolean {
 /**
  cargo-mutants command the campaign image runs.
 
- @param request - `src/native` file
-   globs, mutant-name patterns to restrict to, and per-mutant test limit
- 
+ @param scopes - `src/native` file globs
+
+ @param examine - mutant-name patterns to restrict to
+
+ @param timeoutSeconds - per-mutant test limit
+
  @returns complete argument array, also recorded in the manifest
  */
 function mutationCommand({
   scopes,
   examine,
-  timeoutSeconds
+  timeoutSeconds,
 }: {
-  scopes: readonly string[];
-  examine: readonly string[];
-  timeoutSeconds: number
+  readonly scopes: readonly string[];
+  readonly examine: readonly string[];
+  readonly timeoutSeconds: number;
 }): string[] {
   return [
     'cargo',
@@ -176,17 +180,29 @@ function mutationCommand({
 }
 
 // Build and run the tool over an immutable input image, then retain its complete report.
+/**
+ Campaign options parsed from the command line: the per-mutant timeout, the mutant-name patterns and the rest.
+ */
 const {
   timeoutSeconds,
   examine,
   scopeOptions
 } = parseTimeout(process.argv
   .slice(2));
+/**
+ Validated `--file` scopes, or none for a whole-package campaign.
+ */
 const scopes = parseScopes(scopeOptions);
+/**
+ Disposable build context that holds the Containerfile and the copied tool.
+ */
 await using context = await mkdtempDisposable(join(
   scratchBase,
   'cli-git-native-mutation-',
 ));
+/**
+ Directory under the package's `target/` that keeps the evidence of every campaign.
+ */
 const evidenceRoot = join(
   process.cwd(),
   'target',
@@ -196,10 +212,16 @@ await mkdir(
   evidenceRoot,
   { recursive: true },
 );
+/**
+ Evidence directory of this campaign.
+ */
 const evidence = await mkdtemp(join(
   evidenceRoot,
   'native-mutation-',
 ));
+/**
+ Result of inspecting the tested image for its ID.
+ */
 const inspected = await runCommand({
   command: 'podman',
   args: [
@@ -211,6 +233,9 @@ const inspected = await runCommand({
   ],
   capture: true,
 });
+/**
+ Content-addressed ID of the tested image, which binds the campaign to one source snapshot.
+ */
 const base = inspected.stdout
   .trim();
 if (!isContentAddressedId(base))
@@ -228,18 +253,30 @@ else
     context: context.path,
     evidence,
   });
+/**
+ Cargo home that holds the installed cargo-mutants.
+ */
 const cargoHome = process.env
   .CARGO_HOME
   ?? join(
     homedir(),
     '.cargo',
   );
+/**
+ Host path of the installed cargo-mutants executable.
+ */
 const tool = join(
   cargoHome,
   'bin',
   'cargo-mutants',
 );
+/**
+ Bytes of the executable, hashed into the manifest.
+ */
 const toolBytes = await readFile(tool);
+/**
+ Digest that identifies the exact tool build in the manifest.
+ */
 const toolSha256 = createHash('sha256')
   .update(toolBytes)
   .digest('hex');
@@ -250,6 +287,9 @@ await copyFile(
     'cargo-mutants',
   ),
 );
+/**
+ The cargo-mutants command line, recorded in the image and the manifest.
+ */
 const command = mutationCommand({
   scopes,
   examine,
@@ -285,6 +325,9 @@ await runCommand({
     context.path,
   ],
 });
+/**
+ The campaign container, removed when the script ends whether it passed or failed.
+ */
 await using container = await createContainer({
   args: [
     'create',
@@ -318,6 +361,9 @@ await writeFile(
     2,
   )}\n`,
 );
+/**
+ Outcome of the campaign run, whose nonzero exit can mean missed mutants rather than a failure.
+ */
 const result = await runCommand({
   command: 'podman',
   args: [
@@ -328,6 +374,9 @@ const result = await runCommand({
   allowFailure: true,
 });
 // Preserve evidence even when missed mutants correctly make the campaign nonzero.
+/**
+ Outcome of copying the report out of the container.
+ */
 const copy = await runCommand({
   command: 'podman',
   args: [
@@ -345,8 +394,8 @@ await writeFile(
   ),
   `${JSON.stringify(
     {
-      status: result.status,
-      signal: result.signal,
+      status: result.status ?? null,
+      signal: result.signal ?? null,
       reportCopied: copy.status === 0,
       reportCopyError: copy.status === 0 ? undefined : copy.stderr,
     },
@@ -356,7 +405,7 @@ await writeFile(
 );
 if (result.status !== 0)
   throw new NativeVerificationError(
-    `Mutation campaign exited ${String(result.status)}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`,
+    `Mutation campaign exited ${String(result.status ?? 'without a status')}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`,
   );
 if (copy.status !== 0)
   throw new NativeVerificationError(`Mutation campaign passed but its report was not copied: ${copy.stderr}`);

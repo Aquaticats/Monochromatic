@@ -30,18 +30,19 @@ const NANOSECONDS_PER_MILLISECOND = 1e6;
 /**
  The environment of one sample: identical for the direct and the wrapped run apart from the PATH order.
 
- @param request - the scratch root that holds `bin` and `home`,
-   and whether the wrapper directory leads the PATH
- 
+ @param root - the scratch root that holds `bin` and `home`
+
+ @param wrapped - whether the wrapper directory leads the PATH
+
  @returns the complete environment, so no host variable leaks into a sample
  */
 function environment({
   root,
   wrapped,
 }: {
-  root: string;
-  wrapped: boolean
-}): Record<string, string> {
+  readonly root: string;
+  readonly wrapped: boolean;
+}): Readonly<Record<string, string>> {
   return {
     PATH: wrapped
       ? `${join(
@@ -65,11 +66,21 @@ function environment({
 /**
  Run Git once and return the elapsed milliseconds and the exit status.
 
- @param request -
-   scratch root, whether the wrapper runs, the repository to run in, and the Git arguments
- 
+ @param root - scratch root that holds `bin` and `home`
+
+ @param wrapped - whether the wrapper runs instead of the real Git
+
+ @param directory - repository to run in
+
+ @param arguments_ - Git arguments
+
  @returns wall-clock milliseconds,
-   exit status and captured stderr, which the caller records when the status is not zero
+   exit status (absent when a signal ended Git) and captured stderr, which the caller records when the status is not zero
+
+ @example
+ ```ts
+ const sample = await timed({ root, wrapped: true, directory, arguments_: ['status'] });
+ ```
  */
 export async function timed({
   root,
@@ -77,15 +88,18 @@ export async function timed({
   directory,
   arguments_,
 }: {
-  root: string;
-  wrapped: boolean;
-  directory: string;
-  arguments_: readonly string[]
+  readonly root: string;
+  readonly wrapped: boolean;
+  readonly directory: string;
+  readonly arguments_: readonly string[];
 }): Promise<{
-  elapsed: number;
-  status: number | null;
-  stderr: string
+  readonly elapsed: number;
+  readonly status?: number;
+  readonly stderr: string;
 }> {
+  /**
+   Executable of the sample: the wrapper symlink for a wrapped run, the real Git otherwise.
+   */
   const program = wrapped
     ? join(
       root,
@@ -93,8 +107,14 @@ export async function timed({
       'git',
     )
     : REAL_GIT;
+  /**
+   Monotonic start time, read immediately before Git starts.
+   */
   const started = process.hrtime
     .bigint();
+  /**
+   Finished sample, with the exit state the caller checks.
+   */
   const result = await runCommand({
     command: program,
     args: arguments_,
@@ -106,12 +126,15 @@ export async function timed({
       wrapped,
     }),
   });
+  /**
+   Wall-clock milliseconds from the start time to now.
+   */
   const elapsed = Number(process.hrtime
     .bigint()
     - started) / NANOSECONDS_PER_MILLISECOND;
   return {
     elapsed,
-    status: result.status,
+    ...(result.status === undefined ? {} : { status: result.status, }),
     stderr: result.stderr,
   };
 }
@@ -119,22 +142,26 @@ export async function timed({
 /**
  Run the real Git for setup and fail loudly.
 
- @param request -
-   scratch root, the repository to run in, and the Git arguments
- 
- @returns resolves once Git exited zero
- 
- @throws {Error} when Git exits nonzero, naming the arguments, the repository and Git's stderr
+ @param root - scratch root that holds `bin` and `home`
+
+ @param directory - repository to run in
+
+ @param arguments_ - Git arguments
+
+ @throws Error when Git exits nonzero, naming the arguments, the repository and Git's stderr
  */
 async function setup({
   root,
   directory,
   arguments_,
 }: {
-  root: string;
-  directory: string;
-  arguments_: readonly string[]
+  readonly root: string;
+  readonly directory: string;
+  readonly arguments_: readonly string[];
 }): Promise<void> {
+  /**
+   Finished setup command, whose exit status decides whether the fixture is usable.
+   */
   const result = await runCommand({
     command: REAL_GIT,
     args: arguments_,
@@ -154,17 +181,27 @@ async function setup({
 /**
  One repository with thirty tracked files, so the forwarded commands read a realistic index.
 
- @param request - scratch root and the directory name inside it
- 
+ @param root - scratch root that holds `bin` and `home`
+
+ @param name - directory name inside the scratch root
+
  @returns the repository directory
+
+ @example
+ ```ts
+ const directory = await repository({ root, name: 'direct' });
+ ```
  */
 export async function repository({
   root,
   name,
 }: {
-  root: string;
-  name: string
+  readonly root: string;
+  readonly name: string;
 }): Promise<string> {
+  /**
+   Directory of the new repository inside the scratch root.
+   */
   const directory = join(
     root,
     name,

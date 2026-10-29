@@ -35,20 +35,30 @@ export const linterVariable = 'GIT_POLICY_NATIVE_TEST_LINTER';
  One file or directory to copy from the repository into the build context.
  */
 export type SnapshotEntry = {
-  from: string;
-  to: string
+  readonly from: string;
+  readonly to: string;
 };
 
 /**
  Copy entries for the linter crate and its JSONC dependency, resolved from the wrapper package directory the gate
  runs in, into the linter stage's own directory of the build context.
 
- @param request - build context directory receiving the linter stage's sources
- 
+ @param context - build context directory receiving the linter stage's sources
+
  @returns entries keeping the repository layout, so the linter's relative path dependency resolves;
    a library and executable build of the linter reads only its manifest, lockfile and `src`
+
+ @example
+ ```ts
+ const entries = linterSnapshotEntries({ context });
+ ```
  */
-export function linterSnapshotEntries({ context }: { context: string }): SnapshotEntry[] {
+export function linterSnapshotEntries({ context, }: {
+  readonly context: string;
+},): readonly SnapshotEntry[] {
+  /**
+   Entries collected crate by crate.
+   */
   const entries: SnapshotEntry[] = [];
   for (const [crate, names] of [
     [
@@ -92,9 +102,16 @@ export function linterSnapshotEntries({ context }: { context: string }): Snapsho
  Vendor the linter's locked registry dependencies into its stage directory, with the source mapping that stage reads.
  Every archive the linter's lockfile names must already be in the host's Cargo cache.
 
- @param request - build context whose linter stage directory already holds the copied crates
+ @param context - build context whose linter stage directory already holds the copied crates
+
+ @example
+ ```ts
+ await vendorLinterDependencies({ context });
+ ```
  */
-export async function vendorLinterDependencies({ context }: { context: string }): Promise<void> {
+export async function vendorLinterDependencies({ context, }: {
+  readonly context: string;
+},): Promise<void> {
   await vendorLockedDependencies({
     context: join(
       context,
@@ -109,11 +126,18 @@ export async function vendorLinterDependencies({ context }: { context: string })
  so the executable links against the C library it runs with. It uses the development profile without debug
  information, which the linter's own container suite shows fits the 2 GiB build bound; nothing here runs a test.
 
- @param request - content-addressed base image ID shared with the test image
- 
+ @param base - content-addressed base image ID shared with the test image
+
  @returns Containerfile lines ending with the built executable at a fixed stage path
+
+ @example
+ ```ts
+ const lines = linterStageLines({ base });
+ ```
  */
-export function linterStageLines({ base }: { base: string }): string[] {
+export function linterStageLines({ base, }: {
+  readonly base: string;
+},): string[] {
   return [
     `FROM ${base} AS linter`,
     `COPY --chown=1000:1000 ${linterContextDirectory}/package /work/package`,
@@ -132,6 +156,11 @@ export function linterStageLines({ base }: { base: string }): string[] {
  Containerfile lines of the test image that copy the built linter in and name it for the tests.
 
  @returns lines to place in the test stage before it switches to the unprivileged user
+
+ @example
+ ```ts
+ const lines = linterCopyLines();
+ ```
  */
 export function linterCopyLines(): string[] {
   return [

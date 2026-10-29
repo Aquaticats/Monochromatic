@@ -28,16 +28,19 @@ const imageVendorDirectory = '/work/vendor';
  One file or directory to copy from the repository into the build context.
  */
 export type SnapshotEntry = {
-  from: string;
-  to: string
+  readonly from: string;
+  readonly to: string;
 };
 
 /**
  Copy entries for one path crate, resolved from the wrapper package directory the gate runs in.
 
- @param request -
-   build context, the crate's directory under `package`, and the entries a library build of it reads
- 
+ @param context - build context
+
+ @param crate - the crate's directory under `package`
+
+ @param names - the entries a library build of the crate reads
+
  @returns one entry per name, keeping the repository layout so relative path dependencies resolve
  */
 function crateEntries({
@@ -45,10 +48,10 @@ function crateEntries({
   crate,
   names,
 }: {
-  context: string;
-  crate: string;
-  names: readonly string[]
-}): SnapshotEntry[] {
+  readonly context: string;
+  readonly crate: string;
+  readonly names: readonly string[];
+}): readonly SnapshotEntry[] {
   return names.map(function crateEntry(name) {
     return {
       from: resolve(
@@ -69,12 +72,19 @@ function crateEntries({
 /**
  Copy entries for the linked scanner and its matching engine.
 
- @param request - build context directory receiving the repository-shaped snapshot
- 
+ @param context - build context directory receiving the repository-shaped snapshot
+
  @returns entries for both path crates;
    the scanner's `build.rs` and `data` hold the embedded baseline its library compiles in
+
+ @example
+ ```ts
+ const entries = scannerSnapshotEntries({ context });
+ ```
  */
-export function scannerSnapshotEntries({ context }: { context: string }): SnapshotEntry[] {
+export function scannerSnapshotEntries({ context, }: {
+  readonly context: string;
+},): readonly SnapshotEntry[] {
   return [
     ...crateEntries({
       context,
@@ -106,10 +116,18 @@ export function scannerSnapshotEntries({ context }: { context: string }): Snapsh
  Another crate of the snapshot, such as the linter the Markdown policy runs, passes its own manifest and output
  names, so each image stage reads only the sources its own lockfile names.
 
- @param request -
-   build context holding the copied crates, the manifest under it whose lockfile is vendored
-   (the wrapper's by default), and the directory names receiving the sources and the mapping
-   (`vendor` and `cargo-config` by default)
+ @param context - build context holding the copied crates
+
+ @param manifest - manifest under the context whose lockfile is vendored (the wrapper's by default)
+
+ @param vendorName - directory name receiving the sources (`vendor` by default)
+
+ @param configName - directory name receiving the mapping (`cargo-config` by default)
+
+ @example
+ ```ts
+ await vendorLockedDependencies({ context });
+ ```
  */
 export async function vendorLockedDependencies({
   context,
@@ -117,15 +135,21 @@ export async function vendorLockedDependencies({
   vendorName = 'vendor',
   configName = 'cargo-config',
 }: {
-  context: string;
-  manifest?: string;
-  vendorName?: string;
-  configName?: string
+  readonly context: string;
+  readonly manifest?: string;
+  readonly vendorName?: string;
+  readonly configName?: string;
 }): Promise<void> {
+  /**
+   Host directory that receives the vendored registry sources.
+   */
   const vendor = join(
     context,
     vendorName,
   );
+  /**
+   Result of `cargo vendor`, whose standard output is the source mapping for the host path.
+   */
   const vendored = await runCommand({
     command: 'cargo',
     args: [
@@ -143,6 +167,9 @@ export async function vendorLockedDependencies({
     capture: true,
   });
   // Cargo prints the mapping for the host path; the image holds the same directory elsewhere.
+  /**
+   The mapping rewritten to the image's vendor directory.
+   */
   const mapping = vendored.stdout
     .replaceAll(
     JSON.stringify(vendor),
@@ -150,6 +177,9 @@ export async function vendorLockedDependencies({
     );
   if (!mapping.includes(`directory = ${JSON.stringify(imageVendorDirectory)}`))
     throw new NativeVerificationError('Cargo vendor did not provide the expected offline source mapping.');
+  /**
+   Host directory that receives the Cargo configuration file holding the mapping.
+   */
   const configuration = join(
     context,
     configName,

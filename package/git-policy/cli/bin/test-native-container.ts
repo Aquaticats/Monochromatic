@@ -26,16 +26,19 @@ import {
 } from './native-nextest-snapshot.ts';
 import {
   scannerSnapshotEntries,
+  type SnapshotEntry,
   vendorLockedDependencies,
 } from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
+/**
+ Parent of every scratch directory this gate creates.
+ */
 const scratchBase = join(
   import.meta.dirname,
   '..',
@@ -43,11 +46,10 @@ const scratchBase = join(
   '.monochromatic',
   'git-policy'
 );
-makeScratchBase(
+await mkdir(
   scratchBase,
   { recursive: true }
 );
-
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
@@ -65,18 +67,29 @@ const testImage = `localhost/git-policy-native-test:${imageTag}`;
  Copies run concurrently, and every copy settles before this returns or throws,
  so removing the context afterwards never races an in-flight copy.
 
- @param request - build context directory receiving the repository-shaped snapshot
+ @param context - build context directory receiving the repository-shaped snapshot
  */
-async function copySourceSnapshot({ context }: { context: string }) {
+async function copySourceSnapshot({ context, }: {
+  readonly context: string;
+},): Promise<void> {
+  /**
+   Where the wrapper crate lands in the repository-shaped snapshot.
+   */
   const subject = join(
     context,
     'package/git-policy/cli',
   );
+  /**
+   Where the JSONC crate the wrapper links lands in the snapshot.
+   */
   const dependency = join(
     context,
     'package/jsonc-edit/core-rust',
   );
-  const entries = [
+  /**
+   Everything the gate image builds from: the wrapper, its path dependencies and the repository files its tests read.
+   */
+  const entries: readonly SnapshotEntry[] = [
     ...[
       'Cargo.toml',
       'Cargo.lock',
@@ -126,16 +139,22 @@ async function copySourceSnapshot({ context }: { context: string }) {
       ),
     },
   ];
-  const copies = await Promise.allSettled(entries.map(function copyEntry(entry) {
-    return cp(
-      entry.from,
-      entry.to,
-      { recursive: true },
-    );
+  /**
+   Errors of the copies that failed; a failed copy never stops the others, so none is still in flight afterwards.
+   */
+  const failures: unknown[] = [];
+  await Promise.all(entries.map(async function copyEntry(entry): Promise<void> {
+    try {
+      await cp(
+        entry.from,
+        entry.to,
+        { recursive: true },
+      );
+    }
+    catch (error) {
+      failures.push(error);
+    }
   }));
-  const failures = copies.filter(function isRejected(copy) {
-    return copy.status === 'rejected';
-  });
   if (failures.length > 0)
     throw new NativeVerificationError(
       `Copying ${String(failures.length)} source snapshot entries into ${context} failed.`,
@@ -144,20 +163,32 @@ async function copySourceSnapshot({ context }: { context: string }) {
 }
 
 // Build one mount-free source image, then run tests and Clippy against that exact image identity.
+/**
+ Disposable build context that holds the snapshot, the vendored sources and the Containerfile.
+ */
 await using context = await mkdtempDisposable(join(
   scratchBase,
   'cli-git-native-test-',
 ));
+/**
+ Directory under the package's `target/` that keeps the evidence of every gate run.
+ */
 const evidenceRoot = resolve('target/verification');
 await mkdir(
   evidenceRoot,
   { recursive: true },
 );
+/**
+ Evidence directory of this gate run.
+ */
 const evidence = await mkdtemp(join(
   evidenceRoot,
   'native-',
 ));
 // The audited Git 2.56.0 image is the rewrite's selected native consumer baseline.
+/**
+ Content-addressed ID of the audited Git 2.56.0 base image.
+ */
 const base = '6ec87f6d290a2f59bda5b3ffd4197058fe0749d02b4978c877e8edf6dc38802a';
 await copySourceSnapshot({ context: context.path });
 await vendorLockedDependencies({ context: context.path });
@@ -211,6 +242,9 @@ await runCommand({
     context.path,
   ],
 });
+/**
+ Result of inspecting the built image for its ID.
+ */
 const inspected = await runCommand({
   command: 'podman',
   args: [
@@ -222,8 +256,14 @@ const inspected = await runCommand({
   ],
   capture: true,
 });
+/**
+ Content-addressed ID of the built image, so the run and Clippy steps use exactly the tested snapshot.
+ */
 const image = inspected.stdout
   .trim();
+/**
+ Bounds of every gate container: removed on exit, no network, 2 GiB, 2 CPUs and 128 processes.
+ */
 const limits = [
   '--rm',
   '--init',
@@ -257,6 +297,9 @@ await runCommand({
     image,
   ],
 });
+/**
+ Result of asking the host's `rustc` for its sysroot.
+ */
 const sysroot = await runCommand({
   command: 'rustc',
   args: [
@@ -265,6 +308,9 @@ const sysroot = await runCommand({
   ],
   capture: true,
 });
+/**
+ Host Rust toolchain directory that the Clippy step mounts read-only.
+ */
 const compiler = sysroot.stdout
   .trim();
 await runCommand({

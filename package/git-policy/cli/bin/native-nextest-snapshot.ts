@@ -46,6 +46,11 @@ const contextFileName = 'cargo-nextest';
  Containerfile lines that install the runner next to `cargo`, so `cargo nextest` resolves it.
 
  @returns lines to place after the base image is chosen, then check that the runner starts
+
+ @example
+ ```ts
+ const lines = nextestCopyLines();
+ ```
  */
 export function nextestCopyLines(): string[] {
   return [
@@ -58,11 +63,21 @@ export function nextestCopyLines(): string[] {
  Download the pinned release asset once into the package's `target/` cache, verify its checksum, and place the
  executable in the build context.
 
- @param request - build context directory receiving the executable
- 
- @throws {NativeVerificationError} when the download fails or its checksum differs from the pinned one
+ @param context - build context directory receiving the executable
+
+ @throws NativeVerificationError when the download fails or its checksum differs from the pinned one
+
+ @example
+ ```ts
+ await copyNextest({ context });
+ ```
  */
-export async function copyNextest({ context }: { context: string }): Promise<void> {
+export async function copyNextest({ context, }: {
+  readonly context: string;
+},): Promise<void> {
+  /**
+   Download cache below the package's `target/`, which Cargo's clean leaves alone and Git ignores.
+   */
   const cache = resolve(
     'target/verification',
     'nextest-cache',
@@ -71,12 +86,21 @@ export async function copyNextest({ context }: { context: string }): Promise<voi
     cache,
     { recursive: true },
   );
+  /**
+   File name of the cached archive.
+   */
   const archiveName = `cargo-nextest-${nextestVersion}-musl.tar.gz`;
+  /**
+   Path of the cached archive.
+   */
   const archive = join(
     cache,
     archiveName,
   );
   // No cached copy yet when the name is absent; the download below fills it. Any read failure of a present copy is real.
+  /**
+   Content of the cached archive, or nothing when no copy exists yet.
+   */
   const cached = (await readdir(cache)).includes(archiveName)
     ? await readFile(archive)
     : undefined;
@@ -100,13 +124,22 @@ export async function copyNextest({ context }: { context: string }): Promise<voi
 
  @param archive - cache path to write
  
- @throws {NativeVerificationError} when the download fails or its checksum differs from the pinned one
+ @throws NativeVerificationError when the download fails or its checksum differs from the pinned one
  */
-async function downloadArchive(archive: string) {
+async function downloadArchive(archive: string): Promise<void> {
+  /**
+   The release asset's HTTP response.
+   */
   const response = await fetch(nextestUrl);
   if (!response.ok)
     throw new NativeVerificationError(`Downloading ${nextestUrl} failed with status ${String(response.status)}.`);
+  /**
+   The downloaded archive.
+   */
   const bytes = Buffer.from(await response.arrayBuffer());
+  /**
+   Digest of the downloaded archive, compared with the pinned one before anything is written.
+   */
   const actual = sha256Of(bytes);
   if (actual !== nextestSha256)
     throw new NativeVerificationError(
@@ -119,6 +152,8 @@ async function downloadArchive(archive: string) {
 }
 
 /**
+ Digest an archive for comparison with the pinned checksum.
+
  @param bytes - archive content
  
  @returns lowercase hexadecimal SHA-256

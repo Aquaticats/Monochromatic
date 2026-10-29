@@ -31,29 +31,29 @@ const containerSource = '/work/package/git-policy/cli';
  Guard removal paired with the test that must notice it.
  */
 export type PlantedControl = {
-  name: string;
-  file: string;
-  from: string;
-  to: string;
-  failing: string
+  readonly name: string;
+  readonly file: string;
+  readonly from: string;
+  readonly to: string;
+  readonly failing: string;
 };
 
 /**
- Planted control plus what its container observed.
+ Planted control plus what its container observed; `status` is absent when a signal ended the container's run.
  */
 export type PlantedControlResult = PlantedControl & {
-  status: number | null;
-  noticed: boolean
+  readonly status?: number;
+  readonly noticed: boolean;
 };
 
 /**
  Inputs every planted control shares.
  */
 export type PlantedControlSetting = {
-  base: string;
-  limits: readonly string[];
-  context: string;
-  evidence: string
+  readonly base: string;
+  readonly limits: readonly string[];
+  readonly context: string;
+  readonly evidence: string;
 };
 
 /**
@@ -69,9 +69,18 @@ const plantedControls: readonly PlantedControl[] = [
 /**
  Plant one guard removal in its own container and record whether the named control failed.
 
- @param request -
-   shared inputs, the control, and its position, which names its planted source and log files
- 
+ @param base - tested image ID
+
+ @param limits - container bounds
+
+ @param context - scratch directory that receives the planted source
+
+ @param evidence - directory that receives the container's log
+
+ @param control - guard removal to plant
+
+ @param index - position of the control, which names its planted source and log files
+
  @returns control with its container's exit status and whether the named test failed
  */
 async function runPlantedControl({
@@ -82,13 +91,19 @@ async function runPlantedControl({
   control,
   index,
 }: PlantedControlSetting & {
-  control: PlantedControl;
-  index: number
+  readonly control: PlantedControl;
+  readonly index: number;
 }): Promise<PlantedControlResult> {
+  /**
+   Current text of the file the control edits, so a control cannot silently stop applying.
+   */
   const original = await readFile(
     resolve(control.file),
     'utf8',
   );
+  /**
+   How many times the control's text occurs, which must be exactly once.
+   */
   const occurrences = original.split(control.from)
     .length
     - 1;
@@ -96,6 +111,9 @@ async function runPlantedControl({
     throw new NativeVerificationError(
       `Planted control "${control.name}" matches ${String(occurrences)} times in ${control.file}; it must match exactly once.`,
     );
+  /**
+   Host path of the edited copy that is copied into the container.
+   */
   const planted = join(
     context,
     `planted-${String(index)}.rs`,
@@ -108,6 +126,9 @@ async function runPlantedControl({
     ),
   );
   // Unit tests notice these removals first; `--no-fail-fast` keeps Cargo going so the named control also runs.
+  /**
+   The container that runs the suite against the planted source, removed when this function returns.
+   */
   await using container = await createContainer({
     args: [
       'create',
@@ -131,6 +152,9 @@ async function runPlantedControl({
     ],
     capture: true,
   });
+  /**
+   The suite's run, whose failure is the expected outcome.
+   */
   const run = await runCommand({
     command: 'podman',
     args: [
@@ -141,9 +165,15 @@ async function runPlantedControl({
     capture: true,
     allowFailure: true,
   });
+  /**
+   Both streams of the run, kept as the control's evidence.
+   */
   const output = `${run.stdout}\n${run.stderr}`;
   // nextest prints `FAIL [ 0.012s] <binary id> <test name>`, or `FAIL + LEAK [` when the failed test left a child
   // running; the name is the last token of the line.
+  /**
+   Whether the suite failed and the named test is among the failures.
+   */
   const noticed = (run.status !== 0)
     && output.split('\n')
       .some(function failedLine(line) {
@@ -161,9 +191,12 @@ async function runPlantedControl({
     output,
   );
   console.log(`Planted control "${control.name}": ${noticed ? 'noticed' : 'NOT noticed'} by ${control.failing}`);
+  /**
+   The control with what its container observed.
+   */
   const result = {
     ...control,
-    status: run.status,
+    ...(run.status === undefined ? {} : { status: run.status, }),
     noticed,
   };
   return result;
@@ -195,8 +228,16 @@ async function* plantedControlResults(setting: PlantedControlSetting): AsyncGene
  The results file is written before any unnoticed removal throws, so a failing campaign keeps its evidence.
 
  @param setting - tested image ID, container bounds, scratch and evidence directories
+
+ @example
+ ```ts
+ await runPlantedControls({ base, limits, context, evidence });
+ ```
  */
 export async function runPlantedControls(setting: PlantedControlSetting): Promise<void> {
+  /**
+   Every control's result, collected before any unnoticed removal throws.
+   */
   const results: PlantedControlResult[] = [];
   for await (const result of plantedControlResults(setting))
     results.push(result);
@@ -211,6 +252,9 @@ export async function runPlantedControls(setting: PlantedControlSetting): Promis
       2,
     )}\n`,
   );
+  /**
+   Controls whose removal no test noticed.
+   */
   const unnoticed = results.filter(function isUnnoticed(result) {
     return !result.noticed;
   });

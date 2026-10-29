@@ -42,16 +42,18 @@ const maximumTimeoutSeconds = 3_600;
 /**
  Check that every character of a text is one of the allowed characters.
 
- @param request - the value under test and the characters it may use
- 
+ @param text - the value under test
+
+ @param allowed - the characters it may use
+
  @returns true when the text is non-empty and uses only allowed characters
  */
 function usesOnly({
   text,
-  allowed
+  allowed,
 }: {
-  text: string;
-  allowed: string
+  readonly text: string;
+  readonly allowed: string;
 }): boolean {
   if (text.length === 0)
     return false;
@@ -103,6 +105,9 @@ function isPositiveWholeNumber(text: string): boolean {
  @returns true for `module::tests::name`
  */
 function isTestPath(text: string): boolean {
+  /**
+   The `::`-separated segments of the path.
+   */
   const segments = text.split('::');
   return (segments.length >= 2) && segments.every(function isSegment(segment) {
     return usesOnly({
@@ -119,7 +124,7 @@ function isTestPath(text: string): boolean {
  
  @returns the whole number of seconds it names
  */
-function timeoutOf(value: string | undefined): number {
+function timeoutOf(value?: string): number {
   if ((value === undefined) || (!isPositiveWholeNumber(value))
     || (Number(value) > maximumTimeoutSeconds))
     throw new NativeVerificationError(`--timeout must be a whole number of seconds from 1 to ${maximumTimeoutSeconds}, got ${value}.`);
@@ -134,17 +139,37 @@ function timeoutOf(value: string | undefined): number {
  
  @returns timeout, the mutant-name patterns of
    the repeated `--examine <regex>` options (only matching mutants are tried), and the arguments left for `parseScopes`
+
+ @example
+ ```ts
+ const { timeoutSeconds, examine, scopeOptions } = parseTimeout(['--timeout', '60']);
+ ```
  */
 export function parseTimeout(options: readonly string[]): {
-  timeoutSeconds: number;
-  examine: string[];
-  scopeOptions: string[]
+  readonly timeoutSeconds: number;
+  readonly examine: readonly string[];
+  readonly scopeOptions: readonly string[];
 } {
+  /**
+   Every `--timeout` value in order, of which the last wins.
+   */
   const timeouts: number[] = [];
+  /**
+   Arguments that are not `--timeout` or `--examine`, left for the scope parser to accept or reject.
+   */
   const scopeOptions: string[] = [];
+  /**
+   Mutant-name patterns of the `--examine` options.
+   */
   const examine: string[] = [];
   for (let index = 0; index < options.length; index += 2) {
+    /**
+     The flag at this position.
+     */
     const flag = options[index];
+    /**
+     The text after the flag, absent when the flag ends the arguments.
+     */
     const value = options[index + 1];
     if (flag === '--examine') {
       if ((value === undefined) || (!usesOnly({
@@ -174,11 +199,25 @@ export function parseTimeout(options: readonly string[]): {
  @param options - command-line arguments after the script path
  
  @returns scopes in command-line order, forwarded to cargo-mutants unchanged
+
+ @example
+ ```ts
+ const scopes = parseScopes(['--file', 'src/native/lock.rs']);
+ ```
  */
 export function parseScopes(options: readonly string[]): string[] {
+  /**
+   Accepted `--file` globs in command-line order.
+   */
   const scopes: string[] = [];
   for (let index = 0; index < options.length; index += 2) {
+    /**
+     The flag at this position, which must be `--file`.
+     */
     const flag = options[index];
+    /**
+     The glob after the flag, absent when the flag ends the arguments.
+     */
     const scope = options[index + 1];
     if ((flag !== '--file') || (scope === undefined))
       throw new NativeVerificationError('Only repeated --file <glob> options are accepted.');
@@ -196,8 +235,16 @@ export function parseScopes(options: readonly string[]): string[] {
  Unset, the campaign runs every test.
 
  @returns `['--', '--', '--skip', name]` or no arguments
+
+ @example
+ ```ts
+ const skip = baselineSkipArguments();
+ ```
  */
 export function baselineSkipArguments(): string[] {
+  /**
+   The test path the environment names, if any.
+   */
   const name = process.env
     .NATIVE_MUTATION_BASELINE_SKIP;
   if ((name === undefined) || (name === ''))

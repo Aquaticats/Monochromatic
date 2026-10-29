@@ -1,11 +1,14 @@
-import type { PlantedControl } from './native-planted-controls.ts';
 /**
  Planted guard removals in worktree copy, landing, post-commit and the transaction journal.
 
  Each entry removes one guard and names the test that must fail without it; `from` must occur exactly once in the
  current source, so a control cannot silently stop applying. See `native-planted-controls.ts` for how they run.
  */
+import type { PlantedControl } from './native-planted-controls.ts';
 
+/**
+ Controls for guards in worktree copy, landing, post-commit and the transaction journal.
+ */
 export const plantedLandingControls: readonly PlantedControl[] = [
   {
     name: 'worktree copy dead-owner settlement retirement',

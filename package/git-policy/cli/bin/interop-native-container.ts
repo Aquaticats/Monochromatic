@@ -28,16 +28,19 @@ import {
 
 import {
   scannerSnapshotEntries,
+  type SnapshotEntry,
   vendorLockedDependencies,
 } from './native-scanner-snapshot.ts';
 import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
-import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
+/**
+ Parent of every scratch directory this runner creates.
+ */
 const scratchBase = join(
   import.meta.dirname,
   '..',
@@ -45,11 +48,10 @@ const scratchBase = join(
   '.monochromatic',
   'git-policy'
 );
-makeScratchBase(
+await mkdir(
   scratchBase,
   { recursive: true }
 );
-
 
 /**
  Concurrent worktrees set GIT_POLICY_NATIVE_IMAGE_TAG so one snapshot never runs another's image.
@@ -74,18 +76,29 @@ const nodeImage = 'docker.io/library/node:24-trixie-slim';
  Copy the native crate, its path dependencies and the interoperability drivers into the build context.
  Copies run concurrently, and every copy settles before this returns or throws.
 
- @param request - build context directory receiving the repository-shaped snapshot
+ @param context - build context directory receiving the repository-shaped snapshot
  */
-async function copySnapshot({ context }: { context: string }) {
+async function copySnapshot({ context, }: {
+  readonly context: string;
+},): Promise<void> {
+  /**
+   Where the wrapper crate lands in the repository-shaped snapshot.
+   */
   const subject = join(
     context,
     'package/git-policy/cli',
   );
+  /**
+   Where the JSONC crate the wrapper links lands in the snapshot.
+   */
   const dependency = join(
     context,
     'package/jsonc-edit/core-rust',
   );
-  const entries = [
+  /**
+   Everything the image builds from: the wrapper, its path dependencies, the scanner crates and the drivers.
+   */
+  const entries: readonly SnapshotEntry[] = [
     ...[
       'Cargo.toml',
       'Cargo.lock',
@@ -133,16 +146,22 @@ async function copySnapshot({ context }: { context: string }) {
       ),
     },
   ];
-  const copies = await Promise.allSettled(entries.map(function copyEntry(entry) {
-    return cp(
-      entry.from,
-      entry.to,
-      { recursive: true },
-    );
+  /**
+   Errors of the copies that failed; a failed copy never stops the others, so none is still in flight afterwards.
+   */
+  const failures: unknown[] = [];
+  await Promise.all(entries.map(async function copyEntry(entry): Promise<void> {
+    try {
+      await cp(
+        entry.from,
+        entry.to,
+        { recursive: true },
+      );
+    }
+    catch (error) {
+      failures.push(error);
+    }
   }));
-  const failures = copies.filter(function isRejected(copy) {
-    return copy.status === 'rejected';
-  });
   if (failures.length > 0)
     throw new NativeVerificationError(
       `Copying ${String(failures.length)} snapshot entries into ${context} failed.`,
@@ -168,6 +187,9 @@ const versionLinePrefix = 'version = "';
  @returns whether it is non-empty and holds only lowercase letters, digits and dashes
  */
 function isDriverName(text: string): boolean {
+  /**
+   The name split into single characters, each checked against the allowed set.
+   */
   const characters = text
     .split('');
   return (characters.length > 0)
@@ -181,41 +203,63 @@ function isDriverName(text: string): boolean {
 
  @param manifest - text of `Cargo.toml`
  
- @returns the first `version = "..."` line's value, none when no line has that shape
+ @returns the first `version = "..."` line's value under `version`, no `version` when no line has that shape
  */
-function crateVersionOf(manifest: string): string | undefined {
+function crateVersionOf(manifest: string): { readonly version?: string; } {
+  /**
+   The first line that declares the crate version.
+   */
   const line = manifest
     .split('\n')
     .find(function isVersionLine(candidate) {
       return candidate.startsWith(versionLinePrefix) && candidate.endsWith('"');
     });
-  return line?.slice(
-    versionLinePrefix.length,
-    -1,
-  );
+  if (line === undefined)
+    return {};
+  return {
+    version: line.slice(
+      versionLinePrefix.length,
+      -1,
+    ),
+  };
 }
 
 // Build the image once per call, then run the named driver in it under the gate's bounds without a PID cap.
+/**
+ Driver name and the arguments passed on to it.
+ */
 const [driver, ...driverArguments] = process.argv
   .slice(2);
 if ((driver === undefined) || (!isDriverName(driver)))
   throw new NativeVerificationError('Name one driver under native-interop/ in lowercase words and dashes.');
+/**
+ Disposable build context that holds the snapshot, the vendored sources and the Containerfile.
+ */
 await using context = await mkdtempDisposable(join(
   scratchBase,
   'cli-git-native-interop-',
 ));
+/**
+ Directory under the package's `target/` that keeps the evidence of every interoperability run.
+ */
 const evidenceRoot = resolve('target/verification');
 await mkdir(
   evidenceRoot,
   { recursive: true },
 );
+/**
+ Evidence directory of this run.
+ */
 const evidence = await mkdtemp(join(
   evidenceRoot,
   'interop-',
 ));
 await copySnapshot({ context: context.path });
 await vendorLockedDependencies({ context: context.path });
-const nativeCrateVersion = crateVersionOf(await readFile(
+/**
+ Crate version recorded in the manifest, absent when `Cargo.toml` has no version line.
+ */
+const { version: nativeCrateVersion, } = crateVersionOf(await readFile(
   resolve('Cargo.toml'),
   'utf8',
 ));
@@ -263,6 +307,9 @@ await runCommand({
     context.path,
   ],
 });
+/**
+ Result of inspecting the built image for its ID.
+ */
 const inspected = await runCommand({
   command: 'podman',
   args: [
@@ -274,8 +321,14 @@ const inspected = await runCommand({
   ],
   capture: true,
 });
+/**
+ Content-addressed ID of the built image, so the run uses exactly the image just built.
+ */
 const image = inspected.stdout
   .trim();
+/**
+ Bounds of the driver container: removed on exit, no network, 2 GiB and 2 CPUs, with no process cap.
+ */
 const limits = [
   '--rm',
   '--init',
@@ -304,6 +357,9 @@ await writeFile(
   )}\n`,
 );
 console.log(`Native interoperability evidence: ${evidence}`);
+/**
+ Outcome of the driver, whose output is kept as evidence and echoed.
+ */
 const run = await runCommand({
   command: 'podman',
   args: [
@@ -336,4 +392,6 @@ process.stdout
 process.stderr
   .write(run.stderr);
 if (run.status !== 0)
-  throw new NativeVerificationError(`Driver ${driver} exited with ${String(run.status)} (signal ${String(run.signal)}).`);
+  throw new NativeVerificationError(
+    `Driver ${driver} exited with ${String(run.status ?? 'no status')} (signal ${run.signal ?? 'none'}).`,
+  );
