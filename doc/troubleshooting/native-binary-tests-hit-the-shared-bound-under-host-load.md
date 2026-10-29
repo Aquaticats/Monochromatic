@@ -35,6 +35,54 @@ wrapper's. `observe_raw` in `binary_support.rs` now panics, on every host and wi
 under the 5 s bound is a commit the wrapper lands through its transaction or a `--help` with no `man` stub in the
 fixture's `bin` directory. The discard controls use `run_commit` and `stub_manual_viewer`.
 
+## A forwarding test that hit the bound with no commit and no manual page
+
+`forwarding::exit_codes_and_stderr_match_native_git` failed once in a mutation baseline (`native:mutation:scoped`,
+`--file src/native/command_push.rs`; log `~/temp/agent/mutpar-w4-command_push.log.2`, run of 2568 tests in the
+2 CPU, 2 GiB container while the host load average was above 35) with `the command hit the 5-second bound` at
+`binary_support.rs:233` after 5.628 s.
+The same log shows the two sibling tests of that module started just before it taking 1.10 s
+(`argument_bytes_reach_git_unchanged`) and 2.25 s (`environment_overlay_reaches_git`), against 0.05 s each on the host
+when alone: the whole container was 20 to 50 times slower at that moment, not one command.
+
+### What was measured
+
+- The test wraps 12 commands (two `rev-parse`, two `diff`, `show`, `log`, three usage errors, `status --porcelain`,
+  `branch --list`) and runs each once more through direct Git. None is a commit and none renders a manual page, so the
+  guard in `shared_bound_misuse` does not apply to it.
+- `strace --follow-forks` of each wrapped command: at most one Git process started by the wrapper (the `rev-parse` it
+  adds) beside the process it becomes, and no `fsync`, `fdatasync`, `flock`, `nanosleep` or `clock_nanosleep` call. The
+  usage errors start no `rev-parse` at all. Unlike a commit, there is no sync wait to be slowed by a busy volume.
+- Wall time per wrapped command through `timeout --signal=KILL 5`, 300 runs of each of the 12 commands (3600 starts)
+  in one fixture while the load average was 28 to 39: minimum 2.7 ms, median 3.7 to 5.9 ms, 99th percentile at most
+  9.3 ms, and a maximum of 63 ms (one `rev-parse --verify`), 13 ms for the next largest.
+  The direct runs took 0.6 to 1.3 ms.
+- The same bound was hit in other baselines by unrelated tests
+  (`discard::every_named_alternative_runs_in_the_main_worktree` and
+  `discard::the_hatch_after_the_subcommand_runs_each_form` in `mutpar-w5-markdown_linter.log.3`;
+  `worktree_copy::an_interrupted_main_checkout_copy_is_recovered_by_the_next_creation` in
+  `mutpar-w3-doctor.log.2`), so no command is common to the stalls.
+
+### What was not found
+
+No mechanism that makes one of the 12 commands slow was found, and none is claimed.
+A command that normally takes 4 ms needs a stall of more than 1000 times that to reach 5 s; the measurements above show
+no work in these commands that can wait on its own (no sync call, sleep, lock or stdin read), so the stall happened in
+the container or host under the command (CPU quota, memory pressure or disk reads of an evicted executable are
+candidates, none verified).
+The test is left on the shared bound: moving it to the commit bound would hide a real forwarding loop, which is what
+the short bound is for, and making the wrapper faster has nothing to act on, since the wrapper adds one `rev-parse` and
+no syscall that waits.
+
+### What changed
+
+The failure message of `observe_raw` now names the stalled command (its arguments and working directory, built only
+when the bound was hit, so a passing run costs nothing).
+The next occurrence then says which command stalled; the unnamed `assertion left != right failed` message above is why
+this one cannot be attributed.
+If a later occurrence names a command with no sync call or sleep again, the next measurement to take is the process
+start and file read times inside the container during the stall, not the command.
+
 ## What would make the commit itself faster
 
 The commit's 40 starts and 36 syncs are the subject of `doc/planning/cli-git-spawn-and-sync-reduction.md`; the budget
