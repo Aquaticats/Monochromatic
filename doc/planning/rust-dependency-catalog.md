@@ -1,8 +1,11 @@
 # Planning: shared Rust dependency catalog
 
 Status:
- proposal,
- design decisions in progress with the owner.
+ accepted 2026-10-29;
+ the decision record is `doc/decision/rust-dependency-catalog.md`.
+Three veto lists asked as multi-select questions came back without any answer;
+ the owner then accepted every item explicitly in the two acceptance questions.
+Implementation in progress.
 Tracks [issue #1800](https://github.com/Aquaticat/Monochromatic/issues/1800).
 Builds on `doc/planning/cargo-toml-file-enforcer.md` and respects `.out-of-scope/cargo-workspace.md`.
 
@@ -14,6 +17,78 @@ a CI check that fails on drift,
 documented per-crate exceptions,
 and stale-entry detection,
 without a repository-root Cargo workspace and without centralizing profiles.
+
+## Proposed design (summary for acceptance)
+
+Each item links to its decision section for evidence and rejected alternatives.
+
+### Catalog file
+
+- `rust-catalog.toml` at the repository root,
+   in Cargo dependency syntax,
+   with `[catalog]` and `[catalogs.<name>]` tables (pnpm's names).
+- Registry entries are `>=` floors;
+   named-catalog entries are bounded (caret or exact);
+   git entries carry `git` plus `rev`.
+- Supply-chain keys with pnpm's names and the repo's values:
+   `minimumReleaseAge = 1440`,
+   `minimumReleaseAgeExclude = []`,
+   `minimumReleaseAgeStrict = true`,
+   `minimumReleaseAgeIgnoreMissingTime = false`,
+   `trustPolicy = "no-downgrade"`,
+   `trustPolicyExclude`,
+   `trustPolicyIgnoreAfter`,
+   `trustPolicyExcludePrune`.
+- No version-family grouping (pnpm has none).
+
+### Crate manifests
+
+- Each crate keeps its own `[workspace]` root and profiles.
+- `file-enforcer` renders a generated `[workspace.dependencies]` table per crate holding only the catalog entries that
+   crate uses;
+   use sites say `workspace = true` plus crate-local `features`,
+   `optional`,
+   `default-features`,
+   in every dependency table including `dev-dependencies`,
+   `build-dependencies`,
+   and `target.<cfg>.*`.
+- Strict membership:
+   every registry and git dependency comes from the catalog.
+- A crate picks a named catalog in `[package.metadata.rust-catalog.catalogs]`.
+- Internal crates stay out of the catalog and are depended on by `path`;
+   the sync writes `version = "=<target package.version>"` (the `workspace:*` counterpart).
+
+### `file-enforcer` sync and check
+
+- Adopt on sync:
+   a literal left by `cargo add` moves into the catalog as a `>=` floor and the use site becomes `workspace = true`;
+   a literal conflicting with an existing entry fails instead.
+- Prune catalog entries no crate uses.
+- Check-only mode for CI with named diagnostics and a list of affected crates,
+   run in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`.
+
+### Recursive update and tightening
+
+- A mise task with inline TypeScript runs `cargo update` in every crate root (the `pnpm -r --no-save update`
+   counterpart),
+   with dry run,
+   then enforces release age (strict, from the sparse index `pubtime`)
+   and the trust policy (heuristic levels from the crates.io API,
+   cached per `name@version`),
+   refusing and reporting violations.
+- `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
+   it writes no lockfiles.
+- The CI check re-verifies release age and trust for every locked registry version.
+
+### Out of scope here
+
+- Lockfile drift reporting and transitive policy:
+   [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+- Change intents for Rust crates:
+   [issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802).
+- `package/dev-script/deps-update`:
+   treated as unusable;
+   audit tracked in [issue #1803](https://github.com/Aquaticat/Monochromatic/issues/1803).
 
 ## Measured facts (2026-10-29)
 
@@ -223,9 +298,512 @@ Gradle's `[versions]` section shares one version across several libraries,
 
 ## Decisions
 
-Pending;
- see the open questions.
+Owner answers of 2026-10-29.
+An earlier round of answers was voided by the owner because the questions did not state why each option ranked where
+ it did;
+ only answers given with stated rankings count.
+
+### Owner of the sync and the check
+
+Extend `file-enforcer`'s existing Cargo engine
+ (`package/dev-script/file-enforcer/src/cargo/`) with the catalog and a check-only mode.
+Why:
+ `Cargo.toml` keeps one owner (edition, lints, `[workspace]`, profiles, and dependencies);
+ a new Rust CLI built on `toml_edit` (the crate Cargo itself depends on) would split ownership for a lighter CI setup;
+ contributing upstream (for example to `cargo-rail`, which unifies each workspace separately) waits on another roadmap.
+Consequence:
+ the CI check needs Node and a pnpm install.
+
+### Manifest shape
+
+Each crate's own root manifest gets a generated `[workspace.dependencies]` table holding only the catalog entries it
+ uses,
+ and its use sites reference them with `workspace = true` plus crate-local `features`,
+`optional`,
+and `default-features`.
+This is not a root workspace:
+ every crate stays its own workspace root.
+Why:
+ use sites become a catalog reference instead of a literal requirement (the issue's own complaint),
+ and Cargo rejects a hand-written `version` beside `workspace = true` between check runs.
+Consequence:
+ features are additive under `workspace = true`,
+ so catalog entries carry versions and no features.
+
+### Membership
+
+Strict:
+ every registry and git dependency references the catalog;
+ a literal requirement fails the check unless it is a documented exception.
+Path dependencies stay out of the catalog.
+Why:
+ one place then covers every version,
+ matching the JS rule that every external dependency uses `catalog:`.
+
+### Catalog format
+
+A standalone TOML file in Cargo dependency syntax,
+ not named `Cargo.toml`,
+ read and validated by `file-enforcer` on every sync and in the CI check.
+Why:
+ it uses the syntax Rust contributors already write and is a plain data file like `pnpm-workspace.yaml`;
+ a standalone TypeScript module would add edit-time typing but put Rust versions in TypeScript syntax,
+ and inline data in `file-enforcer.config.ts` fails the issue's "discoverable" requirement.
+
+### Lockfile alignment
+
+Out of scope for #1800,
+ tracked in [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+Why:
+ aligning resolved versions also covers transitive dependencies and legitimate per-crate older resolutions,
+ a separate policy that does not change the catalog's design.
+
+### Follow pnpm's full catalog feature set
+
+Owner direction:
+ model the Rust catalog on everything pnpm catalogs offer,
+ not only the subset this repo's JS side uses today,
+ and ask which features to omit.
+The mapping is in the section "pnpm feature map".
+
+### Exceptions
+
+pnpm-style named catalogs:
+ alternative versions live in `[catalogs.<name>]` tables of the catalog file.
+Where a crate selects a named catalog is still open
+ (pnpm selects at the consumer with `catalog:<name>`).
+
+### Catalog name and location
+
+`rust-catalog.toml` at the repository root,
+ beside `pnpm-workspace.yaml`.
+Why:
+ it names the content in the repo's own term ("catalog");
+ `cargo-catalog.toml` reads like a cargo subcommand binary,
+ and `Cargo.catalog.toml` looks like a manifest variant.
+Renovate's cargo manager matches only files named `Cargo.toml`,
+ so it will not misread this file.
+
+### Feature selection
+
+Kept:
+ named catalogs;
+ adopt on sync (`pnpm add --save-catalog`);
+ prune unused entries (`catalogPrune`);
+ the recursive no-save update plus tightening (see "Recursive no-save update");
+ the CI drift check;
+ named diagnostics;
+ the affected-crate list.
+Retracted after selection:
+ internal crates referenced by name (see "Internal dependencies").
+Follow-on:
+ changesets on update.
+Omitted:
+ path entries (`file:`, `link:`),
+ because internal crates by name cover every path dependency today;
+ the `catalogs.default` synonym;
+ the `catalogMode` setting,
+ because strict is decided;
+ overrides through the catalog (Cargo has none in manifests; lockfile concerns go to #1801);
+ delegated catalog files;
+ cross-repository catalogs;
+ query and run commands.
+
+### Tightening, after `catalog:tighten`
+
+Owner direction:
+ also look at the repo's `catalog:tighten` task
+ (`package/dev-script/catalog-tighten/`).
+It raises `>=x.y.z` floors in the JS catalog to the installed version,
+ reports every entry as `TIGHT`, `OK`, `SKIP`, `UNDCL`, or `MISS`,
+ and rewrites only the version token.
+Its portability plan (`doc/handover/catalog-tighten-portability.md`) covers JS package managers only.
+For Cargo,
+ the build always uses `Cargo.lock`,
+ so the lockfile is the resolved-version source
+ (the JS tool avoids lockfiles because `node_modules` can be deleted while the lockfile stays).
+Owner:
+ extend `catalog-tighten` with a Cargo source,
+ because it already owns floor tightening;
+ `rust-catalog.toml` then has two writers (the `file-enforcer` sync and tighten),
+ as `pnpm-workspace.yaml` already has pnpm plus tighten.
+
+Floor rule:
+ the highest version resolved across the consuming crates' lockfiles.
+Why
+ (the owner pointed out the earlier question should not have existed):
+ pnpm's catalogs page lists "Maintain unique versions" as the first advantage,
+ and `catalog-tighten`'s resolver (`src/version-resolve.ts`, `readInstalledVersion`) states
+ "a catalog pins one version across all importers, so the first on-disk hit is the active version".
+Under that one-version premise a lowest-resolved floor would contradict the catalog's purpose.
+
+Probe (throwaway crate, repo cargo, offline):
+ with `itoa` locked at 1.0.11 and the requirement raised from `1.0.4` to `1.0.15`,
+ `cargo metadata --locked` failed ("cannot update the lock file ... because --locked was passed"),
+ and a plain `cargo metadata` re-resolved only `itoa`,
+ to 1.0.18 (the newest cached release, not the new floor),
+ while `memchr` stayed at 2.6.4.
+So a raised floor moves lower-locked crates to whatever is newest,
+ not to the floor,
+ unless tighten also updates their lockfiles.
+
+Tighten writes no lockfiles:
+ the owner rules lock writes impure for a tightener.
+Lockfiles move only through the recursive update.
+
+### Requirement operator
+
+`>=` floors,
+ like the JS catalog,
+ so `catalog-tighten`'s existing `>=`-only rule applies unchanged.
+Owner rationale:
+ the breakage risk of crossing a major is intentional;
+ falling behind upstream is the failure to surface.
+
+Known consequence:
+ `i-slint-backend-testing` must stay an exact pin equal to the resolved `slint`
+ (its README requires `=` matching `slint`, noted in `package/desktop-app/ide/Cargo.toml`).
+A recursive update moves `slint` to its newest release while the exact pin stays,
+ so `package/desktop-app/ide` and `package/music-player/desktop-app` stop compiling their tests until the pin is raised
+ by hand.
+The nine `ra_ap_*` exact pins share one version and move together,
+ so they do not split.
+
+Git dependencies (the Helix crates,
+ `portable-pty`) are catalog entries with `git` and `rev`;
+ tighten skips them like every non-`>=` entry.
+
+### Recursive no-save update
+
+Support the counterpart of `pnpm -r --no-save update`
+ ("Don't update the ranges in `package.json`", `docs/cli/update.md`):
+ a task that runs `cargo update` in every crate root.
+`cargo update` never edits manifests,
+ so it is no-save by construction.
+With `>=` floors it moves every lockfile to the newest releases,
+ and a following `catalog-tighten` run raises the catalog floors to the highest locked versions.
+This replaces the earlier "update task writes catalog entries" item:
+ a saving update is the recursive update followed by tighten.
+
+### Internal dependencies
+
+Internal crates stay out of the catalog.
+Owner direction:
+ depend on them the way JS packages use `workspace:*`.
+This retracts the kept "internal crates by name" item,
+ which mapped pnpm's `workspace:` catalog entries (v12.2.0) rather than the repo's `workspace:*` use.
+
+### Affected crates and changesets
+
+The check lists the crates whose generated tables a catalog edit changes,
+ for a CI that builds only affected crates.
+Changesets on update wait for Rust releases to adopt change intents
+ ([issue #1802](https://github.com/Aquaticat/Monochromatic/issues/1802));
+ today Rust crates have no `package.json`,
+ `.changeset/config.json` names only npm packages,
+ and `.github/workflows/cargo-publish.yml` publishes when a crate's `Cargo.toml` `version` is bumped by hand.
+
+### Derived from precedent (veto open)
+
+Adopted without a separate question because pnpm's docs or the repo's JS setup decide them;
+ each is offered to the owner for veto.
+
+- Internal path dependencies:
+   the sync writes `version = "=<target package.version>"`.
+   Evidence:
+   every internal JS reference uses `workspace:*`
+   (1537 matches of `"workspace:*"` and no other `workspace:` form across `package/*/*/package.json`),
+   and pnpm publishes `workspace:*` as the exact version (`docs/workspaces.md`, "Publishing workspace packages").
+- Adopt on sync rewrites `cargo add`'s caret literal into a `>=` floor.
+   Evidence:
+   the JS catalog's entries are `>=` floors although `pnpm-workspace.yaml` sets `savePrefix: ''`,
+   and the owner chose `>=` floors for Rust.
+- Table names follow pnpm:
+   `[catalog]` for the default catalog and `[catalogs.<name>]` for named ones.
+- Named-catalog entries hold bounded requirements (caret or exact),
+   and tighten skips them as it skips every non-`>=` entry.
+   Evidence:
+   pnpm's own named-catalog example is `react17: ^17.0.2`;
+   a `>=0.58` entry would be pulled to the newest release by the first recursive update.
+- The drift check runs in `.github/workflows/advisory-core.yml` after `task-run prepare:pnpm`.
+   Evidence:
+   that workflow runs on `push` and `pull_request` to `main`,
+   and its setup action runs `pnpm install --frozen-lockfile`
+   (`.github/actions/task-cli-setup/action.yml`),
+   the JS catalog's drift gate.
+- [Issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801) narrows:
+   with `>=` floors and the recursive update,
+   direct dependencies converge whenever the update runs;
+   what remains is a cross-lockfile drift report and transitive dependencies.
+
+### Release age
+
+The repo sets `minimumReleaseAge: 1440` in `pnpm-workspace.yaml`.
+On the repo's cargo (`1.101.0-nightly`),
+ `cargo -Zunstable-options generate-lockfile --help` lists
+ `--publish-time <yyyy-mm-ddThh:mm:ssZ>`,
+ "Latest publish time allowed for registry packages (unstable)"
+ (tracking issue [rust-lang/cargo#16271]);
+ `cargo update --help` lists no such flag.
+So a release age can bound a full re-resolution but not a selective `cargo update <spec>`.
+The index `pubtime` field it relies on was stabilized in Rust 1.94.0.
+
+The crates.io sparse index also records `pubtime` per version
+ (`https://index.crates.io/an/yh/anyhow`, last line:
+ `{"name":"anyhow","vers":"1.0.104","pubtime":"2026-07-18T20:59:37Z"}`),
+ so the update can check every newly locked version against the release age with stable `cargo update`,
+ independent of the unstable flag.
+
+The repo's JS policy is strict:
+ `minimumReleaseAge: 1440`,
+ `minimumReleaseAgeExclude` (scope globs with rationale comments),
+ `minimumReleaseAgeStrict: true`,
+ `minimumReleaseAgeIgnoreMissingTime: false`.
+`package/dev-script/deps-update` (`mise run deps:update`) describes itself as running
+ `pnpm update --recursive --no-save` and reporting strict refusals
+ (`doc/troubleshooting/pnpm-update-no-save-strict-release-age.md`).
+Owner direction (2026-10-29):
+ the owner did not know this package existed;
+ treat it as unusable and build nothing on it.
+Its report format may still inform the Rust update's diagnostics as a description,
+ not as code to extend.
+The owner of the Rust recursive update is therefore open.
+
+Correction (2026-10-29,
+ after the owner accepted "strict release age from `pubtime`, refusing and reporting"):
+ that item misread pnpm.
+pnpm's `minimumReleaseAge` "defines the minimum number of minutes that must pass after a version is published before
+ pnpm will install it",
+ so resolution picks the newest version old enough;
+ `minimumReleaseAgeStrict` "controls how pnpm behaves when no version of a dependency satisfies the
+ `minimumReleaseAge` constraint within the requested range":
+ `true` fails,
+ `false` falls back to a younger version
+ (`docs/settings/dependency-resolution.md`).
+Adopted under rule `EPR`:
+ the update runs `cargo -Zunstable-options generate-lockfile --publish-time <now minus minimumReleaseAge>` in each
+ crate root,
+ a resolver-level constraint with pnpm's semantics,
+ and a full re-resolution matches the update now that selective updates are omitted.
+Packages in `minimumReleaseAgeExclude` are then moved to their newest release with `cargo update <name>`,
+ and every newly locked version is checked against `pubtime`;
+ a young version that is not excluded fails the run.
+With strict off,
+ a failed constrained resolution falls back to an unconstrained one.
+The sparse index carries `pubtime` back to old releases
+ (`anyhow` 0.0.0 shows `2019-10-05T19:52:26Z`),
+ so `minimumReleaseAgeIgnoreMissingTime` rarely applies.
+`minimumReleaseAgeExcludePrune` (pnpm default `false`) joins the kept settings as the sibling of
+ `trustPolicyExcludePrune`.
+
+### Trust policy
+
+Owner correction:
+ crates.io does carry trust evidence,
+ so a pnpm-style `trustPolicy` can work through heuristics.
+pnpm's `trustPolicy: no-downgrade` (set in this repo's `pnpm-workspace.yaml`) fails "if a package's trust level has
+ decreased compared to previous releases",
+ judged by publish date,
+ ignoring prereleases for a stable install;
+ `trustPolicyExclude`,
+ `trustPolicyIgnoreAfter`,
+ `trustPolicyExcludePrune`,
+ and `trustLockfile` refine it (`docs/settings/dependency-resolution.md`).
+
+Per-version evidence from `https://crates.io/api/v1/crates/<name>/versions`:
+
+- `trustpub_data`:
+   set when the version was published through Trusted Publishing,
+   with `provider`,
+   `repository`,
+   `run_id`,
+   and `sha`
+   (present on the newest `libc` and `cc` releases,
+   `rust-lang/libc` and `rust-lang/cc-rs`;
+   null on the newest `anyhow`,
+   `tokio`,
+   and `clap`,
+   which carry a `published_by` user instead).
+- `published_by` and `audit_actions`:
+   the publishing account.
+- `repository`:
+   the crate's declared repository URL for that version.
+
+The lockfiles hold 1388 distinct registry `name@version` pairs across 1024 crate names
+ (measured 2026-10-29),
+ so whole-lockfile verification needs cached API results:
+ the crates.io data-access page allows "a maximum of 1 request per second" with an identifying user-agent,
+ while "No rate limits are required to use data from the sparse crate index".
+
+Decided (owner, 2026-10-29):
+
+- Levels:
+   Trusted Publishing (`trustpub_data` present) is highest;
+   among token publishes,
+   an account that published an earlier release ranks above a first-time publisher.
+   A release ranking below any earlier-published stable release fails (`no-downgrade`).
+- A trusted-publishing release whose `trustpub_data.repository` differs from earlier trusted releases is a downgrade.
+- A release whose declared `repository` differs from the previous release fails unless excluded.
+- Kept settings:
+   `trustPolicyExclude`,
+   `trustPolicyIgnoreAfter`,
+   `trustPolicyExcludePrune`,
+   and re-verification of every locked entry in the CI check (pnpm's default `trustLockfile: false`).
+
+### Owner of the recursive update
+
+A mise task written in TypeScript (owner decision).
+The repo's task rule allows two forms:
+ inline logic through `shell = "node --input-type=module-typescript -e"`,
+ or a package bin the task runs;
+ which form is open.
+
+### Update selection features
+
+Omitted (owner decision):
+ patterns and negation,
+ crate filter,
+ direct-only,
+ dependency-kind filters,
+ interactive picker.
+Kept:
+ release age and dry run.
+
+[rust-lang/cargo#16271]: https://github.com/rust-lang/cargo/issues/16271
+
+### Named catalog selection
+
+A crate selects a named catalog in its own manifest,
+ under `[package.metadata.rust-catalog.catalogs]`
+ (for example `windows = "windows-legacy"`).
+Why:
+ pnpm selects at the consumer (`catalog:<name>`),
+ and the selection moves with the crate.
+Cargo's manifest reference says the `package.metadata` table "is completely ignored by Cargo and will not be warned
+ about".
+
+## pnpm feature map
+
+Read from the pnpm docs source (`pnpm/pnpm.io` `docs/catalogs.md`,
+`docs/workspaces.md`,
+`docs/settings/_catalogMode.mdx`,
+`docs/settings/_catalogPrune.mdx`,
+`docs/cli/update.md`,
+`docs/cli/add.md`,
+`docs/config-includes.md`,
+`docs/config-dependencies.md`,
+`docs/settings/dependency-resolution.md`,
+`docs/filtering.md`,
+`docs/errors.md`),
+ cloned 2026-10-29.
+Each item gives the pnpm feature,
+ then its Rust mapping.
+
+### Reference forms
+
+- Default catalog and `catalog:` references:
+   `[dependencies]` in `rust-catalog.toml`,
+   use sites `{ workspace = true }` through the generated per-crate table.
+- Named catalogs (`catalogs.<name>`, `catalog:<name>`):
+   `[catalogs.<name>]` tables;
+   pnpm's consumer-side selection needs a Cargo-sanctioned place such as `[package.metadata]`,
+   because unknown keys in a dependency table warn.
+   `catalogs.default` as a synonym of the default catalog,
+   with an error when both are defined.
+- `catalog:` in `dependencies`,
+`devDependencies`,
+`optionalDependencies`:
+   Cargo `dependencies`,
+   `dev-dependencies`,
+   `build-dependencies`,
+   and `target.<cfg>.*`;
+   optionality is a use-site key.
+   `peerDependencies` has no Cargo counterpart.
+- `workspace:` ranges in the catalog (pnpm v12.2.0),
+   replaced on publish (`workspace:*` to exact,
+   `workspace:^` to caret,
+   `workspace:~` to tilde):
+   an internal crate named in the catalog renders a per-consumer relative `path` plus a `version` derived from the
+   target's `package.version`;
+   `cargo publish` already drops the path and keeps the version.
+   Aliases (`workspace:foo@*`) map to Cargo's `package` rename key.
+- `file:` and `link:` entries relative to the catalog file (pnpm v12.6.0):
+   a `path` relative to the repository root,
+   rendered relative to each crate.
+- Location specifiers are never moved into a catalog automatically (pnpm v12.3.0),
+   because one path cannot mean the same directory for every project.
+
+### Workflow
+
+- `catalogMode` (`manual`, `prefer`, `strict`) governing `pnpm add`:
+   a mode setting in `rust-catalog.toml`;
+   adding happens through `cargo add` (literal) followed by the sync adopting the literal into the catalog
+   (`pnpm add --save-catalog` and `--save-catalog-name`).
+- `catalogPrune` (default `false`):
+   the sync removes entries no crate references.
+- `pnpm update` writes new ranges to the catalog entry instead of `package.json`:
+   an update task that rewrites catalog entries.
+- `pnpm update --changeset`:
+   no Rust crate uses changesets (`.changeset/` mentions none).
+- Migration codemod (`pnx codemod pnpm/catalog`):
+   the first sync adopts every existing literal requirement.
+
+### Checks
+
+- Frozen install fails when the lockfile's recorded catalogs differ
+   (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`):
+   the CI drift check.
+- `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC` and
+   `ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION`:
+   named diagnostics in the check.
+- Filtering counts a project as changed when a catalog version it takes changes:
+   the check can list crates affected by a catalog edit.
+
+### Not directly mappable
+
+- `overrides` referencing the catalog,
+   and convergence overrides:
+   Cargo has no transitive version override in manifests;
+   only the lockfile can,
+   which belongs to [issue #1801](https://github.com/Aquaticat/Monochromatic/issues/1801).
+- Config includes (catalogs in delegated files with their own owners),
+   config dependencies and `updateConfig` hooks (catalogs shared across repositories),
+   `pnpm config get catalog.<name>`,
+   and `pnx <tool>@catalog:`.
+
+### Version families
+
+pnpm has no grouping construct:
+ a family repeats its version on every entry,
+ as this repo's JS catalog does for the `@deepseek-ai/dsh-*` packages.
+Following pnpm,
+ the Rust catalog adds none.
+
+## Rejected
+
+- Repository-root Cargo workspace:
+   out of scope (`.out-of-scope/cargo-workspace.md`).
+- Catalog as a real `Cargo.toml` virtual manifest:
+   every cargo command errors on a workspace with no members,
+   and `file-enforcer` discovery would treat it as a crate.
+- Version-only inline rewrite:
+   leaves literal requirements in every manifest.
+- Opt-in and shared-only membership:
+   opt-in never catches drift outside the catalog;
+   shared-only leaves single-use versions unaudited.
 
 ## Open questions
 
-Recorded once the precedent research returns and the owner answers.
+- Verified 2026-10-29 (repo cargo, throwaway crate and throwaway worktree):
+   `memchr = ">=2.6.4"` in a crate's own `[workspace.dependencies]`,
+   used as `{ workspace = true, default-features = false, features = ["alloc"] }`,
+   resolved with only `alloc`,
+   and `cargo package` kept `version = ">=2.6.4"`;
+   `cargo update --dry-run` ran on the host in `package/music-player/desktop-app` and
+   `package/desktop-app/file-manager-qt` with only the registry index
+   (no Podman environment).
+- Name of the mise task and of its package
+   (decided:
+   a package bin under `package/dev-script/` run by a thin mise task).
+- Where the trust cache lives (a committed file or a CI cache);
+   a cold full verification is about 17 minutes at 1 request per second for 1024 names.

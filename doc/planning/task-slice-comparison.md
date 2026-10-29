@@ -615,16 +615,20 @@ reproduces in every measured candidate:
   `_describe_tasks` docstring promises `name:help`,
   open [PR #438](https://github.com/nat-n/poethepoet/pull/438) admits further inaccuracies.
 - Buck2:
-   the README
-  ([sandbox footnote, selected](https://github.com/meta/buck2#:~:text=Buck2%20currently%20does%20not%20sandbox))
-  is contradicted by probes
-  (a local action read `/etc/os-release`
-  and `curl` returned `http_code=200`),
-  genrule docs
+   genrule docs
   ([bash sentence, selected](https://github.com/facebook/buck2/blob/9ac63c5839fc5a874e766947e276a5fd0292789e/prelude/decls/genrule_common.bzl#L100))
   say `bash -c`,
   the observed invocation is `bash -e <script>`,
-  `--keep_going` means different things on `build` versus `targets`.
+  and `--keep_going` means different things on `build` versus `targets`.
+  The sandbox footnote
+  ([sandbox footnote, selected](https://github.com/meta/buck2#:~:text=Buck2%20currently%20does%20not%20sandbox))
+  is accurate and is not drift:
+   probes confirm it
+  (a local action read `/etc/os-release`
+  and `curl` returned `http_code=200`),
+  so the contradiction belongs to a third-party security write-up
+  claiming sandbox-by-default,
+  not to upstream docs.
 - Pants:
    `pants help shell_command` advertises a goal that does not exist,
   the shell docs
@@ -652,15 +656,86 @@ reproduces in every measured candidate:
   claims POSIX-style syntax the default shell rejects,
   generated markers say `.projenrc.js` where `.projenrc.ts` is generated.
 
-Finding:
- the drift class cannot cull any candidate now
- without also culling the rest,
- so it is recorded per candidate here
- and the contract question must resolve how it is weighed.
+Decision 2026-10-29 (drift weight):
+ documentation drift is a scored deduction this session,
+ never a cull.
+Unacknowledged contradictions deduct harder than acknowledged ones,
+ where upstream is already fixing the text.
+This replaces the earlier plan to cull unacknowledged drift outright.
+
+### Upstream acknowledgement audit
+
+- Poe the Poet:
+   acknowledged.
+  Open [PR #438](https://github.com/nat-n/poethepoet/pull/438)
+  ("docs:
+  fix misc inaccuracies")
+  is a maintainer-authored docs audit against 0.49.0,
+  and the include-`cwd` family was acknowledged and fixed
+  ([#158](https://github.com/nat-n/poethepoet/issues/158),
+  [#160](https://github.com/nat-n/poethepoet/issues/160)).
+  Trust score 3 of 4.
+- projen:
+   partially acknowledged.
+  [#4267](https://github.com/projen/projen/issues/4267)
+  has the maintainer agreeing the quoting gap is real
+  ("projen can either A) do nothing (the current behavior) or B) always quote all args"),
+  but the POSIX-syntax claim itself is not retracted.
+  Trust score 2 of 4.
+- Please:
+   partially acknowledged.
+  [#522](https://github.com/thought-machine/please/issues/522)
+  records the maintainer calling `--keep_going` semantics
+  "not the desired behaviour",
+  while the documented `-a` form that fails verbatim
+  has no upstream record.
+  Trust score 2 of 4.
+- pnpm:
+   unacknowledged.
+  [pnpm/pnpm.io#987](https://github.com/pnpm/pnpm.io/issues/987)
+  (ours,
+  open 2026-10-28) drew zero maintainer response,
+  and [pnpm/pnpm.io#519](https://github.com/pnpm/pnpm.io/issues/519)
+  shows the docs queue is unattended.
+  Trust score 1 of 4.
+- Nadle:
+   unacknowledged.
+  [PR #614](https://github.com/nadlejs/nadle/pull/614)
+  merged a correct `into` guide
+  while the features page still shows `to`,
+  and no issue names the contradiction.
+  Trust score 1 of 4.
+- Buck2:
+   unacknowledged.
+  No `meta/buck2` issue covers the genrule `bash -c` claim
+  or the `--keep_going` split between `build` and `targets`.
+  Trust score 1 of 4.
+- Pants:
+   unacknowledged.
+  The stale `experimental_run_in_sandbox` help reference
+  and the nonexistent `outputs` field have no upstream record;
+  [#17616](https://github.com/pantsbuild/pants/issues/17616)
+  explains the rename that left the stale text behind
+  without acknowledging the text.
+  Trust score 1 of 4.
+- Tilt:
+   unacknowledged and the largest deduction.
+  Neither the snapshot truncation nor the `tilt trigger` false success
+  appears in any issue;
+  [#6553](https://github.com/tilt-dev/tilt/issues/6553)
+  reports a different snapshot bug (a race),
+  and [#4811](https://github.com/tilt-dev/tilt/issues/4811)
+  calls the feature "half-finished" without naming either.
+  Trust score 0 of 4.
 
 ## Ranking for the task slice
 
-Refrozen after all six added pilots returned.
+Refrozen after all six added pilots returned
+and after the drift weight was set to deduction
+(see the acknowledgement audit above).
+Documentation trust is one scored factor among the parity gates,
+so the order below is stable under that weighting
+and the margins it narrows are named per pair.
 
 1.  Pants 2.33.1 with a name-mangling compiler and generated BUILD files.
 2.  Nadle 0.6.1 with a rename and missing-optional modeling.
@@ -675,51 +750,248 @@ Refrozen after all six added pilots returned.
 9.  meow as designed.
 10. Keep Mise.
 
-- Pants beats Nadle because both need the same name migration,
-  while Pants passes missing-optional sweeps
-  and intentional failure tolerance with retained causes
-  and ships measured caching and watch;
-  Nadle hard-errors on missing tasks
-  and carries the open documentation gate.
-- Nadle beats Buck2 because both need a name migration
-  and a generation or compiler layer,
-  while Nadle owns watch and input/output caching,
-  which Buck2 lacks outright
-  (no watch command;
-  zero cache hits across daemon restarts),
-  and Nadle's missing-optional gap is modelable with `onlyIf`
-  while Buck2's cache gap is architectural.
-- Buck2 beats Please because Buck2 passes intentional failure tolerance
-  by default with retained causes
-  and offers a typed argv escape hatch,
-  while Please reaches only partial tolerance behind an undocumented flag
-  and its shell-only bodies carry a measured `\$` un-escape hazard.
-- Please beats pnpm because edges are exact per target,
+### Why each adjacent pair
+
+- Pants beats Nadle because the migration cost is identical
+  (both ban the colon vocabulary,
+  so both need a compiler over 1,811 names,
+  603 edges,
+  `CM5` addressing,
+  and every call site)
+  while Pants covers the acceptance boundary more completely:
+   per-package missing-task sweeps pass
+  (`./pants test pkgs/free/:: pkgs/bench/::` exits 0),
+  independent work continues after a failure
+  with `ProcessExecutionFailure` retaining stdout
+  and `--keep-sandboxes=on_failure`,
+  caching is measured (`(cached locally)`,
+  `local_cache_requests_cached: 1`),
+  and `--loop`,
+  `--changed-since` with `--changed-dependents`,
+  and `peek` JSON carrying `execution_dependencies` are all measured.
+  Nadle's typed in-process TS bodies are the only form
+  that removes the escaping class entirely,
+  and `--reporter agent`,
+  `--why`,
+  and `--since` are real,
+  but Nadle hard-errors on any missing task
+  (`TaskNotFoundError` exit 3)
+  unless `onlyIf` or generated empties model absence,
+  and dependents of a failure are blocked.
+  Trust ties at 1 of 4,
+  so drift does not separate them.
+   Flip condition:
+  weight typed-body safety above failure tolerance and caching.
+- Nadle beats Buck2 because the slice needs watch and caching
+  and Buck2 has neither:
+   no watch command at all
+  (only a protobuf `subscribe` RPC),
+  and `Cache hits: 0%` across every daemon restart probed,
+  which makes its local cache daemon-incremental only.
+  Nadle owns `--watch`,
+  input/output caching with `--why`,
+  and `--continue`.
+  Buck2 is stronger exactly where Nadle is weak:
+   gate 6 is a default pass
+  (independent targets run in one invocation,
+  exact command line plus stdout plus stderr retained in JSON `action_error`,
+  aggregate exit 3),
+  and `targets --json`,
+  `uquery`/`cquery`,
+  `--build-report=-`,
+  and BXL form the richest machine-readable surface measured.
+  But Nadle's missing-optional gap is modelable
+  (`onlyIf`,
+  generated empty tasks)
+  while Buck2's cache gap is architectural for a long-lived dev loop,
+  and Buck2 `genrule` bodies cross three escaping layers
+  (Starlark literal,
+  `$(...)` macro expansion,
+  shell quoting)
+  where the naive form built green with an empty output file,
+  the worst silent corruption measured.
+  Trust ties at 1 of 4.
+   Flip condition:
+  a working remote or RE cache,
+  or a watch wrapper,
+  puts Buck2 first.
+- Buck2 beats Please because the acceptance boundary's
+  failure-tolerance gate is a default pass in Buck2
+  and only a partial pass in Please behind `--keep_going`,
+  a flag absent from the website docs entirely
+  whose semantics the maintainer calls
+  "not the desired behaviour"
+  ([#522](https://github.com/thought-machine/please/issues/522))
+  and whose summary text (`Build stopped after ...`)
+  misleads even when everything ran.
+  Please charges the same rename cost
+  (`:` is reserved in target names)
+  and its shell-only bodies carry a measured `\$` un-escape:
+   Please rewrites `\$` to `$` before bash sees the command,
+  silently undoing dollar escaping.
+  Buck2 at least offers a typed argv escape hatch.
+  Please's wins are real and are the slice's other requirements:
+   input-hash caching across invocations measured end to end,
+  `plz watch`,
+  and `--since` with `--level` reverse-dependents expansion.
+  Trust favors Please (2 of 4 versus 1 of 4),
+  which narrows this pair without flipping it.
+   Flip condition:
+  weight cross-invocation caching and watch
+  above default failure tolerance.
+- Please beats pnpm because `depends` edges are the slice's core semantics
+  and pnpm cannot express them:
+   476 of 603 cross-package edges become `^name` over-approximations
+  (translate-stage would run `build:js:node` in 16 extra packages),
+  33 hold only transitively,
+  and 5 are inexpressible and need new `package.json` edges.
+  Over-approximation changes failure semantics:
+   a failure in an unrelated same-named script blocks the dependent.
+  Please's `deps` are exact per target
+  (measured:
+  `lib:build` plus `corpus:build`,
+  and never `bench:build`),
   caching is input-hash based across invocations,
-  and watch and `--since` exist,
-  against 476 over-approximated `^name` edges that change failure semantics
-  and no watch at all;
-  the price is the same rename class plus missing-optional stubs.
-- pnpm beats Tilt because `--no-bail` continues independent work
-  while `tilt ci` abandons it with no flag,
-  pnpm caches where Tilt does not,
-  and pnpm keeps the colon names as script keys
-  where Tilt flattens 1,811 names into one namespace.
-- Tilt beats Poe the Poet because a missing optional dependency
-  warns and is ignored
-  instead of poisoning every run in the project,
-  watch works,
-  and `tilt get -o json` retains causes
-  where Poe has no JSON listing at all.
-- Poe the Poet beats projen because its dependency graph dedups
-  and it offers parallel and `ignore_fail` modes,
-  while projen has no parallel step type
-  and its typed cross-project spawn silently resolves to the wrong task.
-- projen beats meow because it runs today,
-  while meow is plan-only with open design questions.
+  and watch and `--since` exist
+  where pnpm has no watch at all
+  and experimental pipeline caching.
+  pnpm's clean wins are the missing-optional pass-through
+  (`missingScript: true`),
+  keeping the colon names as per-project script keys without collision,
+  and already being the repo's package manager.
+  Its failure tolerance is partial
+  (`--no-bail` continues independents,
+  dependents of a failure never run)
+  and tests-after-build-failure fails at the scheduler level.
+  Trust favors Please (2 of 4 versus 1 of 4).
+   Flip condition:
+  accept the 476 over-approximations as harmless in practice
+  (the translate-stage measurement is the test)
+  and weight no-rename above edge exactness.
+- pnpm beats Tilt because `tilt ci` cannot own the failure-tolerance gate
+  at all:
+   it aborts at the first failure
+  and abandons unstarted resources
+  with no flag to prevent it,
+  and the only tolerant mode (`tilt up`)
+  never exits with a status,
+  so a wrapper must invent the aggregate exit.
+  `--no-bail` at least continues independent work,
+  pnpm caches where Tilt has no caching whatsoever
+  (every `tilt ci` is a fresh engine),
+  and pnpm's colon names sit in per-project script keys
+  where Tilt's one flat namespace hard-errors on duplicates,
+  which 222 packages of `test` and `lint` and `build` will hit
+  without mangling.
+  Tilt's strengths are the strongest in the field
+  where they exist:
+   exact `resource_deps`,
+  the best missing-optional behavior measured
+  (unknown dependency warns and is ignored,
+  run proceeds,
+  exit 0),
+  `buildHistory[0].error` with `waiting-for-dep` reasons,
+  and watch.
+  What sinks it is trust:
+   0 of 4,
+  the only zero in the field.
+  `--output-snapshot-on-exit` silently corrupts its own JSON
+  over a longer existing file
+  (missing `O_TRUNC`,
+  reproduced 99,999 bytes with a stale tail)
+  and `tilt trigger` reports success for resources that never ran.
+  Both are unacknowledged,
+  and both land on the listing and watch surfaces Tilt would own.
+  pnpm's own drift is one stale sentence (1 of 4).
+   Flip condition:
+  a keep-going mode for `tilt ci` plus any caching
+  would put Tilt ahead of pnpm;
+  its gate-5 and edge-exactness wins are otherwise decisive.
+- Tilt beats Poe the Poet because Poe fails the missing-optional gate
+  hardest in the field:
+   one invalid name poisons every run in the project,
+  including unrelated ones
+  (`Error: Invalid task 'needs:missing'`),
+  which for 222 packages with optional builds is an operational blocker
+  unless the generator emits a stub for every absent task.
+  Poe's failure tolerance is the weakest measured
+  (`sequence` abort hides independent siblings;
+  `ignore_fail = "return_non_zero"` recovers them
+  at the cost of double-running shared deps
+  and labeling never-run tasks as failed),
+  and Poe has no watch,
+  no caching,
+  and no JSON listing at all
+  where Tilt has watch and partial JSON
+  and the best gate 5 in the field.
+  Poe's own strengths are the cleanest body model after Nadle's
+  (`cmd` has no shell;
+  POSIX single-quote encoding is byte-exact
+  against the measured body),
+  exact deduping `deps` edges,
+  and the field's only acknowledged drift (3 of 4).
+  Against Tilt's 0 of 4 that makes this the closest pair in the ranking,
+  but Poe's missing surfaces are slice requirements Tilt partially covers.
+   Flip condition:
+  stub emission that cleans gate 5
+  plus a watch shim
+  lets Poe's trust and body model carry it past Tilt.
+- Poe the Poet beats projen because projen has no package namespaces at all
+  (identity is project directory plus flat name,
+  so `//package/<path>:<task>` cannot be expressed),
+  no parallel step type
+  (`Async commands are not supported`),
+  no keep-going (first failure aborts everything after),
+  and its typed cross-project `spawn` silently resolves
+  to the same-named task in the same project:
+   the measured probe ran `APP build`
+  where `LIB build` was the edge,
+  a wrong-task-runs-green trap.
+  Missing tasks are either hard errors
+  or false-green empty stubs.
+  Poe's graph dedups,
+  offers parallel and `ignore_fail` modes,
+  and its failures at least fail loudly;
+  Poe also holds the trust edge (3 of 4 versus 2 of 4).
+  projen's `execArgs` byte-exactness
+  and versioned `.projen/tasks.json` manifest do not compensate
+  for an inexpressible label namespace.
+   Flip condition:
+  projen gaining namespaces,
+  parallel steps,
+  and honest spawn resolution.
+- projen beats meow because it runs today:
+  measured,
+  installable,
+  with a manifest the file-enforcer model can generate toward.
+  meow is plan-only
+  with open design questions in scheduling,
+  caching,
+  and the watch daemon.
+   Flip condition:
+  meow existing and passing the parity gates.
 - meow beats keeping Mise because the accepted endpoint is Mise removal
+  (`doc/decision/monorepo-manager-all-rust.md`
+  selected meow as the owner)
   and the incumbent carries the measured defects of
-  [`mise-task-usage.md`](monorepo-manager-route-research/mise-task-usage.md).
+  [`mise-task-usage.md`](monorepo-manager-route-research/mise-task-usage.md):
+   no caching at all,
+  and root `mise run test` misses 15 packages.
+
+### Drift-weight sensitivity
+
+Scoring documentation trust instead of culling it
+changes no position in the ranking above.
+It narrows two margins:
+ Buck2 to Please
+ (Please holds 2 of 4 against Buck2's 1 of 4
+ on top of its caching and watch wins)
+ and Tilt to Poe the Poet
+ (Poe holds 3 of 4 against Tilt's 0 of 4).
+Under a weighting that puts documentation trust
+above watch and machine-readable listing,
+Tilt drops below Poe the Poet
+and that is the only inversion available from the drift factor alone.
 
 ## Risks
 
@@ -762,8 +1034,11 @@ Refrozen after all six added pilots returned.
 
 ## Next action
 
-The contract question is asked with every candidate,
-including how the documentation-drift class should weigh now that
-every measured candidate shows it;
+The drift weight is decided
+(unacknowledged documentation drift deducts points,
+it does not cull),
+and the ranking is refrozen with per-pair justifications and flip conditions.
+The contract question remains open over the full candidate set
+and is asked once the user has read the ranking;
 adoption still waits for explicit acceptance
 (`doc/decision/` record plus a reopened vet for the chosen candidate).
