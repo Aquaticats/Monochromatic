@@ -140,13 +140,15 @@ async function dryCallOf(
     readonly signal: AbortSignal;
   },
 ): Promise<unknown> {
-  return await rejectionOf(async function dryCall(): Promise<unknown> {
-    return await client.chatText({
-      modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-      messages: [],
-      signal,
-    },);
-  },);
+  /**
+   The one request every call here sends.
+   */
+  const request = {
+    modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+    messages: [],
+    signal,
+  };
+  return await rejectionOf(() => client.chatText(request,),);
 }
 
 await describe({
