@@ -651,12 +651,16 @@ so those two readings do not move.
 The 120 s grace:
 `STRAGGLER_GRACE_MS` (120 s,
 `stage/src/stage-round.ts`) is unchanged and still applies to whichever voice is late.
-In the `XingZ6022` view (Synthetic,
-NeuralWatt,
-DeepSeek,
-Xiaomi and the Claude key wet,
-Hyper,
-Bedrock and OpenRouter dry) the wide bench read 4 of 8 reachable and closed on 3 voices
+The voices of `XingZ6022` show a wide bench with Kimi-K3,
+Qwen3.8-27B,
+DeepSeek and Haiku 5.5 reachable and the rest dark
+(the log does not name the providers' states,
+and 6 of the 256 dryness views read that set,
+all with Synthetic,
+the Claude key and at least one of DeepSeek and NeuralWatt wet,
+and Hyper,
+Bedrock and OpenRouter dry).
+There the wide bench read 4 of 8 reachable and closed on 3 voices
 (the rule of "Let the grace open",
 B816),
 with Qwen the fourth.
@@ -667,9 +671,8 @@ DeepSeek and Haiku 5.5 the three.
 Two voices decide a panel (the owner's answer of 2026-10-25),
 so the same view settles on one voice fewer than before.
 The late voice there is the slowest of those three,
-and the log says which:
-with Qwen set aside,
-Kimi-K3 was the late voice in 3 of the 4 remaining late panel rounds,
+and the log shows which in the rounds where Qwen was not the late one:
+Kimi-K3 was the late voice in 3 of the 4 such late panel rounds,
 4 of the 6 select rounds and both critic rounds,
 and DeepSeek in the rest.
 In the rounds where Qwen was late,
