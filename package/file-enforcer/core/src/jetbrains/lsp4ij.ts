@@ -149,6 +149,12 @@ export async function manageLsp4ijServerSettings(settings: Lsp4ijServerSettings,
     log.warn(`No base LSP4IJ server matched in ${latest.productDirectory}; skipping LSP4IJ settings sync.`,);
     return;
   }
+  /**
+   Manifest override spread into each write; empty so production callers keep the default manifest.
+   */
+  const manifestPathOption = settings.manifestPath === undefined
+    ? {}
+    : { manifestPath: settings.manifestPath, };
   await Promise.all([
     overwrite({
       dest: languageSettingsPath,
@@ -157,6 +163,7 @@ export async function manageLsp4ijServerSettings(settings: Lsp4ijServerSettings,
         baseEntry,
         settings,
       },),
+      ...manifestPathOption,
     },),
     overwrite({
       dest: userDefinedPath,
@@ -165,6 +172,7 @@ export async function manageLsp4ijServerSettings(settings: Lsp4ijServerSettings,
         baseEntry,
         scopedServers: settings.scopedServers,
       },),
+      ...manifestPathOption,
     },),
   ],);
 }
