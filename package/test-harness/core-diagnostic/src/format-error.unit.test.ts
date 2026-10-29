@@ -193,12 +193,12 @@ await describe({
           frames: [
             USER_FRAME,
             'at runFnOnce (package/test-harness/core/dist/final/neutral/index.mjs:120:10)',
-            'at expectImpl (module-test/dist/final/neutral/index.mjs:200:5)',
+            'at expectImpl (test-harness-core/dist/final/neutral/index.mjs:200:5)',
           ],
         },);
         const joined = (await formatErrorDeep(error,)).join('\n',);
         expect(joined,).not.toContain('test-harness/core/dist',);
-        expect(joined,).not.toContain('module-test/dist',);
+        expect(joined,).not.toContain('test-harness-core/dist',);
         expect(joined,).toContain('package/foo/src/bar.ts',);
       },
     },),
@@ -216,7 +216,7 @@ await describe({
             'at toBe (package/test-harness/core/src/expect-matchers-core.ts:70:10)',
             USER_FRAME,
             'at runFnOnce (package/test-harness/core/src/it.ts:113:19)',
-            'at expectImpl (module-test/src/expect.ts:339:5)',
+            'at expectImpl (test-harness-core/src/expect.ts:339:5)',
           ],
         },);
         const joined = (await formatErrorDeep(error,)).join('\n',);
@@ -224,7 +224,7 @@ await describe({
         // message in real runs; dropping them makes the user frame lead.
         expect(joined,).not.toContain('expect-matchers-core.ts',);
         expect(joined,).not.toContain('test-harness/core/src/it.ts',);
-        expect(joined,).not.toContain('module-test/src/expect.ts',);
+        expect(joined,).not.toContain('test-harness-core/src/expect.ts',);
         expect(joined,).toContain('package/foo/src/bar.ts',);
       },
     },),

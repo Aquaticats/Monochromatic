@@ -90,13 +90,13 @@ const MAX_HARNESS_FRAMES = 6;
  */
 const HARNESS_INTERNAL_FRAGMENTS: readonly string[] = [
   'package/test-harness/core/dist/',
-  'module-test/dist/',
+  'test-harness-core/dist/',
   'package/test-harness/core-expect/dist/',
-  'module-test-expect/dist/',
+  'test-harness-core-expect/dist/',
   'package/test-harness/core-sandbox/dist/',
-  'module-test-sandbox/dist/',
+  'test-harness-core-sandbox/dist/',
   'package/test-harness/core-diagnostic/dist/',
-  'module-test-diagnostic/dist/',
+  'test-harness-core-diagnostic/dist/',
   'node_modules/chai/',
   'node_modules/chai-as-promised/',
   'node_modules/sinon-chai/',

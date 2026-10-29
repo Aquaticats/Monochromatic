@@ -293,7 +293,7 @@ function readStackFrames({
       /**
        Filter using the un-stripped path so the fragment matches
        the workspace-qualified `package/test-harness/core/dist/` and the
-       node_modules-qualified `module-test/dist/` consistently.
+       node_modules-qualified `test-harness-core/dist/` consistently.
        */
       return !isHarnessInternalFrame(frame,);
     },)
