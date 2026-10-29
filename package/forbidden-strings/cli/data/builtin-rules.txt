@@ -2,15 +2,15 @@
 #
 # THIS FILE IS GENERATED. Do not edit by hand. It is the output of the
 # two-stage generation chain:
-#   1. package/cli/forbidden-strings/src/mise.port-betterleaks.ts reads the
+#   1. package/forbidden-strings/cli/src/mise.port-betterleaks.ts reads the
 #      upstream TOML at
-#      package/cli/forbidden-strings/data/betterleaks-default-config.toml
+#      package/forbidden-strings/cli/data/betterleaks-default-config.toml
 #      and emits a tail-format intermediate whose bodies are still PCRE.
 #   2. The dialectport bin in
-#      package/rust-module/forbidden-regex.bench/src/bin/ rewrites each body
+#      package/forbidden-strings/core.bench/src/bin/ rewrites each body
 #      into the forbidden-regex dialect and writes this file.
 # Re-generate via:
-#   mise run //package/cli/forbidden-strings:generate:rules
+#   mise run //package/forbidden-strings/cli:generate:rules
 #
 # Composition:
 #   - This file ports the betterleaks default ruleset into the
