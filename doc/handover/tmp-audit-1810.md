@@ -165,3 +165,24 @@ Still red or open:
 - Evidence gaps: `pnpr`, `open-code-review-issue`, `ask-user-question`, `mutation-test` and `wg/cli-quicker` have only a
   type check; the container runners and `inspect-bundle.ts` need a container or compositor.
 - Close #1810 with `Closes #1810` on the last fixing commit once the lists above are empty.
+
+## Final state of this pass
+
+Everything in "Still red or open" above that could be done without another session was done afterwards:
+
+- The rule now also sees `await import('node:os')` destructuring (`5c30c5eb80`), lints clean itself (`86bf2c19fe`), and a
+  repo-wide run over `package` and `package-paused` reports no violations of it.
+- `ide/app` inspection projects live below `${HOME}/temp/agent`; `inspect-language-toolchain.ts` and
+  `inspect-language-confinement.ts` keep `/tmp` because they test the sandbox that replaces it (exception recorded in
+  `config/oxlint/src/overrides.ts`).
+- The task-runner prelude gives inline scripts `scratchBase()` instead of `tmpdir` (`monorepo-task/cli/src/run.ts`); the
+  logger and toml-edit fuzz coverage tasks use it. The logger task runs and then fails its own coverage gate against the
+  frozen baseline (several files marked new), not on the scratch location.
+- `corpus-commit-probe`, the lock regression fixture, the paused leftovers, the IO benchmark and `perf:teardown` are
+  converted. The config audit is finished: container-internal paths stay (listed in the issue comment).
+- Progress comment on #1810: `issuecomment-6500549432`. The issue stays open.
+
+The one open item is not mine: the `git-policy/cli` Rust uses are on `monochromatic-ff`'s branch
+`worktree-agent-ab12997169a0f5b11` (clippy clean with the ban there), and `cargo clippy` for that crate on main stays
+red until the branch is merged. After the merge, close #1810 with a commit carrying `Closes #1810` (or
+`gh issue close 1810 --comment ...`), and decide whether the weak-evidence packages in the issue comment get tests.
