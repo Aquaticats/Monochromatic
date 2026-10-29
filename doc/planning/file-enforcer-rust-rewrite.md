@@ -6,6 +6,22 @@ Being grilled with the user, started 2026-10-29.
 Nothing here is accepted yet;
 decisions land in this file as the user answers them.
 
+Next action (2026-10-29):
+before confirming shared understanding,
+the user asked for reviews by `openai/gpt-6.1-sol`,
+`openai/gpt-6-astra`,
+and `opencode-go/kimi-k3.1-pro` through `pi`.
+All three are running with this file,
+the four `doc/research/file-enforcer-rust-rewrite-*.md` reports,
+`doc/decision/monorepo-manager-all-rust.md`,
+and `doc/decision/mpm-toolchain-adoption.md` attached;
+output goes to `${HOME}/temp/agent/fe-rust/review-{sol,astra,kimi}.md`.
+When they return,
+each finding is checked against the repo,
+the confirmed ones go to the user as questions,
+and only after the user confirms does the decision record `doc/decision/file-enforcer-rust-rewrite.md` get written.
+No code before the user accepts that record.
+
 ## Request
 
 "Migrate to Rust + clap + config with jsonc for file-enforcer.
