@@ -810,7 +810,9 @@ named for that subject and listed here.
   Three unit tests that still slept on the real clock after B965,
   a ten-millisecond hold in the pass-entry overlap case and two NeuralWatt return waits in the provider package,
   replaced by a rendezvous and a fake clock,
-  and the gap in the real-clock scan that never saw the provider sites (B985).
+  and the gap in the real-clock scan that never saw the provider sites (B985),
+  then the two 40 ms sleeps that round left open
+  and the poll slices, elapsed readings and clockless budgets the widened scan now reads (B995).
 - [Audit ledger: probes that read one editor card](audit-ledger-editor-card-probes.md):
   An editor calibration with no flag naming a card (B870),
   a flag that confines the editing and not the spend (B871),
