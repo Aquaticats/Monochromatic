@@ -89,9 +89,13 @@ struct Paused {
     base: String,
 }
 
+/// Name prefix of the policy scratch directory a commit leaves in its transaction directory.
+const SCRATCH_PREFIX: &str = "cli-git-add-policy-";
+
 /// What:
 ///  Replace each canonical UUID in a path with a placeholder, each run of 40 hexadecimal digits (a commit name) with a
-///  second, and each run of six or more digits with a third.
+///  second, the digits and dashes after the policy scratch prefix with a third, and each other run of six or more
+///  digits with a fourth.
 /// Why:
 ///   Transaction and lock-candidate names carry UUIDs, process IDs and clock readings that change from run to run;
 ///  the table keys must not.
@@ -107,7 +111,14 @@ fn normalized(path: &str) -> String {
         let window: Option<&str> = path.get(index..index + 36);
         let digits: usize = path[index..].bytes().take_while(u8::is_ascii_digit).count();
         let object_name: bool = path.get(index..index + 40).is_some_and(|name| { return name.bytes().all(|byte| { return byte.is_ascii_hexdigit(); }); });
-        if window.is_some_and(is_transaction_id) {
+        if path[index..].starts_with(SCRATCH_PREFIX) {
+            // The policy scratch directory is named by a process ID and a clock reading; a container's process IDs
+            // are short, so no digit-run length tells them apart from the other numbers in a name.
+            text.push_str(SCRATCH_PREFIX);
+            text.push_str("<scratch>");
+            index += SCRATCH_PREFIX.len();
+            index += path[index..].bytes().take_while(|byte| { return byte.is_ascii_digit() || *byte == b'-'; }).count();
+        } else if window.is_some_and(is_transaction_id) {
             text.push_str("<id>");
             index += 36;
         } else if object_name {
@@ -444,6 +455,19 @@ fn sweep(phase: &str) {
     if std::env::var_os(REPORT_VARIABLE).is_none() {
         let recorded: usize = expected::OUTCOMES.iter().filter(|(name, _)| { return name.starts_with(format!("{phase}|").as_str()); }).count();
         assert_eq!(settled, recorded, "every recorded case of {phase} ran, and no other");
+    }
+}
+
+/// The policy scratch directory has one key whatever its process ID: a container numbers processes from 1, so the
+///  ID can be as short as one digit, and a key that kept it would differ between the listing run and the case run.
+#[test]
+fn the_scratch_directory_key_does_not_depend_on_the_process_id() {
+    let id: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
+    for scratch in ["cli-git-add-policy-7-1793272836298814673-0", "cli-git-add-policy-1163803-1793272836298814673-12"] {
+        assert_eq!(
+            normalized(format!("cli-git-transactions/{id}/{scratch}/index").as_str()),
+            "cli-git-transactions/<id>/cli-git-add-policy-<scratch>/index"
+        );
     }
 }
 

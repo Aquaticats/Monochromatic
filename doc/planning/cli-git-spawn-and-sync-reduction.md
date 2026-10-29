@@ -193,7 +193,12 @@ until someone removes the file by hand), **fails closed once** (exit 2, then a l
 did this). A suffix marks a degraded state: the following commit exits 2 although `git status` was fine, or an
 `index.lock` is left behind. Run it with
 `mise run //package/git-policy/cli:native:test:binary:host -- recovery_tearing` (six tests, about 15 seconds);
-regenerate the record by setting `CLI_GIT_TEARING_REPORT=<file>`.
+regenerate the record by setting `CLI_GIT_TEARING_REPORT=<file>`. The record was made on the host's Git 2.55.0 and
+the same 247 outcomes were reproduced unchanged on the gate's Git 2.56.0 in a capped container (two CPUs, 2 GiB), so
+no regeneration was needed. The case keys must not depend on process IDs: a container numbers processes from 1, and
+the policy scratch directory `cli-git-add-policy-<pid>-<nanoseconds>-<n>` is therefore keyed as
+`cli-git-add-policy-<scratch>`. After a Git upgrade, rerun the controls on the gate's Git and regenerate if they
+differ.
 
 Totals over 247 cases (two runs gave identical outcomes): 92 discard, 67 complete, 63 stick, 11 discard but the next
 commit exits 2, 6 complete but the next commit exits 2, 4 discard and leave `index.lock` with the next commit failing,
