@@ -5,7 +5,18 @@ Decision:
 Containers start `FROM docker.io/cachyos/cachyos:latest`, unpinned;
  Alpine only on architectures CachyOS lacks.
 
+Owner follow-ups the same day:
+ CPU-level ladder ("v4, fallback to v3, and plain, and so on.") through `ARG CACHYOS_IMAGE`,
+ and images that build shipped releases are split into a CachyOS dev image and a release image on the current base.
+
 ## In flight (2026-10-29)
+
+- Subagent in `test-harness/core-matrix`: the CPU-level resolver (`--build-arg CACHYOS_IMAGE=<image>`),
+   plus a check for non-x86-64 container builds and images built in one place and run elsewhere.
+  When it lands, the tool and desktop agents wire it into their image builds.
+- `terminal/app` and `ide/app` are held until the dev/release split lands;
+   monochromatic-ec dry-runs the IDE release on that commit before any real release, so send them the hash.
+- monochromatic-71 wants the `search-shadow/cli` `test:container` result line.
 
 - Subagent: tool and test Containerfiles
    (`search-shadow/cli`, `file-enforcer/core/generator`, `test-fixture/file-enforcer-perf`, `nested-wayland-session/cli`).
