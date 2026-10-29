@@ -629,9 +629,9 @@ export async function main(): Promise<void> {
    Network fetcher with GitHub authentication bound in.
    */
   async function fetcher(
-    url,
-    init,
-  ) {
+    url: Parameters<Fetcher>[0],
+    init?: Parameters<Fetcher>[1],
+  ): ReturnType<Fetcher> {
     /**
      Request headers with GitHub authentication when the URL needs it.
      */
