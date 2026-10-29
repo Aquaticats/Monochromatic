@@ -1,0 +1,28 @@
+Running as unit: fe-proto-probe-3900322.service
+mpm: mpm, version 8.2.0
+bare mpm, no files anywhere: 0 cargo-binstall managers (negative baseline)
+C1 files in cwd with the repo's names, no flag: 0
+C2 --config /work/c1/mpm.managers.toml (positive control): 18
+C3 MPM_CONFIG env: 18
+C4 mpm.managers.toml in the XDG app dir:
+  --config LOCATION               Location of the configuration file. Supports
+                                  local path with glob patterns or remote URL.
+                                  [default: ~/.config/mpm/]
+  --no-config                     Ignore all configuration files and only use
+    ~/.config/mpm/mpm.managers.toml, run from an empty dir: 18 managers
+C5 mpm.packages.toml in the XDG app dir (is it treated as config?)
+    exit=0
+C6 cwd pyproject.toml with [tool.mpm.overrides.*] (same definitions, table renamed):
+    0 managers
+C7 trust gate: same --config file made group-writable (0664)
+WARNING:root:Refusing to define manager 'cargo-binstall-fd-find' from /work/c1/loose.toml: unsafe config file ownership or permissions (see docs/security.md).
+WARNING:root:Refusing to define manager 'cargo-binstall-fastmod' from /work/c1/loose.toml: unsafe config file ownership or permissions (see docs/security.md).
+WARNING:root:Refusing to define manager 'cargo-binstall-cargo-fuzz' from /work/c1/loose.toml: unsafe config file ownership or permissions (see docs/security.md).
+    managers registered: 0
+C8 trust gate: file 0600 but world-writable parent dir (0777, not sticky)
+    managers registered: 0
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 5.454s
+             CPU time consumed: 199ms
+                   Memory peak: 58M (swap: 0B)

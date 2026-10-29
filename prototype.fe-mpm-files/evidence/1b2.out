@@ -1,0 +1,37 @@
+Running as unit: fe-proto-probe-2151002.service
+=== [uvx] section: pycowsay = 0.0.0.1 (latest is 0.0.0.2)
+✓ Restored 1/1 packages
+╭────────────┬──────┬─────────┬──────┬─────────┬──────────────╮
+│ Package ID │ Name │ Manager │ From │ To      │ Status       │
+├────────────┼──────┼─────────┼──────┼─────────┼──────────────┤
+│ pycowsay   │      │ uvx     │      │ 0.0.0.1 │ 🆕 installed │
+╰────────────┴──────┴─────────┴──────┴─────────┴──────────────╯
+pycowsay v0.0.0.1
+- pycowsay
+--- control: change the value to 0.0.0.2, reinstall
+│ Package ID │ Name │ Manager │ From    │ To      │ Status      │
+├────────────┼──────┼─────────┼─────────┼─────────┼─────────────┤
+│ pycowsay   │      │ uvx     │ 0.0.0.1 │ 0.0.0.2 │ 🆙 upgraded │
+╰────────────┴──────┴─────────┴─────────┴─────────┴─────────────╯
+pycowsay v0.0.0.2
+- pycowsay
+=== [pnpm] section: is-odd = 2.0.0 (latest is 3.0.1)
+  × The configured global bin directory "/work/pnpm/bin" is not in PATH
+  help: Run "pnpm setup" to update your shell configuration.
+info:pnpm.install: Could not install is-odd@2.0.0.
+info:pnpm.installed: $ /usr/local/bin/pnpm list --global --json --depth 0
+✘ pnpm.install: is-odd@2.0.0 (0.0s)
+✘ Restored 0/1 packages
+critical: Could not restore: is-odd@2.0.0.
+warning: 1 manager reported errors during this run (pnpm); diagnose with: mpm --verbosity DEBUG --pnpm restore pnpm.toml
+No global packages found
+--- control: pnpm add --global is-odd@2.0.0 into a fresh PNPM_HOME
+  × The configured global bin directory "/work/pnpm2/bin" is not in PATH
+  help: Run "pnpm setup" to update your shell configuration.
+
+No global packages found
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 3.017s
+             CPU time consumed: 194ms
+                   Memory peak: 46.6M (swap: 0B)

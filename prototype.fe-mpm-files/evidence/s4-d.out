@@ -1,0 +1,21 @@
+Running as unit: fe-proto-probe-2829432.service; invocation ID: 162a1a12b7434dd492f4242de6e6f304
+################ candidate d: S4 drift ################
+[control] untouched tree
+gate mpm-shadow-lock-check=0 file-enforcer-check=0
+[plan] edit pycowsay pin in the plan, lock not regenerated
+gate mpm-shadow-lock-check=1 file-enforcer-check=0
+    DRIFT toolchain.lock.json: differs from the plan projection
+[lock pinned] hand-edit a pinned tool's version in the lock
+gate mpm-shadow-lock-check=1 file-enforcer-check=0
+    DRIFT toolchain.lock.json: differs from the plan projection
+[lock resolved] hand-edit a resolved (latest-track) tool's version in the lock
+gate mpm-shadow-lock-check=0 file-enforcer-check=0
+[mpm files] none exist under D; corruption of them is not possible
+[lock missing] delete toolchain.lock.json
+gate mpm-shadow-lock-check=1 file-enforcer-check=0
+    DRIFT toolchain.lock.json: missing
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 3.857s
+             CPU time consumed: 158ms
+                   Memory peak: 51.2M (swap: 0B)

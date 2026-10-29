@@ -1,0 +1,57 @@
+Running as unit: fe-proto-probe-2087954.service
+=== [uvx] section: pycowsay = 0.0.0.1 (latest is 0.0.0.2)
+info: Resolved --jobs to 31 (32 logical CPUs).
+info: Selected managers (by priority): uvx.
+info: Dropped managers: none.
+info:uvx: Skipped: version 0.9.5 does not satisfy '>=0.10.10' requirement.
+critical: No manager selected.
+No tools installed
+--- control: change the value to 0.0.0.2, reinstall
+info: Selected managers (by priority): uvx.
+info: Dropped managers: none.
+info:uvx: Skipped: version 0.9.5 does not satisfy '>=0.10.10' requirement.
+critical: No manager selected.
+No tools installed
+=== [pnpm] section: is-odd = 2.0.0 (latest is 3.0.1)
+info: Resolved --jobs to 31 (32 logical CPUs).
+info: Selected managers (by priority): pnpm.
+info: Dropped managers: none.
+info:pnpm: Skipped: version 10.18.3 does not satisfy '>=11.0.0' requirement.
+critical: No manager selected.
+--- control: pnpm add --global is-odd@2.0.0 into a fresh PNPM_HOME
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+
+/work/pnpm2/global/5
+
+dependencies:
+is-odd 2.0.0
+=== [cargo] section: cargo-ndk = 4.1.1 (latest is 4.1.2)
+info:cargo.installed: $ /usr/local/cargo/bin/cargo --color never --quiet install --list
+✓ cargo.install: cargo-ndk@4.1.1 (36.1s)
+✓ Restored 1/1 packages
+╭────────────┬──────┬─────────┬──────┬───────┬──────────────╮
+│ Package ID │ Name │ Manager │ From │ To    │ Status       │
+├────────────┼──────┼─────────┼──────┼───────┼──────────────┤
+│ cargo-ndk  │      │ cargo   │      │ 4.1.2 │ 🆕 installed │
+╰────────────┴──────┴─────────┴──────┴───────┴──────────────╯
+cargo-ndk v4.1.2:
+    cargo-ndk
+    cargo-ndk-env
+    cargo-ndk-runner
+    cargo-ndk-test
+--- control: cargo install cargo-ndk --version 4.1.1 into a fresh CARGO_HOME
+  Installing /work/cargo2/bin/cargo-ndk-runner
+  Installing /work/cargo2/bin/cargo-ndk-test
+   Installed package `cargo-ndk v4.1.1` (executables `cargo-ndk`, `cargo-ndk-env`, `cargo-ndk-runner`, `cargo-ndk-test`)
+cargo-ndk v4.1.1:
+    cargo-ndk
+    cargo-ndk-env
+    cargo-ndk-runner
+    cargo-ndk-test
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1min 14.431s
+             CPU time consumed: 570ms
+                   Memory peak: 51.5M (swap: 0B)

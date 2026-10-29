@@ -1,0 +1,45 @@
+Running as unit: fe-proto-probe-2163780.service; invocation ID: 7c6f8473229d4d86ac52f2862211e78e
+=== [uvx] section: pycowsay = 0.0.0.1 (latest is 0.0.0.2)
+✓ Restored 1/1 packages
+╭────────────┬──────┬─────────┬──────┬─────────┬──────────────╮
+│ Package ID │ Name │ Manager │ From │ To      │ Status       │
+├────────────┼──────┼─────────┼──────┼─────────┼──────────────┤
+│ pycowsay   │      │ uvx     │      │ 0.0.0.1 │ 🆕 installed │
+╰────────────┴──────┴─────────┴──────┴─────────┴──────────────╯
+pycowsay v0.0.0.1
+- pycowsay
+--- control: change the value to 0.0.0.2, reinstall
+│ Package ID │ Name │ Manager │ From    │ To      │ Status      │
+├────────────┼──────┼─────────┼─────────┼─────────┼─────────────┤
+│ pycowsay   │      │ uvx     │ 0.0.0.1 │ 0.0.0.2 │ 🆙 upgraded │
+╰────────────┴──────┴─────────┴─────────┴─────────┴─────────────╯
+pycowsay v0.0.0.2
+- pycowsay
+=== [pnpm] section: is-odd = 2.0.0 (latest is 3.0.1)
+info:pnpm.installed: $ /usr/local/bin/pnpm list --global --json --depth 0
+✓ pnpm.install: is-odd@2.0.0 (1.1s)
+✓ Restored 1/1 packages
+╭────────────┬──────┬─────────┬──────┬───────┬──────────────╮
+│ Package ID │ Name │ Manager │ From │ To    │ Status       │
+├────────────┼──────┼─────────┼──────┼───────┼──────────────┤
+│ is-odd     │      │ pnpm    │      │ 3.0.1 │ 🆕 installed │
+╰────────────┴──────┴─────────┴──────┴───────┴──────────────╯
+
+/work/pnpm/global/v11 (PRIVATE)
+│
+│   dependencies:
+└── is-odd@3.0.1
+--- control: pnpm add --global is-odd@2.0.0 into a fresh PNPM_HOME
++ is-odd 2.0.0
+
+Done in 548ms using pnpm v12.16.1
+
+/work/pnpm2/global/v11 (PRIVATE)
+│
+│   dependencies:
+└── is-odd@2.0.0
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 4.796s
+             CPU time consumed: 249ms
+                   Memory peak: 47.6M (swap: 0B)

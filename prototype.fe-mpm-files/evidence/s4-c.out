@@ -1,0 +1,36 @@
+Running as unit: fe-proto-probe-2827040.service
+################ candidate c: S4 drift ################
+[control] untouched tree
+gate mpm-shadow-lock-check=0 file-enforcer-check=0
+[plan] edit pycowsay pin in the plan, lock not regenerated
+gate mpm-shadow-lock-check=1 file-enforcer-check=1
+    DRIFT toolchain.lock.json: differs from the plan projection
+[lock pinned] hand-edit a pinned tool's version in the lock
+gate mpm-shadow-lock-check=1 file-enforcer-check=1
+    DRIFT mpm.packages.toml: differs from the render of the lock
+    DRIFT toolchain.lock.json: differs from the plan projection
+[lock resolved] hand-edit a resolved (latest-track) tool's version in the lock
+gate mpm-shadow-lock-check=0 file-enforcer-check=1
+    DRIFT mpm.managers.toml: differs from the render of the lock
+    DRIFT mpm.packages.toml: differs from the render of the lock
+[packages] hand-edit mpm.packages.toml
+gate mpm-shadow-lock-check=0 file-enforcer-check=1
+    DRIFT mpm.packages.toml: differs from the render of the lock
+[managers] hand-edit mpm.managers.toml
+gate mpm-shadow-lock-check=0 file-enforcer-check=1
+    DRIFT mpm.managers.toml: differs from the render of the lock
+[managers mode] chmod 664 mpm.managers.toml (mpm would refuse to load it)
+gate mpm-shadow-lock-check=0 file-enforcer-check=1
+    DRIFT mpm.managers.toml: mode 664, expected 600
+[packages missing] delete mpm.packages.toml
+gate mpm-shadow-lock-check=0 file-enforcer-check=1
+    DRIFT mpm.packages.toml: missing
+[lock missing] delete toolchain.lock.json
+gate mpm-shadow-lock-check=1 file-enforcer-check=1
+    DRIFT mpm files: lock unreadable, cannot render
+    DRIFT toolchain.lock.json: missing
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.501s
+             CPU time consumed: 199ms
+                   Memory peak: 58.4M (swap: 0B)

@@ -8,7 +8,7 @@ SH=/work/bin-shadow/proto-mpm-shadow        # shadow alone: the "no file-enforce
 mkdir --parents /work/bin-shadow /work/bin-both
 cp /out/bin/proto-mpm-shadow /work/bin-shadow/
 cp /out/bin/proto-mpm-shadow /out/bin/proto-file-enforcer /work/bin-both/
-BASEPATH=/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin
+BASEPATH=/usr/local/cargo/bin:/root/.local/bin:/usr/local/bin:/usr/bin:/bin
 use_shadow_only() { export PATH=/work/bin-shadow:$BASEPATH; hash -r; }
 use_both() { export PATH=/work/bin-both:$BASEPATH; hash -r; }
 ms() { proto-mpm-shadow "$@" --candidate "$CAND"; }
@@ -78,8 +78,8 @@ ms sync --dir /work/s1 --no-fallback 2>&1 | grep -c '^\$ ' | sed 's/^/commands r
 ms status --dir /work/s1; echo "status exit=$?"
 if [ -f /work/s1/mpm.packages.toml ]; then
   echo "--- the generated mpm.packages.toml used as the ONLY installer: mpm restore (all sections)"
-  fresh_env
-  (cd /work/s1 && mpm restore mpm.packages.toml 2>&1 | grep -i 'warning\|✓\|✘' | cut -c1-180 | sort -u | head -12)
+  fresh_env; rustup toolchain install --profile minimal --no-self-update nightly-2026-10-01 >/dev/null 2>&1  # baseline toolchain so the cargo section can run at all
+  (cd /work/s1 && mpm restore mpm.packages.toml 2>&1 | grep -i "warning\|✓\|✘" | cut -c1-180 | sort -u | head -12)
   ms status --dir /work/s1; echo "status exit=$?  (nonzero means restore left tools different from the lock)"
 fi
 

@@ -1,0 +1,51 @@
+Running as unit: fe-proto-probe-2218218.service; invocation ID: 1430c27b561740889b654f37c10df244
+1.26.1
+=== T1 smallest tool: timeout-cli 0.1.0 (only version that exists), file as generated
+cargo-binstall:  INFO Done in 19.073855877s
+info:cargo-binstall-timeout-cli.install:
+cargo-binstall:  INFO resolve: Resolving package: 'timeout-cli@=0.1.0'
+cargo-binstall: ERROR resolve: When resolving timeout-cli bin timeout is not found. This binary is not optional so it must be included in the archive, please contact with upstream to fix this issue.
+cargo-binstall:  WARN resolve: Error while downloading and extracting from fetcher github.com: failed to find or install binaries: bin file /work/cargo-home/cargo-binstalli5MjqY/bin-timeout-cli-x86_64-unknown-linux-gnu-GhCrateMeta/timeout n
+cargo-binstall: ERROR resolve: When resolving timeout-cli bin timeout is not found. This binary is not optional so it must be included in the archive, please contact with upstream to fix this issue.
+cargo-binstall:  WARN resolve: Error while downloading and extracting from fetcher github.com: failed to find or install binaries: bin file /work/cargo-home/cargo-binstalli5MjqY/bin-timeout-cli-x86_64-unknown-linux-musl-GhCrateMeta/timeout 
+cargo-binstall:  WARN The package timeout-cli v0.1.0 will be installed from source (with cargo)
+cargo-binstall:  INFO Cargo finished successfully
+cargo-binstall:  INFO Done in 19.073855877s
+✓ cargo-binstall-timeout-cli.install: timeout-cli (19.1s)
+✓ Installed 1/1 packages
+timeout-cli v0.1.0:
+    timeout
+sha256sum: /work/cargo-home/bin/timeout-cli: No such file or directory
+--- same crate by the direct command the file wraps:
+   Installed package `timeout-cli v0.1.0` (executable `timeout`)
+cargo-binstall:  INFO Cargo finished successfully
+cargo-binstall:  INFO Done in 14.49567481s
+sha256sum: /work/cargo-home/bin/timeout-cli: No such file or directory
+sha via mpm override : 
+sha via direct binstall: 
+=== T2 cargo-ndk: file as generated (baked 4.1.2 == latest, so no signal on its own)
+Load configuration matching /work/cfg/mpm.managers.toml
+✓ cargo-binstall-cargo-ndk.install: cargo-ndk (5.3s)
+✓ Installed 1/1 packages
+cargo-ndk v4.1.2:
+=== T3 POSITIVE CONTROL: edit the version inside the managers file to 4.1.1 (both the name and --version arg)
+197:name = "cargo-binstall cargo-ndk 4.1.1"
+202:args = ["binstall", "--no-confirm", "--version", "4.1.1", "{package_id}"]
+INFO:root:Selected managers (by priority): [97m[1mcargo-binstall-cargo-ndk[0m.
+info: Selected managers (by priority): cargo-binstall-cargo-ndk.
+INFO:root:Installation priority: > [97m[1mcargo-binstall-cargo-ndk[0m
+info: Installation priority: > cargo-binstall-cargo-ndk
+info:cargo-binstall-cargo-ndk.install: Does not implement search operation.
+INFO:root:cargo-ndk existence unconfirmed, try to directly install it...
+cargo-ndk v4.1.1:
+=== T4 same package through the stock cargo manager with an explicit version (how restore would route it): version?
+│ Package ID │ Name │ Manager │ From │ To    │ Status       │
+├────────────┼──────┼─────────┼──────┼───────┼──────────────┤
+│ cargo-ndk  │      │ cargo   │      │ 4.1.2 │ 🆕 installed │
+╰────────────┴──────┴─────────┴──────┴───────┴──────────────╯
+cargo-ndk v4.1.2:
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1min 22.918s
+             CPU time consumed: 616ms
+                   Memory peak: 47.3M (swap: 0B)

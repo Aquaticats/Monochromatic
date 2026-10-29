@@ -1,0 +1,31 @@
+Running as unit: fe-proto-probe-2962753.service
+################ candidate b: S5 two concurrent writers ################
+[lost update: both read the lock, then both write, guard=none] P1 resolves rust, P2 resolves timeout-cli
+  start: ["nightly-2026-10-01","0.1.0"]
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-10-01","0.1.1"]   (both survive iff [nightly-2026-09-15, 0.1.1])
+[lost update: both read the lock, then both write, guard=cas] P1 resolves rust, P2 resolves timeout-cli
+  start: ["nightly-2026-10-01","0.1.0"]
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.1"]   (both survive iff [nightly-2026-09-15, 0.1.1])
+  stderr: lock changed under us (attempt 0); re-reading and re-applying
+[lost update: both read the lock, then both write, guard=mutex] P1 resolves rust, P2 resolves timeout-cli
+  start: ["nightly-2026-10-01","0.1.0"]
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.1"]   (both survive iff [nightly-2026-09-15, 0.1.1])
+[check-to-rename window: P1 pauses 600 ms after its compare passed, guard=cas] P1 resolves rust, P2 resolves timeout-cli
+  start: ["nightly-2026-10-01","0.1.0"]
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.0"]   (both survive iff [nightly-2026-09-15, 0.1.1])
+[check-to-rename window: P1 pauses 600 ms after its compare passed, guard=mutex] P1 resolves rust, P2 resolves timeout-cli
+  start: ["nightly-2026-10-01","0.1.0"]
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.1"]   (both survive iff [nightly-2026-09-15, 0.1.1])
+[torn files, guard=cas] P1 sleeps 1200 ms between writing the lock and writing the mpm files; P2 runs completely in between
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.1"]
+gate mpm-shadow-lock-check=1 file-enforcer-check=1
+    DRIFT mpm.managers.toml: differs from the render of the lock
+    DRIFT mpm.packages.toml: differs from the render of the lock
+[torn files, guard=mutex] P1 sleeps 1200 ms between writing the lock and writing the mpm files; P2 runs completely in between
+  P1 exit=0 P2 exit=0   final [rust, timeout-cli] = ["nightly-2026-09-15","0.1.1"]
+gate mpm-shadow-lock-check=0 file-enforcer-check=0
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 16.212s
+             CPU time consumed: 176ms
+                   Memory peak: 44.3M (swap: 0B)

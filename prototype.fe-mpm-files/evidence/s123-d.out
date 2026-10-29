@@ -1,0 +1,67 @@
+Running as unit: fe-proto-probe-3477499.service
+################ candidate d: S1 fresh machine, no file-enforcer binary ################
+file-enforcer binary: absent (PATH check)
+checkout before: toolchain.lock.json toolchain.plan.jsonc 
+lock exit=0
+checkout after : toolchain.lock.json toolchain.plan.jsonc 
+gate mpm-shadow-lock-check=0 file-enforcer-check=127
+    /proto/scenario.PROTOTYPE.sh: line 15: proto-file-enforcer: command not found
+--- sync with no fallback (exposes the mpm.packages.toml dependency of the rustup route)
+Installed 1 package in 2ms
+ + pycowsay==0.0.0.1
+Installed 1 executable: pycowsay
+$ pnpm add --global is-odd@2.0.0
+.../global/v11/1ca-18e31321f4f6b548-0    | Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: /work/env/pnpm/store/v11
+  Virtual store is at:             work/env/pnpm/store/v11/links
+.../global/v11/1ca-18e31321f4f6b548-0    | Progress: resolved 2, reused 0, downloaded 2, added 2, done
+dependencies:
++ is-odd 2.0.0
+Done in 1.2s using pnpm v12.16.1
+sync exit=0
+--- sync with the fallback the TS code has (direct rustup)
+$ rustup toolchain install --profile minimal --no-self-update nightly-2026-10-01
+--- status (lock vs installed)
+MATCH    rust locked=nightly-2026-10-01
+MATCH    cargo:timeout-cli locked=0.1.0
+MATCH    pipx:pycowsay locked=0.0.0.1
+MATCH    npm:is-odd locked=2.0.0
+status exit=0
+################ candidate d: S2 plan edit, then ONE command ################
+before the command: gates say:
+gate mpm-shadow-lock-check=1 file-enforcer-check=0
+    DRIFT toolchain.lock.json: differs from the plan projection
+update exit=0
+after the command:
+gate mpm-shadow-lock-check=0 file-enforcer-check=0
+lock versions: {"rust":"nightly-2026-09-15","cargo:timeout-cli":"0.1.0","cargo:cargo-ndk":"4.1.1","pipx:pycowsay":"0.0.0.2","npm:is-odd":"2.0.0"}
+no mpm files exist
+--- install what the lock says, then compare (rustup via the candidate's route, others direct)
+commands run: 5
+MATCH    rust locked=nightly-2026-09-15
+MATCH    cargo:timeout-cli locked=0.1.0
+MATCH    cargo:cargo-ndk locked=4.1.1
+MATCH    pipx:pycowsay locked=0.0.0.2
+MATCH    npm:is-odd locked=2.0.0
+status exit=0
+################ candidate d: S3 global scope in a disposable HOME ################
+update --global exit=0 (file-enforcer absent)
+global dir: toolchain.lock.json toolchain.plan.jsonc 
+global dir: toolchain.lock.json toolchain.plan.jsonc 
+OK
+lock --check --global exit=0
+file-enforcer: no toolchain rules under candidate D
+file-enforcer user check exit=0
+commands run: 4
+MATCH    rust locked=nightly-2026-10-01
+MATCH    cargo:timeout-cli locked=0.1.0
+MATCH    pipx:pycowsay locked=0.0.0.1
+MATCH    npm:is-odd locked=2.0.0
+status --global exit=0
+mpm reading the global dir implicitly? managers with the global dir as cwd: 0
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2min 22.470s
+             CPU time consumed: 2.927s
+                   Memory peak: 55.2M (swap: 0B)
