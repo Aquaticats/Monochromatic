@@ -6436,7 +6436,8 @@ when the prepared runtime lacks its manifest or a grammar library the manifest l
   `libstdc++`,
   `libgcc_s`,
   and `libfontconfig`.
-  The build container is Fedora 41.
+  The released executable is built in an Ubuntu 24.04 container (`Containerfile.release`);
+  the development container (`Containerfile`) is CachyOS.
 - A Wayland session,
   with `libwayland-client`,
   `libwayland-egl`,
