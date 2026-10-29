@@ -1176,6 +1176,13 @@ RCI:
  extend one that already owns it.
  A stopgap for a misbehaving tool is not an owner.
 
+BXD:
+ Containers start `FROM docker.io/cachyos/cachyos:latest`,
+ unpinned;
+ Alpine only where CachyOS lacks the architecture.
+Exceptions:
+ `doc/decision/container-base-distro.md`.
+
 ### Adding new packages
 
 AP1:
