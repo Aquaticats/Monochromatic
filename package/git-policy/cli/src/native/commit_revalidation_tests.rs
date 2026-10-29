@@ -34,7 +34,7 @@ fn a_passing_hook_sees_the_replayed_index_and_no_editor() {
         "#!/bin/sh\nprintf '%s|%s|%s' \"$GIT_INDEX_FILE\" \"$GIT_EDITOR\" \"$(pwd -P)\" > hook-saw\n",
     );
     let index: PathBuf = repo.join(".git/replayed.index");
-    rerun_pre_commit(&context(), repo.as_path(), &[], repo.join(".git").as_path(), hooks.as_path(), index.as_path())
+    rerun_pre_commit(&context(), repo.as_path(), &[], repo.join(".git").as_path(), hooks.as_path(), true, index.as_path())
         .expect("the hook passes");
     let saw: String = std::fs::read_to_string(repo.join("hook-saw")).expect("hook ran");
     assert_eq!(saw, format!("{}|:|{}", index.display(), repo.display()));
@@ -51,6 +51,7 @@ fn a_failing_hook_rejects_the_replay_with_status_one() {
         &[],
         repo.join(".git").as_path(),
         hooks.as_path(),
+        true,
         repo.join(".git/index").as_path(),
     );
     assert!(matches!(outcome, Err(TransactionStop::NativeExit(1))), "{outcome:?}");
@@ -89,9 +90,28 @@ fn a_missing_hook_passes() {
         &[],
         repo.join(".git").as_path(),
         hooks.as_path(),
+        true,
         repo.join(".git/index").as_path(),
     )
     .expect("no hook, no rejection");
+    remove(root.as_path());
+}
+
+/// A configuration with no hook defined by name starts nothing, even where an entry would reject the replay.
+#[test]
+fn without_named_hooks_the_rerun_starts_nothing() {
+    let (root, repo, hooks) = with_hook("revalidation-unnamed", "#!/bin/sh\ntouch hook-saw\nexit 3\n");
+    rerun_pre_commit(
+        &context(),
+        repo.as_path(),
+        &[],
+        repo.join(".git").as_path(),
+        hooks.as_path(),
+        false,
+        repo.join(".git/index").as_path(),
+    )
+    .expect("nothing starts, so nothing rejects");
+    assert!(!repo.join("hook-saw").exists(), "no process ran the entry");
     remove(root.as_path());
 }
 
@@ -108,6 +128,7 @@ fn the_callers_global_options_reach_the_hook() {
         &[String::from("-c"), String::from("fixture.marker=present")],
         repo.join(".git").as_path(),
         hooks.as_path(),
+        true,
         repo.join(".git/index").as_path(),
     )
     .expect("the hook passes");

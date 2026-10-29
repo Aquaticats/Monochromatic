@@ -53,6 +53,7 @@ use super::private_storage::{sync_directory, write_private_file};
 use super::repository_facts::RepositoryFacts;
 use super::transaction_git::{GitContext, GitFailure};
 use super::transaction_journal::{Base, Conclusion, PREPARING_FILENAME, PreparingRecord, TransactionMode};
+use super::traditional_hook_warning::warn_traditional_hooks;
 use super::transaction_journal_encode::encode_preparing;
 use super::transaction_phase::PhaseMarkerError;
 use super::wrapper_controls::Controls;
@@ -526,6 +527,8 @@ pub fn run_commit_transaction<F: RepositoryFacts>(
     let context: &GitContext = invocation.context;
     let cwd: &Path = invocation.cwd;
     let layout: InvocationLayout = capture_invocation_layout(context, cwd, invocation.region.amend)?;
+    // Decided from the snapshot the layout already holds: no process and no file system call, and it never blocks.
+    warn_traditional_hooks(layout.config_snapshot.as_ref(), &mut std::io::stderr());
     let selection: Selection = decide_selection(invocation.region, layout.conclusion);
     let mut workspace: CommitWorkspace = create_commit_workspace(&layout)?;
     // Read after publication and before the base, so landed-capture pruning keeps every record this transaction

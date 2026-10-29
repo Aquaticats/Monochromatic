@@ -13,7 +13,6 @@ fn pair(name: &str, value: &str) -> (OsString, OsString) {
 fn sample_plan(config_parameters: ConfigParameters, skip_hook_lock: bool) -> HookDispatchPlan {
     return HookDispatchPlan {
         git_path: String::from("/usr/bin/git"),
-        hooks_path: String::from("/repo/.git/hooks"),
         disabled_events: vec![String::from("commit-msg")],
         config_parameters,
         worktree_root: String::from("/repo"),
@@ -110,7 +109,7 @@ fn plans_spell_the_incumbent_fields_in_order() {
     let absent: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false));
     assert_eq!(
         absent,
-        "{\"schemaVersion\":1,\"gitPath\":\"/usr/bin/git\",\"hooksPath\":\"/repo/.git/hooks\",\
+        "{\"schemaVersion\":1,\"gitPath\":\"/usr/bin/git\",\
          \"disabledEvents\":[\"commit-msg\"],\"configParameters\":{\"kind\":\"absent\"},\
          \"worktreeRoot\":\"/repo\",\"lease\":\"{\\\"directory\\\":\\\"/d\\\",\\\"token\\\":\\\"t\\\"}\",\
          \"hookLockPath\":\"/repo/.git/cli-git/hook.lock\",\"skipHookLock\":false}"
@@ -140,32 +139,34 @@ fn plans_round_trip_and_refuse_other_shapes() {
     assert_eq!(parse_hook_dispatch_plan("not json"), None);
 }
 
-/// The hook lock sits under the common directory, and the hooks path normalizes like Node's `path`.
+/// A plan written before the hooks path was dropped still parses, and a new plan records no hooks path.
 #[test]
-fn lock_and_hooks_paths_normalize_lexically() {
+fn plans_with_a_legacy_hooks_path_field_still_parse() {
+    let current: String = encode_hook_dispatch_plan(&sample_plan(ConfigParameters::Absent, false));
+    assert!(!current.contains("hooksPath"), "{current}");
+    let legacy: String = current.replace("\"gitPath\":\"/usr/bin/git\",", "\"gitPath\":\"/usr/bin/git\",\"hooksPath\":\"/repo/.git/hooks\",");
+    assert!(legacy.contains("hooksPath"));
+    assert_eq!(
+        parse_hook_dispatch_plan(legacy.as_str()),
+        Some(sample_plan(ConfigParameters::Absent, false))
+    );
+}
+
+/// The hook lock sits under the common directory, and paths normalize like Node's `path`.
+#[test]
+fn lock_and_paths_normalize_lexically() {
     assert_eq!(
         hook_lock_directory(Path::new("/repo/.git")),
         PathBuf::from("/repo/.git/cli-git/hook.lock")
     );
     assert_eq!(
-        default_hooks_directory(Path::new("/repo/.git/")),
-        PathBuf::from("/repo/.git/hooks")
+        hook_lock_directory(Path::new("/repo/./wt//.git/")),
+        PathBuf::from("/repo/wt/.git/cli-git/hook.lock")
     );
-    assert_eq!(
-        resolve_hooks_path(Path::new("/repo/./wt//"), Path::new("../shared/./hooks")),
-        PathBuf::from("/repo/shared/hooks")
-    );
-    assert_eq!(
-        resolve_hooks_path(Path::new("/repo"), Path::new("/abs/../x/")),
-        PathBuf::from("/x")
-    );
-    assert_eq!(
-        resolve_hooks_path(Path::new("/"), Path::new("../../up")),
-        PathBuf::from("/up")
-    );
+    assert_eq!(normalized_path(Path::new("/repo/../../x/")), PathBuf::from("/x"));
 }
 
-/// Real Git supplies the hooks path, the switches and the caller's `-c` values.
+/// Real Git supplies the switches and the caller's `-c` values.
 #[test]
 fn plans_read_real_git_configuration() {
     let root: PathBuf = fixture("hook-plan-reads");
@@ -193,7 +194,6 @@ fn plans_read_real_git_configuration() {
     })
     .expect("plan");
     assert_eq!(plan.disabled_events, vec![String::from("pre-commit")]);
-    assert_eq!(plan.hooks_path, common.join("hooks").to_str().expect("UTF-8"));
     assert_eq!(plan.config_parameters, ConfigParameters::Present(String::from("'x.y=2'")));
     assert!(plan.skip_hook_lock);
     assert_eq!(plan.hook_lock_path, common.join("cli-git").join("hook.lock").to_str().expect("UTF-8"));
@@ -264,15 +264,11 @@ fn missing_switches_disable_nothing_and_a_bad_switch_stops_planning() {
     remove(root.as_path());
 }
 
-/// A relative `core.hooksPath` resolves under the worktree root, and an inherited valid lease skips the lock.
+/// An inherited valid lease skips the lock.
 #[test]
-fn plans_resolve_relative_hooks_paths_and_inherited_leases() {
-    let root: PathBuf = fixture("hook-plan-relative");
+fn plans_skip_the_lock_for_inherited_leases() {
+    let root: PathBuf = fixture("hook-plan-inherited");
     let repository_root: PathBuf = repository(root.as_path(), "repo");
-    git(
-        repository_root.as_path(),
-        &["config", "core.hooksPath", "../shared-hooks"],
-    );
     let plan: HookDispatchPlan = compute_hook_dispatch_plan(&HookPlanInputs {
         context: &git_context(),
         cwd: repository_root.as_path(),
@@ -286,8 +282,6 @@ fn plans_resolve_relative_hooks_paths_and_inherited_leases() {
         snapshot: None,
     })
     .expect("plan");
-    let expected: PathBuf = resolve_hooks_path(repository_root.as_path(), Path::new("../shared-hooks"));
-    assert_eq!(plan.hooks_path, expected.to_str().expect("UTF-8"));
     assert!(plan.skip_hook_lock);
     assert_eq!(plan.config_parameters, ConfigParameters::Absent);
     remove(root.as_path());
@@ -351,14 +345,14 @@ fn failing_stand_in(root: &Path) -> (GitContext, PathBuf) {
     return (context, log);
 }
 
-/// A snapshot that models the hooks path and the switches answers the plan without starting Git.
+/// A snapshot that models the switches answers the plan without starting Git, whatever `core.hooksPath` holds.
 #[test]
 fn a_snapshot_answers_the_plan_without_starting_git() {
     let root: PathBuf = fixture("hook-plan-snapshot-answers");
     let (context, log) = failing_stand_in(root.as_path());
     let snapshot: ConfigSnapshot = listing_snapshot(&[
         ("global", "core.hookspath\nglobal-hooks"),
-        ("local", "core.hookspath\nsub/hooks"),
+        ("local", "core.hookspath\n~/hooks"),
         ("local", "hook.commit-msg.enabled\nfalse"),
         ("command", "hook.pre-commit.enabled\nno"),
         ("local", "hook.post-commit.enabled\nyes"),
@@ -368,7 +362,6 @@ fn a_snapshot_answers_the_plan_without_starting_git() {
         ..plan_inputs(&context, root.as_path())
     };
     let plan: HookDispatchPlan = compute_hook_dispatch_plan(&inputs).expect("plan");
-    assert_eq!(plan.hooks_path, root.join("sub/hooks").to_str().expect("UTF-8"));
     assert_eq!(
         plan.disabled_events,
         vec![String::from("pre-commit"), String::from("commit-msg")]
@@ -382,17 +375,6 @@ fn a_snapshot_answers_the_plan_without_starting_git() {
 fn a_value_the_snapshot_does_not_model_starts_git() {
     let root: PathBuf = fixture("hook-plan-snapshot-declines");
     let (context, log) = failing_stand_in(root.as_path());
-    let tilde: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n~/hooks")]);
-    let tilde_inputs: HookPlanInputs<'_> = HookPlanInputs {
-        snapshot: Some(&tilde),
-        ..plan_inputs(&context, root.as_path())
-    };
-    assert!(matches!(compute_hook_dispatch_plan(&tilde_inputs), Err(HookPlanError::ConfigRead(_))));
-    assert_eq!(
-        std::fs::read_to_string(log.as_path()).expect("log"),
-        "config --type=path --get core.hooksPath\n"
-    );
-    std::fs::remove_file(log.as_path()).expect("reset the log");
     let bad_switch: ConfigSnapshot = listing_snapshot(&[("local", "hook.pre-commit.enabled\nmaybe")]);
     let switch_inputs: HookPlanInputs<'_> = HookPlanInputs {
         snapshot: Some(&bad_switch),
@@ -441,13 +423,6 @@ fn the_snapshot_plan_equals_the_plan_from_git_reads() {
     let context: GitContext = git_context();
     for text in [
         "",
-        "[core]\n\thooksPath = rel/hooks\n",
-        "[core]\n\thooksPath = /abs/hooks\n",
-        "[core]\n\thooksPath = a\n\thooksPath = b\n",
-        "[core]\n\thooksPath = ~/hooks\n",
-        "[core]\n\thooksPath = %(prefix)/hooks\n",
-        "[core]\n\thooksPath =\n",
-        "[core]\n\thooksPath\n",
         "[hook \"pre-commit\"]\n\tenabled = false\n[hook \"post-commit\"]\n\tenabled = off\n",
         "[hook \"commit-msg\"]\n\tenabled = no\n\tenabled = true\n",
         "[hook \"prepare-commit-msg\"]\n\tenabled\n",

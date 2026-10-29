@@ -4,8 +4,9 @@
 //! Why:
 //!  Git does not apply `core.repositoryformatversion` and `extensions.*` from an included file,
 //!  so they are copied explicitly.
-//!  `core.hooksPath` precedes the include so a real `core.hooksPath` still overrides it;
-//!  `core.worktree`, `gc.auto` and `maintenance.auto` follow it,
+//!  The shadow names no hooks directory (traditional hooks are unsupported, and every shadow command passes its own
+//!  `core.hooksPath`);
+//!  `core.worktree`, `gc.auto` and `maintenance.auto` follow the include,
 //!  so the real config cannot redirect the worktree or start maintenance in the shadow
 //!  (`src/shadow-repository/shadow-config.ts`).
 //!
@@ -170,8 +171,8 @@ pub fn repository_format_from_snapshot(snapshot: &ConfigSnapshot) -> Option<Repo
 /// What:
 ///  Formats the shadow `config` file.
 /// Why:
-///   The line order is the incumbent's:
-///  hooks path before the include, then the worktree, gc and maintenance overrides.
+///   The line order is the incumbent's, minus its hooks path:
+///  format facts, the include, then the worktree, gc and maintenance overrides.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -182,7 +183,6 @@ pub fn format_shadow_config(format: &RepositoryFormat, common_dir: &Path, worktr
     let mut lines: Vec<String> = vec![
         String::from("[core]"),
         format!("\trepositoryformatversion = {}", quote_git_config_value(format.version.as_str())),
-        format!("\thooksPath = {}", quote_git_config_value(format!("{common}/hooks").as_str())),
     ];
     if !format.extensions.is_empty() {
         lines.push(String::from("[extensions]"));
