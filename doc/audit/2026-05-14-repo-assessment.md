@@ -1,5 +1,10 @@
 # Pi repository assessment audit
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/terminal-exec` is now `package/terminal-exec/cli`.
+
 Date:
  2026-05-15
 

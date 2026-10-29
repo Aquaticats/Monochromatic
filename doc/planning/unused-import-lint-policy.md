@@ -50,7 +50,7 @@ By package, the ones with more than two:
      4  package/figma/to-penpot/src
      4  package/pi-plugin/advisor/src
      4  package/pi-plugin/auto-mode/src
-     3  package/cli/wg-quicker/src
+     3  package/wg/cli-quicker/src
      3  package/dev-script/vm-builder/src
 
 THE MEASUREMENT UNDER-COUNTS, deliberately, and the direction matters.

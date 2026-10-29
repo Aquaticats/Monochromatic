@@ -118,13 +118,13 @@ Measured before the change:
 Files outside the package that name a finder or the git error (measured 2026-09-08 with `rg`):
 
 - `package/build-tool/css/src/cli.unit.test.ts`
-- `package/cli/fy/src/cli.unit.test.ts`
-- `package/cli/fy/src/resolve.ts`
-- `package/cli/git-clone-size/src/cli.unit.test.ts`
-- `package/cli/mutation-test/src/container/worktree.ts` (comment only)
-- `package/cli/mvm/src/cli.unit.test.ts`
-- `package/cli/rgffplay/src/index.unit.test.ts`
-- `package/cli/vmsync/src/index.unit.test.ts`
+- `package/fy/cli/src/cli.unit.test.ts`
+- `package/fy/cli/src/resolve.ts`
+- `package/git-clone-size/cli/src/cli.unit.test.ts`
+- `package/mutation-test/cli/src/container/worktree.ts` (comment only)
+- `package/mvm/cli/src/cli.unit.test.ts`
+- `package/rgffplay/cli/src/index.unit.test.ts`
+- `package/vmsync/cli/src/index.unit.test.ts`
 - `package/dev-script/deps-cube/src/cli.ts`
 - `package/dev-script/deps-cube/src/render-html.ts`
 - `package/dev-script/vm-builder/src/build-and-import.ts`

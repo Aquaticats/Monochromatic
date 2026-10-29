@@ -133,7 +133,7 @@ This note does not change them.
 Whether one of them runs a tool that counts CPUs with the affinity mask (and so oversubscribes the quota)
 needs the same probe per tool:
 
-- `package/cli/forbidden-strings`
+- `package/forbidden-strings/cli`
 - `package/cli/nested-wayland-session`
 - `package/config/pnpr`
 - `package/desktop-app/terminal`
@@ -145,7 +145,7 @@ needs the same probe per tool:
 - `package/module/deepmerge-ts.fuzz`
 - `package/module/test`
 - `package/music-player/desktop-app`
-- `package/rust-module/forbidden-regex`
+- `package/forbidden-strings/core`
 
 ## What does not work
 

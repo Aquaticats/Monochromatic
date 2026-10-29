@@ -79,7 +79,7 @@ says collapsing the islands into one workspace is something "the architecture fo
 All 19 carry the identical `[lints.clippy]` table
 (`disallowed_methods = "deny"`, `implicit_return = "deny"`, `needless_return = "allow"`) `[V]`.
 
-- `package/cli/forbidden-strings` (`forbidden-strings` 0.4.0, published):
+- `package/forbidden-strings/cli` (`forbidden-strings` 0.4.0, published):
    lib plus bin;
    `build.rs` precompiles the rule baseline into a serialized `RegexSet`
    through the `forbidden-regex` build-dependency,
@@ -90,16 +90,16 @@ All 19 carry the identical `[lints.clippy]` table
    `tests/integration.rs` uses `env!("CARGO_BIN_EXE_forbidden-strings")`.
   The release binary is consumed by path:
    `cli-git.config.ts:48` and `file-enforcer.config.ts:183-184`
-   point at `package/cli/forbidden-strings/target/release/forbidden-strings` `[V]`.
+   point at `package/forbidden-strings/cli/target/release/forbidden-strings` `[V]`.
 - `package/cli/nested-wayland-session` (published 0.1.1):
    lib plus bin;
    `smithay = "=0.7.0"` with winit, DRM, GLES features;
    CI installs `libwayland-dev libxkbcommon-dev libdrm-dev libegl-dev clang libclang-dev`
    (`.github/workflows/cargo-publish.yml`, nws build job) `[V]`.
-- `package/cli/wg-quicker-exempt`:
+- `package/wg/cli-quicker-exempt`:
    bin only,
    `libc` raw syscalls;
-   its `target/release` path is referenced by `package/cli/wg-quicker` tests `[V]`.
+   its `target/release` path is referenced by `package/wg/cli-quicker` tests `[V]`.
 - `package/desktop-app/file-manager`:
    lib plus bin;
    `gtk4 0.11` over system GTK;
@@ -132,14 +132,14 @@ All 19 carry the identical `[lints.clippy]` table
 - `package/rust-linter-plugin/builtin`, `package/rust-module/rust-linter-core`,
    `package/rust-module/rust-linter-pattern`:
    libraries of the linter family (section 2) `[V]`.
-- `package/rust-module/forbidden-regex` (published 0.1.0):
+- `package/forbidden-strings/core` (published 0.1.0):
    lib;
    release `panic = "unwind"`, `overflow-checks = true` `[V]`.
-- `package/rust-module/forbidden-regex.bench`:
+- `package/forbidden-strings/core.bench`:
    bins `forbidden-regex-bench`, `seedless`, `dialectport`;
    path dependencies on `forbidden-regex` and `forbidden-strings`;
    release profile deliberately leaves overflow checks off "to measure the algorithm" `[V]`.
-- `package/rust-module/forbidden-regex.fuzz` and `package/cli/forbidden-strings.fuzz`:
+- `package/forbidden-strings/core.fuzz` and `package/forbidden-strings/cli.fuzz`:
    `cargo-fuzz` crates with 5 and 4 `fuzz_targets` bins respectively `[V]`.
 - `package/music-player/truepeak-core`:
    lib;
@@ -185,7 +185,7 @@ which changes compiled Slint UI output that the ElementHandle tests rely on `[V]
    every package's `test` runs `cargo nextest run --release`;
    no `.config/nextest.toml` exists `[V]`.
 - Fuzzing:
-   `package/cli/forbidden-strings.fuzz/mise.toml` runs
+   `package/forbidden-strings/cli.fuzz/mise.toml` runs
    `cargo fuzz build --fuzz-dir . --sanitizer address --target x86_64-unknown-linux-gnu`
    and `cargo fuzz run` with dual corpus directories and a dictionary `[V]`.
 - Android cross-compile:
@@ -395,7 +395,7 @@ Recommendation within this design:
 - Process-global state in tests that nextest isolates today:
   - `rust-module/rust-linter-core/src/config/load_tests.rs:320` calls `std::env::set_current_dir` `[V]`;
      concurrent tests resolving relative paths can observe the changed directory `[I]`.
-  - `cli/forbidden-strings/src/frx_scan_tests.rs:92` replaces the process panic hook `[V]`.
+  - `forbidden-strings/cli/src/frx_scan_tests.rs:92` replaces the process panic hook `[V]`.
   These need `RUST_TEST_THREADS=1` on those targets or restructuring `[I]`.
 
 ### Bazel: fuzzing
@@ -462,7 +462,7 @@ Recommendation within this design:
    and any future `rust-linter.toml` must be listed as data,
    since walk-up discovery from the sandbox execroot finds no undeclared config `[I]`.
 - Relative exemption globs (`**/*_tests.rs`) still match execroot-relative paths such as
-   `package/cli/forbidden-strings/src/frx_scan_tests.rs` `[I]`.
+   `package/forbidden-strings/cli/src/frx_scan_tests.rs` `[I]`.
 - Autofix mode:
    the aspect emits a patch applied by a `bazel run` wrapper,
    the `rules_lint` pattern `[I]`.

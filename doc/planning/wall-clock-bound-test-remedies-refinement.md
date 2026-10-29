@@ -257,7 +257,7 @@ none.
 ### 8. mvm marker observation
 
 Files:
-`package/cli/mvm/src/libvirt-tools.unit.test.ts`.
+`package/mvm/cli/src/libvirt-tools.unit.test.ts`.
 
 Acceptance:
 the lingering child prints a marker at hold end;
@@ -287,7 +287,7 @@ none.
 ### 10. wg-quicker complexity
 
 Files:
-`package/cli/wg-quicker/src/config.unit.test.ts`,
+`package/wg/cli-quicker/src/config.unit.test.ts`,
 possibly `coordinator` internals for a test-only counter.
 
 Probe first:

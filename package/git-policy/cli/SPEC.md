@@ -3231,8 +3231,8 @@ A file with CRLF content receives one terminal LF without normalizing interior l
 Preserve these exclusion families exactly:
 
 ```text
-package/cli/forbidden-strings.fuzz/seed/**
-package/rust-module/forbidden-regex.fuzz/seed/**
+package/forbidden-strings/cli.fuzz/seed/**
+package/forbidden-strings/core.fuzz/seed/**
 package/test-fixture/toml-edit/src/**
 **/dist/final/node/**
 **/bundle/node/**

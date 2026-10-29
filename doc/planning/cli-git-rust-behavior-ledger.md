@@ -2114,7 +2114,7 @@ and lines 295 to 297
   `SPEC.md:4016-4059`.
 - Consumers:
   the root configuration (`cli-git.config.ts:45-57`),
-  which points `executable` at the Rust scanner under `package/cli/forbidden-strings/target/release/`;
+  which points `executable` at the Rust scanner under `package/forbidden-strings/cli/target/release/`;
   root `mise.toml:1321-1327` sets `FORBIDDEN_STRINGS_RULES`;
   `.github/workflows/forbidden-strings.yml` runs the standalone scanner independently.
 - Status:
@@ -2128,7 +2128,7 @@ and lines 295 to 297
   the rewrite scope lines 126 to 131 forbid arbitrary program selection through JSONC.
 - Rust owner:
   `policy_forbidden_strings.rs` (proposed),
-  over the `Scanner` interface in `package/cli/forbidden-strings/src`.
+  over the `Scanner` interface in `package/forbidden-strings/cli/src`.
 - Consumer-level test:
   in the standard fixture,
   commit a file with a planted built-in-rule match and a clean control,
@@ -4261,7 +4261,7 @@ by route.
   `package/git-policy/repository`,
   `package/git-policy/forbidden-strings`,
   and `package/git-policy/markdown-lint` (policy sources mirrored into the wrapper);
-  `package/cli/forbidden-strings` (the scanner);
+  `package/forbidden-strings/cli` (the scanner);
   `package/cli/markdown-lint` (the Markdown command);
   `package/config/pnpr/config.yaml:76-80` (private-registry publishing list);
   `.changeset/config.json:21`.

@@ -7,6 +7,26 @@ The `current-time-context` shared formatter path move has landed under
 `package/agent-harness-shared/current-time-context`.
 Remaining package moves are recorded as decisions and sequencing.
 
+Superseded in part on 2026-10-29 by
+[the generic category elimination plan](generic-category-elimination.md):
+`cli`,
+ `module`,
+ `shim`,
+ `stub`,
+ `build-tool`,
+ `dev-script`,
+ `desktop-app`,
+ `desktop-daemon`,
+ `rust-module`,
+ `webapp-productivity`,
+ and `git` are eliminated,
+so Rule 4 ("keep broad utility buckets broad"),
+ Rule 6 (package renames staged separately),
+ Phase 7 (forbidden-strings stays in `cli`),
+ and the MVM core-first order no longer apply.
+Paths in this plan are as of its writing;
+that plan's per-category mapping gives current locations.
+
 This plan explains how to apply the Rush-style two-level category model to this monorepo,
 then records the decided package-set rebalances and their sequencing.
 It is written for a reader who has not seen the repository before.

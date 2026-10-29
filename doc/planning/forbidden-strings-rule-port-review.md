@@ -13,7 +13,7 @@ committed forbidden-strings rule files into the `forbidden-regex` dialect.
 The ported files are staged beside the originals,
  not yet loaded by the scanner:
 
-- `package/cli/forbidden-strings/data/builtin-rules.ported.txt`
+- `package/forbidden-strings/cli/data/builtin-rules.ported.txt`
   (from `forbidden_strings::BUILTIN_RULES`,
    embedded from `data/builtin-rules.txt`).
 - `forbidden-strings.append.ported.txt`
@@ -29,8 +29,8 @@ The port is scripted by a temporary bin in the benchmark sidecar:
 
 ```sh
 # from the repo root
-mise run //package/rust-module/forbidden-regex.bench:build
-cargo run --release --manifest-path package/rust-module/forbidden-regex.bench/Cargo.toml --bin dialectport
+mise run //package/forbidden-strings/core.bench:build
+cargo run --release --manifest-path package/forbidden-strings/core.bench/Cargo.toml --bin dialectport
 ```
 
 The bin reads the two committed sources,
@@ -171,7 +171,7 @@ current: /(?:^|[ \t])(?:(?:-u)|(?:--user))(?:=|[ \t]{0,5})(?: ... {3,512} ... )(
 ```
 
 The full current form is line 179 of
-`package/cli/forbidden-strings/data/builtin-rules.txt`.
+`package/forbidden-strings/cli/data/builtin-rules.txt`.
 Compared with the original,
  the reshape broadens the rule
  (it flags a separately tokenized `-u user:pass` credential on any single line,

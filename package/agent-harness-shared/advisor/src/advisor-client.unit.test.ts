@@ -43,8 +43,8 @@ const TIMEOUT_MS = 1_000;
 /** Fixture Advisor output token budget. */
 const ADVISOR_OUTPUT_TOKENS = 100;
 
-/** Advertised endpoint capacity below Advisor requirement. */
-const INELIGIBLE_MAX_TOKENS = ADVISOR_OUTPUT_TOKENS - 1;
+/** Advertised endpoint capacity below the configured request budget. */
+const LIMITED_MAX_TOKENS = ADVISOR_OUTPUT_TOKENS - 1;
 
 /** Focused question fixture. */
 const FOCUS_QUESTION = 'Which assumption is weakest?';
@@ -306,69 +306,104 @@ function createSequencedCompleteModel(
   };
 }
 
-/**
- Capture rejection from async test action.
- 
- @param action - async operation expected to reject
- 
- @returns caught rejection value
- 
- @example
- ```typescript
- const error = await captureAsyncError(async function fail() { throw new Error('x'); });
- ```
- */
-async function captureAsyncError(
-  action: () => Promise<unknown>,
-): Promise<unknown> {
-  try {
-    await action();
-  }
-  catch (error) {
-    return error;
-  }
-  throw new Error('expected async action to throw',);
-}
-
 //endregion Helpers
 
 await describe({
   name: completeAdvisor.name,
   children: [
     it({
-      name: 'refuses insufficient endpoint capacity at provider boundary',
-      fn: async function testProviderBoundaryOutputCapacity() {
-        /** Provider contexts that remain empty when boundary guard rejects. */
+      name: 'clamps the request output tokens to the advertised endpoint capacity',
+      fn: async function testProviderBoundaryClampsOutputCapacity() {
+        /** Provider contexts recorded by the completion seam. */
         const contexts: Readonly<Context>[] = [];
-        /** Fake provider completion whose invocation would record context. */
-        const completeModel = createCapturingCompleteModel({ contexts, });
-        /** Model whose endpoint advertises less than configured requirement. */
-        const ineligibleModel = createFixtureModel({
+        /** Provider stream options recorded by the completion seam. */
+        const observedOptions: Readonly<SimpleStreamOptions>[] = [];
+        /** Fake provider completion recording context and stream options. */
+        const completeModel = createSequencedCompleteModel({
+          contexts,
+          responses: [assistantMessage,],
+          options: observedOptions,
+        },);
+        /** Model whose endpoint advertises less than the configured budget. */
+        const limitedModel = createFixtureModel({
           id: 'limited-reviewer',
           reasoning: false,
-          maxTokens: INELIGIBLE_MAX_TOKENS,
+          maxTokens: LIMITED_MAX_TOKENS,
         },);
-        /** Eligibility error returned before provider completion. */
-        const caught = await captureAsyncError(
-          async function dispatchIneligibleModel() {
-            return await completeAdvisor({
-              ctx: modelResolution,
-              model: ineligibleModel,
-              config: advisorConfig,
-              advisorContext,
-              completeModel,
-            },);
-          },
-        );
+        /** Completion against the capacity-limited route. */
+        await completeAdvisor({
+          ctx: modelResolution,
+          model: limitedModel,
+          config: advisorConfig,
+          advisorContext,
+          completeModel,
+        },);
 
-        expect(caught,).toBeInstanceOf(Error,);
-        expect((caught as Error).message,).toContain(
-          `requires ${String(ADVISOR_OUTPUT_TOKENS,)} output tokens`,
-        );
-        expect((caught as Error).message,).toContain(
-          `advertises ${String(INELIGIBLE_MAX_TOKENS,)} output tokens`,
-        );
-        expect(contexts,).toHaveLength(0,);
+        expect(contexts,).toHaveLength(1,);
+        expect(observedOptions[0]?.maxTokens,).toBe(LIMITED_MAX_TOKENS,);
+      },
+    },),
+    it({
+      name: 'requests the configured budget when the route advertises more output',
+      fn: async function testProviderBoundaryKeepsBudgetWithinCapacity() {
+        /** Provider contexts recorded by the completion seam. */
+        const contexts: Readonly<Context>[] = [];
+        /** Provider stream options recorded by the completion seam. */
+        const observedOptions: Readonly<SimpleStreamOptions>[] = [];
+        /** Fake provider completion recording context and stream options. */
+        const completeModel = createSequencedCompleteModel({
+          contexts,
+          responses: [assistantMessage,],
+          options: observedOptions,
+        },);
+        /** Model whose endpoint advertises more than the configured budget. */
+        const roomyModel = createFixtureModel({
+          id: 'roomy-reviewer',
+          reasoning: false,
+        },);
+        /** Completion against the roomy route. */
+        await completeAdvisor({
+          ctx: modelResolution,
+          model: roomyModel,
+          config: advisorConfig,
+          advisorContext,
+          completeModel,
+        },);
+
+        expect(contexts,).toHaveLength(1,);
+        expect(observedOptions[0]?.maxTokens,).toBe(ADVISOR_OUTPUT_TOKENS,);
+      },
+    },),
+    it({
+      name: 'requests the configured budget when the route advertises zero capacity',
+      fn: async function testProviderBoundaryZeroCapacityUsesBudget() {
+        /** Provider contexts recorded by the completion seam. */
+        const contexts: Readonly<Context>[] = [];
+        /** Provider stream options recorded by the completion seam. */
+        const observedOptions: Readonly<SimpleStreamOptions>[] = [];
+        /** Fake provider completion recording context and stream options. */
+        const completeModel = createSequencedCompleteModel({
+          contexts,
+          responses: [assistantMessage,],
+          options: observedOptions,
+        },);
+        /** Model whose endpoint advertises a non-positive capacity. */
+        const zeroCapacityModel = createFixtureModel({
+          id: 'zero-reviewer',
+          reasoning: false,
+          maxTokens: 0,
+        },);
+        /** Completion against the zero-capacity route. */
+        await completeAdvisor({
+          ctx: modelResolution,
+          model: zeroCapacityModel,
+          config: advisorConfig,
+          advisorContext,
+          completeModel,
+        },);
+
+        expect(contexts,).toHaveLength(1,);
+        expect(observedOptions[0]?.maxTokens,).toBe(ADVISOR_OUTPUT_TOKENS,);
       },
     },),
     it({

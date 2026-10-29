@@ -54,11 +54,11 @@ pub const FINAL_NEWLINE_MESSAGE: &str = "Non-empty text file must end with exact
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const PRESERVED_PREFIXES = ['package/cli/forbidden-strings.fuzz/seed/', ...];
+/// const PRESERVED_PREFIXES = ['package/forbidden-strings/cli.fuzz/seed/', ...];
 /// ```
 const PRESERVED_PREFIXES: &[&[u8]] = &[
-    b"package/cli/forbidden-strings.fuzz/seed/",
-    b"package/rust-module/forbidden-regex.fuzz/seed/",
+    b"package/forbidden-strings/cli.fuzz/seed/",
+    b"package/forbidden-strings/core.fuzz/seed/",
     b"package/test-fixture/toml-edit/src/",
 ];
 

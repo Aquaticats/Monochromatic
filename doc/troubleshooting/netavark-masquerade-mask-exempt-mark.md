@@ -53,7 +53,7 @@ Three properties distinguish this from an ordinary Gradle or JVM fault:
 ### The mark
 
 `wg-quicker` enables application exemptions with `ExemptMark` under `[Interface]`.
-`package/cli/wg-quicker/README.md` and the `up` warning both recommended `8888`.
+`package/wg/cli-quicker/README.md` and the `up` warning both recommended `8888`.
 `wg-quicker-exempt` loads a `BPF_PROG_TYPE_CGROUP_SOCK_ADDR` program on the
 `connect4`, `connect6`, `udp4_sendmsg`, and `udp6_sendmsg` hooks of each watched
 application cgroup;
@@ -61,7 +61,7 @@ the program calls `bpf_setsockopt(SOL_SOCKET, SO_MARK, mark)` on every socket,
 with no destination test.
 
 ```rust
-// package/cli/wg-quicker-exempt/src/bpf.rs:110-116 (instruction builder)
+// package/wg/cli-quicker-exempt/src/bpf.rs:110-116 (instruction builder)
 BpfInsn::new(BPF_JEQ_IMM, 0, 0, 9, 0),
 BpfInsn::new(BPF_MOV64_REG, 1, 6, 0, 0),
 BpfInsn::new(BPF_MOV32_IMM, 2, 0, 0, SOL_SOCKET),
@@ -98,7 +98,7 @@ That reading was wrong about the owner.
 its only nftables table is a kill switch plus two mangle rules:
 
 ```ts
-// package/cli/wg-quicker/src/tunnel-firewall.ts:70-75
+// package/wg/cli-quicker/src/tunnel-firewall.ts:70-75
 statements.push(
   `add chain inet ${nftable} postmangle { type filter hook postrouting priority -150; }`,
   `add rule inet ${nftable} postmangle meta l4proto udp meta mark ${String(table,)} ct mark set mark`,
@@ -271,7 +271,7 @@ the tunnel drops for the duration of the cycle,
 every exempted application's existing connections are marked with the old value
 until their sockets close,
 and the value is only safe against the masks
-`package/cli/wg-quicker/src/exempt-mark-reservation.ts` lists.
+`package/wg/cli-quicker/src/exempt-mark-reservation.ts` lists.
 A future subsystem claiming low bits would need another change.
 
 ### Remove podman's nftables tables
@@ -374,11 +374,11 @@ the rule works as its source says it does.
 
 ## Repository fix
 
-`package/cli/wg-quicker/src/exempt-mark-reservation.ts` lists the masks other
+`package/wg/cli-quicker/src/exempt-mark-reservation.ts` lists the masks other
 subsystems match on and rejects a colliding `ExemptMark` at config-parse time,
 naming the value, the mask, its owner, and the replacement.
 `RECOMMENDED_EXEMPT_MARK` is `100`,
-and the `up` warning, `package/cli/wg-quicker/README.md`,
+and the `up` warning, `package/wg/cli-quicker/README.md`,
 and `doc/handover/wg-quicker.md` recommend it in place of `8888`.
 
 Loading a config that still carries `8888` now fails with:

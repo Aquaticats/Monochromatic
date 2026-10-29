@@ -80,7 +80,7 @@ No complete-graph performance ratio follows from these fuzzer timings.
 The `wg-allowedips` member `modules-a-082.log` reaches five failed child assertions
 in `generateAllowedIpsWithLookup`:
 the warning aggregation assertion and four invalid-input diagnostic assertions.
-The source at `package/module/wg-allowedips/src/generate-input.unit.test.ts:236`
+The source at `package/wg/core-allowedips/src/generate-input.unit.test.ts:236`
 expects an ASN warning that is absent;
 the assertions at lines `347`,
 `367`,

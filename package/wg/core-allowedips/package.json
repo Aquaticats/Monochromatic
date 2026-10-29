@@ -1,0 +1,43 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/wg-core-allowedips",
+  "description": "Generate minimized WireGuard AllowedIPs sets from addresses, domains, and autonomous system numbers.",
+  "type": "module",
+  "private": true,
+  "main": "src/generate.ts",
+  "module": "dist/final/node/generate.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/generate.d.mts",
+      "default": "./dist/final/node/generate.mjs"
+    },
+    "./asn-networks": {
+      "types": "./dist/final/node/asn-networks.d.mts",
+      "default": "./dist/final/node/asn-networks.mjs"
+    },
+    "./ts": "./src/generate.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/module-test": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/module-logger": "workspace:*",
+    "cidr-tools": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/wg/core-allowedips"
+  }
+}

@@ -10,8 +10,8 @@ Three layers feed the scanner,
  and only one of them is a checked-in rules file:
 
 - The betterleaks-ported baseline ships inside the `forbidden-strings` binary.
-  `package/cli/forbidden-strings/build.rs` precompiles
-  `package/cli/forbidden-strings/data/builtin-rules.txt` into a serialized
+  `package/forbidden-strings/cli/build.rs` precompiles
+  `package/forbidden-strings/cli/data/builtin-rules.txt` into a serialized
   `RegexSet` at build time,
   and every scan activates it with the `--builtin-rules` flag.
   There is no baseline file to place on disk.
@@ -114,9 +114,9 @@ Both appendixes and the secret must obey it:
    and lines whose first non-whitespace
   byte is `#` are ignored.
 
-The full construct list is in `package/cli/forbidden-strings/README.md`
+The full construct list is in `package/forbidden-strings/cli/README.md`
  and the engine spec in
- `package/rust-module/forbidden-regex/README.md`.
+ `package/forbidden-strings/core/README.md`.
 
 ## Porting existing out-of-band rules to the new dialect
 
@@ -128,13 +128,13 @@ Rules written for the old resharp dialect (trailing `/i` flags,
 The porter that performed the committed-file port,
  `dialectport`,
  lives in the benchmark sidecar at
- `package/rust-module/forbidden-regex.bench/src/bin/dialectport.rs`.
+ `package/forbidden-strings/core.bench/src/bin/dialectport.rs`.
 Issue #390 removed it (and its `caseexpand` support module) after the cutover
  settled;
  both were recovered when the baseline adopted the tail rule-file
  format,
  and `dialectport` is now the standing stage two of
- `mise run //package/cli/forbidden-strings:generate:rules`
+ `mise run //package/forbidden-strings/cli:generate:rules`
  (stage one is the TS porter `src/mise.port-betterleaks.ts`,
  which emits the tail-format intermediate the dialect port rewrites).
 The per-rule semantics the port applies (quantifier bounding,

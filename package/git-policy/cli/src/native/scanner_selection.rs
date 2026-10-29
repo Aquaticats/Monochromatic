@@ -73,12 +73,12 @@ pub const DEFAULT_RULES_FILE: &str = "forbidden-strings.local.txt";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const SCANNER_SELF_MATCH_PATHS = new Set(['package/cli/forbidden-strings/data/builtin-rules.txt', ...]);
+/// const SCANNER_SELF_MATCH_PATHS = new Set(['package/forbidden-strings/cli/data/builtin-rules.txt', ...]);
 /// ```
 pub const SCANNER_SELF_MATCH_PATHS: &[&[u8]] = &[
-    b"package/cli/forbidden-strings/data/betterleaks-default-config.toml",
-    b"package/cli/forbidden-strings/data/builtin-rules.txt",
-    b"package/cli/forbidden-strings/src/port-betterleaks-relaxations.ts",
+    b"package/forbidden-strings/cli/data/betterleaks-default-config.toml",
+    b"package/forbidden-strings/cli/data/builtin-rules.txt",
+    b"package/forbidden-strings/cli/src/port-betterleaks-relaxations.ts",
 ];
 
 /// What:

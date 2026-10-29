@@ -140,7 +140,7 @@ All measurements are from the development machine on 2026-09-17.
 - The forbidden-strings runtime cache is the repository's only other outside write,
    and it is a Rust implementation with a fuller policy
    (Verified:
-   `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`):
+   `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`):
    the `FORBIDDEN_STRINGS_CACHE_DIR` override must be platform-absolute or the call fails with
    `CacheRootError::InvalidOverride`;
    Windows uses `%LOCALAPPDATA%`;
@@ -158,13 +158,13 @@ All measurements are from the development machine on 2026-09-17.
    `etcetera`,
    or `xdg` dependency appears in any manifest
    (Verified:
-   `grep` over `package/cli/forbidden-strings/Cargo.toml`
+   `grep` over `package/forbidden-strings/cli/Cargo.toml`
    and `rg --glob '*.toml' 'etcetera|^dirs |"dirs"|directories-next|dirs-next' .` returning no match).
 - The repository's TypeScript XDG helper for terminal lookup does implement
    `XDG_CONFIG_DIRS` and `XDG_DATA_DIRS` search lists,
    also with `??` and no absolute check
    (Verified:
-   `package/cli/terminal-exec/src/xdg-paths.ts:85-135`).
+   `package/terminal-exec/cli/src/xdg-paths.ts:85-135`).
 - The repository's `.editorconfig` begins with `root = true`,
    and `/home/user/.editorconfig` does not exist
    (Verified:
@@ -603,7 +603,7 @@ matches where the user's other tools already are,
  measured;
 the absolute-path check follows the XDG specification's explicit instruction
  and reuses the repository's own Rust policy in
- `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`,
+ `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`,
  so no new dependency;
 the override pair covers both "use this file instead" and "use no file",
  which are the two needs Bazel covers with `--bazelrc` and `--nohome_rc`
@@ -1341,7 +1341,7 @@ explicit override,
  then the home fallback,
 rather than inventing a second policy
 (Verified shape:
- `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`).
+ `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`).
 The concrete per-platform values differ from that incumbent's,
 because it resolves a cache directory and this resolves a configuration directory:
 macOS uses `$HOME/Library/Application Support/meow/meow.hcl`

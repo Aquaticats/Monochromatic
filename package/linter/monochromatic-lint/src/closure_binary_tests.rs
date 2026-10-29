@@ -524,7 +524,7 @@ fn debug_notes_name_the_checked_package() {
 }
 
 /// Host-only:
-/// the real tools over the real `package/cli/wg-quicker-exempt`,
+/// the real tools over the real `package/wg/cli-quicker-exempt`,
 /// compared with an `--all-targets` run of
 /// the same library so that the absence of test findings is shown by a probe that could have found them.
 #[test]
@@ -533,9 +533,9 @@ fn host_real_run_over_wg_quicker_exempt() {
     let root: PathBuf =
         std::fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.."))
             .expect("repository root");
-    let package: PathBuf = root.join("package/cli/wg-quicker-exempt");
+    let package: PathBuf = root.join("package/wg/cli-quicker-exempt");
     let linted: Output = Command::new(BINARY)
-        .arg("package/cli/wg-quicker-exempt")
+        .arg("package/wg/cli-quicker-exempt")
         .current_dir(&root)
         .env_remove("MONOCHROMATIC_LINT_CARGO")
         .output()

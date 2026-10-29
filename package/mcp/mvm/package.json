@@ -9,7 +9,7 @@
     "mvm-mcp": "dist/final/node/index.mjs"
   },
   "dependencies": {
-    "@monochromatic-dev/cli-mvm": "workspace:*",
+    "@monochromatic-dev/mvm-cli": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
     "@monochromatic-dev/module-caught-value": "workspace:*",
     "valibot": "catalog:"

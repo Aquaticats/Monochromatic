@@ -74,7 +74,7 @@ hard gates,
 
 ## Integration boundary and migration
 
-The scanner's rule loader (`package/cli/forbidden-strings/src/rule/`)
+The scanner's rule loader (`package/forbidden-strings/cli/src/rule/`)
 gains the sectioned parser with format autodetection:
  a file whose
 first significant line is a strict header parses as tail-format;

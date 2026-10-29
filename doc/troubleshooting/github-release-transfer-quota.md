@@ -308,7 +308,7 @@ gh attestation verify forbidden-strings-0.5.0-x86_64-unknown-linux-gnu.tar.gz \
 
 The [CLI verification manual][verify-manual] documents bundle input and signer policy.
 The consumer now carries the original bundle at
-`package/cli/forbidden-strings/provenance/0.5.0-x86_64-unknown-linux-gnu.sigstore.jsonl`.
+`package/forbidden-strings/cli/provenance/0.5.0-x86_64-unknown-linux-gnu.sigstore.jsonl`.
 The local `verify:provenance` task in the session's `binstall-org-repair` scratch directory
 recorded the positive and negative results in `provenance-controls.json`.
 

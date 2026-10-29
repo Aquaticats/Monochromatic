@@ -1,0 +1,176 @@
+[package]
+name = "forbidden-strings"
+version = "0.5.0"
+categories = ["command-line-utilities", "development-tools"]
+edition = "2024"
+homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/forbidden-strings/cli"
+include = [
+  "src/**/*.rs",
+  # The embedded baseline: lib.rs include_str!s it at compile time and build.rs
+  # compiles it into a serialized RegexSet embedded via include_bytes!, so the
+  # published crate cannot build without it.
+  "data/builtin-rules.txt",
+  # The build script precompiles the baseline at build time.
+  "build.rs",
+  "Cargo.toml",
+  "Cargo.lock",
+  "README.md",
+  "LICENSES/*.txt",
+]
+keywords = ["security", "secrets", "scanner", "deny-list", "ci"]
+license = "LGPL-3.0-or-later"
+readme = "README.md"
+repository = "https://github.com/Aquaticats/Monochromatic.git"
+description = "Out-of-band scanner for forbidden literal strings and regex patterns. Gitignore-aware, fast, dependency-light: built for CI deny-listing of leaked credentials and banned tokens."
+
+[lints.clippy]
+complexity = { level = "allow", priority = -1 }
+disallowed_methods = "deny"
+implicit_return = "deny"
+needless_return = "allow"
+shadow_reuse = "deny"
+shadow_same = "deny"
+shadow_unrelated = "deny"
+
+[lib]
+name = "forbidden_strings"
+path = "src/lib.rs"
+
+[[bin]]
+name = "forbidden-strings"
+path = "src/main.rs"
+
+[features]
+# What:     `fuzzing` Cargo feature. When enabled (`cargo build --features fuzzing`),
+#           the crate exposes `mod fuzz_api`, a curated re-export bundle of
+#           internal compile/extract/walker helpers used by the fuzz targets in
+#           `package/forbidden-strings/cli.fuzz/fuzz_targets/*.rs`.
+# Why:      Production consumers (the bin target, integration tests) build
+#           with this feature off, so they see the same public surface as
+#           before. Fuzz targets opt in by depending on
+#           `forbidden-strings = { path = "../../forbidden-strings/cli", features = ["fuzzing"] }`,
+#           gaining access to the internal compile pipeline without
+#           widening the production public API.
+fuzzing = []
+
+[dependencies]
+# Runtime matcher owns one Aho-Corasick automaton over exact-literal rules.
+# The engine already uses this crate transitively for its set gate; a direct dependency
+# exposes the same deterministic overlapping matcher without another implementation.
+aho-corasick = { workspace = true }
+# `anyhow` carries application-level errors while preserving their display text for
+# CLI stderr output and tests.
+anyhow = { workspace = true }
+# `clap` owns argv parsing, generated help/version output, and validation for the
+# `forbidden-strings` binary. The derive feature lets `src/cli.rs` declare the
+# command shape as a typed struct instead of maintaining a handwritten argv loop.
+clap = { workspace = true, features = ["derive"] }
+# The in-house engine the scanner runs on. It owns the restricted dialect, the
+# `RegexSet` compile/serialize/reload paths, and the buffer-batch `line_matches`
+# API the scan path calls; its own `Cargo.toml` documents that it expects the
+# caller (this crate) to provide the `catch_unwind` fail-closed boundary. Its
+# internal prefilters pull in aho-corasick, memchr, and regex-automata, so the
+# literal-gating machinery this crate once owned directly stays present as a
+# transitive dependency. Depended on by path (the same crate the bench sidecar
+# drives) plus the published version so `cargo publish` resolves it from
+# crates.io; the path wins for local builds.
+forbidden-regex = { path = "../../forbidden-strings/core", version = "=0.1.1" }
+gix-hash = { workspace = true, default-features = false, features = ["sha1", "sha256"] }
+gix-index = { workspace = true, default-features = false, features = ["sha1"] }
+ignore = { workspace = true }
+memchr = { workspace = true }
+rayon = { workspace = true }
+# The logging facade and its subscriber. tracing routes the compiler's rule-rejection
+# warnings and the CLI's top-level errors as structured events to stderr via
+# tracing-subscriber (RUST_LOG, default info); the scan findings stay on stdout, and the
+# env-gated FORBIDDEN_STRINGS_DEBUG_* developer report dumps stay as direct stderr output.
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+
+# The build script (`build.rs`) precompiles the ported builtin baseline into a
+# serialized `RegexSet` (`to_bytes`) at build time, embedded via `include_bytes!`
+# and reloaded at runtime through the validating `from_bytes` path. Compiling the
+# baseline at each startup is not viable (the migration measured tens of seconds),
+# so the cost is paid once here. Path plus published version, same as the runtime
+# dependency: the path wins for local builds, the version lets `cargo publish`
+# resolve it from crates.io.
+[build-dependencies]
+forbidden-regex = { path = "../../forbidden-strings/core", version = "=0.1.1" }
+
+# Why `panic = "unwind"` and `overflow-checks = true` instead of the smaller
+# "abort" plus default-off overflow checks:
+#
+# `src/frx_scan.rs` (`scan_one_set`) wraps every `RegexSet::line_matches` call in
+# `std::panic::catch_unwind`. The forbidden-regex engine's own `Cargo.toml`
+# documents that it deliberately does not install an internal panic guard and
+# expects the caller to provide this `catch_unwind` boundary; this crate is that
+# caller. On a caught panic the scanner emits a redacted `PATH: engine error`
+# synthetic finding, so a matcher fault reports the file and exits non-zero
+# instead of aborting or exiting clean.
+#
+# The combo is defense-in-depth against UNKNOWN engine faults: the dialect is
+# restricted and every rule is validated at compile time, but a future matcher
+# bug should fail closed, not corrupt CI.
+#
+# 1. `panic = "unwind"`: `catch_unwind` only intercepts when the process
+#    unwinds. Under `panic = "abort"` the process dies before the unwind
+#    barrier runs, and the scanner (a CI gate) aborts instead of surfacing the
+#    bad file. (A stack-overflow SIGABRT is not caught by either setting; the
+#    engine caps recursion internally at compile time instead.)
+#
+# 2. `overflow-checks = true`: an arithmetic overflow is Rust's standard
+#    checked-arithmetic panic from a `+`. Cargo's default release profile
+#    disables overflow checks for speed; without this setting an unknown
+#    overflowing add inside the matcher would silently wrap, the engine would
+#    resolve the wrong verdict, and the rule would fail open (zero hits on
+#    content that should match). That is the worst case for a secret scanner: a
+#    corrupt rule silently passes CI. With this setting the wrap becomes a real
+#    panic that `catch_unwind` converts to the `PATH: engine error` synthetic
+#    finding.
+#
+# Note about `debug-assertions`: deliberately left at the release default of
+# OFF. With debug-assertions OFF a matcher postcondition guarded by
+# `debug_assert!` would return a wrong verdict rather than panicking, and
+# `catch_unwind` cannot help there; the engine's own fuzz suite (run with
+# debug-assertions ON) is the durable cover for that class. We do not turn
+# debug-assertions on in release because the `forbidden-regex`, `ignore`, and
+# `rayon` deps have hot-path debug_asserts whose cost was not measured to be
+# acceptable on the CI gate.
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+panic = "unwind"
+overflow-checks = true
+strip = true
+
+# Why `build-override` `opt-level = 3`: `build.rs` compiles the embedded baseline
+# through the forbidden-regex build-dependency, and Cargo compiles build scripts and
+# their dependencies at `opt-level = 0` unless told otherwise, in every profile. The
+# baseline compile is the build's dominant step: measured on the 259-rule baseline
+# with the engine building rules one at a time, 390.8s unoptimized vs 98.5s at
+# `opt-level = 3`, with identical serialized output. The dev override matters too,
+# because `cargo check`, clippy, and debug builds all run the build script. Codegen
+# units stay at the build-override default: 16 vs 256 measured within run-to-run noise.
+[profile.release.build-override]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
+
+# Standalone crate: its own workspace root, so no ancestor Cargo.toml can absorb it.
+# Enforced by file-enforcer (doc/planning/cargo-toml-file-enforcer.md).
+[workspace]
+
+# Generated by file-enforcer from rust-catalog.toml; edit the catalog, not this table (doc/decision/rust-dependency-catalog.md).
+[workspace.dependencies]
+aho-corasick = ">=1"
+anyhow = ">=1"
+clap = ">=4"
+gix-hash = { version = ">=0.25", default-features = false }
+gix-index = { version = ">=0.51", default-features = false }
+ignore = ">=0.4"
+memchr = ">=2"
+rayon = ">=1"
+tracing = ">=0.1"
+tracing-subscriber = ">=0.3"

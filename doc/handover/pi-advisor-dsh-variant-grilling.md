@@ -1,5 +1,10 @@
 # Pi advisor DSH variant grilling
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/unused-export` is now `package/mutation-test/cli-unused-export`.
+
 Purpose: record the design interview that gives `package/pi-plugin/advisor` a DSH variant
 on a shared package,
 and the decisions settled so far.

@@ -1,5 +1,10 @@
 # Is resharp bulletproof? Robustness assessment, 2026-06-19
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 Assessment of whether `ieviev/resharp` (RE#,
  the Rust crate this workspace
 depends on via `package/cli/forbidden-strings`) is "bulletproof,

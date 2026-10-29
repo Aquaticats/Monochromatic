@@ -326,7 +326,7 @@ The cutover is a hard switch that follows a successful full sync on the machine
 - `package/dev-script/vm-builder/Containerfile` and
  `package/config/dotfiles/mise/config.toml` stop seeding tool management.
 - Root `Dockerfile`,
- `package/cli/mutation-test/runtime/Containerfile` install from `toolchain.lock.json` pins
+ `package/mutation-test/cli/runtime/Containerfile` install from `toolchain.lock.json` pins
  (or keep their own pins and cite the lock).
 
 ## Verification

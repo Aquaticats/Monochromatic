@@ -577,7 +577,7 @@ server.unref();
 ```
 
 ```typescript
-// package/cli/terminal-exec/src/launch.ts:122
+// package/terminal-exec/cli/src/launch.ts:122
 child.unref();
 ```
 

@@ -1,5 +1,10 @@
 # TOML development-run reconciliation
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mutation-test` is now `package/mutation-test/cli`.
+
 Run `p9r4xl6n12` is terminal with incomplete selected execution.
 The [evidence](depot-toml-reconciliation-2026-10-17.evidence.json)
 reconciles the frozen 24-check manifest against actual emitted identities and downloaded artifacts.

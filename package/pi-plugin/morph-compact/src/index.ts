@@ -29,7 +29,7 @@ import type {
   ExtensionCommandContext,
   SessionBeforeCompactEvent,
 } from '@earendil-works/pi-coding-agent';
-import { launchTerminal, } from '@monochromatic-dev/cli-terminal-exec/ts';
+import { launchTerminal, } from '@monochromatic-dev/terminal-exec-cli/ts';
 import { caughtValueText, } from '@monochromatic-dev/module-caught-value/ts';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {

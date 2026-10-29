@@ -312,8 +312,8 @@ fn redacted_matches(work: &Path) {
         PolicyOutcome::Findings(vec![content_match("swap.txt", 2)])
     );
     // The scanner's own rule sources are not scanned.
-    let source: &str = "package/cli/forbidden-strings/data/builtin-rules.txt";
-    std::fs::create_dir_all(repo.join("package/cli/forbidden-strings/data")).expect("source dir");
+    let source: &str = "package/forbidden-strings/cli/data/builtin-rules.txt";
+    std::fs::create_dir_all(repo.join("package/forbidden-strings/cli/data")).expect("source dir");
     std::fs::write(repo.join(source), format!("{}\n", needle())).expect("rule source");
     assert_eq!(
         check(repo.as_path(), &add(&[source]), &chosen),

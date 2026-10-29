@@ -31,7 +31,7 @@ description = "Run native unit and conformance tests"
 run = "cargo nextest run --all-targets"
 
 [tasks."test:host"]
-description = "Run the host-only real run of the closure check over package/cli/wg-quicker-exempt (needs cargo-dylint, the rustc-dev nightly and a warm cargo cache; the container tests use a stub cargo instead)"
+description = "Run the host-only real run of the closure check over package/wg/cli-quicker-exempt (needs cargo-dylint, the rustc-dev nightly and a warm cargo cache; the container tests use a stub cargo instead)"
 run = "cargo nextest run --test closure_binary --run-ignored only"
 
 [tasks."dependencies:fetch"]

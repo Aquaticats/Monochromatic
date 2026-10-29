@@ -1,5 +1,10 @@
 # Repository review issue filing
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mutation-test` is now `package/mutation-test/cli`.
+
 ## Purpose
 
 Resume the repository-wide review of this repo without re-deriving its scope,

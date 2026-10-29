@@ -549,14 +549,14 @@ file "forbidden_strings_rules" {
    `FEC:182-184`, `:736-782`, `:860`.
 - Reads the rules file and the release scanner binary;
    when the binary is absent it logs a warning and skips.
-- Runs `package/cli/forbidden-strings/target/release/forbidden-strings compile-rules`
+- Runs `package/forbidden-strings/cli/target/release/forbidden-strings compile-rules`
    with `--rules ./.cache/forbidden-strings.rules.txt`,
    which "Compiles one authoritative runtime rules file into derived user cache"
-   (Verified: `package/cli/forbidden-strings/src/cli.rs:127`),
+   (Verified: `package/forbidden-strings/cli/src/cli.rs:127`),
    content-keyed
    (Verified: `src/runtime_cache/mod.rs:10`, "Registers content key and platform cache path resolution").
 - Placement:
-   repository task in `package/cli/forbidden-strings`,
+   repository task in `package/forbidden-strings/cli`,
    depending on the scanner's release build task.
 - Awkward:
    its output is outside the repository,
@@ -567,7 +567,7 @@ file "forbidden_strings_rules" {
   The `win32` executable suffix retires with 0.x being Linux only.
 
 ```hcl
-# package/cli/forbidden-strings/meow.hcl
+# package/forbidden-strings/cli/meow.hcl
 task "compile_rules" {
   command    = ["target/release/forbidden-strings", "compile-rules", "--rules", "${path.root}/.cache/forbidden-strings.rules.txt"]
   inputs     = ["${path.root}/.cache/forbidden-strings.rules.txt"]
@@ -794,15 +794,15 @@ locals {
   }
 
   cargo_profile_by_dir = {
-    "package/cli/forbidden-strings"             = "scanner"
-    "package/rust-module/forbidden-regex"       = "scanner"
+    "package/forbidden-strings/cli"             = "scanner"
+    "package/forbidden-strings/core"       = "scanner"
     "package/cli/nested-wayland-session"        = "overflow"
     "package/linter/rust"                       = "linter"
-    "package/rust-module/forbidden-regex.bench" = "bench"
+    "package/forbidden-strings/core.bench" = "bench"
     "package/music-player/truepeak-core.bench"  = "bench"
     "package/music-player/desktop-app"          = "music"
-    "package/rust-module/forbidden-regex.fuzz"  = "fuzz"
-    "package/cli/forbidden-strings.fuzz"            = "fuzz"
+    "package/forbidden-strings/core.fuzz"  = "fuzz"
+    "package/forbidden-strings/cli.fuzz"            = "fuzz"
   }
 }
 
@@ -2709,8 +2709,8 @@ overflow-checks = true
 strip = true
 
 [toml_keys.cargo.profile_by_dir]
-"package/cli/forbidden-strings" = "scanner"
-"package/rust-module/forbidden-regex" = "scanner"
+"package/forbidden-strings/cli" = "scanner"
+"package/forbidden-strings/core" = "scanner"
 ```
 
 #### Pros

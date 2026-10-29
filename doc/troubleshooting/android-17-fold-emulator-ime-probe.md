@@ -553,7 +553,7 @@ This is a **container-limit failure**, not evidence that a keyboard-free
 Fold cannot display Gboard or that the app passes D50.
 The `mvm` alternative was checked without creating a VM:
 `mvm list` failed with `spawn virsh ENOENT`;
-`package/cli/mvm/README.md` names `virsh`, `qemu-img` and libvirt as
+`package/mvm/cli/README.md` names `virsh`, `qemu-img` and libvirt as
 prerequisites, and none of those binaries/libraries was present locally.
 No host packages were installed.
 

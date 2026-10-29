@@ -208,7 +208,7 @@ The round-1 stub shape was built to validate the `imports`-field mechanism befor
    after the split the inlined copy follows the neutral default list and does not.
    Node-executed dependents that bundle those libraries through `default`:
    `build-tool/css`,
-   `cli/fy`,
+   `fy/cli`,
    `dev-script/deps-cube`,
    `dev-script/vm-builder` (through `fs-path`),
    `build-tool/css` and `dev-script/file-enforcer` (through `toml-edit` and `css-edit`).

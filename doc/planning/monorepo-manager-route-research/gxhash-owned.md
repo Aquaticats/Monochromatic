@@ -438,7 +438,7 @@ Upstream's golden values are in `mod.rs:217-225` (`is_stable`).
    not a license term.
 - The repository has no REUSE configuration (`rg --files` for `REUSE.toml` and `.reuse/dep5` found none),
   and packages carry `LICENSES/GPL-3.0-or-later.txt` and `LICENSES/LGPL-3.0-or-later.txt`
-  (for example `package/rust-module/forbidden-regex/LICENSES`) (Verified).
+  (for example `package/forbidden-strings/core/LICENSES`) (Verified).
 
 ## Upstream issues and pull requests
 
@@ -770,9 +770,9 @@ Upstream activity:
      `rg 'unsafe_code|unsafe_op_in_unsafe_fn|undocumented_unsafe|forbid\(unsafe|deny\(unsafe'` over the repository matched only prose in docs.
   - Root `clippy.toml` bans only `Result::unwrap`;
      crate manifests deny `disallowed_methods` and `implicit_return`
-     (for example `package/rust-module/forbidden-regex/Cargo.toml:22-25`).
+     (for example `package/forbidden-strings/core/Cargo.toml:22-25`).
   - The word `unsafe` appears in 27 Rust source files (`rg --count-matches '\bunsafe\b'` over `package`),
-     including SIMD kernels in `package/rust-module/forbidden-regex/src/dfa/sheng.rs`
+     including SIMD kernels in `package/forbidden-strings/core/src/dfa/sheng.rs`
      (`is_x86_feature_detected!` guards,
      `#[target_feature(enable = "avx512f,avx512bw,avx512vbmi")] unsafe fn`,
      lines 227-282).
@@ -784,7 +784,7 @@ Upstream activity:
    `lto = true`,
    `codegen-units = 1`,
    `overflow-checks = true`,
-   and sibling `.bench` and `.fuzz` packages (`package/rust-module/forbidden-regex*`,
+   and sibling `.bench` and `.fuzz` packages (`package/forbidden-strings/core*`,
    Verified).
 - Existing consumers (Verified,
    `rg 'GxHasher|GxBuildHasher|gxhash::Hash(Map|Set)|gxhash32|gxhash128'` outside docs matched only a doc comment):
@@ -1058,7 +1058,7 @@ Disqualifying problems found:
 - aarch64 correctness in CI through QEMU user mode (Verified feasible with `rust-lld` and `aarch64-unknown-linux-musl`).
 - Fuzzing:
    a `cargo-fuzz` differential target against the oracle,
-   following `package/rust-module/forbidden-regex.fuzz`.
+   following `package/forbidden-strings/core.fuzz`.
 - Mutation testing:
    `forbidden-regex` keeps `mutants.out` (Verified),
    a precedent for `cargo-mutants`.

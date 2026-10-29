@@ -226,10 +226,10 @@ mvm: guest agent on template-setup did not respond within 300s
 ```
 
 At frozen source `ef01490f5e960f8ca0b424c12242caeb3c5a2b5e`,
-`package/cli/mvm/src/template-windows-virtio.ts:57` rebuilds the domain for the post-install pass:
+`package/mvm/cli/src/template-windows-virtio.ts:57` rebuilds the domain for the post-install pass:
 
 ```ts
-// package/cli/mvm/src/template-windows-virtio.ts:57
+// package/mvm/cli/src/template-windows-virtio.ts:57
 const virtioXml = domainXml({
   diskPath,
   name: TEMPLATE_VM_NAME,
@@ -242,28 +242,28 @@ await defineVm({
 await startVm({ name: TEMPLATE_VM_NAME, },);
 ```
 
-`package/cli/mvm/src/template-windows-virtio.ts:69`
+`package/mvm/cli/src/template-windows-virtio.ts:69`
 then requests the configured verification timeout:
 
 ```ts
-// package/cli/mvm/src/template-windows-virtio.ts:69
+// package/mvm/cli/src/template-windows-virtio.ts:69
 await waitForGuestAgent({
   name: TEMPLATE_VM_NAME,
   timeoutMs: VIRTIO_VERIFY_AGENT_TIMEOUT_MS,
 },);
 ```
 
-`package/cli/mvm/src/config.ts:87` supplies its measured deadline:
+`package/mvm/cli/src/config.ts:87` supplies its measured deadline:
 
 ```ts
-// package/cli/mvm/src/config.ts:87
+// package/mvm/cli/src/config.ts:87
 export const VIRTIO_VERIFY_AGENT_TIMEOUT_MS = 300_000;
 ```
 
-`package/cli/mvm/src/virsh-wait.ts:121` emits the timeout after failed guest pings:
+`package/mvm/cli/src/virsh-wait.ts:121` emits the timeout after failed guest pings:
 
 ```ts
-// package/cli/mvm/src/virsh-wait.ts:121
+// package/mvm/cli/src/virsh-wait.ts:121
 if (elapsed >= timeoutMs) {
   throw new Error(
     `guest agent on ${name} did not respond within ${
@@ -340,7 +340,7 @@ runs the natural build,
 `//package/dev-script/task-util:trial:depot:vm:original`,
 and the separate standalone consumer.
 The original-task adapter invokes only the authored source command
-`mise run //package/cli/vmsync:test:e2e`.
+`mise run //package/vmsync/cli:test:e2e`.
 That source task owns its existing bundle-build dependency.
 The logger manifest owner corrected the old inherited `test:unit` plus explicit file argument
 to the authored `test:e2e` route and its build prerequisite;
@@ -383,7 +383,7 @@ These checks do not establish a new provider result.
 ### Standalone natural-bundle consumer
 
 Task `trial:depot:vm:build` invokes the unchanged source task
-`mise run //package/cli/vmsync:build:js:node`.
+`mise run //package/vmsync/cli:build:js:node`.
 It requires a successful cohort check and a matching source-before receipt,
 checks source identity before and after the build,
 and retains `natural-build.json` plus `vmsync/index.mjs`.

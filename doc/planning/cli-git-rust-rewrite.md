@@ -152,7 +152,7 @@ No scanner replacement is requested.
   and immutable editing operations.
   Reuse is explicitly requested;
   this interview has not rerun its tests.
-- `package/cli/forbidden-strings/Cargo.toml` already defines both a library and an executable.
+- `package/forbidden-strings/cli/Cargo.toml` already defines both a library and an executable.
   `src/lib.rs` exposes rule compilation and `run_cli_from_env`,
   while scan orchestration modules remain private.
   A library target alone is not evidence that the desired embedding interface already exists.

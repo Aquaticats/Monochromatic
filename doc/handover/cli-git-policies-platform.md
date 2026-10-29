@@ -1,5 +1,11 @@
 # cli-git policies platform implementation grilling handover
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.

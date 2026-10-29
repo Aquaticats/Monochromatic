@@ -209,7 +209,7 @@ The first fast subset is five owning build tasks and their tests:
 - `//package/module/logger:build` and `:test:unit`;
 - `//package/module/p-map-fork:build` and `:test:unit`;
 - `//package/module/toml-edit:build` and `:test:unit`;
-- `//package/cli/forbidden-strings:build` and `:test`;
+- `//package/forbidden-strings/cli:build` and `:test`;
 - `//package/linter/monochromatic-lint:build` and `:test`.
 
 This subset avoids the desktop,
@@ -270,7 +270,7 @@ Exit code: 1.
 Failed tasks:
 
 - `//package/config/lfs-r2-worker:build:js:browser`.
-- `//package/cli/wg-allowedips:build:js`.
+- `//package/wg/cli-allowedips:build:js`.
 - `//package/dev-script/file-enforcer:build:js`.
 - `//package/dev-script/task-util:build:js`.
 

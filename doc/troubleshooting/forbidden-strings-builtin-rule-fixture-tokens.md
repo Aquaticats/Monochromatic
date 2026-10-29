@@ -47,10 +47,10 @@ This case's token is the 22-character one the rule never reported;
 ### The rule is a Terraform rule that runs on every file
 
 The built-in rule is ported from betterleaks,
- `package/cli/forbidden-strings/data/builtin-rules.txt:407-411`:
+ `package/forbidden-strings/cli/data/builtin-rules.txt:407-411`:
 
 ```text
-# package/cli/forbidden-strings/data/builtin-rules.txt:407
+# package/forbidden-strings/cli/data/builtin-rules.txt:407
 ==> hashicorp-tf-password <==
 # Identified a HashiCorp Terraform password field, risking unauthorized infrastructure configuration and security breaches.
 # NOTE: upstream restricts this rule to files matching: (?i)\.(?:tf|hcl)$
@@ -65,7 +65,7 @@ Three of the receipt's four non-empty values were 17 or 19 characters long;
  the fourth,
  at 22,
  is longer than the rule's 20-character limit and was never reported.
-The scanner states both missing features in `package/cli/forbidden-strings/README.md:91` and `:95`:
+The scanner states both missing features in `package/forbidden-strings/cli/README.md:91` and `:95`:
  no per-rule path scoping and no per-rule allowlists.
 
 ### A merge is scanned against every parent
@@ -106,7 +106,7 @@ The guard skips explicit dry runs (`package/git-policy/cli/SPEC.md:3079`),
 
 Scanner build under test:
  `forbidden-strings 0.4.1`
- (`package/cli/forbidden-strings/target/release/forbidden-strings --help`;
+ (`package/forbidden-strings/cli/target/release/forbidden-strings --help`;
  the source tree reads `0.5.0`).
 The harness `s245/split/scan-control.ts` in the session's scratch directory ran this from an empty directory,
  so that only the built-in rules load:
@@ -182,7 +182,7 @@ Tradeoffs:
 
 Nothing is filed:
  both the scanner and the commit guard are repository-owned
- (`package/cli/forbidden-strings`,
+ (`package/forbidden-strings/cli`,
  `package/git-policy/cli`),
  and the upstream betterleaks rule is not at fault,
  because it is scoped to `.tf` and `.hcl` files,

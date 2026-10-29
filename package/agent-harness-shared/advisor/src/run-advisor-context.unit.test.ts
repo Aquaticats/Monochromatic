@@ -9,6 +9,7 @@ import {
   fauxProvider,
   getCurrentSystemPrompt,
   type Context,
+  type SimpleStreamOptions,
 } from '@earendil-works/pi-ai';
 import type { SessionEntry, } from '@earendil-works/pi-coding-agent';
 import {
@@ -97,39 +98,15 @@ function providerUserText(context: Readonly<Context>,): string {
     .join('\n',);
 }
 
-/**
- Capture rejection from async test action.
- 
- @param action - async operation expected to reject
- 
- @returns caught rejection value
- 
- @example
- ```typescript
- const error = await captureAsyncError(async function fail() { throw new Error('x'); });
- ```
- */
-async function captureAsyncError(
-  action: () => Promise<unknown>,
-): Promise<unknown> {
-  try {
-    await action();
-  }
-  catch (error) {
-    return error;
-  }
-  throw new Error('expected async action to throw',);
-}
-
 //endregion Fixtures
 
 await describe({
   name: runAdvisor.name,
   children: [
     it({
-      name: 'refuses insufficient endpoint capacity before provider dispatch',
-      fn: async function testOutputCapacityBeforeProviderDispatch() {
-        /** Faux provider whose endpoint advertises less than configured requirement. */
+      name: 'clamps the request output budget to the route advertised capacity',
+      fn: async function testOutputCapacityClampsRequest() {
+        /** Faux provider whose endpoint advertises less than the configured budget. */
         const providerFixture = fauxProvider({
           api: 'faux',
           provider: 'limited-provider',
@@ -139,10 +116,19 @@ await describe({
             maxTokens: advisorConfig.maxAdvisorOutputTokens - 1,
           },],
         },);
+        /** Stream options observed at dispatch, captured by the response factory. */
+        const observedOptions: Readonly<SimpleStreamOptions>[] = [];
         providerFixture.setResponses([
-          fauxAssistantMessage('unexpected advisor answer',),
+          function recordOptions(
+            _context,
+            options,
+          ) {
+            if (options !== undefined)
+              observedOptions.push(options,);
+            return fauxAssistantMessage('clamped advisor answer',);
+          },
         ],);
-        /** Host run context whose only scoped model lacks required output capacity. */
+        /** Host run context whose only scoped model advertises less output than the budget. */
         const ctx = {
           cwd: '/repo',
           scopedModels: [providerFixture.getModel(),],
@@ -164,27 +150,21 @@ await describe({
             },
           },
         } as unknown as AdvisorRunContext;
-        /** Eligibility error returned before provider invocation. */
-        const caught = await captureAsyncError(
-          async function runIneligibleAdvisor() {
-            return await runAdvisor({
-              ctx,
-              config: advisorConfig,
-            },);
-          },
-        );
+        /** Operation completing against the clamped request. */
+        const result = await runAdvisor({
+          ctx,
+          config: advisorConfig,
+        },);
 
-        expect(caught,).toBeInstanceOf(Error,);
-        expect((caught as Error).message,).toContain(
-          `no scoped models advertise at least ${String(advisorConfig.maxAdvisorOutputTokens,)} output tokens`,
-        );
-        expect(providerFixture.state.callCount,).toBe(0,);
+        expect(result.text,).toContain('clamped advisor answer',);
+        expect(providerFixture.state.callCount,).toBe(1,);
+        expect(observedOptions[0]?.maxTokens,).toBe(advisorConfig.maxAdvisorOutputTokens - 1,);
       },
     },),
     it({
-      name: 'refuses explicit insufficient endpoint before provider dispatch',
-      fn: async function testExplicitOutputCapacityBeforeProviderDispatch() {
-        /** Faux provider exposing eligible and ineligible endpoints in one scope. */
+      name: 'clamps the request for an explicit model below the configured budget',
+      fn: async function testExplicitOutputCapacityClampsRequest() {
+        /** Faux provider exposing full-capacity and limited endpoints in one scope. */
         const providerFixture = fauxProvider({
           api: 'faux',
           provider: 'mixed-provider',
@@ -201,8 +181,17 @@ await describe({
             },
           ],
         },);
+        /** Stream options observed at dispatch, captured by the response factory. */
+        const observedOptions: Readonly<SimpleStreamOptions>[] = [];
         providerFixture.setResponses([
-          fauxAssistantMessage('unexpected advisor answer',),
+          function recordOptions(
+            _context,
+            options,
+          ) {
+            if (options !== undefined)
+              observedOptions.push(options,);
+            return fauxAssistantMessage('explicit clamped answer',);
+          },
         ],);
         /** Host run context exposing both endpoints through live scope. */
         const ctx = {
@@ -229,25 +218,16 @@ await describe({
             },
           },
         } as unknown as AdvisorRunContext;
-        /** Explicit eligibility error returned before provider invocation. */
-        const caught = await captureAsyncError(
-          async function runExplicitIneligibleAdvisor() {
-            return await runAdvisor({
-              ctx,
-              config: advisorConfig,
-              requestedSlug: 'mixed-provider/limited-reviewer',
-            },);
-          },
-        );
+        /** Explicit operation completing against the clamped request. */
+        const result = await runAdvisor({
+          ctx,
+          config: advisorConfig,
+          requestedSlug: 'mixed-provider/limited-reviewer',
+        },);
 
-        expect(caught,).toBeInstanceOf(Error,);
-        expect((caught as Error).message,).toContain(
-          `requires ${String(advisorConfig.maxAdvisorOutputTokens,)} output tokens`,
-        );
-        expect((caught as Error).message,).toContain(
-          `advertises ${String(advisorConfig.maxAdvisorOutputTokens - 1,)} output tokens`,
-        );
-        expect(providerFixture.state.callCount,).toBe(0,);
+        expect(result.text,).toContain('explicit clamped answer',);
+        expect(providerFixture.state.callCount,).toBe(1,);
+        expect(observedOptions[0]?.maxTokens,).toBe(advisorConfig.maxAdvisorOutputTokens - 1,);
       },
     },),
     it({

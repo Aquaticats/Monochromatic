@@ -1,5 +1,10 @@
 # Handover: the lane outcome vocabulary and what is mid-flight
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `@monochromatic-dev/cli-open-code-review-issue` is now `@monochromatic-dev/open-code-review-issue-cli`.
+
 ## Contents
 
 This record is kept as one file per subject or span,

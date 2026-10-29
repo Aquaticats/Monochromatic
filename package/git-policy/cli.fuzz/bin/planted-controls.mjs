@@ -43,14 +43,14 @@ const inputs = [
   'package/rust-module/jsonc-edit/src',
   'package/rust-module/jsonc-edit/fixtures',
   // The subject links the scanner; `build.rs` and `data` hold the embedded baseline its library compiles in.
-  'package/cli/forbidden-strings/Cargo.toml',
-  'package/cli/forbidden-strings/Cargo.lock',
-  'package/cli/forbidden-strings/build.rs',
-  'package/cli/forbidden-strings/src',
-  'package/cli/forbidden-strings/data',
-  'package/rust-module/forbidden-regex/Cargo.toml',
-  'package/rust-module/forbidden-regex/Cargo.lock',
-  'package/rust-module/forbidden-regex/src',
+  'package/forbidden-strings/cli/Cargo.toml',
+  'package/forbidden-strings/cli/Cargo.lock',
+  'package/forbidden-strings/cli/build.rs',
+  'package/forbidden-strings/cli/src',
+  'package/forbidden-strings/cli/data',
+  'package/forbidden-strings/core/Cargo.toml',
+  'package/forbidden-strings/core/Cargo.lock',
+  'package/forbidden-strings/core/src',
 ];
 
 /**

@@ -51,7 +51,7 @@
 # Single-bracket and double-bracket headers are different TOML constructs with different parser
 # paths.
 7eb05bbe0a3f
-# sheng_all_avx512 (rust-module/forbidden-regex/src/dfa/sheng.rs) walks one byte per iteration
+# sheng_all_avx512 (forbidden-strings/core/src/dfa/sheng.rs) walks one byte per iteration
 # through a per-byte transition column;
 # sheng2_all_avx512 (src/dfa/sheng2.rs) walks byte pairs through a class-map product table with a
 # single-byte tail.
@@ -68,7 +68,7 @@ f8cbcd443ae9
 # per iteration with vqtbl4q_u8 over a per-byte transition column and a per-byte context mask;
 # sheng2.rs walks byte pairs through class_map product tables with a single-byte tail.
 34782ce8702d
-# is_match_batch_sheng (rust-module/forbidden-regex/src/dfa/sheng.rs) and is_match_batch_sheng2
+# is_match_batch_sheng (forbidden-strings/core/src/dfa/sheng.rs) and is_match_batch_sheng2
 # (src/dfa/sheng2.rs) are the per-strategy platform dispatchers: each builds its tables,
 # then selects AVX-512 (three feature detections), NEON per line, or the scalar fallback,
 # and sheng2 falls back to sheng rather than to scalar.
@@ -191,7 +191,7 @@ c4d268e2d926
 # pendingProjectionOps parses a base document, edits a table and an array, deletes a table,
 # and probes the projected values of present, nested, missing and out-of-range paths.
 814a5b891711
-# Two hidden subcommand branches in cli/wg-quicker-exempt/src/main.rs: __watch requires exactly 4
+# Two hidden subcommand branches in wg/cli-quicker-exempt/src/main.rs: __watch requires exactly 4
 # args, parses a mark and a uid and calls run_application_watch_child(mark, uid, None);
 # __watch-test requires exactly 3,
 # parses a mark only and passes uid 0 with Some(Path::new(&args[2])).
@@ -339,8 +339,8 @@ f33fa65f95fe
 # rejectError (module/logger/src/sink/indexed-db-util.ts) rejects with request.error or a new
 # Error('IndexedDB request failed without an error object').
 6c2299e81729
-# eof (rust-module/forbidden-regex/src/parse/cursor.rs,
-# pos >= src.len()) and is_finished (cli/forbidden-strings/src/runtime_cache/envelope.rs,
+# eof (forbidden-strings/core/src/parse/cursor.rs,
+# pos >= src.len()) and is_finished (forbidden-strings/cli/src/runtime_cache/envelope.rs,
 # position == bytes.len()) are one-line cursor predicates on unrelated types in unrelated crates,
 # and they even differ in comparison operator.
 40f00d4a0f72
@@ -350,7 +350,7 @@ f33fa65f95fe
 # Checked linter/monochromatic-lint/Cargo.toml: it already depends on monochromatic-jsonc-edit,
 # so this is not a missing shared crate, just two error types with two message formats.
 2d59fcb1f702
-# is_empty over a words bitset appears in rust-module/forbidden-regex/src/charset.rs (pub,
+# is_empty over a words bitset appears in forbidden-strings/core/src/charset.rs (pub,
 # closure pattern |w| *w == 0) and src/counting/countset.rs (pub(crate),
 # closure pattern |&word| word == 0).
 # slopo.ignore.txt already dismisses this exact shape under hash 0f21701dfcb4 ('one-line bitset
@@ -375,7 +375,7 @@ ba8d13a458c0
 # Rc::new(VecModel::from(Vec::new())) for different element types,
 # Rc<VecModel<f32>> and Rc<VecModel<i32>>.
 4b6348b3678e
-# destroyVm (cli/mvm/src/virsh.ts) and undefineVm are thin virsh argument wrappers,
+# destroyVm (mvm/cli/src/virsh.ts) and undefineVm are thin virsh argument wrappers,
 # differing in the subcommand and in undefine's --remove-all-storage flag; the third unit,
 # destroyOne (src/destroy.ts), is the caller that composes them (destroy,
 # tolerate a not-running VM by logging at debug, undefine, remove VMS_DIR/name, log completion).
@@ -412,7 +412,7 @@ a907be03b808
 # ── TEST-OR-GENERATED (1 live) ──
 # Test and generated code where DRY does not apply.
 # Accepted 2026-10-09 from #656.
-# fail (cli/mvm/src/fixture.fake-virsh.ts) and failAdapter
+# fail (mvm/cli/src/fixture.fake-virsh.ts) and failAdapter
 # (module/toml-edit/src/conformance/adapter-runtime.ts) both write a message plus newline to
 # process.stderr and set process.exitCode = 1.
 # Both are harness entry points: one is a fake virsh fixture,

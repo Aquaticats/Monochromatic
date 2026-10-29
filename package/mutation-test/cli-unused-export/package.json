@@ -1,0 +1,43 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/mutation-test-cli-unused-export",
+  "description": "Workspace-wide unused-export detection built on yuku-analyzer's cross-file semantic model.",
+  "type": "module",
+  "private": true,
+  "main": "src/index.ts",
+  "module": "dist/final/node/index.mjs",
+  "bin": {
+    "unused-export": "dist/final/node/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES"
+  ],
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/module-test": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "dependencies": {
+    "@monochromatic-dev/mutation-test-cli": "workspace:*",
+    "@monochromatic-dev/module-logger": "workspace:*",
+    "yaml": "catalog:",
+    "yuku-analyzer": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/mutation-test/cli-unused-export"
+  }
+}

@@ -1,3 +1,8 @@
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 <!--
 This document uses HTML <table> elements for every numeric grid, by explicit
 precedent (doc/decision/zstd-cli-to-node-zlib.md), overriding the repo's

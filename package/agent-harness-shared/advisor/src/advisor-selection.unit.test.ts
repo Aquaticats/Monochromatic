@@ -498,7 +498,7 @@ await describe({
         expect(composed.selected
           .canonicalSlug,).toBe('expensive/reviewer',);
         expect(composed.reason,).toContain(
-          'defaultReviewerModel "missing/reviewer" did not resolve among output-eligible scoped models',
+          'defaultReviewerModel "missing/reviewer" did not resolve among scoped models',
         );
         expect(
           composed.ranking
@@ -654,14 +654,14 @@ await describe({
         expect(result.selected
           .canonicalSlug,).toBe('expensive/reviewer',);
         expect(result.defaultSelection
-          ?.reason,).toContain('did not resolve among output-eligible scoped models',);
+          ?.reason,).toContain('did not resolve among scoped models',);
       },
     },),
     it({
-      name: 'ignores a capacity-ineligible configured reviewer',
-      fn: async function testIgnoresCapacityIneligibleConfiguredReviewer() {
+      name: 'honors a capacity-limited configured reviewer',
+      fn: async function testHonorsCapacityLimitedConfiguredReviewer() {
         /**
-         High-cost model whose endpoint advertises too little output capacity.
+         High-cost model whose endpoint advertises less output than the budget.
          */
         const limitedModel = {
           ...modelFixture({
@@ -696,9 +696,9 @@ await describe({
           modelRegistry,
         },);
         expect(result.selected
-          .canonicalSlug,).toBe('cheap/reviewer',);
+          .canonicalSlug,).toBe('limited/limited-reviewer',);
         expect(result.defaultSelection
-          ?.reason,).toContain('did not resolve among output-eligible scoped models',);
+          ?.reason,).toContain('configured defaultReviewerModel "limited/limited-reviewer" selects limited/limited-reviewer',);
       },
     },),
     it({

@@ -706,8 +706,8 @@ Measured 2026-09-16 on the development machine:
   Four files match today:
   `package/dev-script/task-util/src/tsc-filter.expensive.unit.test.ts`,
   `package/module/image-diff/src/client.expensive.unit.test.ts`,
-  `package/cli/vmsync/src/lifecycle.expensive.unit.test.ts`,
-  and `package/cli/mvm/src/backend/hetzner/provision.expensive.unit.test.ts`.
+  `package/vmsync/cli/src/lifecycle.expensive.unit.test.ts`,
+  and `package/mvm/cli/src/backend/hetzner/provision.expensive.unit.test.ts`.
   Suites that are heavy today only by task name,
    such as `test:container` or `test:wayland`,
    are not excluded by this rule unless their files adopt the naming.
@@ -1687,10 +1687,10 @@ Each follows from recorded decisions:
    the user noted "We already publish it to crates.io and GitHub releases and cargo-binstall should discover it fine."
   `forbidden-strings` 0.4.1 is on crates.io (API read 2026-09-17).
   The research carried over today's local path,
-   `package/cli/forbidden-strings/target/release/forbidden-strings` (`file-enforcer.config.ts:182-184`),
+   `package/forbidden-strings/cli/target/release/forbidden-strings` (`file-enforcer.config.ts:182-184`),
    and asked whether to build it first.
   A released scanner older than the repository cannot corrupt the compiled cache:
-   the cache has a magic header (`package/cli/forbidden-strings/src/runtime_cache/envelope.rs:20`)
+   the cache has a magic header (`package/forbidden-strings/cli/src/runtime_cache/envelope.rs:20`)
    and the scanner reports "compile-from-text" recovery on a mismatch (`src/runtime_cache/warning.rs:78`).
 
 #### Root `mise.toml` and where meow is built
@@ -1908,7 +1908,7 @@ verified before merging and filed for repair:
 - Target labels cannot come from a file's directory,
    because there is one file;
    they come from the package a tag selected,
-   as in `//package/cli/fy:test`.
+   as in `//package/fy/cli:test`.
 - A change to the root file re-evaluates everything,
    so the read set and the cache key for configuration evaluation cover one file rather than many
    ("Per-user configuration").
@@ -2187,7 +2187,7 @@ Read from `doc/decision/cli-git-policies-platform.md` and
   `--no-user-config` and `MEOW_NO_USER_CONFIG` skip all four and record an `Absent` read-set entry.
   No `XDG_CONFIG_DIRS` search list.
 - Resolution is hand-written over `std::env::var_os`,
-   following the policy already in `package/cli/forbidden-strings/src/runtime_cache/path.rs:116-140`,
+   following the policy already in `package/forbidden-strings/cli/src/runtime_cache/path.rs:116-140`,
    so no dependency is added (rule `RCI`).
 - Layering:
    every schema attribute declares its scope as `user_only`,
@@ -2320,7 +2320,7 @@ covering the four migration items the all-Rust decision record lists as conseque
    which four probe `catch` blocks render to the user.
 - `file-enforcer-perf`:
    keep the corpus generator and write a Rust benchmark in meow's worktree,
-   following `package/rust-module/forbidden-regex.bench`.
+   following `package/forbidden-strings/core.bench`.
 - The `prefer-readonly-parameter-type` fixture read:
    vendor `apply-plan.ts` into a new `package/test-fixture/prefer-readonly-parameter-type`
    that really depends on `@monochromatic-dev/module-toml-edit`,
@@ -2674,7 +2674,7 @@ and collision reproducer under `gxhash/lab/` in the session scratchpad.
 - License:
    `LGPL-3.0-or-later`,
    the repository's license for Rust crates
-   (`package/cli/forbidden-strings/Cargo.toml:21`),
+   (`package/forbidden-strings/cli/Cargo.toml:21`),
    plus the upstream MIT copyright notice,
    "Copyright (c) 2023 Olivier Giniaux",
    for the derived code.

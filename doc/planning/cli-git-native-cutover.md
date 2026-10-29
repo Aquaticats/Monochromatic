@@ -673,7 +673,7 @@ The main checkout's `.claude/settings.json` has no hit;
    `changeset:version`,
   and their own READMEs (`package/git-policy/repository/README.md:14-15`,
   `package/git-policy/markdown-lint/README.md:70-74`).
-- `package/cli/forbidden-strings/README.md:118`,
+- `package/forbidden-strings/cli/README.md:118`,
    `:788-789`,
    `:799`,
    `:809`:
@@ -682,7 +682,7 @@ The main checkout's `.claude/settings.json` has no hit;
   repository-built scanner directly";
    the native wrapper links the scanner in-process and reads `rulesFile` from
   `cli-git.config.jsonc`.
-   `package/cli/forbidden-strings/PERF.md:159,199-212` cite incumbent `perf/` files and a
+   `package/forbidden-strings/cli/PERF.md:159,199-212` cite incumbent `perf/` files and a
   packed tarball path:
    historical,
    keep.
@@ -952,7 +952,7 @@ The results are in `doc/handover/cli-git-native-interop.md`.
    Keep `lint:oxlint`,
    `lint:types` and `lint:oxlint:paths` (`:99-131`),
   and add `lint:clippy` running `cargo clippy --locked --offline --all-targets -- -D warnings`,
-  matching the sibling Rust CLI `package/cli/forbidden-strings/mise.toml` (`lint:clippy`).
+  matching the sibling Rust CLI `package/forbidden-strings/cli/mise.toml` (`lint:clippy`).
   Today `lint` does not run Clippy at all:
    the crate is checked only by `native:clippy` and the container gate.
   Adding `lint:clippy` makes the root `mise run lint` compile the crate;
@@ -964,7 +964,7 @@ The results are in `doc/handover/cli-git-native-interop.md`.
 - `build` (done on the install branch):
    root `mise run build` runs every package's task named `build` and throws only when no package has one.
   `build` is the release build of `cli-git-native` (`cargo build --release --locked --offline --bin cli-git-native`,
-   as the sibling `package/cli/forbidden-strings` does),
+   as the sibling `package/forbidden-strings/cli` does),
    so `prepareAndBuild` keeps producing an artifact;
    every root `mise run build` now compiles the crate (about 71 seconds in one run on this host on 2026-10-13,
    with a shared cargo `build-dir` from `doc/decision/cargo-build-dir-host-cache.md`,

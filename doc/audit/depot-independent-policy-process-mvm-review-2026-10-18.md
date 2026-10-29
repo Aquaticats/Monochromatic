@@ -1,5 +1,10 @@
 # Independent Depot policy, process and MVM evidence review
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mvm` is now `package/mvm/cli`.
+
 ## Review boundary
 
 This review independently decodes the original archive bundles for

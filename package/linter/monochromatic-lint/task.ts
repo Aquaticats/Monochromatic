@@ -36,7 +36,7 @@ export default {
     run: 'cargo nextest run --all-targets',
   },
   'test:host': {
-    description: 'Run the host-only real run of the closure check over package/cli/wg-quicker-exempt',
+    description: 'Run the host-only real run of the closure check over package/wg/cli-quicker-exempt',
     run: 'cargo nextest run --test closure_binary --run-ignored only',
   },
   'dependencies:fetch': {

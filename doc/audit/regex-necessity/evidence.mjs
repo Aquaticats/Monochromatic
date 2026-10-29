@@ -12,7 +12,7 @@ function record(
   console.log(`${name}: ${JSON.stringify(value)}`);
 }
 
-// Claim A (package/cli/wg-quicker/src/config-parse-values.ts:128):
+// Claim A (package/wg/cli-quicker/src/config-parse-values.ts:128):
 // "Anchored IPv4 token classification".
 const IP_PATTERN = /^[0-9.]+$/u;
 const ipSamples = [

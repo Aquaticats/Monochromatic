@@ -10543,7 +10543,7 @@ The sweep cannot attribute anything to that fix,
  at the **default** worker count can,
  and does.
  Cold cache,
-`package/cli/rgffplay`:
+`package/rgffplay/cli`:
 
 ```text
 without the eager initializer   1 rule finding, 0 with provenance
@@ -10562,13 +10562,13 @@ Same finding either way.
  typescript-go panic stack traces,
  so a context window around a finding contains lines from an unrelated
  stream.
- I read a `nano-spawn` provenance finding as belonging to `package/cli/git-clone-size`,
+ I read a `nano-spawn` provenance finding as belonging to `package/git-clone-size/cli`,
  linted that
  package,
  found no provenance,
  and briefly believed the fix did not work on real code.
  The finding was in
- `package/cli/rgffplay`,
+ `package/rgffplay/cli`,
  which I located by grepping for a parameter name from the message itself.
 
  The message names its own subject.
@@ -12417,7 +12417,7 @@ Workspace sweep on a cold cache:
  34 offers to 35.
 
 Two of the three added findings are restored charges,
-`package/cli/mutation-test/src/engine/suppression.ts:229:38` and
+`package/mutation-test/cli/src/engine/suppression.ts:229:38` and
 `package/desktop-app/file-manager-electron/src/listing-sort.ts:103:3`,
  which is the direction
 a stricter completeness requirement is supposed to move.
@@ -12833,7 +12833,7 @@ That family is defensible on an already-readonly parameter:
  `readonly` is erased at runtime,
 so a callee this rule cannot read receives a genuinely mutable array whatever the annotation
 says.
-`runAdb` in `package/cli/android-exempt-unused/src/adb.ts` hands `readonly string[]` to
+`runAdb` in `package/android-exempt-unused/cli/src/adb.ts` hands `readonly string[]` to
 `nano-spawn`,
  and the report is about exactly that.
 

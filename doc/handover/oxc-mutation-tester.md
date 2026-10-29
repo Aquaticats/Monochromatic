@@ -1,5 +1,12 @@
 # Handover: oxc mutation tester (issue 247)
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/mutation-test.fixture` is now `package/mutation-test/cli.fixture`;
+> `package/cli/mutation-test` is now `package/mutation-test/cli`;
+> `@monochromatic-dev/cli-mutation-test` is now `@monochromatic-dev/mutation-test-cli`.
+
 Living doc for the ground-up rewrite of the mutation tester.
 Update this file whenever a milestone lands or a decision changes.
 

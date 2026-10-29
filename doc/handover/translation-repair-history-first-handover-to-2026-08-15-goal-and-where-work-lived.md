@@ -1,5 +1,10 @@
 # Translation repair history, first handover document: the goal of the package and where the work lived, with the commit list
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 The goal of the package as the first handover document stated it:
 a pure function from original and translated text to validated issues and a conservative repaired candidate,
 built for individually unreliable models,

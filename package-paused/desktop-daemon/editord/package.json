@@ -17,7 +17,7 @@
     "@lezer/yaml": "catalog:",
     "lezer-json5": "catalog:",
     "lezer-toml": "catalog:",
-    "@monochromatic-dev/cli-terminal-exec": "workspace:*",
+    "@monochromatic-dev/terminal-exec-cli": "workspace:*",
     "@monochromatic-dev/dev-script-watch-restart": "workspace:*",
     "@monochromatic-dev/module-logger": "workspace:*",
     "@monochromatic-dev/module-hyperscript": "workspace:*",

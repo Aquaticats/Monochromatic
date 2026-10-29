@@ -1,5 +1,11 @@
 # Audit: `let` usage across the monorepo
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/vmsync` is now `package/vmsync/cli`.
+
 Generated 2026-05-10 from a static survey of TypeScript sources under `package/`,
 excluding `dist`,
  `node_modules`,

@@ -219,8 +219,8 @@ captures/
 
 # Fuzzing scratch corpora; committed seeds live in tracked seeds/<target>/ siblings
 # passed to libFuzzer as a second corpus dir.
-/package/cli/forbidden-strings.fuzz/corpus/
-/package/rust-module/forbidden-regex.fuzz/corpus/
+/package/forbidden-strings/cli.fuzz/corpus/
+/package/forbidden-strings/core.fuzz/corpus/
 
 # cargo-mutants report output (written into the crate dir by the containerized run)
 mutants.out/

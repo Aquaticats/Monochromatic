@@ -1,5 +1,11 @@
 # Depot standalone linker experiment
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/rust-module/forbidden-regex` is now `package/forbidden-strings/core`.
+
 ## Scope and execution manifest
 
 This experiment exercises a useful standalone agent workload through Depot's Sandbox SDK.

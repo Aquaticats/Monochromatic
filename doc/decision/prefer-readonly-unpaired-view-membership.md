@@ -92,7 +92,7 @@ Workspace either side:
  semantic failures and read-only
 offers unchanged at 4 and 33.
  Twelve findings naming a `view` parameter disappeared across
-`package/cli/mvm`,
+`package/mvm/cli`,
  `package/figma/kiwi` and `package/module/zip-writer`,
  and seven reappeared naming only
 `buffer`,
@@ -405,7 +405,7 @@ The stake is small:
 `Uint8Array` is the only typed array any of them uses,
  checked against the parameter declarations in
 `package/module/zip-writer/src/headers.ts`,
- `package/figma/kiwi/src/zip.ts` and `package/cli/mvm`.
+ `package/figma/kiwi/src/zip.ts` and `package/mvm/cli`.
 
 The cost is not small,
  and the reason is this authority's own semantics.

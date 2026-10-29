@@ -121,7 +121,7 @@ jobs:
           task-run //package/module/logger:build
           task-run //package/module/p-map-fork:build
           task-run //package/module/toml-edit:build
-          task-run //package/cli/forbidden-strings:build
+          task-run //package/forbidden-strings/cli:build
           task-run //package/linter/monochromatic-lint:build
       - name: Unit fast subset
         id: unit
@@ -129,7 +129,7 @@ jobs:
           task-run //package/module/logger:test:unit
           task-run //package/module/p-map-fork:test:unit
           task-run //package/module/toml-edit:test:unit
-          task-run //package/cli/forbidden-strings:test
+          task-run //package/forbidden-strings/cli:test
           task-run //package/linter/monochromatic-lint:test
       - name: Summary
         if: always()
@@ -138,7 +138,7 @@ jobs:
             echo "## Advisory core result"
             echo "- commit: ${{ github.sha }}"
             echo "- provider: GitHub-hosted Linux"
-            echo "- fast subset: module/logger, module/p-map-fork, module/toml-edit, cli/forbidden-strings, linter/monochromatic-lint"
+            echo "- fast subset: module/logger, module/p-map-fork, module/toml-edit, forbidden-strings/cli, linter/monochromatic-lint"
             echo "- results are advisory; no required checks and no branch-protection change"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Enforce advisory result

@@ -1,5 +1,10 @@
 # Handover: extract editord's dev-server watcher into a standalone dev-script package
 
+> Moved 2026-10-29 by the generic package category elimination
+> (`doc/planning/generic-category-elimination.md`);
+> paths and names below this note are historical:
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
 ## What you are picking up
 
 editord's dev loop currently shells out to `watchexec` for file-watching and bun-process restart.

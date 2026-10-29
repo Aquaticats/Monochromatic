@@ -109,7 +109,7 @@ tests;
 capture nothing,
 capture but the callee does not keep it).
 
-- `package/cli/forbidden-strings`:
+- `package/forbidden-strings/cli`:
   builds on the host with nothing extra.
   Cold 29.8 s,
   warm 0.6 s.
@@ -117,7 +117,7 @@ capture but the callee does not keep it).
   32 tests;
   127 capture nothing,
   28 capture).
-- `package/cli/forbidden-strings.fuzz`:
+- `package/forbidden-strings/cli.fuzz`:
   builds with nothing extra.
   Cold 27.9 s,
   warm 0.5 s.
@@ -135,7 +135,7 @@ capture but the callee does not keep it).
   54 tests;
   132 capture nothing,
   89 capture).
-- `package/cli/wg-quicker-exempt`:
+- `package/wg/cli-quicker-exempt`:
   builds with nothing extra.
   Cold 1.5 s,
   warm 0.4 s.
@@ -276,7 +276,7 @@ capture but the callee does not keep it).
   70 reports (70 source in the bench crate;
   45 capture nothing,
   25 capture).
-- `package/rust-module/forbidden-regex`:
+- `package/forbidden-strings/core`:
   builds with nothing extra.
   Cold 4.3 s,
   warm 0.5 s.
@@ -284,14 +284,14 @@ capture but the callee does not keep it).
   48 tests;
   59 capture nothing,
   65 capture).
-- `package/rust-module/forbidden-regex.bench`:
+- `package/forbidden-strings/core.bench`:
   needs the offline fetch.
   Cold 69.3 s,
   warm 0.5 s.
   88 reports (88 source;
   47 capture nothing,
   41 capture).
-- `package/rust-module/forbidden-regex.fuzz`:
+- `package/forbidden-strings/core.fuzz`:
   builds with nothing extra.
   Cold 4.7 s,
   warm 0.5 s.
@@ -339,7 +339,7 @@ capture but the callee does not keep it).
   Nearly all of the cold time is the dependency compile that `cargo check` itself pays;
   the lint adds little:
   plain `cargo check --all-targets` took 40.7 s cold on `package/git-policy/cli` and 33.6 s on
-  `package/cli/forbidden-strings` (three packages at a time),
+  `package/forbidden-strings/cli` (three packages at a time),
   against 33.9 s and 29.8 s for the lint run (one at a time).
 - Incremental runs after touching one file (single runs):
   1.2 s for `package/linter/monochromatic-lint`
@@ -396,7 +396,7 @@ All of this was read from `package/linter/monochromatic-lint` and the repository
   (no path means the working directory).
   It is step two of the root `lint`,
   beside dprint and the skills check.
-  `package/desktop-app/ide` and `package/cli/wg-quicker-exempt` call it from their own `lint` for their directory.
+  `package/desktop-app/ide` and `package/wg/cli-quicker-exempt` call it from their own `lint` for their directory.
   CI:
   `.github/workflows/advisory-core.yml` passes the changed `.md`,
   `.mdx` and `.rs` files;
@@ -503,7 +503,7 @@ relative to the configuration file.
   the IDE with its prepared artifacts),
   and the 24th after the NDK variables.
 - `cargo dylint --path ../../linter/monochromatic-lint-closure` built the library and linted
-  `package/cli/wg-quicker-exempt` in 16.4 s under the repository's shared `build-dir` setting
+  `package/wg/cli-quicker-exempt` in 16.4 s under the repository's shared `build-dir` setting
   (the library landed under `CARGO_TARGET_DIR/dylint`),
   so the staged-copy dance of the IDE task may not be needed.
   Single run;
@@ -667,7 +667,7 @@ A > D > C > B.
   the largest are `package/music-player/desktop-app` (1319 own),
   `package/git-policy/cli` (767),
   `package/cli/nested-wayland-session` (221),
-  `package/cli/forbidden-strings` (155) and `package/rust-module/forbidden-regex` (124).
+  `package/forbidden-strings/cli` (155) and `package/forbidden-strings/core` (124).
   The IDE has none left.
 - For scale:
   the IDE's conversion branch went from 1135 reports to 67 by rewriting closures into loops,

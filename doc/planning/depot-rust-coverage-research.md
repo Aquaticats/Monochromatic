@@ -156,7 +156,7 @@ lockfile,
 path dependency and actual owning Mise configuration.
 Its execution classifications are:
 
-- `package/cli/forbidden-strings`:
+- `package/forbidden-strings/cli`:
   the same frozen source passed its complete 237-case release Nextest owner
   in producer `v7njncr47d` and fresh reader `zq7cc1nd4b`.
   The [reuse evidence](../audit/depot-reuse-strategy-2026-10-18.evidence.json)
@@ -169,14 +169,14 @@ Its execution classifications are:
   It does not have a passing full-suite result.
 - `package/linter/monochromatic-lint`,
   `package/rust-module/jsonc-edit`,
-  `package/rust-module/forbidden-regex`,
-  `package/cli/wg-quicker-exempt` and `package/codex-plugin/bash-limit`:
+  `package/forbidden-strings/core`,
+  `package/wg/cli-quicker-exempt` and `package/codex-plugin/bash-limit`:
   this campaign retains their actual Nextest results.
   Privileged BPF cases and the installed Codex host are separately gated.
-- `package/cli/forbidden-strings.fuzz`,
+- `package/forbidden-strings/cli.fuzz`,
   `package/git-policy/cli.fuzz`,
   `package/linter/monochromatic-lint.fuzz`,
-  `package/rust-module/forbidden-regex.fuzz` and `package/rust-module/jsonc-edit.fuzz`:
+  `package/forbidden-strings/core.fuzz` and `package/rust-module/jsonc-edit.fuzz`:
   their GNU/AddressSanitizer,
   generator,
   seed and planted-control boundaries are the active queue.
@@ -209,7 +209,7 @@ Its execution classifications are:
   Ghostty or platform audio dependencies respectively.
   Source-specific desktop orchestration belongs to the separate native/routing investigation.
   Historical desktop tests do not enter this campaign's current-source denominator.
-- `package/music-player/truepeak-core.bench` and `package/rust-module/forbidden-regex.bench`:
+- `package/music-player/truepeak-core.bench` and `package/forbidden-strings/core.bench`:
   these are benchmark sidecars with independent build/run owners.
   No benchmark or parent-package test pass transfers merely from their manifest presence.
 
@@ -467,10 +467,10 @@ Its per-case assertion and artifact bindings belong to the separate routing evid
 - Exercise applicable active standalone crate owners through Nextest,
   retaining real failures,
   ignored cases and compilation prerequisites separately.
-- Exercise `cli/forbidden-strings.fuzz`,
+- Exercise `forbidden-strings/cli.fuzz`,
   `git-policy/cli.fuzz`,
   `linter/monochromatic-lint.fuzz`,
-  `rust-module/forbidden-regex.fuzz` and `rust-module/jsonc-edit.fuzz`.
+  `forbidden-strings/core.fuzz` and `rust-module/jsonc-edit.fuzz`.
   Inspect the actual owning tasks and target bodies first;
   preserve the GNU target,
   AddressSanitizer,
@@ -596,7 +596,7 @@ it is not selected by the ordinary all-features test owner.
 The admitted profile preserves default Nextest build and test concurrency.
 The previous no-default-features BuildKit producer does not exercise this feature graph.
 
-The [WG functional owner](../../package/cli/wg-quicker-exempt/mise.toml) selects 11 ignored tests.
+The [WG functional owner](../../package/wg/cli-quicker-exempt/mise.toml) selects 11 ignored tests.
 `src/pin_tests.rs` names their requirements explicitly:
 root and writable cgroup v2 for protocol/partial-attach and application-watcher cases,
 plus a distinct bpffs mount for persisted links,
@@ -618,7 +618,7 @@ Before/after cgroup inventories and exact owned cleanup remain required evidence
 Namespace,
 mount or BPF admission failures will remain prerequisite failures.
 
-The [regex benchmark owner](../../package/rust-module/forbidden-regex.bench/mise.toml)
+The [regex benchmark owner](../../package/forbidden-strings/core.bench/mise.toml)
 keeps its release LTO and single-codegen-unit build.
 `src/main.rs` has eight ten-second throughput loops;
 `src/kernels.rs` has 33 four-second bucket loops,
@@ -905,7 +905,7 @@ and `.depot/workflows/reuse-scanner-target.yml`.
 Both invoke `//package/dev-script/task-util:research:reuse:scanner` through Mise.
 The implementation is `package/dev-script/task-util/bin/reuse-scanner-consumer.mjs`,
 importing `reuse-context.mjs`.
-The real owner is `//package/cli/forbidden-strings:test`,
+The real owner is `//package/forbidden-strings/cli:test`,
 whose frozen task runs `cargo nextest run --release`.
 The adapter forwards `--locked --offline --no-fail-fast`.
 The admitted baseline passes 237 cases without skips;

@@ -6,7 +6,7 @@ back into the parent Pi session.
 
 ## Prerequisites
 
-- [terminal-exec](../../cli/terminal-exec/) installed on `PATH`.
+- [terminal-exec](../../terminal-exec/cli/) installed on `PATH`.
 - Node for the `spawn-pi` CLI.
 - This package loaded as a Pi extension in the parent session,
    so session mappings and result delivery exist.
