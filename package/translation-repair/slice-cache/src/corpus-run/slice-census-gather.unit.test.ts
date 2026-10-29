@@ -47,7 +47,7 @@ const NO_SUCH_COMMIT = '0'.repeat(40,);
 /**
  Reading of an entry no artifact records.
 
- @returns The unsettled reading
+ @returns Unsettled reading
 
  @example
  ```ts

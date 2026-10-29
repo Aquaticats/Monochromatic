@@ -48,7 +48,7 @@ function unpairedCharsOf({ row, }: { readonly row: EntryCensus; },): number {
 
  @param rows - measured entries
 
- @returns The totals line, then one line for each of the entries holding the
+ @returns Totals line, then one line for each of the entries holding the
  most unpaired characters of both sides together, at most five, then a line
  counting the entries with unpaired text the list left out, when it left any
 

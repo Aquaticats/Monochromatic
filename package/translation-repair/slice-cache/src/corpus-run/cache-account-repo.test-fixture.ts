@@ -125,7 +125,7 @@ const FIRST_COMMIT_SECONDS = Date.parse('2026-09-01T10:00:00Z',) / MS_PER_SECOND
 
  @param subject - commit subject
 
- @returns The commit made
+ @returns Commit made
 
  @example
  ```ts
@@ -265,7 +265,7 @@ export async function writeAtRepo(
 
  @param subject - commit subject
 
- @returns The commit made
+ @returns Commit made
 
  @example
  ```ts
@@ -314,7 +314,7 @@ export async function commitFileAt(
 
  @param subject - commit subject
 
- @returns The commit made
+ @returns Commit made
 
  @example
  ```ts
@@ -370,7 +370,7 @@ export async function moveFileAt(
  version alone, or the stage version and then the pairing version; where the
  pairing version is not set the edit stays unaccounted
 
- @returns The repository, removed when its scope ends
+ @returns Repository, removed when its scope ends
 
  @example
  ```ts
@@ -488,7 +488,7 @@ export async function makeCacheAccountRepo(
 
  @param seconds - modification time in unix seconds
 
- @returns The record's path
+ @returns Record's path
 
  @example
  ```ts

@@ -296,7 +296,7 @@ async function runsDirsBelow(
 
  @param root - directory to search
 
- @returns The runs directories found and the directories not listed, each in
+ @returns Runs directories found and directories not listed, each in
  code-point order
 
  @example
@@ -335,7 +335,7 @@ export async function runsDirsUnder({ root, }: { readonly root: string; },): Pro
 
  @param path - record's absolute path
 
- @returns The record, or none
+ @returns Record, or none
 
  @throws What `stat` raises for any failure but an absent file
 
@@ -436,7 +436,7 @@ async function recordsUnder({ runsDir, }: { readonly runsDir: string; },): Promi
 
  @param runsDirs - runs directories to read, each named in the report
 
- @returns The account
+ @returns Account
 
  @throws What a listing or `stat` raises for any failure but an absent path
 

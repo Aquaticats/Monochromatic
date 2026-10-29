@@ -99,7 +99,7 @@ async function gitAt(
 
  @param subject - merge commit's subject
 
- @returns The side commit and the merge commit
+ @returns Side commit and merge commit
 
  @example
  ```ts

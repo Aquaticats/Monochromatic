@@ -365,7 +365,7 @@ async function warningsOverHome(
 
  @param seconds - committer time of the commit that set it
 
- @returns The setting
+ @returns Setting
 
  @example
  ```ts

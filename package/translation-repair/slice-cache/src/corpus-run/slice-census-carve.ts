@@ -50,7 +50,7 @@ function countCarve(
  counted by the gatherer over every entry it listed, so one of them may be an
  entry that was later found incomplete
 
- @returns The line, with "entry" in the singular for exactly one complete
+ @returns Line, with "entry" in the singular for exactly one complete
  recipe
 
  @example

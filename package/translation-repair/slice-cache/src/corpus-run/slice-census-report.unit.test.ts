@@ -40,7 +40,7 @@ const RUNS_DIR = '/nowhere/cat-runs';
 /**
  Reading of an entry no artifact records.
 
- @returns The unsettled reading
+ @returns Unsettled reading
 
  @example
  ```ts
@@ -54,7 +54,7 @@ async function unsettled(): Promise<SliceCensusRecipeReading> {
 /**
  Runs directory the cases' scripted resolver finds.
 
- @returns The fixed directory
+ @returns Fixed directory
 
  @example
  ```ts

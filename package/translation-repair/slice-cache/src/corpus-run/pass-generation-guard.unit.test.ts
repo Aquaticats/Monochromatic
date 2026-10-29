@@ -173,7 +173,7 @@ async function writeArtifacts(
  @param generations - one artifact per entry, each recording the given built
  pipeline
 
- @returns The census the build check is handed
+ @returns Census the build check is handed
 
  @example
  ```ts

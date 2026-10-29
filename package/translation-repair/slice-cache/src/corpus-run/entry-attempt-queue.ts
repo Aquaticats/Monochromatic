@@ -143,7 +143,7 @@ export async function runAttemptQueue<EntryT extends QueueableEntry,>(
 
    @param entry - entry the line is about
 
-   @returns The `at=` and `attempt=` fields of the line
+   @returns `at=` and `attempt=` fields of the line
 
    @example
    ```ts

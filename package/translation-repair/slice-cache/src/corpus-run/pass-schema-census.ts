@@ -171,7 +171,7 @@ function classifyArtifact(
 
  @param text - artifact text as it sits on disk
 
- @returns The parsed value, or the malformed classification with the
+ @returns Parsed value, or the malformed classification with the
  parser's reason
 
  @throws Whatever the parse raised that is not a syntax refusal, which a

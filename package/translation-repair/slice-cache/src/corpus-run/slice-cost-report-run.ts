@@ -46,7 +46,7 @@ import { printSliceCostSpread, } from './slice-cost-spread.ts';
 
  @param path - log named on the command line
 
- @returns The log's whole text
+ @returns Log's whole text
 
  @throws StatedRefusalError when nothing is at the path, which is a mistyped
  name rather than a fault of the command
@@ -77,7 +77,7 @@ async function logTextAt({ path, }: { readonly path: string; },): Promise<string
 /**
  Reads a pass log and reports what its slices cost.
 
- @param line - the report's command line, read whole by `reportingRefusals`,
+ @param line - report's command line, read whole by `reportingRefusals`,
  which refuses it when no log is named
 
  @throws StatedRefusalError when the log is named as an empty argument, or

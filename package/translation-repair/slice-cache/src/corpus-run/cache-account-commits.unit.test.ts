@@ -33,7 +33,7 @@ import {
 
  @param seconds - committer time
 
- @returns The commit
+ @returns Commit
 
  @example
  ```ts
@@ -59,7 +59,7 @@ function commit({
 
  @param name - constant's name
 
- @returns The version at value 1
+ @returns Version at value 1
 
  @example
  ```ts

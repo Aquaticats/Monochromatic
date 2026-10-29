@@ -50,7 +50,7 @@ import { fixedPagePath, } from '@monochromatic-dev/translation-repair-page-check
  @param l - entry logger, which a test hands a capturing one so the warning
  an unmarked claim must raise can be read
 
- @returns The reading, off the archive as inherited
+ @returns Reading, off the archive as inherited
 
  @example
  ```ts
@@ -156,7 +156,7 @@ async function removeLeftoverPage(
  @param corpusSha - corpus commit the pass read the entry at, which the
  record names
 
- @param note - the archive's note that decided it
+ @param note - archive's note that decided it
 
  @param startedAt - `monotonicMs` reading when the entry started, for the tally's duration
 
@@ -165,7 +165,7 @@ async function removeLeftoverPage(
 
  @param wallClock - clock the tally line's time is read on; the wall clock unless a test fixes it
 
- @returns The declined outcome
+ @returns Declined outcome
 
  @throws `LifecycleAttemptError` when the attempt is not a whole number from 1, after the decline record is
  written and before the tally line is printed

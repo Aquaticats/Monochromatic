@@ -50,7 +50,7 @@ export type AuditedSources = {
 
  @param packageDirectory - directory the command runs from, inside the repository
 
- @returns The repository's top directory
+ @returns Repository's top directory
 
  @example
  ```ts
@@ -73,7 +73,7 @@ export async function repositoryTopOf({ packageDirectory, }: { readonly packageD
  every package of the family where the package stands in the family's
  directory.
 
- @param prefix - the package's directory from the repository's top, ending in
+ @param prefix - package's directory from the repository's top, ending in
  a slash, or empty at the top
 
  @returns Pathspec of the source directories, which the report prints
@@ -92,7 +92,7 @@ export function sourcesOfPrefix({ prefix, }: { readonly prefix: string; },): str
 
  @param sources - pathspec of the source directories, as {@link sourcesOfPrefix} names them
 
- @returns A pathspec git reads as the directories' whole contents
+ @returns Pathspec git reads as the directories' whole contents
 
  @example
  ```ts
@@ -110,7 +110,7 @@ export function sourcesPathspecOf({ sources, }: { readonly sources: string; },):
  @param sources - pathspec of the source directories, in the form of {@link sourcesOfPrefix} or of
  {@link sourcesPathspecOf}
 
- @returns The pre-split directory where the sources are the family's, none where they are one package's own, whose
+ @returns Pre-split directory where the sources are the family's, none where they are one package's own, whose
  sources never stood there
 
  @example
@@ -128,7 +128,7 @@ export function preSplitSourcesOf({ sources, }: { readonly sources: string; },):
  @param sources - pathspec of the source directories, in the form of {@link sourcesOfPrefix} or of
  {@link sourcesPathspecOf}
 
- @returns An exclusion git reads after the source pathspecs where the sources are the family's, none where they are
+ @returns Exclusion git reads after the source pathspecs where the sources are the family's, none where they are
  one package's own
 
  @example
@@ -148,7 +148,7 @@ export function preSplitWithoutTestsOf({ sources, }: { readonly sources: string;
 
  @param sources - pathspec of the source directories, as {@link sourcesOfPrefix} names them
 
- @returns An exclusion git reads after the source pathspec
+ @returns Exclusion git reads after the source pathspec
 
  @example
  ```ts
@@ -165,7 +165,7 @@ export function withoutTestsPathspecOf({ sources, }: { readonly sources: string;
  @param packageDirectory - directory the command runs from, which the mise
  task makes the package's own
 
- @returns The pathspec naming the source directories and the files in them
+ @returns Pathspec naming the source directories and files in them
 
  @example
  ```ts

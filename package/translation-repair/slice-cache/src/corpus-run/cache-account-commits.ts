@@ -156,7 +156,7 @@ export class CacheAccountLogError extends Error {
  @param line - `%H%x09%ct%x09%s` output for one commit; the subject may hold
  tabs of its own
 
- @returns The commit
+ @returns Commit
 
  @throws CacheAccountLogError where the line lacks a hash, a time in whole
  seconds or a subject field
@@ -250,7 +250,7 @@ export function settingCommit(
 
  @param commits - source commits since the earliest setting
 
- @returns The commits no account cites by their first nine characters, in
+ @returns Commits no account cites by their first nine characters, in
  the order given
 
  @example

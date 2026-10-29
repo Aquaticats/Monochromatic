@@ -17,7 +17,7 @@ import {
  Runs the audit from where the process stands, over the runs directory the
  environment names.
 
- @param line - the command line, read whole by `reportingRefusals`
+ @param line - command line, read whole by `reportingRefusals`
 
  @example
  ```ts

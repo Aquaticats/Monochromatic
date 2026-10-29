@@ -77,7 +77,7 @@ const auditLog = contextRoot({ tag: 'cache-account-audit', },);
 
  @param path - file's path from that directory, as git lists it
 
- @returns The file's text
+ @returns File's text
 
  @throws StatedRefusalError where git lists the file and the working tree
  holds none, which is a removal not yet committed
@@ -122,14 +122,14 @@ async function sourceTextAt(
 
  Returns nothing: the report on stdout IS the output.
 
- @param line - the command line, whose `--runs-under` names directories to
+ @param line - command line, whose `--runs-under` names directories to
  search for runs directories beside the worktree's own
 
  @param packageDirectory - directory the command runs from, which the mise task
  makes the package's own; the audit reads that package's `src`, or the `src` of
  every package of the family where the package stands in the family's directory
 
- @param runsDir - the runs directory a pass would use now, which
+ @param runsDir - runs directory a pass would use now, which
  `TRANSLATION_REPAIR_RUNS_DIR` may set anywhere
 
  @param home - home directory the runbook's runs root sits under, the process's own where absent

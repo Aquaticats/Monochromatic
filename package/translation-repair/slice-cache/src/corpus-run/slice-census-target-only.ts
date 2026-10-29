@@ -17,7 +17,7 @@ import { sliceCensusTotal, } from './slice-census-total.ts';
 
  @param rows - measured entries
 
- @returns The totals line, one line for each of the entries holding the most
+ @returns Totals line, one line for each of the entries holding the most
  such characters (as many as there are reported percentiles), then the spread
  of the sizes of every such block
 

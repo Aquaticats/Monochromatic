@@ -24,9 +24,9 @@ type SliceCensusCountField =
 
  @param rows - rows to add over
 
- @param field - the count each row holds that is added
+ @param field - count each row holds that is added
 
- @returns The sum, zero for no rows
+ @returns Sum, zero for no rows
 
  @example
  ```ts

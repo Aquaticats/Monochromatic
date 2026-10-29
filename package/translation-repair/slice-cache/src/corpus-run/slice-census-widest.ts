@@ -46,7 +46,7 @@ type WidestSlice = Readonly<{
 
  @param rows - measured entries
 
- @returns The count line, then one line for each of the widest entries, as
+ @returns Count line, then one line for each of the widest entries, as
  many as there are reported percentiles
 
  @example

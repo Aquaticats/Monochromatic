@@ -70,9 +70,9 @@ type CensusRowMeasures = {
 
  @param entryId - corpus id the row names
 
- @param measures - the measures the case sets; every other one stays empty
+ @param measures - measures the case sets; every other one stays empty
 
- @returns A row that carries no slice, no unpaired section and no
+ @returns Row that carries no slice, no unpaired section and no
  target-only block beyond what the case names
 
  @example

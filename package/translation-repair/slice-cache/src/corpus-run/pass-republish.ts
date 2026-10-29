@@ -31,7 +31,7 @@ import { removeDeclinedPages, } from './pass-decline.ts';
 
  @param l - logger the absence of an `info.yml` is named on
 
- @returns The original and the archive's English at that commit, and the
+ @returns Original and archive's English at that commit, and
  entry's parsed `info.yml` where the artifact's generation reads it and the
  entry has one
 

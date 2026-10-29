@@ -435,7 +435,7 @@ async function printSliceCacheAccount(
  @param root - repository's top directory, whose dependency tree holds the
  default runs directory
 
- @param runsDir - the runs directory a pass would use now, which
+ @param runsDir - runs directory a pass would use now, which
  `TRANSLATION_REPAIR_RUNS_DIR` may set anywhere
 
  @param searched - directories named on the command line to search for runs

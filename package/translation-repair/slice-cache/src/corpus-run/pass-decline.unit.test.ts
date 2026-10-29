@@ -136,7 +136,7 @@ const THIRD_ATTEMPT = 3;
 /**
  Clock that reads the same instant every time it is asked.
 
- @returns The instant the line is printed at
+ @returns Instant the line is printed at
 
  @example
  ```ts

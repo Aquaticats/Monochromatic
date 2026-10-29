@@ -239,7 +239,7 @@ function voicesOf(
 /**
  Ballot index of one wording on the slate the judges are shown.
 
- @param scenario - the case being driven
+ @param scenario - case being driven
 
  @param wanted - wording whose ballot number is sought
 
@@ -289,7 +289,7 @@ function ballotIndexOf(
 
  @param name - key into the scenario table
 
- @returns The scenario
+ @returns Scenario
 
  @throws Error when the table holds no such name, which a case spelling its own key wrongly causes
 
@@ -310,7 +310,7 @@ function scenarioNamed({ name, }: { readonly name: string; },): Scenario {
 
  @param name - key of the case being driven
 
- @returns The stage's settlement
+ @returns Stage's settlement
 
  @example
  ```ts
