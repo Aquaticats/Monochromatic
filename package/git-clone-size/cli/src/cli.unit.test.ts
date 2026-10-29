@@ -11,7 +11,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -50,7 +50,7 @@ type DisposableDir = { readonly path: string; readonly [Symbol.dispose]: () => v
  @returns disposable repository handle
  */
 function makeRepo(commits: number): DisposableDir {
-  const path = mkdtempSync(join(tmpdir(), 'gcs-cli-'));
+  const path = mkdtempSync(join(scratchRoot(), 'gcs-cli-'));
   execFileSync('git', ['init', '-q', path,]);
   execFileSync('git', ['-C', path, 'config', 'user.email', 't@t.t',]);
   execFileSync('git', ['-C', path, 'config', 'user.name', 't',]);

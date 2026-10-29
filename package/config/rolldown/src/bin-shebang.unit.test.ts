@@ -4,7 +4,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -52,7 +52,7 @@ function createBinBuildFixture(
    Fresh fixture directory under the system temp root.
    */
   const path = mkdtempSync(join(
-    tmpdir(),
+    scratchRoot(),
     'bin-shebang-',),);
   writeFileSync(join(
     path,

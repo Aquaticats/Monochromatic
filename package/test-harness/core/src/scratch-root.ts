@@ -17,7 +17,10 @@
  @module
  */
 
-import { mkdirSync, } from 'node:fs';
+import {
+  mkdirSync,
+  realpathSync,
+} from 'node:fs';
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
@@ -53,7 +56,7 @@ function chooseScratchRoot(): string {
  Creates the directory on demand, so a caller can pass it straight to
  `mkdtemp(join(scratchRoot(), 'prefix-'))`.
 
- @returns Absolute path of the existing scratch root
+ @returns Canonical absolute path of the existing scratch root, with symbolic links resolved
 
  @example
  ```ts
@@ -63,5 +66,7 @@ function chooseScratchRoot(): string {
 export function scratchRoot(): string {
   const root = chooseScratchRoot();
   mkdirSync(root, { recursive: true, },);
-  return root;
+  // The canonical path, because a home directory reached through a symbolic link (`/home` pointing at
+  // `/var/home`) makes a fixture's real path differ from the one this function would otherwise return.
+  return realpathSync(root,);
 }

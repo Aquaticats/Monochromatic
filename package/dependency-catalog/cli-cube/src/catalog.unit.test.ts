@@ -21,7 +21,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -40,7 +40,7 @@ async function tempWorkspace(): Promise<{
   dir: string;
   [Symbol.asyncDispose]: () => Promise<void>;
 }> {
-  const dir = await mkdtemp(join(tmpdir(), 'deps-cube-catalog-',),);
+  const dir = await mkdtemp(join(scratchRoot(), 'deps-cube-catalog-',),);
   return {
     dir,
     [Symbol.asyncDispose]: async function dispose() {

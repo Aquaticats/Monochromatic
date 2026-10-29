@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
@@ -34,7 +34,7 @@ import { checkPreconditions, } from './run.ts';
 async function preconditionMessage(
   { versionOutput, }: { readonly versionOutput: string; },
 ): Promise<{ readonly compositor: string; readonly message: string; }> {
-  const appDir = await mkdtemp(join(tmpdir(), 'e2e-pre-',),);
+  const appDir = await mkdtemp(join(scratchRoot(), 'e2e-pre-',),);
   await using _scratch = {
     async [Symbol.asyncDispose](): Promise<void> {
       await rm(appDir, { recursive: true, force: true, },);
@@ -48,7 +48,7 @@ async function preconditionMessage(
   try {
     await checkPreconditions(loadRunConfig({
       appDir,
-      home: tmpdir(),
+      home: scratchRoot(),
       overrides: { compositorPath: compositor, },
       defaultCompositorPath: '/no/such/compositor',
     },),);
@@ -65,12 +65,12 @@ await describe({
     it({
       name: 'refuses to start without the release binary, before touching anything else',
       fn: async ({ expect, }) => {
-        const appDir = join(tmpdir(), 'e2e-no-such-app',);
+        const appDir = join(scratchRoot(), 'e2e-no-such-app',);
         let caught: unknown;
         try {
           await checkPreconditions(loadRunConfig({
             appDir,
-            home: tmpdir(),
+            home: scratchRoot(),
             overrides: {},
             defaultCompositorPath: '/no/such/compositor',
           },),);
@@ -86,7 +86,7 @@ await describe({
     it({
       name: 'refuses a compositor that does not exist, before asking PipeWire',
       fn: async ({ expect, }) => {
-        const appDir = await mkdtemp(join(tmpdir(), 'e2e-pre-',),);
+        const appDir = await mkdtemp(join(scratchRoot(), 'e2e-pre-',),);
         await mkdir(join(appDir, 'target', 'release',), { recursive: true, },);
         await writeFile(join(appDir, 'target', 'release', 'music-player',), '',);
         const compositor = join(appDir, 'no-such-compositor',);
@@ -94,7 +94,7 @@ await describe({
         try {
           await checkPreconditions(loadRunConfig({
             appDir,
-            home: tmpdir(),
+            home: scratchRoot(),
             overrides: { compositorPath: compositor, },
             defaultCompositorPath: '/no/such/compositor',
           },),);

@@ -3,7 +3,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -154,7 +154,7 @@ async function makeTempDir(): Promise<TempDir> {
    Fresh operating-system temporary path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'wg-quicker-state-',
   ),);
   return {

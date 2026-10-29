@@ -7,7 +7,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -67,7 +67,7 @@ async function makeTempHome(): Promise<TempHome> {
    Temporary HOME root path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'spawn-claude-session-finder-',
   ),);
 

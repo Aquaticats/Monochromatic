@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import {
   expandGlob,
@@ -19,7 +19,7 @@ import {
 
 /** Creates a fresh temp directory */
 async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), 'file-enforcer-glob-',),);
+  return mkdtemp(join(scratchRoot(), 'file-enforcer-glob-',),);
 }
 
 /** Removes the temp directory */

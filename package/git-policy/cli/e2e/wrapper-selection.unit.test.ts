@@ -3,7 +3,7 @@ import {
   mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -66,7 +66,7 @@ await describe({
         /**
          Disposable directory holding a fake ELF `git` and a fake script `git`.
          */
-        await using root = await mkdtempDisposable(join(tmpdir(), 'wrapper-selection-',),);
+        await using root = await mkdtempDisposable(join(scratchRoot(), 'wrapper-selection-',),);
         const elf = join(root.path, 'elf',);
         const script = join(root.path, 'script',);
         await Promise.all([elf, script,].map(async function prepare(directory,) {

@@ -14,7 +14,7 @@ import {
   mkdtemp,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { loadMergedConfig, } from '../dist/final/node/index.mjs';
 
@@ -41,7 +41,7 @@ await describe({
       name: 'uses defaults when config files are absent',
       fn: async () => {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-advisor-test-',
         ),);
         const config = await loadMergedConfig({
@@ -63,7 +63,7 @@ await describe({
       name: 'merges project config over global config',
       fn: async () => {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-advisor-test-',
         ),);
         const home = join(
@@ -117,7 +117,7 @@ await describe({
       name: 'reports invalid config path',
       fn: async () => {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-advisor-test-',
         ),);
         const home = join(
@@ -162,7 +162,7 @@ await describe({
       name: 'merges the configured default reviewer with project override and explicit clear',
       fn: async () => {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-advisor-test-',
         ),);
         const home = join(
@@ -231,7 +231,7 @@ await describe({
       name: 'rejects a non-string default reviewer key',
       fn: async () => {
         const root = await mkdtemp(join(
-          tmpdir(),
+          scratchRoot(),
           'pi-advisor-test-',
         ),);
         const home = join(

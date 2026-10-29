@@ -30,7 +30,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import { createCache, } from './cache.ts';
@@ -60,7 +60,7 @@ async function tempPopulatedCache(
   rootDir: string;
   [Symbol.asyncDispose]: () => Promise<void>;
 }> {
-  const rootDir = await mkdtemp(join(tmpdir(), 'deps-cube-probe-',),);
+  const rootDir = await mkdtemp(join(scratchRoot(), 'deps-cube-probe-',),);
   /** Pre-fill operations queued from `entries`, awaited together so each cache entry is written without serial-await overhead. */
   const fillTasks = Object.entries(entries,).map(async function fillOne(
     [nameAndVersion, fields,],

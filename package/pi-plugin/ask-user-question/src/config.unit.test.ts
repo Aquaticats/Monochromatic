@@ -4,7 +4,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   dirname,
   join,
@@ -40,7 +40,7 @@ async function configHome(): Promise<ConfigHome> {
    Unique home path.
    */
   const path = await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'ask-user-config-test-',
   ),);
   return {

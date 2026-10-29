@@ -4,7 +4,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -42,7 +42,7 @@ function createOutputFixture(): OutputFixture {
   /**
    Fresh fixture directory under the system temp root.
    */
-  const path = mkdtempSync(join(tmpdir(), 'shebang-executable-',),);
+  const path = mkdtempSync(join(scratchRoot(), 'shebang-executable-',),);
   return {
     path,
     [Symbol.dispose]: function removeFixture(): void {

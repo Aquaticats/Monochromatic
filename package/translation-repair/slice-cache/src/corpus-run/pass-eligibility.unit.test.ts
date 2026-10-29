@@ -16,10 +16,8 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
-import {
-  devNull,
-  tmpdir,
-} from 'node:os';
+import { devNull, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
 import {
@@ -296,7 +294,7 @@ await describe({
             done: new Set(),
             pin: {
               cloneDir: join(
-                tmpdir(),
+                scratchRoot(),
                 'translation-repair-no-such-clone',
               ),
               commitSha: 'deadbeef',

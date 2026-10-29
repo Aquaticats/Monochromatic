@@ -2,7 +2,7 @@ import {
   mkdtemp,
   rm,
 } from 'node:fs/promises';
-import { tmpdir, } from 'node:os';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 
@@ -41,7 +41,7 @@ const START_WATCHING_STILL_PENDING = Symbol('startWatching still pending');
  */
 async function setup(): Promise<string> {
   return await mkdtemp(join(
-    tmpdir(),
+    scratchRoot(),
     'file-enforcer-watch-start-regression-',
   ),);
 }
