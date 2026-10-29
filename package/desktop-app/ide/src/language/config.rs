@@ -8,9 +8,9 @@
 
 /// The launch seam decides what is spawned for each server.
 use super::launch::{LaunchRequest, ServerLaunch};
-/// What mise provided for the project,
+/// What the toolchain provided for the project,
 ///  and when it was asked.
-use super::mise::{self, MiseState};
+use super::toolchain::{self, ToolchainState};
 /// Errors name the operation that failed.
 use anyhow::{Context, Result};
 /// What:
@@ -65,8 +65,8 @@ pub(super) use locate::Unavailable;
 ///  never a wrapper placed in front of it.
 use locate::locate;
 
-/// How the registry uses mise.
-mod toolchain;
+/// How the registry uses the toolchain.
+mod tools;
 
 /// How many request timeouts a server may take to answer `initialize`.
 ///
@@ -126,9 +126,9 @@ pub(super) struct Languages {
     unavailable: HashMap<String, Unavailable>,
     /// Per-server facts kept outside Helix's registry.
     definitions: HashMap<String, Definition>,
-    /// What mise provided for the project,
+    /// What the toolchain provided for the project,
     ///  and the clock reading of the question.
-    mise: (MiseState, Instant),
+    toolchain: (ToolchainState, Instant),
 }
 
 /// Everything `build` produces before it is wrapped for sharing.
@@ -164,7 +164,7 @@ fn build(
     root: &Path,
     setup: &LanguageSetup,
     document: Option<&Path>,
-    mise: &MiseState,
+    toolchain: &ToolchainState,
 ) -> Result<Built> {
     // `Instant::now` reads the monotonic clock; the phases below are logged with their durations.
     let started = Instant::now();
@@ -206,14 +206,14 @@ fn build(
     );
     rust_analyzer::watch_through_client(&mut configuration);
     // Helix gives servers its own spelling of the root, when it differs from the canonical one.
-    let spellings = toolchain::spellings(root);
+    let spellings = tools::spellings(root);
     let decoded = started.elapsed();
     let mut unavailable: HashMap<String, Unavailable> = HashMap::new();
     let mut definitions: HashMap<String, Definition> = HashMap::new();
     // `iter_mut` walks the table handing out modifiable borrows of each definition.
     for (name, definition) in configuration.language_server.iter_mut() {
         let command = definition.command.clone();
-        let located = locate(name, &command, root, document, mise);
+        let located = locate(name, &command, root, document, toolchain);
         let resolved = located.as_ref().ok().cloned();
         let outcome = match located {
             Ok(executable) => {
@@ -221,11 +221,11 @@ fn build(
                     server: name.clone(),
                     executable,
                     args: definition.args.clone(),
-                    environment: toolchain::server_environment(&definition.environment, mise),
+                    environment: tools::server_environment(&definition.environment, toolchain),
                     settings: definition.config.clone(),
                     project_root: root.to_path_buf(),
                     project_spellings: spellings.clone(),
-                    read_only_binds: toolchain::read_only_binds(mise),
+                    read_only_binds: tools::read_only_binds(toolchain),
                     state_root: setup.state_root.clone(),
                 };
                 // Calling the function pointer held in `setup.launch`; a refusal becomes `Refused`.
@@ -318,8 +318,8 @@ fn build(
 impl Languages {
     /// Build the registry for one project root.
     pub(super) fn new(root: &Path, setup: LanguageSetup) -> Result<Self> {
-        let mise = toolchain::resolve(root, &setup);
-        let built = build(root, &setup, None, &mise)?;
+        let toolchain = tools::resolve(root, &setup);
+        let built = build(root, &setup, None, &toolchain)?;
         return Ok(Self {
             // `ArcSwap::from_pointee` wraps the registry for atomic replacement; `Arc::new` shares it.
             loader: Arc::new(ArcSwap::from_pointee(built.loader)),
@@ -328,7 +328,7 @@ impl Languages {
             configured: built.configured,
             unavailable: built.unavailable,
             definitions: built.definitions,
-            mise: (mise, Instant::now()),
+            toolchain: (toolchain, Instant::now()),
         });
     }
 
@@ -387,14 +387,14 @@ impl Languages {
         return self.setup.state_root.as_deref();
     }
 
-    /// The paragraphs of the notice about mise,
-    ///  empty unless mise could not serve the project.
-    pub(super) fn mise_advisory(&self) -> Vec<String> {
-        return self.mise.0.advisory(&self.root);
+    /// The paragraphs of the notice about the toolchain,
+    ///  empty unless its lookup could not serve the project.
+    pub(super) fn toolchain_advisory(&self) -> Vec<String> {
+        return self.toolchain.0.advisory(&self.root);
     }
 
     /// What:
-    ///  Ask mise again when `mise::due` says so;
+    ///  Ask the toolchain again when `toolchain::due` says so;
     ///  returns true when its answer differs from the kept one.
     /// Why:
     ///  Asking takes tens to hundreds of milliseconds on the language thread,
@@ -402,9 +402,9 @@ impl Languages {
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// askMiseAgain(language: string): boolean
+    /// askToolchainAgain(language: string): boolean
     /// ```
-    fn ask_mise_again(&mut self, language: &str) -> bool {
+    fn ask_toolchain_again(&mut self, language: &str) -> bool {
         let mut missing = false;
         for name in self.configured(language).iter() {
             if matches!(self.unavailable.get(name), Some(Unavailable::Missing(_))) {
@@ -412,13 +412,13 @@ impl Languages {
                 break;
             }
         }
-        if !mise::due(&self.mise.0, self.mise.1.elapsed(), missing) {
+        if !toolchain::due(&self.toolchain.0, self.toolchain.1.elapsed(), missing) {
             return false;
         }
-        let state = toolchain::resolve(&self.root, &self.setup);
-        let differs = state != self.mise.0;
-        tracing::info!(language, differs, "asked mise again");
-        self.mise = (state, Instant::now());
+        let state = tools::resolve(&self.root, &self.setup);
+        let differs = state != self.toolchain.0;
+        tracing::info!(language, differs, "asked the toolchain again");
+        self.toolchain = (state, Instant::now());
         return differs;
     }
 
@@ -440,9 +440,9 @@ impl Languages {
     /// refresh(language: string, document?: string): boolean
     /// ```
     pub(super) fn refresh(&mut self, language: &str, document: Option<&Path>) -> Result<bool> {
-        // What mise provides is asked again only when the answer may have changed: a failure that
-        // may have been fixed, or a missing server that may have been installed.
-        let mut changed = self.ask_mise_again(language);
+        // What the toolchain provides is asked again only when the answer may have changed: a failure
+        // that may have been fixed, or a missing server that may have been installed.
+        let mut changed = self.ask_toolchain_again(language);
         for name in self.configured(language) {
             let Some(definition) = self.definitions.get(name) else {
                 continue;
@@ -452,7 +452,7 @@ impl Languages {
                 &definition.command,
                 &self.root,
                 document,
-                &self.mise.0,
+                &self.toolchain.0,
             )
             .ok();
             if found != definition.resolved {
@@ -466,7 +466,7 @@ impl Languages {
             language,
             "rebuilding the language registry after a server program changed"
         );
-        let built = build(&self.root, &self.setup, document, &self.mise.0)?;
+        let built = build(&self.root, &self.setup, document, &self.toolchain.0)?;
         // `store` atomically replaces the registry Helix reads at its next server start.
         self.loader.store(Arc::new(built.loader));
         self.configured = built.configured;

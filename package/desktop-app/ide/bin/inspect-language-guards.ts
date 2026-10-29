@@ -431,14 +431,14 @@ const cases: Guard[] = [
     test: 'language::launch::tests::preparation_empties_a_scratch_directory_without_replacing_it',
     failure: 'the scratch directory was removed'
   },
-  // A sandbox that stopped before mise ran is not blamed on the project's mise configuration.
+  // A sandbox that stopped before the lookup ran is not blamed on the project's toolchain.
   {
     name: 'sandbox-stop-named',
-    file: 'src/language/mise/state.rs',
+    file: 'src/language/toolchain/state.rs',
     before: '        if failed.stopped_by_sandbox() {',
     after: '        if false {',
-    test: 'language::mise::state::tests::a_sandbox_that_stopped_before_mise_is_not_blamed_on_the_mise_configuration',
-    failure: 'the notice blamed mise for a sandbox that stopped'
+    test: 'language::toolchain::state::tests::a_sandbox_that_stopped_before_the_lookup_is_not_blamed_on_the_toolchain',
+    failure: 'the notice blamed the toolchain for a sandbox that stopped'
   },
 ];
 // An optional comma-separated list reruns only the named guards.

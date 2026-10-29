@@ -3,7 +3,8 @@
  
  Uses a podman container running repology-updater to fetch package metadata
  for our target repos, then extracts per-manager package names via SQL.
- Filters out packages installable via mise (registry + backends).
+ Filters out packages installable via the toolchain plan
+ (`src/toolchain/plan.ts`) or via language-ecosystem backends.
  
  First run builds the container image and initializes the database (~15 min).
  Subsequent runs are incremental; only changed repo data is re-fetched.
@@ -17,7 +18,7 @@
 import spawn from 'nano-spawn';
 import { writeFile, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
-import { firstWhitespaceToken, } from './registry-parse.ts';
+import { toolPlanInstallableNames, } from '../toolchain/plan.ts';
 
 /**
  Container image name for the repology-updater environment.
@@ -208,39 +209,24 @@ async function runContainer(args: readonly string[],): Promise<string> {
 
 //endregion Container operations
 
-//region Mise registry
+//region Toolchain plan filter
 
 /**
- Loads the mise tool registry and returns a set of tool names, read from
- each line via {@link firstWhitespaceToken}.
- Includes tools from all backends (aqua, cargo, npm, github, etc.)
- since any tool in the registry can be installed via mise instead
- of a system package manager.
+ Loads the tool names the typed toolchain plan can install
+ (`src/toolchain/plan.ts`), replacing the former `mise registry` read:
+ after the MPM toolchain migration the plan is the source of truth for which
+ tools this repository provisions itself.
  
- @returns Set of mise-installable tool names (lowercase)
+ @returns Set of toolchain-installable tool names (lowercase)
  */
-async function loadMiseRegistry(): Promise<ReadonlySet<string>> {
+function loadToolchainPlanNames(): ReadonlySet<string> {
   /**
-   Spawn result; only `stdout` is parsed for tool names.
-   */
-  const result = await spawn(
-    'mise',
-    ['registry',],
-  );
-  /**
-   Set of mise-registry tool names; lowercase for case-insensitive matching downstream.
+   Set of toolchain plan names; lowercase for case-insensitive matching downstream.
    */
   const names = new Set<string>();
-  for (const line of result.stdout
-    .split('\n',)) {
-    /**
-     First whitespace-separated token of `line`; tool name on `mise registry` output.
-     */
-    const name = firstWhitespaceToken(line,);
-    if (name !== '')
-      names.add(name.toLowerCase(),);
-  }
-  console.log(`[generate-index] loaded ${names.size} mise registry entries`,);
+  for (const name of toolPlanInstallableNames())
+    names.add(name.toLowerCase(),);
+  console.log(`[generate-index] loaded ${names.size} toolchain plan entries`,);
   return names;
 }
 
@@ -432,9 +418,9 @@ function escapeString(value: string,): string {
 console.log('[generate-index] starting package index generation',);
 
 /**
- Step 1: Load mise registry for filtering
+ Step 1: Load the toolchain plan names for filtering
  */
-const miseTools = await loadMiseRegistry();
+const miseTools = loadToolchainPlanNames();
 
 /**
  Step 2: Build container and ensure volumes

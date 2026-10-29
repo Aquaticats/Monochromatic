@@ -772,13 +772,13 @@ runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect', '--
 execFileSync('node', ['bin/inspect-language-confinement.ts'], { stdio: 'inherit' })
 """
 
-[tasks."inspect:language-mise"]
-description = "Run real servers found through the mise tools of disposable projects: a Node and a binary server started confined, an untrusted configuration that falls back to PATH with its notice, a folder without mise that keeps the PATH message, a hung mise that is stopped, and project trees compared before and after"
+[tasks."inspect:language-toolchain"]
+description = "Run real servers found through the toolchain lookup of disposable worktrees: a Node and a binary server started confined, a failed lookup that falls back to PATH with its notice, a folder without the toolchain that keeps the PATH message, a hung entry point that is stopped, and project trees compared before and after"
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.cargo}}
 runCargo(['build', '--no-default-features', '--bin', 'ide-language-inspect'])
-execFileSync('node', ['bin/inspect-language-mise.ts'], { stdio: 'inherit' })
+execFileSync('node', ['bin/inspect-language-toolchain.ts'], { stdio: 'inherit' })
 """
 
 [tasks."inspect:language-guards"]

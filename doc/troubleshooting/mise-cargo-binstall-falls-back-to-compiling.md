@@ -1,5 +1,12 @@
 # mise 2026.10.0 installs a `cargo:` tool by compiling it when its release tag and archive names differ from cargo-binstall's defaults
 
+> Toolchain status:
+>  `doc/decision/mpm-toolchain-adoption.md` (2026-10-26) moved tool provisioning off
+>  Mise `[tools]` and `mise.lock`,
+>  so this record is historical for the Mise-era toolchain it investigated.
+>  Live provisioning runs `mise run toolchain:sync` against `toolchain.lock.json`
+>  (`doc/troubleshooting/mpm-toolchain-migration.md`).
+
 A crate that publishes prebuilt archives to GitHub releases is still compiled from source
 by `mise install cargo:<crate>` unless the crate's `Cargo.toml` tells `cargo-binstall` where the archives are.
 The compile takes minutes and prints almost nothing,

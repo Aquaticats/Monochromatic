@@ -700,8 +700,12 @@ async function generateMiseToml(): Promise<void> {
 # https://mise.jdx.dev/environments/secrets/sops.html
 _.file = [{ path = ".env.local.json", redact = true }]
 
-# The first entry is the gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
-# installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli tool in mise.no-env.toml).
+# The first entry is the gitignored per-worktree toolchain exposure directory
+# .cache/toolchain-bin, one link per tool toolchain.lock.json declares, so tasks
+# resolve the locked tools before any ambient or global one. The second is the
+# gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
+# installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli
+# tool in the toolchain plan).
 # The rest are workspace bin dirs, globbed from what is installed on disk rather than
 # read from workspace metadata. So this list changes with install state: a fresh
 # clone, a pruned package, or a pnpm install that adds a dependency all move it.
@@ -713,7 +717,10 @@ _.path = [
 ${
     [
       ...new Set([
-        // The Git policy wrapper's gitignored link directory, created by the mise tool postinstall,
+        // The toolchain exposure links must precede every ambient and global
+        // tool so tasks run the locked versions.
+        '.cache/toolchain-bin',
+        // The Git policy wrapper's gitignored link directory, created by the toolchain postinstall,
         // must precede every other bin directory.
         '.cache/cli-git-bin',
         'node_modules/.bin',

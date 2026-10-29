@@ -177,7 +177,8 @@ Every release carries the license notices of everything built into its programs
 The `notices` job writes the desktop file with `mise run //package/music-player/desktop-app:notices`;
 the Android job writes the APK's file with `mise run //package/music-player/android-app:notices`.
 Both run locally the same way,
-with network for `cargo fetch` and the repository's mise tools (`mise install cargo:cargo-about`).
+with network for `cargo fetch` and the repository's toolchain
+(`mise run toolchain:sync` installs `cargo:cargo-about` from `toolchain.lock.json`).
 
 When one of them fails,
 nothing is released.
@@ -300,8 +301,11 @@ it is a maintenance item,
  not a deadline.
 
 When to update it:
-when a release run needs a newer mise (a `mise.toml` or `mise.lock` change that an older mise rejects),
+when a release run needs a newer mise (a `mise.toml` change that an older mise rejects),
 or at the latest when you next touch the workflow after a few months.
+(`mise.lock` named the tool pins here until 2026-10-26;
+the pin record moved to `toolchain.lock.json`
+with `doc/decision/mpm-toolchain-adoption.md`.)
 
 How to update it:
 

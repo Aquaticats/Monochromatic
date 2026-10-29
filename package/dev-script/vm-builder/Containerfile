@@ -7,7 +7,8 @@
 # - Browser (LibreWolf) + password manager (KeePassXC)
 # - Terminal (Ghostty via COPR)
 # - Dev tools (helix, strace, inotify-tools, etc.)
-# - mise (system-wide at /usr/local/bin)
+# - mise (task runner in the user's ~/.local/bin; tool versions are provisioned
+#   per worktree by `mise run toolchain:sync`, never seeded into the image)
 # - User account with passwordless sudo
 
 FROM ghcr.io/ublue-os/ucore-hci:stable
@@ -71,6 +72,7 @@ RUN mkdir -p /etc/sddm.conf.d \
        > /etc/sddm.conf.d/autologin.conf
 
 # Install mise as user (goes to ~/.local/bin/mise).
+# It runs repository tasks (`mise run`) only; tool versions are not managed here.
 # Done after useradd so the home directory exists.
 USER user
 RUN curl -fsSL https://mise.jdx.dev/install.sh | sh
@@ -78,11 +80,4 @@ USER root
 
 # Bake dotfiles from package/config/dotfiles/ into the user's ~/.config/.
 # Build context is the monorepo root, so paths are relative to that.
-# Seed the baked dotfiles (mise + ghostty config) into the user's ~/.config.
 COPY --chown=user:user package/config/dotfiles/ghostty/ /home/user/.config/ghostty/
-COPY --chown=user:user package/config/dotfiles/mise/ /home/user/.config/mise/
-
-# Install any mise tools declared in the baked global config.
-USER user
-RUN ~/.local/bin/mise install
-USER root

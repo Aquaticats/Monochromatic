@@ -20,6 +20,9 @@ organization and repository allow-list entry
 The root `mise.toml`, `mise.no-env.toml` and `mise.lock` remain as the local
 developer task system and the pinned-tool source of truth; `mise.lock` is
 still read for version pins, but mise itself is never executed in CI.
+Moved on 2026-10-26:
+ the pinned-tool source of truth is now `toolchain.lock.json`
+ (`doc/decision/mpm-toolchain-adoption.md`) and `mise.lock` is retired.
 
 ## Scope
 
@@ -31,6 +34,9 @@ still read for version pins, but mise itself is never executed in CI.
   boundaries recorded in `depot-ci-adoption.md`.
 - Keeps `mise.lock` as the pinned version record CI reads for Rust, Node,
   pnpm, the Android SDK components and the conformance tool.
+  Moved on 2026-10-26:
+  the record CI reads is `toolchain.lock.json`
+  (`doc/decision/mpm-toolchain-adoption.md`).
 
 ## Replacement
 
