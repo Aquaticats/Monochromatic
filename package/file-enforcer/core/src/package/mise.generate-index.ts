@@ -15,6 +15,7 @@
  ```
  */
 
+import { cachyosBuildArguments, } from '@monochromatic-dev/test-harness-core-matrix/ts';
 import spawn from 'nano-spawn';
 import { writeFile, } from 'node:fs/promises';
 import { resolve, } from 'node:path';
@@ -116,11 +117,19 @@ async function ensureImage(): Promise<void> {
       GITHUB_TOKEN: token,
     }
     : process.env;
+  /**
+   `--build-arg CACHYOS_IMAGE=<image>` for the CachyOS image this host's CPU level supports (the image has no Alpine variant).
+   */
+  const baseImageArgs = await cachyosBuildArguments({
+    imageName: IMAGE_NAME,
+    alpineVariant: false,
+  },);
   await spawn(
     'podman',
     [
       'build',
       ...secretArgs,
+      ...baseImageArgs,
       '-t',
       IMAGE_NAME,
       '-f',

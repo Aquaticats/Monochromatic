@@ -28,7 +28,9 @@ FROM ${CACHYOS_IMAGE}
 #   pkgconf                pkg-config
 #   rpm-tools              rpm2cpio and the Python rpm bindings
 #   yajl, libxml2, libxslt development libraries (headers included)
-RUN pacman --sync --refresh --sysupgrade --noconfirm --needed \
+# --disable-sandbox: pacman's hook sandbox needs a network namespace a rootless podman build cannot create, and without it
+# hooks such as the sysusers one that creates system users fail.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
     postgresql \
     postgresql-libs \
     python \
