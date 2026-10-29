@@ -359,7 +359,7 @@ which lints a small Markdown and Rust fixture.
 ## monochromatic-search-shadow 0.1.0
 
 Status:
-published on 2026-10-29 with Trusted Publishing configured for `Aquaticats/Monochromatic`;
+0.1.0 published by hand on 2026-10-29; 0.1.1 published by CI through Trusted Publishing on the same day, with release archives;
 owner action remaining: revoke the `trusted-publishing` token.
 
 Crate `monochromatic-search-shadow`,
@@ -402,12 +402,24 @@ as measured:
   the `Aquaticat` rows are legacy from before the repository moved, and `Aquaticats` is the current one.
   Step 15 above now names `Aquaticats`.
 
+Release path, as measured the same day:
+
+- A dispatched dry run (run `40863232508`, from `main`) passed `ss-detect`, `ss-publish-crate` (dry), `ss-release-state`
+  and both `ss-build-binary` jobs (x86_64 on `ubuntu-24.04`, aarch64 on `ubuntu-24.04-arm`) including the smoke run and the
+  archive verification, and skipped `ss-create-release`.
+- Commit `7b3d373a07` bumped `version` to `0.1.1` and added `[package.metadata.binstall]` (the table is read from the
+  published manifest, so 0.1.0 could not carry it). The push run `40863841089` concluded `success` in every job:
+  Trusted Publishing authenticated with the corrected owner (`Aquaticats`), crates.io lists `0.1.1` and `0.1.0`,
+  and release `monochromatic-search-shadow-v0.1.1` is immutable with the two archives and
+  `monochromatic-search-shadow-0.1.1-sha256sums.txt`.
+- `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install --version 0.1.1 monochromatic-search-shadow`
+  in a disposable directory logged `has been downloaded from github.com` and would install `search-shadow`,
+  so discovery works without compiling.
+
 Still to do:
 
 1. Revoke the `trusted-publishing` token at <https://crates.io/settings/tokens> (it cannot publish, but it can edit publishers),
    then the agent runs `cargo logout`.
-2. Dispatch the workflow with dry-run off on a new version to prove the OIDC route; that run also builds and publishes
-   the release archives once `Cargo.toml` carries `[package.metadata.binstall]`.
 
 ## monochromatic-nested-wayland-session releases after the first publication
 

@@ -265,7 +265,10 @@ and a signer-workflow string may not follow a GitHub redirect the way a URL does
 CI: `.github/workflows/cargo-publish.yml` gained `ss-detect`, `ss-publish-crate`, `ss-release-state`, `ss-build-binary` and
 `ss-create-release` (commit `0a53556811`), modeled on the nested-wayland-session jobs: a version bump on `main` publishes through
 Trusted Publishing and, once the crate's `Cargo.toml` carries `[package.metadata.binstall]`, builds two Linux archives and
-creates one immutable release. Not done yet: that metadata and a 0.1.1 bump, the plan entry, and activation.
+creates one immutable release. Version 0.1.1 (commit `7b3d373a07`) carries the metadata and went out through that route:
+run `40863841089` succeeded in every job, crates.io lists 0.1.1, the release has both archives and the checksums, and
+`cargo binstall --dry-run --disable-strategies compile,quick-install` finds the archive. Not done yet: the plan entry
+(installation through `mpm`) and activation.
 The toolchain's `cargo-binstall` provider runs `cargo binstall --no-confirm --version X CRATE` with no compile ban, so a
 source-only crate installs by compiling (about 9 seconds measured). A plan entry needs `postinstall.link` for `rg`
 (the schema allows one link per entry, so `grep` and `find` need an array), and the link directory must precede
