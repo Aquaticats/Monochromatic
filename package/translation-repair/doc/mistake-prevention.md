@@ -31,16 +31,21 @@ named for that subject and listed here.
   shell commands,
   lint and edits,
   commit messages,
-  questions to the owner,
   and work handed to agents.
   Sections:
   - [Shell commands](mistake-prevention-shell-edits-commits-and-agents.md#shell-commands)
   - [Lint and edits](mistake-prevention-shell-edits-commits-and-agents.md#lint-and-edits)
   - [Commit messages](mistake-prevention-shell-edits-commits-and-agents.md#commit-messages)
-  - [Questions to the owner](mistake-prevention-shell-edits-commits-and-agents.md#questions-to-the-owner)
   - [Work merged from parallel briefs](mistake-prevention-shell-edits-commits-and-agents.md#work-merged-from-parallel-briefs)
   - [How an agent waits](mistake-prevention-shell-edits-commits-and-agents.md#how-an-agent-waits)
   - [Briefs and hand-backs](mistake-prevention-shell-edits-commits-and-agents.md#briefs-and-hand-backs)
+- [Preventing mistakes: questions to the owner and rulings](mistake-prevention-questions-to-the-owner-and-rulings.md):
+  Rules for what is put to the owner:
+  questions that are measured before they are asked,
+  choices decided for quality,
+  and rulings kept in the design commitments.
+  Sections:
+  - [Questions to the owner](mistake-prevention-questions-to-the-owner-and-rulings.md#questions-to-the-owner)
 - [Preventing mistakes: tasks, builds and bulk output](mistake-prevention-tasks-builds-and-bulk-output.md):
   Rules for running the repository's tasks and builds:
   where a task runs from,

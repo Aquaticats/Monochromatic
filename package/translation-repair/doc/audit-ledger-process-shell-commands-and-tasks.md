@@ -847,7 +847,8 @@ a task named to the owner,
 or in a brief,
 is quoted with its `description` line read from its `mise.toml` in the same turn.
 `mistake-prevention-shell-edits-commits-and-agents.md`,
-"Questions to the owner".
+"Questions to the owner"
+(moved on 2026-10-29 to `mistake-prevention-questions-to-the-owner-and-rulings.md`).
 
 ## M282: the lead chained five steps and captured exit codes with `;` through a whole session
 
