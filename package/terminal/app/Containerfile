@@ -19,7 +19,9 @@ FROM ${CACHYOS_IMAGE}
 #   mesa, libglvnd, wayland, libxkbcommon for Slint winit/femtovg.
 #   fontconfig and freetype2 for Slint text rendering.
 #   noto-fonts (holds Noto Sans Mono) and noto-fonts-cjk for terminal glyphs.
-RUN pacman -Syu --noconfirm --needed \
+# --disable-sandbox: pacman's hook sandbox needs a network namespace that a rootless podman build cannot create, and without it
+# hooks (fontconfig cache, sysusers, ldconfig) fail silently (doc/troubleshooting/pacman-hook-sandbox-rootless-podman-build.md).
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed \
       ca-certificates \
       gcc \
       git \
