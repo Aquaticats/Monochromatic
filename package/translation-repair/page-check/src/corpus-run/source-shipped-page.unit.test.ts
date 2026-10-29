@@ -35,7 +35,9 @@ import {
   type WouldShipSource,
   wouldShipTextPerSlice,
 } from '../../dist/final/node/index.mjs';
+import { prepareDocumentPair, } from '@monochromatic-dev/translation-repair-adjudication';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract';
+import type { ChunkPair, } from '@monochromatic-dev/translation-repair-slice-reading';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { liveConstructsOf, } from './source-live-constructs.test-fixture.ts';
 import {
@@ -135,6 +137,10 @@ const FIVE_REFERENCES: readonly SourceShippedRow[] = [
 
  @param sourceText - whole source page the destinations are read from, the rows' own unless a case supplies another
 
+ @param slices - slices to publish, the rows' own unless a case supplies the ones a preparation cut
+
+ @param archiveText - archive the slices index, the rows' own unless a case supplies another
+
  @returns Page, the artifact it was published from and the defects it shipped with
 
  @example
@@ -151,10 +157,14 @@ async function publishRows(
         return recorded;
       },)
       .join('',),
+    slices = sourceShippedSlices({ rows, },),
+    archiveText = sourceShippedArchive({ rows, },),
   }: {
     readonly rows: readonly SourceShippedRow[];
     readonly artifact?: WouldShipSource;
     readonly sourceText?: string;
+    readonly slices?: readonly ChunkPair[];
+    readonly archiveText?: string;
   },
 ): Promise<{
   readonly page: string;
@@ -182,8 +192,8 @@ async function publishRows(
    */
   const published = await publishFixedPage({
     artifact,
-    slices: sourceShippedSlices({ rows, },),
-    archiveText: sourceShippedArchive({ rows, },),
+    slices,
+    archiveText,
     sourceText,
     entryId: 'BookshopCat',
     publishDir: tree.path,
@@ -426,6 +436,43 @@ await describe({
             expect(page,).toContain(`\n${NOTE}\n\n## 后记\n\n去看 [她的主页](https://example.net/tabby)[^1]。\n`,);
             expect(page,).toContain('\n[^1]: 她的主页现在已经关闭。\n',);
             expect(page.split(NOTE,).length - 1,).toBe(1,);
+          },
+        },),
+
+        it({
+          name: 'SHIPS THE ORIGINAL UNDER ITS NOTE FOR AN ARCHIVE WITH NO BODY, the slices a preparation cuts from it, '
+            + 'since a page with nothing on it is the one outcome the ruling of 2026-10-23 rules out',
+          fn: async () => {
+            /**
+             Original with two sections, whose archive is empty.
+             */
+            const original = '## 简介\n\n一只在书店陪伴大家的虎斑猫。\n\n## 后记\n\n她睡在柜台上。\n';
+            /**
+             Slices the preparation cuts from that pair.
+             */
+            const { slices, } = prepareDocumentPair({
+              sourceText: original,
+              targetText: '',
+            },);
+            /**
+             Rows of those slices, which the artifact records the lanes' agreement over.
+             */
+            const rows = slices.map(function toRow(slice,): SourceShippedRow {
+              return {
+                incumbentText: '',
+                sourceText: slice.source.text,
+              };
+            },);
+
+            const { page, } = await publishRows({
+              rows,
+              sourceText: original,
+              slices,
+              archiveText: '',
+            },);
+            expect(page,).toContain(NOTE,);
+            expect(page,).toContain('## 简介\n\n一只在书店陪伴大家的虎斑猫。',);
+            expect(page,).toContain('## 后记\n\n她睡在柜台上。',);
           },
         },),
 

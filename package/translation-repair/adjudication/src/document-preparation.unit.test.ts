@@ -17,7 +17,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { assertPlacementLayout, } from '@monochromatic-dev/translation-repair-corpus-source';
 import { spliceSlices, } from '@monochromatic-dev/translation-repair-page-pass';
+import {
+  isInsertionChunk,
+  parseDocument,
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import { isLineStructured, } from '@monochromatic-dev/translation-repair-slice-reading';
 import { prepareDocumentPair, } from '../dist/final/node/index.mjs';
 
@@ -726,6 +731,60 @@ The cat also likes sunbathing.
         // ignored the pairing while echoing it would pass.
         expect(paired.slices.length,).not
           .toBe(deterministic.slices.length,);
+      },
+    },),
+
+    it({
+      name: 'SLICES THE WHOLE ORIGINAL AS INSERTION ANCHORS when the archive carries no body, whether it is empty or '
+        + 'only a byte order mark, so an archive with nothing in it ships the original under a note instead of an '
+        + 'empty page, and the layout the preparation asserts accepts every anchor at the one offset',
+      fn: async () => {
+        /**
+         Byte order mark a page may open with.
+         */
+        const mark = String.fromCodePoint(0xFEFF,);
+        for (
+          const [targetText, offset,] of [
+            ['', 0,],
+            [mark, 1,],
+          ] as const
+        ) {
+          for (const frontMatterAuthority of ['rendered', 'archive',] as const) {
+            /**
+             Preparation of the original against an archive with no body.
+             */
+            const { slices, } = prepareDocumentPair({
+              sourceText: SOURCE_TEXT,
+              targetText,
+              frontMatterAuthority,
+            },);
+            /**
+             Slices carrying the body, apart from the metadata slice.
+             */
+            const body = slices.filter(function isBody(slice,): boolean {
+              return slice.syntax !== 'front-matter';
+            },);
+
+            expect(body.length,).toBeGreaterThanOrEqual(2,);
+            expect(slices.map(function toAnchoredOffset(slice,): number | undefined {
+              return isInsertionChunk(slice.target,) ? slice.target.startOffset : undefined;
+            },),).toEqual(slices.map(function toOffset(): number {
+              return offset;
+            },),);
+            // EVERY NODE OF THE ORIGINAL'S BODY IS IN A SLICE, or a passage would be dropped from the page.
+            for (const node of parseDocument({ text: SOURCE_TEXT, },).nodes) {
+              expect(
+                body.some(function carries(slice,): boolean {
+                  return slice.source.text.includes(node.text,);
+                },),
+              ).toBe(true,);
+            }
+            assertPlacementLayout({
+              slices,
+              targetText,
+            },);
+          }
+        }
       },
     },),
   ],

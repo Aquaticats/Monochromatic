@@ -448,6 +448,89 @@ await describe({
               ],);
           },
         },),
+
+        it({
+          name: 'GIVES EVERY SOURCE CHUNK AN INSERTION PAIR when the archive carries no body, whether it is empty, '
+            + 'whitespace, a byte order mark or front matter alone, since a pair-less alignment ships a 0-byte page '
+            + 'where the commitment is the original under a note',
+          fn: async () => {
+            /**
+             Byte order mark a page may open with.
+             */
+            const mark = String.fromCodePoint(0xFEFF,);
+            /**
+             The front matter an archive may open with and carry no body after.
+             */
+            const metadata = '---\nname: n\n---\n';
+            /**
+             Archives with no body, and the offset a note belongs at in each: after the mark and the front
+             matter, never inside either.
+             */
+            const bodiless: readonly (readonly [string, string, number,])[] = [
+              ['empty', '', 0,],
+              ['whitespace only', '  \n\n', 0,],
+              ['a byte order mark only', mark, 1,],
+              ['front matter only', metadata, metadata.length,],
+              ['a mark and front matter', `${mark}${metadata}`, metadata.length + 1,],
+              ['front matter and whitespace', `${metadata}\n`, metadata.length,],
+            ];
+            /**
+             Chunks the original is cut into, which the alignment must account for one by one.
+             */
+            const sourceChunks = chunkByHeadings({ document: parseDocument({ text: SOURCE_FIXTURE, },), },);
+            expect(sourceChunks,).toHaveLength(3,);
+
+            /**
+             What each archive's alignment holds, by the archive's name.
+             */
+            const observed = Object.fromEntries(bodiless.map(function observe([name, text,],) {
+              /**
+               Alignment of the original against this archive.
+               */
+              const alignment = alignDocumentSections({
+                source: parseDocument({ text: SOURCE_FIXTURE, },),
+                target: parseDocument({ text, },),
+              },);
+              return [
+                name,
+                {
+                  sources: alignment.pairs.map(function toSourceText(pair,): string {
+                    return pair.source.text;
+                  },),
+                  anchors: alignment.pairs.map(function toAnchor(pair,): boolean {
+                    return isInsertionChunk(pair.target,);
+                  },),
+                  offsets: alignment.pairs.map(function toOffset(pair,): number {
+                    return pair.target.startOffset;
+                  },),
+                  // THE FINDING STAYS, since the archive still carries no body.
+                  findings: alignment.findings.length,
+                },
+              ];
+            },),);
+            /**
+             What each must hold: one anchor per original chunk, at the offset after the mark and the metadata.
+             */
+            const expected = Object.fromEntries(bodiless.map(function expectFor([name, , offset,],) {
+              return [
+                name,
+                {
+                  sources: sourceChunks.map(function toText(chunk,): string {
+                    return chunk.text;
+                  },),
+                  anchors: sourceChunks.map(function toTrue(): boolean {
+                    return true;
+                  },),
+                  offsets: sourceChunks.map(function toOffset(): number {
+                    return offset;
+                  },),
+                  findings: 1,
+                },
+              ];
+            },),);
+            expect(observed,).toEqual(expected,);
+          },
+        },),
       ],
     },),
 
