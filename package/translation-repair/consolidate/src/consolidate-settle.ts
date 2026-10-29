@@ -20,10 +20,14 @@ import {
 } from './consolidate-settle-context.ts';
 import {
   INELIGIBLE_STANDING_WITHHELD_FINDING,
-  keepTheArchive,
   nothingValidShips,
   slateIncumbentFor,
 } from './consolidate-ineligible-standing.ts';
+import {
+  settleRefusedStanding,
+  settleWithoutSlate,
+  shipWinnerBeforeSlate,
+} from './consolidate-settle-unseated.ts';
 import { judgeConsolidationSlate, } from './consolidate-settle-judge.ts';
 import { applyFinalPolish, } from './consolidation-polish-apply.ts';
 import type {
@@ -96,6 +100,24 @@ export type ConsolidationTerminal =
     | 'gate-kept-standing'
     | 'wrap-erased-difference'
     | 'consolidated';
+
+/**
+ Why the archive keeps a slice (owner, 2026-09-27, "Keep archive, ship"), as the artifact and the publish defect say it.
+
+ THREE REASONS BECAUSE THREE THINGS HAPPENED, and one sentence for them was false for two: `no-wording-passed` is the
+ only one where no wording passed the deterministic rule; `final-round-unseated` is a final round that could not seat
+ two judges with no wording two judges chose to ship (owner, 2026-10-29); `slate-declined` is a slate that seated two
+ or more judges and declined every wording that passed.
+
+ @example
+ ```ts
+ const reason: ArchiveKeptReason = 'final-round-unseated';
+ ```
+ */
+export type ArchiveKeptReason =
+  | 'no-wording-passed'
+    | 'final-round-unseated'
+    | 'slate-declined';
 
 /**
  Which slate terminal a judged round ends in, per decision.
@@ -318,6 +340,23 @@ export type ConsolidationSettlement = {
   readonly archiveKept?: true;
 
   /**
+   Why the archive keeps the slice, present exactly where {@link ConsolidationSettlement.archiveKept} is: no wording
+   passed the rule, the final round could not seat two judges and no two-ballot wording existed, or the slate seated
+   two or more judges and none of the wordings drew two ballots. Never cached, as the mark is not.
+   */
+  readonly archiveReason?: ArchiveKeptReason;
+
+  /**
+   Present where the final round could not seat two judges over a standing the rule refused and the translate lane's
+   winner shipped instead, since two judges chose it there and it passes the rule (owner, 2026-10-29, "Ship the
+   two-ballot text"); `text` is then that winner. Absent on every other settlement.
+
+   NEVER CACHED (`consolidationWorthResuming`): the unseated round is the hour, not the slice, and a copy resumed on a
+   healthier bench would ship the winner unasked.
+   */
+  readonly translateWinnerShipped?: true;
+
+  /**
    Present where the slate bench read fewer reachable judges than the ballots
    a winner needs, so no slate was bought and the standing was kept without a
    call; absent on every other settlement.
@@ -384,6 +423,13 @@ export type ConsolidationSettlement = {
  2026-10-25), which is what the flag used to buy for one entry's slice 45
  (2026-10-19)
 
+ @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round, zero where the
+ caller did not count; with two or more, that text on `laneTexts` ships over a refused standing where the final round
+ cannot seat two judges (owner, 2026-10-29, "Ship the two-ballot text")
+
+ @param slateReachable - slate judges a wet provider would serve, absent where the caller did not count; fewer than the
+ ballots a winner needs settle that shipment without buying a slate
+
  @param signal - cancellation for the whole settlement
 
  @param perCallTimeoutMs - bound on any single exchange
@@ -420,6 +466,8 @@ export async function settleConsolidation(
     standingRefusal,
     laneTexts = [],
     runoffOverStanding = false,
+    translateWinnerBallots = 0,
+    slateReachable,
     signal,
     perCallTimeoutMs,
     l,
@@ -441,6 +489,8 @@ export async function settleConsolidation(
     readonly standingRefusal?: string;
     readonly laneTexts?: readonly LaneText[];
     readonly runoffOverStanding?: boolean;
+    readonly translateWinnerBallots?: number;
+    readonly slateReachable?: number;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -508,29 +558,21 @@ export async function settleConsolidation(
   // carves no such slice (0 of 1259, 2026-09-27).
   if ((standingText === '') && (laneTexts.length === 0)) {
     /**
-     The settlement this exit ends in.
+     The settlement this exit ends in, the archive kept where nothing passes.
      */
-    const settlement: ConsolidationSettlement = {
+    const settlement = settleWithoutSlate({
       terminal: 'no-standing-text',
-      text: standingText,
+      standingEligible,
+      standingText,
       floor,
       verdicts,
-      rewrapped: false,
-      demoted: false,
-      findings: producedFindings,
-    };
-    if (nothingValidShips({
-      standingEligible,
-      terminal: settlement.terminal,
-    },)) {
-      return keepTheArchive({
-        settlement,
-        subject,
-        sliceIndex,
-        l: sl,
-      },);
-    }
-    sl.warn('consolidation: no standing text to judge against, so the slice keeps what it had',);
+      producedFindings,
+      subject,
+      sliceIndex,
+      l: sl,
+    },);
+    if (settlement.archiveKept !== true)
+      sl.warn('consolidation: no standing text to judge against, so the slice keeps what it had',);
     return settlement;
   }
 
@@ -541,28 +583,21 @@ export async function settleConsolidation(
   // (class forty, 2026-09-17), so the judges are asked.
   if ((floor.kind === 'incumbent-only') && (laneTexts.length === 0)) {
     /**
-     The settlement this exit ends in.
+     The settlement this exit ends in, the archive kept where nothing passes.
      */
-    const settlement: ConsolidationSettlement = {
+    const settlement = settleWithoutSlate({
       terminal: 'incumbent-only',
-      text: standingText,
+      standingEligible,
+      standingText,
       floor,
       verdicts,
-      rewrapped: false,
-      demoted: false,
-      findings: producedFindings,
-    };
-    if (nothingValidShips({
-      standingEligible,
-      terminal: settlement.terminal,
-    },)) {
-      return keepTheArchive({
-        settlement,
-        subject,
-        sliceIndex,
-        l: sl,
-      },);
-    }
+      producedFindings,
+      subject,
+      sliceIndex,
+      l: sl,
+    },);
+    if (settlement.archiveKept === true)
+      return settlement;
     return await applyFinalPolish({
       client,
       settlement,
@@ -577,6 +612,30 @@ export async function settleConsolidation(
       stageSettings,
     },);
   }
+
+  // A FINAL ROUND THAT CANNOT SEAT TWO JUDGES SHIPS THE TRANSLATE LANE'S TWO-BALLOT TEXT without a slate being bought
+  // (owner, 2026-10-29, "Ship the two-ballot text"): fewer slate judges are reachable than the ballots a winner needs,
+  // so no slate this settlement could buy would end in anything but one judge alone, and the text two judges chose in
+  // the lane and the rule admitted is the wording that ships over a standing the rule refused. XingZ6022 bought 65
+  // calls and 10.679 Wh at sixteen slices for a keep-the-archive that this text replaces.
+  /**
+   Whether the translate lane's winner ships here with no slate bought.
+   */
+  const beforeSlate = shipWinnerBeforeSlate({
+    standingEligible,
+    laneTexts,
+    translateWinnerBallots,
+    ...((slateReachable === undefined) ? {} : { slateReachable, }),
+    standingText,
+    floor,
+    verdicts,
+    producedFindings,
+    subject,
+    sliceIndex,
+    l: sl,
+  },);
+  if (beforeSlate.kind === 'ships')
+    return beforeSlate.settlement;
 
   /**
    Model ids the floor passed, read off the floor so `survivingVoices` takes
@@ -708,8 +767,11 @@ export async function settleConsolidation(
       standingEligible,
       terminal: settlement.terminal,
     },)) {
-      return keepTheArchive({
+      return settleRefusedStanding({
         settlement,
+        decided,
+        laneTexts,
+        translateWinnerBallots,
         subject,
         sliceIndex,
         l: sl,

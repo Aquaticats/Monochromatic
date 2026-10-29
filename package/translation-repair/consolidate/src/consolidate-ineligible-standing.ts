@@ -5,6 +5,7 @@ import {
   type ConsolidateGateOutcome,
 } from './consolidate-gate-stage.ts';
 import type {
+  ArchiveKeptReason,
   ConsolidationSettlement,
   ConsolidationTerminal,
 } from './consolidate-settle.ts';
@@ -12,6 +13,7 @@ import { unpolishedBaseline, } from './consolidation-polish-skip.ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type {
   IncumbentKind,
+  LaneText,
   SliceValidation,
 } from '@monochromatic-dev/translation-repair-translate-floor/ts';
 import {
@@ -144,6 +146,144 @@ export const NO_VALID_WORDING_FINDING: string = 'no-valid-wording: no wording fo
   + 'deterministic publication rule, so the archive keeps it and the page ships with it reported';
 
 /**
+ Finding recorded on a settlement whose final round could not seat two judges and held no wording two judges chose, so
+ the archive keeps the slice (owner, 2026-09-27, "Keep archive, ship"; 2026-10-25, "one judge alone never decides").
+ */
+export const FINAL_ROUND_UNSEATED_FINDING: string = 'no-valid-wording: the final round could not seat two judges and '
+  + 'no wording two judges chose passed the deterministic publication rule, so the archive keeps this slice and the '
+  + 'page ships with it reported';
+
+/**
+ Finding recorded on a settlement whose slate seated two or more judges and declined every wording, none of which
+ drew two ballots, so the archive keeps the slice (owner, 2026-10-25, "Two judges must name it").
+ */
+export const SLATE_DECLINED_FINDING: string = 'no-valid-wording: the slate judges declined every wording that passed '
+  + 'the deterministic publication rule and none drew two ballots, so the archive keeps this slice and the page ships '
+  + 'with it reported';
+
+/**
+ Finding recorded on a settlement whose final round could not seat two judges over a standing the rule refused, so the
+ translate lane's winner shipped (owner, 2026-10-29, "Ship the two-ballot text (Recommended)": "When the final round
+ can't seat two judges, the translate lane's winner ships if two judges chose it and it passes the publication rule.").
+ */
+export const TRANSLATE_WINNER_SHIPS_FINDING: string = 'translate-winner-ships: the final round could not seat two '
+  + 'judges over a standing the deterministic publication rule refused, so the translate lane winner ships, since two '
+  + 'judges chose it in the lane and it passes the rule';
+
+/**
+ The finding that says why the archive keeps a slice.
+
+ @param reason - why the archive keeps it
+
+ @returns The finding recorded on the settlement
+
+ @example
+ ```ts
+ const finding = archiveKeptFinding({ reason: 'slate-declined', },);
+ ```
+ */
+export function archiveKeptFinding(
+  { reason, }: { readonly reason: ArchiveKeptReason; },
+): string {
+  if (reason === 'no-wording-passed')
+    return NO_VALID_WORDING_FINDING;
+  if (reason === 'final-round-unseated')
+    return FINAL_ROUND_UNSEATED_FINDING;
+  return SLATE_DECLINED_FINDING;
+}
+
+/**
+ Whether a round heard fewer judges than the ballots a winner needs, which is what a final round that could not seat two
+ judges is (owner, 2026-10-25, "one judge alone never decides").
+
+ @param heard - judges the round heard or would reach
+
+ @returns Whether that is fewer than the ballots a winner needs
+
+ @example
+ ```ts
+ const unseated = unseatedFinalRound({ heard: 1, },);
+ ```
+ */
+export function unseatedFinalRound(
+  { heard, }: { readonly heard: number; },
+): boolean {
+  return heard < MIN_SELECTION_BALLOTS;
+}
+
+/**
+ The translate lane's text when two or more judges chose it in the lane and the lane offer admitted it.
+
+ A TEXT ON `laneTexts` HAS PASSED THE RULE, since the lane offer drops one that does not
+ (`laneTextsForSlate` in the artifact package), so the two conditions the owner's answer of 2026-10-29 names are the
+ text on the offer and the ballots of the lane that chose it. Fewer than two ballots is one judge alone, which never
+ decides.
+
+ @param laneTexts - lane texts the slate offers
+
+ @param ballots - ballots that named the translate lane's text in the lane's own round
+
+ @returns The translate lane's text as an offered winner, or a named absence where it is not offered or drew fewer than
+ two ballots
+
+ @example
+ ```ts
+ const winner = translateWinnerOf({ laneTexts, ballots: 2, },);
+ ```
+ */
+export function translateWinnerOf(
+  {
+    laneTexts,
+    ballots,
+  }: {
+    readonly laneTexts: readonly LaneText[];
+    readonly ballots: number;
+  },
+): TranslateWinner {
+  if (ballots < MIN_SELECTION_BALLOTS)
+    return { kind: 'none', };
+  /**
+   The translate lane's text on the offer, where it is there.
+   */
+  const offered = laneTexts.find(function isTranslate(laneText,): boolean {
+    return laneText.lane === 'translate';
+  },);
+  return (offered === undefined)
+    ? { kind: 'none', }
+    : {
+      kind: 'offered',
+      laneText: offered,
+    };
+}
+
+/**
+ Whether the translate lane holds a text that ships where the final round cannot seat two judges.
+
+ @example
+ ```ts
+ const winner: TranslateWinner = { kind: 'none', };
+ ```
+ */
+export type TranslateWinner =
+  | {
+    /**
+     The lane offer admitted the translate lane's text and two or more judges chose it in the lane.
+     */
+    readonly kind: 'offered';
+
+    /**
+     The text, as the lane would ship it.
+     */
+    readonly laneText: LaneText;
+  }
+    | {
+    /**
+     The translate lane holds no such text: it was not offered, or it drew fewer than two ballots.
+     */
+      readonly kind: 'none';
+    };
+
+/**
  What the slate offers as its incumbent: the standing text when it may
  ship, nothing when the gate has refused it.
 
@@ -232,13 +372,15 @@ export function nothingValidShips(
 
  @param sliceIndex - prepared position of the slice, for the log
 
+ @param reason - why the archive keeps the slice, which the finding, the log line and the artifact say
+
  @param l - stage logger, told that the archive keeps the slice
 
- @returns Settlement marked archive-kept, with its finding and a not-run polish
+ @returns Settlement marked archive-kept, with its reason, its finding and a not-run polish
 
  @example
  ```ts
- return keepTheArchive({ settlement, subject, sliceIndex, l, },);
+ return keepTheArchive({ settlement, subject, sliceIndex, reason: 'no-wording-passed', l, },);
  ```
  */
 export function keepTheArchive(
@@ -246,24 +388,94 @@ export function keepTheArchive(
     settlement,
     subject,
     sliceIndex,
+    reason,
     l,
   }: {
     readonly settlement: ConsolidationSettlement;
+    readonly subject: { readonly syntax?: SliceSyntax; };
+    readonly sliceIndex: number;
+    readonly reason: ArchiveKeptReason;
+    readonly l: Logger;
+  },
+): ConsolidationSettlement {
+  /**
+   What happened at this slice, in the words of the log line.
+   */
+  const happened = (reason === 'no-wording-passed')
+    ? 'no wording passed the deterministic publication rule'
+    : ((reason === 'final-round-unseated')
+      ? 'the final round could not seat two judges and no wording two judges chose passed the deterministic '
+        + 'publication rule'
+      : 'the slate judges declined every wording that passed the deterministic publication rule and none drew two '
+        + 'ballots');
+  l.warn(
+    `slice ${String(sliceIndex,)}: ${happened} (${settlement.terminal}); `
+      + 'the archive keeps this slice and the page ships with it reported',
+  );
+  return {
+    ...settlement,
+    archiveKept: true,
+    archiveReason: reason,
+    findings: [
+      ...settlement.findings,
+      archiveKeptFinding({ reason, },),
+    ],
+    polish: unpolishedBaseline(subject,),
+  };
+}
+
+/**
+ Ships the translate lane's winner over a standing the rule refused, in a final round that could not seat two judges
+ (owner, 2026-10-29, "Ship the two-ballot text (Recommended)").
+
+ THE SETTLEMENT KEEPS ITS TERMINAL, as {@link keepTheArchive} does, and the mark and the finding say what ships. Its
+ text is the winner's, which the lane offer admitted because it passes the rule and which two judges chose in the lane;
+ no polish runs over it, since the wording shipped as the lane left it and no judge here heard it.
+
+ @param settlement - what the stage settled, before any polish
+
+ @param winner - the translate lane's text, which two or more judges chose in the lane
+
+ @param subject - the slice, whose syntax role decides the not-run reason the final naturalness check requires
+
+ @param sliceIndex - prepared position of the slice, for the log
+
+ @param l - stage logger, told that the winner ships
+
+ @returns Settlement marked translate-winner-shipped, carrying the winner as its text, its finding and a not-run polish
+
+ @example
+ ```ts
+ return shipTranslateWinner({ settlement, winner, subject, sliceIndex, l, },);
+ ```
+ */
+export function shipTranslateWinner(
+  {
+    settlement,
+    winner,
+    subject,
+    sliceIndex,
+    l,
+  }: {
+    readonly settlement: ConsolidationSettlement;
+    readonly winner: LaneText;
     readonly subject: { readonly syntax?: SliceSyntax; };
     readonly sliceIndex: number;
     readonly l: Logger;
   },
 ): ConsolidationSettlement {
   l.warn(
-    `slice ${String(sliceIndex,)}: no wording passed the deterministic publication rule (${settlement.terminal}); `
-      + 'the archive keeps this slice and the page ships with it reported',
+    `slice ${String(sliceIndex,)}: the final round could not seat two judges over a standing the deterministic `
+      + 'publication rule refused; the translate lane winner, which two or more ballots chose in the lane and which '
+      + 'passes the rule, ships',
   );
   return {
     ...settlement,
-    archiveKept: true,
+    text: winner.text,
+    translateWinnerShipped: true,
     findings: [
       ...settlement.findings,
-      NO_VALID_WORDING_FINDING,
+      TRANSLATE_WINNER_SHIPS_FINDING,
     ],
     polish: unpolishedBaseline(subject,),
   };

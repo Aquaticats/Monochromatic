@@ -856,6 +856,20 @@ await describe({
     },),
 
     it({
+      name: 'REFUSES A SETTLEMENT THAT SHIPPED THE TRANSLATE LANE WINNER, since the stage never persists one: the final '
+        + 'round could not seat two judges, so a copy found on disk was written by something else and a later pass '
+        + 'would ship the winner without asking a bench that could seat two',
+      fn: async () => {
+        expect(await roundTrip({
+          settlement: {
+            ...KEPT_SETTLEMENT,
+            translateWinnerShipped: true,
+          },
+        },),).toBe(false,);
+      },
+    },),
+
+    it({
       name: 'REFUSES A SETTLEMENT THAT IS NO RECORD AT ALL',
       fn: async () => {
         expect(await roundTrip({ settlement: null, },),).toBe(false,);

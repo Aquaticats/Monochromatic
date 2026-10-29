@@ -20,12 +20,12 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type {
-  ChatJsonOutcome,
-  ChatJsonRequest,
-  ModelClient,
+import {
+  type ChatJsonOutcome,
+  type ChatJsonRequest,
+  messageText,
+  type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
-import { messageText, } from '@monochromatic-dev/translation-repair-provider';
 import type { LaneText, } from '@monochromatic-dev/translation-repair-translate-floor';
 import {
   buyConsolidationSlice,
@@ -228,7 +228,7 @@ async function settleOver(
     perCallTimeoutMs: HANG_STOP_MS,
     l,
     stageSettings: SCRIPTED_STAGE_SETTINGS,
-  } as Parameters<typeof settleConsolidation>[0],);
+  },);
 }
 
 /**
@@ -315,7 +315,7 @@ async function callsOver(
       perCallTimeoutMs: HANG_STOP_MS,
       l,
       stageSettings: SCRIPTED_STAGE_SETTINGS,
-    } as Parameters<typeof buyConsolidationSlice>[0],);
+    },);
   }
   catch (error) {
     // A purchase whose producers all refuse ends in the stage's interruption, which is not what this counts.
@@ -541,14 +541,14 @@ await describe({
                 l: capturingLogger({ messages: lines, },),
               },),
               stageSettings: SCRIPTED_STAGE_SETTINGS,
-            } as Parameters<typeof buyConsolidationSlice>[0],);
+            },);
             expect({
               calls: asked.calls,
               ...readSettlement({ settled, },),
               resumable: consolidationWorthResuming({ settlement: settled, standingMayShip: false, },),
               unendorsed: standingKeptUnendorsed({ settlement: settled, standingMayShip: false, },),
               said: lines.some(function namesIt(line,): boolean {
-                return line.includes('translate lane',) && line.includes('two ballots',);
+                return line.includes('translate lane winner',) && line.includes('ballots',);
               },),
             },).toEqual({
               calls: 0,
