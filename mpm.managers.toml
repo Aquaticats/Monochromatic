@@ -106,12 +106,12 @@ args = ["binstall", "--no-confirm", "--version", "0.4.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli]
-name = "cargo-binstall monochromatic-git-policy-cli 0.4.1"
+name = "cargo-binstall monochromatic-git-policy-cli 0.4.2"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.4.1", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.4.2", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.remove]
 args = ["uninstall", "{package_id}"]
