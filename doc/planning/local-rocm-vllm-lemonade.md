@@ -15,8 +15,8 @@ On 2026-10-30 the user selected:
   The user said, "Startup preference: Don't set it up yet."
 
 Installation has not started.
-Model selection, service behavior, resource limits,
-and final shared-understanding confirmation remain open.
+Model identities and deferred startup setup are settled.
+The concrete runtime arrangement and verification limits await final shared-understanding confirmation.
 
 In response to the workload question, the user specified `vllm-d3`,
 then confirmed the intended model is Hugging Face `vllm-sr/d3`,
@@ -148,7 +148,8 @@ while `CMakeLists.txt` accepts that build target.
 The default ROCm container architecture list omits it.
 None of these observations proves that packaged inference works on this host.
 Standalone generic vLLM was outside the originally selected scope.
-The later D3 clarification reopens the runtime dependency question.
+The later D3 runtime investigation was superseded by the Liquid model selection.
+The originally requested Lemonade-managed vLLM installation remains in the proposed arrangement.
 
 ## Verification boundary
 
@@ -199,7 +200,8 @@ Startup configuration is deferred.
 Use localhost only for transient verification;
 broader network exposure remains unselected.
 Verify the proposed context, storage, and resource settings against installed CLI capabilities before execution.
-Present the concrete installation and verification plan for the grilling session's final confirmation.
+The concrete installation and verification plan has been presented;
+the final confirmation question is pending.
 
 ## Additional inventory
 
@@ -223,12 +225,13 @@ checkpoint `Qwen/Qwen3.5-0.8B`, with catalog size 1.77 GB.
 That size is metadata, not measured transfer size or VRAM demand.
 The custom-model guide routes imported GGUF files through llama.cpp;
 testing the existing GGUF cache would not verify vLLM.
-No model has been selected or downloaded for this task.
+This initial Qwen candidate was superseded by the selected Liquid models.
+No model weights have been downloaded for this task.
 
 The official image persists configuration, backend cache, and Hugging Face models under `/opt/lemonade`.
 The backend installer uses the process temporary directory for archive installation.
 The concrete container plan must therefore supply temporary storage outside `/tmp`.
-Context and GPU memory controls remain to be chosen and exercised through the installed CLI.
+The proposed context and resource controls still need to be exercised through the installed CLI.
 
 ## Full D3 investigation
 
