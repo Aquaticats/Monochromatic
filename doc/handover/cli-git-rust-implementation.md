@@ -4242,3 +4242,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   absent; its message says to prepare it with `mise run //package/ide/app:runtime`. The crate can be built and its tests run
   on the host after that task (not run: it fetches and builds Helix grammars). To confirm the latent layout risk, run it
   once, then the three named tests with `CARGO_BUILD_BUILD_DIR=target` inside a throwaway worktree.
+
+- Landed `package/ide/app` fixes (agent `a1f6ad776dbfa958f`, commits `8f313d2a48` and `a080bc7923`): the latent scratch-root
+  bug is real. With the cargo build directory inside a checkout, `scratch_root` landed inside the repository, and
+  `toolchain::tests::a_worktree_that_is_not_above_the_project_does_not_serve_it` and
+  `git_ignore::tests::outside_a_work_tree_nothing_is_ignored` failed (the `config_tests` cases passed only because this
+  machine has no TypeScript install above the worktree). `scratch_root` now falls back to
+  `$HOME/.cache/monochromatic-ide-test-scratch` when the build directory has a `.git`, the file-enforcer toolchain
+  entry point or `node_modules/typescript/bin/tsc` above it; invariant test in the lib and native test binaries; 33 of 33
+  passed after the fix. Second bug: the `monochromatic-ide` bin test target had not compiled since `5e32ff2d84` (57 E0433
+  errors) because `src/main.rs` lacked `#[cfg(test)] mod test_scratch;`; the `test` task runs only `--lib --tests`, so
+  it never noticed (`test:native` would fail the same way). Not verified: host clippy stops in `build.rs` on two
+  pre-existing "missing `return`" errors, and the container tests were not run; the native test needs
+  `SLINT_EMIT_DEBUG_INFO=1` at build time as the container sets.
