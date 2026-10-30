@@ -2469,3 +2469,30 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   3953e2479edc (no code files):
   `docs(handover): record the truth-check outcome and hand graduation to the owner`
+- Skipped:
+  ff0e0e92b6f7 (no code files):
+  `docs(audit): carry the shadow log's hook entries`
+- Skipped:
+  d84a06c67ab0 (no code files):
+  `docs(handover): record the landed fault-injection tests, the authority-gate gap and the post-reboot actions`
+- Skipped:
+  9a2e376bd909 (no code files):
+  `docs(AGENTS.md): add RBT, a reboot can make data on the unreliable SSD permanently unreadable`
+- Skipped:
+  47f28c52566e (no code files):
+  `chore(forbidden-strings-cli.fuzz): add the generated license files the new package.json requires`
+- Skipped:
+  118aceeae9f0 (no code files):
+  `docs(AGENTS.md): word RBT with the user's own description of the SSD`
+- Skipped:
+  f3133e3b1bbb (no code files):
+  `docs(handover): record rule RBT and the uncommitted mise.toml drift`
+- Skipped:
+  fb0de8091568 (no code files):
+  `fix(mise): run the Luna decision-model leg per landing in shadow-review`
+- Skipped:
+  a5735275c0d0 (no code files):
+  `docs(runbook): record the Luna per-landing route and the held graduation`
+- Skipped:
+  c58624371bed (no code files):
+  `docs(handover): record the wire-Luna and keep-shadowing decisions`
