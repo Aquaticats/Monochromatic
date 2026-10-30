@@ -7,6 +7,13 @@ core in `package/agent-harness-shared/advisor` and the DSH host services.
 The package is `private: true` and installs as a Harness bundle patch
 (`dsh.bundle.patch` points at `./cordis.patch.yml`).
 
+`engines.dsh` declares the verified host version `0.2.1-rc.5` explicitly.
+The exact prerelease limits the compatibility claim to the tested host;
+revalidate activation before changing it.
+DSH reads this field before peer dependencies,
+so local directory links can retain the workspace's `catalog:` dependency specifications.
+See the [startup diagnosis](../../../doc/troubleshooting/dsh-rc5-profile-startup.md).
+
 ## Host API surface
 
 `src/index.ts` exports the plugin contract the Harness Loader consumes:
