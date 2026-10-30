@@ -214,6 +214,13 @@ No Rewind package or real profile configuration was changed.
 
 ## Workspace dependency alignment
 
+The maintained DSH integration scope is Advisor,
+NeuralWatt,
+and Search and Fetch.
+The user explicitly excludes Cost Dismissal from that maintenance count.
+Search and Fetch is a configuration-only bundle with no DSH dependency version pins;
+its host-provided MCP client was covered by the copied-profile startup and tool-discovery checks.
+
 The follow-up request explicitly selected upgrading active DSH dependencies to rc.5.
 At that point,
 the active workspace catalog and package extensions still used `0.2.1-rc.4`;
