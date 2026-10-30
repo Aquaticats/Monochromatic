@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--examine must be a regular expression of plain characters, got a;b.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

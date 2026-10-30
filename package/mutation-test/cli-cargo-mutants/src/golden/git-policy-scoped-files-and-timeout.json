@@ -1,0 +1,57 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/git-policy-native-test:golden",
+      "--format",
+      "{{.Id}}"
+    ],
+    [
+      "build",
+      "--network=none",
+      "--http-proxy=false",
+      "--pull=never",
+      "--memory=2g",
+      "--cpu-period=100000",
+      "--cpu-quota=200000",
+      "--tag",
+      "localhost/git-policy-native-mutation:golden",
+      "<PACKAGE>/git-policy/cli/node_modules/.monochromatic/git-policy/cli-git-native-mutation-<ID>"
+    ],
+    [
+      "create",
+      "--init",
+      "--network=none",
+      "--memory=2g",
+      "--cpus=2",
+      "--pids-limit=128",
+      "localhost/git-policy-native-mutation:golden"
+    ],
+    [
+      "start",
+      "--attach",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ],
+    [
+      "cp",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:/home/tester/mutation-report/.",
+      "<WORK>/target/verification/native-mutation-<ID>"
+    ],
+    [
+      "rm",
+      "--force",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+  ],
+  "containerfiles": [
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"60\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/home/tester/mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--file\",\"src/native/lock.rs\",\"--file\",\"src/native/push_env.rs\"]\n"
+  ],
+  "evidenceFiles": {
+    "verification/native-mutation-<ID>/exit.json": "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true\n}\n",
+    "verification/native-mutation-<ID>/manifest.json": "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"60\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/home/tester/mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--file\",\n    \"src/native/lock.rs\",\n    \"--file\",\n    \"src/native/push_env.rs\"\n  ],\n  \"scopes\": [\n    \"src/native/lock.rs\",\n    \"src/native/push_env.rs\"\n  ],\n  \"limits\": {\n    \"memory\": \"2g\",\n    \"cpus\": 2,\n    \"pids\": 128,\n    \"buildTimeoutSeconds\": 300,\n    \"testTimeoutSeconds\": 90\n  }\n}\n"
+  }
+}

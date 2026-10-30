@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--pids-limit must be a whole number of processes from 1 (for example 128), got 0.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

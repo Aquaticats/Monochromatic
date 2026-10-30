@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--memory must be a whole number of bytes with an optional unit b, k, m or g (for example 512m or 2g), got 0g.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--cpus must be a number of CPUs from 0.01 with at most 2 decimals; fractions are allowed (for example 2 or 1.5), got 0.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

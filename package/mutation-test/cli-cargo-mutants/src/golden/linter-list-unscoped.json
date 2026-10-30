@@ -1,0 +1,19 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "zz:1:1: unscoped one\nzz:2:1: unscoped two\n",
+  "calls": [
+    [
+      "<cargo>",
+      "mutants",
+      "--list",
+      "--no-config",
+      "--exclude-re",
+      "replace \\+= with \\*=",
+      "--exclude-re",
+      "replace -= with /="
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

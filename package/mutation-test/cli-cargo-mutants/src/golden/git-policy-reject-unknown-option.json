@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "Only repeated --file <glob> options are accepted.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}

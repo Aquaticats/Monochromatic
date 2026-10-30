@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "This scope already selects mutants by name; --re would widen it.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": {}
+}
