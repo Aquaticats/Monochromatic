@@ -697,7 +697,7 @@ NHP:
  DNS or mirror trouble.
 
 RBT:
- A reboot can make data on this machine's unreliable SSD permanently unreadable:
+ A reboot can make data on this machine's garbage SSD permanently unreadable:
  commit and push before any reboot,
  and never count on uncommitted files,
  scratch,
