@@ -195,11 +195,40 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Execution checklist
 
-- ROCm: existing installation enumerates the RX 7600; verify device access in the disposable containers.
-- Lemonade: install the official container, select build `b1358`, and verify the browser UI and text endpoint.
-- vLLM: install the managed packaged backend and verify its executable and runtime bindings.
-- Liquid models: download verified Q8_0 artifacts and exercise text generation and decision inference separately.
-- Completion: stop test servers, leave startup untouched, and record versions, results, and any limitations.
+- ROCm: host and disposable containers enumerate the RX 7600 with full DRM passthrough.
+- Lemonade: image and build `b1358` are installed; text API verification passed; browser verification is in progress.
+- vLLM: managed package installation and its server CLI help passed; no vLLM model inference was attempted.
+- Liquid models: Q8_0 weights and the F16 decision projector passed checksum verification;
+  text generation and the supported decision outputs passed separate requests.
+- Completion: finish the browser check, stop test servers, and leave startup untouched.
+
+## Installation results
+
+The persistent installation is under `~/.local/share/lemonade/`.
+`installation.json` records source revisions, file sizes, verified SHA-256 values,
+the image digest, and runtime provenance.
+`verification.json` records the consumer assertions and test limits.
+The image digest is `sha256:8ae593e309c5f8f348ea7404f20e27db83d0d247cc9ba3b2bf7fb6310e13e73c`.
+
+The managed runtime versions are:
+
+- Lemonade `2026.44.1`.
+- ROCm llama.cpp package `b1358`, build `11997`, upstream commit `0ac1a7fd3`.
+- vLLM package `vllm0.20.1-rocm7.12.0-gfx110X`.
+
+Text generation returned HTTP 200 and `Liquid text runtime ready.` with reasoning disabled.
+The first request using default reasoning reached its 120-second client deadline and cancelled cleanly.
+This is not a general performance result.
+
+The d1 endpoint returned HTTP 200 for yes/no, single-choice, and scoring questions.
+It selected `billing` for a refund request and reported zero generated tokens.
+Its runtime log confirmed `offloaded 25/25 layers to GPU`.
+The decision container then exited with code 0.
+
+The vLLM CLI exited with code 0 while warning that its optional Torch C DLPack extension did not JIT.
+Image/video decision inputs and full vLLM model inference remain untested.
+Independent installation findings and recovery steps are recorded in
+[the troubleshooting record](../troubleshooting/lemonade-linux-container-installation.md).
 
 ## Additional inventory
 
@@ -224,7 +253,8 @@ That size is metadata, not measured transfer size or VRAM demand.
 The custom-model guide routes imported GGUF files through llama.cpp;
 testing the existing GGUF cache would not verify vLLM.
 This initial Qwen candidate was superseded by the selected Liquid models.
-No model weights have been downloaded for this task.
+No model weights had been downloaded at that initial inventory stage.
+The installation results section records the later verified Liquid downloads.
 
 The official image persists configuration, backend cache, and Hugging Face models under `/opt/lemonade`.
 The backend installer uses the process temporary directory for archive installation.
