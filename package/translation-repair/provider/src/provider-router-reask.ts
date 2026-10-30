@@ -52,6 +52,10 @@ import type {
 // may buy, and that wrapper performs it through `chatText` hinted with
 // `otherThan`, which `routedTextElsewhere` serves (`nudged-reask.ts`).
 //
+// A REASONING RUNAWAY IS RE-ASKED OF ANOTHER MODEL (ledger B1072), so that
+// ask names another roster model and carries no hint; the router's own
+// `chatJson` routes it as it routes any first ask (`routedText`).
+//
 // SPLIT FROM `provider-router.ts` at its line budget. The router lends it the
 // three things it needs: the reach of a request, the budget view, and the
 // dispatch that performs one call on one provider.
@@ -373,13 +377,16 @@ export async function routedJson<ValueT,>(
     },
     ask: async function askElsewhere(nudged,): Promise<ChatTextReply> {
       /**
-       The nudged exchange on another provider.
+       The nudged exchange: on another provider when it asks the same model again, routed like a first ask when it asks
+       another model, which a reasoning runaway is re-asked of (ledger B1072).
        */
-      const routed = await routedTextElsewhere({
-        core,
-        request: nudged,
-        otherThan: provider,
-      },);
+      const routed = (nudged.otherThan === undefined)
+        ? await core.routedText(nudged,)
+        : await routedTextElsewhere({
+          core,
+          request: nudged,
+          otherThan: provider,
+        },);
       return {
         ...routed.reply,
         servedBy: routed.provider,

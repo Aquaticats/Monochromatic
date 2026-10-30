@@ -404,8 +404,8 @@ await describe({
         /**
          Model each runaway's re-ask was addressed to, by the model that ran away.
          */
-        const chosen: (readonly [string, string | undefined])[] = [];
-        for (const ranAway of [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_HYPER_OPENROUTER_UNMEASURED, 'claude-haiku-5-5',]) {
+        const chosen: (readonly [string, string])[] = [];
+        for (const ranAway of [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_HYPER_OPENROUTER_UNMEASURED, 'claude-haiku-5-5',] as const) {
           /**
            What this runaway's re-ask was asked.
            */
@@ -419,7 +419,11 @@ await describe({
               return { text: '{"spot":"radiator"}', };
             },
           },);
-          chosen.push([ranAway, asked[0]?.modelId,],);
+          // ONE ASK EACH, so the models joined are the one model asked.
+          chosen.push([ranAway, asked.map(function modelOf(request,): string {
+            return request.modelId;
+          },)
+            .join(' ',),],);
         }
         expect(chosen,).toEqual([
           [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
@@ -538,8 +542,8 @@ await describe({
         expect(asks.at(-1,)?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model could take the re-ask `
-          + `of a reasoning runaway (${String(tried.length,)} tried); re-asking ${SEAT_HYPER_OPENROUTER_UNMEASURED} on `
-          + 'another provider, as before',
+            + `of a reasoning runaway (${String(tried.length,)} tried); re-asking ${SEAT_HYPER_OPENROUTER_UNMEASURED} on `
+            + 'another provider, as before',
         ],);
       },
     },),
@@ -558,7 +562,7 @@ await describe({
         },);
         expect(logged,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway on neuralwatt `
-          + `(a length stop with no content); re-asking ${SEAT_HYPER_OPENROUTER_VISION_EDITOR} instead, nudged`,
+            + `(a length stop with no content); re-asking ${SEAT_HYPER_OPENROUTER_VISION_EDITOR} instead, nudged`,
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: synthetic answered usably on the re-ask`,
         ],);
       },

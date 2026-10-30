@@ -360,7 +360,8 @@ export type ChatJsonReaskFailure = {
   readonly rawText: string;
 
   /**
-   What failed in it: the refusal marker, or the mismatch's detail.
+   What failed in it: the refusal marker, or the mismatch's detail, followed by `; asked of` and the model's name where
+   the re-ask went to another model than the one that ran away (ledger B1072).
    */
   readonly cause: string;
 };
