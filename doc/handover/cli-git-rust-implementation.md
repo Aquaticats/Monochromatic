@@ -4043,3 +4043,23 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `git cli-git --help` and a rename-merge probe on the installed binary.
 - Release tooling lesson (same as the mutation launcher): `release.ts` and `wait-publish.ts` in `~/temp/agent` are
   reused every release and hardcode the repository root; promote them to a package with tests (queued, not started).
+
+## Update at 2026-10-29 (22:10, 0.4.1 adopted)
+
+- Landed `bb4a09eaa1` (merge `29d726164b`): `resolveNode` in `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts`
+  skips pre-release entries of the nodejs.org index (four tests; troubleshooting note
+  `doc/troubleshooting/toolchain-update-aborts-when-node-index-lists-a-prerelease.md`). `toolchain:update` runs the
+  source, so the live run proved the fix: it skipped `v27.0.0-alpha.0.0.0` and wrote the four pin files. Note: the
+  package's `test:unit` task tests the built `dist`; run `mise run //package/file-enforcer/core:build` first or the
+  two new tests fail against stale output (they did on main until I built).
+- Adopted 0.4.1: commit "chore(mise): adopt monochromatic-git-policy-cli 0.4.1 with cargo-dylint 6.3.1, dylint-link
+  6.3.1 and wrangler 4.156.0 via toolchain:update". The lock diff was exactly those four moves (18 lines changed in
+  four files). `toolchain:sync`: 4 installed, 59 unchanged, 0 failed. Verified with `~/temp/agent/verify-041.ts` on the
+  installed wrapper: new doctor help line present; a merge beside a staged rename of `Uold.txt` made a two-parent
+  merge and kept the rename staged. Linked worktrees whose lock still pins 0.4.0 swap the install back on their next
+  sync until they merge main.
+- Found, not ours, not fixed: file-enforcer core `test:unit` still fails one test after the build:
+  `staleness-concurrency-regression` "concurrent manifest writers preserve both entries" times out at 10 s on this
+  loaded host, and the same file carries the only lint warning in that package (`numeric-separators-style` at
+  `WAIT_ATTEMPTS = 3000`, line 42). Peer session `monochromatic-04` asked earlier about the staleness manifest.
+  Needs its owner (or the user's say-so) before I touch it.
