@@ -220,6 +220,41 @@ In flight:
 the live-probe agent,
 checkpointing to `${HOME}/temp/agent/fe-rust/gate-probes.md` after each probe,
 with containers under `systemd-run` units named `fe-gate-*`.
+Probes finished 2026-10-29
+([`doc/research/file-enforcer-rust-rewrite-gate-probes.md`](../research/file-enforcer-rust-rewrite-gate-probes.md)):
+
+- forbidden-strings:
+  pass.
+  A changed rules text is a cache miss keyed by its SHA-256,
+  never a stale hit;
+  today a comma-joined `--rules` value is one filename and no optional entry exists,
+  the baseline the `?` list changes.
+- `browserslist-rs` 0.21.2:
+  mechanics pass,
+  data parity fails.
+  It resolves the same queries in the same shape,
+  but its data is older:
+  14 targets against 18,
+  `chrome151` against `chrome156`,
+  `firefox140` (hard-coded ESR) against `firefox153`,
+  and Node up to 26.8.0 against 26.12.0.
+  The repo's `.browserslistrc` has no sections,
+  so "production" means the defaults.
+  This is the data drift the user accepted when choosing the crate,
+  now measured.
+- `mpm outdated` reading:
+  the candidate rule fails as written.
+  mpm 8.2.0 drops a failed or missing manager from its JSON with exit 0,
+  reports an unreachable registry only in an `errors` array,
+  and gives no row both when installed equals latest and when installed is newer than latest;
+  the flag is `--table-format json`,
+  not `--output-format json`.
+  How to read it goes back to the user.
+- Side finding,
+  not investigated:
+  tag `v8.2.0` resolves to `99eb596b`,
+  while `doc/decision/mpm-toolchain-adoption.md` cites `f095931a`.
+
 The user chose "Let it finish":
 reboot is called safe only after all three probes finish,
 their containers and units stop,
