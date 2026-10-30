@@ -722,12 +722,31 @@ NLD:
 
 NQH:
  Never wait for a quiet host or call one quiet:
- other sessions keep the load average up,
- and memory pressure and swap use are normal here too:
- code and tests must work under them.
+ other sessions keep the load average up.
 Measure under the load there is,
  alternating arms with a same-binary control for the spread,
  and report counts.
+
+NHR:
+ Normal here,
+ never excuses:
+ high CPU load,
+ memory pressure and swap,
+ slow SSD and I/O,
+ nearly full disk or GPU memory,
+ process and descriptor limits near exhaustion.
+Code must work under them.
+
+NHP:
+ Normal here,
+ never excuses:
+ a process killed at any instruction,
+ a closed terminal or broken pipe,
+ slow fsync,
+ unusual filesystems,
+ DNS or mirror trouble.
+Recover or fall back,
+ never wedge.
 
 FHU:
  Real jobs may use almost the whole host:

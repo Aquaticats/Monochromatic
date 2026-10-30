@@ -3999,3 +3999,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - User condition on the bound (20:50): presenting evidence is not enough. The user must explicitly approve the evidence
   itself (they judge whether it is good enough) before any change; only then may the bound rise, to at most 10 s. Ask
   through the question tool with the evidence attached, and treat silence or a vague reply as no approval.
+
+- User directive (21:00): slow or garbage SSD and I/O trouble, and GPU memory nearly full (about 500 MB free), are
+  normal operating conditions too. The user chose, from my suggestions, to also name: a nearly full disk, process and
+  descriptor limits near exhaustion, a process killed at any instruction, a closed terminal or broken pipe, unusual
+  filesystems with slow fsync, and DNS or mirror trouble (the user's wording: sometimes we just need a different DNS or
+  a mirror, so the rule says recover or fall back). Not chosen: clock jumps, CPU throttling. Recorded as two tagged
+  rules in `AGENTS.md` and `CLAUDE.md`: NHR (resources) and NHP (processes and environment). The earlier memory
+  sentence in NQH was removed to keep NQH under the rule length limit; NHR carries it now.
+- Consequences to act on: the disk-full and descriptor-limit cases need fault-injection tests in the wrapper (a tiny
+  tmpfs inside a capped container for ENOSPC in the middle of a journal, lock or index write; a low `ulimit -n`),
+  and the closed-terminal case needs binary tests for EPIPE on stdout and stderr, no stdin, and SIGHUP while the
+  wrapper holds a lock or has a half write. Not started; queued here (task 66 and a new task below).
