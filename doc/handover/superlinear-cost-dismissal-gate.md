@@ -761,6 +761,24 @@ site fixes stay unauthorized
 and need a separate request.
 Graduation goes to the owner
 with the measurement and the truth-check both in hand.
+Owner decisions 2026-10-30
+at the parity question and the graduation question:
+wire the Luna leg anyway at its measured 5 of 8
+(commit `fb0de80915`,
+default route `openai/gpt-6-luna-decisions` through the Decisions API,
+the pinned full review kept behind `SHADOW_REVIEW_ALLOW=1`),
+and graduation stays held:
+keep shadowing.
+Queue
+(written here because an unwritten queue item is lost):
+live verification of the first Luna entries
+on real code landings in `doc/audit/standards-review-gate-shadow.md`,
+the owner's later graduation call
+(`AGENTS.md` rule versus git-policy landing check),
+and site fixes of the named real costs
+(the cost-dismissal hook's own `readRecordedKeys` whole-log rescan per event
+among them),
+which need a separate request.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
