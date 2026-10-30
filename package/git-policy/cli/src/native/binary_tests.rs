@@ -154,3 +154,35 @@ mod hooks_off;
 /// The notices of a commit that waits: what it waits for, who holds it, the repeat, and the bound.
 #[path = "binary_wait_notice_tests.rs"]
 mod wait_notice;
+
+/// The fault injection and the recovery invariants of the operating conditions in the README.
+#[path = "binary_fault_support.rs"]
+mod fault;
+
+/// A full disk or a failed flush at each call of a commit: the next command recovers and nothing stays behind.
+#[path = "binary_fault_enospc_tests.rs"]
+mod fault_enospc;
+
+/// The wrapper killed at each call of a commit that writes, renames, removes or syncs.
+#[path = "binary_fault_kill_tests.rs"]
+mod fault_kill;
+
+/// Descriptor, process and file-size limits close to exhaustion, set on the child or injected at each call.
+#[path = "binary_fault_limits_tests.rs"]
+mod fault_limits;
+
+/// A closed terminal: hangups, interrupts and quits to the wrapper and to its process group at each phase.
+#[path = "binary_fault_signal_tests.rs"]
+mod fault_signal;
+
+/// Standard streams that are closed, unread or full.
+#[path = "binary_fault_stream_tests.rs"]
+mod fault_stream;
+
+/// Remote trouble met by the push after a commit and by an explicit push.
+#[path = "binary_fault_remote_tests.rs"]
+mod fault_remote;
+
+/// Slow flushes and filesystems that refuse links or renames.
+#[path = "binary_fault_filesystem_tests.rs"]
+mod fault_filesystem;
