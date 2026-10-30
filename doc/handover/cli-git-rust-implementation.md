@@ -4339,3 +4339,49 @@ This block supersedes "State at 2026-10-29 (night, later)".
   second code path. Decision: not building it. The measured work is task 69 (31 syncs down to barriers only) and a
   further spawn cut in the shadow repository and the `diff-index`, `ls-files` and `cat-file` groups.
 - Open: attribute the three pack syncs and the `index.lock` sync (wrapper or child `git`), then size the spawn cut.
+
+## Update at 2026-10-30 (fault-injection tests landed, state before a reboot)
+
+- The user asked for no new work before a reboot: only docs, nothing discarded, everything running allowed to finish.
+  Nothing of mine is running (checked `systemctl --user` for `cli-git`, `commit-profile` and `mut` units: none).
+- Landed on main as `1269236d84` (fast-forward of a merge made in `~/temp/agent/land-faults`): the task 76 branch
+  `worktree-agent-a8a2fc13ee399243e` (agent report, tip `f97e30f5d3`). The host suite was run by the agent only:
+  lib 2324 tests with 1 failure (the known `markdown_linter` one), binary 324 tests with 1 failure (the known markdown
+  one), Clippy with warnings denied clean. I have NOT run the container gate (`native:test:container`) on the merged tree.
+- New tests: `src/native/binary_fault_*_tests.rs` and `binary_fault_support.rs`, covering ENOSPC and EIO sweeps,
+  `RLIMIT_FSIZE` half writes, SIGKILL before every write, fsync, rename and unlink, `RLIMIT_NOFILE` 4 to 48, EMFILE and
+  `clone3` EAGAIN, SIGHUP, SIGINT and SIGQUIT, closed and `/dev/full` streams, 30 ms fsync delays, link, rename and
+  mkdir refusals, and refused, hung-up, silent and `.invalid` remotes with a descriptor tripwire.
+- Defects found and fixed (red commits `da03b11dfb`, `1162fab840` first, fixes `9b55541a3e`, `e9ff81c5bb`, `f49f0c7dbe`,
+  `b0aa630948`): torn journal records after a failed write or a kill (every later guarded command exited 2), a bare
+  `index.lock` after a kill, a lock owner-record write failure leaving `landing.lock.<id>.pending`, a failed
+  directory sync on filesystems answering EINVAL, ENOTSUP or ENOSYS, a hook dispatcher panic on a stderr with no
+  reader (exit 101 instead of 1), and a stopped push leaving `git remote-http` and `git-lfs` running (new
+  `src/native/process_tree.rs`, Linux only). The write-up is `doc/troubleshooting/git-wrapper-fault-injection-findings.md`
+  and the README section "Operating conditions", subsection "What pins each condition".
+- The agent's judgment calls, standing unless the user vetoes: the invariant is "nothing left after the next commit",
+  not after the next status; `*.pending` and `*.stale` registry entries are ignored because recovery keeps them by
+  design. Observed and not fixed: a rename ENOSPC at the lock release exits 0 with a landed commit and a stale
+  `landing.lock` that the next commit retires. Not covered: `bounded_child` and `child_watch` still kill without the
+  processes below them; worktree-copy and merge flows are killed at phase markers only; memory pressure, real slow
+  storage, real exotic filesystems and `RLIMIT_NPROC` were not injected. The claim that `git remote-http` outlives
+  SIGTERM to `git push` is a measurement on Git 2.56.0, not read from Git's source.
+- Authority-gate gap: the strace sweeps skip inside the test container because the image has no `strace` (the same
+  skip applies to `binary_fork_failure`), so the container gate runs fewer of the new controls than the host. A
+  skipped sweep proves nothing there. The non-strace controls (rlimit sweeps at width 6 under the 128-process cap, the
+  `.invalid` DNS remote with no network, the `/dev/full` streams) are untested in the container.
+- Next actions after the reboot, in order: (1) `mise run prepare:pnpm:install` in the checkout, then
+  `mise run //package/git-policy/cli:native:test:container` on main, and record the counts; (2) decide with the user
+  whether the test image should gain `strace` so the sweeps run in the authority gate (task 76 stays open until
+  then); (3) task 78 (attribute the pack and `index.lock` syncs, size the spawn cut) feeding task 69; (4) release
+  0.4.3 with `crate-release` once the gate passes, since the torn-record and stopped-push fixes are user-visible, and
+  compare its output with the scratch release scripts; (5) mutation campaign over `private_storage`, `owner_lock`,
+  `process_tree` and the changed index-lock path.
+- Kept on purpose, nothing discarded: worktrees `agent-a8a2fc13ee399243e` and `agent-a0f811841a29c76bc` under
+  `.claude/worktrees` (both branches merged into main; removal needs the user's cleanup grant), `agent-a1360b7e02c5cec27`
+  (locked by a live process before the reboot) and `agent-aba63f1400b66332c` (cherry-picked, not an ancestor),
+  `~/temp/agent/land-faults`, `~/temp/agent/commit-profile` (profile scripts, raw traces, `result/`, `host-perf.json`),
+  the image `localhost/commit-profile:dev`, local scratch branches, the stash entry `6f9966c7e5`.
+- Not ours and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `.projenrc.ts`,
+  `doc/audit/standards-review-gate-truth-check.md`, `doc/handover/superlinear-cost-dismissal-gate.md` (another
+  session's changes in the main checkout).
