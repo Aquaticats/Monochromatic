@@ -272,6 +272,7 @@ import { createHash } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 function podman(args, allowFailure = false) {
   const result = spawnSync('podman', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
   if (result.error) throw result.error;
@@ -291,7 +292,7 @@ const filter = 'replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\
 const command = ['cargo', 'mutants', '--in-place', '--baseline', 'run', '--no-config', '--no-shuffle', '--test-tool', 'nextest',
   '--jobserver-tasks', '2', '--build-timeout', '300', '--timeout', '180',
   '--file', 'src/processors_prepare.rs', '--file', 'src/processors_projection.rs', '--file', 'src/processors_rewrite.rs',
-  '--exclude-re', 'replace \\+= with \\*=', '--exclude-re', 'replace -= with /=',
+  ...exclusionArguments([]),
   '--re', filter, '--cargo-test-arg=processors', '--cargo-arg=--offline', '--cargo-arg=--locked', '--caught',
   '--output', '/work/processor-mutation-report'];
 let container;
@@ -327,7 +328,14 @@ run = ["cargo mutants --help", "rustc --help"]
 
 [tasks."mutation:list:processors"]
 description = "Inspect concrete guard mutant identities without compiling or mutating source"
-run = "cargo mutants --list --no-config --exclude-re 'replace \\+= with \\*=' --exclude-re 'replace -= with /=' --file src/processors_projection.rs --file src/processors_prepare.rs --file src/processors_rewrite.rs"
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { spawnSync } from 'node:child_process';
+import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+const files = ['src/processors_projection.rs', 'src/processors_prepare.rs', 'src/processors_rewrite.rs'];
+const listed = spawnSync('cargo', ['mutants', '--list', '--no-config', ...exclusionArguments([]), ...files.flatMap((file) => ['--file', file])], { stdio: 'inherit' });
+process.exitCode = listed.status ?? 1;
+'''
 
 [tasks."lint:processors"]
 description = "Run Clippy against the processor-tested bounded source snapshot"

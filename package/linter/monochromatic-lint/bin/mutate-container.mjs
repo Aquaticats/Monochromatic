@@ -19,6 +19,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
+import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
 const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'monochromatic-lint');
@@ -48,28 +50,8 @@ const workspaceTests = [
   'run_directive_tests::semantic_findings_follow_the_same_directive_rules',
 ];
 
-/**
- Mutant-name patterns no scope tries, each passed as its own `--exclude-re` argument.
- `x += 1` to `x *= 1` and `x -= 1` to `x /= 1` leave a counter unchanged, so a loop that steps its own
- index never ends, and cargo-mutants 27.1.0 exits with its timeout status whenever any mutant times out.
- Skipping these two kinds was decided for this repository on 2026-10-05; `+=` to `-=` and `-=` to `+=`
- still test every counter. Record: doc/handover/unified-linter-mutation-close.md, `Excluded mutation kinds`.
- */
-const excludedMutantPatterns = [
-  String.raw`replace \+= with \*=`,
-  'replace -= with /='
-];
-
 /** Per-mutant test limit, in seconds, for every scope whose own entry names none. */
 const defaultTimeoutSeconds = 180;
-
-/** One cargo-mutants `--exclude-re` option pair, which drops every mutant whose listed name matches the pattern. */
-function exclusionArguments(pattern) {
-  return [
-    '--exclude-re',
-    pattern
-  ];
-}
 
 /** One nextest `--skip` option pair, which excludes every test whose name contains the text. */
 function skipArguments(name) {
@@ -282,7 +264,7 @@ function listMutants(scope) {
     'mutants',
     '--list',
     '--no-config',
-    ...excludedMutantPatterns.flatMap(exclusionArguments),
+    ...exclusionArguments([]),
     ...scope.select
   ];
   const result = spawnSync(
@@ -465,7 +447,7 @@ async function campaign({
       '/work/mutation-report',
       '--cargo-arg=--offline',
       '--cargo-arg=--locked',
-      ...excludedMutantPatterns.flatMap(exclusionArguments),
+      ...exclusionArguments([]),
       ...(shard === undefined ? [] : [
         '--shard',
         shard

@@ -4,6 +4,7 @@
 export * from './character-set.ts';
 export * from './constants.ts';
 export * from './error.ts';
+export * from './excluded-mutants.ts';
 export * from './gate-slot.ts';
 export * from './names.ts';
 export * from './options.ts';

@@ -5,6 +5,8 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { join } from 'node:path';
+
+import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 import {
   run,
   snapshot,
@@ -102,10 +104,7 @@ async function main() {
     '--cargo-test-arg=--test-threads=1',
     '--cargo-test-arg=--skip=rule::frx::compile_tests::builtin_ported_all_compile',
     '--cargo-test-arg=--skip=rule::frx::compile_tests::append_ported_compiles_end_to_end',
-    '--exclude-re',
-    String.raw`replace \+= with \*=`,
-    '--exclude-re',
-    'replace -= with /=',
+    ...exclusionArguments([]),
   ];
   const files = scope ? scope.files : [
     'scanner.rs',

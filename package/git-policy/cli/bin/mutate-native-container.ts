@@ -19,6 +19,8 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+
 import {
   buildLimitArguments,
   parseContainerLimitOptions,
@@ -80,21 +82,6 @@ const contentAddressedIdLength = 64;
  */
 const lowercaseHexDigits = '0123456789abcdef';
 /**
- Mutant kinds no campaign tries, as regular expressions matched against the names `cargo mutants --list` prints.
-
- Turning `+= 1` into `*= 1`, or `-= 1` into `/= 1`, leaves a counter unchanged, so a loop stepping one never ends
- and the mutant only reaches the test timeout.
- cargo-mutants exits with its timeout status whenever any mutant timed out and has no option to change that,
- so one such mutant fails a whole campaign.
- The human accepted on 2026-10-05 that these two kinds are never tried.
- `replace += with -=` stays active as the check on every counter.
- */
-const excludedMutantKinds = [
-  String.raw`replace \+= with \*=`,
-  'replace -= with /=',
-];
-
-/**
  Check for a full content-addressed Podman ID with one linear scan.
 
  @param text - command output that should be exactly one ID
@@ -151,12 +138,7 @@ function mutationCommand({
     containerReport,
     '--cargo-arg=--offline',
     '--cargo-arg=--locked',
-    ...excludedMutantKinds.flatMap(function exclusionArguments(kind) {
-      return [
-        '--exclude-re',
-        kind,
-      ];
-    }),
+    ...exclusionArguments([]),
     ...examine.flatMap(function examineArguments(pattern) {
       return [
         '--re',
