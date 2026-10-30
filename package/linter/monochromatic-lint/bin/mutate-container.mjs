@@ -21,7 +21,13 @@ import { mkdirSync as makeScratchBase } from 'node:fs';
 
 import {
   buildLimitArguments,
+  campaignCommand,
+  campaignContainerfile,
+  defaultBuildTimeoutSeconds,
+  evidenceJson,
   exclusionArguments,
+  exitRecord,
+  isContentAddressedId,
   parseContainerLimitOptions,
   runLimitArguments,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
@@ -412,7 +418,7 @@ async function campaign({
     })
       .stdout
       .trim();
-    if (!/^[a-f0-9]{64}$/u.test(base))
+    if (!isContentAddressedId(base))
       throw new VerificationError('Test image did not resolve to a full content-addressed image ID.');
     const tool = join(
       process.env
@@ -435,50 +441,33 @@ async function campaign({
         'cargo-mutants'
       )
     );
-    const command = [
-      'cargo',
-      'mutants',
-      '--in-place',
-      '--baseline',
-      'run',
-      '--build-timeout',
-      '300',
-      '--timeout',
-      String(timeoutSeconds),
-      '--no-config',
-      '--no-shuffle',
-      '--test-tool',
-      'nextest',
-      '--output',
-      '/work/mutation-report',
-      '--cargo-arg=--offline',
-      '--cargo-arg=--locked',
-      ...exclusionArguments([]),
-      ...(shard === undefined ? [] : [
-        '--shard',
-        shard
-      ]),
-      ...scope.select,
-      ...(examine === undefined ? [] : [
-        '--re',
-        examine
-      ]),
-      ...scope.run,
-    ];
+    const command = campaignCommand({
+      outputDirectory: '/work/mutation-report',
+      timeoutSeconds,
+      buildTimeoutSeconds: defaultBuildTimeoutSeconds,
+      additionalExclusions: [],
+      tail: [
+        ...(shard === undefined ? [] : [
+          '--shard',
+          shard
+        ]),
+        ...scope.select,
+        ...(examine === undefined ? [] : [
+          '--re',
+          examine
+        ]),
+        ...scope.run,
+      ],
+    });
     await writeFile(
       join(
         context,
         'Containerfile'
       ),
-      [
-        '# The tested image ID binds this campaign to an exact source snapshot.',
-        `FROM ${base}`,
-        'COPY cargo-mutants /usr/local/cargo/bin/cargo-mutants',
-        'RUN ["cargo", "mutants", "--version"]',
-        'ENV CARGO_NET_OFFLINE=true',
-        `CMD ${JSON.stringify(command)}`,
-        '',
-      ].join('\n')
+      campaignContainerfile({
+        baseImage: base,
+        command
+      })
     );
     // The container starts from the ID this build wrote, not from the shared tag, and is given its command
     // explicitly. Two builds started together for shards 0/3 and 1/3, whose Containerfiles differed only in
@@ -510,7 +499,7 @@ async function campaign({
       /^sha256:/u,
       ''
       );
-    if (!/^[a-f0-9]{64}$/u.test(campaignImage))
+    if (!isContentAddressedId(campaignImage))
       throw new VerificationError('The campaign image build did not report a full content-addressed image ID.');
     container = podman({
       args: [
@@ -528,7 +517,7 @@ async function campaign({
     })
       .stdout
       .trim();
-    if (!/^[a-f0-9]{64}$/u.test(container))
+    if (!isContentAddressedId(container))
       throw new VerificationError('Container creation did not return a complete container ID.');
     const created = podman({
       args: [
@@ -550,7 +539,7 @@ async function campaign({
         evidence,
         'manifest.json'
       ),
-      `${JSON.stringify(
+      evidenceJson(
         {
       baseImage: base,
       campaignImage,
@@ -563,13 +552,11 @@ async function campaign({
         memory: limits.memory,
         cpus: limits.cpus,
         pids: limits.pidsLimit,
-        buildTimeoutSeconds: 300,
+        buildTimeoutSeconds: defaultBuildTimeoutSeconds,
         testTimeoutSeconds: timeoutSeconds
       },
-    },
-        null,
-        2
-      )  }\n`
+    }
+      )
     );
     console.log(`Mutation evidence: ${evidence}`);
     const result = podman({
@@ -595,16 +582,12 @@ async function campaign({
         evidence,
         'exit.json'
       ),
-      `${JSON.stringify(
-        {
-          status: result.status,
-          signal: result.signal,
-          reportCopied: copy.status === 0,
-          reportCopyError: copy.status === 0 ? undefined : copy.stderr,
-        },
-        null,
-        2
-      )  }\n`
+      evidenceJson(exitRecord({
+        status: result.status,
+        signal: result.signal,
+        reportCopied: copy.status === 0,
+        ...(copy.status === 0 ? {} : { reportCopyError: copy.stderr }),
+      }))
     );
     if (result.status !== 0)
       throw new VerificationError(`Mutation campaign exited ${result.status}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`);

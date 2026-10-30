@@ -19,7 +19,14 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  campaignCommand,
+  campaignContainerfile,
+  defaultBuildTimeoutSeconds,
+  evidenceJson,
+  exitRecord,
+  isContentAddressedId,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 import {
   buildLimitArguments,
@@ -74,31 +81,6 @@ const mutationImage = `localhost/git-policy-native-mutation:${imageTag}`;
  */
 const containerReport = '/home/tester/mutation-report';
 /**
- Length of a full content-addressed Podman image or container ID: a SHA-256 digest in hexadecimal.
- */
-const contentAddressedIdLength = 64;
-/**
- Digits a full content-addressed Podman ID may contain.
- */
-const lowercaseHexDigits = '0123456789abcdef';
-/**
- Check for a full content-addressed Podman ID with one linear scan.
-
- @param text - command output that should be exactly one ID
- 
- @returns true only for 64 lowercase hexadecimal digits, so a short or empty ID never passes
- */
-function isContentAddressedId(text: string): boolean {
-  if (text.length !== contentAddressedIdLength)
-    return false;
-  for (const character of text) {
-    if (!lowercaseHexDigits.includes(character))
-      return false;
-  }
-  return true;
-}
-
-/**
  cargo-mutants command the campaign image runs.
 
  @param scopes - `src/native` file globs
@@ -118,42 +100,28 @@ function mutationCommand({
   readonly examine: readonly string[];
   readonly timeoutSeconds: number;
 }): string[] {
-  return [
-    'cargo',
-    'mutants',
-    '--in-place',
-    '--baseline',
-    'run',
-    // Binary-level controls bound each wrapped command to 5 seconds, so a looping mutant fails well inside this limit.
-    '--build-timeout',
-    '300',
-    '--timeout',
-    String(timeoutSeconds),
-    '--no-config',
-    '--no-shuffle',
-    // The same runner as the gate: the baseline and every mutant run through nextest.
-    '--test-tool',
-    'nextest',
-    '--output',
-    containerReport,
-    '--cargo-arg=--offline',
-    '--cargo-arg=--locked',
-    ...exclusionArguments([]),
-    ...examine.flatMap(function examineArguments(pattern) {
-      return [
-        '--re',
-        pattern,
-      ];
-    }),
-    // Scoped runs are evidence for the named files only. The unmutated baseline still runs over everything.
-    ...scopes.flatMap(function scopeArguments(scope) {
-      return [
-        '--file',
-        scope,
-      ];
-    }),
-    ...baselineSkipArguments(),
-  ];
+  return campaignCommand({
+    outputDirectory: containerReport,
+    timeoutSeconds,
+    buildTimeoutSeconds: defaultBuildTimeoutSeconds,
+    additionalExclusions: [],
+    tail: [
+      ...examine.flatMap(function examineArguments(pattern) {
+        return [
+          '--re',
+          pattern,
+        ];
+      }),
+      // Scoped runs are evidence for the named files only. The unmutated baseline still runs over everything.
+      ...scopes.flatMap(function scopeArguments(scope) {
+        return [
+          '--file',
+          scope,
+        ];
+      }),
+      ...baselineSkipArguments(),
+    ],
+  });
 }
 
 // Build and run the tool over an immutable input image, then retain its complete report.
@@ -299,15 +267,10 @@ await writeFile(
     context.path,
     'Containerfile',
   ),
-  [
-    '# The tested image ID binds this campaign to an exact source snapshot.',
-    `FROM ${base}`,
-    'COPY cargo-mutants /usr/local/cargo/bin/cargo-mutants',
-    'RUN ["cargo", "mutants", "--version"]',
-    'ENV CARGO_NET_OFFLINE=true',
-    `CMD ${JSON.stringify(command)}`,
-    '',
-  ].join('\n'),
+  campaignContainerfile({
+    baseImage: base,
+    command,
+  }),
 );
 await runCommand({
   command: 'podman',
@@ -339,7 +302,7 @@ await writeFile(
     evidence,
     'manifest.json',
   ),
-  `${JSON.stringify(
+  evidenceJson(
     {
       baseImage: base,
       toolSha256,
@@ -350,13 +313,11 @@ await writeFile(
         memory: containerLimits.memory,
         cpus: containerLimits.cpus,
         pids: containerLimits.pidsLimit,
-        buildTimeoutSeconds: 300,
+        buildTimeoutSeconds: defaultBuildTimeoutSeconds,
         testTimeoutSeconds: 90,
       },
     },
-    null,
-    2,
-  )}\n`,
+  ),
 );
 /**
  Outcome of the campaign run, whose nonzero exit can mean missed mutants rather than a failure.
@@ -389,16 +350,12 @@ await writeFile(
     evidence,
     'exit.json',
   ),
-  `${JSON.stringify(
-    {
-      status: result.status ?? null,
-      signal: result.signal ?? null,
-      reportCopied: copy.status === 0,
-      reportCopyError: copy.status === 0 ? undefined : copy.stderr,
-    },
-    null,
-    2,
-  )}\n`,
+  evidenceJson(exitRecord({
+    status: result.status,
+    signal: result.signal,
+    reportCopied: copy.status === 0,
+    ...(copy.status === 0 ? {} : { reportCopyError: copy.stderr }),
+  })),
 );
 if (result.status !== 0)
   throw new NativeVerificationError(
