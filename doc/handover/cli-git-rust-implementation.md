@@ -3968,3 +3968,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `auto_push_reconcile` on the final tree; the next release (0.4.1 with the doctor help text, the test fixes and the
   `unsaved_paths` rename fix; fix `wait-publish.ts` first); cleanup list (worktrees `integrate-7` to `integrate-19`,
   images `w3*` to `w5*`, `cli-git-gate-limits` unit is finished).
+
+## Update at 2026-10-29 (20:30, waves 5 and 6)
+
+- Wave 5 (tree `6cd2a6d510`, images `w50` to `w54`, logs `~/temp/agent/mutpar-w5-<file>.log.N`):
+  `management_arguments.rs` 35 mutants, 32 caught, 3 unviable. `worktree_copy_lock.rs` (75 mutants) still running at
+  20:23, expected between 20:45 and 21:15 from earlier rates (0.9 to 1.3 mutants a minute). `owner_lock.rs`,
+  `transaction_git.rs` and `markdown_linter.rs` never passed their baseline in three attempts: tests hit the shared
+  5-second bound (`markdown::a_failing_linter_stops_the_command` 11.4 s, `management::namespace_word_elsewhere_is_an_ordinary_argument`
+  5.2 s, two `discard::` tests 7 to 8 s; normally about 0.05 s). Host at that time: memory pressure full stall 2 to 3 %,
+  18 GB swap in use, 42 GB available, 28 cores, 2 campaign containers; no cause established (task 66).
+- Wave 6 started at 20:30 (tree = main at `integrate-20`, images `w60` to `w65`, units `cli-git-mutpar-w6-*`): reruns
+  of `owner_lock`, `transaction_git`, `markdown_linter`, plus the confirmation campaigns for `merge_isolation`,
+  `scratch_location` and `auto_push_reconcile`. If the three reruns fail their baselines again, measure memory
+  pressure (`/proc/pressure/memory`) and swap during the failure and fix the cause in the test harness or the
+  wrapper, not by raising the bound.
