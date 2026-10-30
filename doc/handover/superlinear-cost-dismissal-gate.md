@@ -680,12 +680,69 @@ a truth-check of the named-cost cluster
 and a sample of the `no` landings,
 since the log measures naming
 and no ground truth yet says which landings carried superlinear cost;
-and what replaces the per-commit review if more collection is wanted,
-the candidates being a Luna decision-model leg
-(`openai/gpt-6-luna-decisions`)
-with a paired parity run on the 8-commit corpus first,
-a deterministic landing sample on the pinned full-model route,
-or no further collection at all.
+and what replaces the per-commit review if more collection is wanted.
+Owner decisions 2026-10-30 at the cost-correction question:
+the replacement instrument is the Luna decision-model leg
+(`openai/gpt-6-luna-decisions`
+through the Decisions API),
+graduation waits for the truth-check first,
+and no `AGENTS.md` rule backs any of it.
+Parity run for the Luna leg,
+pre-registered before it runs:
+catch is Luna's top choice `yes`
+on at least 6 of the 8 ground-truth cost cases of `blind-recall/`
+(cases 01,
+02,
+03,
+04,
+09,
+10,
+12,
+13),
+and specificity is top choice `yes`
+on at most 1 of the 4 clean probes
+(cases 05,
+07,
+08,
+11);
+case 06,
+the regex site,
+is reported and counted by neither side.
+A failing parity leaves the per-landing instrument at nothing
+and returns the choice to the owner.
+Parity run of 2026-10-30,
+three repeats,
+with probabilities identical to two decimals on every repeat
+(so no run-to-run spread to discount):
+catch is 5 of the 8
+(01,
+02,
+03,
+09,
+12),
+missing 04
+(`yes` 0.39 against `no` 0.45),
+10
+(0.14),
+and 13
+(0.12),
+short of the 6 of 8 bar;
+specificity is 0 of 4,
+inside its bar;
+case 06 reads `no`
+(0.32),
+where the full reviewer caught the cost.
+Luna latency 391 to 1124 ms per case,
+median about 520 ms,
+against the full route's median 133.4 s,
+roughly 250 times cheaper in wall clock.
+Per the pre-registered rule the failing parity leaves the per-landing
+instrument at nothing and returns the choice to the owner:
+wire Luna at 5 of 8 anyway,
+take a deterministic landing sample on the pinned full-model route,
+or collect nothing until the graduation call.
+The parity script is `~/temp/agent/luna-parity.ts`,
+with the three raw runs beside it.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
