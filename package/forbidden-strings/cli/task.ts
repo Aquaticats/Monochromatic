@@ -9,7 +9,7 @@ import type { PackageTaskFile, } from '../../monorepo-task/cli/src/types.ts';
 export default {
   'verify:evidence': {
     description: 'Reconcile retained source manifests with current compiled inputs without hiding mismatches',
-    run: 'node bin/verify-evidence.mjs',
+    run: 'node bin/verify-evidence.ts',
   },
   'verify:markdown': {
     description: 'Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline',

@@ -1,6 +1,6 @@
 [tasks."verify:evidence"]
 description = "Reconcile retained source manifests with current compiled inputs without hiding mismatches"
-run = "node bin/verify-evidence.mjs"
+run = "node bin/verify-evidence.ts"
 
 [tasks."verify:markdown"]
 description = "Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline"
