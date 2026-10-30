@@ -280,8 +280,9 @@ the calls at the cap of all seats and providers moved as follows:
   19794 and 19841,
   26490 and 26556,
   and 26575 and 29966),
-  five as the nudged re-ask (B1072) and the last under the stage's recovery round (B1073),
-  and the seventh (`XingZ6019` line 407) is a first ask.
+  and each was the nudged re-ask (B1072),
+  the last made from within the stage's recovery round (B1073),
+  while the seventh (`XingZ6019` line 407) is a first ask.
 - OpenRouter's GLM-5.3-Flash calls at the cap read 14 with content and 225 with none,
   where they read 3 with content,
   3 with none and 233 unpaired.

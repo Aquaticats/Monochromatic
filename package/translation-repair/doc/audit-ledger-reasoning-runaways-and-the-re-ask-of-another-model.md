@@ -128,6 +128,13 @@ each open to the owner's veto:
 - The Claude route is left out because its key is metered ("be careful what you use").
   The other metered routes are not,
   since the router already spends on them for a first ask.
+- The list reads no hold of a card,
+  so a seat held out of a role can be asked that role's question as a re-ask:
+  the checker seat `xiaomi/mimo-v2.6-flash` and the unseated `google.gemma-4-31b` are on it.
+- Where most providers read dry,
+  one runaway costs up to eleven attempts one after another,
+  each a routed call that reads the budgets before it refuses,
+  and then the fall back to the runaway.
 - The nudge reads "Your previous reply could not be used",
   which the other model never wrote.
   Its prompt is a digest of its own under that model's name,
@@ -213,14 +220,26 @@ Two other places ask the same model again after a length stop with no content:
   with the `cut-short` nudge,
   through the same client,
   so it asks the seat's own model a second time.
-  `XingZ6020` line 29966 is a direct DeepSeek call whose lost-voice line (29967) is tagged `[runRecoveryRound]`,
-  and the round says what it re-asks
-  (`recovery round for 1 unreadable answer (1 cut-short)`).
-  It is the call the lead's brief pairs with the NeuralWatt runaway at line 26575,
-  and the lines between the two,
-  30 minutes apart,
-  were not read to say which ask of the round each was.
-  After B1072 the re-ask of the round's own ask goes to another model,
+  The log of `XingZ6020` shows it twice for slice 92,
+  at 02:14:33 UTC on 2026-10-23 (line 26560) and at 02:44:04 UTC (line 29907),
+  each saying `recovery round for 1 unreadable answer (1 cut-short)`.
+  By its timing the first round's ask is the NeuralWatt call at line 26575
+  (13,082 tokens,
+  no content,
+  78.7 seconds long and ending 78.7 seconds after the round began),
+  so the round asked the model that had already run away twice
+  (lines 26490 and 26556) a third time and it ran away again.
+  Line 29966 is the nudged re-ask of the second round:
+  a direct DeepSeek call that ran to the cap,
+  followed by the lost-voice line (29967) tagged `[runRecoveryRound]`
+  and by `deepseek answered schema-mismatch too` (line 29968).
+  That is four runaways of one model for one question
+  (lines 26490,
+  26556,
+  26575 and 29966),
+  and the third was the round's own ask,
+  which B1072 leaves as it was.
+  After B1072 the re-ask that follows the round's ask goes to another model,
   but the round's ask of the seat's model is still made.
 - `reaskCut` in `slice-reading/src/image-reading-past-refusal.ts` re-asks a picture reading
   whose reply the length limit cut empty
