@@ -541,9 +541,9 @@ await describe({
         expect(asks.at(-1,)?.otherThan,).toBe('neuralwatt',);
         expect(asks.at(-1,)?.messages.at(-1,)?.content,).toBe(NUDGE_CONTENT,);
         expect(warned,).toEqual([
-          `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model could take the re-ask `
-            + `of a reasoning runaway (${String(tried.length,)} tried); re-asking ${SEAT_HYPER_OPENROUTER_UNMEASURED} on `
-            + 'another provider, as before',
+          `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: no other model `
+            + `could take the re-ask of a reasoning runaway (${String(tried.length,)} tried); re-asking `
+            + `${SEAT_HYPER_OPENROUTER_UNMEASURED} on another provider, as before`,
         ],);
       },
     },),
@@ -561,9 +561,29 @@ await describe({
             },),
         },);
         expect(logged,).toEqual([
-          `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway on neuralwatt `
-            + `(a length stop with no content); re-asking ${SEAT_HYPER_OPENROUTER_VISION_EDITOR} instead, nudged`,
+          `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway `
+            + `on neuralwatt (a length stop with no content); re-asking ${SEAT_HYPER_OPENROUTER_VISION_EDITOR} instead, nudged`,
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}: synthetic answered usably on the re-ask`,
+        ],);
+      },
+    },),
+
+    it({
+      name: 'LOGS THE SAME-MODEL RE-ASK UNDER THE FUNCTION\'S OWN TAG, the line the run logs and their readers search '
+        + 'for (`re-asking another provider, nudged`), unchanged by the runaway rule',
+      fn: async () => {
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: REQUEST,
+              first: { reply: FIRST_REPLY, outcome: FIRST_UNUSABLE, },
+              ask: async () => ({ text: '{"spot":"radiator"}', servedBy: 'hyper', }),
+            },),
+        },);
+        expect(logged,).toEqual([
+          `[translation-repair] [reaskElsewhereNudged] ${SEAT_SYNTHETIC_TEXT_EVERYWHERE}: schema-mismatch on synthetic; `
+            + 're-asking another provider, nudged',
+          `[translation-repair] [reaskElsewhereNudged] ${SEAT_SYNTHETIC_TEXT_EVERYWHERE}: hyper answered usably on the re-ask`,
         ],);
       },
     },),
