@@ -4117,3 +4117,24 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Leftovers from agent `ac6a56aed8916cfec` to clean (not done): its worktree has a staged hand-merged
   `doc/audit/standards-review-gate-shadow.md`; a stash entry from its autostash (`6f9966c7e5`, the repo guard blocks
   `git stash drop`, content already incorporated).
+
+## Update at 2026-10-29 (22:20 by the host clock; the timestamps in the last four blocks ran ahead, ignore them)
+
+- Container gate on the landed tree with hard-link fixtures: 2595 tests run, 2595 passed, 5 skipped, 120.7 s
+  (unit `cli-git-gate-final`, log `~/temp/agent/gate-final.log`). It needed `mise run prepare:pnpm:install` in the
+  throwaway worktree first (the new shared package is a workspace link).
+- Mutation results on the current tree (waves 5 and 6; images `w50` to `w54`, `w60` to `w65`):
+  `worktree_copy_lock` 75 mutants, 66 caught, 9 unviable; `markdown_linter` 12, 8 caught, 4 unviable;
+  `auto_push_reconcile` 71, 66 caught, 5 unviable (both earlier survivors dead); `management_arguments` 35, 32 caught,
+  3 unviable; `owner_lock` 47, 36 caught, 10 unviable, 1 missed that is equivalent (`announces_at_start` default body
+  is already `return false;`, checked); `transaction_git` 50, 40 caught, 8 unviable, 2 missed, now killed by two new
+  tests (merge `87a898d65e` successor, 34 lines); `scratch_location` 28, 26 caught, 1 unviable, 1 missed that is the
+  `cfg(not(unix))` variant (unkillable on Linux); `merge_isolation` still running its third baseline attempt, one
+  survivor so far, the known equivalent 195:40. Baselines failed on 2 to 3 attempts for `owner_lock` and
+  `merge_isolation` on the pre-hard-link tree; recheck on the new tree.
+- Parity of the shared mutation engine against real Podman: forbidden-strings core 48 of 48 caught (snapshot image
+  build and campaign worked), linter 4 of 4 caught, git-policy running (its planted controls passed; its container
+  showed 3 GiB and 3 CPUs, so the per-task `--memory 3g --cpus 3` options reach Podman). Scanner: baseline `cargo test
+  -p forbidden-strings --lib` fails in the unmutated tree; agent `aba63f1400b66332c` diagnoses (suspect: the same
+  scratch-root class as the linter bug).
+- Release 0.4.2 (strip symbols in the release profile) cut next; then adopt via `toolchain:update`.
