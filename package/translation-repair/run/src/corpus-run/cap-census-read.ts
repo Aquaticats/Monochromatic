@@ -36,10 +36,11 @@ import {
 // completed streams of its served id that come before it in the file, that no
 // earlier `SPEND` line has taken, and that sit within `PAIR_WINDOW_MS` of its
 // stamp. One such stream is its own and is taken. None is counted as unpaired.
-// Two or more are counted as ambiguous, never guessed, and all stay waiting,
-// since nothing in either line says which belongs to which. A line whose stamp
-// the logger did not write is left out and counted, since no clock pairs or
-// dates it (ledger B73).
+// Two or more are counted as ambiguous, never guessed, and all stay waiting as
+// contested, since nothing in either line says which belongs to which: a later
+// line that finds only one of them left is ambiguous as well, because an
+// earlier line may already be its pair. A line whose stamp the logger did not
+// write is left out and counted, since no clock pairs or dates it (ledger B73).
 //
 // NO PATTERNS AND NO WORDING. Both lines are this codebase's own, read by index
 // scans; the census carries ids and numbers only.
@@ -141,7 +142,7 @@ export type CapSample = {
 
  @example
  ```ts
- const waiting: WaitingStream = { at: 0, content: 59, };
+ const waiting: WaitingStream = { at: 0, content: 59, sequence: 0, };
  ```
  */
 type WaitingStream = {
@@ -154,20 +155,63 @@ type WaitingStream = {
    Content characters the stream delivered.
    */
   readonly content: number;
+
+  /**
+   Place the stream took among those of its label, from zero, so that streams an ambiguous `SPEND` line has seen can be
+   told from those that arrived after it.
+   */
+  readonly sequence: number;
 };
 
 /**
- Removes, in place, the streams at the front of a queue that are too old for any later line to pair with.
+ The completed streams of one label that no `SPEND` line has taken.
+
+ @example
+ ```ts
+ const queue: LabelQueue = { entries: [], head: 0, nextSequence: 0, contestedThrough: -1, };
+ ```
+ */
+type LabelQueue = {
+  /**
+   Streams in file order, those before `head` already dropped.
+   */
+  readonly entries: WaitingStream[];
+
+  /**
+   Place in `entries` of the oldest stream still waiting.
+   */
+  head: number;
+
+  /**
+   Sequence the next stream of the label takes.
+   */
+  nextSequence: number;
+
+  /**
+   Highest sequence among the streams an ambiguous `SPEND` line has seen, or minus one where none has. A waiting stream
+   numbered at or below it is contested: an earlier line may be its pair, so no later line takes it alone.
+   */
+  contestedThrough: number;
+};
+
+/**
+ Waiting streams of a label shorter than this are never compacted, so a short queue costs nothing to keep.
+ */
+const COMPACT_AT = 64;
+
+/**
+ Drops, in place, the streams at the front of a queue that are too old for any later line to pair with.
 
  Lines come in file order, whose stamps rise, so a stream older than the window against the newest line of its
- label is older than the window against every line after it.
+ label is older than the window against every line after it. The front moves by an index, and the array is cut only
+ when the dropped half has grown past `COMPACT_AT`, so a line costs a constant amount however many streams wait (ledger
+ B74).
 
- @param queue - waiting streams of one label, oldest first, shortened where it stands so no line copies a queue that
- every line of a large log walks (ledger B74)
+ @param queue - waiting streams of one label
 
  @param now - epoch milliseconds of the line being read
 
- @mutates queue - loses the streams at its front that are older than the window
+ @mutates queue - moves its front past the streams older than the window
 
  @example
  ```ts
@@ -179,20 +223,92 @@ function dropStale(
     queue,
     now,
   }: {
-    readonly queue: WaitingStream[];
+    readonly queue: LabelQueue;
     readonly now: number;
   },
 ): void {
   /**
-   Where the first stream within the window sits, or that none does.
+   The streams of the label, named once.
    */
-  const firstFresh = queue.findIndex(function withinWindow(entry,): boolean {
-    return (now - entry.at) <= PAIR_WINDOW_MS;
+  const { entries, } = queue;
+  while (queue.head < entries.length) {
+    /**
+     The oldest stream still waiting.
+     */
+    const oldest = nonNullishOrThrow(entries[queue.head],);
+    if ((now - oldest.at) <= PAIR_WINDOW_MS)
+      break;
+    queue.head += 1;
+  }
+  if ((queue.head >= COMPACT_AT) && ((queue.head * 2) >= entries.length)) {
+    entries.splice(
+      0,
+      queue.head,
+    );
+    queue.head = 0;
+  }
+}
+
+/**
+ Pairs a `SPEND` line with the stream that is its own, when there is exactly one it can be told from the rest.
+
+ @param queue - waiting streams of the line's label
+
+ @param now - epoch milliseconds the `SPEND` line was written
+
+ @returns The content characters of the stream taken off the queue; `unpaired` where none waits within the window;
+ `ambiguous` where two or more wait, or the one that waits was seen by an earlier ambiguous line
+
+ @mutates queue - drops the streams older than the window, takes the one stream paired, and marks the streams seen by an
+ ambiguous line as contested
+
+ @example
+ ```ts
+ const content = pairedContentOf({ queue, now: Date.now(), },);
+ ```
+ */
+function pairedContentOf(
+  {
+    queue,
+    now,
+  }: {
+    readonly queue: LabelQueue;
+    readonly now: number;
+  },
+): CapSample['content'] {
+  dropStale({
+    queue,
+    now,
   },);
-  queue.splice(
-    0,
-    (firstFresh === NOT_FOUND) ? queue.length : firstFresh,
-  );
+
+  /**
+   The streams of the label, named once.
+   */
+  const { entries, } = queue;
+
+  /**
+   Streams of the label still waiting within the window.
+   */
+  const waiting = entries.length - queue.head;
+  if (waiting === 0)
+    return 'unpaired';
+  // TWO OR MORE ARE NOT CHOSEN BETWEEN and every one of them is now contested,
+  // so the lines after this one read them as ambiguous too, as they are.
+  if (waiting >= 2) {
+    queue.contestedThrough = queue.nextSequence - 1;
+    return 'ambiguous';
+  }
+
+  /**
+   The one stream waiting. The count says it is present.
+   */
+  const only = nonNullishOrThrow(entries[queue.head],);
+  // A STREAM AN EARLIER AMBIGUOUS LINE SAW MAY BE THAT LINE'S PAIR, so a line
+  // that finds it alone cannot tell it is this call's.
+  if (only.sequence <= queue.contestedThrough)
+    return 'ambiguous';
+  queue.head += 1;
+  return only.content;
 }
 
 /**
@@ -346,7 +462,7 @@ export function readCapLog(
    and shrinks in place, so no line copies it (ledger B74), and holds only
    streams within the window of the newest line of its label.
    */
-  const waiting = new Map<string, WaitingStream[]>();
+  const waiting = new Map<string, LabelQueue>();
 
   /**
    Samples read so far.
@@ -372,29 +488,32 @@ export function readCapLog(
         continue;
       }
       /**
-       The stream, as its label's queue holds it.
+       Streams of this label already waiting, which this one joins; the queue is made with the first stream of a label.
        */
-      const entry: WaitingStream = {
+      const labelQueue: LabelQueue = waiting.get(stream.label,) ?? {
+        entries: [],
+        head: 0,
+        nextSequence: 0,
+        contestedThrough: -1,
+      };
+      waiting.set(
+        stream.label,
+        labelQueue,
+      );
+      dropStale({
+        queue: labelQueue,
+        now: streamAt,
+      },);
+      /**
+       The streams of the label, named once.
+       */
+      const { entries, } = labelQueue;
+      entries.push({
         at: streamAt,
         content: stream.content,
-      };
-      /**
-       Streams of this label already waiting, which this one joins.
-       */
-      const labelQueue = waiting.get(stream.label,);
-      if (labelQueue === undefined) {
-        waiting.set(
-          stream.label,
-          [entry,],
-        );
-      }
-      else {
-        dropStale({
-          queue: labelQueue,
-          now: streamAt,
-        },);
-        labelQueue.push(entry,);
-      }
+        sequence: labelQueue.nextSequence,
+      },);
+      labelQueue.nextSequence += 1;
       continue;
     }
 
@@ -416,57 +535,21 @@ export function readCapLog(
     }
 
     /**
-     Streams of this label still unpaired, before this line in the file.
+     What this call's stream delivered, or that none was paired or none could be told from another; a label with no
+     stream line yet has no queue, and none is paired.
      */
-    const queue = waiting.get(record.model,) ?? [];
-    dropStale({
-      queue,
-      now: at,
-    },);
-
-    /**
-     Places in the queue of the streams within the window of this line.
-     */
-    const candidates = queue.flatMap(function inWindow(
-      entry,
-      place,
-    ): readonly number[] {
-      return (Math.abs(at - entry.at,) <= PAIR_WINDOW_MS) ? [place,] : [];
-    },);
-
-    /**
-     The one candidate's place, when there is exactly one.
-     */
-    const [only,] = candidates;
-
-    // ONE CANDIDATE IS THE STREAM OF THIS CALL AND IS TAKEN; TWO OR MORE ARE
-    // NOT CHOSEN BETWEEN AND STAY WAITING, so the next line of the label reads
-    // the same streams and is ambiguous as well, as it is.
-    if ((candidates.length === 1) && (only !== undefined)) {
-      /**
-       The stream this line pairs with, off the queue. The place comes from the
-       queue itself, so the entry is present.
-       */
-      const [taken,] = queue.splice(
-        only,
-        1,
-      );
-      samples.push({
-        provider: record.provider,
-        model: record.model,
-        completion: record.completion,
-        at,
-        content: nonNullishOrThrow(taken,)
-          .content,
-      },);
-      continue;
-    }
+    const queue = waiting.get(record.model,);
     samples.push({
       provider: record.provider,
       model: record.model,
       completion: record.completion,
       at,
-      content: (candidates.length === 0) ? 'unpaired' : 'ambiguous',
+      content: (queue === undefined)
+        ? 'unpaired'
+        : pairedContentOf({
+          queue,
+          now: at,
+        },),
     },);
   }
   return {
