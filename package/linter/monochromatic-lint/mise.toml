@@ -23,7 +23,7 @@ description = "Type-check the verification scripts in bin (TypeScript)"
 extends = "lint:types"
 
 [tasks."lint:scripts:oxlint"]
-description = "Lint explicitly selected linter TypeScript script paths with Oxlint, without the diagnostics of the older .mjs scripts in bin"
+description = "Lint explicitly selected linter TypeScript script paths with Oxlint"
 usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
 shell = "node --input-type=module-typescript -e"
 run = """
@@ -79,12 +79,12 @@ run = "cargo update --offline --package monochromatic-lint"
 [tasks."lint:container"]
 description = "Run Clippy against the tested source snapshot with a read-only bounded compiler"
 depends = ["test:container"]
-run = "node bin/clippy-container.mjs"
+run = "node bin/clippy-container.ts"
 
 [tasks."lint:rust-style"]
 description = "Run Clippy after the focused Rust style container tests without hiding the separate Markdown failure"
 depends = ["test:rust-style"]
-run = "node bin/clippy-container.mjs"
+run = "node bin/clippy-container.ts"
 
 [tasks.mutation]
 description = "Run cargo-mutants in the tested, mount-free 2 GiB / 2 CPU source snapshot"
@@ -157,19 +157,19 @@ run = "node bin/mutate-container.ts --list --inferred-constants"
 
 [tasks."test:container"]
 description = "Run artifact tests in a mount-free, network-disabled 2 GiB / 2 CPU container"
-run = "node bin/test-container.mjs"
+run = "node bin/test-container.ts"
 
 [tasks."test:rust-style"]
 description = "Verify the sidecar test rule independently of unfinished Markdown adapters, under the same container bounds"
-run = "node bin/test-container.mjs rust_tests_in_sidecars"
+run = "node bin/test-container.ts rust_tests_in_sidecars"
 
 [tasks."test:markdown"]
 description = "Run only the Markdown test modules, the same slice the Markdown mutation scope uses, under the container bounds"
-run = "node bin/test-container.mjs markdown"
+run = "node bin/test-container.ts markdown"
 
 [tasks."test:inferred-constants"]
 description = "Run only the constant-slot resolver controls under the container bounds"
-run = "node bin/test-container.mjs rust_inferred_constants"
+run = "node bin/test-container.ts rust_inferred_constants"
 
 [tasks."test:processors"]
 description = "Verify processors in a mount-free, network-disabled snapshot with cached native dependencies"
@@ -339,4 +339,4 @@ run = "cargo run --quiet --bin monochromatic-lint --"
 
 [tasks."test:processors:slice"]
 description = "Run only the processor tests in the tagged mount-free, network-disabled 2 GiB / 2 CPU snapshot"
-run = "node bin/test-container.mjs processors"
+run = "node bin/test-container.ts processors"

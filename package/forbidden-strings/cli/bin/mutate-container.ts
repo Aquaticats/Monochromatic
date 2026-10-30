@@ -18,7 +18,8 @@ import {
   ScannerVerificationError,
   snapshot,
   type Snapshot,
-} from './container-snapshot.mjs';
+} from './container-snapshot.ts';
+import { removalOf } from './removal-of.ts';
 
 /**
  One optional scope: a name for the evidence and the scanner files it mutates.
@@ -64,32 +65,6 @@ const allFiles: readonly string[] = [
 ];
 
 /**
- Describe the removal of a build context when a scope ends.
-
- @param directory - the build context
- 
- @returns an object whose disposal deletes the directory
- 
- @example
- ```ts
- await using cleanup = removalOf(fixture.context);
- ```
- */
-function removalOf(directory: string): AsyncDisposable {
-  return {
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        directory,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-}
-
-/**
  Print the mutants a campaign with the same arguments would test; `stdout.log` then holds one mutant name per line.
 
  @param fixture - the snapshot whose image lists its mutants
@@ -110,7 +85,7 @@ async function listMutants(fixture: Snapshot): Promise<void> {
   /**
    What the listing container left behind.
    */
-  const result = run({
+  const result = await run({
     command: 'podman',
     args: [
       'run',
@@ -127,13 +102,13 @@ async function listMutants(fixture: Snapshot): Promise<void> {
       'exit.json',
     ),
     `${JSON.stringify({
-      status: result.status,
-      signal: result.signal,
+      status: result.status ?? null,
+      signal: result.signal ?? null,
       listed: true,
     })}\n`,
   );
   if (result.status !== 0)
-    throw new ScannerVerificationError(`Mutant listing exited ${result.status}; inspect ${fixture.evidence}.`);
+    throw new ScannerVerificationError(`Mutant listing exited ${result.status ?? 'no status'}; inspect ${fixture.evidence}.`);
 }
 
 /**
@@ -244,7 +219,7 @@ async function main(): Promise<void> {
   await using cleanup = {
     async [Symbol.asyncDispose](): Promise<void> {
       if ((state.container !== '') && state.reportPreserved)
-        run({
+        await run({
           command: 'podman',
           args: [
             'rm',
@@ -265,7 +240,7 @@ async function main(): Promise<void> {
     },
   };
   void cleanup;
-  state.container = run({
+  state.container = (await run({
     command: 'podman',
     args: [
       'create',
@@ -273,7 +248,7 @@ async function main(): Promise<void> {
       fixture.image,
     ],
     capture: true,
-  })
+  }))
     .stdout
     .trim();
   /**
@@ -283,7 +258,7 @@ async function main(): Promise<void> {
   /**
    Outcome of the campaign run.
    */
-  const result = run({
+  const result = await run({
     command: 'podman',
     args: [
       'start',
@@ -296,7 +271,7 @@ async function main(): Promise<void> {
   /**
    Outcome of copying the report out of the container.
    */
-  const report = run({
+  const report = await run({
     command: 'podman',
     args: [
       'cp',
@@ -314,8 +289,8 @@ async function main(): Promise<void> {
     ),
     `${JSON.stringify(
       {
-        status: result.status,
-        signal: result.signal,
+        status: result.status ?? null,
+        signal: result.signal ?? null,
         reportCopied: report.status === 0,
         reportCopyError: report.stderr,
       },
@@ -324,7 +299,7 @@ async function main(): Promise<void> {
     )}\n`,
   );
   if ((result.status !== 0) || (report.status !== 0))
-    throw new ScannerVerificationError(`Mutation exited ${result.status}; report-copy status ${report.status}; inspect ${fixture.evidence}.`);
+    throw new ScannerVerificationError(`Mutation exited ${result.status ?? 'no status'}; report-copy status ${report.status ?? 'no status'}; inspect ${fixture.evidence}.`);
 }
 
 await main();

@@ -9,7 +9,7 @@ import {
   run,
   snapshot,
   ScannerVerificationError
-} from '../../cli/bin/container-snapshot.mjs';
+} from '../../cli/bin/container-snapshot.ts';
 
 /** Bound both the fuzz campaign and every input while leaving reproducer evidence intact. */
 async function main() {
@@ -62,7 +62,7 @@ async function main() {
   let evidencePreserved = false;
   try {
     if (clippy) {
-      const result = run({
+      const result = await run({
         command: 'podman',
         args: [
           'run',
@@ -79,14 +79,14 @@ async function main() {
           'exit.json'
         ),
         `${JSON.stringify({
-          status: result.status,
-          signal: result.signal
+          status: result.status ?? null,
+          signal: result.signal ?? null
         })  }\n`
       );
-      if (result.status !== 0) throw new ScannerVerificationError(`Fuzz Clippy exited ${result.status}; inspect ${fixture.evidence}.`);
+      if (result.status !== 0) throw new ScannerVerificationError(`Fuzz Clippy exited ${result.status ?? 'without a status'}; inspect ${fixture.evidence}.`);
       return;
     }
-    container = run({
+    container = (await run({
       command: 'podman',
       args: [
         'create',
@@ -94,10 +94,10 @@ async function main() {
         fixture.image
       ],
       capture: true
-    })
+    }))
       .stdout
       .trim();
-    const result = run({
+    const result = await run({
       command: 'podman',
       args: [
         'start',
@@ -112,7 +112,7 @@ async function main() {
       'seed/fuzz_embedding',
       'artifacts'
     ]) {
-      const copy = run({
+      const copy = await run({
         command: 'podman',
         args: [
           'cp',
@@ -126,7 +126,7 @@ async function main() {
         allowFailure: true
       });
       copied[directory] = {
-        status: copy.status,
+        status: copy.status ?? null,
         stderr: copy.stderr
       };
     }
@@ -142,8 +142,8 @@ async function main() {
       ),
       `${JSON.stringify(
         {
-          status: result.status,
-          signal: result.signal,
+          status: result.status ?? null,
+          signal: result.signal ?? null,
           copied
         },
         null,
@@ -151,9 +151,9 @@ async function main() {
       )  }\n`
     );
     if ((result.status !== 0) || (!evidencePreserved))
-      throw new ScannerVerificationError(`Embedding fuzzing exited ${result.status}; inspect ${fixture.evidence}.`);
+      throw new ScannerVerificationError(`Embedding fuzzing exited ${result.status ?? 'without a status'}; inspect ${fixture.evidence}.`);
   } finally {
-    if (container && evidencePreserved) run({
+    if (container && evidencePreserved) await run({
       command: 'podman',
       args: [
         'rm',

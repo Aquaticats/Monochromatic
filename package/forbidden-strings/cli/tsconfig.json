@@ -2,7 +2,6 @@
   "extends": "@monochromatic-dev/config-typescript/dom",
   "include": [
     "src/**/*.ts",
-    "bin/mutate-container.ts",
-    "bin/container-snapshot.d.mts",
+    "bin/**/*.ts",
   ],
 }

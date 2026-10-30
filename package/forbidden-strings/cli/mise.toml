@@ -1,10 +1,10 @@
 [tasks."verify:evidence"]
 description = "Reconcile retained source manifests with current compiled inputs without hiding mismatches"
-run = "node bin/verify-evidence.mjs"
+run = "node bin/verify-evidence.ts"
 
 [tasks."verify:markdown"]
 description = "Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline"
-run = "node bin/render-docs.mjs"
+run = "node bin/render-docs.ts"
 
 [tasks."dependencies:fetch"]
 description = "Fetch the existing locked dependency archives before offline container verification"
@@ -12,19 +12,19 @@ run = "cargo fetch --locked"
 
 [tasks."lint:clippy:container"]
 description = "Run all-target/all-feature Clippy with warnings denied in the bounded offline scanner snapshot"
-run = "node bin/test-container.mjs --clippy"
+run = "node bin/test-container.ts --clippy"
 
 [tasks."test:release:container"]
 description = "Verify the actual release scanner and all-feature embedding consumers inside the bounded snapshot"
-run = "node bin/test-container.mjs --release"
+run = "node bin/test-container.ts --release"
 
 [tasks."test:guards:observe:container"]
 description = "Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults"
-run = "node bin/observe-guards-container.mjs"
+run = "node bin/observe-guards-container.ts"
 
 [tasks."test:guards:container"]
 description = "Prove real executable and public-loader panic guards with passing and disabled disposable variants"
-run = "node bin/guard-container.mjs"
+run = "node bin/guard-container.ts"
 
 [tasks."test:mutation:startup:container"]
 description = "Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes"
@@ -40,7 +40,7 @@ run = "node bin/mutate-container.ts"
 
 [tasks."test:container"]
 description = "Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container"
-run = "node bin/test-container.mjs"
+run = "node bin/test-container.ts"
 
 [tasks.build]
 description = "Build the forbidden-strings binary in release mode"
@@ -121,11 +121,11 @@ if (child.exitCode !== 0) throw new Error(`forbidden-strings exited ${String(chi
 # Run targets via `mise run //package/forbidden-strings/cli.fuzz:build` etc.
 
 [tasks."lint:scripts:types"]
-description = "Type-check the verification scripts in bin that are TypeScript"
+description = "Type-check the verification scripts in bin"
 extends = "lint:types"
 
 [tasks."lint:scripts:oxlint"]
-description = "Lint explicitly selected scanner TypeScript script paths with Oxlint, without the diagnostics of the older .mjs scripts in bin"
+description = "Lint explicitly selected scanner TypeScript script paths with Oxlint"
 usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
 shell = "node --input-type=module-typescript -e"
 run = """
