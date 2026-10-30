@@ -2075,3 +2075,44 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
     
     No RG2 complexity findings: neither change introduces input traversal or repeated calls to helpers that walk unbounded data.
     `````
+- Date:
+  2026-10-30T01:07:10.761Z
+  Subject:
+  e76a99bddcd6 `fix(git-policy-cli): copy the fixture wrapper instead of cloning it, shrink the release executable`
+  Input size:
+  `2 code files, 242 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  191.3 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `copy_executable` (troubleshooting documentation): **minor**, `DL5`. New source references such as `src/native/binary_support.rs`, `src/native/binary_fixture_tests.rs`, and `src/native/git_version_cache_tests.rs` are package-relative, not repository-relative. They omit `package/git-policy/cli/`, so they do not identify the files from the repository root as required.
+    
+    No correctness or `RG2` complexity violations identified in the supplied code changes.
+    `````
+
+- Date:
+  2026-10-30T01:36:24.586Z
+  Subject:
+  fc34d858b599 `refactor(git-policy-cli): hard-link the built wrapper into each fixture instead of copying it`
+  Input size:
+  `2 code files, 250 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  250.0 s
+  Named superlinear cost:
+  unjudged
+  Findings kept:
+    `````text
+    - `a_fixture_wrapper_is_the_built_executable_itself` (major, TCV): `link_built_wrapper` permits a copy after any hard-link failure, but this guard permits that fallback only when device IDs differ. A same-device hard-link failure therefore produces a valid copy that the guard incorrectly rejects, leaving that fallback branch without valid coverage.
+    
+    - `link_built_wrapper` (minor, LOG): Calling `.is_err()` discards the hard-link error, and the copy fallback records neither the affected paths nor its reason. This violates required branch/error logging and conceals failures that disable the intended optimization.
+    
+    - `link_built_wrapper`, associated troubleshooting documentation (nit, WR5): The new explanation refers to “the full suite below.” WR5 prohibits relative-position references in prose; the reference does not identify the measurement section by name.
+    
+    No superlinear-traversal or unbounded-stack findings in the changed code.
+    `````
