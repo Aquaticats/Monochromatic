@@ -24,7 +24,7 @@ from vLLM Semantic Router's Decision 3.0 family.
 The previously selected Lemonade-managed vLLM route must be reassessed against this exact model.
 Upstream describes a separate `vllm-srun` runtime;
 generic vLLM installation does not establish D3 execution support.
-The full model must not be silently replaced with another D3 family variant.
+The full model was the target at that point in the discussion.
 
 The user subsequently requested Liquid AI's new models,
 specifically the smallest text and smallest decision models released "this week".
@@ -32,12 +32,67 @@ The working date window is October 26 to 30, 2026.
 The full D3 model is therefore no longer a fixed deployment target.
 Identify the new releases by parameter count and verify their original release dates,
 distinguishing release dates from model-card updates.
-The user has been asked whether the decision-model request means Liquid AI's own releases
-or the smallest model in the previously discussed D3 family.
+The user explicitly confirmed that both models must be Liquid AI's own releases.
 
 The user's network answer was "fine", without naming a network scope.
 The assistant stated that temporary verification servers would use localhost only.
 No persistent startup or network configuration is authorized by that interpretation.
+
+## Selected Liquid models
+
+Liquid AI's [October 27 launch][liquid-launch] identifies the requested models:
+
+- [LFM3-1.7B][liquid-text]: 1.73 billion parameters, post-trained text generation.
+- [d1-2B][liquid-decision]: 1.92 billion parameters, structured decisions.
+
+These are the smallest respective models in that week's release.
+The older `d1-omni-600M` announcement is dated October 7 and falls outside the requested week.
+Repository creation and model-card modification dates were not substituted for the public launch date.
+The launch date and both parameter counts were verified in the rendered model pages.
+
+Both official GGUF cards require llama.cpp `b11960` (`v0.8.0`) or newer.
+The installed global `b1358` bundle was probed directly:
+`llama-server --version` reported `0.8.0-dev`, build `11997`, commit `0ac1a7fd3`.
+Both version and help probes exited successfully without loading a model or starting a server.
+This establishes the installed version, not inference success.
+
+The [decision GGUF card][liquid-decision-gguf] documents the `/v1/systemone` endpoint.
+Its packaged llama.cpp path supports yes/no decisions, single-choice selection, and scoring.
+Multiple-choice selection, extraction, estimates, and bounding boxes are not supported there yet.
+The card's runtime requirement and supported output types were checked in the rendered page.
+
+Official artifact metadata reports these Q8_0 file sizes:
+
+- Text weights: 1,846,238,496 bytes.
+- Decision weights: 1,846,240,576 bytes.
+- Optional decision vision projector: 203,031,584 bytes in Q8_0,
+  or 378,995,744 bytes in F16.
+
+File sizes do not establish VRAM requirements.
+Both model cards use LFM Open License v1.0.
+
+## Concrete arrangement awaiting confirmation
+
+Retain the working host ROCm installation.
+Install the selected official Lemonade container and its managed vLLM backend,
+preserving the original software request.
+Select packaged llama.cpp ROCm build `b1358` for the Liquid text model.
+Lemonade's released configuration guide supports selecting that build through
+`rocm_channel=nightly` and `llamacpp.rocm_bin=b1358`.
+Its default backend pins predate the Liquid models' minimum version.
+
+Use the existing `b1358` runtime directly for d1's decision API.
+Lemonade `v2026.44.1` does not register `/v1/systemone`,
+and its classifier interface is not implemented by the llama.cpp backend.
+Do not add a custom proxy or claim that Lemonade's chat API serves d1 decisions.
+
+Proposed initial verification uses Q8_0 weights and text inputs,
+one model loaded at a time,
+with bounded context and generated output.
+Use disposable containers with explicit CPU and RAM limits for inference checks.
+Bind temporary servers to localhost and stop them after verification.
+Do not configure startup services or broader network access.
+The user must confirm this arrangement and the decision-output limitation before installation begins.
 
 ## Local evidence
 
@@ -134,14 +189,11 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
-Identify the smallest requested text and decision releases in the current week,
-resolve the decision-model vendor question,
-then establish their packaged runtime support on this hardware.
+Confirm the concrete Liquid-model arrangement and the packaged decision-output scope.
 Startup configuration is deferred.
 Use localhost only for transient verification;
 broader network exposure remains unselected.
-Resolve context after establishing the requested engine's requirements.
-Then settle storage and resource limits using the selected workload.
+Set bounded verification context, storage, and resource limits before execution.
 Present the concrete installation and verification plan for the grilling session's final confirmation.
 
 ## Additional inventory
@@ -196,3 +248,7 @@ the inspected native engine places model stacks on one device rather than splitt
 No model weights were downloaded and no D3 inference was attempted.
 
 [d3-memory]: https://github.com/vllm-project/semantic-router/blob/6aeaf5d415532771ec77d26c25ebe0a7b64da0ed/src/model-runtime/docs/records/decision3-device-memory.md#L24-L39
+[liquid-launch]: https://huggingface.co/blog/LiquidAI/lfm3#:~:text=Published%20October%2027%2C%202026
+[liquid-text]: https://huggingface.co/LiquidAI/LFM3-1.7B#:~:text=1.73B
+[liquid-decision]: https://huggingface.co/LiquidAI/d1-2B#:~:text=1.92B
+[liquid-decision-gguf]: https://huggingface.co/LiquidAI/d1-2B-GGUF#:~:text=llama.cpp
