@@ -4,7 +4,9 @@ Defects met while fixing another finding,
 in how a page's names,
 HTML headings and math are read.
 It also holds B1052,
-the heading `Part Nine: __` that the corpus pass `XingZ6022` shipped.
+the heading `Part Nine: __` that the corpus pass `XingZ6022` shipped,
+and B1054,
+a `<details>` block that the parser kinds as a heading.
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -217,9 +219,11 @@ the comment mutant only after M56's fixture was corrected.
 
 Status:
 recorded on 2026-10-29 (UTC),
-reproduced offline from the source and archive bytes,
-no code changed,
-open as an owner question.
+reproduced offline from the source and archive bytes.
+The owner question was answered on 2026-10-29 (UTC):
+"Report it as a defect (Recommended)".
+Fixed in `9eee8cb5d5` (the red cases) and `95f1a006bb` (the check),
+with the cases moved to a test file of the module's own and the scans mended in `67ce369c99`.
 
 The defect:
 the page shipped by `XingZ6022` has `### Part Nine: __` at page line 410.
@@ -315,7 +319,8 @@ A floor changes the shipped heading only together with a rule for what ships whe
 wording left.
 That rule is for the owner.
 
-Owner question (open):
+Owner question (answered),
+with the options as the lead ranked them:
 - Option 1,
   a report-only publish defect `placeholder-heading`,
   read off the page and the original like `pageWithoutBodyDefects` (B1046):
@@ -353,6 +358,80 @@ Owner question (open):
   Option 2 beats Option 3 because it makes the kept archive visible and gives a writer a chance.
   Option 3 beats Option 4 because Option 4 overturns two rulings to avoid one placeholder.
 
+Owner answer,
+2026-10-29 (UTC),
+question tool,
+"Report it as a defect (Recommended)":
+a new report-only page defect `placeholder-heading`,
+for a shipped heading whose text is only underscores,
+dashes,
+blanks or similar placeholder marks where the original heading has words,
+read off the page and the original as `pageWithoutBodyDefects` (B1046) reads them.
+It changes no wording and never stops a run (the owner's rule of 2026-09-27:
+ship with the defect reported).
+
+What changed
+(`9eee8cb5d5` red,
+`95f1a006bb` fix):
+- `page-check/src/corpus-run/publish-placeholder-heading.ts` (new):
+  `placeholderHeadingDefects` is wired in `publishFixedPage` beside `pageWithoutBodyDefects`,
+  and its check name `placeholder-heading` joins `PublishCheck`.
+- A heading has words when its title holds a letter or a digit of any script
+  (`isLetterOrDigitOfAnyScript`,
+  the helper the markup package already has,
+  since a regular expression needs a scoped lint disable).
+  The title is what follows the first colon,
+  in either width,
+  when the text before it holds a letter or a digit,
+  else the whole heading.
+  So `### __`,
+  `### ——`,
+  `### ` (empty),
+  `### - - -`,
+  `### …`,
+  `### ＿＿`,
+  an ideographic space,
+  `### Part Nine: __` and `### Part Nine: ——` have no words,
+  and `### Part Nine: Blank`,
+  `### Part Nine:` (nothing after its colon),
+  `### 9` and `### Blank` have.
+- Headings are paired by position where the original and the page hold as many,
+  so a heading the original also leaves without words is no defect.
+  Where the counts differ nothing is paired,
+  and the page is reported when it holds more such headings than the original does
+  (the form option 1 of the owner question gave).
+  The message names the page heading positions and the counts and quotes no text.
+- Run on the real case:
+  the shipped page of `XingZ6022` against the pinned original reports one defect,
+  `at page heading 12`,
+  which is the `### Part Nine: __` at page line 410
+  (the page holds 14 headings).
+  The shipped page of `XingZ6021` reports none.
+  The pinned corpus page of the same entry,
+  whose archive holds `### __` itself,
+  reports it too,
+  unpaired because that page holds 12 headings against the original's 14.
+
+Limits:
+- Only the headings the parser gives as top-level are read.
+  A heading inside an HTML block such as `<details>` is not read by this check or by `assertHeadingsStayDistinct`
+  (B1054).
+- The check names the defect and repairs nothing.
+  Slice 84 still ships `### Part Nine: __` until a rule for what ships when a refused archive is the last wording left
+  exists (options 2 and 4 of the owner question),
+  and the owner chose neither.
+
+Guards shown to fail first:
+`page-check/src/corpus-run/publish-placeholder-heading.unit.test.ts`
+(written first in `publish-defects.unit.test.ts`,
+whose file did not load before the fix,
+for the missing export;
+five cases cover the marks-only headings in ten spellings,
+the headings that are no defect,
+the pairing by position,
+the comparison of counts,
+and a page with no heading).
+
 Observation:
 two judges each backed a different candidate whose heading was identical,
 and no rule carries a line on which they agreed.
@@ -361,7 +440,51 @@ and it is not changed here.
 
 Cache versions:
 none moved,
-because no stage output changed.
+because no stage output changed:
+the check reads the page and the original at publish,
+and no stored file gains a key.
+
+## B1054: a `<details>` block that holds a heading is a node of kind `heading`
+
+Status:
+recorded on 2026-10-29 (UTC),
+reproduced offline on the built `shared-contract`,
+open,
+not changed.
+
+Found while writing the check of B1052.
+`parseDocument` gives an HTML block that holds a Markdown heading the kind `heading`,
+and its text is the whole block:
+the input `<details>`,
+a blank line,
+`### __`,
+a blank line and `</details>` parses to one node of kind `heading` whose text is the five lines
+(four inputs tried:
+the block alone,
+after `# a`,
+after `# a` and an empty `## `,
+and after `# a` and `## b`;
+each gave the block as a node of kind `heading`).
+`headingWords` of that node reads `<details> ### __ </details>`,
+which has letters.
+
+So the heading checks that read nodes of kind `heading`
+(`assertHeadingsStayDistinct` and the new `placeholder-heading`)
+count a `<details>` block as one heading,
+read it by the words of the whole block,
+and never see a heading inside it.
+A placeholder heading inside a `<details>` block ships unreported,
+and the block takes a position among the headings when the two documents are paired.
+The `### Part Nine: __` of `XingZ6022` sits outside the `<details>` blocks (page lines 387 to 406 and 80 to 267),
+so B1052's case is read.
+
+Not changed:
+whether the parser's kind is right for its other readers was not examined,
+and a check that wants the headings inside HTML blocks needs a decision on how deep to read.
+
+Cache versions:
+none moved,
+because nothing was changed.
 
 Ids used:
-B1052.
+B1052 and B1054.

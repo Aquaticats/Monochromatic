@@ -40,6 +40,37 @@ which lists every file of these commitments.
   and keeping its present is never a tense inconsistency.
   Every sheet that states the tense rule carries the exception (ledger B627,
   M220).
+  One narrow case lets the detector decide what ships,
+  recorded in the next commitment.
+- **The tense detector decides what ships in one narrow case.**
+  Owner,
+  2026-10-29,
+  "Swap only where flagged (Recommended)",
+  asked what to do after `XingZ6022` shipped a life that had ended in the present tense at six places
+  (ledger B1050).
+  When the final round cannot seat two judges
+  (fewer slate judges are reachable than a winner needs,
+  or the slate heard fewer than two),
+  the two-ballot translate text ships instead of an eligible standing the contest did not endorse,
+  only where the detector flags present tense in the standing and does not flag the translate text.
+  The owner accepts the detector deciding here,
+  a narrow exception to the ruling of 2026-10-11 above.
+  Everywhere else the aid stays an aid:
+  a slate that seats two or more judges decides as it always did,
+  a standing the contest endorsed stays,
+  a translate text the detector flags too does not replace the standing,
+  and a page that records no death is not read.
+  Quoted words are blanked by the detector,
+  so present tense inside a quotation never fires the swap.
+  Each swap is logged with the slice,
+  the candidate count of each text and the rule,
+  recorded on the settlement as the reason `present-tense-standing`,
+  and named in the page-check defect `tense-swap`.
+  The detector's limit stands:
+  it flags a present auxiliary only directly after a subject word and reads top-level paragraphs only,
+  so it misses the sentence that changes tense across two lines
+  and the lines inside `<details>` blocks.
+  Built as ledger B1050 (`consolidate-tense-swap.ts`).
 - **A dictionary entry for 扑面而来.**
   Owner,
   2026-10-11:

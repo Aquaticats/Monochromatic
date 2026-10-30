@@ -18,13 +18,18 @@ although the translate lane held a text at each that two judges had chosen
 and that passed the deterministic publication rule.
 On slices 67 to 70 the archive carries an invented Metal Gear Solid 2 quotation.
 This file holds B1020 to B1025,
-B1040,
-B1050 and B1051.
-B1050 and B1051 record how the page of that pass came to tell a life that ended in the present tense at six places
-and to write an ambiguous `their`;
+B1040 and B1050.
+B1050 records how the page of that pass came to tell a life that ended in the present tense at six places,
+and the owner's answer of 2026-10-29 to it.
+B1051,
+the ambiguous `their` of the same page,
+and B1053,
+the purchase that still paid for slates that could not decide,
+are filed in
+[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide](audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md).
 B1052,
 the heading `Part Nine: __` of the same page,
-is filed in
+and B1054 are filed in
 [Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
 
 The owner's answer of 2026-10-29 (question tool),
@@ -470,10 +475,13 @@ B1041 to B1044 are unused.
 
 Status:
 recorded on 2026-10-29 (UTC),
-read offline from the artifact and the log,
-no code changed.
+read offline from the artifact and the log.
 Group A is reached by B1020.
-Group B is open as an owner question.
+Group B was an owner question,
+answered on 2026-10-29 (UTC):
+"Swap only where flagged (Recommended)".
+Fixed for group B in `b176e1b2a6` (the red cases) and `763bc7f361` (the swap),
+with the own test of the exit after a slate in `67ce369c99`.
 
 The defect:
 the page shipped by `XingZ6022` tells the life of a person who has died in the present tense
@@ -623,8 +631,8 @@ so a short bench leaves a present-tense line where no judge reads it.
 A deterministic correction of tense on a kept archive is therefore not a question:
 the owner declined it on 2026-10-11.
 
-Owner question (open),
-with the options as the lead ranks them:
+Owner question (answered),
+with the options as the lead ranked them:
 - Option 1,
   ship the two-ballot translate text over an unendorsed standing only where the standing carries tense
   candidates the translate text lacks and neither the contest nor the slate seated two judges (six slices here).
@@ -646,85 +654,146 @@ with the options as the lead ranks them:
   Option 1 beats Option 2 because it removes the defect class this page showed at the scale it showed it.
   Option 2 beats Option 3 because Option 3 overturns repair work at 45 slices where no tense fault was flagged.
 
+Owner answer,
+2026-10-29 (UTC),
+question tool,
+"Swap only where flagged (Recommended)":
+when no vote can seat two judges,
+the two-ballot translate text ships instead of an eligible but unendorsed standing,
+only where the tense detector flags present tense in the standing and does not flag the translate text.
+The owner accepts the detector deciding here,
+a narrow exception to the ruling of 2026-10-11 that made it advisory.
+The exception is recorded in `design-commitments-tense-and-dictionary-entries.md`.
+In `XingZ6022` that is 6 of the 59 slices in that position (11,
+16,
+42,
+43,
+77 and 80).
+
+What the run shows about those six,
+read from the log:
+- The slate heard one judge of seven at each of them
+  (`select round: 1/7 heard` at log lines 26109,
+  26194 and 27027 for slices 11,
+  16 and 42,
+  and for 43,
+  77 and 80 as the account of group B records),
+  and in fact at every one of the 75 slices that had a consolidation slate round
+  (91 rounds,
+  none that heard two).
+  So the condition "no vote can seat two judges" held at all 59 slices in that position,
+  and the detector alone chose the six.
+- The translate lane's text drew two ballots at each
+  (log lines 20927,
+  21166 and 22245 for slices 11,
+  16 and 42,
+  and the lines the account of group B names for 43,
+  77 and 80).
+- All six took the path after a bought slate,
+  so the swap had to reach the exit after the slate round and not only the exit before it.
+  This is stated from the log and the code,
+  not from a replay.
+
+What changed:
+- `consolidate/src/consolidate-tense-swap.ts` (new):
+  `presentTenseSwapOf` reads the standing and the translate text through `tenseCandidateGroups`
+  and swaps only where the standing carries one or more candidates and the translate text carries none,
+  the entry records a death,
+  the standing is eligible and the contest did not endorse it,
+  and the translate lane's text is on the offer with two or more ballots.
+  `shipTranslateWinnerOverPresentTense` ships it with the mark `translateWinnerShipped`,
+  the reason `present-tense-standing` (`translateWinnerReason`),
+  and a log line and a finding that name the slice,
+  the candidate count of each text and the owner's answer.
+- Three places read it:
+  the purchase (`consolidate-slice-buy.ts`) buys no writer or slate when fewer slate judges are reachable than a winner
+  needs;
+  `shipWinnerBeforeSlate` ships it before a slate is bought;
+  and `settleKeptStanding` (new,
+  `consolidate-settle-kept.ts`,
+  the exit after a slate moved out of `consolidate-settle.ts`,
+  which had passed the 300-line cap) ships it after a slate that heard fewer than two judges.
+- The reason is recorded as the B1021 reasons are.
+  The artifact's shipped kind `translate-winner` carries `reason` (`refused-standing` or `present-tense-standing`),
+  and the page-check report `tenseSwapDefects` names the slices of the second as the report-only check `tense-swap`.
+  The key rode inside artifact generation 22 and did not mint 23:
+  the cached-decisions rule asks for the `START tip=` lines of the logs begun since the number was set (`fdf3201f3f`,
+  14:30 UTC on 2026-10-29),
+  and none was begun after it.
+  The newest corpus-pass log,
+  `corpus-pass-XingZ6022.log`,
+  started at 07:49 UTC and was last written at 11:44 UTC,
+  its tip `c6185d4086` is an ancestor of `fdf3201f3f`,
+  and no other top-level log in the agent directory written since holds a `START tip=` line.
+  The search covered the top level of the agent directory only,
+  not each run directory.
+
+What is not changed,
+and the limits:
+- A slate that seats two or more judges decides,
+  a standing the contest endorsed stays,
+  a translate text the detector flags too does not replace the standing,
+  a standing it does not flag stays,
+  and an entry that records no death is not read.
+  Quoted words in the present tense never fire it,
+  because the detector blanks them.
+- The owner's words are "no vote can seat two judges".
+  The swap is scoped to the final round,
+  as B1020 is:
+  the contest's ballots are not read,
+  and the standing is by definition one the contest did not endorse.
+- The detector limit stated in this entry (the present auxiliary read only after a subject word) stands:
+  it flags a present auxiliary only directly after a subject word,
+  so a swap is chosen by what it flags,
+  and it reads top-level paragraphs only.
+  The 45 other slices where the translate text differs keep the standing.
+- Slices 14,
+  79 and 82 (group A) are mended by B1020 and not by the swap.
+  Slices 11,
+  16 and 42 are flagged by the detector but are not among the page lines this entry names,
+  and the owner measured the detector right about two in three,
+  so the swap may replace a standing that was not at fault;
+  the translate text then ships on its two ballots.
+  A present-tense line the detector does not flag still ships wherever the bench is one judge deep.
+
+Guards shown to fail first:
+`consolidate/src/consolidate-tense-swap.unit.test.ts`
+(four of eight cases failed on the old code:
+the swap after a one-judge slate,
+the swap with no slate bought,
+the purchase that paid three writer calls and ended in an interruption,
+and the unquoted control of the quoted-words case;
+the other four are the controls),
+`artifact` (two cases failed:
+the reason on the shipped kind,
+and the reader that accepted a winner with none),
+and `page-check` (`tenseSwapDefects` did not exist,
+so its file did not load).
+
 Cache versions:
-none moved,
-because no stage output changed.
-The consolidation,
-translate-stage,
-lane-contest and page-check versions stay.
-
-## B1051: `their` shipped for the person beside a plural subject, as the neutral pronoun rule asks
-
-Status:
-recorded on 2026-10-29 (UTC),
-read offline,
-no code changed,
-open as an owner question.
-
-The defect:
-page line 88 reads "XingZ60's parents dressed up their appearance to match a traditional male gender expression at
-their funeral",
-and line 90 "threw their ashes",
-where `their` means the person who died but the parents are the subject of the same sentence.
-The archive had `her`.
-
-Which path shipped it:
-slice 13,
-the repair stand-in.
-The archive was disputed (two accepted claims,
-log line 25959),
-the repair lane and the translate lane wrote the same `their` in all three places,
-the contest opened no round (1 of 7 seats),
-and the slate's single judge named the translate text alone,
-which differs from the stand-in only in the spelling
-`behaviour` (lines 21067,
-26091).
-So neither lane's text could have mended it.
-
-The cause is not a stage fault.
-The original writes `TA` at each of these places ("在 TA 的葬礼上把 TA 的外貌",
-"把 TA 的骨灰",
-"TA 父母"),
-and the house rule renders `TA` as singular they and calls a pronoun left in the other form a fault
-(`house-rule/src/house-policy.ts:91`;
-the floor that withheld the archive at slice 14 is
-`translate-floor/src/translate-neutral-pronoun.ts`).
-The archive's `her` was the hand translation breaking that rule.
-Both lanes obeyed it,
-and nothing in the rule or in any sheet tells a writer to name the person where singular they sits beside a plural
-noun it could be taken for (`rg 'ambigu' house-rule/src translate-floor/src` finds no such text).
-No deterministic check can decide the ambiguity,
-because it turns on who the sentence is about.
-
-Owner question (open):
-- Option A,
-  keep the rule as it stands.
-  It breaks no ruling,
-  and costs nothing.
-  It leaves sentences like line 88,
-  whose number was not counted (19 page lines hold `their`;
-  how many are ambiguous
-  was not measured).
-- Option B,
-  add one sentence to the pronoun rule in `house-policy.ts`:
-  where singular they sits in a sentence with a plural noun it could be taken for,
-  the sentence repeats the person's name or the word "the deceased" for that pronoun.
-  It mends line 88 for any run that reads the rule.
-  It changes sheet text that every stage showing the house rule carries,
-  so the cache versions of those stages move by the cached-decisions rule,
-  and it cannot be checked without model calls.
-- Ranking:
-  Option A > Option B.
-  Option A leads because the prevalence is unmeasured and Option B moves many caches for one sentence of one page.
-  Measure how many corpus sentences put singular they beside a plural noun first,
-  and the order may change.
-
-Cache versions:
-none moved,
-because no stage output changed.
+none moved.
+- `CONSOLIDATE_CACHE_VERSION` (43) stays.
+  A settlement that kept an unendorsed standing is never stored.
+  `consolidationWorthResuming` stores a settlement that kept its standing only where the contest endorsed the
+  standing or the final polish changed it,
+  and polish returns not-run for a standing the contest did not endorse (`polishConsolidation`,
+  `!eligible`),
+  so neither holds.
+  A swapped settlement is not stored either (`translateWinnerShipped`).
+  The inputs of the reading,
+  the recorded death and the declared names,
+  are in the consolidation key already (`consolidateRunShape`).
+- The artifact generation stays 22,
+  because no run began after the commit that set that number (the `START tip=` search under "What changed").
+- The translate-stage,
+  lane-contest,
+  consistency and page-title versions stay:
+  the detector's output and the sheets are unchanged.
 
 Ids used:
-B1050 and B1051.
-B1052 is in
+B1050.
+B1051 and B1053 are in
+[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide](audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md).
+B1052 and B1054 are in
 [Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
-B1053 to B1059 are unused.
+B1055 to B1059 are unused.
