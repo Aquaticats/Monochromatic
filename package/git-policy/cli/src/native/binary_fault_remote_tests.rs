@@ -194,7 +194,8 @@ fn assert_push_failure_is_contained(fixture: &Fixture, repo: &Path, landed: &Obs
     std::fs::write(repo.join("b.txt"), b"two\n").expect("b.txt");
     git(fixture, repo, &["add", "--", "b.txt"]);
     let mut next: Command = wrapped_commit(fixture, repo, &["commit", "--quiet", "--message=two", "--", "b.txt"]);
-    next.env("CLI_GIT_PUSH_DEADLINE_SECONDS", "30");
+    // The remote is still unreachable, so this commit's push fails too; the short deadline ends one that hangs.
+    next.env("CLI_GIT_PUSH_DEADLINE_SECONDS", "1");
     let again: Observed = observe(&mut next, b"");
     assert_eq!(again.code, Some(0), "the next commit lands: {}", stderr_of(&again));
     assert!(!stderr_of(&again).contains("waiting for"), "the next commit waited for a lock: {}", stderr_of(&again));

@@ -23,6 +23,19 @@ fn a_kill_at_any_write_leaves_a_recoverable_repository() {
     sweep("kill-write", "write", Effect::Kill, false);
 }
 
+/// A kill of the wrapper or of a Git process it started, before a `write`: the process group of a closing terminal
+///  or an out-of-memory kill takes either.
+#[test]
+fn a_kill_of_the_wrapper_or_git_at_any_write_leaves_a_recoverable_repository() {
+    sweep("kill-write-tree", "write", Effect::Kill, true);
+}
+
+/// A kill of the wrapper or of a Git process it started, before a flush.
+#[test]
+fn a_kill_of_the_wrapper_or_git_at_any_sync_leaves_a_recoverable_repository() {
+    sweep("kill-fsync-tree", "fsync", Effect::Kill, true);
+}
+
 /// A kill before each flush: every journal barrier of the commit is a place the process can die.
 #[test]
 fn a_kill_at_any_sync_leaves_a_recoverable_repository() {

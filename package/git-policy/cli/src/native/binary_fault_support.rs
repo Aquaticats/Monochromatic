@@ -169,7 +169,8 @@ pub(super) fn run_to_end(command: &mut Command) -> Output {
 /// The commit every sweep runs: an explicit-path commit of the staged `a.txt`.
 pub(super) const COMMIT_ARGUMENTS: [&str; 5] = ["commit", "--quiet", "--message=x", "--", "a.txt"];
 
-/// How many calls of `syscall` an uninjected explicit-path commit makes in the traced process or tree.
+/// How many calls of `syscall` an uninjected explicit-path commit makes in the traced process, or, following forks,
+///  in the process of the tree that makes the most: the fault counts each process on its own.
 pub(super) fn count_calls(fixture: &Fixture, label: &str, syscall: &str, follow_forks: bool) -> usize {
     let repo: PathBuf = staged_repository(fixture, &format!("count-{label}"));
     let trace: PathBuf = fixture.root.join(format!("count-{label}.txt"));
@@ -185,13 +186,15 @@ pub(super) fn count_calls(fixture: &Fixture, label: &str, syscall: &str, follow_
     assert_eq!(landed.status.code(), Some(0), "the uninjected commit must land: {}", String::from_utf8_lossy(&landed.stderr));
     let text: String = std::fs::read_to_string(&trace).expect("the call log");
     let prefix: String = format!("{syscall}(");
-    return text
-        .lines()
-        .filter(|line| {
-            return line.starts_with(prefix.as_str())
-                || line.split_once(' ').is_some_and(|(_, rest)| { return rest.starts_with(prefix.as_str()); });
-        })
-        .count();
+    // The fault counts the calls of each process on its own, so the sweep reaches as far as the busiest process.
+    let mut per_process: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for line in text.lines() {
+        let (process, call): (&str, &str) = if follow_forks { line.split_once(' ').unwrap_or(("", line)) } else { ("", line) };
+        if call.starts_with(prefix.as_str()) {
+            *per_process.entry(process).or_insert(0) += 1;
+        }
+    }
+    return per_process.values().copied().max().unwrap_or(0);
 }
 
 /// Run one explicit-path commit with the fault injected.
@@ -244,12 +247,16 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 ///  it ended inside its bound (or was killed by the injection itself), and a failure says why.
 fn check_first_run(label: &str, fault: &Injection, ran: &Ran) -> Result<(), String> {
     if matches!(fault.effect, Effect::Kill) {
-        if ran.injected() && ran.output.status.signal() != Some(9) {
+        // The kill ended the traced wrapper, which `strace` reports by ending the same way.
+        if ran.output.status.signal() == Some(9) {
+            return Ok(());
+        }
+        // In a traced tree the kill may have ended one of Git's processes instead, and the wrapper then reports that
+        // like any failure of Git; with only the wrapper traced, an injected kill that did not end it is a mistake.
+        if !fault.follow_forks && ran.injected() {
             return Err(format!("{label}: the process was to be killed at the call but ended with {:?}", ran.output.status));
         }
-        return Ok(());
-    }
-    if ran.output.status.signal() == Some(9) {
+    } else if ran.output.status.signal() == Some(9) {
         return Err(format!("{label}: the command hit its time bound: {}", ran.text()));
     }
     if !matches!(ran.code(), 0 | 1 | 2) {
