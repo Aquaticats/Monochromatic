@@ -1,0 +1,8 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  // The preset only includes src; the executables in bin are part of this package's type check and lint too.
+  "include": [
+    "src/**/*.ts",
+    "bin/**/*.ts",
+  ],
+}
