@@ -8,7 +8,7 @@ import {
   stat,
   writeFile
 } from 'node:fs/promises';
-import { run } from './container-snapshot.mjs';
+import { run } from './container-snapshot.ts';
 import {
   join,
   resolve
@@ -193,7 +193,7 @@ async function main() {
   );
   async function nativeMain(record) {
     if (mainSources.has(record.image)) return mainSources.get(record.image);
-    const container = run({
+    const container = (await run({
       command: 'podman',
       args: [
         'create',
@@ -204,7 +204,7 @@ async function main() {
         record.image
       ],
       capture: true
-    })
+    }))
       .stdout
       .trim();
     const destination = join(
@@ -212,7 +212,7 @@ async function main() {
       `${container}.main.rs`
     );
     try {
-      run({
+      await run({
         command: 'podman',
         args: [
           'cp',
@@ -230,7 +230,7 @@ async function main() {
         source
       );
       return source;
-    } finally { run({
+    } finally { await run({
       command: 'podman',
       args: [
         'rm',

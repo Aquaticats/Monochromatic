@@ -9,7 +9,7 @@ import {
   run,
   snapshot,
   ScannerVerificationError
-} from './container-snapshot.mjs';
+} from './container-snapshot.ts';
 
 /** Preserve exit evidence on both successful and failed verification. */
 async function main() {
@@ -52,7 +52,7 @@ async function main() {
     toolchain: clippy
   });
   try {
-    const result = run({
+    const result = await run({
       command: 'podman',
       args: [
         'run',

@@ -10,7 +10,7 @@ import {
   run,
   snapshot,
   ScannerVerificationError
-} from './container-snapshot.mjs';
+} from './container-snapshot.ts';
 
 /** Exact replacement fails if the production source moves rather than silently testing an unmodified guard. */
 function replace({
@@ -194,7 +194,7 @@ async function main() {
       }); },
     });
     try {
-      const result = run({
+      const result = await run({
         command: 'podman',
         args: [
           'run',

@@ -17,7 +17,7 @@ import {
 import {
   run,
   ScannerVerificationError
-} from './container-snapshot.mjs';
+} from './container-snapshot.ts';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -166,7 +166,7 @@ async function main() {
         context,
         'image.id'
       );
-      run({
+      await run({
         command: 'podman',
         args: [
           'build',
@@ -207,7 +207,7 @@ async function main() {
           2
         )  }\n`
       );
-      const result = run({
+      const result = await run({
         command: 'podman',
         args: [
           'run',
