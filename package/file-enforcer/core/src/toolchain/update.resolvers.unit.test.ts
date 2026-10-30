@@ -739,7 +739,7 @@ await describe({
           },
         },),
         it({
-          name: 'returns the [pkg.rust] version for the stable channel',
+          name: 'returns the [pkg.rust] release without its trailing commit hash and date for the stable channel',
           fn: async () => {
             expect(await resolveRust({
               entry: fixtureEntry({
@@ -755,7 +755,7 @@ await describe({
                   'date = "2026-10-20"',
                   '',
                   '[pkg.rust]',
-                  'version = "1.98.1"',
+                  'version = "1.98.1 (58cf8f9c3 2026-10-20)"',
                   '[pkg.rust.target.x86_64-unknown-linux-gnu]',
                   'available = true',
                   'version = "9.9.9"',
