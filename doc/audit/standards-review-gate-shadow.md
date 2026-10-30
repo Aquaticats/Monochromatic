@@ -2575,3 +2575,6 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   78bd2859368b (no code files):
   `fix(mise): skip the shadow review for commits that only touch the shadow log`
+- Skipped:
+  d127e8de65a8 (no code files):
+  `chore(*): bump catalog version floors and regenerate pnpm lockfile`
