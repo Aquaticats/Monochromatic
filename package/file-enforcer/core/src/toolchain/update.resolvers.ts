@@ -18,6 +18,7 @@
 
 export { resolveJava, } from './update.resolvers.adoptium.ts';
 export { resolveAndroid, } from './update.resolvers.android.ts';
+export { resolveAws, } from './update.resolvers.aws.ts';
 export { resolveConda, } from './update.resolvers.conda.ts';
 export {
   githubRepoFromRows,

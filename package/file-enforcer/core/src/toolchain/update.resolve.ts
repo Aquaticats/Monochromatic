@@ -10,6 +10,7 @@ import type { ToolArtifacts, } from './plan.artifacts.data.ts';
 import type { ToolPlanEntry, } from './types.ts';
 import {
   resolveAndroid,
+  resolveAws,
   resolveCargo,
   resolveConda,
   resolveGithubFamily,
@@ -91,6 +92,14 @@ async function resolveEntry(
     // rustup rides the static.rust-lang.org channel archive, not GitHub
     // releases (`doc/planning/mpm-global-toolchain-migration.md`).
     return resolveRustup({
+      entry,
+      fetcher,
+    },);
+  }
+  if (entry.id === 'aws') {
+    // aws rides awscli.amazonaws.com zips named by the aws/aws-cli tags, not
+    // GitHub release assets.
+    return resolveAws({
       entry,
       fetcher,
     },);

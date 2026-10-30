@@ -116,6 +116,7 @@ export {
 export {
   mapGithubRows,
   parseShasums,
+  resolveAws,
   resolveGoModule,
   resolveGoRuntime,
   resolveNpm,
