@@ -4138,3 +4138,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
   -p forbidden-strings --lib` fails in the unmutated tree; agent `aba63f1400b66332c` diagnoses (suspect: the same
   scratch-root class as the linter bug).
 - Release 0.4.2 (strip symbols in the release profile) cut next; then adopt via `toolchain:update`.
+
+## Update at 2026-10-29 (23:30 host clock, 0.4.2 released and adopted)
+
+- Released 0.4.2 (commit `627fa9c444`; run 40991272842; crates.io 2026-10-30T02:26:00Z; both tarballs). Content: release
+  builds strip symbols (installed binary 8,475,712 bytes, `file` says stripped), fixtures hard-link the wrapper, and
+  new tests. Adopted by `toolchain:update` (crate 0.4.1 to 0.4.2 and rust nightly-2026-10-29 to 2026-10-30; 12-line
+  diff) and `toolchain:sync` (2 installed, 0 failed). Verified on the installed binary: doctor help line present;
+  merge beside a staged rename kept the rename and made a two-parent merge.
+- Mutation: `merge_isolation` on the current tree 102 mutants, 93 caught, 8 unviable, 1 missed (195:40, equivalent,
+  proven). `transaction_git` survivors killed (34 test lines, landed). `owner_lock` 695:9 equivalent (the default body is
+  already `return false;`, read). `scratch_location` 221:5 and `doctor` 100:5 are `cfg(not(unix))` variants,
+  unkillable on Linux.
+- Scanner: two stacked baseline failures that predate the shared package, found by the first real parity run and
+  fixed: (1) `path_scan_prefix_tests.rs` lost a `/./` segment in two expectations in the product-category move commit
+  `113633b259` (restored, `8cb39ed806` cherry-picked; a scan of that commit for the same pattern found nothing else);
+  (2) the campaign snapshot had no `.github/workflows/forbidden-strings.yml`, which six `ci_scan_scope` tests read
+  (`container-snapshot.mjs` and `verify-evidence.mjs` fixed, cherry-picked from `3169b87732`). The scanner's
+  `bin/*.mjs` scripts still violate NMJ (they should be `.ts`). Parity rerun: unit `cli-git-parity-scanner`.
+- Git-policy parity (`cli-git-parity-git-policy`, command_push.rs, `--memory 3g --cpus 3`): in the planted-controls
+  phase (the launcher skips it with `NATIVE_MUTATION_SKIP_PLANTED=1`, my direct run did not): 46 of 78 done at 23:22,
+  about 2.7 minutes each, then about 15 minutes of campaign. Expected end about 01:05.
+- Open: `monochromatic-lint-closure` `ui_tests.rs` stages a fixture package under `scratch_root()`; in the container
+  layout that sits below the crate's Cargo.toml (not run; its owner should check). `search-shadow` and `ide/app` tests
+  create their own `.git` inside fixtures (not run in the in-crate layout either).
+- Cleanup still to do: worktrees `~/temp/agent/integrate-7` to `integrate-28`, the rest of the earlier list, images
+  `w*`, local branches (`cm-scanner-scratch` and the agents' branches), the stash entry from the autostash, and the
+  agent worktrees under `.claude/worktrees/`.
