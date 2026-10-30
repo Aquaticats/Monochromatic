@@ -11,15 +11,24 @@ On 2026-10-30 the user selected:
   If GPU compatibility fails, report the blocker instead of attempting a source build.
 - Official Lemonade container under Podman, including its browser UI.
   The user explicitly accepted the upstream Ubuntu 24.04 base.
+- Defer startup configuration.
+  The user said, "Startup preference: Don't set it up yet."
 
 Installation has not started.
 Model selection, service behavior, resource limits,
 and final shared-understanding confirmation remain open.
 
-In response to the workload question, the user specified `vllm-d3`.
-Its project identity, dependencies, packaged distribution,
-and fit with Lemonade-managed vLLM must be established before finalizing the installation route.
-This clarification does not yet identify model weights or a context length.
+In response to the workload question, the user specified `vllm-d3`,
+then confirmed the intended model is Hugging Face `vllm-sr/d3`,
+from vLLM Semantic Router's Decision 3.0 family.
+The previously selected Lemonade-managed vLLM route must be reassessed against this exact model.
+Upstream describes a separate `vllm-srun` runtime;
+generic vLLM installation does not establish D3 execution support.
+The full model must not be silently replaced with another D3 family variant.
+
+The user's network answer was "fine", without naming a network scope.
+The assistant stated that temporary verification servers would use localhost only.
+No persistent startup or network configuration is authorized by that interpretation.
 
 ## Local evidence
 
@@ -69,7 +78,8 @@ Standalone `vllm-project/vllm` documentation omits `gfx1102` from its GPU requir
 while `CMakeLists.txt` accepts that build target.
 The default ROCm container architecture list omits it.
 None of these observations proves that packaged inference works on this host.
-Standalone vLLM is outside the selected scope.
+Standalone generic vLLM was outside the originally selected scope.
+The later D3 clarification reopens the runtime dependency question.
 
 ## Verification boundary
 
@@ -115,9 +125,11 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
-Identify the requested `vllm-d3` project and its fit with the selected packaged deployment.
-Network reach and server startup questions remain unanswered.
-Resolve model weights and context after establishing the requested engine's requirements.
+Establish packaged `vllm-srun` support for the confirmed `vllm-sr/d3` model and this hardware.
+Startup configuration is deferred.
+Use localhost only for transient verification;
+broader network exposure remains unselected.
+Resolve context after establishing the requested engine's requirements.
 Then settle storage and resource limits using the selected workload.
 Present the concrete installation and verification plan for the grilling session's final confirmation.
 
