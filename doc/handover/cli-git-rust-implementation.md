@@ -4382,6 +4382,12 @@ This block supersedes "State at 2026-10-29 (night, later)".
   (locked by a live process before the reboot) and `agent-aba63f1400b66332c` (cherry-picked, not an ancestor),
   `~/temp/agent/land-faults`, `~/temp/agent/commit-profile` (profile scripts, raw traces, `result/`, `host-perf.json`),
   the image `localhost/commit-profile:dev`, local scratch branches, the stash entry `6f9966c7e5`.
+- Rule `RBT` was added to `AGENTS.md` and `CLAUDE.md` (`9a2e376bd9`) on the user's word that reboots can make data on
+  this machine's SSD permanently unreadable: commit and push before any reboot, and never count on uncommitted files,
+  scratch or caches surviving one. Everything above is committed; the scratch under `~/temp/agent` is the only
+  uncommitted state and is expendable except the commit-path profile notes already summarised here. The sync also
+  produced `package/forbidden-strings/cli.fuzz/LICENSES/` (`47f28c5256`). `mise.toml` is left modified and uncommitted:
+  the sync only added `node_modules/.bin` path entries for packages installed in this checkout.
 - Not ours and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `.projenrc.ts`,
   `doc/audit/standards-review-gate-truth-check.md`, `doc/handover/superlinear-cost-dismissal-gate.md` (another
   session's changes in the main checkout).
