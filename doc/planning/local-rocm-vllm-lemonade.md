@@ -77,8 +77,9 @@ Retain the working host ROCm installation.
 Install the selected official Lemonade container and its managed vLLM backend,
 preserving the original software request.
 Select packaged llama.cpp ROCm build `b1358` for the Liquid text model.
-Lemonade's released configuration guide supports selecting that build through
+Lemonade's released configuration guide documents selecting that build through
 `rocm_channel=nightly` and `llamacpp.rocm_bin=b1358`.
+Confirm these settings against the installed CLI before applying them.
 Its default backend pins predate the Liquid models' minimum version.
 
 Use the existing `b1358` runtime directly for d1's decision API.
@@ -88,8 +89,12 @@ Do not add a custom proxy or claim that Lemonade's chat API serves d1 decisions.
 
 Proposed initial verification uses Q8_0 weights and text inputs,
 one model loaded at a time,
-with bounded context and generated output.
-Use disposable containers with explicit CPU and RAM limits for inference checks.
+with a 2,048-token context and at most 64 generated text tokens.
+Use disposable containers capped at 2 CPUs and 8 GiB RAM for inference checks.
+These are verification limits, not a claimed performance optimum.
+Keep downloaded models and managed backends in dedicated Lemonade storage under the user's home,
+shared by the temporary containers without duplicating model weights.
+Use dedicated disk-backed temporary storage outside `/tmp`.
 Bind temporary servers to localhost and stop them after verification.
 Do not configure startup services or broader network access.
 The user must confirm this arrangement and the decision-output limitation before installation begins.
@@ -193,7 +198,7 @@ Confirm the concrete Liquid-model arrangement and the packaged decision-output s
 Startup configuration is deferred.
 Use localhost only for transient verification;
 broader network exposure remains unselected.
-Set bounded verification context, storage, and resource limits before execution.
+Verify the proposed context, storage, and resource settings against installed CLI capabilities before execution.
 Present the concrete installation and verification plan for the grilling session's final confirmation.
 
 ## Additional inventory
