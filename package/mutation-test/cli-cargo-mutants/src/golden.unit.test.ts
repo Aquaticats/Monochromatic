@@ -8,7 +8,6 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
-  type GoldenOutcome,
   goldenScenarios,
   runScenario,
 } from './golden-scenarios.ts';
@@ -24,17 +23,22 @@ await describe({
             name: scenario.name,
             fn: async () => {
               /**
-               Outcome pinned from the script as it was before the shared package replaced its duplicated parts.
+               Text of the outcome pinned from the script as it was before the shared package replaced its duplicated
+               parts.
                */
-              const golden = JSON.parse(await readFile(
+              const golden = await readFile(
                 join(
                   import.meta.dirname,
                   'golden',
                   `${scenario.name}.json`,
                 ),
                 'utf8',
-              )) as GoldenOutcome;
-              expect(await runScenario(scenario)).toEqual(golden);
+              );
+              expect(`${JSON.stringify(
+                await runScenario(scenario),
+                null,
+                2,
+              )}\n`).toBe(golden);
             },
             timeout: 60_000,
           });
