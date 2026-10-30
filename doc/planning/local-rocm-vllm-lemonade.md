@@ -72,7 +72,39 @@ identity inspection, and `rocminfo`.
 The stated reason was a cgroup membership change in the execution mechanism,
 which the reviewer considered an unauthorized security-boundary change.
 No bypass was attempted.
-Host GPU runtime access remains unverified.
+The user then explicitly approved this probe,
+including the tool runner's cgroup placement.
+The approved command succeeded:
+device nodes were present and `rocminfo` identified AMD Radeon RX 7600 as `gfx1102`.
+This verifies host ROCm enumeration, not model inference.
+
+## Packaged deployment frontier
+
+Release `v2026.44.1` offers these Linux routes:
+
+- Official container:
+  the release's `Dockerfile` uses Ubuntu 24.04,
+  builds the browser UI,
+  and includes `build-essential` for vLLM/Triton runtime launcher compilation.
+  The published image is `ghcr.io/lemonade-sdk/lemonade-server`.
+  Choosing this route accepts the upstream base instead of the repository's CachyOS default.
+- Portable archive:
+  `lemonade-embeddable-2026.44.1-ubuntu-x64.tar.gz` includes `lemond`,
+  the CLI, and resources.
+  The release workflow sets `BUILD_WEB_APP=OFF`.
+  This supplies CLI/API access without the browser UI.
+  Bazzite compatibility needs a runtime check.
+- Fedora RPM:
+  `lemonade-server-2026.44.1-fc44.x86_64.rpm`.
+  Bazzite's package-layering documentation describes `rpm-ostree`,
+  a reboot, and manual updates for local RPM installations.
+
+The user has been asked to choose this deployment route.
+The recommended container route includes normal runtime JIT compilation;
+it does not require building Lemonade or vLLM from source.
+
+The planning document's CommonMark rendering was inspected with Pandoc.
+Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
