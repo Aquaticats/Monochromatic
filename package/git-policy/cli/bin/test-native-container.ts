@@ -15,6 +15,12 @@ import {
 } from 'node:path';
 
 import {
+  buildLimitArguments,
+  parallelJobs,
+  parseContainerLimitOptions,
+  runLimitArguments,
+} from './container-limits.ts';
+import {
   linterCopyLines,
   linterSnapshotEntries,
   linterStageLines,
@@ -33,6 +39,22 @@ import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
+
+// Resource limits default to the repository's test-container bounds; `--memory`, `--cpus` and `--pids-limit` override them.
+/**
+ Container limits of this gate, and the arguments left over, which are a usage error.
+ */
+const {
+  limits: containerLimits,
+  rest: unknownOptions,
+} = parseContainerLimitOptions({
+  options: process.argv
+    .slice(2),
+  acceptPidsLimit: true,
+  leadingOnly: false,
+});
+if (unknownOptions.length > 0)
+  throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -215,7 +237,7 @@ await writeFile(
     'COPY cli-git.config.jsonc /work/cli-git.config.jsonc',
     'RUN ["mkdir", "--parents", "/home/tester/.cargo"]',
     'RUN ["chown", "--recursive", "1000:1000", "/work/package", "/home/tester"]',
-    'ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0',
+    `ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=${String(parallelJobs(containerLimits))} CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`,
     // A test that waits on a lock nothing releases (a mutant that never releases one) fails after 20 seconds
     // instead of waiting out the 30 minute product limit, which cargo-mutants would record as a timeout.
     'ENV CLI_GIT_LOCK_WAIT_SECONDS=20 CLI_GIT_PUSH_LOCK_WAIT_SECONDS=20',
@@ -236,9 +258,7 @@ await runCommand({
     '--network=none',
     '--http-proxy=false',
     '--pull=never',
-    '--memory=2g',
-    '--cpu-period=100000',
-    '--cpu-quota=200000',
+    ...buildLimitArguments(containerLimits),
     '--tag',
     testImage,
     context.path,
@@ -264,15 +284,16 @@ const inspected = await runCommand({
 const image = inspected.stdout
   .trim();
 /**
- Bounds of every gate container: removed on exit, no network, 2 GiB, 2 CPUs and 128 processes.
+ Bounds of every gate container: removed on exit, no network, and the memory, CPUs and processes of the container limits.
  */
 const limits = [
   '--rm',
   '--init',
   '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=128',
+  ...runLimitArguments({
+    limits: containerLimits,
+    withPidsLimit: true,
+  }),
 ];
 await writeFile(
   join(

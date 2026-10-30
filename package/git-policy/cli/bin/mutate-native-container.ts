@@ -19,6 +19,11 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  buildLimitArguments,
+  parseContainerLimitOptions,
+  runLimitArguments,
+} from './container-limits.ts';
 import { runPlantedControls } from './native-planted-controls.ts';
 import {
   baselineSkipArguments,
@@ -62,16 +67,6 @@ const testImage = `localhost/git-policy-native-test:${imageTag}`;
  Campaign image layered over the tested snapshot.
  */
 const mutationImage = `localhost/git-policy-native-mutation:${imageTag}`;
-/**
- Same bounds as the test gate: no network, 2 GiB, 2 CPUs, 128 PIDs.
- */
-const limits = [
-  '--init',
-  '--network=none',
-  '--memory=2g',
-  '--cpus=2',
-  '--pids-limit=128',
-];
 /**
  Report directory inside the container; the tester's home is the only writable place outside the package.
  */
@@ -181,14 +176,36 @@ function mutationCommand({
 
 // Build and run the tool over an immutable input image, then retain its complete report.
 /**
+ Container limits parsed from the command line (`--memory`, `--cpus`, `--pids-limit`), and the other options.
+ */
+const {
+  limits: containerLimits,
+  rest: campaignOptions,
+} = parseContainerLimitOptions({
+  options: process.argv
+    .slice(2),
+  acceptPidsLimit: true,
+  leadingOnly: false,
+});
+/**
+ Same bounds as the test gate: no network, and the memory, CPUs and PIDs of the container limits.
+ */
+const limits = [
+  '--init',
+  '--network=none',
+  ...runLimitArguments({
+    limits: containerLimits,
+    withPidsLimit: true,
+  }),
+];
+/**
  Campaign options parsed from the command line: the per-mutant timeout, the mutant-name patterns and the rest.
  */
 const {
   timeoutSeconds,
   examine,
   scopeOptions
-} = parseTimeout(process.argv
-  .slice(2));
+} = parseTimeout(campaignOptions);
 /**
  Validated `--file` scopes, or none for a whole-package campaign.
  */
@@ -317,9 +334,7 @@ await runCommand({
     '--network=none',
     '--http-proxy=false',
     '--pull=never',
-    '--memory=2g',
-    '--cpu-period=100000',
-    '--cpu-quota=200000',
+    ...buildLimitArguments(containerLimits),
     '--tag',
     mutationImage,
     context.path,
@@ -350,9 +365,9 @@ await writeFile(
       command,
       scopes,
       limits: {
-        memory: '2g',
-        cpus: 2,
-        pids: 128,
+        memory: containerLimits.memory,
+        cpus: containerLimits.cpus,
+        pids: containerLimits.pidsLimit,
         buildTimeoutSeconds: 300,
         testTimeoutSeconds: 90,
       },
