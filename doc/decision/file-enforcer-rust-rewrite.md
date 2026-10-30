@@ -173,9 +173,17 @@ and accepted with this record:
   and `bin-paths`,
   each with `--global`.
 - Lookups:
-  first versions of new npm and PyPI tools from the registries,
-  later ones from `mpm outdated`,
-  native lookups for the rest including Rust channels.
+  every npm and PyPI version,
+  first or later,
+  comes from `registry.npmjs.org` and `pypi.org` directly;
+  native lookups cover the rest,
+  including Rust channels;
+  `mpm outdated` is not used.
+  Changed 2026-10-29 from "later ones from `mpm outdated`" after the gate probe
+  (`doc/research/file-enforcer-rust-rewrite-gate-probes.md`) showed mpm 8.2.0 dropping failed managers with exit 0
+  and reporting registry failures only in an `errors` array;
+  asked again,
+  the user chose "Registry lookup always".
 - A locked npm or PyPI tool missing from the machine:
   plain `update` syncs the missing tools,
   then retries the lookup once
