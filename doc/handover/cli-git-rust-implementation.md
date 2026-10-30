@@ -4090,3 +4090,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
   container's limits with `podman inspect`), `-forbidden-core` (charset.rs with the same limits), `-linter`
   (`mutation:markdown:parent`), `-scanner` (`test:mutation:startup:container`); logs `~/temp/agent/parity-<name>.log`.
   The engine's snapshot image build and the new create flow had never run against real Podman before this.
+
+## Update at 2026-10-29 (23:30, fixtures hard-link the wrapper; linter scratch fix; parity runs)
+
+- Landed (merge `e629ae0c0d`): fixtures no longer copy the wrapper. `link_built_wrapper` hard-links the built
+  executable into each fixture (fallback: `--reflink=never` data copy, error printed), `warm_wrapper` reads it once per
+  process after the link. Nothing in the wrapper needs a private file: `current_exe` is only compared by file identity,
+  hook entries are recognised by `argv[0]`. Measured: placing the wrapper 0.03 ms (hard link) against 4.6 ms median,
+  256 ms maximum (data copy); about 5 GB of copies per suite run avoided; at a 2 MB/s read cap the link without the
+  warm read still hit the bound (5.02 s), so the warm read is part of the design, and the design is not more robust
+  than the data copy against a slow disk (both move the read outside the bound). Guards: same-inode test
+  and the byte-copy extents test, each shown failing once. Container gate on the landed tree: unit
+  `cli-git-gate-final`, log `~/temp/agent/gate-final.log` (the agent had run the suite only before the merge).
+- Landed: `70818d6c38`, the linter's `test_scratch.rs` keeps the unit-test scratch root out of any directory holding
+  a Cargo.toml (cause of the container failure of `closure_packages::tests::a_file_without_an_owning_manifest_is_left_out_with_a_note`:
+  the scratch root moved under the build dir by `da7dfae188`, and in the test container the build dir is inside the crate,
+  so the crate's own Cargo.toml owned the fixture; host runs never saw it because `~/.cargo/config.toml` moves the build dir).
+  Not changed, not checked: `monochromatic-lint-closure` and six other packages carry their own copy of
+  `test_scratch.rs` (mpm-shadow, search-shadow, ide, nested-wayland-session, music-player truepeak-core,
+  forbidden-strings cli); a test there that expects "no owning manifest" would fail the same way in a container.
+- Parity runs of the shared mutation engine against real Podman: first attempts failed because the main checkout did
+  not link the new package (`mise run prepare:pnpm:install` fixed that; run it in every checkout after merging main)
+  and because of the linter scratch bug above. Reruns: units `cli-git-parity-git-policy` (command_push.rs,
+  `--memory 3g --cpus 3`), `-forbidden-core` (charset.rs, same), `-scanner`, `-linter`; logs
+  `~/temp/agent/parity-<name>.log`. Check the 3g and 3 CPU limits with `podman inspect` while a campaign container runs.
+- Leftovers from agent `ac6a56aed8916cfec` to clean (not done): its worktree has a staged hand-merged
+  `doc/audit/standards-review-gate-shadow.md`; a stash entry from its autostash (`6f9966c7e5`, the repo guard blocks
+  `git stash drop`, content already incorporated).
