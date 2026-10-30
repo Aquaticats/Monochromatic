@@ -144,8 +144,6 @@ export {
   type HyperClient,
   ModelNotServedError,
 } from './hyper-client.ts';
-export { reaskElsewhereNudged, } from './nudged-reask.ts';
-export { alternateModelsFor, } from './reask-alternate-models.ts';
 export {
   type AbandonedSpendEstimate,
   estimateAbandonedSpend,
