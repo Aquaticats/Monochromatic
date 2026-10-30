@@ -714,6 +714,8 @@ Each task accepts overrides after the `--` of `mise run`, with these exact optio
 - `--pids-limit <count>` is a whole number of processes from `1`.
   It is accepted only where the container has a process cap, and rejected with a message otherwise.
 
+A value is a separate token (`--memory 1g`); the `--memory=1g` form is not read and reaches the task's own option parser,
+which rejects it as an unknown argument.
 An invalid value stops the task before any container starts.
 The message names the option and the accepted forms.
 Options repeat with the last one winning, and the number of build jobs (`CARGO_BUILD_JOBS`, `make --jobs`) follows the
