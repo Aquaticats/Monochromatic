@@ -307,6 +307,66 @@ await describe({
           },
         },),
         it({
+          name: 'KEEPS A STREAM CONTESTED once an ambiguous spend line has seen it: the spend lines that come after it '
+            + 'while it waits read it as ambiguous too, since an earlier line may already be its pair, and a lone '
+            + 'candidate is no certain pair for a spend line with no stream of its own',
+          fn: async () => {
+            expect(readCapLog({
+              lines: [
+                streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: 11, },),
+                streamLine({ stamp: '2026-09-28T10:00:01.000Z', label: HYPER_ID, outcome: 'completed', content: 22, },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:01.500Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
+                },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:02.000Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=14`,
+                },),
+                spendLine({
+                  stamp: '2026-09-28T10:00:03.500Z',
+                  tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=15`,
+                },),
+              ],
+            },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),).toEqual([
+                'ambiguous',
+                'ambiguous',
+                'ambiguous',
+              ],);
+          },
+        },),
+        it({
+          name: 'READS EVERY SPEND LINE AS AMBIGUOUS when many streams of its label share one stamp, each decided from '
+            + 'the first two candidates it meets: two thousand streams and two thousand spend lines',
+          fn: async () => {
+            /**
+             Streams of one label, all stamped alike.
+             */
+            const streams = Array.from({ length: 2_000, }, function streamAt(_, index,): string {
+              return streamLine({ stamp: '2026-09-28T10:00:00.000Z', label: HYPER_ID, outcome: 'completed', content: index, },);
+            },);
+
+            /**
+             Spend lines for them, stamped a millisecond on.
+             */
+            const spends = Array.from({ length: 2_000, }, function spendAt(): string {
+              return spendLine({
+                stamp: '2026-09-28T10:00:00.001Z',
+                tail: `provider=hyper model=${HYPER_ID} prompt=10 completion=13`,
+              },);
+            },);
+            expect([...new Set(readCapLog({ lines: [...streams, ...spends,], },)
+              .samples
+              .map(function contentOf(sample,) {
+                return sample.content;
+              },),),],).toEqual(['ambiguous',],);
+          },
+        },),
+        it({
           name: 'READS A SPEND LINE AS AMBIGUOUS only for its own label: a stream of another label waiting beside the '
             + 'one that pairs makes no second candidate',
           fn: async () => {
