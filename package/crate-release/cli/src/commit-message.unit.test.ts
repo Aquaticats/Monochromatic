@@ -83,7 +83,9 @@ await describe({
         it({
           name: 'accepts a note of exactly the maximum length',
           fn: async () => {
-            expect(messageFor('a'.repeat(maximumNoteLength))).toContain('a'.repeat(maximumNoteLength));
+            expect(
+              messageFor('a'.repeat(maximumNoteLength)),
+            ).toContain('a'.repeat(maximumNoteLength));
           },
         }),
         it({

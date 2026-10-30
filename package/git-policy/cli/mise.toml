@@ -30,6 +30,14 @@ run = "cargo generate-lockfile --offline"
 description = "Record a changed dependency list of the native wrapper in its lockfile without moving any other locked version"
 run = "cargo update --offline --workspace"
 
+[tasks."native:release"]
+description = "Bump the crate and the fuzz crate's exact pin, check, dry-run the publish and commit: `-- <from> <to> <note>` (quote the note; the shared crate-release options such as --memory-max follow the same --)"
+run = "node ../../crate-release/cli/bin/release.ts --crate-name monochromatic-git-policy-cli --crate-dir package/git-policy/cli --scope git-policy/cli --pin-file package/git-policy/cli.fuzz/Cargo.toml --check-bin cli-git-native --lock-task //package/git-policy/cli.fuzz:lock:members --unit-name cli-git-publish-dry"
+
+[tasks."native:release:wait"]
+description = "Wait for the cargo-publish run of a pushed release commit, then check crates.io and the GitHub release: `-- <sha> <version>`"
+run = "node ../../crate-release/cli/bin/wait-publish.ts --crate-name monochromatic-git-policy-cli"
+
 [tasks."native:build"]
 description = "Build the native wrapper executable on the host, for differential runs that start it by path"
 run = "cargo build --locked --offline --bin cli-git-native"

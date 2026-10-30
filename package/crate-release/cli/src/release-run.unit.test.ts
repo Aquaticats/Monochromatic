@@ -7,10 +7,7 @@ import {
 import { adversarialLines } from './adversarial-fixture.ts';
 import { CrateReleaseError } from './error.ts';
 import type { ReleaseOptions } from './release-options.ts';
-import {
-  runRelease,
-  type ReleaseStepRunner,
-} from './release-run.ts';
+import { runRelease } from './release-run.ts';
 import type { ReleaseStep } from './release-steps.ts';
 
 /**
@@ -36,7 +33,7 @@ const options: ReleaseOptions = {
   to: '0.4.3',
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-  checkBin: 'cli-git-native',
+  checkBins: ['cli-git-native'],
   lockTasks: ['//package/git-policy/cli.fuzz:lock:members'],
   memoryMax: '12G',
   unitName: 'cli-git-publish-dry',
@@ -80,11 +77,11 @@ async function record({
   const events: string[] = [];
   const steps: ReleaseStep[] = [];
   const printed: string[] = [];
-  const runStep: ReleaseStepRunner = async function runStep(step) {
+  async function runStep(step: ReleaseStep): Promise<{ readonly status: number }> {
     events.push(`step ${step.label}`);
     steps.push(step);
     return { status: step.label === failing ? failureStatus : 0 };
-  };
+  }
   const status = await runRelease({
     options: releaseOptions,
     readText: async function readText(path) {
@@ -197,7 +194,7 @@ await describe({
           },
         }),
         it({
-          name: 'writes nothing and runs nothing when the pin file is not an exact pin of the current version',
+          name: 'refuses a pin file that is not an exact pin of the current version',
           fn: async () => {
             const files = new Map([
               ['/repo/package/git-policy/cli/Cargo.toml', crateManifest],

@@ -89,7 +89,7 @@ await describe({
       children: textCases({
         parse: parseRepositoryPath,
         accepted: ['package/a/b', 'Cargo.toml', 'package/a b/c', 'package/x.fuzz/Cargo.toml'],
-        rejected: ['', '/abs/path', '../outside', 'a/../../b', 'a/./b', './a', 'a//b', 'a/', 'a\\b', 'a\0b', '..', '.'],
+        rejected: ['', '/abs/path', '../outside', 'a/../../b', 'a/./b', './a', 'a//b', 'a/', String.raw`a\b`, 'a\0b', '..', '.'],
       }),
     }),
     describe({

@@ -64,7 +64,9 @@ await describe({
             name: `a real sh splits the line holding ${JSON.stringify(note)} back into the same words`,
             fn: async () => {
               const args = ['commit', '--message', `chore(x): release 1.0.0: ${note}`, '--', note];
-              expect(wordsOfShell(formatCommandLine({ program: 'git', args }))).toEqual(['git', ...args]);
+              expect(
+                wordsOfShell(formatCommandLine({ program: 'git', args })),
+              ).toEqual(['git', ...args]);
             },
           });
         }),
@@ -72,13 +74,17 @@ await describe({
           name: 'keeps a line break inside one word',
           fn: async () => {
             const args = ['a\nb', 'c'];
-            expect(wordsOfShell(formatCommandLine({ program: 'p', args }))).toEqual(['p', ...args]);
+            expect(
+              wordsOfShell(formatCommandLine({ program: 'p', args })),
+            ).toEqual(['p', ...args]);
           },
         }),
         it({
           name: 'quotes the program name too',
           fn: async () => {
-            expect(wordsOfShell(formatCommandLine({ program: 'my prog', args: [] }))).toEqual(['my prog']);
+            expect(
+              wordsOfShell(formatCommandLine({ program: 'my prog', args: [] })),
+            ).toEqual(['my prog']);
           },
         }),
         it({

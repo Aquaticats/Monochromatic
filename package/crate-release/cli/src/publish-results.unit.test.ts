@@ -5,6 +5,10 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  foundValue,
+  missingValue,
+} from './lookup.ts';
+import {
   describeDuration,
   expandTemplate,
   findMissingAssets,
@@ -42,31 +46,31 @@ await describe({
         it({
           name: 'picks the first listed run whose hash starts with the given prefix',
           fn: async () => {
-            expect(selectRunId({ listing, sha: 'abcdef0' })).toBe('200');
+            expect(selectRunId({ listing, sha: 'abcdef0' })).toEqual(foundValue('200'));
           },
         }),
         it({
           name: 'accepts the whole hash',
           fn: async () => {
-            expect(selectRunId({ listing, sha: fullSha })).toBe('200');
+            expect(selectRunId({ listing, sha: fullSha })).toEqual(foundValue('200'));
           },
         }),
         it({
           name: 'finds nothing for a prefix that no run has',
           fn: async () => {
-            expect(selectRunId({ listing, sha: 'fffffff' })).toBeUndefined();
+            expect(selectRunId({ listing, sha: 'fffffff' }).found).toBe(false);
           },
         }),
         it({
           name: 'does not match a hash longer than the run hash',
           fn: async () => {
-            expect(selectRunId({ listing, sha: `${fullSha}0` })).toBeUndefined();
+            expect(selectRunId({ listing, sha: `${fullSha}0` }).found).toBe(false);
           },
         }),
         it({
           name: 'finds nothing in an empty listing',
           fn: async () => {
-            expect(selectRunId({ listing: '[]', sha: 'abcdef0' })).toBeUndefined();
+            expect(selectRunId({ listing: '[]', sha: 'abcdef0' }).found).toBe(false);
           },
         }),
         ...['', 'not json', '{"databaseId":1}', 'null', '[1,"x",null]', '[{"headSha":5,"databaseId":1}]', '[{"headSha":"abcdef0"}]'].map(
@@ -74,7 +78,7 @@ await describe({
             return it({
               name: `finds nothing in the malformed listing ${JSON.stringify(text)}`,
               fn: async () => {
-                expect(selectRunId({ listing: text, sha: 'abcdef0' })).toBeUndefined();
+                expect(selectRunId({ listing: text, sha: 'abcdef0' }).found).toBe(false);
               },
             });
           },
@@ -83,7 +87,7 @@ await describe({
           name: 'skips a malformed entry and still finds a later run',
           fn: async () => {
             const text = JSON.stringify([null, { databaseId: 'x', headSha: fullSha }, { databaseId: 7, headSha: fullSha }]);
-            expect(selectRunId({ listing: text, sha: 'abcdef0' })).toBe('7');
+            expect(selectRunId({ listing: text, sha: 'abcdef0' })).toEqual(foundValue('7'));
           },
         }),
       ],
@@ -95,13 +99,13 @@ await describe({
           name: 'reads the creation time of the published version',
           fn: async () => {
             expect(parseCratesIoCreatedAt('{"version":{"num":"0.4.10","created_at":"2026-10-29T12:00:00.123456+00:00"}}'))
-              .toBe('2026-10-29T12:00:00.123456+00:00');
+              .toEqual(foundValue('2026-10-29T12:00:00.123456+00:00'));
           },
         }),
         it({
           name: 'ignores a creation time outside the version object',
           fn: async () => {
-            expect(parseCratesIoCreatedAt('{"crate":{"created_at":"2020-01-01"},"version":{}}')).toBeUndefined();
+            expect(parseCratesIoCreatedAt('{"crate":{"created_at":"2020-01-01"},"version":{}}').found).toBe(false);
           },
         }),
         ...['', 'not json', '{"errors":[{"detail":"Not Found"}]}', '{"version":null}', '{"version":{"created_at":5}}', '[]', 'null'].map(
@@ -109,7 +113,7 @@ await describe({
             return it({
               name: `reports no creation time for ${JSON.stringify(text)}`,
               fn: async () => {
-                expect(parseCratesIoCreatedAt(text)).toBeUndefined();
+                expect(parseCratesIoCreatedAt(text).found).toBe(false);
               },
             });
           },
@@ -203,22 +207,20 @@ await describe({
     describe({
       name: describeDuration.name,
       children: [
-        ...[
-          [1, '1 second'],
-          [45, '45 seconds'],
-          [60, '1 minute'],
-          [90, '1 minute 30 seconds'],
-          [900, '15 minutes'],
-          [3661, '61 minutes 1 second'],
-        ].map(function durationCase([seconds, text]) {
-          return it({
-            name: `writes ${String(seconds)} seconds as ${String(text)}`,
-            fn: async () => {
-              expect(describeDuration(seconds as number)).toBe(text);
-            },
-          });
-        }),
-      ],
+        [1, '1 second'],
+        [45, '45 seconds'],
+        [60, '1 minute'],
+        [90, '1 minute 30 seconds'],
+        [900, '15 minutes'],
+        [3_661, '61 minutes 1 second'],
+      ].map(function durationCase([seconds, text]) {
+        return it({
+          name: `writes ${String(seconds)} seconds as ${String(text)}`,
+          fn: async () => {
+            expect(describeDuration(seconds as number)).toBe(text);
+          },
+        });
+      }),
     }),
     describe({
       name: formatPublishResult.name,
@@ -229,11 +231,10 @@ await describe({
             const result = formatPublishResult({
               watchStatus: 0,
               version: '0.4.10',
-              createdAt: '2026-10-29T12:00:00+00:00',
+              createdAt: foundValue('2026-10-29T12:00:00+00:00'),
               tag: 'c-v0.4.10',
               expectedAssets,
-              assetNames: [...expectedAssets, 'c-0.4.10-sha256sums.txt'],
-              releaseError: '',
+              release: foundValue([...expectedAssets, 'c-0.4.10-sha256sums.txt']),
             });
             expect(result.ok).toBe(true);
             expect(result.lines).toEqual([
@@ -250,11 +251,10 @@ await describe({
             const result = formatPublishResult({
               watchStatus: 1,
               version: '0.4.10',
-              createdAt: '2026-10-29',
+              createdAt: foundValue('2026-10-29'),
               tag: 't',
               expectedAssets: [],
-              assetNames: [],
-              releaseError: '',
+              release: foundValue([]),
             });
             expect(result.ok).toBe(false);
             expect(result.lines.at(-1)).toContain('PUBLISH CHECK FAILED');
@@ -267,11 +267,10 @@ await describe({
             const result = formatPublishResult({
               watchStatus: 0,
               version: '0.4.10',
-              createdAt: undefined,
+              createdAt: missingValue('Not Found'),
               tag: 't',
               expectedAssets: [],
-              assetNames: [],
-              releaseError: '',
+              release: foundValue([]),
             });
             expect(result.ok).toBe(false);
             expect(result.lines).toContain('crates.io 0.4.10: not found');
@@ -284,11 +283,10 @@ await describe({
             const result = formatPublishResult({
               watchStatus: 0,
               version: '0.4.10',
-              createdAt: 'x',
+              createdAt: foundValue('x'),
               tag: 'c-v0.4.10',
               expectedAssets,
-              assetNames: [expectedAssets[0] ?? ''],
-              releaseError: '',
+              release: foundValue([expectedAssets[0] ?? '']),
             });
             expect(result.ok).toBe(false);
             expect(result.lines.at(-1)).toContain(expectedAssets[1] ?? '');
@@ -296,32 +294,30 @@ await describe({
           },
         }),
         it({
-          name: 'shows the release lookup error when no assets could be listed',
+          name: 'shows the release lookup error when the release could not be read',
           fn: async () => {
             const result = formatPublishResult({
               watchStatus: 0,
               version: '0.4.10',
-              createdAt: 'x',
+              createdAt: foundValue('x'),
               tag: 'c-v0.4.10',
               expectedAssets,
-              assetNames: [],
-              releaseError: 'release not found',
+              release: missingValue('release not found'),
             });
             expect(result.lines).toContain('release c-v0.4.10 assets: release not found');
             expect(result.ok).toBe(false);
           },
         }),
         it({
-          name: 'shows none when there are no assets and no error',
+          name: 'shows none when the release holds no assets and none are expected',
           fn: async () => {
             const result = formatPublishResult({
               watchStatus: 0,
               version: '1.0.0',
-              createdAt: 'x',
+              createdAt: foundValue('x'),
               tag: 't',
               expectedAssets: [],
-              assetNames: [],
-              releaseError: '',
+              release: foundValue([]),
             });
             expect(result.lines).toContain('release t assets: none');
             expect(result.ok).toBe(true);
@@ -333,11 +329,10 @@ await describe({
             const result = formatPublishResult({
               watchStatus: 2,
               version: '1.0.0',
-              createdAt: undefined,
+              createdAt: missingValue('Not Found'),
               tag: 't',
               expectedAssets: ['a'],
-              assetNames: [],
-              releaseError: '',
+              release: foundValue([]),
             });
             const last = result.lines.at(-1) ?? '';
             expect(last).toContain('workflow run exited 2');

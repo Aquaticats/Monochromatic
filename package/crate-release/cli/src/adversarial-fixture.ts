@@ -32,7 +32,7 @@ export const controlCharacterValues: readonly string[] = [
   'carriage\rreturn',
   'tab\tseparated',
   'nul\0byte',
-  'escape\u001bsequence',
-  'delete\u007fcharacter',
+  'escape\u001Bsequence',
+  'delete\u007Fcharacter',
   '\n',
 ];

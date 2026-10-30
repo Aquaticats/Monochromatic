@@ -85,7 +85,7 @@ await describe({
               to: '0.4.3',
               note: 'fix it',
               pinFiles: [],
-              checkBin: undefined,
+              checkBins: [],
               lockTasks: [],
               memoryMax: defaultMemoryMax,
               unitName: `monochromatic-git-policy-cli${defaultUnitSuffix}`,
@@ -105,6 +105,8 @@ await describe({
               'package/x/Cargo.toml',
               '--check-bin',
               'cli-git-native',
+              '--check-bin',
+              'second-bin',
               '--lock-task',
               '//package/a:lock',
               '--lock-task',
@@ -119,7 +121,7 @@ await describe({
             ]);
             expect(options.root).toBe('/other');
             expect(options.pinFiles).toEqual(['package/git-policy/cli.fuzz/Cargo.toml', 'package/x/Cargo.toml']);
-            expect(options.checkBin).toBe('cli-git-native');
+            expect(options.checkBins).toEqual(['cli-git-native', 'second-bin']);
             expect(options.lockTasks).toEqual(['//package/a:lock', '//package/b:lock']);
             expect(options.memoryMax).toBe('8G');
             expect(options.unitName).toBe('cli-git-publish-dry');

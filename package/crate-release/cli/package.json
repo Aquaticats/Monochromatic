@@ -18,6 +18,7 @@
     "LICENSES"
   ],
   "dependencies": {
+    "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*"
   },
   "devDependencies": {

@@ -17,7 +17,6 @@ const options: WaitOptions = {
   sha: 'abcdef0',
   version: '0.4.10',
   workflow: 'cargo-publish.yml',
-  repo: undefined,
   attempts: 3,
   pollIntervalSeconds: 2,
   runLimit: 10,
@@ -69,7 +68,7 @@ async function record({
   const calls: ProgramCall[] = [];
   const sleeps: number[] = [];
   const printed: string[] = [];
-  let listingIndex = 0;
+  const queue = [...(script.listings ?? [])];
   const status = await waitForPublish({
     options: waitOptions,
     run: async function run(call) {
@@ -77,8 +76,7 @@ async function record({
       if (call.program === 'curl')
         return { status: 0, stdout: script.crates ?? publishedVersion, stderr: '' };
       if (call.args[1] === 'list') {
-        const answer = script.listings?.[Math.min(listingIndex, (script.listings.length) - 1)];
-        listingIndex += 1;
+        const answer = queue.length > 1 ? queue.shift() : queue[0];
         return answer ?? { status: 0, stdout: foundListing, stderr: '' };
       }
       if (call.args[1] === 'watch')
@@ -166,7 +164,7 @@ await describe({
           fn: async () => {
             const result = await record({ script: { listings: [emptyListing, emptyListing, { status: 0, stdout: foundListing, stderr: '' }] } });
             expect(result.status).toBe(0);
-            expect(result.sleeps).toEqual([2000, 2000]);
+            expect(result.sleeps).toEqual([2_000, 2_000]);
           },
         }),
         it({
@@ -174,8 +172,11 @@ await describe({
           fn: async () => {
             const result = await record({ script: { listings: [emptyListing] } });
             expect(result.status).toBe(1);
-            expect(result.sleeps).toEqual([2000, 2000]);
-            expect(result.printed).toEqual(['no cargo-publish.yml run for abcdef0 within 6 seconds']);
+            expect(result.sleeps).toEqual([2_000, 2_000]);
+            expect(result.printed).toEqual([
+              'no cargo-publish.yml run for abcdef0 within 6 seconds',
+              'last result: No listed run was built from abcdef0.',
+            ]);
             expect(result.calls.filter(function isList(call) {
               return call.args[1] === 'list';
             })).toHaveLength(3);
@@ -198,7 +199,7 @@ await describe({
               script: { listings: [{ status: 1, stdout: '', stderr: 'timeout' }, { status: 0, stdout: foundListing, stderr: '' }] },
             });
             expect(result.status).toBe(0);
-            expect(result.sleeps).toEqual([2000]);
+            expect(result.sleeps).toEqual([2_000]);
           },
         }),
         it({

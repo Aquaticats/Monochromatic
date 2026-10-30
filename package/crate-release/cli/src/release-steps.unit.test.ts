@@ -28,7 +28,7 @@ const gitPolicyOptions: ReleaseOptions = {
   to: '0.4.3',
   note: 'fix the thing',
   pinFiles: ['package/git-policy/cli.fuzz/Cargo.toml'],
-  checkBin: 'cli-git-native',
+  checkBins: ['cli-git-native'],
   lockTasks: ['//package/git-policy/cli.fuzz:lock:members'],
   memoryMax: '12G',
   unitName: 'cli-git-publish-dry',
@@ -94,7 +94,7 @@ await describe({
         it({
           name: 'checks the named binary offline',
           fn: async () => {
-            expect(buildCheckArguments({ checkBin: 'cli-git-native' })).toEqual([
+            expect(buildCheckArguments({ checkBins: ['cli-git-native'] })).toEqual([
               'check',
               '--offline',
               '--bin',
@@ -103,9 +103,15 @@ await describe({
           },
         }),
         it({
+          name: 'builds each named binary with its own --bin',
+          fn: async () => {
+            expect(buildCheckArguments({ checkBins: ['a', 'b'] })).toEqual(['check', '--offline', '--bin', 'a', '--bin', 'b']);
+          },
+        }),
+        it({
           name: 'checks the whole crate offline when no binary is named',
           fn: async () => {
-            expect(buildCheckArguments({ checkBin: undefined })).toEqual(['check', '--offline']);
+            expect(buildCheckArguments({ checkBins: [] })).toEqual(['check', '--offline']);
           },
         }),
       ],

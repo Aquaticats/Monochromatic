@@ -1417,6 +1417,9 @@ importers:
 
   package/crate-release/cli:
     dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/mutation-test-cli-cargo-mutants':
         specifier: workspace:*
         version: link:../../mutation-test/cli-cargo-mutants

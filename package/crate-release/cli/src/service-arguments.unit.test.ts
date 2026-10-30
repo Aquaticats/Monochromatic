@@ -38,7 +38,7 @@ await describe({
         it({
           name: 'lists the latest runs of the workflow as JSON without any query text',
           fn: async () => {
-            expect(buildRunListArguments({ workflow: 'cargo-publish.yml', limit: 10, repo: undefined })).toEqual([
+            expect(buildRunListArguments({ workflow: 'cargo-publish.yml', limit: 10 })).toEqual([
               'run',
               'list',
               '--workflow=cargo-publish.yml',
@@ -56,7 +56,7 @@ await describe({
         it({
           name: 'keeps a workflow name that starts with a hyphen inside its option',
           fn: async () => {
-            const args = buildRunListArguments({ workflow: '-x', limit: 1, repo: undefined });
+            const args = buildRunListArguments({ workflow: '-x', limit: 1 });
             expect(args).toContain('--workflow=-x');
             expect(args).not.toContain('-x');
           },
@@ -64,7 +64,7 @@ await describe({
         it({
           name: 'holds no jq program, so no commit hash is ever interpolated into one',
           fn: async () => {
-            const joined = buildRunListArguments({ workflow: 'w.yml', limit: 5, repo: undefined }).join(' ');
+            const joined = buildRunListArguments({ workflow: 'w.yml', limit: 5 }).join(' ');
             expect(joined).not.toContain('jq');
             expect(joined).not.toContain('startswith');
           },
@@ -77,7 +77,7 @@ await describe({
         it({
           name: 'watches the run and exits with its status',
           fn: async () => {
-            expect(buildRunWatchArguments({ runId: '123456789', repo: undefined })).toEqual([
+            expect(buildRunWatchArguments({ runId: '123456789' })).toEqual([
               'run',
               'watch',
               '123456789',
@@ -95,7 +95,7 @@ await describe({
           return it({
             name: `rejects the run id ${JSON.stringify(runId)}`,
             fn: async () => {
-              expect(thrownBy(() => buildRunWatchArguments({ runId, repo: undefined }))).toBeInstanceOf(CrateReleaseError);
+              expect(thrownBy(() => buildRunWatchArguments({ runId }))).toBeInstanceOf(CrateReleaseError);
             },
           });
         }),
@@ -107,7 +107,7 @@ await describe({
         it({
           name: 'views the tag and asks for the asset list as JSON',
           fn: async () => {
-            expect(buildReleaseViewArguments({ tag: 'monochromatic-git-policy-cli-v0.4.10', repo: undefined })).toEqual([
+            expect(buildReleaseViewArguments({ tag: 'monochromatic-git-policy-cli-v0.4.10' })).toEqual([
               'release',
               'view',
               'monochromatic-git-policy-cli-v0.4.10',
@@ -124,7 +124,7 @@ await describe({
         it({
           name: 'passes a tag with shell syntax as one argument',
           fn: async () => {
-            const args = buildReleaseViewArguments({ tag: `a b;'$(x)`, repo: undefined });
+            const args = buildReleaseViewArguments({ tag: `a b;'$(x)` });
             expect(args[2]).toBe(`a b;'$(x)`);
           },
         }),
@@ -132,7 +132,7 @@ await describe({
           return it({
             name: `rejects the tag ${JSON.stringify(tag)}`,
             fn: async () => {
-              expect(thrownBy(() => buildReleaseViewArguments({ tag, repo: undefined }))).toBeInstanceOf(CrateReleaseError);
+              expect(thrownBy(() => buildReleaseViewArguments({ tag }))).toBeInstanceOf(CrateReleaseError);
             },
           });
         }),

@@ -38,6 +38,22 @@ function parse(argv: readonly string[]) {
 }
 
 /**
+ Run a parse that must throw and return what it threw.
+
+ @param argv - arguments after the script path
+ @returns the thrown value
+ */
+function thrownBy(argv: readonly string[]): unknown {
+  try {
+    parse(argv);
+  }
+  catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+/**
  Expect a parse to refuse its input with a message that holds the given text.
 
  @param argv - arguments after the script path
@@ -50,13 +66,7 @@ function expectRefusal({
   readonly argv: readonly string[];
   readonly mention: string;
 }): void {
-  let caught: unknown;
-  try {
-    parse(argv);
-  }
-  catch (error) {
-    caught = error;
-  }
+  const caught = thrownBy(argv);
   expect(caught).toBeInstanceOf(CrateReleaseError);
   expect((caught as Error).message).toContain(mention);
 }
@@ -76,7 +86,6 @@ await describe({
               sha,
               version: '0.4.10',
               workflow: defaultWorkflow,
-              repo: undefined,
               attempts: defaultAttempts,
               pollIntervalSeconds: defaultPollIntervalSeconds,
               runLimit: defaultRunListLimit,
