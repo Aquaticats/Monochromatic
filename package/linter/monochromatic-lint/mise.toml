@@ -79,12 +79,12 @@ run = "cargo update --offline --package monochromatic-lint"
 [tasks."lint:container"]
 description = "Run Clippy against the tested source snapshot with a read-only bounded compiler"
 depends = ["test:container"]
-run = "node bin/clippy-container.mjs"
+run = "node bin/clippy-container.ts"
 
 [tasks."lint:rust-style"]
 description = "Run Clippy after the focused Rust style container tests without hiding the separate Markdown failure"
 depends = ["test:rust-style"]
-run = "node bin/clippy-container.mjs"
+run = "node bin/clippy-container.ts"
 
 [tasks.mutation]
 description = "Run cargo-mutants in the tested, mount-free 2 GiB / 2 CPU source snapshot"

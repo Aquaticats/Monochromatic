@@ -53,12 +53,12 @@ export default {
   'lint:container': {
     description: 'Clippy inside the bounded offline snapshot',
     depends: ['test:container',],
-    run: 'node bin/clippy-container.mjs',
+    run: 'node bin/clippy-container.ts',
   },
   'lint:rust-style': {
     description: 'Clippy the Rust-style fixture inside the bounded snapshot',
     depends: ['test:rust-style',],
-    run: 'node bin/clippy-container.mjs',
+    run: 'node bin/clippy-container.ts',
   },
   'mutation': {
     description: 'Mutation-test the unified linter in the bounded snapshot',
