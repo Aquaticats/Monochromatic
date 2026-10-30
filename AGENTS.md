@@ -673,7 +673,9 @@ NLD:
 
 NQH:
  Never wait for a quiet host or call one quiet:
- other sessions keep the load average up.
+ other sessions keep the load average up,
+ and memory pressure and swap use are normal here too:
+ code and tests must work under them.
 Measure under the load there is,
  alternating arms with a same-binary control for the spread,
  and report counts.

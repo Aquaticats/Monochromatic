@@ -3983,3 +3983,10 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `scratch_location` and `auto_push_reconcile`. If the three reruns fail their baselines again, measure memory
   pressure (`/proc/pressure/memory`) and swap during the failure and fix the cause in the test harness or the
   wrapper, not by raising the bound.
+
+- User directive (20:40): memory pressure is normal operating conditions for this machine and for the wrapper, not an
+  anomaly. Rule NQH in `AGENTS.md` and `CLAUDE.md` now says memory pressure and swap use are normal and that code and
+  tests must work under them. Agent `ac6a56aed8916cfec` reproduces the 5-second stalls under reclaim by capping its own
+  container's memory (no synthetic load), measures page faults and executable size of the debug and release builds,
+  and makes the wrapper or the test build faster where the numbers show the cause (the bound stays at 5 seconds). I
+  land its branch. Task 66 stays open until it reports.
