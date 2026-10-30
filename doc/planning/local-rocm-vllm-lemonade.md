@@ -15,8 +15,10 @@ On 2026-10-30 the user selected:
   The user said, "Startup preference: Don't set it up yet."
 
 The user confirmed the complete arrangement with "Yes. I confirm."
-Installation and bounded verification are authorized.
-Startup configuration remains deferred.
+The confirmed installation and bounded consumer verification are complete.
+All temporary servers and browser sessions are stopped,
+the test containers are removed,
+and startup configuration remains deferred.
 
 In response to the workload question, the user specified `vllm-d3`,
 then confirmed the intended model is Hugging Face `vllm-sr/d3`,
@@ -87,11 +89,11 @@ Lemonade `v2026.44.1` does not register `/v1/systemone`,
 and its classifier interface is not implemented by the llama.cpp backend.
 Do not add a custom proxy or claim that Lemonade's chat API serves d1 decisions.
 
-Proposed initial verification uses Q8_0 weights and text inputs,
+Initial verification used Q8_0 weights and text inputs,
 one model loaded at a time,
 with a 2,048-token context and at most 64 generated text tokens.
 Use disposable containers capped at 2 CPUs and 8 GiB RAM for inference checks.
-These are verification limits, not a claimed performance optimum.
+These were verification limits, not a claimed performance optimum.
 Keep downloaded models and managed backends in dedicated Lemonade storage under the user's home,
 shared by the temporary containers without duplicating model weights.
 Use dedicated disk-backed temporary storage outside `/tmp`.
@@ -196,11 +198,11 @@ Initial planning commit: `b6ac79dd4d`.
 ## Execution checklist
 
 - ROCm: host and disposable containers enumerate the RX 7600 with full DRM passthrough.
-- Lemonade: image and build `b1358` are installed; text API verification passed; browser verification is in progress.
+- Lemonade: image and build `b1358` are installed; text API and browser chat verification passed.
 - vLLM: managed package installation and its server CLI help passed; no vLLM model inference was attempted.
 - Liquid models: Q8_0 weights and the F16 decision projector passed checksum verification;
   text generation and the supported decision outputs passed separate requests.
-- Completion: finish the browser check, stop test servers, and leave startup untouched.
+- Completion: browser checks passed, test containers were removed after clean exits, and startup was left untouched.
 
 ## Installation results
 
@@ -224,6 +226,18 @@ The d1 endpoint returned HTTP 200 for yes/no, single-choice, and scoring questio
 It selected `billing` for a refund request and reported zero generated tokens.
 Its runtime log confirmed `offloaded 25/25 layers to GPU`.
 The decision container then exited with code 0.
+
+The browser displayed both installed backends and the loaded Liquid text model.
+A fresh chat displayed `OK.` with no uncaught page errors.
+For that bounded check, the model was loaded with an explicit non-reasoning template argument;
+the UI thinking toggle alone did not change the observed LFM3 request mode.
+The override was temporary and was not saved as a startup or model-default setting.
+Both Liquid models' runtime logs confirmed GPU offload of 25/25 layers.
+
+The browser's Eject control unloaded the final model.
+Both retained test containers exited with code 0 and were removed.
+No listeners remained on ports 13305, 13306, or 9000.
+The installed image, managed backend cache, model files, configuration, and provenance records remain on disk.
 
 The vLLM CLI exited with code 0 while warning that its optional Torch C DLPack extension did not JIT.
 Image/video decision inputs and full vLLM model inference remain untested.

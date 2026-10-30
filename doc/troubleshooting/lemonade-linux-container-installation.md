@@ -182,6 +182,8 @@ That change is not evidence that this configuration path has a long read timeout
 
 ## Consumer verification limits
 
+### Text and decision API checks
+
 The first non-streaming text request used default reasoning,
 a 64-token limit, and a 120-second HTTP deadline.
 It reached the backend and was cancelled cleanly when the client deadline expired.
@@ -196,6 +198,55 @@ The d1 request returned HTTP 200 with yes/no, single-choice, and scoring answers
 It reported zero generated tokens.
 The startup log recorded `offloaded 25/25 layers to GPU`,
 and the container exited with code 0 after the test.
+
+### Browser request controls
+
+The browser listed both installed backends and the loaded text model without uncaught page errors.
+Turning off its thinking checkbox did not change the LFM3 request's observed `<think>` generation prefix.
+That request was cancelled using the browser's Stop control.
+
+The [UI setting helper][ui-thinking],
+`src/app/src/renderer/utils/appSettings.ts:329`, builds a top-level override:
+
+```ts
+// src/app/src/renderer/utils/appSettings.ts:329
+if (!settings.enableThinking.useDefault) {
+  overrides.enable_thinking = settings.enableThinking.value;
+}
+```
+
+This source finding does not establish where the setting ceased to affect this request,
+or how other model templates behave.
+The verified workaround for this browser test was the explicit per-load llama.cpp argument
+`--chat-template-kwargs '{"enable_thinking":false}'`.
+The template-only endpoint then returned a prompt ending in `<think></think>`,
+and a fresh browser chat displayed `OK.`.
+The override was not saved as a model default or startup configuration.
+
+An initial verification assertion incorrectly treated the `/props` display as the CLI prediction limit.
+It reported `-1` despite the running process having `--predict 64`.
+The [props implementation][props-display],
+`tools/server/server-context.cpp:5661`, constructs a fresh task parameter record:
+
+```cpp
+// tools/server/server-context.cpp:5661
+task_params tparams;
+tparams.sampling = params.sampling;
+```
+
+The [effective request limit][prediction-limit],
+`tools/server/server-context.cpp:2096`, uses the per-request value or the CLI fallback:
+
+```cpp
+// tools/server/server-context.cpp:2096
+slot.n_predict_max = task.params.n_predict != -1 ? task.params.n_predict : params_base.n_predict;
+```
+
+The running browser request subsequently reported `n_predict=64`,
+the closed thinking prefix, and an idle slot after completion.
+No change to the CLI prediction bound was needed.
+
+### Managed vLLM CLI
 
 The managed vLLM server's `--help` command exited with code 0.
 It emitted this warning from `tvm_ffi/_optional_torch_c_dlpack.py:181`:
@@ -251,3 +302,6 @@ including GitHub's code-editor text for virtualized off-screen lines.
 [config-client]: https://github.com/lemonade-sdk/lemonade/blob/69948a7d40afbf91f6ad990d8b863c83ce5cc71d/src/cpp/cli/main.cpp#L1387-L1389
 [config-effects]: https://github.com/lemonade-sdk/lemonade/blob/69948a7d40afbf91f6ad990d8b863c83ce5cc71d/src/cpp/server/server.cpp#L7291-L7304
 [bin-install]: https://github.com/lemonade-sdk/lemonade/blob/69948a7d40afbf91f6ad990d8b863c83ce5cc71d/src/cpp/server/server.cpp#L7411-L7418
+[ui-thinking]: https://github.com/lemonade-sdk/lemonade/blob/69948a7d40afbf91f6ad990d8b863c83ce5cc71d/src/app/src/renderer/utils/appSettings.ts#L329-L331
+[props-display]: https://github.com/ggml-org/llama.cpp/blob/0ac1a7fd35c127a18c0cbc6c57d12e256a6a385b/tools/server/server-context.cpp#L5661-L5666
+[prediction-limit]: https://github.com/ggml-org/llama.cpp/blob/0ac1a7fd35c127a18c0cbc6c57d12e256a6a385b/tools/server/server-context.cpp#L2095-L2098
