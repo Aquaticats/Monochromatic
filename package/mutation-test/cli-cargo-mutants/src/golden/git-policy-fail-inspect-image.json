@@ -1,0 +1,16 @@
+{
+  "status": 1,
+  "errorMessage": "Container command failed: image (status 125, signal none). fake podman failure: inspect-image",
+  "stdout": "",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/git-policy-native-test:golden",
+      "--format",
+      "{{.Id}}"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

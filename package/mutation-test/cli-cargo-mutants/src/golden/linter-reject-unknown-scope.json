@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "Unknown scope --bogus; expected one of --rust-style, --markdown, --markdown-parent, --processors, --inferred-constants, --executable, --core, --semantic.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--file must be a src/native/*.rs glob, got src/other/x.rs.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

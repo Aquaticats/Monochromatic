@@ -17,11 +17,6 @@ extends = "test:unit"
 description = "Start one capped systemd user unit per file: `-- --task <mise task> --tag-env <name> [options] <label> <file>...` (see README.md)"
 run = "node bin/mutation-parallel.ts"
 
-[tasks."campaign:parallel:git-policy-native"]
-description = "Start the parallel native git-policy campaigns: `-- [options] <label> <file.rs>...` with files relative to src/native"
-# These are the git-policy adapter's constants; they move into a thin adapter in that package once its container bin settles.
-run = "node bin/mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --setenv NATIVE_MUTATION_SKIP_PLANTED=1 --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
-
 [tasks."campaign:gate-slot"]
 description = "Run `-- <command> [arguments...]` under the host-wide campaign slot limit"
 run = "node bin/gate-slot.ts"

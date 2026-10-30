@@ -1,0 +1,18 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/linter-monochromatic-lint",
+  "description": "Verification scripts of the repository-owned Rust, Markdown and MDX linter (the Rust crate monochromatic-lint).",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/linter/monochromatic-lint"
+  }
+}

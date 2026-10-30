@@ -209,6 +209,36 @@ await describe({
       name: parseContainerLimitOptions.name,
       children: [
         it({
+          name: 'finds a limit option after valueless flags and keeps those flags alone',
+          fn: async () => {
+            expect(parseContainerLimitOptions({
+              options: ['--list', '--core', '--memory', '4g', '--shard', '1/3'],
+              acceptPidsLimit: true,
+              leadingOnly: false,
+              valuelessFlags: ['--list', '--core'],
+            })).toEqual({
+              limits: {
+                ...defaultContainerLimits,
+                memory: '4g',
+              },
+              rest: ['--list', '--core', '--shard', '1/3'],
+            });
+          },
+        }),
+        it({
+          name: 'misses a limit option that follows an odd number of valueless flags when none are named',
+          fn: async () => {
+            expect(parseContainerLimitOptions({
+              options: ['--core', '--memory', '4g'],
+              acceptPidsLimit: true,
+              leadingOnly: false,
+            })).toEqual({
+              limits: defaultContainerLimits,
+              rest: ['--core', '--memory', '4g'],
+            });
+          },
+        }),
+        it({
           name: 'reads all three options and returns the other arguments in order',
           fn: async () => {
             expect(parseContainerLimitOptions({

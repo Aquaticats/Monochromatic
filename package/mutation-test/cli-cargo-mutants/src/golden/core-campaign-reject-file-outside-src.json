@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "--file must be a src/*.rs glob, got tests/integration.rs.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

@@ -37,15 +37,15 @@ export default {
   },
   'test:mutation:startup:container': {
     description: 'Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes',
-    run: 'node bin/mutate-container.mjs --startup',
+    run: 'node bin/mutate-container.ts --startup',
   },
   'test:mutation:pathname:container': {
     description: 'Mutate only pathname normalization, prefix counting and component masking with the full all-feature baseline and complete retained outcomes',
-    run: 'node bin/mutate-container.mjs --pathname',
+    run: 'node bin/mutate-container.ts --pathname',
   },
   'test:mutation:container': {
     description: 'Mutation-test embedding owners in a bounded mount-free snapshot, retaining every outcome',
-    run: 'node bin/mutate-container.mjs',
+    run: 'node bin/mutate-container.ts',
   },
   'test:container': {
     description: 'Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container',

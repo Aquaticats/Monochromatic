@@ -2292,6 +2292,30 @@ importers:
         specifier: 'catalog:'
         version: 7.1.0-beta
 
+  package/forbidden-strings/cli:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/forbidden-strings/core:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/fs-id/core:
     dependencies:
       '@monochromatic-dev/caught-value-core':
@@ -2484,6 +2508,9 @@ importers:
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -2743,6 +2770,18 @@ importers:
       rolldown:
         specifier: 'catalog:'
         version: 1.2.15
+
+  package/linter/monochromatic-lint:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
 
   package/llm/image-diff:
     dependencies:
@@ -3146,6 +3185,9 @@ importers:
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript

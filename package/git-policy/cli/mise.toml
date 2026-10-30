@@ -14,6 +14,10 @@ run = ["node bin/test-native-container.ts", "node bin/mutate-native-container.ts
 description = "Plant guard removals and run cargo-mutants for `-- --file <glob>` scopes (and `--examine <regex>` mutant-name patterns, `--timeout <s>`) against the last gate image; `--memory <size>`, `--cpus <count>` and `--pids-limit <count>` after the `--` override the 2g, 2 CPUs and 128 PIDs defaults"
 run = "node bin/mutate-native-container.ts"
 
+[tasks."native:mutation:parallel"]
+description = "Start one capped systemd unit per file for `-- [options] <label> <file.rs>...` (files relative to src/native), each running native:mutation:scoped through the shared slot limiter; the shared launcher's options such as --memory, --cpus, --unit-memory-max and --unit-cpu-quota follow the same --"
+run = "node ../../mutation-test/cli-cargo-mutants/bin/mutation-parallel.ts --task //package/git-policy/cli:native:mutation:scoped --tag-env GIT_POLICY_NATIVE_IMAGE_TAG --setenv NATIVE_MUTATION_SKIP_PLANTED=1 --scope-prefix src/native/ --unit-prefix cli-git-mutpar"
+
 [tasks."native:mutation:list"]
 description = "List the mutants cargo-mutants finds in the native wrapper without building or running anything; `-- <options>` are passed on"
 run = "cargo mutants --list --no-config"

@@ -15,6 +15,7 @@
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
+    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   },
