@@ -180,6 +180,12 @@ Working cases after repair:
   `DeepSeek Harness`,
   the new-session interface,
   and the Plugins panel.
+- The Plugins panel lists Advisor,
+  NeuralWatt provider,
+  Thinking dismissal shadow,
+  Search and Fetch,
+  and Conversation rewind.
+  The browser error and console checks returned no entries.
 
 Failing controls and limits:
 
