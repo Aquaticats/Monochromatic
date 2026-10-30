@@ -281,9 +281,9 @@ fn navigation_markers_after_prefix_are_not_names() {
     assert_prefix_form(&PrefixForm {
         prefix: br"\\server\share",
         hit: br"\\server\share\..\.\VAULTTOKEN_LONG",
-        hit_display: "//server/share/../[REDACTED]",
+        hit_display: "//server/share/.././[REDACTED]",
         clean: br"\\server\share\..\.\clean.txt",
-        clean_display: "//server/share/../clean.txt",
+        clean_display: "//server/share/.././clean.txt",
     });
 }
 
