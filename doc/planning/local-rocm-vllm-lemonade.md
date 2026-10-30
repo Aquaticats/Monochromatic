@@ -131,3 +131,15 @@ Qwen3.5-4B, Nemotron 3.5 Bolt E4B, EmbeddingGemma 2, and Qwen3-ASR 0.6B.
 Snapshot symlinks were followed to verify actual file sizes.
 The cache occupies 11,017,674,752 allocated bytes.
 No model integrity or Lemonade/vLLM compatibility claim follows from this inventory.
+
+The release's `server_models.json` includes `Qwen3.5-0.8B-FP16-vLLM`,
+checkpoint `Qwen/Qwen3.5-0.8B`, with catalog size 1.77 GB.
+That size is metadata, not measured transfer size or VRAM demand.
+The custom-model guide routes imported GGUF files through llama.cpp;
+testing the existing GGUF cache would not verify vLLM.
+No model has been selected or downloaded for this task.
+
+The official image persists configuration, backend cache, and Hugging Face models under `/opt/lemonade`.
+The backend installer uses the process temporary directory for archive installation.
+The concrete container plan must therefore supply temporary storage outside `/tmp`.
+Context and GPU memory controls remain to be chosen and exercised through the installed CLI.
