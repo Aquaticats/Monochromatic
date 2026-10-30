@@ -14,9 +14,9 @@ On 2026-10-30 the user selected:
 - Defer startup configuration.
   The user said, "Startup preference: Don't set it up yet."
 
-Installation has not started.
-Model identities and deferred startup setup are settled.
-The concrete runtime arrangement and verification limits await final shared-understanding confirmation.
+The user confirmed the complete arrangement with "Yes. I confirm."
+Installation and bounded verification are authorized.
+Startup configuration remains deferred.
 
 In response to the workload question, the user specified `vllm-d3`,
 then confirmed the intended model is Hugging Face `vllm-sr/d3`,
@@ -71,7 +71,7 @@ Official artifact metadata reports these Q8_0 file sizes:
 File sizes do not establish VRAM requirements.
 Both model cards use LFM Open License v1.0.
 
-## Concrete arrangement awaiting confirmation
+## Confirmed arrangement
 
 Retain the working host ROCm installation.
 Install the selected official Lemonade container and its managed vLLM backend,
@@ -97,7 +97,7 @@ shared by the temporary containers without duplicating model weights.
 Use dedicated disk-backed temporary storage outside `/tmp`.
 Bind temporary servers to localhost and stop them after verification.
 Do not configure startup services or broader network access.
-The user must confirm this arrangement and the decision-output limitation before installation begins.
+The user accepted this arrangement and the decision-output limitation.
 
 ## Local evidence
 
@@ -193,15 +193,13 @@ it does not require building Lemonade or vLLM from source.
 The planning document's CommonMark rendering was inspected with Pandoc.
 Initial planning commit: `b6ac79dd4d`.
 
-## Next decision frontier
+## Execution checklist
 
-Confirm the concrete Liquid-model arrangement and the packaged decision-output scope.
-Startup configuration is deferred.
-Use localhost only for transient verification;
-broader network exposure remains unselected.
-Verify the proposed context, storage, and resource settings against installed CLI capabilities before execution.
-The concrete installation and verification plan has been presented;
-the final confirmation question is pending.
+- ROCm: existing installation enumerates the RX 7600; verify device access in the disposable containers.
+- Lemonade: install the official container, select build `b1358`, and verify the browser UI and text endpoint.
+- vLLM: install the managed packaged backend and verify its executable and runtime bindings.
+- Liquid models: download verified Q8_0 artifacts and exercise text generation and decision inference separately.
+- Completion: stop test servers, leave startup untouched, and record versions, results, and any limitations.
 
 ## Additional inventory
 
