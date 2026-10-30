@@ -4165,3 +4165,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Cleanup still to do: worktrees `~/temp/agent/integrate-7` to `integrate-28`, the rest of the earlier list, images
   `w*`, local branches (`cm-scanner-scratch` and the agents' branches), the stash entry from the autostash, and the
   agent worktrees under `.claude/worktrees/`.
+
+## Update at 2026-10-30 (00:30 host clock, cleanup)
+
+- Done: removed 33 scratch worktrees under `~/temp/agent` (`integrate-3` to `integrate-28`, `integrate-final-wt`,
+  `integrate-merge-wt`, `combined/wt`, `waits/wt`, `mut/wt`, `merge-slices`, `verify-retry`; no process had a working
+  directory in them), the scratch directories `1811`, `combined`, `mut`, `rel040`, `target-merge-clippy`,
+  `target-merge-tests`, `waits`, two `verify-041-*` fixtures; untagged the campaign images `w20` to `w54` and `w60` to
+  `w64` (test and mutation), removed three stopped containers from failed baselines. Kept: image
+  `git-policy-native-test:w65` (used by the running git-policy parity container), the older `m*`, `hints*`, `s1791*`
+  tags, and all `mutpar-*` and `parity-*` logs.
+- Not done, waiting for the user: 24 agent worktrees under `.claude/worktrees/agent-*` and their local branches. The
+  auto-mode classifier denied a script that would remove those whose branch tip is already contained in main
+  (rule that cannot lose commits; skips `agent-a563e0c526d53df51`), because ownership of the older ones cannot be
+  established from names. Branches whose work was cherry-picked rather than merged (`cm-scanner-*`, the
+  `aba63f1400b66332c` branch) are not ancestors of main and would stay anyway. Remote copies of these branches
+  (auto-pushed by the hook) are not touched. Also leftover: a stash entry `6f9966c7e5` from the autostash of agent
+  `ac6a56aed8916cfec` (the repo guard blocks `git stash drop`).
+- Still running: `cli-git-parity-git-policy` (64 of 78 planted controls at 00:17, then the `command_push.rs`
+  campaign; expected end about 01:15).
