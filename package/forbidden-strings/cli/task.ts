@@ -21,11 +21,11 @@ export default {
   },
   'lint:clippy:container': {
     description: 'Run all-target/all-feature Clippy with warnings denied in the bounded offline scanner snapshot',
-    run: 'node bin/test-container.mjs --clippy',
+    run: 'node bin/test-container.ts --clippy',
   },
   'test:release:container': {
     description: 'Verify the actual release scanner and all-feature embedding consumers inside the bounded snapshot',
-    run: 'node bin/test-container.mjs --release',
+    run: 'node bin/test-container.ts --release',
   },
   'test:guards:observe:container': {
     description: 'Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults',
@@ -49,7 +49,7 @@ export default {
   },
   'test:container': {
     description: 'Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container',
-    run: 'node bin/test-container.mjs',
+    run: 'node bin/test-container.ts',
   },
   'build': {
     description: 'Build the forbidden-strings binary in release mode',

@@ -19,6 +19,7 @@ import {
   snapshot,
   type Snapshot,
 } from './container-snapshot.ts';
+import { removalOf } from './removal-of.ts';
 
 /**
  One optional scope: a name for the evidence and the scanner files it mutates.
@@ -62,32 +63,6 @@ const allFiles: readonly string[] = [
   'runtime_cache/mod.rs',
   'runtime_cache/warning.rs',
 ];
-
-/**
- Describe the removal of a build context when a scope ends.
-
- @param directory - the build context
- 
- @returns an object whose disposal deletes the directory
- 
- @example
- ```ts
- await using cleanup = removalOf(fixture.context);
- ```
- */
-function removalOf(directory: string): AsyncDisposable {
-  return {
-    async [Symbol.asyncDispose](): Promise<void> {
-      await rm(
-        directory,
-        {
-          recursive: true,
-          force: true,
-        },
-      );
-    },
-  };
-}
 
 /**
  Print the mutants a campaign with the same arguments would test; `stdout.log` then holds one mutant name per line.
