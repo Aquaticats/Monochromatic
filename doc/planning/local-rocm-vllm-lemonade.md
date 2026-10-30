@@ -16,6 +16,11 @@ Installation has not started.
 Model selection, service behavior, resource limits,
 and final shared-understanding confirmation remain open.
 
+In response to the workload question, the user specified `vllm-d3`.
+Its project identity, dependencies, packaged distribution,
+and fit with Lemonade-managed vLLM must be established before finalizing the installation route.
+This clarification does not yet identify model weights or a context length.
+
 ## Local evidence
 
 Read-only probes on 2026-10-30 found:
@@ -110,8 +115,9 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
-Questions currently await the user's model/workload preference,
-network reach, and server startup preference.
+Identify the requested `vllm-d3` project and its fit with the selected packaged deployment.
+Network reach and server startup questions remain unanswered.
+Resolve model weights and context after establishing the requested engine's requirements.
 Then settle storage and resource limits using the selected workload.
 Present the concrete installation and verification plan for the grilling session's final confirmation.
 
