@@ -4299,3 +4299,43 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Open: task 76 (agent `a8a2fc13ee399243e`), the three sidecar conversions, tasks 23, 30 and 69, the standing
   permission rule for the cleanup script (user), issue 1812 follow-up (another session), `ide/app` host clippy
   `build.rs` errors (pre-existing).
+
+## Update at 2026-10-30 (commit-path profile, and the client and server question)
+
+- The user asked whether a client and server rewrite would be much better. My first answer was no, argued from the
+  recorded 0.3.0 figures (155 ms commit, 1.5 to 3.1 ms forwarded). The user chose to profile (task 77) before settling.
+- Landed first: the three sidecar `.mjs` conversions (`d669365d05`, `ba6a0c3d7c`, `b07af7afe8`, merged as
+  `f437acf8dc`). Package-wide `lint:scripts:oxlint` stays by-path in the scanner and the linter; the reasons are in
+  their READMEs ("Script linting").
+- Method: the installed 0.4.2 release binary (stripped), a derived image `localhost/commit-profile:dev` (the wrapper
+  test image plus `strace` and `linux-perf`), `--memory=3g --cpus=2`, fixtures on a host-disk bind mount (not tmpfs),
+  20 iterations alternating direct, wrapped and direct again (the second direct arm is the same-binary control).
+  Scratch and raw output: `~/temp/agent/commit-profile`.
+- Container timings of an explicit-path commit: direct 4.1 ms median in both control arms (MAD 0.3 and 0.2), wrapped
+  393.3 ms median (MAD 21.0, p95 866.7). The host run of the same code is 135 ms, so this is not a 0.4.2
+  regression; fsync latency varied widely during the container run (see the sync figures below), and I did not isolate
+  the cause between host load and the mount.
+- Host timings (`native:perf`, 30 samples, same code): forwarded commands add 1.5 to 1.8 ms median; the explicit-path
+  commit is 135.2 ms wrapped against 5.1 ms direct, 130.1 ms added median, 147.4 ms p95. The recorded 155 ms for
+  0.3.0 (5 samples) is consistent, so there is no regression.
+- Census of one wrapped commit (container): about 36 real `git` processes (the other `execve` entries are failed
+  PATH lookups in the wrapper directory), 3 `findmnt` and 3 `stat` spawns that the host path replaces with `statx` and
+  mount-table reads (the container mount made the native lookup report unknown; not traced on the host), and 31
+  `fsync` calls where direct git makes none. User CPU is 66.7 ms against 4.3 ms direct at 0.18 CPUs utilized, so most
+  wall time is waiting.
+- Sync calls: journal and lock files under `.git/cli-git-transactions` and `.git/cli-git-captures`, the shadow
+  `packed-refs`, `index.lock`, the `.git` directory, and three pack temporary files. I did not attribute the
+  last four to the wrapper or to a child `git`. Per-call cost was 1.8 ms in a quiet re-trace (31 calls, about 56 ms)
+  and 15 of 31 calls took over 10 ms in the first traced run (286 ms total). Fsync latency moves five-fold with host
+  state, which is the normal condition per rule NHR.
+- Git calls in the commit: shadow repository `init --bare`, `read-tree`, `pack-objects`, `index-pack`, four
+  `diff-index`, three `ls-files`, two `cat-file --batch`, six `rev-parse`, `write-tree`, `update-ref`, `add`,
+  `reset`, `maintenance run --auto --detach`, `remote get-url`, `config --list`.
+- Bound on a daemon: the sync cost cannot move into a daemon, because the syncs are the crash safety. Up to the
+  67 ms of CPU and spawn share could in principle go, about half of the 130 ms added on a quiet disk and a smaller share
+  on a slow one, but the real `git` calls that do the work (`write-tree`, `update-ref`, `add`) stay, and every probe a
+  daemon could cache can also be replaced in the one-shot wrapper by an in-process read or a batch. A daemon adds
+  a process that is killed, reaped or limited under rules NHR and NHP, stale-socket and namespace failure modes, and a
+  second code path. Decision: not building it. The measured work is task 69 (31 syncs down to barriers only) and a
+  further spawn cut in the shadow repository and the `diff-index`, `ls-files` and `cat-file` groups.
+- Open: attribute the three pack syncs and the `index.lock` sync (wrapper or child `git`), then size the spawn cut.
