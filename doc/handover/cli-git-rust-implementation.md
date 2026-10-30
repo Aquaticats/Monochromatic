@@ -4024,3 +4024,22 @@ This block supersedes "State at 2026-10-29 (night, later)".
   I/O trouble, nearly full disk, process and descriptor limits near exhaustion, a process killed at any instruction,
   closed terminal or broken pipe, slow fsync and unusual filesystems, DNS or mirror trouble. GPU memory nearly full is
   normal on this host but irrelevant to the wrapper. Clock jumps and CPU throttling were not chosen.
+
+## Update at 2026-10-29 (21:45, release 0.4.1)
+
+- Released 0.4.1 (commit `46ec903c0b`; publish run 40981372725 succeeded; crates.io 2026-10-30T00:44:04Z; GitHub
+  release `monochromatic-git-policy-cli-v0.4.1` with the x86_64 and aarch64 tarballs). It carries two behavior fixes:
+  the `doctor` help text states the real exit statuses, and a staged rename no longer forwards a merge to native Git
+  (`unsaved_paths` skips the original-path field). The rest since 0.4.0 is tests and docs (container limit options in
+  the task scripts, README `Operating conditions`). The container gate on the same `src` passed: 2593 of 2593, 5
+  skipped. `wait-publish.ts` now uses the tag `monochromatic-git-policy-cli-v<version>`.
+- Adoption into the toolchain pin (production `git`) is blocked: `mise run toolchain:update` aborts and writes nothing
+  because the Node resolver takes `index[0]` of `https://nodejs.org/dist/index.json`, which is now the pre-release
+  `v27.0.0-alpha.0.0.0` (2026-10-29) with no checksum rows. Agent `a8f06b44b46f80eb8` fixes
+  `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts` to skip pre-releases (tests first). After it
+  lands: run `toolchain:update`, expect these moves: `cargo:monochromatic-git-policy-cli` 0.4.0 to 0.4.1,
+  `cargo:cargo-dylint` and `cargo:dylint-link` 6.3.0 to 6.3.1, `npm:wrangler` 4.155.0 to 4.156.0 (the node row stays
+  or moves to 26.13.0); review the lock diff, commit explicit paths, `toolchain:sync`, then verify
+  `git cli-git --help` and a rename-merge probe on the installed binary.
+- Release tooling lesson (same as the mutation launcher): `release.ts` and `wait-publish.ts` in `~/temp/agent` are
+  reused every release and hardcode the repository root; promote them to a package with tests (queued, not started).
