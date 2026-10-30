@@ -9,7 +9,8 @@ Podman is 5.8.9.
 The official Lemonade image is `v2026.44.1`,
 digest `sha256:8ae593e309c5f8f348ea7404f20e27db83d0d247cc9ba3b2bf7fb6310e13e73c`.
 The packaged ROCm llama.cpp bundle is `b1358`,
-reporting build `11997`, commit `0ac1a7fd3`.
+reporting build `11997`,
+commit `0ac1a7fd3`.
 
 The confirmed installation and model provenance are recorded in
 [the installation plan](../planning/local-rocm-vllm-lemonade.md).
@@ -82,7 +83,8 @@ Failing cases:
 The verified workaround is the documented full DRM mapping,
 with the visibility variable selecting the discrete GPU.
 This exposes more DRM device nodes to the container;
-the visibility variable is a runtime selection, not a device-access security boundary.
+the visibility variable is a runtime selection,
+not a device-access security boundary.
 SELinux separation was disabled for these specific rootless containers,
 without changing host-wide SELinux settings or relabeling the existing runtime bundle.
 
@@ -118,7 +120,8 @@ The backend subsequently appeared as installed.
 ### Root cause
 
 The [CLI default][client-timeout],
-`src/cpp/cli/lemonade_client.cpp:17`, is:
+`src/cpp/cli/lemonade_client.cpp:17`,
+is:
 
 ```cpp
 // src/cpp/cli/lemonade_client.cpp:17
@@ -126,7 +129,8 @@ static const int DEFAULT_READ_TIMEOUT_MS = 30000;
 ```
 
 The [configuration command][config-client],
-`src/cpp/cli/main.cpp:1387`, uses the request overload without a longer timeout:
+`src/cpp/cli/main.cpp:1387`,
+uses the request overload without a longer timeout:
 
 ```cpp
 // src/cpp/cli/main.cpp:1387
@@ -135,7 +139,8 @@ std::string response = client.make_request(
 ```
 
 The [server configuration handler][config-effects],
-`src/cpp/server/server.cpp:7294`, applies side effects before producing its response:
+`src/cpp/server/server.cpp:7294`,
+applies side effects before producing its response:
 
 ```cpp
 // src/cpp/server/server.cpp:7294
@@ -168,7 +173,8 @@ podman exec lemonade-install-beqwl2iw \
   /storage/cache/bin/llamacpp/rocm-nightly/llama-server --version
 ```
 
-They reported `rocm_channel=nightly`, `llamacpp.rocm_bin=b1358`,
+They reported `rocm_channel=nightly`,
+`llamacpp.rocm_bin=b1358`,
 an installed `llamacpp:rocm` backend,
 and runtime build `11997`.
 The configuration mutation was not repeated.
@@ -185,16 +191,20 @@ That change is not evidence that this configuration path has a long read timeout
 ### Text and decision API checks
 
 The first non-streaming text request used default reasoning,
-a 64-token limit, and a 120-second HTTP deadline.
+a 64-token limit,
+and a 120-second HTTP deadline.
 It reached the backend and was cancelled cleanly when the client deadline expired.
 The backend slot subsequently reported `is_processing=false`.
 
 The installed model's chat template defaults `enable_thinking` to true.
 The same request with `chat_template_kwargs.enable_thinking=false`
 returned HTTP 200 and `Liquid text runtime ready.`.
-This is a functional check, not a latency benchmark or general reasoning-performance result.
+This is a functional check,
+not a latency benchmark or general reasoning-performance result.
 
-The d1 request returned HTTP 200 with yes/no, single-choice, and scoring answers.
+The d1 request returned HTTP 200 with yes/no,
+single-choice,
+and scoring answers.
 It reported zero generated tokens.
 The startup log recorded `offloaded 25/25 layers to GPU`,
 and the container exited with code 0 after the test.
@@ -206,7 +216,8 @@ Turning off its thinking checkbox did not change the LFM3 request's observed `<t
 That request was cancelled using the browser's Stop control.
 
 The [UI setting helper][ui-thinking],
-`src/app/src/renderer/utils/appSettings.ts:329`, builds a top-level override:
+`src/app/src/renderer/utils/appSettings.ts:329`,
+builds a top-level override:
 
 ```ts
 // src/app/src/renderer/utils/appSettings.ts:329
@@ -226,7 +237,8 @@ The override was not saved as a model default or startup configuration.
 An initial verification assertion incorrectly treated the `/props` display as the CLI prediction limit.
 It reported `-1` despite the running process having `--predict 64`.
 The [props implementation][props-display],
-`tools/server/server-context.cpp:5661`, constructs a fresh task parameter record:
+`tools/server/server-context.cpp:5661`,
+constructs a fresh task parameter record:
 
 ```cpp
 // tools/server/server-context.cpp:5661
@@ -235,7 +247,8 @@ tparams.sampling = params.sampling;
 ```
 
 The [effective request limit][prediction-limit],
-`tools/server/server-context.cpp:2096`, uses the per-request value or the CLI fallback:
+`tools/server/server-context.cpp:2096`,
+uses the per-request value or the CLI fallback:
 
 ```cpp
 // tools/server/server-context.cpp:2096
@@ -243,7 +256,8 @@ slot.n_predict_max = task.params.n_predict != -1 ? task.params.n_predict : param
 ```
 
 The running browser request subsequently reported `n_predict=64`,
-the closed thinking prefix, and an idle slot after completion.
+the closed thinking prefix,
+and an idle slot after completion.
 No change to the CLI prediction bound was needed.
 
 ### Managed vLLM CLI
@@ -260,7 +274,8 @@ We recommend installing via `pip install torch-c-dlpack-ext`
 No additional package was installed to address that optional extension.
 Full vLLM model inference was not exercised;
 the selected Liquid models use llama.cpp.
-The projector is installed, but image/video decision inputs were not tested.
+The projector is installed,
+but image/video decision inputs were not tested.
 
 ## Upstream filing decision
 
@@ -289,7 +304,8 @@ returned issue `20142`.
 Its body describes build `8204` on Debian with `gfx1151`,
 so it does not establish the cause of this build `11997` container case.
 The search `repo:lemonade-sdk/lemonade config timeout in:title,body`
-returned 45 results, including pull request `2222`.
+returned 45 results,
+including pull request `2222`.
 The request type in that pull request was checked against the installed source.
 No tracker result was treated as proof that a different failure was fixed here.
 
