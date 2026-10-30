@@ -686,7 +686,6 @@ NHR:
  slow SSD and I/O,
  nearly full disk or GPU memory,
  process and descriptor limits near exhaustion.
-Code must work under them.
 
 NHP:
  Normal here,
@@ -696,8 +695,6 @@ NHP:
  slow fsync,
  unusual filesystems,
  DNS or mirror trouble.
-Recover or fall back,
- never wedge.
 
 FHU:
  Real jobs may use almost the whole host:

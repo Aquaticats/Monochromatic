@@ -4011,3 +4011,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
   tmpfs inside a capped container for ENOSPC in the middle of a journal, lock or index write; a low `ulimit -n`),
   and the closed-terminal case needs binary tests for EPIPE on stdout and stderr, no stdin, and SIGHUP while the
   wrapper holds a lock or has a half write. Not started; queued here (task 66 and a new task below).
+
+- User correction (21:10): "must work under them" does not belong in the general rule. Only a few packages have the
+  honor of having to work under the normal conditions, and each documents that itself; the git wrapper is one. So
+  rules NHR and NHP in `AGENTS.md` and `CLAUDE.md` now only name the conditions as normal (NHP also lost its
+  "Recover or fall back, never wedge" sentence, same reason; revert it if the user wants it kept). The wrapper's
+  contract lives in a new README section `Operating conditions` in `package/git-policy/cli/README.md`: it lists the
+  conditions the wrapper, its recovery paths and its tests must work under, and points at the troubleshooting note
+  for the 5-second bound. Task 76 (fault-injection tests) is that contract's test work. Other packages that earn the
+  same status add their own section; none are named yet.
+- Working conditions for this contract, as the user stated them: high CPU load, memory pressure and swap, slow SSD and
+  I/O trouble, nearly full disk, process and descriptor limits near exhaustion, a process killed at any instruction,
+  closed terminal or broken pipe, slow fsync and unusual filesystems, DNS or mirror trouble. GPU memory nearly full is
+  normal on this host but irrelevant to the wrapper. Clock jumps and CPU throttling were not chosen.
