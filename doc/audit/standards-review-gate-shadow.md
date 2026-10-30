@@ -2496,3 +2496,73 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   c58624371bed (no code files):
   `docs(handover): record the wire-Luna and keep-shadowing decisions`
+- Skipped:
+  c8b7e0936d34 (no code files):
+  `docs(audit): carry the shadow log's hook entries`
+- Date:
+  2026-10-30T12:08:32.573Z
+  Subject:
+  b4312291caa8 `feat(file-enforcer-core): resolve aws from aws/aws-cli tags in toolchain:update`
+  Input size:
+  `5 code files, 554 diff lines, luna input 23369 chars`
+  Reviewer route:
+  `openai/gpt-6-luna-decisions via the Decisions API`
+  Wall-clock cost:
+  0.3 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    cost_verdict: no (yes 0.43 partial 0.02 no 0.55)
+    `````
+
+- Date:
+  2026-10-30T12:09:46.238Z
+  Subject:
+  b9ea9c5d59fd `fix(file-enforcer-core): export resolveAws from the package entry`
+  Input size:
+  `1 code files, 13 diff lines, luna input 1616 chars`
+  Reviewer route:
+  `openai/gpt-6-luna-decisions via the Decisions API`
+  Wall-clock cost:
+  0.5 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    cost_verdict: no (yes 0.01 partial 0.02 no 0.97)
+    `````
+
+- Date:
+  2026-10-30T12:11:34.710Z
+  Subject:
+  91cf4c36b103 `refactor(file-enforcer-core): clear lint findings in the aws resolver`
+  Input size:
+  `1 code files, 267 diff lines, luna input 14282 chars`
+  Reviewer route:
+  `openai/gpt-6-luna-decisions via the Decisions API`
+  Wall-clock cost:
+  0.4 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    cost_verdict: no (yes 0.03 partial 0.02 no 0.95)
+    `````
+
+- Date:
+  2026-10-30T12:20:17.443Z
+  Subject:
+  3404ae080798 `fix(file-enforcer-core): drop the commit hash and date from the stable rust version`
+  Input size:
+  `2 code files, 39 diff lines, luna input 6165 chars`
+  Reviewer route:
+  `openai/gpt-6-luna-decisions via the Decisions API`
+  Wall-clock cost:
+  1.4 s
+  Named superlinear cost:
+  no
+  Findings kept:
+    `````text
+    cost_verdict: no (yes 0.01 partial 0.01 no 0.98)
+    `````
