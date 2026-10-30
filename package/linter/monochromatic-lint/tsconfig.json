@@ -1,7 +1,14 @@
 {
   "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    // bin/test-container.ts imports the git-policy gate's nextest snapshot, so the project root has to contain both
+    // packages.
+    "rootDir": "../..",
+  },
   // The Rust crate has no TypeScript under src; the verification scripts in bin are the package's TypeScript.
   "include": [
     "bin/**/*.ts",
+    "../../git-policy/cli/bin/native-nextest-snapshot.ts",
+    "../../git-policy/cli/bin/native-verification-process.ts",
   ],
 }

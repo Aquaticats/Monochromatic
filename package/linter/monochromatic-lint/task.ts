@@ -67,14 +67,14 @@ export default {
   },
   'test:container': {
     description: 'Run the unified-linter tests in the bounded offline snapshot',
-    run: 'node bin/test-container.mjs',
+    run: 'node bin/test-container.ts',
   },
   'test:rust-style': {
     description: 'Run the Rust-style fixture tests in the bounded snapshot',
-    run: 'node bin/test-container.mjs --rust-style',
+    run: 'node bin/test-container.ts --rust-style',
   },
   'test:markdown': {
     description: 'Run the Markdown fixture tests in the bounded snapshot',
-    run: 'node bin/test-container.mjs --markdown',
+    run: 'node bin/test-container.ts --markdown',
   },
 } satisfies PackageTaskFile;
