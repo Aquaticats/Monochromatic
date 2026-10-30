@@ -212,6 +212,30 @@ Copying the installed files into the fixture and preserving absolute workspace-l
 removed that fixture-only error.
 No Rewind package or real profile configuration was changed.
 
+## Workspace dependency alignment
+
+The follow-up request explicitly selected upgrading active DSH dependencies to rc.5.
+At that point,
+the active workspace catalog and package extensions still used `0.2.1-rc.4`;
+the remaining `0.2.1-rc.2` references described historical investigations.
+
+Commit `601f11811c` updates the catalog and package-extension pins to `0.2.1-rc.5`.
+Commit `5194d6e184` records the package-manager-generated dependency graph.
+The pre-existing unrelated lockfile edits remain outside those commits.
+Historical investigation versions remain unchanged.
+
+Verification on 2026-10-30:
+
+- Installed package manifests resolve all 23 direct Advisor DSH dependencies and
+  both direct NeuralWatt DSH dependencies to `0.2.1-rc.5`.
+- Both package `buildAndTest` tasks pass,
+  with 35 Advisor suite result lines and seven NeuralWatt suite result lines naming their executed cases.
+- Both package `lint:types` tasks pass against the updated declarations.
+- The lockfile contains no `0.2.1-rc.4` entries.
+- The disposable web profile starts with the rebuilt plugins and no skipped bundles,
+  native-binding failures,
+  or failed plugin activations.
+
 ## Upstream filing decision
 
 Checked on 2026-10-30:
