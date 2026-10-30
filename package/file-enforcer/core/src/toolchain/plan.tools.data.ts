@@ -269,7 +269,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:cargo-dylint',
     request: { track: 'latest' },
-    version: '6.3.0',
+    version: '6.3.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'cargo-dylint',
@@ -281,7 +281,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:dylint-link',
     request: { track: 'latest' },
-    version: '6.3.0',
+    version: '6.3.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'dylint-link',
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.4.0',
+    version: '0.4.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -775,7 +775,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'npm:wrangler',
     request: { track: 'latest' },
-    version: '4.155.0',
+    version: '4.156.0',
     route: 'mpm-pnpm',
     manager: 'pnpm',
     packageId: 'wrangler',
