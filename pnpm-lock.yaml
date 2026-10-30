@@ -2798,6 +2798,18 @@ importers:
         specifier: 'catalog:'
         version: 26.6.5
 
+  package/linter/monochromatic-lint.fuzz:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/llm/image-diff:
     dependencies:
       '@monochromatic-dev/llm-llm-type':

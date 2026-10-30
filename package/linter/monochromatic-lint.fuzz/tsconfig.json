@@ -1,0 +1,13 @@
+{
+  "extends": "@monochromatic-dev/config-typescript/dom",
+  "compilerOptions": {
+    // The scripts import the git-policy gate's nextest snapshot and process helper, so the project root has to contain
+    // both packages.
+    "rootDir": "../..",
+  },
+  "include": [
+    "bin/**/*.ts",
+    "../../git-policy/cli/bin/native-nextest-snapshot.ts",
+    "../../git-policy/cli/bin/native-verification-process.ts",
+  ],
+}
