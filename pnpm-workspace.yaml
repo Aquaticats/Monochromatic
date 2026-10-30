@@ -20,9 +20,9 @@ catalog:
   '@changesets/cli': '>=3.0.3'
   '@clack/prompts': '>=1.8.1'
   '@csstools/css-tokenizer': '>=4.0.2'
-  '@deck.gl/core': '>=9.4.0'
-  '@deck.gl/layers': '>=9.4.0'
-  '@deck.gl/mesh-layers': '>=9.4.0'
+  '@deck.gl/core': '>=9.4.1'
+  '@deck.gl/layers': '>=9.4.1'
+  '@deck.gl/mesh-layers': '>=9.4.1'
   # Harness-matching DeepSeek Harness plugin API versions (dsh 0.2.1-alpha.4,
   # cordis 4.0.5-alpha.2, schemastery 3.18.5-alpha.2), pinned to the exact
   # versions the installed harness runtime provides so dts contracts match.
@@ -58,8 +58,8 @@ catalog:
   '@earendil-works/pi-tui': '>=1.4.0'
   '@electron/packager': '>=20.3.0'
   '@homebridge/dbus-native': '>=0.7.9'
-  '@inquirer/checkbox': '>=5.2.7'
-  '@inquirer/input': '>=5.1.8'
+  '@inquirer/checkbox': '>=5.2.8'
+  '@inquirer/input': '>=5.1.9'
   '@lezer/common': '>=1.5.4'
   '@lezer/css': '>=1.3.9'
   '@lezer/highlight': '>=1.2.5'
@@ -80,7 +80,7 @@ catalog:
   '@optique/core': '>=1.3.6'
   # TODO: deprecate Optique
   '@optique/run': '>=1.3.6'
-  '@oxlint/plugins': '>=1.89.0'
+  '@oxlint/plugins': '>=1.90.0'
   '@playwright/test': '>=1.64.1'
   '@total-typescript/ts-reset': '>=0.6.1'
   '@tursodatabase/database': '>=0.8.3'
@@ -90,7 +90,7 @@ catalog:
   '@types/hyphen': '>=1.14.0'
   '@types/mdast': '>=4.0.4'
   '@types/mdx': '>=2.0.14'
-  '@types/node': '>=26.6.5'
+  '@types/node': '>=26.6.6'
   '@types/semver': '>=7.8.0'
   '@types/sinon': '>=22.0.2'
   '@types/sinon-chai': '>=4.0.1'
@@ -102,7 +102,7 @@ catalog:
   'atomically': '>=2.1.1'
   'aws4fetch': '>=1.0.20'
   'better-auth': '>=1.6.9'
-  'browserslist': '>=4.29.4'
+  'browserslist': '>=4.29.5'
   'chai': '>=6.3.0'
   'chai-as-promised': '>=8.0.2'
   'chokidar': '>=6.0.0'
@@ -117,7 +117,7 @@ catalog:
   # deepmerge-ts.fuzz subject under test; not a runtime dependency anywhere.
   'deepmerge-ts': '>=8.0.2'
   'dot-prop': '>=10.2.0'
-  'electron': '>=45.0.0'
+  'electron': '>=45.1.0'
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'env-paths': '>=4.0.0'
   'execa': '>=10.2.1'
@@ -147,7 +147,7 @@ catalog:
   'neovim': '>=5.4.0'
   'openai': '>=6.22.0'
   'opentype.js': '>=2.0.0'
-  'oxlint': '>=1.89.0'
+  'oxlint': '>=1.90.0'
   'oxlint-tsgolint': '>=7.0.2005'
   'p-limit': '>=7.3.3'
   # p-memoize-fork.fuzz differential subject; not a runtime dependency anywhere.
@@ -164,7 +164,7 @@ catalog:
   'pdfjs-dist': '>=4.0.0'
   'picomatch': '>=4.0.7'
   'pinyin-pro': '>=3.29.5'
-  'postcss': '>=8.5.31'
+  'postcss': '>=8.5.32'
   'preact': '>=10.26.0'
   'preact-render-to-string': '>=6.5.0'
   # quick-lru-fork.fuzz differential subject; not a runtime dependency anywhere.
