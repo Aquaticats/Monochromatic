@@ -67,6 +67,7 @@ export {
   settleConsolidation,
   type TranslateWinnerReason,
 } from './consolidate-settle.ts';
+export { settleKeptStanding, } from './consolidate-settle-kept.ts';
 export {
   presentTenseSwapOf,
   shipTranslateWinnerOverPresentTense,

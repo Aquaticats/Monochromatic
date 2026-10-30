@@ -1,7 +1,6 @@
 import { isLetterOrDigitOfAnyScript, } from '@monochromatic-dev/translation-repair-markup/ts';
 import { headingWords, } from '@monochromatic-dev/translation-repair-rendering-audit/ts';
 import { parseDocument, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import type { PublishDefect, } from './publish-defects.ts';
 
 //region Publish placeholder heading
@@ -92,17 +91,17 @@ function titleOf({ words, }: { readonly words: string; },): string {
   const colon = seriesColonOf({ words, },);
   if (colon === (-1))
     return words;
+  // Heading words arrive folded, so a colon that ends them has nothing after it, and the whole heading is the title.
+  if (colon === (words.length - 1))
+    return words;
   /**
-   Text after that colon.
+   Text before that colon, which is the number of a series only if it holds words.
    */
-  const rest = words.slice(colon + 1,)
-    .trim();
-  return ((rest !== '') && hasWords({ text: words.slice(
+  const number = words.slice(
     0,
     colon,
-  ), },))
-    ? rest
-    : words;
+  );
+  return hasWords({ text: number, },) ? words.slice(colon + 1,) : words;
 }
 
 /**
@@ -221,14 +220,6 @@ export function placeholderHeadingDefects(
     return `page heading ${String(position,)}`;
   },)
     .join(', ',);
-  /**
-   Noun for the headings reported.
-   */
-  const noun = wordForCount({
-    count: reported.length,
-    one: 'heading',
-    many: 'headings',
-  },);
   if (paired) {
     return [{
       check: 'placeholder-heading',
@@ -236,20 +227,24 @@ export function placeholderHeadingDefects(
         ? `entry ${entryId} ships a heading of placeholder marks only where the original heading has words, at ${where}`
         : `entry ${entryId} ships ${
           String(reported.length,)
-        } ${noun} of placeholder marks only where the original headings have words, at ${where}`,
+        } headings of placeholder marks only where the original headings have words, at ${where}`,
     },];
   }
+  /**
+   The headings reported, counted with their noun.
+   */
+  const shown = `${String(reported.length,)} ${(reported.length === 1) ? 'heading' : 'headings'}`;
+  /**
+   The original's headings, counted with their noun and the verb that follows it.
+   */
+  const unpaired = `${String(sourceMarks.length,)} ${
+    (sourceMarks.length === 1) ? 'heading is' : 'headings are'
+  }`;
   return [{
     check: 'placeholder-heading',
-    message: `entry ${entryId} ships ${String(reported.length,)} ${noun} of placeholder marks only against ${
+    message: `entry ${entryId} ships ${shown} of placeholder marks only against ${
       String(sourceCount,)
-    } in the original, whose ${String(sourceMarks.length,)} ${
-      wordForCount({
-        count: sourceMarks.length,
-        one: 'heading',
-        many: 'headings',
-      },)
-    } ${(sourceMarks.length === 1) ? 'is' : 'are'} not paired with the page's ${String(pageMarks.length,)}, at ${where}`,
+    } in the original, whose ${unpaired} not paired with the page's ${String(pageMarks.length,)}, at ${where}`,
   },];
 }
 

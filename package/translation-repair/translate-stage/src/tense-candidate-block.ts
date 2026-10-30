@@ -17,6 +17,13 @@ import {
 // candidate may be a trait, a standing fact or a misread quotation, which the
 // rule leaves alone. A text with no candidate contributes no group.
 //
+// ONE PLACE LETS THE GROUPS DECIDE, by the owner's narrow exception of 2026-10-29
+// to the ruling of 2026-10-11 ("Swap only where flagged", ledger B1050):
+// `consolidate-tense-swap.ts` ships the translate lane's two-ballot text over an
+// eligible standing the contest did not endorse, where no vote can seat two
+// judges and the groups flag the standing and not that text. No sheet, refusal
+// or count reads them as a verdict anywhere else.
+//
 // A TEXT THE SHARED GRAMMAR REFUSES contributes no group either, and is named
 // in a warning. The detector is advisory, so a candidate wording that does not
 // parse (an open brace, a tag left open) must not refuse the sheet that lets a

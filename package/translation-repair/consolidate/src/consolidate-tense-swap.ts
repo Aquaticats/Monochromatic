@@ -158,7 +158,7 @@ function candidatesLabelled(
 
  @param subject - slice, whose recorded death and declared names the detector reads
 
- @returns The swap with its counts, or that the standing stays
+ @returns Swap with its counts, or that the standing stays
 
  @example
  ```ts
