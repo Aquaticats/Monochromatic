@@ -743,6 +743,24 @@ take a deterministic landing sample on the pinned full-model route,
 or collect nothing until the graduation call.
 The parity script is `~/temp/agent/luna-parity.ts`,
 with the three raw runs beside it.
+Truth-check of 2026-10-30
+(`doc/audit/standards-review-gate-truth-check.md`):
+of the 16 named-cost entries 14 name a real defect at the named commit
+and 2 over-claim a path-limit-bounded walk
+(`2972f3c6a06f`,
+`c1367ce73bad`),
+while the 8 largest quiet landings are all correct quiet
+(0 missed),
+so the graduation evidence now has measured precision
+(14 of 16)
+beside the naming rates.
+Several named costs are still present in the tree,
+among them the cost-dismissal hook's own `readRecordedKeys`
+whole-log rescan per event;
+site fixes stay unauthorized
+and need a separate request.
+Graduation goes to the owner
+with the measurement and the truth-check both in hand.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
