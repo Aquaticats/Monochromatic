@@ -21,7 +21,10 @@ export default {
   },
   'lint:types': {
     description: 'Check Rust types and deny Clippy findings',
-    run: ['cargo check', 'cargo clippy --all-targets -- -D warnings',],
+    run: [
+      'cargo check',
+      'cargo clippy --all-targets -- -D warnings',
+    ],
   },
   'format:rust': {
     description: 'Format the native unified-linter source',
@@ -60,7 +63,7 @@ export default {
   'mutation': {
     description: 'Mutation-test the unified linter in the bounded snapshot',
     depends: ['test:container',],
-    run: 'node bin/mutate-container.mjs',
+    run: 'node bin/mutate-container.ts',
   },
   'test:container': {
     description: 'Run the unified-linter tests in the bounded offline snapshot',

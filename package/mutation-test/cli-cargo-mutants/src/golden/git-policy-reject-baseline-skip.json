@@ -1,0 +1,8 @@
+{
+  "status": 1,
+  "errorMessage": "NATIVE_MUTATION_BASELINE_SKIP must be a test path, got Bad.",
+  "stdout": "",
+  "calls": [],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

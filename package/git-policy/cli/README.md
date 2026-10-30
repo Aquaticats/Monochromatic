@@ -641,6 +641,27 @@ Each line names what the command waits for,
 cli-git: still waiting for process 4242 to release the landing lock (/repo/.git/cli-git-transactions/landing.lock) after 12 seconds; giving up after 1800 seconds (CLI_GIT_LOCK_WAIT_SECONDS changes this), leaving the lock in place.
 ```
 
+## Operating conditions
+
+This package is one of the few that must keep working under the conditions its host lives in every day,
+not only on a quiet machine.
+The wrapper, its recovery paths and its tests are expected to work under these conditions:
+
+- high CPU load from other sessions and builds;
+- memory pressure and heavy swap use;
+- slow SSD and other I/O trouble;
+- a nearly full disk, so a write can fail with no space left in the middle of a landing;
+- process and descriptor limits close to exhaustion;
+- a process killed at any instruction, which the journals and recovery exist for;
+- a closed terminal or a broken pipe;
+- slow fsync and unusual filesystems;
+- DNS or mirror trouble, where the wrapper recovers or falls back instead of wedging.
+
+Tests therefore never wait for a quiet host.
+The shared 5-second bound on one wrapped command is deliberate;
+its measurements and the evidence needed to change it are in
+[the troubleshooting note](../../../doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md).
+
 ## State on disk
 
 The wrapper keeps its state beside the repository's Git data under `cli-git*` paths in the common Git directory.

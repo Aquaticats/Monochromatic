@@ -160,6 +160,13 @@ if (codeFiles.length === 0) {
   entry(`  \\`${subject}\\``)
   process.exit(0)
 }
+if (process.env.SHADOW_REVIEW_ALLOW !== '1') {
+  entry('- Skipped:')
+  entry(`  ${sha.slice(0, 12)} (no model call: the per-commit full-model review is paused`)
+  entry(`  since 2026-10-29 on owner cost correction; set SHADOW_REVIEW_ALLOW=1 to run one):`)
+  entry(`  \\`${subject}\\``)
+  process.exit(0)
+}
 const capLines = 2000
 const lines = patch.split('\\n')
 const truncated = lines.length > capLines

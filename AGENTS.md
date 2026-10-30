@@ -678,6 +678,24 @@ Measure under the load there is,
  alternating arms with a same-binary control for the spread,
  and report counts.
 
+NHR:
+ Normal here,
+ never excuses:
+ high CPU load,
+ memory pressure and swap,
+ slow SSD and I/O,
+ nearly full disk or GPU memory,
+ process and descriptor limits near exhaustion.
+
+NHP:
+ Normal here,
+ never excuses:
+ a process killed at any instruction,
+ a closed terminal or broken pipe,
+ slow fsync,
+ unusual filesystems,
+ DNS or mirror trouble.
+
 FHU:
  Real jobs may use almost the whole host:
  size `CPUQuota` near `nproc` minus a few threads,

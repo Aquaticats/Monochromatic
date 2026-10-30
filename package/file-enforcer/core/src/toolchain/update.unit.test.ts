@@ -91,6 +91,30 @@ function fixtureEntry(overrides: FixtureOverrides,): ToolPlanEntry {
   };
 }
 
+/**
+ Builds the `node` plan entry the node index cases resolve (official and musl rows).
+
+ @returns A node plan entry recorded at 26.12.0
+ */
+function nodeFixtureEntry(): ToolPlanEntry {
+  return fixtureEntry({
+    id: 'node',
+    version: '26.12.0',
+    route: 'archive',
+    bins: ['node'],
+    artifacts: {
+      'linux-x64': {
+        url: 'https://nodejs.org/dist/v26.12.0/node-v26.12.0-linux-x64.tar.gz',
+        sha256: '0'.repeat(64,),
+      },
+      'linux-x64-musl': {
+        url: 'https://unofficial-builds.nodejs.org/download/release/v26.12.0/node-v26.12.0-linux-x64-musl.tar.gz',
+        sha256: '1'.repeat(64,),
+      },
+    },
+  },);
+}
+
 //endregion Fixtures
 
 await describe({
@@ -474,6 +498,105 @@ await describe({
               },);
             expect(outcomes[0]?.artifacts['linux-x64-musl']?.url,)
               .toBe('https://unofficial-builds.nodejs.org/download/release/v26.12.1/node-v26.12.1-linux-x64-musl.tar.gz',);
+          },
+        },),
+
+        it({
+          name: 'resolves node past a leading pre-release index entry to the newest stable release',
+          fn: async () => {
+            /**
+             Outcomes replaying an index whose first entry is a pre-release.
+             */
+            const outcomes = await resolveAll({
+              tools: [nodeFixtureEntry()],
+              fetcher: fixtureFetch({
+                'https://nodejs.org/dist/index.json': JSON.stringify([
+                  { version: 'v27.0.0-alpha.0.0.0', },
+                  { version: 'v26.13.0', },
+                  { version: 'v26.12.1', },
+                ],),
+                'https://nodejs.org/dist/v26.13.0/SHASUMS256.txt': `${
+                  'a'.repeat(64,)
+                }  node-v26.13.0-linux-x64.tar.gz\n`,
+                'https://unofficial-builds.nodejs.org/download/release/v26.13.0/SHASUMS256.txt': `${
+                  'b'.repeat(64,)
+                }  node-v26.13.0-linux-x64-musl.tar.gz\n`,
+              },),
+            },);
+            expect(outcomes[0]?.kind,)
+              .toBe('updated',);
+            expect(outcomes[0]?.newVersion,)
+              .toBe('26.13.0',);
+            expect(outcomes[0]?.artifacts['linux-x64']?.sha256,)
+              .toBe('a'.repeat(64,),);
+          },
+        },),
+
+        it({
+          name: 'fails node resolution when the index lists only pre-releases',
+          fn: async () => {
+            /**
+             Outcomes replaying an index with pre-releases only.
+             */
+            const outcomes = await resolveAll({
+              tools: [nodeFixtureEntry()],
+              fetcher: fixtureFetch({
+                'https://nodejs.org/dist/index.json': JSON.stringify([
+                  { version: 'v27.0.0-alpha.0.0.0', },
+                  { version: 'v27.0.0-rc.1', },
+                ],),
+              },),
+            },);
+            expect(outcomes[0]?.kind,)
+              .toBe('failed',);
+            expect(outcomes[0]?.note,)
+              .toContain('nodejs.org reports no release',);
+          },
+        },),
+
+        it({
+          name: 'fails node resolution when the index is empty',
+          fn: async () => {
+            /**
+             Outcomes replaying an empty index.
+             */
+            const outcomes = await resolveAll({
+              tools: [nodeFixtureEntry()],
+              fetcher: fixtureFetch({
+                'https://nodejs.org/dist/index.json': JSON.stringify([],),
+              },),
+            },);
+            expect(outcomes[0]?.kind,)
+              .toBe('failed',);
+            expect(outcomes[0]?.note,)
+              .toContain('nodejs.org reports no release',);
+          },
+        },),
+
+        it({
+          name: 'keeps the first node index entry when it is already stable',
+          fn: async () => {
+            /**
+             Outcomes replaying an index whose first entry is stable.
+             */
+            const outcomes = await resolveAll({
+              tools: [nodeFixtureEntry()],
+              fetcher: fixtureFetch({
+                'https://nodejs.org/dist/index.json': JSON.stringify([
+                  { version: 'v26.13.0', },
+                  { version: 'v27.0.0-alpha.0.0.0', },
+                  { version: 'v26.12.1', },
+                ],),
+                'https://nodejs.org/dist/v26.13.0/SHASUMS256.txt': `${
+                  'a'.repeat(64,)
+                }  node-v26.13.0-linux-x64.tar.gz\n`,
+                'https://unofficial-builds.nodejs.org/download/release/v26.13.0/SHASUMS256.txt': `${
+                  'b'.repeat(64,)
+                }  node-v26.13.0-linux-x64-musl.tar.gz\n`,
+              },),
+            },);
+            expect(outcomes[0]?.newVersion,)
+              .toBe('26.13.0',);
           },
         },),
 

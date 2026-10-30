@@ -1,0 +1,16 @@
+{
+  "status": 1,
+  "errorMessage": "Test image did not resolve to a full content-addressed image ID; run native:test:container first.",
+  "stdout": "",
+  "calls": [
+    [
+      "image",
+      "inspect",
+      "localhost/git-policy-native-test:golden",
+      "--format",
+      "{{.Id}}"
+    ]
+  ],
+  "containerfiles": [],
+  "evidenceFiles": []
+}

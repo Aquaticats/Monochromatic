@@ -1,9 +1,10 @@
 # Shared cargo-mutants package
 
 Status:
- proposed 2026-10-29, not accepted.
-The package exists and holds the launcher and the slot limiter;
-the migration below is sequenced after the container-limit work in `package/git-policy/cli/bin` lands.
+ steps 1 to 6 executed 2026-10-29 on a branch awaiting landing, after the user answered the open questions
+ (see `Decisions`) and the container-limit work in `package/git-policy/cli/bin` landed.
+Step 7 is not started, by design.
+`Execution record` says what each step did, what changed on purpose, and what has not been run.
 
 ## Purpose
 
@@ -28,6 +29,9 @@ What it holds now:
 - the slot limiter `bin/gate-slot.ts`, a host-wide cap on concurrent campaign containers;
 - pure builders in `src/` for the unit name, log path, image tag, task arguments, retry-loop shell body,
   `systemd-run` arguments and slot arguments, each tested, with shell quoting at the final interpolation.
+- the campaign building blocks every product shares: the excluded mutant kinds, the container limit options, the
+  timeout, examine, scope and baseline-skip parsing, the campaign command, Containerfile and evidence records, the
+  container flow (`runCampaign`), the mutant listing and coverage proof, and the shard and pattern options.
 
 Task name, image-tag variable and template, scope prefix and flag, extra environment, container `--memory` and `--cpus`,
 unit `--unit-memory-max` and `--unit-cpu-quota`, attempts, retry marker, locations and slot settings are all options.
@@ -191,9 +195,9 @@ No step runs a campaign from an agent session;
 
 ### Step 0, done
 
-The package holds the launcher, the slot limiter, their tests, and the `campaign:parallel:git-policy-native` task that
- supplies the git-policy values.
-That task is the temporary home of the git-policy adapter values and moves into the git-policy package in step 6.
+The package holds the launcher, the slot limiter and their tests.
+The git-policy values the launcher needs began as a preset task in the package and moved into the git-policy package
+ as `native:mutation:parallel` in step 6.
 
 ### Step 1, after the container-limit work lands
 
@@ -260,13 +264,74 @@ Today only git-policy uses it, so extracting it earlier is speculative.
 - The forbidden-strings core task uses a different design;
   forcing it into the shared flow without a decision would change its behavior.
 
-## Open questions
+## Decisions
 
-- Should the forbidden-strings core `test:mutation` task migrate to the mount-free snapshot design and the slot
-  limiter, or stay as it is?
-  Ranking if it migrates: it removes the only host-mounted mutation run and the separate memory arithmetic,
-  but it costs an image rework and loses the `--jobs` parallelism inside one container.
-- Is the package name acceptable, or should it take a `core` role name (`cli-cargo-mutants` is a CLI plus a library
-  surface exported through `./ts`)?
-- Should the exclusion list stay a repository-wide constant, or should each product be able to add to it?
-  The user accepted the two exclusions on 2026-10-05 for every runner, which favors one constant.
+The user decided on 2026-10-29:
+
+- The forbidden-strings core `test:mutation` task migrates to the shared mount-free snapshot design and the slot
+  limiter.
+- The package keeps the name `@monochromatic-dev/mutation-test-cli-cargo-mutants` at
+  `package/mutation-test/cli-cargo-mutants`.
+- The excluded mutant kinds stay one repository-wide constant owned by the shared package
+  (`src/excluded-mutants.ts`); a product may add exclusions on top and never removes one.
+
+## Execution record
+
+Every step was checked against outcomes pinned before any product script changed.
+The pins run each product script against a stand-in `podman` and `cargo` (`src/fake-podman-fixture.ts`) and record
+ the podman calls, the Containerfile, the manifest and exit records, the output, and the message of every rejected
+ option, for a spread of options per product (`src/golden-scenarios.ts`, outcomes in `src/golden`).
+A pin was shown to fail once per step by changing the shared code it covers.
+No container, systemd unit or mutation campaign was run by the agent.
+
+### Steps 1 to 3
+
+The excluded kinds, the container limit options (moved with their tests), the timeout, examine, scope and baseline-skip
+ parsing, the campaign command, the Containerfile text, and the evidence records are in the shared package.
+The outcomes pinned before the steps are unchanged, except for the changes below.
+
+### Step 4
+
+`runCampaign` and `runPodman` run the git-policy native wrapper and the linter campaigns.
+The linter's flow won: the campaign image is built with `--iidfile`, the container is created from that image ID with
+ the command given explicitly, and the command is read back from the created container.
+The native wrapper used to create its container from the shared tag and to rely on the image's default command.
+
+### Step 5
+
+`listMutants`, `checkScopeCoverage`, `coverageSummary`, `takeShard` and `takeMutantRegex` are in the shared
+ package; the coverage listings still run one after another.
+
+### Step 6
+
+The linter and scanner mutation scripts are TypeScript (`bin/mutate-container.ts`; the linter's scope table is
+ `bin/mutation-scopes.ts`).
+The linter's inline processors task is `bin/mutate-processors.ts` on the shared runner.
+The engine's `test:mutation` runs the shared flow over a snapshot image built by `bin/build-test-image.ts` from
+ `test.Containerfile`; its `.cargo/mutants.toml` is untouched and a test pins that none of its fifteen exclusions
+ is dropped.
+The git-policy parallel task is `native:mutation:parallel` in that package.
+
+### Intentional changes
+
+- Native wrapper: the iidfile build, the explicit create command and the read-back (step 4), so its podman calls
+  change; an invalid `NATIVE_MUTATION_BASELINE_SKIP` now fails before any podman call or evidence directory.
+- Linter script: accepts `--memory`, `--cpus` and `--pids-limit` (defaults unchanged), also after a scope switch,
+  because the limit parser accepts valueless flags.
+- Linter processors task: shared Containerfile text, command option order, iidfile build, explicit create command,
+  limit options, and scratch under the package instead of the system temporary directory.
+- Engine: `test:mutation` no longer mounts the crate, takes the shared options instead of passing extra flags to
+  cargo-mutants, no longer takes `--jobs`, and its base image gains `cargo-nextest`.
+- Several packages gain a `package.json` (linter, scanner, engine) so they can depend on the shared package.
+
+### Not done and why
+
+- The scanner keeps its own snapshot flow: it bakes its sources into the image that runs the campaign instead of
+  layering over a tested image, so it cannot use `runCampaign`; it uses the shared exclusion constant and is
+  TypeScript now.
+  Its older `.mjs` scripts (snapshot, evidence, guards, documents) are untouched and are not part of this plan.
+- The planted-controls runner (step 7) stays in the native wrapper until a second product wants it.
+- Nothing past an option error or a stand-in podman has run: the user runs one scoped campaign per product to prove
+  parity, and the engine's snapshot image build and campaign are new and have never run against real Podman.
+- The package-wide Oxlint run of the linter and scanner reports findings in their older `.mjs` scripts, which this
+  work does not touch; the new TypeScript files are linted by path with `lint:scripts:oxlint`.

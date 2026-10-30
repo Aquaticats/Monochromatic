@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -84,17 +84,14 @@ shadow_same = "deny"
 shadow_unrelated = "deny"
 
 # Starting an executable that is not in the page cache reads most of the file from disk in one fault, so a smaller
-# executable is a shorter first start after eviction or install: the release build read 9.45 MiB with the default
-# profile, 8.09 MiB stripped (`strip`: the symbol tables sit after the loaded segments and were read ahead anyway) and
-# 7.43 MiB with fat link-time optimization and one code generation unit. `opt-level = "s"` read 6.5 MiB and ran a
-# 300-file commit no slower, but the scanner's throughput under it was not measured, so it is not adopted.
-# The numbers and the method are in doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md.
+# executable is a shorter first start after eviction or install. Stripping the symbol tables cut the release build's
+# first-start read from 9.45 MiB to 8.09 MiB. Fat link-time optimization with one code generation unit would read
+# 7.43 MiB but lengthens the release build, so it is not adopted. The numbers and the method are in
+# doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md.
 [profile.release]
 panic = "unwind"
 overflow-checks = true
 strip = "symbols"
-lto = "fat"
-codegen-units = 1
 
 # The scanner's `build.rs` precompiles its embedded baseline through the forbidden-regex
 # build-dependency, which Cargo builds at `opt-level = 0` by default.

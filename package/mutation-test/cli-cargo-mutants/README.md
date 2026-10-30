@@ -71,6 +71,30 @@ Every launcher on the host must share that directory for the limit to hold, so c
 The limit exists because the host runs under a shared CPU cap; the slot count follows the user's CPU hold,
 documented at `defaultSlotCount` in `src/constants.ts`.
 
+## Campaign building blocks
+
+Every Rust product that runs cargo-mutants in containers uses these through `./ts`, and keeps only an adapter script
+that supplies its image names, scopes, limits defaults and manifest:
+
+- `excludedMutantKinds` and `exclusionArguments`: the two mutant kinds no campaign tries, one repository-wide
+  constant; a product adds exclusions on top and never removes one.
+- `parseContainerLimitOptions` and the argument builders for `--memory`, `--cpus` and `--pids-limit`.
+- `parseTimeoutAndExamine`, `parseFileScopes` and `baselineSkipArguments`: the campaign options and their messages.
+- `campaignCommand`, `campaignContainerfile`, `evidenceJson` and `exitRecord`: the command, the Containerfile that
+  layers cargo-mutants over a tested image, and the evidence files.
+- `runCampaign`: the whole container flow (inspect the tested image, build with `--iidfile`, create from the image
+  ID with the command given, read the command back, start, copy the report, write the evidence, remove the container).
+- `listMutants`, `checkScopeCoverage`, `takeShard` and `takeMutantRegex`: the host-side listing and the proof that a
+  product's scopes hold every mutant.
+
+The adapters are `package/git-policy/cli/bin/mutate-native-container.ts`,
+`package/linter/monochromatic-lint/bin/mutate-container.ts` and `bin/mutate-processors.ts`, and
+`package/forbidden-strings/core/bin/mutate-container.ts`.
+The scanner keeps its own snapshot flow and uses the exclusion constant.
+
+Tests pin the adapters' outcomes against a stand-in `podman` and `cargo` (`src/golden`);
+the campaigns themselves are run by a person, never by a test.
+
 ## Source layout
 
 - `bin/mutation-parallel.ts` and `bin/gate-slot.ts` only read the process state and spawn; they hold no logic.
@@ -80,6 +104,8 @@ documented at `defaultSlotCount` in `src/constants.ts`.
 
 ## Tasks
 
-- `campaign:parallel` runs the launcher; `campaign:parallel:git-policy-native` fills in the native git-policy values.
+- `campaign:parallel` runs the launcher.
+  Products give it their values in a task of their own,
+  for example `native:mutation:parallel` in the git-policy package.
 - `campaign:gate-slot` runs the limiter.
 - `lint`, `lint:types`, `lint:oxlint`, `format:oxlint` and `test:unit` are the usual package checks.

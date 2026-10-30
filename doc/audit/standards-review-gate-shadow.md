@@ -1051,7 +1051,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   243.3 s
   Named superlinear cost:
-  no
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     - `isThenable` — **minor**: Callable thenables are missed because every function-valued return is rejected by the initial object-only check. A function with a callable `then` member therefore bypasses the new asynchronous-work guard.
@@ -1454,7 +1455,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   77.3 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     No findings in `findMethod` or `isObjectLike` for the supplied diff and excerpt. No new correctness, complexity, or applicable standards violations identified; aggregate lookup cost across callers cannot be assessed because call sites are not provided.
@@ -1471,7 +1473,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   108.0 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     - `createScriptedThenable` (`p-memoize-clear.unit.test.ts`): **minor**, `LN3`. The added `unicorn/no-thenable` suppression has an inline rationale, but the change supplies no accompanying `.md` justification citing the linter source and linted value and establishing why configuration or an allow-list cannot satisfy the requirement.
@@ -1503,7 +1505,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   105.9 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     - `run-quick` (`containerCargo` call), **nit**, `LFF`: The new environment overrides use Podman’s short-form `-e` option twice, although `--env` is available. This violates the long-form CLI option requirement in both `mise.toml` and its mirrored `task.ts` command.
@@ -1534,7 +1536,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   196.5 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys`: **major**, `RG2`. Every stop reads, splits, and filters the entire growing shadow log before selecting its last 512 lines. Across stops, this repeatedly traverses prior records and produces quadratic cumulative work; the final slice does not bound reading cost.
@@ -1590,7 +1592,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   153.5 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys` (major, **RG2**): Every tool call reads and splits the entire accumulated `shadow.jsonl` before selecting its last 512 lines. Because every invocation appends another line even with zero hits, N tool calls produce Θ(N²) cumulative log processing for fixed-size records, with memory usage proportional to the full log rather than the deduplication window.
@@ -1625,7 +1627,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   31.7 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     No findings in the added `InvalidKeyedInputError` test callbacks. The supplied changes show no evident correctness, complexity, or applicable `AGENTS.md` violations.
@@ -1642,7 +1644,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   45.7 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     - `<module>` (`p-map-stop.unit.test.ts`): **nit**, **TD2**. The opening `/** ... @module */` block is file-level documentation before imports, not documentation immediately preceding a declaration. TD2 restricts TSDoc blocks to declarations.
@@ -1669,7 +1671,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   70.5 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     No findings in the added test’s `fn` or its `gated` mapper.
@@ -1688,7 +1691,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   171.7 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `thinkingDismissalHandler` → `appendShadowRecord` → `readRecordedKeys`: **major**, `RG2`. Every event reads, splits, and filters the entire append-only shadow log before selecting its last 512 lines. Because every invocation also appends a record, processing n fixed-size events incurs Θ(n²) cumulative log-scanning work; the bounded transcript tail does not bound this helper’s cost.
@@ -1711,7 +1714,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   101.1 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     No findings in `mapKeyed` for the supplied diff. The mutation-testing directive introduces no runtime or complexity changes, and no applicable `AGENTS.md` violation is demonstrated.
@@ -1728,7 +1731,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   180.5 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     - **`isThenable`, `pullNext` | major:** The new mutation suppressions incorrectly treat bypassing `latchWhenSettled` as unobservable. An asynchronous iterator result whose `done` getter returns false on its first read and true on its second distinguishes these paths: the latch consumes the first read, while bypassing it lets the consumer see false and process an item instead of stopping.
@@ -1756,7 +1760,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   217.0 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `fillWhenSettled` (`p-map-iterable.ts:398`) — **major**, `RG2`: The newly annotated loop scans all of `unfilledIndexes` for each `done` outcome. With permitted unbounded concurrency and outstanding pulls reporting `done` in descending index order, lower-index entries survive repeated scans, producing quadratic total work; this cost exists in the implementation being annotated, rather than being introduced by the comment.
@@ -1783,7 +1787,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   297.5 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     - `executeRun` (nit, `LN6`): The new `mutation-test-disable-next-line array` directive sits between the `result` TSDoc and its declaration. The standard explicitly prohibits placing a `disable-next-line` directive between documentation and a documented declaration.
@@ -1808,7 +1812,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   82.2 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     - **`apply` | major | TCV, PKG**: The added test suite covers detection and projection folding but never calls the exported plugin initializer. Registration and recording at `tools/pre-execute`, `tools/result`, and `agent/turn-stopping`, which are the package’s advertised public behavior, remain untested in this suite.
@@ -1851,7 +1856,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   51.9 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     `findMethod`: No findings. Removing the conditional preserves descriptor lookup behavior and introduces no additional traversal or helper calls. No correctness, complexity, or `AGENTS.md` violations identified in the changed code.
@@ -1874,7 +1879,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   156.3 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `thinkingDismissalHandler` (major; `RG2`): Every event calls `appendShadowRecord`, whose `readRecordedKeys` helper reads and splits the entire growing shadow log before selecting its last 512 rows. Across N constant-size events this produces Θ(N²) cumulative work; the transcript tail limit does not bound this cross-call cost.
@@ -1901,7 +1906,8 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   83.7 s
   Named superlinear cost:
-  unjudged
+  partial (cost gestured as unverified,
+  not named)
   Findings kept:
     `````text
     - `thinkingDismissalProjection.apply` (unit test) — **minor**, **TCV**: The renamed test still obtains its only hit from a `reasoning` block; the ordinary `text` block contains only `"Done."`. An implementation that counts ordinary text blocks but never detects dismissals in them would pass, leaving assistant-prose detection without a positive regression test.
@@ -1922,7 +1928,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   133.4 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     - `changePrototype` (major; no directly applicable tag): Removing the equality guard changes behavior for proxy targets, including callable proxies: `Reflect.setPrototypeOf` invokes their `setPrototypeOf` trap even when the requested prototype is already current. A throwing trap now makes a previously successful call fail, contradicting the new comment’s universal no-op claim.
@@ -1959,7 +1965,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   21.0 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     No findings in the supplied diff or changed-code excerpts.
@@ -1987,7 +1993,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   204.2 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `foldMessage`: **major**, RG2. Each matching message copies all previous session hits, producing Θ(M²) work for M one-hit messages. Spreading `findSizeDismissal(unit)` into `push` also expands unbounded hits into call arguments, risking an argument-limit failure.
@@ -2029,7 +2035,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   35.4 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     No findings in the supplied changes regarding correctness, standards compliance, or test coverage. No unbounded-input traversal or cross-call complexity concerns identified.
@@ -2046,7 +2052,7 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   324.7 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
     - `fillWhenSettled` (`package/upstream-fork/p-map/src/p-map-iterable.ts:397`), **major**, `RG2`: The pre-existing `done` branch scans every remaining `unfilledIndexes` entry while retaining earlier pending positions. When concurrency and backpressure scale with input, successive `done` outcomes settling from highest to lowest position repeatedly scan those retained entries, producing quadratic work rather than the required linear bound.
@@ -2068,51 +2074,334 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
   Wall-clock cost:
   52.2 s
   Named superlinear cost:
-  unjudged
+  no
   Findings kept:
     `````text
     No findings in the reviewed changes to `changeToString` or `pMemoize`, including descriptor behavior and the revised mutation-suppression rationale.
     
     No RG2 complexity findings: neither change introduces input traversal or repeated calls to helpers that walk unbounded data.
     `````
+- Skipped:
+  b625d70ad521 (no code files):
+  `docs(troubleshooting-doc): do not invent requirements; drop the invented human re-run gate from the workspace-link draft`
 - Date:
-  2026-10-30T01:07:10.761Z
+  2026-10-29T17:05:00.249Z
   Subject:
-  e76a99bddcd6 `fix(git-policy-cli): copy the fixture wrapper instead of cloning it, shrink the release executable`
+  094f868e2b9b `refactor(*): the thinking-dismissal family becomes cost-dismissal`
   Input size:
-  `2 code files, 242 diff lines`
+  `25 code files, 3067 diff lines, capped at 2000`
   Reviewer route:
   `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
   Wall-clock cost:
-  191.3 s
+  254.0 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
-    - `copy_executable` (troubleshooting documentation): **minor**, `DL5`. New source references such as `src/native/binary_support.rs`, `src/native/binary_fixture_tests.rs`, and `src/native/git_version_cache_tests.rs` are package-relative, not repository-relative. They omit `package/git-policy/cli/`, so they do not identify the files from the repository root as required.
+    - `readRecordedKeys` / `appendShadowRecord`: **major**, RG2. Every hook reads, splits, and filters the entire append-only shadow log before selecting its last 512 lines. Because every hook also appends a record, even with no fresh hits, H constant-sized observations incur Θ(H²) cumulative read/scan work.
     
-    No correctness or `RG2` complexity violations identified in the supplied code changes.
+    - `sweepLogDirectory`: **major**, RG2. The bundled implementation calls `toSorted` on all retained log-file candidates, introducing O(n log n) worst-case work over an uncapped filesystem collection. Retention limits are applied after collection and sorting, so they do not bound this input.
+    
+    - `costDismissalHandler` / `runHookPlugin`: **major**, SYB. The handler emits an informational log through the bundled default console sink, which routes `info` records to `console.info`; the runtime writes its serialized hook response to the same stdout. This mixes diagnostic text with the JSON response and violates the destination grammar.
+    
+    - `claudeUnitsOf`: **major**, no specific tag. It collects `message.content[*].text` without checking that the message belongs to the assistant. Consequently, user-authored text discussing dismissed costs can become a recorded model dismissal, contaminating the measurements.
+    
+    - `readRecordedKeys` / `appendShadowRecord`: **minor**, no specific tag. Deduplication keys omit `sessionId`, although the shared log contains records from multiple sessions and the record contract describes session-local deduplication. Identical text in another session can therefore have its first observation suppressed.
+    
+    - `readRecordedKeys`: **minor**, no specific tag. Only the last 512 records contribute deduplication keys, while duplicate observations append empty-hit records. Once those records displace the original hit, an unchanged block can be recorded again for the same event type, contradicting the documented once-per-event-type behavior.
+    
+    - `findNodeModulesUp`: **minor**, ITR. It recursively follows the linear parent-directory chain, retaining a suspended async invocation per ancestor. This is linear-spine recursion, not a bounded structural walk.
+    
+    No blocker findings. No superlinear finding in `findSizeDismissal`, `hasTerm`, or `sentencesOf`: vocabulary sizes are fixed, sentence slices are disjoint, and whitespace scanning advances the outer cursor.
+    `````
+
+- Skipped:
+  162947febc02 (no code files):
+  `refactor(*): regenerate the lockfile for the cost-dismissal rename`
+- Skipped:
+  4ad6da11ce12 (no code files):
+  `docs(research): keep the source-level mise conf.d study for the root mise.toml question`
+- Skipped:
+  c10db0c1ece9 (no code files):
+  `docs(planning): record the conf.d mise layout and consolidate the current Rust file-enforcer design`
+- Skipped:
+  62a959a62bc0 (no code files):
+  `docs(planning): next action is the second outside review round, then confirmation`
+- Skipped:
+  d6042d694168 (no code files):
+  `docs(handover): record the finished p-memoize survivor work with three verified suppressions`
+- Skipped:
+  b7a9d607334a (no code files):
+  `docs(troubleshooting-doc): apply the target's templates to every pull request body, edited body and comment`
+- Skipped:
+  8f023e8ca49d (no code files):
+  `docs(research): keep the second sol review of the Rust file-enforcer plan`
+- Skipped:
+  0db4097dc82b (no code files):
+  `docs(troubleshooting): clean pnpm test reruns, same-day checks and a filing recommendation for the workspace-link report`
+- Skipped:
+  be53b2a443c8 (no code files):
+  `docs(research): keep the second kimi review of the Rust file-enforcer plan`
+- Skipped:
+  4a3aa286126e (no code files):
+  `docs(handover): record the p-map split-lines result and the 22 twin mutants a line split cannot separate`
+- Skipped:
+  0833c89181fe (no code files):
+  `docs(handover): record the owner choice to filter mutation suppressions by replacement`
+- Skipped:
+  70db744e8da7 (no code files):
+  `docs(troubleshooting): record that the workspace-link report was filed as pnpm/pnpm#17485`
+- Skipped:
+  0e6e97595948 (no code files):
+  `docs(handover): record the 24-hour poller that waits for a maintainer's pull request request on pnpm#17485`
+- Skipped:
+  cd323e2488fe (no code files):
+  `docs(research,planning): keep the second astra review and record the second-round fixes with one clear answer`
+- Date:
+  2026-10-29T17:43:59.272Z
+  Subject:
+  8667f7ac7cef `feat(mutation-test-cli): let a suppression directive name the exact replacement it hides per family, with quoted JSON string replacements for text the bare form cannot hold`
+  Input size:
+  `3 code files, 1268 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  153.0 s
+  Named superlinear cost:
+  yes
+  Findings kept:
+    `````text
+    - `parseDirectiveTail` (major, RG2): Its per-entry calls to `skipSpaces`, `readFamilyName`, and `readBareReplacement` repeatedly split the entire directive tail and search from index zero. Parsing k entries in an n-character tail therefore costs O(kn), becoming quadratic for repeated fixed-size entries despite the advancing cursor.
+    
+    - `foldEntries` (major, RG2, ITR): Each restricted entry constructs `new Set([...previousSet, replacement])`, rebuilding the accumulated replacement set. For k distinct replacements of one family, this copies O(k²) set elements and violates the prohibition on rebuilding accumulators.
+    
+    - `readQuotedReplacement`, `decodeJson`, `readBareReplacement`, `parseDirectiveTail` (minor, PP4): The new malformed-directive paths throw built-in `Error` instances rather than custom error classes. Callers consequently cannot distinguish these parsing failures structurally through a dedicated error type.
+    
+    - `readQuotedReplacement` (minor, ST8): It calls `findClosingQuote` and `decodeJson` before their declarations appear in source order. Function hoisting makes this executable but does not satisfy the declaration-before-call standard.
+    
+    - `isSpace`, `skipSpaces`, `readFamilyName`, and other new helper examples (nit, TD4): Their TSDoc examples contain trailing comments such as `skipSpaces(...); // 2`. TD4 requires comments on their own lines above the relevant code.
+    
+    No additional functional-correctness or security findings in the supplied changes.
     `````
 
 - Date:
-  2026-10-30T01:36:24.586Z
+  2026-10-29T17:45:00.857Z
   Subject:
-  fc34d858b599 `refactor(git-policy-cli): hard-link the built wrapper into each fixture instead of copying it`
+  e0a89e56e15f `docs(troubleshooting-doc): add the filing-watch poller and the instruction to use it`
   Input size:
-  `2 code files, 250 diff lines`
+  `1 code files, 135 diff lines`
   Reviewer route:
   `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
   Wall-clock cost:
-  250.0 s
+  156.7 s
   Named superlinear cost:
-  unjudged
+  yes
   Findings kept:
     `````text
-    - `a_fixture_wrapper_is_the_built_executable_itself` (major, TCV): `link_built_wrapper` permits a copy after any hard-link failure, but this guard permits that fallback only when device IDs differ. A same-device hard-link failure therefore produces a valid copy that the guard incorrectly rejects, leaving that fallback branch without valid coverage.
+    - **`readComments` / module polling loop: major, RG2.** Every poll fetches, parses, and filters the entire comment history again. With one non-triggering comment arriving per poll, cumulative work is proportional to `1 + 2 + … + n`, making processing quadratic across helper calls.
     
-    - `link_built_wrapper` (minor, LOG): Calling `.is_err()` discards the hard-link error, and the copy fallback records neither the affected paths nor its reason. This violates required branch/error logging and conceals failures that disable the intended optimization.
+    - **`readComments`: major, SYB.** `replaceAll('][', ',')` operates inside JSON string values as well as between pages, silently changing a comment containing `a][b` into `a,b`. Page arrays separated by whitespace also remain unjoined, causing parsing to fail.
     
-    - `link_built_wrapper`, associated troubleshooting documentation (nit, WR5): The new explanation refers to “the full suite below.” WR5 prohibits relative-position references in prose; the reference does not identify the measurement section by name.
+    - **`readComments` / module initialization: major.** The initial baseline fetch runs outside the retrying `try` block. A single transient `gh` failure at startup therefore terminates the watcher instead of receiving the documented allowance of twenty consecutive failures.
     
-    No superlinear-traversal or unbounded-stack findings in the changed code.
+    - **Module polling loop: minor, BGL.** `POLL_DEADLINE_SECONDS` accepts `Infinity`, leaving the background watcher without a finite deadline; the documented systemd invocation supplies no independent runtime cap. Valid short deadlines can also be exceeded by the full polling sleep and in-flight synchronous requests.
+    
+    - **`log`: minor, TLG, LG1.** Lifecycle and failure diagnostics use an untagged `console.error` wrapper rather than the required tagged logger. These diagnostic messages are separate from the exact JSON trigger output, which can legitimately remain CLI output.
+    
+    - **`sleep`: minor, UTL.** This introduces another timer-promise helper instead of reusing the repository’s existing time utility, explicitly identified as `wait()` in the standard.
+    
+    No blocker findings.
     `````
+
+- Date:
+  2026-10-29T17:46:18.513Z
+  Subject:
+  c46c066470cf `refactor(upstream-fork-p-map): narrow the mutation suppressions that covered a killed sibling to the one replacement each proof names`
+  Input size:
+  `4 code files, 157 diff lines`
+  Reviewer route:
+  `openai/gpt-6.1-sol via pi --print --no-session --no-tools --no-skills --no-themes --no-context-files`
+  Wall-clock cost:
+  172.7 s
+  Named superlinear cost:
+  yes
+  Findings kept:
+    `````text
+    - `fillWhenSettled` (`package/upstream-fork/p-map/src/p-map-iterable.ts:395`): **major**, `RG2`. In unordered mode with input-sized concurrency/backpressure, already-started pulls reporting `done` in descending position make successive calls scan the remaining lower `unfilledIndexes` without removing them. A batch of n such completions therefore performs Θ(n²) total work across calls, violating the required linear bound; this existing issue remains in the candidate code.
+    
+    - `fillWhenSettled` (`package/upstream-fork/p-map/src/p-map-iterable.ts:398`): **nit**, `WR5`. The edited suppression comment refers to “the line above this loop,” a prohibited relative-position reference that becomes misleading when surrounding code moves.
+    
+    No additional findings in the mutation-suppression selector refinements themselves.
+    `````
+
+- Skipped:
+  49417a5d3328 (no code files):
+  `docs(planning): move the mpm outdated reading back to its probe gate, adopt the coordination details, note round two skipped repo verification`
+- Skipped:
+  f1a724c7faef (no code files):
+  `docs(planning): record the trailing ? rules marker and the prototype-first mpm-files question`
+- Skipped:
+  792fe0446c68 (no code files):
+  `docs(planning): next action waits on the mpm-files prototype`
+- Skipped:
+  cd537cfa48fb (no code files):
+  `docs(handover): record the catalog specifier policy decisions and the pending pnpm shadow input`
+- Skipped:
+  6575e722ad2c (no code files):
+  `docs(handover): record the finished p-map survivor work with 61 proven suppressions`
+- Skipped:
+  94d39b4fb537 (no code files):
+  `docs(handover): help text and shared-bound fixes landed, mutation wave 2 findings, waits audit assigned`
+- Skipped:
+  2458c05aa04a (no code files):
+  `docs(handover): record the pnpm shadow timing and reach recommendations for the catalog policy`
+- Skipped:
+  861baad71fe7 (no code files):
+  `docs(handover): record the pre-implementation probes and correct the zod catalog claim`
+- Skipped:
+  0abeec1d6a7f (no code files):
+  `docs(handover): record the pi review findings, repair the zod catalog claim and add the probe results`
+- Skipped:
+  6cd2a6d510fe (no code files):
+  `docs(research): keep the mpm-files prototype report and point at its throwaway branch`
+- Skipped:
+  712c73b20335 (no code files):
+  `docs(handover): record mutation wave 3 results, survivor agents and wave 4 start`
+- Skipped:
+  b63c93432c37 (no code files):
+  `docs(troubleshooting): record that pnpm/pnpm#17485 was fixed upstream by #17487 and close the PR-when-requested watch`
+- Skipped:
+  b63c93432c37 (no code files):
+  `docs(troubleshooting): record that pnpm/pnpm#17485 was fixed upstream by #17487 and close the PR-when-requested watch`
+- Skipped:
+  9dc36876fca1 (no code files):
+  `docs(troubleshooting): record that no pnpm release contains the #17487 fix yet and that the v11 sources are fixed on main`
+- Skipped:
+  a14ac31c739c (no code files):
+  `docs(troubleshooting-doc): add the work-in-progress check before filing, found missing after pnpm/pnpm#17485`
+- Skipped:
+  6de215815939 (no code files):
+  `docs(troubleshooting-doc): tick the target form's 'working on a fix' box whenever a verified prototype exists, and record that #17485 missed it`
+- Skipped:
+  befe6414b587 (no code files):
+  `docs(planning): drop both mpm files; mpm-shadow writes and checks the toolchain; file-enforcer has no toolchain role`
+- Skipped:
+  0441c33cddd6 (no code files):
+  `docs(planning): draft the Rust file-enforcer decision record for acceptance after the shared-understanding confirmation`
+- Skipped:
+  f7589b49b092 (no code files):
+  `docs(troubleshooting-doc): open the pull request together with the issue whenever a verified prototype exists, and correct the issue-first ranking in the pnpm doc`
+- Skipped:
+  7057d465a0ee (no code files):
+  `docs(planning): complete the decision draft (auto-sync retry, appendix mode rule, switch checklist, unanswered adoptions) and mark stale next actions superseded`
+- Skipped:
+  2586a2974a68 (no code files):
+  `docs(handover): record wave 4 results, the runner retry bug and wave 5`
+- Skipped:
+  c5c3288efbdc (no code files):
+  `docs(decision): accept the Rust file-enforcer rewrite and amend the meow and mpm decisions`
+- Skipped:
+  d49fd1a5989a (no code files):
+  `docs(planning): point the accepted rewrite at tracking issue #1818 and record the prototype cleanup`
+- Skipped:
+  cc2ee1c99e7b (no code files):
+  `docs(handover): record the per-task container limit directive`
+- Skipped:
+  d5ae250f38b4 (no code files):
+  `docs(handover): record the launcher package and container limit directives`
+- Skipped:
+  d4cc4069db7b (no code files):
+  `docs(planning): record the running implementation gates for the Rust file-enforcer`
+- Skipped:
+  67159e26e6c3 (no code files):
+  `docs(handover): record the shared cargo-mutants package direction`
+- Skipped:
+  6e59b5890276 (no code files):
+  `docs(decision): approve toml_edit, browserslist-rs and schemars without vets; the XML editor becomes an in-repo crate like jsonc-edit`
+- Skipped:
+  6e59b5890276 (no code files):
+  `docs(decision): approve toml_edit, browserslist-rs and schemars without vets; the XML editor becomes an in-repo crate like jsonc-edit`
+- Skipped:
+  8656e63ae907 (no code files):
+  `docs(handover): record the landed survivor tests and the unexplained 5-second stall`
+- Skipped:
+  b34ed809950d (no code files):
+  `docs(audit,decision): keep the four halted file-enforcer vet drafts whole, marked superseded, and carry their open facts into the decision`
+- Skipped:
+  ff0c7940ff1c (no code files):
+  `docs(decision): edit the JetBrains embedded JSON with serde_json, which writes strict JSON and is already in the catalog`
+- Skipped:
+  365bd1ecae93 (no code files):
+  `docs(decision): record the approval of serde_json for the JetBrains embedded JSON`
+- Skipped:
+  768137a8ee5c (no code files):
+  `docs(planning): record the reboot hold and where to resume the Rust file-enforcer gates`
+- Skipped:
+  9a82e51c389f (no code files):
+  `docs(planning): the reboot waits for the live probes to finish`
+- Skipped:
+  0571ea77f49a (no code files):
+  `docs(research,planning): keep the gate probe report and record its verdicts for the Rust file-enforcer`
+- Skipped:
+  bb73dcedaf22 (no code files):
+  `docs(decision): npm and PyPI updates use the registries directly after the mpm outdated probe failed`
+- Skipped:
+  eca95a1ac62e (no code files):
+  `docs(AGENTS.md): grilling enumerates and picks every dependency first`
+- Skipped:
+  45d42d9b23d2 (no code files):
+  `docs(choosing-technology): check in with the user before each broad vet enumerates candidates`
+- Skipped:
+  768e998fc031 (no code files):
+  `docs(handover,planning): hand over the Rust file-enforcer rewrite with oxc-browserslist next`
+- Skipped:
+  20a307bbe8f2 (no code files):
+  `docs(AGENTS.md): container limits are defaults an agent may change per task; handover update`
+- Skipped:
+  2de2414e7f3b (no code files):
+  `docs(handover): record the deferred hook-timing decision, the omitted Rust wrapper option and the dependency list before the reboot`
+- Skipped:
+  c3dddf91ac6f (no code files):
+  `docs(handover): record wave 5 results and the wave 6 start`
+- Skipped:
+  3d8e980d99f7 (no code files):
+  `docs(AGENTS.md): memory pressure and swap use are normal operating conditions`
+- Skipped:
+  454c35978619 (no code files):
+  `docs(handover): record the permission to raise the shared bound to 10 s with evidence`
+- Skipped:
+  60fc5c2c5590 (no code files):
+  `docs(handover): a bound change needs the user's explicit approval of the evidence`
+- Skipped:
+  acf14425a8c4 (no code files):
+  `docs(AGENTS.md): name normal operating conditions for resources, processes and environment`
+- Skipped:
+  ecbd26efce9e (no code files):
+  `docs(AGENTS.md): the normal-conditions rules only name conditions; the git wrapper documents its own contract`
+- Skipped:
+  021129bdee7e (no code files):
+  `docs(troubleshooting): explain ghostty 1.4 Terra package lag`
+- Skipped:
+  46ec903c0b87 (no code files):
+  `chore(git-policy/cli): release 0.4.1: the doctor help text states the real exit statuses and a staged rename no longer forwards a merge to native Git`
+- Skipped:
+  31e5d374364e (no code files):
+  `docs(handover): record release 0.4.1 and the blocked toolchain adoption`
+- Skipped:
+  8b668092615e (no code files):
+  `fix(mise): pause the per-commit full-model shadow review`
+- Skipped:
+  54d09d6f0b66 (no code files):
+  `chore(config): carry the regenerated pnpr config from the cost-dismissal rename`
+- Skipped:
+  db50050155c8 (no model call:
+  the per-commit full-model review is paused
+  since 2026-10-29 on owner cost correction;
+  set SHADOW_REVIEW_ALLOW=1 to run one):
+  `chore(mise): adopt monochromatic-git-policy-cli 0.4.1 with cargo-dylint 6.3.1, dylint-link 6.3.1 and wrangler 4.156.0 via toolchain:update`
+- Skipped:
+  c999749d3d84 (no code files):
+  `docs(handover): record the resolver fix, the 0.4.1 adoption and the file-enforcer staleness test timeout`
+- Skipped:
+  26b911b0dbec (no code files):
+  `docs(troubleshooting): record measured wait bound for zig 0.17`

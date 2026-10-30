@@ -20,6 +20,15 @@ started by the `Trigger` entry of `Definitions`.
 Commits without code files are skipped with a one-line log entry,
 so coverage stays visible.
 
+From 2026-10-29 the runner makes no model call unless `SHADOW_REVIEW_ALLOW=1`,
+an owner cost correction:
+a full non-decision model at `--thinking xhigh` on every landing is excessively expensive.
+The 65 priced runs before the pause cost 9167.9 s of reviewer wall clock
+(median 133.4 s,
+p90 240.0 s per landing).
+A landing still gets its one-line log entry,
+now saying why no review ran.
+
 ## Definitions
 
 Every term below is operational;
@@ -65,8 +74,10 @@ Every term below is operational;
   so a landing never waits on the review.
 - May run it:
   anyone may invoke `mise run shadow-review` by hand
+  with `SHADOW_REVIEW_ALLOW=1`,
   and nobody needs to:
-  the `Trigger` starts it on every landing.
+  the `Trigger` starts it on every landing,
+  where the pause logs a skip instead of a model call.
   Its findings are required by nothing
   and checked by nothing,
   so a landing completes unchanged either way.
@@ -92,7 +103,9 @@ that some later commit carries.
 
 `mise run shadow-review` performs these steps
 (`SHADOW_REVIEW_LOG` points the log at a disposable fixture,
-`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`):
+`SHADOW_REVIEW_SHA` replays any commit instead of `HEAD`,
+and `SHADOW_REVIEW_ALLOW=1` opts in to the model call,
+without which the pause of 2026-10-29 logs a skip line and exits):
 
 1.
    Isolate the code the reviewer sees:
@@ -150,6 +163,13 @@ Blocking use needs three things measured on real diffs:
 per-diff cost,
 determinism across repeats of the same diff,
 and catch rate on real landings.
+Per-diff cost is measured
+(65 priced runs,
+median 133.4 s,
+p90 240.0 s),
+and determinism is measured on one repeated diff
+(`d4988f4c9b57`,
+heading `Shadow runs so far` in `doc/handover/superlinear-cost-dismissal-gate.md`).
 Then decide with the owner between an `AGENTS.md` rule
 and a git-policy landing check,
 and only then unshadow.

@@ -3983,3 +3983,110 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `scratch_location` and `auto_push_reconcile`. If the three reruns fail their baselines again, measure memory
   pressure (`/proc/pressure/memory`) and swap during the failure and fix the cause in the test harness or the
   wrapper, not by raising the bound.
+
+- User directive (20:40): memory pressure is normal operating conditions for this machine and for the wrapper, not an
+  anomaly. Rule NQH in `AGENTS.md` and `CLAUDE.md` now says memory pressure and swap use are normal and that code and
+  tests must work under them. Agent `ac6a56aed8916cfec` reproduces the 5-second stalls under reclaim by capping its own
+  container's memory (no synthetic load), measures page faults and executable size of the debug and release builds,
+  and makes the wrapper or the test build faster where the numbers show the cause (the bound stays at 5 seconds). I
+  land its branch. Task 66 stays open until it reports.
+
+- User permission (20:45): if the shared 5-second bound in `observe_raw` (`binary_support.rs`) is too strict, bring the
+  user evidence (per-command time distributions under realistic reclaim, what dominates the time, why speeding up the
+  wrapper does not help); the bound may then be raised to at most 10 seconds. Not before the evidence is presented,
+  and never above 10 s. Agent `ac6a56aed8916cfec` was told to report such evidence and not to edit the bound itself.
+
+- User condition on the bound (20:50): presenting evidence is not enough. The user must explicitly approve the evidence
+  itself (they judge whether it is good enough) before any change; only then may the bound rise, to at most 10 s. Ask
+  through the question tool with the evidence attached, and treat silence or a vague reply as no approval.
+
+- User directive (21:00): slow or garbage SSD and I/O trouble, and GPU memory nearly full (about 500 MB free), are
+  normal operating conditions too. The user chose, from my suggestions, to also name: a nearly full disk, process and
+  descriptor limits near exhaustion, a process killed at any instruction, a closed terminal or broken pipe, unusual
+  filesystems with slow fsync, and DNS or mirror trouble (the user's wording: sometimes we just need a different DNS or
+  a mirror, so the rule says recover or fall back). Not chosen: clock jumps, CPU throttling. Recorded as two tagged
+  rules in `AGENTS.md` and `CLAUDE.md`: NHR (resources) and NHP (processes and environment). The earlier memory
+  sentence in NQH was removed to keep NQH under the rule length limit; NHR carries it now.
+- Consequences to act on: the disk-full and descriptor-limit cases need fault-injection tests in the wrapper (a tiny
+  tmpfs inside a capped container for ENOSPC in the middle of a journal, lock or index write; a low `ulimit -n`),
+  and the closed-terminal case needs binary tests for EPIPE on stdout and stderr, no stdin, and SIGHUP while the
+  wrapper holds a lock or has a half write. Not started; queued here (task 66 and a new task below).
+
+- User correction (21:10): "must work under them" does not belong in the general rule. Only a few packages have the
+  honor of having to work under the normal conditions, and each documents that itself; the git wrapper is one. So
+  rules NHR and NHP in `AGENTS.md` and `CLAUDE.md` now only name the conditions as normal (NHP also lost its
+  "Recover or fall back, never wedge" sentence, same reason; revert it if the user wants it kept). The wrapper's
+  contract lives in a new README section `Operating conditions` in `package/git-policy/cli/README.md`: it lists the
+  conditions the wrapper, its recovery paths and its tests must work under, and points at the troubleshooting note
+  for the 5-second bound. Task 76 (fault-injection tests) is that contract's test work. Other packages that earn the
+  same status add their own section; none are named yet.
+- Working conditions for this contract, as the user stated them: high CPU load, memory pressure and swap, slow SSD and
+  I/O trouble, nearly full disk, process and descriptor limits near exhaustion, a process killed at any instruction,
+  closed terminal or broken pipe, slow fsync and unusual filesystems, DNS or mirror trouble. GPU memory nearly full is
+  normal on this host but irrelevant to the wrapper. Clock jumps and CPU throttling were not chosen.
+
+## Update at 2026-10-29 (21:45, release 0.4.1)
+
+- Released 0.4.1 (commit `46ec903c0b`; publish run 40981372725 succeeded; crates.io 2026-10-30T00:44:04Z; GitHub
+  release `monochromatic-git-policy-cli-v0.4.1` with the x86_64 and aarch64 tarballs). It carries two behavior fixes:
+  the `doctor` help text states the real exit statuses, and a staged rename no longer forwards a merge to native Git
+  (`unsaved_paths` skips the original-path field). The rest since 0.4.0 is tests and docs (container limit options in
+  the task scripts, README `Operating conditions`). The container gate on the same `src` passed: 2593 of 2593, 5
+  skipped. `wait-publish.ts` now uses the tag `monochromatic-git-policy-cli-v<version>`.
+- Adoption into the toolchain pin (production `git`) is blocked: `mise run toolchain:update` aborts and writes nothing
+  because the Node resolver takes `index[0]` of `https://nodejs.org/dist/index.json`, which is now the pre-release
+  `v27.0.0-alpha.0.0.0` (2026-10-29) with no checksum rows. Agent `a8f06b44b46f80eb8` fixes
+  `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts` to skip pre-releases (tests first). After it
+  lands: run `toolchain:update`, expect these moves: `cargo:monochromatic-git-policy-cli` 0.4.0 to 0.4.1,
+  `cargo:cargo-dylint` and `cargo:dylint-link` 6.3.0 to 6.3.1, `npm:wrangler` 4.155.0 to 4.156.0 (the node row stays
+  or moves to 26.13.0); review the lock diff, commit explicit paths, `toolchain:sync`, then verify
+  `git cli-git --help` and a rename-merge probe on the installed binary.
+- Release tooling lesson (same as the mutation launcher): `release.ts` and `wait-publish.ts` in `~/temp/agent` are
+  reused every release and hardcode the repository root; promote them to a package with tests (queued, not started).
+
+## Update at 2026-10-29 (22:10, 0.4.1 adopted)
+
+- Landed `bb4a09eaa1` (merge `29d726164b`): `resolveNode` in `package/file-enforcer/core/src/toolchain/update.resolvers.node.ts`
+  skips pre-release entries of the nodejs.org index (four tests; troubleshooting note
+  `doc/troubleshooting/toolchain-update-aborts-when-node-index-lists-a-prerelease.md`). `toolchain:update` runs the
+  source, so the live run proved the fix: it skipped `v27.0.0-alpha.0.0.0` and wrote the four pin files. Note: the
+  package's `test:unit` task tests the built `dist`; run `mise run //package/file-enforcer/core:build` first or the
+  two new tests fail against stale output (they did on main until I built).
+- Adopted 0.4.1: commit "chore(mise): adopt monochromatic-git-policy-cli 0.4.1 with cargo-dylint 6.3.1, dylint-link
+  6.3.1 and wrangler 4.156.0 via toolchain:update". The lock diff was exactly those four moves (18 lines changed in
+  four files). `toolchain:sync`: 4 installed, 59 unchanged, 0 failed. Verified with `~/temp/agent/verify-041.ts` on the
+  installed wrapper: new doctor help line present; a merge beside a staged rename of `Uold.txt` made a two-parent
+  merge and kept the rename staged. Linked worktrees whose lock still pins 0.4.0 swap the install back on their next
+  sync until they merge main.
+- Found, not ours, not fixed: file-enforcer core `test:unit` still fails one test after the build:
+  `staleness-concurrency-regression` "concurrent manifest writers preserve both entries" times out at 10 s on this
+  loaded host, and the same file carries the only lint warning in that package (`numeric-separators-style` at
+  `WAIT_ATTEMPTS = 3000`, line 42). Peer session `monochromatic-04` asked earlier about the staleness manifest.
+  Needs its owner (or the user's say-so) before I touch it.
+
+## Update at 2026-10-29 (22:50, stall mechanism found, shared package landed)
+
+- The 5-second stalls have a measured mechanism (agent `ac6a56aed8916cfec`, doc
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): each fixture's copy of the
+  wrapper is a btrfs reflink clone with no pages in the page cache, so the first wrapped command of every fixture reads
+  the executable from disk (debug build 21.9 MB, 16.3 MiB read; release 9.9 MB, 9.45 MiB). With both btrfs devices
+  capped at 5 MB/s the first command took 5.0 to 6.2 s (killed by the bound); with a real copy (`cp --reflink=never`)
+  3 to 4 ms. It is positional, which is why no single command was common to the failures, and why the earlier
+  3600-start measurement (one fixture) missed it. Memory caps from 96m to 2g had no effect. No raise of the 5-second
+  bound is supported by the data (a 10 s bound would hide it at 5 MB/s and not at 1 MB/s); the user's approval gate
+  for a raise stays.
+- Landed: the harness fix and a FIEMAP guard test (`a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable`)
+  and `strip = "symbols"` for the release profile (user chose option B: 9.45 to 8.09 MiB first-start read; fat LTO
+  with one codegen unit, 7.43 MiB, not adopted because it lengthens the release build). Next release carries the
+  strip. Unverified: wall-time gain of the strip on a cold start, fsync sensitivity (write caps did not slow fsync),
+  Git's own executable eviction.
+- User, on seeing "each fixture's copy of the wrapper": that smells. Agent `ac6a56aed8916cfec` was resumed to find why
+  every fixture copies the executable and to replace it with the cleanest design (one real copy per test process,
+  reached through a hard link or symlink, or no copy), measured, with a guard test. I land its branch.
+- Landed: the shared package migration (`package/mutation-test/cli-cargo-mutants`; steps 1 to 6; 359 unit tests; 44 golden
+  pins of the old scripts; the engine is used by git-policy, the linter, forbidden-strings core, with the scanner on
+  the shared exclusion constant only). Intentional changes are listed in `doc/planning/shared-cargo-mutants-package.md`.
+  Parity proof is running: units `cli-git-parity-git-policy` (command_push.rs with `--memory 3g --cpus 3`, check the
+  container's limits with `podman inspect`), `-forbidden-core` (charset.rs with the same limits), `-linter`
+  (`mutation:markdown:parent`), `-scanner` (`test:mutation:startup:container`); logs `~/temp/agent/parity-<name>.log`.
+  The engine's snapshot image build and the new create flow had never run against real Podman before this.
