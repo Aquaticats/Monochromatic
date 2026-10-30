@@ -4238,3 +4238,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
   directory sat inside a monorepo checkout. The crate cannot be built on the host (`build.rs:207` panics without the
   container-prepared runtime), so the three tests run only in the IDE container, whose mount holds only `package/ide/app`.
   Not shown failing; owner of `package/ide` should decide.
+- Correction to the note above: `package/ide/app/build.rs:207` panics only because the language runtime manifest is
+  absent; its message says to prepare it with `mise run //package/ide/app:runtime`. The crate can be built and its tests run
+  on the host after that task (not run: it fetches and builds Helix grammars). To confirm the latent layout risk, run it
+  once, then the three named tests with `CARGO_BUILD_BUILD_DIR=target` inside a throwaway worktree.
