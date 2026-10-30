@@ -1,5 +1,5 @@
-import { shellQuote } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/shell-quote.ts';
-import { usesOnly } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/character-set.ts';
+import { shellQuote } from '@monochromatic-dev/shell-argument-core/ts/shell-quote.ts';
+import { usesOnly } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 
 import { shellPlainCharacters } from './constants.ts';
 

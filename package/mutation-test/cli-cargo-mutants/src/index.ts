@@ -4,7 +4,6 @@
 export * from './campaign-files.ts';
 export * from './campaign-options.ts';
 export * from './campaign-runner.ts';
-export * from './character-set.ts';
 export * from './constants.ts';
 export * from './container-limits.ts';
 export * from './error.ts';
@@ -20,7 +19,6 @@ export * from './run-captured.ts';
 export * from './run-program.ts';
 export * from './scope-tools.ts';
 export * from './shell-body.ts';
-export * from './shell-quote.ts';
 export * from './systemd-run-arguments.ts';
 export * from './task-arguments.ts';
 export * from './validate.ts';

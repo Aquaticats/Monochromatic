@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import {
   alphanumericCharacters,
   usesOnly,
-} from './character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import type { FakePodman } from './fake-podman-fixture.ts';
 import type { ScriptRun } from './run-fixture-program.ts';
 

@@ -19,7 +19,7 @@
   ],
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
-    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*"
+    "@monochromatic-dev/shell-argument-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/config-typescript": "workspace:*",

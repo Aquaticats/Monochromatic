@@ -4,7 +4,7 @@ import {
   startsThenUses,
   usesOnly,
   wordStartCharacters,
-} from './character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import {
   environmentNameCharacters,
   maximumWholeNumberDigits,

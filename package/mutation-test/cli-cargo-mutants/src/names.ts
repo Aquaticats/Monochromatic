@@ -5,7 +5,7 @@ import {
   hyphenateOutside,
   startsThenUses,
   wordStartCharacters,
-} from './character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import {
   imageTagCharacters,
   logNameCharacters,

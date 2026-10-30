@@ -1,4 +1,4 @@
-import { CargoMutantsToolingError } from './error.ts';
+import { ShellArgumentError } from './error.ts';
 
 /**
  Single quote character, the only character POSIX shells cannot hold inside single quotes.
@@ -20,7 +20,7 @@ const escapedSingleQuote = String.raw`'\''`;
  
  @returns the quoted word, safe to place anywhere a shell word may stand
  
- @throws CargoMutantsToolingError when the value holds a NUL character, which no shell argument can hold
+ @throws ShellArgumentError when the value holds a NUL character, which no shell argument can hold
 
  @example
  ```ts
@@ -29,7 +29,7 @@ const escapedSingleQuote = String.raw`'\''`;
  */
 export function shellQuote(value: string): string {
   if (value.includes('\0'))
-    throw new CargoMutantsToolingError('A shell argument cannot contain a NUL character.');
+    throw new ShellArgumentError('A shell argument cannot contain a NUL character.');
   return `${singleQuote}${value.replaceAll(
     singleQuote,
     escapedSingleQuote

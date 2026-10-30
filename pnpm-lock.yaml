@@ -1420,9 +1420,9 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
-      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+      '@monochromatic-dev/shell-argument-core':
         specifier: workspace:*
-        version: link:../../mutation-test/cli-cargo-mutants
+        version: link:../../shell-argument/core
     devDependencies:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
@@ -3206,6 +3206,9 @@ importers:
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
+      '@monochromatic-dev/shell-argument-core':
+        specifier: workspace:*
+        version: link:../../shell-argument/core
     devDependencies:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
@@ -4428,6 +4431,18 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
+  package/shell-argument/core:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5

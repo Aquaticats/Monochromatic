@@ -5,7 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { adversarialValues } from './adversarial-fixture.ts';
-import { usesOnly } from './character-set.ts';
+import { usesOnly } from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import {
   buildImageTag,

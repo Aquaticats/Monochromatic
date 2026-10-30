@@ -1,7 +1,7 @@
 import {
   decimalDigits,
   usesOnly,
-} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts/character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 
 import { cratesIoApiBase } from './constants.ts';
 import { CrateReleaseError } from './error.ts';

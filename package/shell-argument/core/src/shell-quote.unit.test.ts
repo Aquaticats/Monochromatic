@@ -7,7 +7,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import { adversarialValues } from './adversarial-fixture.ts';
-import { CargoMutantsToolingError } from './error.ts';
+import { ShellArgumentError } from './error.ts';
 import { shellQuote } from './shell-quote.ts';
 
 /**
@@ -61,7 +61,7 @@ await describe({
         it({
           name: 'rejects a NUL character',
           fn: async () => {
-            expect(() => shellQuote('a\0b')).toThrow(CargoMutantsToolingError);
+            expect(() => shellQuote('a\0b')).toThrow(ShellArgumentError);
           },
         }),
       ],

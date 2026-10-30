@@ -18,7 +18,8 @@
     "LICENSES"
   ],
   "dependencies": {
-    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*"
+    "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
+    "@monochromatic-dev/shell-argument-core": "workspace:*"
   },
   "devDependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",

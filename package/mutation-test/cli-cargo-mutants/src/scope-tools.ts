@@ -9,7 +9,7 @@ import { evidenceJson } from './campaign-files.ts';
 import {
   usesOnly,
   decimalDigits
-} from './character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import { CargoMutantsToolingError } from './error.ts';
 import { exclusionArguments } from './excluded-mutants.ts';
 import { mapInSequence } from './in-sequence.ts';

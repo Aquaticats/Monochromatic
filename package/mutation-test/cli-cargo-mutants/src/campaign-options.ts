@@ -2,7 +2,7 @@ import {
   decimalDigits,
   isPositiveWholeNumber,
   usesOnly,
-} from './character-set.ts';
+} from '@monochromatic-dev/shell-argument-core/ts/character-set.ts';
 import { CargoMutantsToolingError } from './error.ts';
 
 /**

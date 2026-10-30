@@ -18,10 +18,10 @@ directly.
 - The sibling `package/mutation-test/cli-cargo-mutants` is the precedent for product-neutral tooling that products wrap
   in their own mise task, so configuration is command-line options, not a config file.
   A config file would add a second place where a crate's name and paths live next to the task that already names them.
-- The package reuses `shellQuote` and the character-set helpers of `@monochromatic-dev/mutation-test-cli-cargo-mutants`
+- The package reuses `shellQuote` and the character-set helpers of `@monochromatic-dev/shell-argument-core`
   through its `./ts/*` subpath.
-  That makes a release tool depend on a mutation-test package; moving those helpers to a shared package of their own
-  would remove the odd direction and is a change for all users at once.
+  That neutral package is shared with `@monochromatic-dev/mutation-test-cli-cargo-mutants`, so neither tool depends
+  on the other.
 
 ## Release command
 
