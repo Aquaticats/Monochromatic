@@ -4227,3 +4227,14 @@ This block supersedes "State at 2026-10-29 (night, later)".
   observation to 1812 instead of opening a duplicate.
 - Agent `ac6a56aed8916cfec` could not be resumed because its worktree was removed in the cleanup; a fresh agent took its
   follow-up.
+
+- Container-layout scratch-root check (agent `a10588f87fc49c23f` and my follow-up): `monochromatic-lint-closure` is not
+  affected (24 of 24 pass with the build directory inside the crate; its UI test exports `CARGO_MANIFEST_DIR` and
+  `OUT_DIR` itself and nothing searches upward for a manifest). The other nine `test_scratch.rs` copies show no failing
+  case by code reading. One latent risk remains unconfirmed in `package/ide/app`: `a_worktree_that_is_not_above_the_project_does_not_serve_it`
+  (toolchain_tests), `outside_a_work_tree_nothing_is_ignored` (git_ignore_tests) and
+  `outside_a_work_tree_no_row_is_flagged_or_named_ignored` (native::ignored_row_tests) assume no repository root and no
+  `package/file-enforcer/core/src/toolchain/bin-paths.ts` above the scratch directory; they would fail if the build
+  directory sat inside a monorepo checkout. The crate cannot be built on the host (`build.rs:207` panics without the
+  container-prepared runtime), so the three tests run only in the IDE container, whose mount holds only `package/ide/app`.
+  Not shown failing; owner of `package/ide` should decide.
