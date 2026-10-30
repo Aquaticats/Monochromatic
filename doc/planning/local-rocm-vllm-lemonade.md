@@ -9,9 +9,11 @@ On 2026-10-30 the user selected:
 - Lemonade-managed vLLM rather than an independent vLLM environment.
 - Packaged binaries only.
   If GPU compatibility fails, report the blocker instead of attempting a source build.
+- Official Lemonade container under Podman, including its browser UI.
+  The user explicitly accepted the upstream Ubuntu 24.04 base.
 
 Installation has not started.
-Deployment, model selection, service behavior, resource limits,
+Model selection, service behavior, resource limits,
 and final shared-understanding confirmation remain open.
 
 ## Local evidence
@@ -99,8 +101,8 @@ Release `v2026.44.1` offers these Linux routes:
   Bazzite's package-layering documentation describes `rpm-ostree`,
   a reboot, and manual updates for local RPM installations.
 
-The user has been asked to choose this deployment route.
-The recommended container route includes normal runtime JIT compilation;
+The user selected the official container route.
+This route includes normal runtime JIT compilation;
 it does not require building Lemonade or vLLM from source.
 
 The planning document's CommonMark rendering was inspected with Pandoc.
@@ -108,8 +110,24 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
-Determine the supported packaged deployment choices for Lemonade on this host,
-then ask the user to choose the installation environment.
-After dependencies are settled, determine desired models, service lifecycle,
-network reach, storage, and resource limits.
+Questions currently await the user's model/workload preference,
+network reach, and server startup preference.
+Then settle storage and resource limits using the selected workload.
 Present the concrete installation and verification plan for the grilling session's final confirmation.
+
+## Additional inventory
+
+Authorized read-only host inspection found no Lemonade or vLLM rootless containers or images.
+Ports 13305 and 8000 had no listeners.
+The user has no existing Quadlet directory at `~/.config/containers/systemd`.
+The host has 32 online CPUs;
+plain `nproc` reports the runner's allocation of 2 rather than the host inventory.
+RAM totals 66,211,774,464 bytes,
+with 55,843,090,432 bytes available at the probe instant.
+These snapshots do not establish future headroom.
+
+The existing Hugging Face cache contains downloaded GGUF weights for
+Qwen3.5-4B, Nemotron 3.5 Bolt E4B, EmbeddingGemma 2, and Qwen3-ASR 0.6B.
+Snapshot symlinks were followed to verify actual file sizes.
+The cache occupies 11,017,674,752 allocated bytes.
+No model integrity or Lemonade/vLLM compatibility claim follows from this inventory.
