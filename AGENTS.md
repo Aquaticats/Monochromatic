@@ -696,6 +696,13 @@ NHP:
  unusual filesystems,
  DNS or mirror trouble.
 
+RBT:
+ A reboot can make data on this machine's unreliable SSD permanently unreadable:
+ commit and push before any reboot,
+ and never count on uncommitted files,
+ scratch,
+ or caches surviving one.
+
 FHU:
  Real jobs may use almost the whole host:
  size `CPUQuota` near `nproc` minus a few threads,
