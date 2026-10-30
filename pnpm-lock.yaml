@@ -1415,6 +1415,22 @@ importers:
         specifier: 'catalog:'
         version: 7.1.0-beta
 
+  package/crate-release/cli:
+    dependencies:
+      '@monochromatic-dev/mutation-test-cli-cargo-mutants':
+        specifier: workspace:*
+        version: link:../../mutation-test/cli-cargo-mutants
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/css/cli:
     dependencies:
       '@monochromatic-dev/css-core-edit':

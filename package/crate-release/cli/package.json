@@ -1,0 +1,35 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/crate-release-cli",
+  "description": "Product-neutral release helpers for Rust crates published to crates.io with GitHub release assets: one command bumps versions, checks and commits a release; the other waits for the publish workflow and verifies the result.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "crate-release": "bin/release.ts",
+    "crate-release-wait": "bin/wait-publish.ts"
+  },
+  "exports": {
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "files": [
+    "bin",
+    "src",
+    "LICENSES"
+  ],
+  "dependencies": {
+    "@monochromatic-dev/mutation-test-cli-cargo-mutants": "workspace:*"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:"
+  },
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/crate-release/cli"
+  },
+  "sideEffects": false
+}
