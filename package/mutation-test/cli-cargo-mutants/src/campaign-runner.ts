@@ -94,6 +94,10 @@ export type CampaignDefinition = {
    Record written as `manifest.json`.
    */
   readonly manifest: (facts: ManifestFacts) => unknown;
+  /**
+   Check a product runs on the evidence directory once the campaign passed and its report was copied.
+   */
+  readonly afterReport?: (evidence: string) => Promise<void>;
 };
 
 /**
@@ -364,4 +368,5 @@ export async function runCampaign(definition: CampaignDefinition): Promise<void>
     throw new CargoMutantsToolingError(`Mutation campaign exited ${result.status}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`);
   if (copy.status !== 0)
     throw new CargoMutantsToolingError(`Mutation campaign passed but its report was not copied: ${copy.stderr}`);
+  await definition.afterReport?.(evidence);
 }

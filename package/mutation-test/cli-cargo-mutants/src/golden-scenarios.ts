@@ -137,7 +137,7 @@ export function goldenScenarios(): readonly GoldenScenario[] {
     }),
     ...scriptScenarios({
       product: 'linter',
-      script: productFile('linter/monochromatic-lint/bin/mutate-container.mjs'),
+      script: productFile('linter/monochromatic-lint/bin/mutate-container.ts'),
       base: linterEnvironment,
       sets: linterArgumentSets,
     }),
@@ -160,7 +160,7 @@ export function goldenScenarios(): readonly GoldenScenario[] {
     },
     ...scriptScenarios({
       product: 'scanner',
-      script: productFile('forbidden-strings/cli/bin/mutate-container.mjs'),
+      script: productFile('forbidden-strings/cli/bin/mutate-container.ts'),
       base: {},
       sets: scannerArgumentSets,
     }),
@@ -215,8 +215,11 @@ async function runKind({
   if (!inline)
     return runShellCommand({
       fake,
-      command: source,
-      workingDirectory: packageDirectory,
+      command: source.replace(
+        'node bin/',
+        `node ${packageDirectory}/bin/`,
+      ),
+      workingDirectory: fake.workingDirectory,
       extraEnvironment: scenario.environment,
     });
   // The task source resolves workspace packages from its directory, as a mise task does from the package.

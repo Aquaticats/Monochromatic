@@ -80,6 +80,8 @@ documented at `defaultSlotCount` in `src/constants.ts`.
 
 ## Tasks
 
-- `campaign:parallel` runs the launcher; `campaign:parallel:git-policy-native` fills in the native git-policy values.
+- `campaign:parallel` runs the launcher.
+  Products give it their values in a task of their own,
+  for example `native:mutation:parallel` in the git-policy package.
 - `campaign:gate-slot` runs the limiter.
 - `lint`, `lint:types`, `lint:oxlint`, `format:oxlint` and `test:unit` are the usual package checks.

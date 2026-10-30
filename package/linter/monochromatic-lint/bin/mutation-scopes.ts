@@ -1,38 +1,73 @@
-#!/usr/bin/env node
 /**
- Run cargo-mutants against an already tested, disposable container snapshot.
- Source mutation and compilation stay inside the container; only reports leave it.
- `--list <scope>` prints one scope's mutants on the host, and `--coverage` proves that the scopes together
- hold every mutant of the unscoped listing; both read the same scope table the campaigns use.
+ The linter's mutation scopes: which source files each campaign mutates, which tests it runs, and how long a mutant
+ may take.
  */
-import { join } from 'node:path';
-import { mkdirSync as makeScratchBase } from 'node:fs';
 
-import {
-  campaignCommand,
-  checkScopeCoverage,
-  defaultBuildTimeoutSeconds,
-  listMutants,
-  parseContainerLimitOptions,
-  runCampaign,
-  takeMutantRegex,
-  takeShard,
-} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+/**
+ One scope of the linter's mutation campaigns.
+ */
+export type MutationScope = {
+  /**
+   What the scope covers, for the usage listing.
+   */
+  readonly description: string;
+  /**
+   cargo-mutants options that decide which mutants exist; all `--list` needs.
+   */
+  readonly select: readonly string[];
+  /**
+   cargo-mutants options that decide how each mutant is built and tested; last because they may end with libtest
+   arguments.
+   */
+  readonly run: readonly string[];
+  /**
+   Per-mutant test limit in seconds when it differs from the default.
+   */
+  readonly timeoutSeconds?: number;
+};
 
-// Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
-// whose backing device is unknowable.
-const scratchBase = join(import.meta.dirname, '..', 'node_modules', '.monochromatic', 'monochromatic-lint');
-makeScratchBase(scratchBase, { recursive: true });
+/**
+ Per-mutant test limit, in seconds, for every scope whose own entry names none.
+ */
+export const defaultTimeoutSeconds = 180;
 
+/**
+ One nextest `--skip` option pair, which excludes every test whose name contains the text.
 
-/** Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image. */
-const imageTag = process.env
-  .MONOCHROMATIC_LINT_IMAGE_TAG
-  ?? 'development';
-/** Already tested source snapshot this campaign mutates. */
-const testImage = `localhost/monochromatic-lint-test:${imageTag}`;
-/** Campaign image layered over the tested snapshot. */
-const mutationImage = `localhost/monochromatic-lint-mutation:${imageTag}`;
+ @param name - test name fragment
+ 
+ @returns the option pair
+ 
+ @example
+ ```ts
+ skipArguments('module::tests::slow');
+ ```
+ */
+function skipArguments(name: string): string[] {
+  return [
+    '--skip',
+    name,
+  ];
+}
+
+/**
+ One cargo-mutants `--file` option pair, which keeps the source files the glob matches.
+
+ @param glob - file glob under the crate
+ 
+ @returns the option pair
+ 
+ @example
+ ```ts
+ fileArguments('src/markdown_*.rs');
+ ```
+ */
+function fileArguments(glob: string): string[] {
+  return [
+    '--file',
+    glob,
+  ];
+}
 
 /**
  Full names of the five tests that load a real Cargo workspace through the semantic engine.
@@ -40,32 +75,13 @@ const mutationImage = `localhost/monochromatic-lint-mutation:${imageTag}`;
  (workspace-tests-cost-1.log), so the fast scopes skip exactly these. Each name is a whole test path that no other
  test contains, so the quick tests of the same modules still run. Record: doc/handover/unified-linter-mutation-close.md.
  */
-const workspaceTests = [
+const workspaceTests: readonly string[] = [
   'rust_explicit_types_tests::semantic_conformance_and_source_overlay_controls',
   'rust_file_engine::tests::selected_semantics_reuses_the_manifest_session',
   'rust_inferred_constants::tests::holes_resolve_against_the_parameter_in_their_own_slot',
   'rust_workspace_tests::generated_definitions_and_build_failures_are_distinct',
   'run_directive_tests::semantic_findings_follow_the_same_directive_rules',
 ];
-
-/** Per-mutant test limit, in seconds, for every scope whose own entry names none. */
-const defaultTimeoutSeconds = 180;
-
-/** One nextest `--skip` option pair, which excludes every test whose name contains the text. */
-function skipArguments(name) {
-  return [
-    '--skip',
-    name
-  ];
-}
-
-/** One cargo-mutants `--file` option pair, which keeps the source files the glob matches. */
-function fileArguments(glob) {
-  return [
-    '--file',
-    glob
-  ];
-}
 
 /**
  Every scope, keyed by its command-line option. `select` decides which mutants exist (it is all `--list` needs),
@@ -75,7 +91,7 @@ function fileArguments(glob) {
  accepts several test-name filters; a second `--` hands the remaining arguments to nextest's own filter
  position, the only place it accepts `--skip` (probed: a `--skip` before it is an unexpected argument).
  */
-const scopes = new Map([
+export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, MutationScope>([
   [
     '--rust-style',
     {
@@ -215,155 +231,11 @@ const scopes = new Map([
   ],
 ]);
 
-/** The whole crate against the whole suite, used when no scope option is given. */
-const unscoped = {
+/**
+ The whole crate against the whole suite, used when no scope option is given.
+ */
+export const unscoped: MutationScope = {
   description: 'every module against the whole suite',
   select: [],
   run: []
 };
-
-/** Verification failures keep the failing operation visible. */
-class VerificationError extends Error {}
-
-/** Build and run the tool over an immutable input image, then retain its complete report. */
-async function campaign({
-  scope,
-  shard,
-  examine,
-  limits
-}) {
-  // cargo-mutants keeps a mutant that matches any `--re`, so a second one would widen a scope that has its own.
-  if ((examine !== undefined)
-    && scope.select
-      .includes('--re'))
-    throw new VerificationError('This scope already selects mutants by name; --re would widen it.');
-  const timeoutSeconds = scope.timeoutSeconds ?? defaultTimeoutSeconds;
-  await runCampaign({
-    testImage,
-    mutationImage,
-    testImageHint: '',
-    scratchBase,
-    contextPrefix: 'monochromatic-lint-mutation-',
-    evidenceRoot: join(
-      process.cwd(),
-      'target',
-      'verification'
-    ),
-    evidencePrefix: 'mutation-',
-    limits,
-    containerReport: '/work/mutation-report',
-    command: campaignCommand({
-      outputDirectory: '/work/mutation-report',
-      timeoutSeconds,
-      buildTimeoutSeconds: defaultBuildTimeoutSeconds,
-      additionalExclusions: [],
-      tail: [
-        ...(shard === undefined ? [] : [
-          '--shard',
-          shard
-        ]),
-        ...scope.select,
-        ...(examine === undefined ? [] : [
-          '--re',
-          examine
-        ]),
-        ...scope.run,
-      ],
-    }),
-    manifest: ({ baseImage, campaignImage, toolSha256, container, command }) => ({
-      baseImage,
-      campaignImage,
-      shard: shard ?? null,
-      examine: examine ?? null,
-      toolSha256,
-      container,
-      command,
-      limits: {
-        memory: limits.memory,
-        cpus: limits.cpus,
-        pids: limits.pidsLimit,
-        buildTimeoutSeconds: defaultBuildTimeoutSeconds,
-        testTimeoutSeconds: timeoutSeconds
-      },
-    }),
-  });
-}
-
-/** Resolve one optional scope option to its table entry, or to the unscoped campaign when none is given. */
-function scopeFor(option) {
-  if (option === undefined)
-    return unscoped;
-  const scope = scopes.get(option);
-  if (scope === undefined)
-    throw new VerificationError(`Unknown scope ${option}; expected one of ${[...scopes.keys()].join(', ')}.`);
-  return scope;
-}
-
-/**
- Dispatch: a campaign by default, optionally one `--shard k/n` of it or only the mutants whose names match
- `--re <regex>`, `--list [scope]` for one listing,
- and `--coverage` for the scope-union proof.
- */
-async function main() {
-  // `--memory`, `--cpus` and `--pids-limit` override the 2g, 2 CPU and 128 process bounds of the build and the container.
-  const {
-    limits,
-    rest: options
-  } = parseContainerLimitOptions({
-    options: process.argv
-      .slice(2),
-    acceptPidsLimit: true,
-    leadingOnly: false,
-    valuelessFlags: [
-      ...scopes.keys(),
-      '--list',
-      '--coverage'
-    ]
-  });
-  if (options[0] === '--coverage') {
-    if (options.length !== 1)
-      throw new VerificationError('--coverage takes no other option.');
-    await checkScopeCoverage({
-      scopes: [...scopes].map(([option, scope]) => [
-        option,
-        scope.select
-      ]),
-      unscopedSelect: unscoped.select,
-      additionalExclusions: [],
-      evidenceRoot: join(
-        process.cwd(),
-        'target',
-        'verification'
-      )
-    });
-    return;
-  }
-  if (options[0] === '--list') {
-    if (options.length > 2)
-      throw new VerificationError('--list takes at most one scope option.');
-    console.log((await listMutants({
-      select: scopeFor(options[1]).select,
-      additionalExclusions: []
-    }))
-      .join('\n'));
-    return;
-  }
-  const {
-    shard,
-    rest: withoutShard
-  } = takeShard(options);
-  const {
-    examine,
-    rest
-  } = takeMutantRegex(withoutShard);
-  if (rest.length > 1)
-    throw new VerificationError(`Only one of ${[...scopes.keys()].join(', ')} is accepted.`);
-  await campaign({
-    scope: scopeFor(rest[0]),
-    shard,
-    examine,
-    limits
-  });
-}
-
-await main();

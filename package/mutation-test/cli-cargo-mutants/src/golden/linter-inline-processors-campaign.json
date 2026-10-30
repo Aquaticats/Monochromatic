@@ -1,12 +1,14 @@
 {
   "status": 0,
   "errorMessage": "",
-  "stdout": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nProcessor mutation evidence: <WORK>/target/verification/processors-mutation-<ID>\n",
+  "stdout": "Mutation evidence: <WORK>/target/verification/processors-mutation-<ID>\n",
   "calls": [
     [
       "image",
       "inspect",
-      "localhost/monochromatic-lint-processors:golden"
+      "localhost/monochromatic-lint-processors:golden",
+      "--format",
+      "{{.Id}}"
     ],
     [
       "build",
@@ -16,6 +18,8 @@
       "--memory=2g",
       "--cpu-period=100000",
       "--cpu-quota=200000",
+      "--iidfile",
+      "<CONTEXT>",
       "--tag",
       "localhost/monochromatic-lint-processors-mutation:golden",
       "<CONTEXT>"
@@ -27,7 +31,47 @@
       "--memory=2g",
       "--cpus=2",
       "--pids-limit=128",
-      "localhost/monochromatic-lint-processors-mutation:golden"
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "cargo",
+      "mutants",
+      "--in-place",
+      "--baseline",
+      "run",
+      "--build-timeout",
+      "300",
+      "--timeout",
+      "180",
+      "--no-config",
+      "--no-shuffle",
+      "--test-tool",
+      "nextest",
+      "--output",
+      "/work/processor-mutation-report",
+      "--cargo-arg=--offline",
+      "--cargo-arg=--locked",
+      "--exclude-re",
+      "replace \\+= with \\*=",
+      "--exclude-re",
+      "replace -= with /=",
+      "--jobserver-tasks",
+      "2",
+      "--file",
+      "src/processors_prepare.rs",
+      "--file",
+      "src/processors_projection.rs",
+      "--file",
+      "src/processors_rewrite.rs",
+      "--re",
+      "replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\(\\(\\)\\)|String::new\\(\\)|Ok\\(String::new\\(\\)\\))$",
+      "--cargo-test-arg=processors",
+      "--caught"
+    ],
+    [
+      "container",
+      "inspect",
+      "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "--format",
+      "{{json .Config.Cmd}}"
     ],
     [
       "start",
@@ -46,16 +90,16 @@
     ]
   ],
   "containerfiles": [
-    "FROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\",\"mutants\",\"--version\"]\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--jobserver-tasks\",\"2\",\"--build-timeout\",\"300\",\"--timeout\",\"180\",\"--file\",\"src/processors_prepare.rs\",\"--file\",\"src/processors_projection.rs\",\"--file\",\"src/processors_rewrite.rs\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--re\",\"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\"--cargo-test-arg=processors\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--caught\",\"--output\",\"/work/processor-mutation-report\"]\n"
+    "# The tested image ID binds this campaign to an exact source snapshot.\nFROM aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nCOPY cargo-mutants /usr/local/cargo/bin/cargo-mutants\nRUN [\"cargo\", \"mutants\", \"--version\"]\nENV CARGO_NET_OFFLINE=true\nCMD [\"cargo\",\"mutants\",\"--in-place\",\"--baseline\",\"run\",\"--build-timeout\",\"300\",\"--timeout\",\"180\",\"--no-config\",\"--no-shuffle\",\"--test-tool\",\"nextest\",\"--output\",\"/work/processor-mutation-report\",\"--cargo-arg=--offline\",\"--cargo-arg=--locked\",\"--exclude-re\",\"replace \\\\+= with \\\\*=\",\"--exclude-re\",\"replace -= with /=\",\"--jobserver-tasks\",\"2\",\"--file\",\"src/processors_prepare.rs\",\"--file\",\"src/processors_projection.rs\",\"--file\",\"src/processors_rewrite.rs\",\"--re\",\"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\"--cargo-test-arg=processors\",\"--caught\"]\n"
   ],
   "evidenceFiles": [
     [
       "verification/processors-mutation-<ID>/exit.json",
-      "{\"status\":0,\"reportCopied\":true}\n"
+      "{\n  \"status\": 0,\n  \"signal\": null,\n  \"reportCopied\": true\n}\n"
     ],
     [
       "verification/processors-mutation-<ID>/manifest.json",
-      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--caught\",\n    \"--output\",\n    \"/work/processor-mutation-report\"\n  ]\n}\n"
+      "{\n  \"baseImage\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  \"toolSha256\": \"f9f71cb184014854792a7628c1a71960ad5427dc51c0f4318cbc804288956459\",\n  \"container\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"command\": [\n    \"cargo\",\n    \"mutants\",\n    \"--in-place\",\n    \"--baseline\",\n    \"run\",\n    \"--build-timeout\",\n    \"300\",\n    \"--timeout\",\n    \"180\",\n    \"--no-config\",\n    \"--no-shuffle\",\n    \"--test-tool\",\n    \"nextest\",\n    \"--output\",\n    \"/work/processor-mutation-report\",\n    \"--cargo-arg=--offline\",\n    \"--cargo-arg=--locked\",\n    \"--exclude-re\",\n    \"replace \\\\+= with \\\\*=\",\n    \"--exclude-re\",\n    \"replace -= with /=\",\n    \"--jobserver-tasks\",\n    \"2\",\n    \"--file\",\n    \"src/processors_prepare.rs\",\n    \"--file\",\n    \"src/processors_projection.rs\",\n    \"--file\",\n    \"src/processors_rewrite.rs\",\n    \"--re\",\n    \"replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\\\(\\\\(\\\\)\\\\)|String::new\\\\(\\\\)|Ok\\\\(String::new\\\\(\\\\)\\\\))$\",\n    \"--cargo-test-arg=processors\",\n    \"--caught\"\n  ]\n}\n"
     ],
     [
       "verification/processors-mutation-<ID>/mutants.out/outcomes.json",

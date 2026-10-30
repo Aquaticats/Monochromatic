@@ -18,6 +18,36 @@ run = "cargo check"
 description = "Check Rust types and deny Clippy findings"
 run = ["cargo check", "cargo clippy --all-targets -- -D warnings"]
 
+[tasks."lint:scripts:types"]
+description = "Type-check the verification scripts in bin (TypeScript)"
+extends = "lint:types"
+
+[tasks."lint:scripts:oxlint"]
+description = "Lint explicitly selected linter TypeScript script paths with Oxlint, without the diagnostics of the older .mjs scripts in bin"
+usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('lint:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
+"""
+
+[tasks."format:scripts:oxlint"]
+description = "Auto-fix explicitly selected linter TypeScript script paths with Oxlint"
+usage = 'arg "[paths]" var=#true help="Package-relative files to fix"'
+shell = "node --input-type=module-typescript -e"
+run = """
+{{vars.dispatch_workspace_node}}
+{{vars.parse_usage_args}}
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+if (files.length === 0) { throw new Error('format:scripts:oxlint requires at least one file') }
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', ['--fix', ...files])
+"""
+
 [tasks."format:rust"]
 description = "Format the native unified-linter source"
 run = "cargo fmt"
@@ -59,71 +89,71 @@ run = "node bin/clippy-container.mjs"
 [tasks.mutation]
 description = "Run cargo-mutants in the tested, mount-free 2 GiB / 2 CPU source snapshot"
 depends = ["test:container"]
-run = "node bin/mutate-container.mjs"
+run = "node bin/mutate-container.ts"
 
 [tasks."mutation:rust-style"]
 description = "Mutate the sidecar test rule with its focused baseline in the bounded source snapshot"
 depends = ["test:rust-style"]
-run = "node bin/mutate-container.mjs --rust-style"
+run = "node bin/mutate-container.ts --rust-style"
 
 [tasks."mutation:markdown"]
 description = "Mutate native Markdown modules against their tests after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --markdown"
+run = "node bin/mutate-container.ts --markdown"
 
 [tasks."mutation:markdown:parent"]
 description = "Mutate only the Markdown parent lookup against its contract control, which never walks ancestors and fails at once under a constant replacement"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --markdown-parent"
+run = "node bin/mutate-container.ts --markdown-parent"
 
 [tasks."mutation:processors:files"]
 description = "Mutate every processor module against the processor tests after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --processors"
+run = "node bin/mutate-container.ts --processors"
 
 [tasks."mutation:inferred-constants"]
 description = "Mutate generic constant-slot resolution against its slot controls and the semantic conformance suite after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --inferred-constants"
+run = "node bin/mutate-container.ts --inferred-constants"
 
 [tasks."mutation:executable"]
 description = "Mutate the executable's orchestration, entry point, command grammar, Rust rule selection, input expansion and fix loop against every test except the five Cargo-workspace tests, after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --executable"
+run = "node bin/mutate-container.ts --executable"
 
 [tasks."mutation:core"]
 description = "Mutate configuration, findings, inline directives, grouped edits and the syntax-only Rust rules against every test except the five Cargo-workspace tests, after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --core"
+run = "node bin/mutate-container.ts --core"
 
 [tasks."mutation:semantic"]
 description = "Mutate the semantic engine and the explicit-type rule against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
 depends = ["lint:container"]
-run = "node bin/mutate-container.mjs --semantic"
+run = "node bin/mutate-container.ts --semantic"
 
 [tasks."mutation:coverage"]
 description = "Prove from listings that the mutation scopes together hold every mutant of the unscoped listing, name by name, without building"
-run = "node bin/mutate-container.mjs --coverage"
+run = "node bin/mutate-container.ts --coverage"
 
 [tasks."mutation:list:executable"]
 description = "Inspect the executable mutant scope without mutating or building source"
-run = "node bin/mutate-container.mjs --list --executable"
+run = "node bin/mutate-container.ts --list --executable"
 
 [tasks."mutation:list:core"]
 description = "Inspect the configuration, findings, inline directive, edits and syntax-only Rust rule mutant scope without mutating or building source"
-run = "node bin/mutate-container.mjs --list --core"
+run = "node bin/mutate-container.ts --list --core"
 
 [tasks."mutation:list:semantic"]
 description = "Inspect the semantic engine and explicit-type rule mutant scope without mutating or building source"
-run = "node bin/mutate-container.mjs --list --semantic"
+run = "node bin/mutate-container.ts --list --semantic"
 
 [tasks."mutation:list:markdown"]
 description = "Inspect the Markdown mutant scope without mutating or building source"
-run = "node bin/mutate-container.mjs --list --markdown"
+run = "node bin/mutate-container.ts --list --markdown"
 
 [tasks."mutation:list:inferred-constants"]
 description = "Inspect the constant-slot resolver mutant scope without mutating or building source"
-run = "node bin/mutate-container.mjs --list --inferred-constants"
+run = "node bin/mutate-container.ts --list --inferred-constants"
 
 [tasks."test:container"]
 description = "Run artifact tests in a mount-free, network-disabled 2 GiB / 2 CPU container"
@@ -264,63 +294,8 @@ console.log('Handoff rendered to target/verification/processors-handover.html');
 '''
 
 [tasks."mutation:processors"]
-description = "Remove concrete processor safety guards in a mount-free bounded immutable snapshot"
-shell = "node --input-type=module-typescript -e"
-run = '''
-import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
-function podman(args, allowFailure = false) {
-  const result = spawnSync('podman', args, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-  if (result.error) throw result.error;
-  if (!allowFailure && result.status !== 0) throw new Error(result.stderr);
-  if (!args.includes('inspect')) process.stdout.write(result.stdout + result.stderr);
-  return result;
-}
-// Concurrent worktrees set MONOCHROMATIC_LINT_IMAGE_TAG so one snapshot never runs another's image.
-const imageTag = process.env.MONOCHROMATIC_LINT_IMAGE_TAG ?? 'development';
-const base = JSON.parse(podman(['image', 'inspect', 'localhost/monochromatic-lint-processors:' + imageTag]).stdout)[0].Id;
-const context = await mkdtemp(join(tmpdir(), 'processor-mutants-'));
-await mkdir('target/verification', { recursive: true });
-const evidence = await mkdtemp(join(process.cwd(), 'target/verification/processors-mutation-'));
-const tool = join(process.env.CARGO_HOME ?? join(homedir(), '.cargo'), 'bin/cargo-mutants');
-const toolSha256 = createHash('sha256').update(await readFile(tool)).digest('hex');
-const filter = 'replace (has_main|verify|encoded|rewrite).* with (true|false|Ok\\(\\(\\)\\)|String::new\\(\\)|Ok\\(String::new\\(\\)\\))$';
-const command = ['cargo', 'mutants', '--in-place', '--baseline', 'run', '--no-config', '--no-shuffle', '--test-tool', 'nextest',
-  '--jobserver-tasks', '2', '--build-timeout', '300', '--timeout', '180',
-  '--file', 'src/processors_prepare.rs', '--file', 'src/processors_projection.rs', '--file', 'src/processors_rewrite.rs',
-  ...exclusionArguments([]),
-  '--re', filter, '--cargo-test-arg=processors', '--cargo-arg=--offline', '--cargo-arg=--locked', '--caught',
-  '--output', '/work/processor-mutation-report'];
-let container;
-try {
-  await copyFile(tool, join(context, 'cargo-mutants'));
-  await writeFile(join(context, 'Containerfile'), [
-    'FROM ' + base,
-    'COPY cargo-mutants /usr/local/cargo/bin/cargo-mutants',
-    'RUN ["cargo","mutants","--version"]',
-    'CMD ' + JSON.stringify(command), '',
-  ].join('\n'));
-  const tag = 'localhost/monochromatic-lint-processors-mutation:' + imageTag;
-  podman(['build', '--network=none', '--http-proxy=false', '--pull=never', '--memory=2g',
-    '--cpu-period=100000', '--cpu-quota=200000', '--tag', tag, context]);
-  container = podman(['create', '--init', '--network=none', '--memory=2g', '--cpus=2', '--pids-limit=128', tag]).stdout.trim();
-  await writeFile(join(evidence, 'manifest.json'), JSON.stringify({ baseImage: base, toolSha256, container, command }, null, 2) + '\n');
-  console.log('Processor mutation evidence: ' + evidence);
-  const result = podman(['start', '--attach', container], true);
-  const copied = podman(['cp', container + ':/work/processor-mutation-report/.', evidence], true);
-  await writeFile(join(evidence, 'exit.json'), JSON.stringify({ status: result.status, reportCopied: copied.status === 0 }) + '\n');
-  if (result.status !== 0 || copied.status !== 0) throw new Error('Processor mutation gate failed; inspect ' + evidence);
-  const outcome = JSON.parse(await readFile(join(evidence, 'mutants.out/outcomes.json'), 'utf8'));
-  if (outcome.total_mutants !== 5 || outcome.caught !== 5) throw new Error('Expected all five safety guard controls to be caught; inspect ' + evidence);
-} finally {
-  if (container) podman(['rm', '--force', container]);
-  await rm(context, { recursive: true, force: true });
-}
-'''
+description = "Remove concrete processor safety guards in a mount-free bounded immutable snapshot; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 128 PIDs defaults"
+run = "node bin/mutate-processors.ts"
 
 [tasks."processors:tools"]
 description = "Read the installed mutation and Rust consumer compiler interfaces before invoking them"
