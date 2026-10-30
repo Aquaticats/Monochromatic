@@ -13,7 +13,7 @@ export default {
   },
   'verify:markdown': {
     description: 'Render scanner READMEs and native-verification evidence through the installed CommonMark HTML-tree pipeline',
-    run: 'node bin/render-docs.mjs',
+    run: 'node bin/render-docs.ts',
   },
   'dependencies:fetch': {
     description: 'Fetch the existing locked dependency archives before offline container verification',
