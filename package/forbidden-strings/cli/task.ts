@@ -33,7 +33,7 @@ export default {
   },
   'test:guards:container': {
     description: 'Prove real executable and public-loader panic guards with passing and disabled disposable variants',
-    run: 'node bin/guard-container.mjs',
+    run: 'node bin/guard-container.ts',
   },
   'test:mutation:startup:container': {
     description: 'Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes',
