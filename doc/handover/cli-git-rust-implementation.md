@@ -4211,3 +4211,19 @@ This block supersedes "State at 2026-10-29 (night, later)".
   staleness test that times out at 10 s on this host, the `monochromatic-lint-closure` fixture question, the NMJ debt in
   the scanner's `bin/*.mjs` scripts, promoting `release.ts` and `wait-publish.ts` to a package, and the remote copies
   of the scratch branches.
+
+## Update at 2026-10-30 (01:15 host clock, open items dispatched)
+
+- Dispatched to agents (worktrees, I land their branches; briefs in this session): `a8a2fc13ee399243e` fault-injection
+  tests for the normal-conditions contract (task 76: inventory first, then ENOSPC-like write failures via setrlimit,
+  EMFILE, fork failure, closed terminal and broken pipe, SIGHUP and SIGKILL at journal barriers, unreachable remote);
+  `a901ca395a7be5add` release scripts (`release.ts`, `wait-publish.ts`) promoted to a package;
+  `a0f811841a29c76bc` the remaining `.mjs` scripts in `forbidden-strings/cli` and `monochromatic-lint` converted to
+  `.ts` (NMJ), golden pins of the shared mutation package must pass unchanged; `aef2a30bd02e26c5e` the
+  `dependent_version` and `controls` stalls re-measured under slow-disk and memory caps at the pre-fix commit and at main
+  (closes task 66 or finds the mechanism); `a10588f87fc49c23f` the `monochromatic-lint-closure` crate (and the other nine
+  `test_scratch.rs` copies) checked for the container-layout scratch-root bug.
+- The file-enforcer staleness test timeout is already tracked as issues 1812 and 1813 (another session); I added the
+  observation to 1812 instead of opening a duplicate.
+- Agent `ac6a56aed8916cfec` could not be resumed because its worktree was removed in the cleanup; a fresh agent took its
+  follow-up.
