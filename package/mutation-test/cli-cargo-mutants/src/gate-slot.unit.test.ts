@@ -12,6 +12,7 @@ import {
   parseGateSlotArguments,
   runInSlot,
   slotLockPath,
+  tryEverySlot,
 } from './gate-slot.ts';
 
 /**
@@ -141,6 +142,51 @@ await describe({
               'run',
               'x y',
             ]);
+          },
+        }),
+      ],
+    }),
+    describe({
+      name: tryEverySlot.name,
+      children: [
+        it({
+          name: 'returns an empty list after trying every slot in order when all are held',
+          fn: async () => {
+            const slots: string[] = [];
+            const result = await tryEverySlot({
+              options: runOptions,
+              runFlock: async (flockArguments) => {
+                slots.push(flockArguments[4] ?? '');
+                return 200;
+              },
+            });
+            expect(result).toEqual([]);
+            expect(slots).toEqual(['/locks/slot-1.lock', '/locks/slot-2.lock', '/locks/slot-3.lock']);
+          },
+        }),
+        it({
+          name: 'returns the status of the first free slot and tries no later slot',
+          fn: async () => {
+            const slots: string[] = [];
+            const result = await tryEverySlot({
+              options: runOptions,
+              runFlock: async (flockArguments) => {
+                slots.push(flockArguments[4] ?? '');
+                return slots.length === 2 ? 4 : 200;
+              },
+            });
+            expect(result).toEqual([4]);
+            expect(slots).toEqual(['/locks/slot-1.lock', '/locks/slot-2.lock']);
+          },
+        }),
+        it({
+          name: 'treats a zero status as a finished run, not as absence',
+          fn: async () => {
+            const result = await tryEverySlot({
+              options: runOptions,
+              runFlock: async () => 0,
+            });
+            expect(result).toEqual([0]);
           },
         }),
       ],

@@ -41,23 +41,26 @@ await mkdir(
   options.temporaryDirectory,
   { recursive: true },
 );
-for (const plan of plans) {
-  // Units start one after another so the printed lines keep the argument order.
+/**
+ Start lines of every unit, in argument order; the units start together and the lines print once all have started.
+ */
+const startLines = await Promise.all(plans.map(async function startUnit(plan) {
   /**
    Outcome of starting this unit.
    */
-  // oxlint-disable-next-line eslint/no-await-in-loop -- sequential by design, ordered output
   const started = await runProgram({
     program: systemdRunProgram,
     args: plan.systemdRunArguments,
     inheritStdio: false,
   });
-  console.log(formatStartLine({
+  return formatStartLine({
     unit: plan.unit,
     status: started.status,
     stderr: started.stderr,
-  }));
-}
+  });
+}));
+for (const line of startLines)
+  console.log(line);
 console.log(
   formatWaitHint(plans.map(function unitOf(plan) {
     return plan.unit;
