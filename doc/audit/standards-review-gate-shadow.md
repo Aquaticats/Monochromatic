@@ -2566,3 +2566,6 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
     `````text
     cost_verdict: no (yes 0.01 partial 0.01 no 0.98)
     `````
+- Skipped:
+  82e574e749aa (no code files):
+  `docs(audit): record shadow review entries for the aws and rust commits`
