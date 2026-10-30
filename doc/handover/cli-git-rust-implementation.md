@@ -4274,3 +4274,28 @@ This block supersedes "State at 2026-10-29 (night, later)".
   anything else (do not pipe through `tail`), check whether another session pushed in the same second, and whether the
   wrapper classified a transient server-side error as a hard failure; if it recurs, file it as an issue against
   `package/git-policy/cli` with the full output.
+
+## Update at 2026-10-30 (host clock, packages and conversions landed)
+
+- Landed: `package/crate-release/cli` (`@monochromatic-dev/crate-release-cli`; bins `crate-release` and
+  `crate-release-wait`; replaces the scratch `release.ts` and `wait-publish.ts`; the wait command now fails when the
+  run failed, crates.io lacks the version or a tarball is missing; mise tasks `native:release` and `native:release:wait`
+  in `package/git-policy/cli/mise.toml`; not yet used for a real release, use it for 0.4.3 and compare with the
+  scratch scripts' output) and `package/shell-argument/core` (`@monochromatic-dev/shell-argument-core`: `shellQuote`,
+  the character-set helpers, `ShellArgumentError`; both the release package and the mutation package import it, so the
+  release tool no longer depends on a mutation-test package). Verified on main: unit tasks exit 0 with no FAIL lines for
+  shell-argument, cli-cargo-mutants and crate-release.
+- Landed: the eight `.mjs` to `.ts` conversions in `package/forbidden-strings/cli/bin` and
+  `package/linter/monochromatic-lint/bin` (10 commits; the old-versus-new comparisons used stand-in podman and cargo).
+  Real-Podman proof after landing: the scanner startup mutation campaign passed (baseline ok, 5 of 5 caught). Behavior
+  changes: the scanner's `run()` is async; a signal-ended command reports `status` absent and callers write `null`;
+  `ScannerVerificationError` prints its own name. Still `.mjs`: `forbidden-strings/cli.fuzz/bin/smoke-container.mjs`,
+  `linter/monochromatic-lint.fuzz/bin/container.mjs` and `planted-controls.mjs` (agent `a0f811841a29c76bc` has the
+  follow-up).
+- Task 66 closed: the cold first start of the cloned wrapper explained `dependent_version` and `controls`; at the pre-fix
+  commit both tests were killed at the bound in every capped run (6 of 6 at 5 MB/s and at 2 MB/s); at main 0 of 96 test
+  executions hit it across 5, 2 and 1 MB/s caps; the load-28 failures on 2026-10-29 are consistent with this but not
+  proven. Doc: `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`.
+- Open: task 76 (agent `a8a2fc13ee399243e`), the three sidecar conversions, tasks 23, 30 and 69, the standing
+  permission rule for the cleanup script (user), issue 1812 follow-up (another session), `ide/app` host clippy
+  `build.rs` errors (pre-existing).
