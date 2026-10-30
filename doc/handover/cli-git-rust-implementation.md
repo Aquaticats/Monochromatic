@@ -4063,3 +4063,30 @@ This block supersedes "State at 2026-10-29 (night, later)".
   loaded host, and the same file carries the only lint warning in that package (`numeric-separators-style` at
   `WAIT_ATTEMPTS = 3000`, line 42). Peer session `monochromatic-04` asked earlier about the staleness manifest.
   Needs its owner (or the user's say-so) before I touch it.
+
+## Update at 2026-10-29 (22:50, stall mechanism found, shared package landed)
+
+- The 5-second stalls have a measured mechanism (agent `ac6a56aed8916cfec`, doc
+  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`): each fixture's copy of the
+  wrapper is a btrfs reflink clone with no pages in the page cache, so the first wrapped command of every fixture reads
+  the executable from disk (debug build 21.9 MB, 16.3 MiB read; release 9.9 MB, 9.45 MiB). With both btrfs devices
+  capped at 5 MB/s the first command took 5.0 to 6.2 s (killed by the bound); with a real copy (`cp --reflink=never`)
+  3 to 4 ms. It is positional, which is why no single command was common to the failures, and why the earlier
+  3600-start measurement (one fixture) missed it. Memory caps from 96m to 2g had no effect. No raise of the 5-second
+  bound is supported by the data (a 10 s bound would hide it at 5 MB/s and not at 1 MB/s); the user's approval gate
+  for a raise stays.
+- Landed: the harness fix and a FIEMAP guard test (`a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable`)
+  and `strip = "symbols"` for the release profile (user chose option B: 9.45 to 8.09 MiB first-start read; fat LTO
+  with one codegen unit, 7.43 MiB, not adopted because it lengthens the release build). Next release carries the
+  strip. Unverified: wall-time gain of the strip on a cold start, fsync sensitivity (write caps did not slow fsync),
+  Git's own executable eviction.
+- User, on seeing "each fixture's copy of the wrapper": that smells. Agent `ac6a56aed8916cfec` was resumed to find why
+  every fixture copies the executable and to replace it with the cleanest design (one real copy per test process,
+  reached through a hard link or symlink, or no copy), measured, with a guard test. I land its branch.
+- Landed: the shared package migration (`package/mutation-test/cli-cargo-mutants`; steps 1 to 6; 359 unit tests; 44 golden
+  pins of the old scripts; the engine is used by git-policy, the linter, forbidden-strings core, with the scanner on
+  the shared exclusion constant only). Intentional changes are listed in `doc/planning/shared-cargo-mutants-package.md`.
+  Parity proof is running: units `cli-git-parity-git-policy` (command_push.rs with `--memory 3g --cpus 3`, check the
+  container's limits with `podman inspect`), `-forbidden-core` (charset.rs with the same limits), `-linter`
+  (`mutation:markdown:parent`), `-scanner` (`test:mutation:startup:container`); logs `~/temp/agent/parity-<name>.log`.
+  The engine's snapshot image build and the new create flow had never run against real Podman before this.
