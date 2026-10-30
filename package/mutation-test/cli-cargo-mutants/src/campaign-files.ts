@@ -59,6 +59,9 @@ export function isContentAddressedId(text: string): boolean {
  
  @param tail - the product's options, placed after the exclusions
  
+ @param useProjectConfig - true when the crate's own `.cargo/mutants.toml` applies, so `--no-config` is left out; false for
+ the other products, which pass every option on the command line
+ 
  @returns the complete argument array, also recorded in the manifest
  
  @example
@@ -72,12 +75,14 @@ export function campaignCommand({
   buildTimeoutSeconds,
   additionalExclusions,
   tail,
+  useProjectConfig = false,
 }: {
   readonly outputDirectory: string;
   readonly timeoutSeconds: number;
   readonly buildTimeoutSeconds: number;
   readonly additionalExclusions: readonly string[];
   readonly tail: readonly string[];
+  readonly useProjectConfig?: boolean;
 }): string[] {
   return [
     'cargo',
@@ -89,7 +94,7 @@ export function campaignCommand({
     String(buildTimeoutSeconds),
     '--timeout',
     String(timeoutSeconds),
-    '--no-config',
+    ...(useProjectConfig ? [] : ['--no-config']),
     '--no-shuffle',
     '--test-tool',
     'nextest',

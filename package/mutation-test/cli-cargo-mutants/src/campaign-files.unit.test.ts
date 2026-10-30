@@ -62,6 +62,20 @@ await describe({
           },
         }),
         it({
+          name: 'leaves out --no-config only when the crate\'s own config applies',
+          fn: async () => {
+            const base = {
+              outputDirectory: '/r',
+              timeoutSeconds: 1,
+              buildTimeoutSeconds: 2,
+              additionalExclusions: [],
+              tail: [],
+            };
+            expect(campaignCommand(base)).toContain('--no-config');
+            expect(campaignCommand({ ...base, useProjectConfig: true })).not.toContain('--no-config');
+          },
+        }),
+        it({
           name: 'puts a product exclusion after the repository-wide ones and before the tail',
           fn: async () => {
             const command = campaignCommand({

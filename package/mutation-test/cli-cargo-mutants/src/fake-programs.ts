@@ -54,7 +54,8 @@ if (args[0] === 'image' && args[1] === 'inspect') {
 } else if (args[0] === 'build') {
   fail('build', 1);
   const context = args[args.length - 1];
-  fs.copyFileSync(path.join(context, 'Containerfile'), path.join(directory, 'containerfile.' + number));
+  const fileAt = args.indexOf('--file');
+  fs.copyFileSync(fileAt >= 0 ? args[fileAt + 1] : path.join(context, 'Containerfile'), path.join(directory, 'containerfile.' + number));
   const at = args.indexOf('--iidfile');
   if (at >= 0) fs.writeFileSync(args[at + 1], failing === 'short-campaign-id' ? 'sha256:abc\\n' : 'sha256:${fakeCampaignImageId}\\n');
 } else if (args[0] === 'create') {

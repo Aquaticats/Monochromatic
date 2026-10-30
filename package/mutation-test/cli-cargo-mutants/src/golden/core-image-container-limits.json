@@ -1,0 +1,24 @@
+{
+  "status": 0,
+  "errorMessage": "",
+  "stdout": "",
+  "calls": [
+    [
+      "build",
+      "--http-proxy=false",
+      "--pull=never",
+      "--memory=4g",
+      "--cpu-period=100000",
+      "--cpu-quota=300000",
+      "--file",
+      "<PACKAGE>/forbidden-strings/core/test.Containerfile",
+      "--tag",
+      "localhost/forbidden-regex-test:golden",
+      "<PACKAGE>/forbidden-strings/core/node_modules/.monochromatic/forbidden-regex/forbidden-regex-test-<ID>"
+    ]
+  ],
+  "containerfiles": [
+    "# What:  the source snapshot a mutation campaign layers cargo-mutants over.\n# Why:   the campaign runs in a mount-free container, so the crate, its lockfile, its tests and its cargo-mutants\n#        configuration are baked into an image together with the fetched dependencies; the campaign itself runs offline.\n#        The toolchain, cargo-nextest and cargo-mutants come from the base image built by mutants.Containerfile.\nFROM localhost/forbidden-regex-mutants\nWORKDIR /work\nCOPY . /work\nRUN [\"cargo\", \"fetch\", \"--locked\"]\nENV CARGO_NET_OFFLINE=true\n"
+  ],
+  "evidenceFiles": []
+}

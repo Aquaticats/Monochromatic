@@ -13,6 +13,11 @@ import {
   scannerArgumentSets,
 } from './golden-argument-sets.ts';
 import {
+  coreCampaignSets,
+  coreEnvironment,
+  coreImageSets,
+} from './golden-core-sets.ts';
+import {
   linterArgumentSets,
   linterEnvironment,
 } from './golden-linter-sets.ts';
@@ -158,6 +163,18 @@ export function goldenScenarios(): readonly GoldenScenario[] {
       args: ['mutation:list:processors'],
       environment: {},
     },
+    ...scriptScenarios({
+      product: 'core-campaign',
+      script: productFile('forbidden-strings/core/bin/mutate-container.ts'),
+      base: coreEnvironment,
+      sets: coreCampaignSets,
+    }),
+    ...scriptScenarios({
+      product: 'core-image',
+      script: productFile('forbidden-strings/core/bin/build-test-image.ts'),
+      base: coreEnvironment,
+      sets: coreImageSets,
+    }),
     ...scriptScenarios({
       product: 'scanner',
       script: productFile('forbidden-strings/cli/bin/mutate-container.ts'),
