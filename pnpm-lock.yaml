@@ -3173,6 +3173,9 @@ importers:
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
     devDependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript

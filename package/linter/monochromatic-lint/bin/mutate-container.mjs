@@ -19,7 +19,12 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
-import { exclusionArguments } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
+import {
+  buildLimitArguments,
+  exclusionArguments,
+  parseContainerLimitOptions,
+  runLimitArguments,
+} from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
@@ -367,7 +372,8 @@ async function coverage() {
 async function campaign({
   scope,
   shard,
-  examine
+  examine,
+  limits
 }) {
   // cargo-mutants keeps a mutant that matches any `--re`, so a second one would widen a scope that has its own.
   if ((examine !== undefined)
@@ -488,9 +494,7 @@ async function campaign({
         '--network=none',
         '--http-proxy=false',
         '--pull=never',
-        '--memory=2g',
-        '--cpu-period=100000',
-        '--cpu-quota=200000',
+        ...buildLimitArguments(limits),
         '--iidfile',
         imageIdFile,
         '--tag',
@@ -513,9 +517,10 @@ async function campaign({
         'create',
         '--init',
         '--network=none',
-        '--memory=2g',
-        '--cpus=2',
-        '--pids-limit=128',
+        ...runLimitArguments({
+          limits,
+          withPidsLimit: true
+        }),
         campaignImage,
         ...command,
       ],
@@ -555,9 +560,9 @@ async function campaign({
       container,
       command,
       limits: {
-        memory: '2g',
-        cpus: 2,
-        pids: 128,
+        memory: limits.memory,
+        cpus: limits.cpus,
+        pids: limits.pidsLimit,
         buildTimeoutSeconds: 300,
         testTimeoutSeconds: timeoutSeconds
       },
@@ -641,8 +646,21 @@ function scopeFor(option) {
  and `--coverage` for the scope-union proof.
  */
 async function main() {
-  const options = process.argv
-    .slice(2);
+  // `--memory`, `--cpus` and `--pids-limit` override the 2g, 2 CPU and 128 process bounds of the build and the container.
+  const {
+    limits,
+    rest: options
+  } = parseContainerLimitOptions({
+    options: process.argv
+      .slice(2),
+    acceptPidsLimit: true,
+    leadingOnly: false,
+    valuelessFlags: [
+      ...scopes.keys(),
+      '--list',
+      '--coverage'
+    ]
+  });
   if (options[0] === '--coverage') {
     if (options.length !== 1)
       throw new VerificationError('--coverage takes no other option.');
@@ -684,7 +702,8 @@ async function main() {
   await campaign({
     scope: scopeFor(options[0]),
     shard,
-    examine
+    examine,
+    limits
   });
 }
 

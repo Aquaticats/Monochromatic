@@ -1,8 +1,10 @@
 /**
  Public surface of the cargo-mutants tooling: the pure builders that product adapters reuse.
  */
+export * from './campaign-options.ts';
 export * from './character-set.ts';
 export * from './constants.ts';
+export * from './container-limits.ts';
 export * from './error.ts';
 export * from './excluded-mutants.ts';
 export * from './gate-slot.ts';

@@ -91,6 +91,28 @@ export const linterArgumentSets: readonly ArgumentSet[] = [
     {}
   ],
   [
+    'container-limits',
+    [
+      '--markdown',
+      '--memory',
+      '4g',
+      '--cpus',
+      '3',
+      '--pids-limit',
+      '64'
+    ],
+    {}
+  ],
+  [
+    'reject-memory',
+    [
+      '--core',
+      '--memory',
+      '0'
+    ],
+    {}
+  ],
+  [
     'reject-unknown-scope',
     ['--bogus'],
     {}
