@@ -160,6 +160,9 @@ const names = git('diff-tree', '--no-commit-id', '--name-only', '-r', sha).split
 const codeFiles = names.filter((name) => /\\.(ts|tsx|rs|js|mjs|cjs)$/.test(name))
 const logPath = process.env.SHADOW_REVIEW_LOG ?? `${repo}/doc/audit/standards-review-gate-shadow.md`
 const entry = (line) => appendFileSync(logPath, `${line}\\n`)
+// A commit whose only changed file is the shadow log is the hook's own record, so it gets no entry.
+const logRelative = 'doc/audit/standards-review-gate-shadow.md'
+if (names.every((name) => name === logRelative)) process.exit(0)
 if (codeFiles.length === 0) {
   entry('- Skipped:')
   entry(`  ${sha.slice(0, 12)} (no code files):`)

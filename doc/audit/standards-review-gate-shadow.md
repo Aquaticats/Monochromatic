@@ -2569,3 +2569,6 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   82e574e749aa (no code files):
   `docs(audit): record shadow review entries for the aws and rust commits`
+- Skipped:
+  a574ee35a68c (no code files):
+  `docs(audit): carry the shadow log's hook entries for the review commit`
