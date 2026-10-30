@@ -198,7 +198,8 @@ export async function reaskElsewhereNudged<ValueT,>(
   }
 
   /**
-   Provider to avoid, typed apart from the tagged reply so the functions below, which narrowing does not reach, read it.
+   Provider to avoid, typed apart from the tagged reply so that `askOtherModels` and `askSameModelElsewhere`, which
+   narrowing does not reach, read it.
    */
   const avoid: ProviderName = servedBy;
 
@@ -325,14 +326,14 @@ export async function reaskElsewhereNudged<ValueT,>(
      Why the re-ask failed, naming the model asked where it was not the one that ran away, so a lost voice does not read
      as that model answering twice.
      */
-    const cause = (second.kind === 'schema-mismatch') ? second.detail : second.marker;
+    const whatFailed = (second.kind === 'schema-mismatch') ? second.detail : second.marker;
     return {
       ...first.outcome,
       reaskFailure: {
         servedBy: reply.servedBy ?? 'another provider',
         kind: second.kind,
         rawText: second.rawText,
-        cause: (answered.modelId === request.modelId) ? cause : `${cause}; asked of ${answered.modelId}`,
+        cause: (answered.modelId === request.modelId) ? whatFailed : `${whatFailed}; asked of ${answered.modelId}`,
       },
     };
   }

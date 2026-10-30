@@ -256,7 +256,7 @@ function dropStale(
 
  @param now - epoch milliseconds the `SPEND` line was written
 
- @returns The content characters of the stream taken off the queue; `unpaired` where none waits within the window;
+ @returns Content characters of the stream taken off the queue; `unpaired` where none waits within the window;
  `ambiguous` where two or more wait, or the one that waits was seen by an earlier ambiguous line
 
  @mutates queue - drops the streams older than the window, takes the one stream paired, and marks the streams seen by an
