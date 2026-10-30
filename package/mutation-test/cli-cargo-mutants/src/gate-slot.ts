@@ -248,6 +248,68 @@ export function buildFlockArguments({
 }
 
 /**
+ Try the slots one after another, in order, and stop at the first one that is free.
+
+ The attempts are chained through a reduction over the slot numbers instead of a loop, so the lowest free slot is the
+ one taken and no later slot is tried once the command has run; trying them at once would run the command in several
+ slots.
+
+ @param options - slot settings and command
+ 
+ @param runFlock - starts `flock` with the given arguments and returns its exit status
+ 
+ @returns the command's exit status in a one-element list, or an empty list when every slot was held
+ 
+ @example
+ ```ts
+ await tryEverySlot({ options, runFlock });
+ ```
+ */
+export function tryEverySlot({
+  options,
+  runFlock,
+}: {
+  readonly options: GateSlotOptions;
+  readonly runFlock: (flockArguments: readonly string[]) => Promise<number>;
+}): Promise<readonly number[]> {
+  /**
+   Slot numbers from one to the slot count.
+   */
+  const slots = Array.from(
+    { length: options.slotCount },
+    function slotNumber(
+      _,
+      index
+    ) {
+      return index + 1;
+    },
+  );
+  return slots.reduce(
+    async function tryNextSlot(
+      earlier: Promise<readonly number[]>,
+      slot: number
+    ): Promise<readonly number[]> {
+      /**
+       Result of the slots tried before this one.
+       */
+      const done = await earlier;
+      if (done.length > 0)
+        return done;
+      /**
+       Exit status of the attempt in this slot.
+       */
+      const status = await runFlock(buildFlockArguments({
+        lockDirectory: options.lockDirectory,
+        slot,
+        command: options.command,
+      }));
+      return status === slotConflictExitCode ? [] : [status];
+    },
+    Promise.resolve<readonly number[]>([]),
+  );
+}
+
+/**
  Wait for a free slot and run the command in it.
 
  Slots are tried in order; when every one is held, the limiter waits the poll interval and tries them all again.
@@ -275,22 +337,20 @@ export async function runInSlot({
   readonly runFlock: (flockArguments: readonly string[]) => Promise<number>;
   readonly sleep: (milliseconds: number) => Promise<void>;
 }): Promise<number> {
-  for (;;) {
-    for (let slot = 1; slot <= options.slotCount; slot += 1) {
-      // Slots must be tried one at a time, in order, so the lowest free slot is the one taken.
-      /**
-       Exit status of the attempt in this slot.
-       */
-      // oxlint-disable-next-line eslint/no-await-in-loop -- sequential by design, one flock attempt per slot
-      const status = await runFlock(buildFlockArguments({
-        lockDirectory: options.lockDirectory,
-        slot,
-        command: options.command,
-      }));
-      if (status !== slotConflictExitCode)
-        return status;
-    }
-    // oxlint-disable-next-line eslint/no-await-in-loop -- the poll wait is the loop's pacing
-    await sleep(options.pollIntervalMs);
-  }
+  /**
+   The command's exit status once a slot ran it, or nothing when every slot was held.
+   */
+  const [status] = await tryEverySlot({
+    options,
+    runFlock,
+  });
+  if (status !== undefined)
+    return status;
+  await sleep(options.pollIntervalMs);
+  // The retry is async recursion: each poll resumes on a fresh stack, so waiting for hours does not overflow it.
+  return runInSlot({
+    options,
+    runFlock,
+    sleep,
+  });
 }

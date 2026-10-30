@@ -1,5 +1,4 @@
 import {
-  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -79,33 +78,24 @@ export async function createFakeTools(failUntil: number): Promise<FakeTools> {
     scratchParent,
     'cargo-mutants-fake-',
   ));
-  for (const [name, text] of [
-    [
-      'node',
-      fakeNode
-    ],
-    [
-      'rg',
-      fakeRg
-    ],
-  ] as const) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- two small files, written in order
-    await writeFile(
+  await Promise.all([
+    writeFile(
       join(
         directory,
-        name,
+        'node',
       ),
-      text,
-    );
-    // oxlint-disable-next-line eslint/no-await-in-loop -- two small files, written in order
-    await chmod(
+      fakeNode,
+      { mode: ownerOnlyMode },
+    ),
+    writeFile(
       join(
         directory,
-        name,
+        'rg',
       ),
-      ownerOnlyMode,
-    );
-  }
+      fakeRg,
+      { mode: ownerOnlyMode },
+    ),
+  ]);
   return {
     directory,
     environment: {
