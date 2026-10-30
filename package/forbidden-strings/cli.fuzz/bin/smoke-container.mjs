@@ -79,11 +79,11 @@ async function main() {
           'exit.json'
         ),
         `${JSON.stringify({
-          status: result.status,
-          signal: result.signal
+          status: result.status ?? null,
+          signal: result.signal ?? null
         })  }\n`
       );
-      if (result.status !== 0) throw new ScannerVerificationError(`Fuzz Clippy exited ${result.status}; inspect ${fixture.evidence}.`);
+      if (result.status !== 0) throw new ScannerVerificationError(`Fuzz Clippy exited ${result.status ?? 'without a status'}; inspect ${fixture.evidence}.`);
       return;
     }
     container = (await run({
@@ -126,7 +126,7 @@ async function main() {
         allowFailure: true
       });
       copied[directory] = {
-        status: copy.status,
+        status: copy.status ?? null,
         stderr: copy.stderr
       };
     }
@@ -142,8 +142,8 @@ async function main() {
       ),
       `${JSON.stringify(
         {
-          status: result.status,
-          signal: result.signal,
+          status: result.status ?? null,
+          signal: result.signal ?? null,
           copied
         },
         null,
@@ -151,7 +151,7 @@ async function main() {
       )  }\n`
     );
     if ((result.status !== 0) || (!evidencePreserved))
-      throw new ScannerVerificationError(`Embedding fuzzing exited ${result.status}; inspect ${fixture.evidence}.`);
+      throw new ScannerVerificationError(`Embedding fuzzing exited ${result.status ?? 'without a status'}; inspect ${fixture.evidence}.`);
   } finally {
     if (container && evidencePreserved) await run({
       command: 'podman',
