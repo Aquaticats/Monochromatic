@@ -8,6 +8,7 @@ export {
   pageWithoutBodyDefects,
   tenseSwapDefects,
 } from './corpus-run/publish-defects.ts';
+export { placeholderHeadingDefects, } from './corpus-run/publish-placeholder-heading.ts';
 export { blockOpenerStarts, } from './corpus-run/source-ships-open-block.ts';
 export {
   openerStarts,

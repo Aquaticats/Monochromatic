@@ -50,6 +50,7 @@ import {
   PageFootnoteResolutionError,
 } from './page-footnote-resolution.ts';
 import { assertPageParses, } from './page-grammar.ts';
+import { placeholderHeadingDefects, } from './publish-placeholder-heading.ts';
 import {
   archiveKeptDefects,
   pageWithoutBodyDefects,
@@ -384,6 +385,13 @@ export async function publishFixedPage(
     // A PAGE WITH NO BODY, whatever the archive held: the one outcome the commitment to ship the original under
     // a note rules out, and a 0-byte page said nothing before this (B1046).
     ...pageWithoutBodyDefects({
+      entryId,
+      sourceText,
+      pageText,
+    },),
+    // A HEADING OF PLACEHOLDER MARKS ONLY where the original has words, reported and left as it stands (owner,
+    // 2026-10-29, "Report it as a defect"; B1052).
+    ...placeholderHeadingDefects({
       entryId,
       sourceText,
       pageText,

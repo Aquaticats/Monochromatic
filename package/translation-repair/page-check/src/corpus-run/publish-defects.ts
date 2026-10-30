@@ -34,7 +34,9 @@ import type { WouldShipSource, } from './would-ship-text.ts';
 //
 // A PAGE WITH NO BODY IS REPORTED BY `pageWithoutBodyDefects`, read off the two texts like `archiveKeptDefects` reads
 // the artifact, and not through a check that throws. The page of an archive that held no body used to ship as 0 bytes
-// with no defect and no warning (B1046); an original with no body of its own is not a defect.
+// with no defect and no warning (B1046); an original with no body of its own is not a defect. A HEADING OF PLACEHOLDER
+// MARKS ONLY is reported the same way (`placeholderHeadingDefects`, `publish-placeholder-heading.ts`, B1052), and the
+// slices where the tense detector decided what shipped by `tenseSwapDefects` (B1050).
 
 /**
  A check at publish whose failure ships as a reported defect.
@@ -55,6 +57,7 @@ export type PublishCheck =
     | 'page-footnotes'
     | 'page-source-unparseable'
     | 'page-without-body'
+    | 'placeholder-heading'
     | 'source-reading-not-compared'
     | 'source-reading-undecided'
     | 'source-reads-differently'
