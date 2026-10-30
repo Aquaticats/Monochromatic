@@ -83,6 +83,122 @@ this one cannot be attributed.
 If a later occurrence names a command with no sync call or sleep again, the next measurement to take is the process
 start and file read times inside the container during the stall, not the command.
 
+## Mechanism found: the first start of a fixture's cloned wrapper copy reads the executable from disk
+
+The section "What was not found" is superseded for the forwarding stall: the mechanism was measured afterwards.
+Each binary test makes a private copy of the wrapper with `cp` (`copy_executable` in `src/native/binary_support.rs`).
+The storage of this host is btrfs (two LUKS devices, `dm-0` and `dm-1`, under `/var/home`), so the default
+`cp --reflink=auto` makes a clone that shares the original's extents.
+A clone has no pages in the page cache, so the first command of a test that starts the copy faults the executable in
+from disk, inside the 5-second bound.
+The 3600-start measurement in "What was measured" used one fixture, so it paid that once in 3600 starts
+and showed it only as its 63 ms maximum.
+
+### Method
+
+The measurements ran in `podman run` containers from the gate's own test image, with the container's own limits
+(`--memory`, `--cpus=2`, and for disks `--device-read-bps`, `--device-write-bps`, `--device-write-iops`), and no stress
+tool: two workers built a fixture like `exit_codes_and_stderr_match_native_git` (copy of the debug wrapper, a repository
+with two commits), ran its 12 commands wrapped (under `timeout --signal=KILL 5`, as the test does) and direct, and
+removed it, 40 times each.
+Per command: wall time, `ru_majflt`, `ru_minflt` and `ru_inblock` from `wait4`.
+The scripts are scratch (`~/temp/agent/reclaim/`), not committed.
+The debug wrapper is 21.9 MB (`CARGO_PROFILE_DEV_DEBUG=0`), the release wrapper 9.9 MB.
+
+### Memory caps do not change it
+
+Wrapped commands, 960 samples per cap, host load as it was (other mutation containers running), default `cp`
+(wall milliseconds, median, 99th percentile, maximum):
+
+- 2g: 4.26, 1739, 5153.
+- 1g: 4.34, 124, 1058.
+- 512m: 3.93, 1973, 3719.
+- 256m: 4.20, 204, 764.
+- 128m: 4.06, 559, 2683.
+- 96m: 3.99, 1216, 1910.
+
+Direct Git in the same runs: median 1.0 to 1.1 ms, maximum at most 9.5 ms, 1 to 8 major faults in 960 starts.
+A 5.15 s sample (killed by the bound, with 0.55 ms of CPU) occurred at the 2g cap with no disk cap, where the container's
+own page cache is nowhere near full, so the container reclaim is not the mechanism; the cap neither causes nor
+removes the stall.
+The slow samples are the first wrapped command of a fixture: in the 2g and 512m runs, 106 of 160 first commands took
+over 100 ms, against 1 or 0 of 160 for every other command index.
+The first command took a median of 287 ms (maximum 5153 ms) with 4 major faults and 33368 blocks of 512 bytes read
+(16.29 MiB); the same command in a started fixture took 3 to 4 ms.
+Its CPU time was 9 ms, so the rest was waiting for the read.
+
+### A slow disk turns it into a failure
+
+With the read bandwidth of both btrfs devices capped at 5 MB/s (`--device-read-bps` on `/dev/dm-0` and `/dev/dm-1`;
+capping `dm-1` alone left the release build's data, which sat on `dm-0`, unthrottled and misled one run), first wrapped
+command of each of 12 fixtures:
+
+- Debug wrapper, default `cp` (clone): 5000.6 to 6211.7 ms, every one killed by the bound.
+- Debug wrapper, `cp --reflink=never`: 3.5 to 4.2 ms.
+- Release wrapper, clone: 2522 to 4807 ms, median 3713 ms, under the bound only because 5 MB/s reads 9.45 MiB in time.
+- Release wrapper, `cp --reflink=never`: 3.0 to 4.0 ms.
+
+The other 11 commands of the test took at most 5.5 ms (debug, data copy) in the same runs.
+Three tests run with `cargo nextest` in the container at the same 5 MB/s cap (three runs each):
+
+- Before: `forwarding::exit_codes_and_stderr_match_native_git` and
+  `management::namespace_word_elsewhere_is_an_ordinary_argument` failed in all three runs with
+  `the command hit the 5-second bound` after 5.5 to 6.9 s;
+  `markdown::a_failing_linter_stops_the_command` passed after 3.3 to 4.0 s.
+- After: all three passed in every run, 0.055 to 0.097 s each.
+
+### An evicted executable behaves the same
+
+Evicting a plain copy's pages (`fsync`, then `posix_fadvise` with `DONTNEED` after a short wait) and starting it again
+read the same amount as a clone, so eviction under host memory pressure costs what a clone costs:
+the kernel reads most of the file in the first fault, not only the pages the start touches.
+Debug: 4 major faults, 16.29 MiB, median wall time 46 ms; release: 1 major fault, 9.45 MiB, 26 ms (a disk that was not
+capped).
+A 5 MB/s disk therefore needs 3.3 s for the debug wrapper and 1.9 s for the release wrapper, and the cost scales with
+the file size and the disk, not with anything the wrapper does at start.
+
+### What changed
+
+- `copy_executable` passes `--reflink=never`: the copy is written through the page cache and stays cached, and a slow
+  read of the original happens in `cp`, outside the bound.
+  Guard: `a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable` in `src/native/binary_fixture_tests.rs`
+  asks the filesystem for the copy's extents (`FS_IOC_FIEMAP`) and requires none to be shared.
+  With the argument removed it failed (`shares 1 extents with .../target/debug/cli-git-native`) and with it it passes;
+  a filesystem that cannot report extents skips the check.
+  The bound is unchanged at 5 s.
+- The release profile strips symbols and links with fat link-time optimization and one code generation unit.
+  First-start read in MiB (release wrapper, evicted pages): 9.45 default, 8.09 stripped, 7.43 stripped plus fat
+  link-time optimization plus one code generation unit (7.79 MB file, from 9.91 MB), 6.50 with `opt-level = "s"` added
+  (not adopted: the scanner's throughput under it was not measured).
+  A 300-file, 7 MB commit through the wrapper (8 alternating runs per build) took a median of about 2.95 s for the
+  default, 2.95 s stripped and 2.79 s for the `opt-level = "s"` build, so none of those was slower.
+  Warm start medians stayed at 3.4 to 3.6 ms and the wrapped explicit-path commit at 86 to 95 ms (CPU 69 to 73 ms)
+  for all four builds.
+  Wall time of the cold first start was dominated by host disk load and varied from 20 ms to 147 ms between builds
+  with nearly equal reads, so only the byte counts, which are deterministic, are claimed.
+  The profile adds no syscall.
+  The stripped build loses function names in panic backtraces.
+
+### Disk write and fsync
+
+Write caps (`--device-write-bps` 5 MB/s and `--device-write-iops` 50 on both devices) slowed only the bulk write of the
+22 MB fixture copy (one setup of 1.3 s in 12) and did not slow any fsync-bearing command: the direct commit took
+4.8 ms and the wrapped explicit-path commit a median of 92 ms (maximum 182 ms), as uncapped (95 ms).
+Dirty-page write-back and btrfs fsync are done by kernel workers that the per-cgroup write limit did not reach (an
+unverified reading), so slow fsync is not modelled by this method and the sensitivity of commands to it is unverified.
+The traces in "What was measured" show no sync call in the 12 forwarding commands; a wrapped commit makes 36.
+The commit tests run under `COMMIT_BOUND_SECONDS` (120 s), so a slow fsync does not reach the 5-second bound.
+
+### Evidence about the bound
+
+Under a 5 MB/s read cap the stall of the unfixed test was 5.5 to 6.9 s, and it grows with executable size over disk
+speed (a 19 MiB read at 1 MB/s took 21 s), so a bound of 10 s would have hidden this case at 5 MB/s and not at 1 MB/s.
+With the data copy no wrapped command of the three tests exceeded 0.1 s at 5 MB/s, so these measurements support no
+raise of the bound.
+Not measured: reads of Git's own executable and libraries when they are evicted (the wrapped and direct runs both pay
+it), and the unit tests in `src/native/git_version_cache_tests.rs`, which copy Git with `std::fs::copy` (a clone on
+btrfs too) but run under no 5-second bound.
+
 ## What would make the commit itself faster
 
 The commit's 40 starts and 36 syncs are the subject of `doc/planning/cli-git-spawn-and-sync-reduction.md`; the budget

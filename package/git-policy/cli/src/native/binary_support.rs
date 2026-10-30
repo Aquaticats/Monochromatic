@@ -427,13 +427,19 @@ pub use fixture_executable::executable;
 ///   A copy made by this process would be open for writing here,
 ///  with the same
 ///       "Text file busy" window as `executable` describes.
+///  The copy is a real data copy (`--reflink=never`): on btrfs, which also backs overlay storage, the default
+///  `cp` clones the extents, and the clone has no pages in the page cache, so the first start of the copy reads
+///  most of the executable from disk inside the 5-second bound (a 22 MB debug build read 16 MiB in 4 major faults;
+///  `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`). A data copy leaves the pages
+///  it wrote in the cache, and a slow read of the original happens here, outside any bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// spawnSync('cp', ['--', from, to]);
+/// spawnSync('cp', ['--reflink=never', '--', from, to]);
 /// ```
 pub fn copy_executable(from: &Path, to: &Path) {
     let copied: bool = Command::new("cp")
+        .arg("--reflink=never")
         .arg("--")
         .arg(from)
         .arg(to)

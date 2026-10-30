@@ -56,3 +56,61 @@ fn fixtures_are_created_outside_the_system_temporary_directory() {
         created.root.display()
     );
 }
+
+/// What:
+///  How many of the first extents of a file the filesystem reports as shared with another file,
+///  absent when the filesystem cannot report extents.
+/// Why:
+///  A reflink clone shares every extent with its source (`FIEMAP_EXTENT_SHARED`), and a clone has no pages in the
+///  page cache, so starting it reads the executable from disk.
+fn shared_extent_count(path: &Path) -> Option<usize> {
+    use std::os::fd::AsRawFd;
+    /// `_IOWR('f', 11, struct fiemap)`.
+    const FS_IOC_FIEMAP: u64 = 0xC020_660B;
+    /// Extent flag: the extent is shared with another file.
+    const FIEMAP_EXTENT_SHARED: u32 = 0x2000;
+    /// Size of `struct fiemap` before its extents.
+    const HEADER_BYTES: usize = 32;
+    /// Size of one `struct fiemap_extent`.
+    const EXTENT_BYTES: usize = 56;
+    /// Extents asked for; a clone shares all of them, so the first ones are enough.
+    const EXTENT_SLOTS: usize = 256;
+    let file: std::fs::File = std::fs::File::open(path).expect("open the copy");
+    let mut buffer: Vec<u8> = vec![0; HEADER_BYTES + EXTENT_BYTES * EXTENT_SLOTS];
+    // fm_start stays 0; fm_length covers the whole file; fm_flags stays 0 so no write-back is forced.
+    buffer[8..16].copy_from_slice(&u64::MAX.to_ne_bytes());
+    buffer[24..28].copy_from_slice(&u32::try_from(EXTENT_SLOTS).expect("slot count").to_ne_bytes());
+    // SAFETY: `buffer` is a live allocation of the size the request describes and the kernel writes only inside it.
+    let result: i32 = unsafe { libc::ioctl(file.as_raw_fd(), FS_IOC_FIEMAP as _, buffer.as_mut_ptr()) };
+    if result != 0 {
+        return None;
+    }
+    let mapped: usize = usize::try_from(u32::from_ne_bytes(buffer[20..24].try_into().expect("count bytes")))
+        .expect("mapped count");
+    let mut shared: usize = 0;
+    for index in 0..mapped.min(EXTENT_SLOTS) {
+        let flags_at: usize = HEADER_BYTES + EXTENT_BYTES * index + 40;
+        let flags: u32 = u32::from_ne_bytes(buffer[flags_at..flags_at + 4].try_into().expect("flag bytes"));
+        if flags & FIEMAP_EXTENT_SHARED != 0 {
+            shared += 1;
+        }
+    }
+    return Some(shared);
+}
+
+/// The fixture's private wrapper copy is a data copy: a clone starts by reading most of the executable from disk,
+/// which stalled the first wrapped command of a test for seconds on a busy disk and hit the 5-second bound.
+#[test]
+fn a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable() {
+    let created: Fixture = fixture("copy-storage");
+    match shared_extent_count(created.wrapper.as_path()) {
+        Some(shared) => assert_eq!(
+            shared,
+            0,
+            "{} shares {shared} extents with {}",
+            created.wrapper.display(),
+            super::support::WRAPPER
+        ),
+        None => eprintln!("the filesystem under {} reports no extents; nothing to check", created.root.display()),
+    }
+}
