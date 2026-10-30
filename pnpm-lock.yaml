@@ -3140,6 +3140,22 @@ importers:
         specifier: 'catalog:'
         version: 26.6.5
 
+  package/mutation-test/cli-cargo-mutants:
+    dependencies:
+      '@monochromatic-dev/ownership-marker-foreign-borrowed':
+        specifier: workspace:*
+        version: link:../../ownership-marker/foreign-borrowed
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+
   package/mutation-test/cli-unused-export:
     dependencies:
       '@monochromatic-dev/logger-core':
