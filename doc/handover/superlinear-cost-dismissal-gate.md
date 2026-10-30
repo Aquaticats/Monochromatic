@@ -543,26 +543,84 @@ and safe to delete:
   and the missing piece is a Claude Code hook,
   which is now built as `cctd`
   (commit `ee637f1b3b`).
+- Paused 2026-10-29 at the owner's question "are you launching a full
+  (non-decision) model to review every commit"
+  and its answer "that's excessively expensive":
+  the trigger fired `pi --model openai/gpt-6.1-sol --thinking xhigh`
+  on every code landing.
+  The runner now logs a skip and exits unless `SHADOW_REVIEW_ALLOW=1`
+  (the `shadow_review` var of `mise.no-env.toml`,
+  commit `8b66809261`).
+  Measured spend before the pause:
+  65 priced runs,
+  9167.9 s of reviewer wall clock
+  (median 133.4 s,
+  p90 240.0 s,
+  max 418.1 s).
 
 ## Shadow runs so far
 
-Seventeen scored entries by 2026-10-29 evening,
-settled under the pre-registered rule:
+Sixty-five priced runs by 2026-10-29 night,
+every one scored under the pre-registered rule
+by the uniform scoring pass of 2026-10-29.
+That pass re-judged the whole log
+after the first two scoring passes disagreed on the `yes` share
+(5 of 38 against 11 of 27),
+so the counts below are one instrument reading:
 
 - Named superlinear cost (`yes`):
-  2 of 17.
-  The scratch-plumbing commit whose `scratchParent` re-walked the ancestor chain per command
-  (O(r x d)),
-  and the ratio helper's own commit,
-  whose three `RG2` findings were real enough to fix forward.
+  16 of 65.
+  Eight name cost the changed lines introduce
+  even under the strict reading named below:
+  the scratch-plumbing commit
+  (`2972f3c6a06f`,
+  `scratchParent` re-walks the ancestor chain per command,
+  O(r x d)),
+  the ratio helper's own commit
+  (`d4988f4c9b57`,
+  both runs,
+  whose three `RG2` findings were real enough to fix forward),
+  `8b4374358e26`,
+  `c1367ce73bad`,
+  `ee637f1b3b78`,
+  `efa90b57bd63`,
+  `8667f7ac7cef`,
+  and `e0a89e56e15f`.
 - Cost gestured at as unverified,
   never named (`partial`):
-  7 of 17.
-  The runner sends the diff only,
-  so a callee outside the diff draws a "remains unverified" hedge
+  17 of 65.
+  The runner sends the diff and the touched files' excerpts,
+  so a callee outside the excerpt draws a "remains unverified" hedge
   instead of a cost finding.
 - Named nothing (`no`):
-  5 of 17.
+  32 of 65.
+
+The score counts what a review NAMED,
+never whether the named cost is a true defect,
+so this is a naming rate and not recall:
+a quiet review of a clean diff scores `no`,
+and no ground truth says which landings carried superlinear cost.
+Reading note for the rule's "of the changed region":
+scored as the code the diff changes or annotates or claims about,
+cost across call boundaries included.
+Under the strict reading
+(the cost must be introduced by the changed lines themselves)
+the counts are 9 `yes`,
+17 `partial`,
+39 `no`,
+or 11 `yes` counting the two hook commits whose changed lines
+only re-cadence an existing quadratic walk
+(`a1649fa56f6c`,
+`8fe47e652253`).
+
+Cost of the instrument itself:
+65 priced runs,
+9167.9 s of reviewer wall clock
+(median 133.4 s,
+p90 240.0 s,
+max 418.1 s),
+the spend the owner's cost correction then paused
+(the pause entry above).
 
 The determinism pair on `d4988f4c9b57` agrees at the verdict level
 (both runs named cost,
@@ -608,12 +666,26 @@ that everything runs as shadow
 and that no `AGENTS.md` rule backs it in that phase,
 since a mandate would not count as shadow.
 Next:
-the trigger is live,
-so runs accumulate on their own:
-score each `unjudged` entry `yes` or `no` as entries land,
-and watch the wall-clock column for per-diff cost.
-Graduation then goes back to the owner
-(`AGENTS.md` rule versus git-policy landing check).
+the trigger's model call is paused
+(the pause entry above),
+and the uniform scoring pass of 2026-10-29 settled all 65 entries
+(heading `Shadow runs so far`),
+so nothing accumulates on its own now.
+Graduation goes back to the owner
+(`AGENTS.md` rule versus git-policy landing check),
+which is the decision the shadow exists to support.
+Queue while that decision is open
+(written here because an unwritten queue item is lost):
+a truth-check of the named-cost cluster
+and a sample of the `no` landings,
+since the log measures naming
+and no ground truth yet says which landings carried superlinear cost;
+and what replaces the per-commit review if more collection is wanted,
+the candidates being a Luna decision-model leg
+(`openai/gpt-6-luna-decisions`)
+with a paired parity run on the 8-commit corpus first,
+a deterministic landing sample on the pinned full-model route,
+or no further collection at all.
 Then wire the two miss shapes into the gate:
 cost must be accounted across call boundaries,
 and an inline complexity claim is never proof
