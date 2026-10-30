@@ -1,16 +1,8 @@
 {
   "status": 1,
   "errorMessage": "NATIVE_MUTATION_BASELINE_SKIP must be a test path, got Bad.",
-  "stdout": "Mutation evidence: <WORK>/target/verification/native-mutation-<ID>\nPlanted controls skipped: another campaign over this snapshot ran them.\n",
-  "calls": [
-    [
-      "image",
-      "inspect",
-      "localhost/git-policy-native-test:golden",
-      "--format",
-      "{{.Id}}"
-    ]
-  ],
+  "stdout": "",
+  "calls": [],
   "containerfiles": [],
   "evidenceFiles": []
 }

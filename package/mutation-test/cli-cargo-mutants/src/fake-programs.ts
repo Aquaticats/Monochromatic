@@ -45,22 +45,29 @@ const args = process.argv.slice(2);
 const calls = path.join(directory, 'calls.log');
 fs.appendFileSync(calls, args.join('${argumentSeparator}') + '${callTerminator}');
 const number = fs.readFileSync(calls, 'utf8').split('${callTerminator}').length - 1;
+const failing = process.env.FAKE_FAIL;
+const fail = (name, status) => { if (failing === name) { process.stderr.write('fake podman failure: ' + name + '\\n'); process.exit(status); } };
 if (args[0] === 'image' && args[1] === 'inspect') {
-  const plain = '${fakeTestedImageId}';
+  fail('inspect-image', 125);
+  const plain = failing === 'short-image-id' ? 'abc' : '${fakeTestedImageId}';
   process.stdout.write((args.includes('--format') ? plain : JSON.stringify([{ Id: plain }])) + '\\n');
 } else if (args[0] === 'build') {
+  fail('build', 1);
   const context = args[args.length - 1];
   fs.copyFileSync(path.join(context, 'Containerfile'), path.join(directory, 'containerfile.' + number));
   const at = args.indexOf('--iidfile');
-  if (at >= 0) fs.writeFileSync(args[at + 1], 'sha256:${fakeCampaignImageId}\\n');
+  if (at >= 0) fs.writeFileSync(args[at + 1], failing === 'short-campaign-id' ? 'sha256:abc\\n' : 'sha256:${fakeCampaignImageId}\\n');
 } else if (args[0] === 'create') {
   fs.writeFileSync(path.join(directory, 'created.json'), JSON.stringify(args));
-  process.stdout.write('${fakeContainerId}\\n');
+  process.stdout.write((failing === 'short-container-id' ? 'abc' : '${fakeContainerId}') + '\\n');
 } else if (args[0] === 'container' && args[1] === 'inspect') {
   const created = JSON.parse(fs.readFileSync(path.join(directory, 'created.json'), 'utf8'));
   const at = created.indexOf('${fakeCampaignImageId}');
-  process.stdout.write(JSON.stringify(created.slice(at + 1)) + '\\n');
+  process.stdout.write(JSON.stringify(failing === 'wrong-command' ? ['other'] : created.slice(at + 1)) + '\\n');
+} else if (args[0] === 'start') {
+  fail('start', 3);
 } else if (args[0] === 'cp') {
+  fail('cp', 5);
   fs.mkdirSync(args[2], { recursive: true });
   if (process.env.FAKE_OUTCOMES === '1') {
     fs.mkdirSync(path.join(args[2], 'mutants.out'), { recursive: true });

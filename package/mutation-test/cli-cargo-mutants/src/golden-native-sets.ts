@@ -62,6 +62,70 @@ export const nativeArgumentSets: readonly ArgumentSet[] = [
     { NATIVE_MUTATION_BASELINE_SKIP: 'module::tests::name' }
   ],
   [
+    'fail-inspect-image',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'inspect-image' }
+  ],
+  [
+    'fail-short-image-id',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'short-image-id' }
+  ],
+  [
+    'fail-build',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'build' }
+  ],
+  [
+    'fail-short-campaign-id',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'short-campaign-id' }
+  ],
+  [
+    'fail-short-container-id',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'short-container-id' }
+  ],
+  [
+    'fail-wrong-command',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'wrong-command' }
+  ],
+  [
+    'fail-start',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'start' }
+  ],
+  [
+    'fail-cp',
+    [
+      '--file',
+      'src/native/a.rs'
+    ],
+    { FAKE_FAIL: 'cp' }
+  ],
+  [
     'reject-timeout-zero',
     [
       '--timeout',

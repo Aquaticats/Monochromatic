@@ -3,6 +3,7 @@
  */
 export * from './campaign-files.ts';
 export * from './campaign-options.ts';
+export * from './campaign-runner.ts';
 export * from './character-set.ts';
 export * from './constants.ts';
 export * from './container-limits.ts';
@@ -12,6 +13,7 @@ export * from './gate-slot.ts';
 export * from './names.ts';
 export * from './options.ts';
 export * from './plan.ts';
+export * from './podman.ts';
 export * from './report.ts';
 export * from './run-program.ts';
 export * from './shell-body.ts';

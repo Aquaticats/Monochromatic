@@ -6,30 +6,20 @@
  hold every mutant of the unscoped listing; both read the same scope table the campaigns use.
  */
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import {
-  copyFile,
   mkdir,
   mkdtemp,
-  readFile,
-  rm,
   writeFile
 } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 import {
-  buildLimitArguments,
   campaignCommand,
-  campaignContainerfile,
   defaultBuildTimeoutSeconds,
-  evidenceJson,
   exclusionArguments,
-  exitRecord,
-  isContentAddressedId,
   parseContainerLimitOptions,
-  runLimitArguments,
+  runCampaign,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -238,37 +228,6 @@ const unscoped = {
 /** Verification failures keep the failing operation visible. */
 class VerificationError extends Error {}
 
-/** Execute one shell-free container-management command. */
-function podman({
-  args,
-  capture = false,
-  allowFailure = false
-}) {
-  const result = spawnSync(
-    'podman',
-    args,
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      stdio: capture ? [
-        'ignore',
-        'pipe',
-        'pipe'
-      ] : 'inherit',
-      maxBuffer: 8 * 1_024
-        * 1_024,
-    }
-  );
-  if (result.error)
-    throw new VerificationError(
-      'Container command could not start.',
-      { cause: result.error }
-    );
-  if ((!allowFailure) && (result.status !== 0))
-    throw new VerificationError(`Container command failed: ${args[0]} (status ${result.status}, signal ${result.signal}). ${result.stderr ?? ''}`);
-  return result;
-}
-
 /** List one scope's mutant names on the host, exactly as a campaign of that scope would select them. */
 function listMutants(scope) {
   const args = [
@@ -387,61 +346,21 @@ async function campaign({
       .includes('--re'))
     throw new VerificationError('This scope already selects mutants by name; --re would widen it.');
   const timeoutSeconds = scope.timeoutSeconds ?? defaultTimeoutSeconds;
-  const context = await mkdtemp(join(
+  await runCampaign({
+    testImage,
+    mutationImage,
+    testImageHint: '',
     scratchBase,
-    'monochromatic-lint-mutation-'
-  ));
-  const evidenceRoot = join(
-    process.cwd(),
-    'target',
-    'verification'
-  );
-  await mkdir(
-    evidenceRoot,
-    { recursive: true }
-  );
-  const evidence = await mkdtemp(join(
-    evidenceRoot,
-    'mutation-'
-  ));
-  let container;
-  try {
-    const base = podman({
-      args: [
-        'image',
-        'inspect',
-        testImage,
-        '--format',
-        '{{.Id}}'
-      ],
-      capture: true,
-    })
-      .stdout
-      .trim();
-    if (!isContentAddressedId(base))
-      throw new VerificationError('Test image did not resolve to a full content-addressed image ID.');
-    const tool = join(
-      process.env
-        .CARGO_HOME
-        ?? join(
-          homedir(),
-          '.cargo'
-        ),
-      'bin',
-      'cargo-mutants'
-    );
-    const toolBytes = await readFile(tool);
-    const toolSha256 = createHash('sha256')
-      .update(toolBytes)
-      .digest('hex');
-    await copyFile(
-      tool,
-      join(
-        context,
-        'cargo-mutants'
-      )
-    );
-    const command = campaignCommand({
+    contextPrefix: 'monochromatic-lint-mutation-',
+    evidenceRoot: join(
+      process.cwd(),
+      'target',
+      'verification'
+    ),
+    evidencePrefix: 'mutation-',
+    limits,
+    containerReport: '/work/mutation-report',
+    command: campaignCommand({
       outputDirectory: '/work/mutation-report',
       timeoutSeconds,
       buildTimeoutSeconds: defaultBuildTimeoutSeconds,
@@ -458,90 +377,9 @@ async function campaign({
         ]),
         ...scope.run,
       ],
-    });
-    await writeFile(
-      join(
-        context,
-        'Containerfile'
-      ),
-      campaignContainerfile({
-        baseImage: base,
-        command
-      })
-    );
-    // The container starts from the ID this build wrote, not from the shared tag, and is given its command
-    // explicitly. Two builds started together for shards 0/3 and 1/3, whose Containerfiles differed only in
-    // `CMD`, both committed the same image, whose `CMD` was shard 0's (mutation-7j4HXK); so the image's
-    // own `CMD` never decides what a campaign runs.
-    const imageIdFile = join(
-      context,
-      'image-id'
-    );
-    podman({
-      args: [
-        'build',
-        '--network=none',
-        '--http-proxy=false',
-        '--pull=never',
-        ...buildLimitArguments(limits),
-        '--iidfile',
-        imageIdFile,
-        '--tag',
-        mutationImage,
-        context,
-      ],
-    });
-    const campaignImage = (await readFile(
-      imageIdFile,
-      'utf8'
-    )).trim()
-      .replace(
-      /^sha256:/u,
-      ''
-      );
-    if (!isContentAddressedId(campaignImage))
-      throw new VerificationError('The campaign image build did not report a full content-addressed image ID.');
-    container = podman({
-      args: [
-        'create',
-        '--init',
-        '--network=none',
-        ...runLimitArguments({
-          limits,
-          withPidsLimit: true
-        }),
-        campaignImage,
-        ...command,
-      ],
-      capture: true,
-    })
-      .stdout
-      .trim();
-    if (!isContentAddressedId(container))
-      throw new VerificationError('Container creation did not return a complete container ID.');
-    const created = podman({
-      args: [
-        'container',
-        'inspect',
-        container,
-        '--format',
-        '{{json .Config.Cmd}}'
-      ],
-      capture: true
-    });
-    if (created.stdout
-      .trim()
-      !== JSON.stringify(command))
-      throw new VerificationError(`The created container would run ${created.stdout
-        .trim()}, not this campaign's command.`);
-    await writeFile(
-      join(
-        evidence,
-        'manifest.json'
-      ),
-      evidenceJson(
-        {
-      baseImage: base,
+    }),
+    manifest: ({ baseImage, campaignImage, toolSha256, container, command }) => ({
+      baseImage,
       campaignImage,
       shard: shard ?? null,
       examine: examine ?? null,
@@ -555,62 +393,8 @@ async function campaign({
         buildTimeoutSeconds: defaultBuildTimeoutSeconds,
         testTimeoutSeconds: timeoutSeconds
       },
-    }
-      )
-    );
-    console.log(`Mutation evidence: ${evidence}`);
-    const result = podman({
-      args: [
-        'start',
-        '--attach',
-        container
-      ],
-      allowFailure: true
-    });
-    // Preserve evidence even when missed mutants correctly make the campaign nonzero.
-    const copy = podman({
-      args: [
-        'cp',
-        `${container}:/work/mutation-report/.`,
-        evidence
-      ],
-      capture: true,
-      allowFailure: true
-    });
-    await writeFile(
-      join(
-        evidence,
-        'exit.json'
-      ),
-      evidenceJson(exitRecord({
-        status: result.status,
-        signal: result.signal,
-        reportCopied: copy.status === 0,
-        ...(copy.status === 0 ? {} : { reportCopyError: copy.stderr }),
-      }))
-    );
-    if (result.status !== 0)
-      throw new VerificationError(`Mutation campaign exited ${result.status}; report ${copy.status === 0 ? 'copied' : 'not generated or not copied'}; inspect ${evidence}.`);
-    if (copy.status !== 0)
-      throw new VerificationError(`Mutation campaign passed but its report was not copied: ${copy.stderr}`);
-  } finally {
-    if (container)
-      podman({
-        args: [
-          'rm',
-          '--force',
-          container
-        ],
-        capture: true
-      });
-    await rm(
-      context,
-      {
-        recursive: true,
-        force: true
-      }
-    );
-  }
+    }),
+  });
 }
 
 /** Resolve one optional scope option to its table entry, or to the unscoped campaign when none is given. */
