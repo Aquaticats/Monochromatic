@@ -4255,3 +4255,13 @@ This block supersedes "State at 2026-10-29 (night, later)".
   it never noticed (`test:native` would fail the same way). Not verified: host clippy stops in `build.rs` on two
   pre-existing "missing `return`" errors, and the container tests were not run; the native test needs
   `SLINT_EMIT_DEBUG_INFO=1` at build time as the container sets.
+
+- Auto-push observation (2026-10-30, about 02:00 host clock): the post-commit auto-push of a handover commit failed with
+  `error: failed to push some refs to 'https://github.com/Aquaticats/Monochromatic'` and `commit saved locally, but
+  auto-push to origin failed`. `main` was three commits ahead of `origin/main` and zero behind (plain fast-forward), and a
+  manual `git push origin main` succeeded right after (`bef7d67c62..75944a85e3`). The cause is not known: my command had
+  cut the output to its last two lines, so the remote's rejection lines were lost. Rule from the user: auto-push never
+  fails without a conflict (offline and auth exempt). Next time this happens, read the full push output before
+  anything else (do not pipe through `tail`), check whether another session pushed in the same second, and whether the
+  wrapper classified a transient server-side error as a hard failure; if it recurs, file it as an issue against
+  `package/git-policy/cli` with the full output.
