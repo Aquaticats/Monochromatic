@@ -704,8 +704,9 @@ What the faults found, and the change for each, is in
   `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
 - High CPU load, memory pressure and slow I/O: the shared bound and the byte copy of the wrapper
   (the troubleshooting note below); no control injects memory pressure.
-  `RLIMIT_AS` is the only privilege-free candidate and it fails allocations in Rust and Git alike at addresses that
-  vary with the build, so it would test the allocator and not the wrapper.
+  `RLIMIT_AS` is the only privilege-free candidate and was not tried: the address-space cap it sets is hit by Rust and
+  Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
+  allocator abort.
 
 Known gaps: a user hook that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (hooks run as long as they run,
 as documented, and are ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
