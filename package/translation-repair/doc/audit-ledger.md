@@ -315,7 +315,9 @@ named for that subject and listed here.
   and docs that claimed what the code did not (B964).
 - [Audit ledger: the cap census and the Xiaomi cap](audit-ledger-the-cap-census-and-the-xiaomi-cap.md):
   A card that still named the pooled 99th percentile after the cap rule could read its calls (B990),
-  and a census that named every dangling link under the agent root and buried its own summary (B991).
+  a census that named every dangling link under the agent root and buried its own summary (B991),
+  a pairing window of 50 ms that left every long call at the cap unpaired (B1070),
+  and a seat map that seated no NeuralWatt call and none on the DeepSeek seat's ids from before the 1017 weights (B1071).
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md):
   The wait for NeuralWatt's day to start again and the park of the pass between entries,
   removed on the owner's answer of 2026-10-29 (B1005),
@@ -662,6 +664,11 @@ named for that subject and listed here.
   the energy hold that read the pipeline's own use at a third of what a rotation of entries measured (B808),
   the hold that read the GLM seat at fourteen times its use after the lift to low effort (B836),
   and the end-of-run plan-energy line that printed the account's charge without the run's own meter (B1061).
+- [Audit ledger: reasoning runaways and
+  the re-ask of another model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md):
+  A reply that ran away reasoning,
+  re-asked of the same model on another route and running away again (B1072),
+  and the two re-asks of a length stop with no content that still ask the same model (B1073).
 - [Audit ledger: branches no input reaches,
   kept as quiet answers](audit-ledger-unreachable-branches-kept-as-quiet-answers.md):
   Branches no input reaches that answered quietly where a loud refusal belongs,

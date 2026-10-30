@@ -260,8 +260,10 @@ TODO | DONE
     and the log scope differs from the 2026-09-09 table,
     so read each provider's cut columns (with content,
     with none,
-    unpaired) in the full log before moving a cap,
+    unpaired,
+    ambiguous) in the full log before moving a cap,
     as `completion-cap.ts` records for the 2026-09-28 reading.
+    An ambiguous call is one that two or more stream lines within three seconds could each be the pair of (B1070).
 
 ## Steps
 
