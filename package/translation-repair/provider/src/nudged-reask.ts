@@ -213,17 +213,25 @@ export async function reaskElsewhereNudged<ValueT,>(
   /**
    Asks the roster's other models in turn, the next only when the one before had no provider with budget.
 
-   @returns The model that took it and its reply, or the sentinel where no other model could
+   @returns Model that took it and its reply, or the sentinel where no other model could
 
    @throws whatever the exchange threw other than a refusal for want of a provider
    */
   async function askOtherModels(): Promise<ReaskAnswer | typeof NO_OTHER_MODEL_TOOK_IT> {
     /**
+     Logger pre-tagged with this function's name, beneath the re-ask's.
+     */
+    const ol = tagged({
+      tag: askOtherModels.name,
+      l: rl,
+    },);
+
+    /**
      Models to try, in roster order.
      */
     const others = alternateModelsFor({ modelId: request.modelId, },);
     for (const modelId of others) {
-      rl.info(
+      ol.info(
         `${request.modelId}: reasoning runaway on ${avoid} (a length stop with no content); `
           + `re-asking ${modelId} instead, nudged`,
       );
@@ -241,10 +249,10 @@ export async function reaskElsewhereNudged<ValueT,>(
       catch (error) {
         if (!(error instanceof NoProviderForModelError))
           throw error;
-        rl.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
+        ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
       }
     }
-    rl.warn(
+    ol.warn(
       `${request.modelId}: no other model could take the re-ask of a reasoning runaway (${String(others.length,)} tried); `
         + `re-asking ${request.modelId} on another provider, as before`,
     );
@@ -254,13 +262,11 @@ export async function reaskElsewhereNudged<ValueT,>(
   /**
    Asks the same model on a provider other than the one that served the first reply.
 
-   @returns The model and its reply
+   @returns Model and its reply
 
    @throws whatever the exchange threw
    */
   async function askSameModelElsewhere(): Promise<ReaskAnswer> {
-    rl.info(`${request.modelId}: ${first.outcome
-      .kind} on ${avoid}; re-asking another provider, nudged`,);
     return {
       modelId: request.modelId,
       reply: await ask({
@@ -276,15 +282,18 @@ export async function reaskElsewhereNudged<ValueT,>(
      The nudged exchange: of another model where the first reply ran away reasoning and one can take it, else of the
      same model elsewhere.
      */
-    const answered = await (async function askNudged(): Promise<ReaskAnswer> {
-      /**
-       Another model's answer, when the first reply ran away reasoning and one could take the re-ask.
-       */
-      const other = isReasoningRunaway({ outcome: first.outcome, },)
-        ? await askOtherModels()
-        : NO_OTHER_MODEL_TOOK_IT;
-      return (other === NO_OTHER_MODEL_TOOK_IT) ? await askSameModelElsewhere() : other;
-    })();
+    const other = isReasoningRunaway({ outcome: first.outcome, },)
+      ? await askOtherModels()
+      : NO_OTHER_MODEL_TOOK_IT;
+    if (other === NO_OTHER_MODEL_TOOK_IT) {
+      rl.info(`${request.modelId}: ${first.outcome
+        .kind} on ${avoid}; re-asking another provider, nudged`,);
+    }
+
+    /**
+     The model asked and its reply.
+     */
+    const answered = (other === NO_OTHER_MODEL_TOOK_IT) ? await askSameModelElsewhere() : other;
 
     /**
      The nudged exchange's reply.
