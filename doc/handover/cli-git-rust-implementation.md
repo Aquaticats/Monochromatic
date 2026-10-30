@@ -4184,3 +4184,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
   `ac6a56aed8916cfec` (the repo guard blocks `git stash drop`).
 - Still running: `cli-git-parity-git-policy` (64 of 78 planted controls at 00:17, then the `command_push.rs`
   campaign; expected end about 01:15).
+
+- Agent worktree cleanup (user chose option A, then granted the command): removed 21 worktrees under
+  `.claude/worktrees/agent-*` whose branch tips were contained in main, plus their local branches with the safe delete.
+  Kept: `agent-a1360b7e02c5cec27` (locked by a live agent process, pid 1904886, not ours to remove),
+  `agent-aba63f1400b66332c` (its scanner and linter fixes were cherry-picked, so its tip is not an ancestor of main),
+  and the local branch `worktree-agent-ac6a56aed8916cfec` (the worktree is gone; git refused the safe delete as "not yet
+  merged"). Also still present: local branches `cm-scanner-fix`, `cm-scanner-workflow`, `cm-scanner-scratch`,
+  `integrate-slices` and the `-combined`, `-mut`, `-waits` branches of agent `a367b2612f424f68c`; remote copies of all
+  of them were auto-pushed and are untouched. The script is `~/temp/agent/cleanup-agent-worktrees.ts`. For a standing
+  permission the exact rule string is `Bash(node /home/user/temp/agent/cleanup-agent-worktrees.ts)` under
+  `permissions.allow` in `.claude/settings.local.json` (from the Claude Code permissions docs; the user must add it, not
+  tested in a live session).
