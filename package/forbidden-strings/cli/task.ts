@@ -29,7 +29,7 @@ export default {
   },
   'test:guards:observe:container': {
     description: 'Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults',
-    run: 'node bin/observe-guards-container.mjs',
+    run: 'node bin/observe-guards-container.ts',
   },
   'test:guards:container': {
     description: 'Prove real executable and public-loader panic guards with passing and disabled disposable variants',
