@@ -277,6 +277,86 @@ tracked as [terrapkg/packages issue 19566][terra-issue-19566].
 not only Ghostty,
 and activation requires a reboot.
 
+## How long the wait may take
+
+No date is promised:
+the measured rates below bound expectations,
+and this bump carries a prerequisite the measured samples did not.
+
+Historical lag from upstream Zig release to the first Fedora stable push
+of that release,
+from the complete Bodhi `zig` update history
+(56 updates,
+covering `0.8.0` through `0.16.0`):
+
+- `0.14.0`:
+  upstream 2025-03-05,
+  Fedora push 2025-05-27,
+  83 days.
+- `0.14.1`:
+  upstream 2025-05-21,
+  Fedora push 2025-06-14,
+  24 days.
+- `0.15.2`:
+  upstream 2025-10-11,
+  Fedora push 2025-11-23,
+  43 days.
+- `0.16.0`:
+  upstream 2026-04-13,
+  Fedora push 2026-04-29,
+  16 days.
+
+Zig `0.17.0` released 2026-10-01,
+so 2026-10-29 is day 28 of that wait.
+
+Two structural gates stand between Fedora and a zig `0.17.x`:
+
+- LLVM major coupling.
+  Zig minors pair with LLVM majors:
+  the 0.17.0 `README.md` requires
+  `LLVM, Clang, LLD development libraries, version 22.x`,
+  and Fedora's `zig` spec pins `%global llvm_compat 21`.
+  Fedora 44 offers only `llvm20-devel` and `llvm21-devel`;
+  a repoquery for `llvm22*` returns nothing.
+  `llvm22` exists only in newer Fedora branches
+  (Bodhi carries fc45,
+  fc46,
+  and eln builds).
+  The measured samples above all had their LLVM major already in
+  Fedora 44 or its predecessor at push time,
+  so the 16 to 83 day window is optimistic for this bump.
+- Self-hosting bootstrap.
+  The Fedora `zig` spec's non-bootstrap build requires
+  `BuildRequires: (zig >= 0.16 with zig < 0.17)`,
+  so a 0.17 non-bootstrap build first needs a 0.17 compiler.
+  The bootstrap path exists
+  (Terra's `zig0.15` package builds with `%bcond bootstrap 1`),
+  but it still links system LLVM.
+
+Progress check on 2026-10-29:
+Fedora rawhide's `zig` spec still reads `Version: 0.16.0`
+with `llvm_compat 21`,
+so no Fedora branch has started the 0.17 retool.
+
+Skip risk is real.
+The complete Bodhi `zig` history carries no stable NVR
+for `0.10.x`,
+`0.12.x`,
+`0.15.0`,
+or `0.15.1`:
+Fedora has jumped whole Zig releases before.
+Ghostty 1.4.x's `requireZig` accepts exactly `0.17.x`,
+so a Fedora jump from 0.16 to 0.18 would end the wait-for-Fedora path
+for this Ghostty release permanently
+and force the maintainer's second option,
+a Terra-packaged `zig0.17`.
+
+Once a usable zig `0.17.x` exists,
+Terra's rebuild is fast:
+upstream tag to spec bump was 40 minutes for Ghostty 1.3.1
+and 19 minutes for 1.4.0.
+The wait is therefore almost entirely the toolchain wait.
+
 ## What does not work
 
 - Re-running `ujust update` resolves the same `1.3.1-3.fc44` NEVRA and
@@ -384,6 +464,11 @@ One additive detail is absent from the thread and sharpens its plan:
 so the wait is for precisely `0.17.x`.
 A Fedora `zig` landing first at 0.18 would fail the gate just like 0.16,
 which matters for choosing between waiting and packaging `zig0.17` now.
+A second additive detail also bears on that choice:
+Zig 0.17.0 builds against LLVM 22,
+and Fedora 44 ships no `llvm22`,
+so the wait-for-Fedora path depends on an LLVM major bump
+that has not started in any Fedora branch.
 The drafted comment is kept below and is not posted;
 posting to an external repository is the poster's decision,
 and any filing puts a real person's account in front of Terra maintainers,
@@ -407,6 +492,14 @@ major.minor, so the wait is for precisely `0.17.x`, not `0.17 or higher`.
 with `build.zig.zon:6` setting `.minimum_zig_version = "0.17.0",`.
 A Fedora `zig` 0.18.x would fail this gate exactly like 0.16.0 does,
 so waiting on the unversioned Fedora `zig` package can overshoot.
+
+The wait also depends on an LLVM major bump:
+Zig 0.17.0's `README.md` requires `LLVM, Clang, LLD development libraries,
+version 22.x`,
+the Fedora `zig` spec pins `%global llvm_compat 21`,
+and Fedora 44 offers only `llvm20-devel` and `llvm21-devel`.
+Historical upstream-to-Fedora lags for zig were 16, 24, 43, and 83 days,
+but those samples already had their LLVM major in the distro.
 
 Fedora 44 inventory on 2026-10-29: `zig 0.15.2-3.fc44` (fedora),
 `zig 0.16.0-1.fc44` (updates), `zig0.15 0.15.2-2.fc44~bootstrap` (terra).
