@@ -26,6 +26,15 @@ Upstream describes a separate `vllm-srun` runtime;
 generic vLLM installation does not establish D3 execution support.
 The full model must not be silently replaced with another D3 family variant.
 
+The user subsequently requested Liquid AI's new models,
+specifically the smallest text and smallest decision models released "this week".
+The working date window is October 26 to 30, 2026.
+The full D3 model is therefore no longer a fixed deployment target.
+Identify the new releases by parameter count and verify their original release dates,
+distinguishing release dates from model-card updates.
+The user has been asked whether the decision-model request means Liquid AI's own releases
+or the smallest model in the previously discussed D3 family.
+
 The user's network answer was "fine", without naming a network scope.
 The assistant stated that temporary verification servers would use localhost only.
 No persistent startup or network configuration is authorized by that interpretation.
@@ -125,7 +134,9 @@ Initial planning commit: `b6ac79dd4d`.
 
 ## Next decision frontier
 
-Establish packaged `vllm-srun` support for the confirmed `vllm-sr/d3` model and this hardware.
+Identify the smallest requested text and decision releases in the current week,
+resolve the decision-model vendor question,
+then establish their packaged runtime support on this hardware.
 Startup configuration is deferred.
 Use localhost only for transient verification;
 broader network exposure remains unselected.
@@ -161,3 +172,27 @@ The official image persists configuration, backend cache, and Hugging Face model
 The backend installer uses the process temporary directory for archive installation.
 The concrete container plan must therefore supply temporary storage outside `/tmp`.
 Context and GPU memory controls remain to be chosen and exercised through the installed CLI.
+
+## Full D3 investigation
+
+Before the user requested the smallest new models,
+upstream Semantic Router was inspected at commit `6aeaf5d415532771ec77d26c25ebe0a7b64da0ed`.
+Its `src/model-runtime/README.md` specifies a separate `vllm-srun` runtime,
+distributed in Semantic Router images.
+Its model registry records 26,086,635,760 loaded parameters for full `vllm-sr/d3`.
+
+The [upstream memory record][d3-memory]
+reports 48.59 GiB of BF16 weights and 50.28 GiB after loading and model-card requests.
+These are upstream MI325X measurements, not measurements on this host.
+The citation and its quoted numeric values were verified in an isolated browser session,
+which was then closed.
+
+The inspected runtime has a BF16 CPU execution path.
+Its placement calculation estimates 59,538,082,320 bytes including reserve for full D3,
+exceeding the earlier available-RAM snapshot of 55,843,090,432 bytes.
+Local CPU fit and performance were not tested.
+The published ROCm image's architecture lists omit `gfx1102`;
+the inspected native engine places model stacks on one device rather than splitting weights across CPU and GPU.
+No model weights were downloaded and no D3 inference was attempted.
+
+[d3-memory]: https://github.com/vllm-project/semantic-router/blob/6aeaf5d415532771ec77d26c25ebe0a7b64da0ed/src/model-runtime/docs/records/decision3-device-memory.md#L24-L39
