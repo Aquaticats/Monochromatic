@@ -924,6 +924,9 @@ pub mod bounded_query;
 /// The auto-push's real `git push` with a deadline, its low-speed abort and the lock wait limit derived from it.
 pub mod bounded_push;
 
+/// The processes below one process, read before it is stopped and signalled only while they are still the ones found.
+pub mod process_tree;
+
 /// Single-flight push coordination per branch: owner lock, record joins and the push itself.
 pub mod auto_push_single_flight;
 

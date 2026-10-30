@@ -36,8 +36,14 @@ use std::fs::{File, OpenOptions};
 use std::io::Read;
 /// The trait that gives files `.write_all`.
 use std::io::Write;
-/// `Path` is a borrowed filesystem path of raw bytes.
-use std::path::Path;
+/// Owned operating-system text for the staging name.
+use std::ffi::OsString;
+/// `Path` is a borrowed filesystem path of raw bytes; `PathBuf` is the owned one.
+use std::path::{Path, PathBuf};
+/// Diagnostics for a decision no failure reports.
+use super::diagnostic_log::debug;
+/// Unguessable staging names.
+use super::random_id::random_uuid;
 
 /// Mode of every private directory the wrapper creates:
 ///  owner only.
@@ -144,6 +150,100 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 }
 
 /// What:
+///  The name of the staging file beside `path`: hidden, unique, ending in `.partial`.
+/// Why:
+///   Recovery finds records by their exact names, so a staging file never looks like one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// join(dirname(path), `.${basename(path)}.${randomUUID()}.partial`)
+/// ```
+fn staging_path(path: &Path) -> std::io::Result<PathBuf> {
+    let Some(name) = path.file_name() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} names no file", path.display()),
+        ));
+    };
+    let unique: String = random_uuid().map_err(|error| { return std::io::Error::other(error.0); })?;
+    let mut staged: OsString = OsString::from(".");
+    staged.push(name);
+    staged.push(".");
+    staged.push(unique);
+    staged.push(".partial");
+    return Ok(path.with_file_name(staged));
+}
+
+/// What:
+///  Make `staged` appear at `path` in one step, failing with `AlreadyExists` when `path` is taken.
+/// Why:
+///   A hard link is atomic and exclusive. A filesystem that refuses hard links (`EPERM`, `ENOTSUP`, `EXDEV`) gets the
+///  rename after a check that nothing is at `path`, which is atomic and, with the writers of one record being
+///  one process, as exclusive as the callers need.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { await link(staged, path); } catch (error) { if (error.code === 'EEXIST') throw error; await rename(staged, path); }
+/// ```
+fn publish_exclusive(staged: &Path, path: &Path) -> std::io::Result<()> {
+    match std::fs::hard_link(staged, path) {
+        Ok(()) => return Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(error),
+        Err(error) => {
+            debug(
+                "publishExclusive",
+                format!("the filesystem refused the link of {} ({error}); publishing by rename", path.display()).as_str(),
+            );
+        }
+    }
+    if std::fs::symlink_metadata(path).is_ok() {
+        return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+    }
+    return std::fs::rename(staged, path);
+}
+
+/// What:
+///  Write `bytes` to a staging file beside `path`, sync it, and publish it at `path`; any failure removes the staging
+///  file, so `path` holds all the bytes or does not exist.
+///  `mode` is applied to the file before it is published, when given.
+/// Why:
+///   A file created at its final name and then written is a record that a kill, or a full disk, between the two
+///  steps leaves empty or cut: recovery then stops every guarded command until a person removes it. Publishing a
+///  complete, synced file by link makes the record appear whole or not at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const staged = stagingPath(path); try { await writeAndSync(staged, bytes); await publishExclusive(staged, path); } finally { await rm(staged, { force: true }); }
+/// ```
+fn write_then_publish(path: &Path, bytes: &[u8], mode: Option<u32>) -> std::io::Result<()> {
+    let staged: PathBuf = staging_path(path)?;
+    let mut file: File = exclusive_options().open(staged.as_path())?;
+    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
+    let filled: std::io::Result<()> = file.write_all(bytes).and_then(|()| { return file.sync_all(); });
+    drop(file);
+    let published: std::io::Result<()> = filled
+        .and_then(|()| {
+            return match mode {
+                Some(bits) => protect_path(staged.as_path(), bits),
+                None => Ok(()),
+            };
+        })
+        .and_then(|()| { return publish_exclusive(staged.as_path(), path); });
+    match std::fs::remove_file(staged.as_path()) {
+        Ok(()) => {}
+        // The rename fallback already moved it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            debug(
+                "writeThenPublish",
+                format!("removing the staging file {} failed: {error}", staged.display()).as_str(),
+            );
+        }
+    }
+    return published;
+}
+
+/// What:
 ///  Write one private file exclusively,
 ///  refusing links,
 ///  then make its bytes durable.
@@ -152,17 +252,15 @@ pub fn protect_path(path: &Path, mode: u32) -> std::io::Result<()> {
 ///   A journal state file is created once and never rewritten,
 ///  so a crash leaves either
 ///       no file or a complete one after the caller syncs the directory.
+///  The file is written under a staging name and published whole (`write_then_publish`), so that the promise
+///  also holds for a kill between the creation and the write and for a write cut short by a full disk.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function writePrivateFile({ path, bytes }): Promise<void>;
 /// ```
 pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut file: File = exclusive_options().open(path)?;
-    file.write_all(bytes)?;
-    // `sync_all` flushes data and metadata, the incumbent's `handle.sync()`.
-    file.sync_all()?;
-    return protect_path(path, PRIVATE_FILE_MODE);
+    return write_then_publish(path, bytes, Some(PRIVATE_FILE_MODE));
 }
 
 /// What:
@@ -175,15 +273,14 @@ pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 ///  the
 ///       creation mode alone,
 ///  then a sync before publication.
+///  The file is published whole, as `write_private_file` does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const handle = await open(path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0o600); await handle.writeFile(bytes); await handle.sync();
 /// ```
 pub fn write_exclusive_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut file: File = exclusive_options().open(path)?;
-    file.write_all(bytes)?;
-    return file.sync_all();
+    return write_then_publish(path, bytes, None);
 }
 
 /// What:
@@ -281,6 +378,21 @@ fn private_directory_builder() -> std::fs::DirBuilder {
 }
 
 /// What:
+///  Whether a failed directory sync means the filesystem has no such operation, not that the flush failed.
+/// Why:
+///   `EINVAL`, `ENOTSUP` and `ENOSYS` are what a filesystem without the operation returns; `EIO`, `ENOSPC` and
+///  `EDQUOT` mean the flush itself failed and stay errors.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ['EINVAL', 'ENOTSUP', 'ENOSYS'].includes(error.code)
+/// ```
+#[cfg(unix)]
+fn directory_sync_is_unsupported(error: &std::io::Error) -> bool {
+    return matches!(error.raw_os_error(), Some(libc::EINVAL | libc::ENOTSUP | libc::ENOSYS));
+}
+
+/// What:
 ///  Make a directory's entries durable,
 ///  where the platform supports directory handles.
 /// Why:
@@ -300,7 +412,18 @@ pub fn sync_directory(path: &Path) -> std::io::Result<()> {
     {
         // Opening a directory read-only and syncing it is the POSIX way to flush its entries.
         let directory: File = File::open(path)?;
-        directory.sync_all()?;
+        match directory.sync_all() {
+            Ok(()) => {}
+            // A filesystem with no directory flush (procfs, some network and userspace filesystems) answers with one
+            // of these; the entry cannot be made durable there by any means, and failing would stop every commit.
+            Err(error) if directory_sync_is_unsupported(&error) => {
+                debug(
+                    "syncDirectory",
+                    format!("the filesystem of {} cannot sync a directory ({error}); skipped", path.display()).as_str(),
+                );
+            }
+            Err(error) => return Err(error),
+        }
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]

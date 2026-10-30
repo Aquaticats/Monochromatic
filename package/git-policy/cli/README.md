@@ -657,6 +657,62 @@ The wrapper, its recovery paths and its tests are expected to work under these c
 - slow fsync and unusual filesystems;
 - DNS or mirror trouble, where the wrapper recovers or falls back instead of wedging.
 
+### What pins each condition
+
+Each condition has permanent controls that start the built executable on real Git fixtures.
+The fault controls (`src/native/binary_fault_*_tests.rs`, method in `binary_fault_support.rs`) inject one fault at the
+`n`th call of one system call of an explicit-path commit, for every `n`, with `strace --inject` (a `ptrace` of the
+child, no privilege and no load; the wrapper's own thread alone is traced, so the `n`th call is the same call on every
+run) or with a resource limit set on the child between `fork` and `exec`.
+After each fault the next ordinary command must succeed without anyone repairing anything, the commit must be landed
+with a clean index or not made with its file still staged, `git fsck` must pass, a further commit must land, and
+nothing of the wrapper may stay behind.
+The `strace` sweeps report a skip and check nothing on a host without `strace`, as `binary_fork_failure_tests.rs` does,
+so the host suite is where they run.
+What the faults found, and the change for each, is in
+[the fault injection note](../../../doc/troubleshooting/git-wrapper-fault-injection-findings.md).
+
+- A nearly full disk: `binary_fault_enospc_tests.rs` fails every `write`, directory creation, rename, symbolic link,
+  hard link of the wrapper with `ENOSPC` (and every `write` of Git too), and every flush with `EIO`;
+  `binary_fault_limits_tests.rs` caps the file size so that a write stops half way and fails with `EFBIG`.
+  A cap cannot reach the records after the first, because the first record is the largest, so the sweep of calls is
+  the control for those.
+- A process killed at any instruction: `binary_fault_kill_tests.rs` kills the wrapper with `SIGKILL` before every
+  `write`, flush, rename, directory creation and removal of a commit (and the wrapper or a Git process before every
+  `write` and flush); older controls kill at the phase markers (`binary_landing_crash_tests.rs`,
+  `binary_merge_isolation_tests.rs`, `binary_worktree_copy_tests.rs`) and damage the records a kill leaves
+  (`binary_recovery_tearing_tests.rs`).
+  A staging directory or a retired lock copy (`*.pending`, `*.stale`) of a killed process stays on purpose and is
+  ignored by every reader.
+- Descriptor and process limits: `binary_fault_limits_tests.rs` sets `RLIMIT_NOFILE` from 4 to 48, fails every
+  `openat` and `pipe2` with `EMFILE`, and keeps `clone3` failing with `EAGAIN` from sampled starts on;
+  `binary_fork_failure_tests.rs` fails a short run of starts.
+  `RLIMIT_NPROC` counts the user's processes on the whole host, so it cannot be swept and is not used.
+- A closed terminal or a broken pipe: `binary_fault_signal_tests.rs` sends `SIGHUP`, `SIGINT` and `SIGQUIT` to the
+  wrapper while a hook runs and `SIGHUP` to the whole process group at each phase of the transaction;
+  `binary_fault_stream_tests.rs` closes the standard streams, gives them a pipe with no reader or a full device, and
+  requires that the status matches the one Git gives when started directly.
+- Slow fsync and unusual filesystems: `binary_fault_filesystem_tests.rs` delays every flush by 30 ms, and keeps hard
+  links, symbolic links and renames across devices refused and directory creation read-only from the `n`th call on.
+  Directory sync on a filesystem without it is a unit control on procfs
+  (`private_storage::tests::a_directory_that_cannot_be_synced_is_not_an_error`).
+  Not injected: real slow storage and real filesystems with these properties, which need privilege to mount.
+- DNS or mirror trouble: `binary_fault_remote_tests.rs` makes the push after a landed commit and an explicit push meet
+  a refused connection, a name under `.invalid`, a server that hangs up, a server that never answers (stopped at
+  `CLI_GIT_PUSH_DEADLINE_SECONDS`) and a `git-lfs` that never exits, and requires that the commit stays, the failure is
+  worded, no lock is held and no process the push started is left running; `binary_push_environment_tests.rs`,
+  `binary_lfs_pre_push_tests.rs` and `binary_lfs_server_tests.rs` cover the stalled push and the failing upload.
+- High CPU load, memory pressure and slow I/O: the shared bound and the byte copy of the wrapper
+  (the troubleshooting note below); no control injects memory pressure.
+  `RLIMIT_AS` is the only privilege-free candidate and was not tried: the address-space cap it sets is hit by Rust and
+  Git allocations alike at points that depend on the build, so it is not expected to tell a wrapper defect from an
+  allocator abort.
+
+Known gaps: a user hook that never exits is not bounded by `CLI_GIT_CHILD_WAIT_SECONDS` (hooks run as long as they run,
+as documented, and are ended by the signals above); the worktree-copy and merge flows are killed at their phase markers
+but not swept call by call; the Git steps of a commit that the wrapper bounds are killed without the processes below
+them.
+
 Tests therefore never wait for a quiet host.
 The shared 5-second bound on one wrapped command is deliberate;
 its measurements and the evidence needed to change it are in
