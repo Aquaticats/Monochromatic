@@ -4196,3 +4196,18 @@ This block supersedes "State at 2026-10-29 (night, later)".
   permission the exact rule string is `Bash(node /home/user/temp/agent/cleanup-agent-worktrees.ts)` under
   `permissions.allow` in `.claude/settings.local.json` (from the Claude Code permissions docs; the user must add it, not
   tested in a live session).
+
+## Update at 2026-10-30 (01:05 host clock, all parity runs done)
+
+- Shared cargo-mutants engine parity against real Podman is complete: forbidden-strings core 48 of 48 caught, linter 4 of 4,
+  scanner 5 of 5 (after two older baseline defects were fixed), git-policy `command_push.rs` 5 caught and 1 unviable
+  (identical to the result before the migration) with all 78 planted controls noticed, run with
+  `--memory 3g --cpus 3` (container showed 3 GiB and 3 CPUs). Image `w65` untagged. Task 65 (1804 mutation campaign) is
+  complete: `push_stacking` 15 of 15, `command_push` 5 and 1 unviable, `entry` 42 and 7 unviable, `auto_push_reconcile`
+  66 and 5 unviable after the two survivors were killed.
+- Open: task 66 (the 5-second stalls: mechanism found and fixed in the harness; keep the task until a full week of
+  loaded runs show no recurrence, and `dependent_version` and `controls` were never explained), task 76 (fault-injection
+  tests for the normal-conditions rules), task 69 (journal syncs), tasks 23 and 30 (Windows), the file-enforcer
+  staleness test that times out at 10 s on this host, the `monochromatic-lint-closure` fixture question, the NMJ debt in
+  the scanner's `bin/*.mjs` scripts, promoting `release.ts` and `wait-publish.ts` to a package, and the remote copies
+  of the scratch branches.
