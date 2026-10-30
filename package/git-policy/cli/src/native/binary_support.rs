@@ -125,7 +125,8 @@ fn warm_wrapper(linked: &Path) {
 ///  the name it was started under (`real_git_candidate::same_file`, `main.rs`), and no control writes to it, so a
 ///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
 fn link_built_wrapper(built: &Path, to: &Path) {
-    if std::fs::hard_link(built, to).is_err() {
+    if let Err(error) = std::fs::hard_link(built, to) {
+        eprintln!("fixture wrapper: no hard link of {} at {} ({error}); copying it instead", built.display(), to.display());
         copy_executable(built, to);
     }
     // After the link, not before: on overlay storage a hard link of an image-layer file copies the file up to a

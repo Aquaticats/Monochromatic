@@ -221,7 +221,7 @@ cached pages, so a cold read of the executable is paid once per machine state an
 A per-process copy (a `OnceLock`) would not have shared anything, because each test is its own process.
 A symbolic link as the fixture's wrapper would break `std::fs::hard_link` in the resolution controls, which link
 the wrapper's path and would link the link itself; `/proc/self/exe` resolves a symbolic link to its target and a hard
-link to the path used to start it, and both were exercised by the full suite below.
+link to the path used to start it, and both were exercised by the full-suite runs in the measurements of this section.
 
 One read per process, after the link, warms the file (`warm_wrapper`): the wait for a slow disk then happens
 there, outside the bound.
@@ -249,7 +249,7 @@ Measurements (debug wrapper 21.9 MB, containers from the gate image, 2 GiB, 2 CP
   So the link design is not more robust than the data copy against a slow disk (both move the read outside the bound);
   it removes the writes, the per-fixture setup cost and the cold start of every new inode.
 - Guards, each shown failing once: `a_fixture_wrapper_is_the_built_executable_itself` (same device and inode as the
-  built executable, skipped when the fixture is on another filesystem) failed with the copy restored
+  built executable, skipped where a hard link of the build cannot be made in the fixture) failed with the copy restored
   (`not the same file as .../target/debug/cli-git-native`); the byte-copy guard failed with `--reflink=never` removed.
 
 ## What would make the commit itself faster

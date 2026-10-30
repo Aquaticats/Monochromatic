@@ -126,8 +126,10 @@ fn a_fixture_wrapper_is_the_built_executable_itself() {
     let created: Fixture = fixture("same-inode");
     let built = std::fs::metadata(super::support::WRAPPER).expect("built wrapper");
     let linked = std::fs::metadata(&created.wrapper).expect("fixture wrapper");
-    if built.dev() != linked.dev() {
-        eprintln!("{} is on another filesystem than the build; nothing to check", created.root.display());
+    // The fixture falls back to a copy exactly where a hard link of the build cannot be made, so ask the same question.
+    let probe: PathBuf = created.root.join("link-probe");
+    if let Err(error) = std::fs::hard_link(super::support::WRAPPER, &probe) {
+        eprintln!("{} cannot hold a hard link of the build ({error}); nothing to check", created.root.display());
         return;
     }
     assert_eq!(
