@@ -3990,3 +3990,8 @@ This block supersedes "State at 2026-10-29 (night, later)".
   container's memory (no synthetic load), measures page faults and executable size of the debug and release builds,
   and makes the wrapper or the test build faster where the numbers show the cause (the bound stays at 5 seconds). I
   land its branch. Task 66 stays open until it reports.
+
+- User permission (20:45): if the shared 5-second bound in `observe_raw` (`binary_support.rs`) is too strict, bring the
+  user evidence (per-command time distributions under realistic reclaim, what dominates the time, why speeding up the
+  wrapper does not help); the bound may then be raised to at most 10 seconds. Not before the evidence is presented,
+  and never above 10 s. Agent `ac6a56aed8916cfec` was told to report such evidence and not to edit the bound itself.
