@@ -393,6 +393,80 @@ fn create_identified_lock(
 }
 
 /// What:
+///  Take the real index lock for a landing so that its journal record exists before the lock does:
+///  create a candidate file in the transaction directory,
+///  journal the candidate's identity,
+///  then publish the candidate as `index.lock` by a hard link,
+///  which is as exclusive as `O_EXCL` and gives the lock the candidate's inode.
+///  `Ok(None)` means the filesystem refused the link and nothing was left behind,
+///  so the caller creates the lock in place and journals it afterwards.
+/// Why:
+///   A kill between the creation of `index.lock` and the write of its record leaves a lock that nothing proves
+///  ours, which every later command refuses to remove (the lock may be Git's); no window like that remains when the
+///  record comes first. A candidate that outlives a kill lies in the transaction directory, which recovery removes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeCandidate(); await journalIdentity(candidate); await link(candidate, indexLock); await rm(candidate);
+/// ```
+fn create_journaled_lock(
+    real_index: &Path,
+    transaction_directory: &Path,
+    attempt: i64,
+    timeout_ms: u64,
+    consequence: &str,
+) -> Result<Option<(PathBuf, LockIdentity)>, CoordinationFailure> {
+    let lock_path: PathBuf = real_lock_path(real_index);
+    let candidate: PathBuf = transaction_directory.join(format!("index-lock-{attempt}.candidate"));
+    match create_exclusive(candidate.as_path()) {
+        Ok(true) => {}
+        Ok(false) => return Err(CoordinationFailure::Stop(format!("{} already exists", candidate.display()))),
+        Err(reason) => return Err(CoordinationFailure::Stop(reason)),
+    }
+    let identity: LockIdentity = match created_identity(candidate.as_path(), real_index) {
+        Ok(found) => found,
+        Err(reason) => {
+            let _ = std::fs::remove_file(candidate.as_path());
+            return Err(CoordinationFailure::Stop(reason));
+        }
+    };
+    if let Err(reason) = write_lock_record(transaction_directory, attempt, &identity) {
+        let _ = std::fs::remove_file(candidate.as_path());
+        return Err(CoordinationFailure::Stop(reason));
+    }
+    loop {
+        match std::fs::hard_link(candidate.as_path(), lock_path.as_path()) {
+            Ok(()) => break,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                if let Err(failure) = wait_for_lock(real_index, timeout_ms, consequence) {
+                    // The lock was never taken, so nothing is journaled for it.
+                    let _ = std::fs::remove_file(candidate.as_path());
+                    let _ = std::fs::remove_file(transaction_directory.join(index_lock_record_filename(attempt)));
+                    return Err(failure);
+                }
+            }
+            Err(error) => {
+                debug(
+                    TAG,
+                    format!("the filesystem refused to link the lock candidate ({error}); creating the lock in place").as_str(),
+                );
+                let _ = std::fs::remove_file(candidate.as_path());
+                let record: PathBuf = transaction_directory.join(index_lock_record_filename(attempt));
+                if let Err(removal) = std::fs::remove_file(record.as_path()) {
+                    return Err(CoordinationFailure::Stop(format!("removing {} failed: {removal}", record.display())));
+                }
+                return Ok(None);
+            }
+        }
+    }
+    // The lock now has its own name; the candidate's name was only the way in.
+    if let Err(error) = std::fs::remove_file(candidate.as_path()) {
+        debug(TAG, format!("removing the lock candidate {} failed: {error}", candidate.display()).as_str());
+    }
+    return Ok(Some((lock_path, identity)));
+}
+
+/// What:
 ///  Take the real index lock,
 ///  waiting for a foreign holder under the classification rules,
 ///  then
@@ -474,6 +548,19 @@ pub fn acquire_landing_index_lock(
     timeout_ms: u64,
     consequence: &str,
 ) -> Result<RealIndexLock, CoordinationFailure> {
+    if let Some((lock_path, identity)) = create_journaled_lock(real_index, transaction_directory, attempt, timeout_ms, consequence)? {
+        let announced: Result<(), String> = announce_held_lock(real_index, lock_path.as_path());
+        if let Err(reason) = announced {
+            let _ = std::fs::remove_file(lock_path.as_path());
+            return Err(CoordinationFailure::Stop(reason));
+        }
+        return Ok(RealIndexLock {
+            lock_path,
+            real_index: real_index.to_path_buf(),
+            pid_path: real_pid_path(real_index),
+            identity,
+        });
+    }
     let (lock_path, identity): (PathBuf, LockIdentity) = create_identified_lock(real_index, timeout_ms, consequence)?;
     let announced: Result<(), String> = announce_landing_lock(real_index, transaction_directory, attempt, lock_path.as_path(), &identity);
     if let Err(reason) = announced {
@@ -509,6 +596,22 @@ fn announce_landing_lock(
     identity: &LockIdentity,
 ) -> Result<(), String> {
     write_lock_record(transaction_directory, attempt, identity)?;
+    return announce_held_lock(real_index, lock_path);
+}
+
+/// What:
+///  The steps between holding a landing's lock and announcing it:
+///  mode,
+///  PID file.
+/// Why:
+///   The journal record is already durable, whether it was written before the lock was published or after it was
+///  created.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await protectPath({ path: lockPath, directory: false }); await writeOwnPidFile(pidPath);
+/// ```
+fn announce_held_lock(real_index: &Path, lock_path: &Path) -> Result<(), String> {
     if let Err(error) = protect_path(lock_path, 0o600) {
         return Err(format!("protecting {} failed: {error}", lock_path.display()));
     }
