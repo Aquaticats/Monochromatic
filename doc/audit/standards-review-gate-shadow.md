@@ -2572,3 +2572,6 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   a574ee35a68c (no code files):
   `docs(audit): carry the shadow log's hook entries for the review commit`
+- Skipped:
+  78bd2859368b (no code files):
+  `fix(mise): skip the shadow review for commits that only touch the shadow log`
