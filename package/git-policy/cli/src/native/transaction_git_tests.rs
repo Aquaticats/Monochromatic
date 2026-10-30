@@ -455,6 +455,40 @@ fn only_harmless_commands_may_be_rerun() {
     assert!(!may(&["-c", "a=b"], false));
 }
 
+/// A Git that cannot be started at all is the caller's failure with its own kind, not a refusal to retry and not a
+///  failure of another kind: the error of a rerunnable command comes back as the operating system gave it.
+#[test]
+fn a_start_failure_keeps_its_kind_through_the_rerun_loop() {
+    let root: PathBuf = fixture("transaction-git-missing");
+    let context: GitContext =
+        GitContext { real_git: root.join("no-such-git"), overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
+    assert!(may_be_rerun(&request), "the command is one the loop may run again");
+    let failure: std::io::Error =
+        run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause).expect_err("Git cannot start");
+    assert_eq!(failure.kind(), std::io::ErrorKind::NotFound, "{failure}");
+    remove(root.as_path());
+}
+
+/// A refused run followed by a run that cannot start reports the start failure, not the stale output of the refused
+///  run: the output of an earlier run answers only when the budget ran out on refusals.
+///  The fake Git refuses once and removes itself, so the second start finds no program.
+#[test]
+fn a_refused_run_followed_by_a_start_failure_reports_the_start_failure() {
+    let root: PathBuf = fixture("transaction-git-refused-then-gone");
+    let program: PathBuf = root.join("vanishing-git");
+    executable(
+        program.as_path(),
+        b"#!/bin/sh\necho 'fatal: unable to create thread: Resource temporarily unavailable' >&2\nrm -- \"$0\"\nexit 128\n",
+    );
+    let context: GitContext = GitContext { real_git: program, overlay: Vec::new(), global_prefix: Vec::new(), common_dir: None };
+    let request: GitRequest = GitRequest::new(root.as_path(), &["rev-parse", "HEAD"]);
+    let failure: std::io::Error = run_git_pausing(&context, &request, START_RETRY_BUDGET, &mut no_pause)
+        .expect_err("the second start finds no program");
+    assert_eq!(failure.kind(), std::io::ErrorKind::NotFound, "{failure}");
+    remove(root.as_path());
+}
+
 /// Only Git's own words for a refused process or thread count as a refusal.
 #[test]
 fn only_a_refusal_by_the_system_counts() {
