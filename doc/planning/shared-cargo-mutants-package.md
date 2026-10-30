@@ -4,6 +4,9 @@ Status:
  steps 1 to 6 executed 2026-10-29 on a branch awaiting landing, after the user answered the open questions
  (see `Decisions`) and the container-limit work in `package/git-policy/cli/bin` landed.
 Step 7 is not started, by design.
+Note 2026-10-30: the older `.mjs` scripts of the scanner (`container-snapshot`, `verify-evidence`, `test-container`,
+`guard-container`, `observe-guards-container`, `render-docs`) and of the linter (`test-container`, `clippy-container`)
+are TypeScript files now, so the `.mjs` names in `Inventory` and in `Not done and why` are historical.
 `Execution record` says what each step did, what changed on purpose, and what has not been run.
 
 ## Purpose
@@ -330,6 +333,8 @@ The git-policy parallel task is `native:mutation:parallel` in that package.
   layering over a tested image, so it cannot use `runCampaign`; it uses the shared exclusion constant and is
   TypeScript now.
   Its older `.mjs` scripts (snapshot, evidence, guards, documents) are untouched and are not part of this plan.
+  Update 2026-10-30: they are TypeScript now (see the note under `Status`); the sidecar scripts under
+  `package/forbidden-strings/cli.fuzz/bin` and `package/linter/monochromatic-lint.fuzz/bin` are still `.mjs`.
 - The planted-controls runner (step 7) stays in the native wrapper until a second product wants it.
 - Nothing past an option error or a stand-in podman has run: the user runs one scoped campaign per product to prove
   parity, and the engine's snapshot image build and campaign are new and have never run against real Podman.

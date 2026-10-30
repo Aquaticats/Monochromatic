@@ -5,6 +5,11 @@
 > paths and names below this note are historical:
 > `package/git/executable` is now `package/git-executable/core`.
 
+Note 2026-10-30: the scanner scripts `container-snapshot`, `verify-evidence`, `test-container` and the other
+`package/forbidden-strings/cli/bin/*.mjs` files, and the linter scripts `test-container` and `clippy-container` under
+`package/linter/monochromatic-lint/bin`, are TypeScript files now; read those `.mjs` names as `.ts`. The line near the
+scanner parity runs that says the scanner `bin/*.mjs` scripts still violate NMJ is out of date.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
