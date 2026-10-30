@@ -432,7 +432,17 @@ fn check_rejected(message: &str) {
     let event: JsoncValue =
         parse_jsonc(line.trim_end_matches('\n')).expect("an event is valid JSON");
     let entries: &[JsoncEntry] = event.entries().expect("an event is an object");
-    assert_eq!(entries.len(), 5);
+    // Five fixed members, then the code's generic hint when the code has one.
+    assert!(
+        entries.len() == 5 || entries.len() == 6,
+        "an event has five members and an optional hint"
+    );
+    if entries.len() == 6 {
+        assert_eq!(
+            entries[5].key.raw, "\"hint\"",
+            "the sixth member is the hint"
+        );
+    }
     // The last member is the message; its decoded text must equal the original.
     let decoded: String = units_to_string(
         entries[4]

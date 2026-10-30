@@ -10,6 +10,8 @@
 
 /// The generator cursor shared with the owner records.
 use super::owners::Cursor;
+/// The digest a landing record keeps of each index snapshot.
+use git_policy_cli::content_digest::ContentDigest;
 /// Capture-order records under test.
 use git_policy_cli::capture_records::{
     CapturedRecord, LandedCaptureRecord, encode_captured_record, encode_landed_capture_record,
@@ -72,6 +74,24 @@ fn added(cursor: &mut Cursor<'_>) -> Vec<AddedPath> {
         });
     }
     return records;
+}
+
+/// What: An optional content digest from the cursor:
+///       absent, or a length and a hash that use the whole range a record can store.
+/// Why:  Records written before digests existed have none, and a stored hash may be any 16 hexadecimal digits.
+fn digest(cursor: &mut Cursor<'_>) -> Option<ContentDigest> {
+    if cursor.flip() {
+        return None;
+    }
+    let mut hash: u64 = 0;
+    for _ in 0..8 {
+        hash = (hash << 8) | u64::from(cursor.byte());
+    }
+    // `positive()` is a safe integer, so the length survives the signed JSON number it is stored as.
+    return Some(ContentDigest {
+        length: u64::try_from(cursor.positive()).unwrap_or(0),
+        fnv1a64: hash,
+    });
 }
 
 /// A base from the cursor.
@@ -153,6 +173,8 @@ pub fn generated_landing(cursor: &mut Cursor<'_>) -> LandingRecord {
         },
         added_paths: added(cursor),
         selected_worktree_paths: added(cursor),
+        pre_landing_digest: digest(cursor),
+        post_digest: digest(cursor),
     };
 }
 
