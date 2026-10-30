@@ -814,6 +814,20 @@ through nested doc tests and adversarial edit groups.
 Evidence belongs to its recorded source snapshot;
 new source does not inherit a previous campaign's completion status.
 
+## Script linting
+
+The verification scripts in `bin` are TypeScript.
+`mise run //package/linter/monochromatic-lint:lint:scripts:types` type-checks them,
+and `mise run //package/linter/monochromatic-lint:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
+The Oxlint task takes explicit paths and has no package-wide form on purpose.
+A package-wide `lint:oxlint` also lints `task.ts`, which no `tsconfig.json` includes:
+it does not satisfy the isolated-declarations setting of the shared TypeScript preset,
+so adding it to the project fails the type check.
+Measured on 2026-10-30, that run exits 0 but the semantic bridge reports `api-unavailable` for six files
+and the type-aware rules (`prefer-readonly-parameter-type`, for one) throw instead of checking,
+so a green package-wide run would not mean the scripts passed those rules.
+Making the package-wide task usable needs `task.ts` to be fixed or excluded, not a looser rule.
+
 ## License
 
 LGPL-3.0-or-later.

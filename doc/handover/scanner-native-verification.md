@@ -14,6 +14,7 @@ Note 2026-10-30: the scanner scripts this document names under `package/forbidde
 `container-snapshot.d.mts` is deleted, and the helpers moved into sibling modules (`scanner-run.ts`,
 `source-inventory.ts`, `snapshot-*.ts`, `guard-injection.ts`, `guard-control-selection.ts`, `evidence-*.ts`).
 `run` in `container-snapshot.ts` is asynchronous.
+The fuzz sidecar script `package/forbidden-strings/cli.fuzz/bin/smoke-container.mjs` is `smoke-container.ts` now.
 
 ## Purpose and scope
 

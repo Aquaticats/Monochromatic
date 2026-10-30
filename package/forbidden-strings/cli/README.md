@@ -975,3 +975,15 @@ commands,
    the embedded baseline is derived from it,
    and
   `port-betterleaks-relaxations.ts` records the lossy translations applied during the port.
+
+## Script linting
+
+The verification scripts in `bin` are TypeScript.
+`mise run //package/forbidden-strings/cli:lint:scripts:types` type-checks them,
+and `mise run //package/forbidden-strings/cli:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
+The Oxlint task takes explicit paths and has no package-wide form on purpose.
+A package-wide `lint:oxlint` run, measured on 2026-10-30, fails with 30 errors and 29 warnings,
+all in `src/mise.port-betterleaks.ts`, which the package's `tsconfig.json` includes.
+It also lints `task.ts`, which no `tsconfig.json` includes: the semantic bridge reports `project-not-found`
+and a type-aware rule throws.
+Making the package-wide task usable needs those two files fixed, not a looser rule.
