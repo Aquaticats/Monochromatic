@@ -3059,9 +3059,13 @@ processes and units and remove the worktrees afterwards):
   command is a real bug and must be reported at once.
 
 Open, not decided by evidence yet:
-- Task 66: the root cause of the two 5-second kills (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`,
-  `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`) is unknown; the commands measure 3 to 40
-  ms; one host-wide fork-failure episode was observed, not reproduced on demand. Next step: refuse bursts of
+- Task 66: the two 5-second kills (`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode`,
+  `controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed`) are explained and gone: on 2026-10-30 both
+  stalled in every capped run at `c3dddf91ac` (cloned wrapper, 12 of 12 under a 2 or 5 MB/s read cap, killed at 5000.7
+  ms on the first bounded command) and in none of 96 test executions at `1091639e0b` (hard-linked wrapper, caps down to
+  1 MB/s); see "The two task 66 tests" in the troubleshooting document above. That the 2026-10-29 failures were this
+  cause is consistent, not proven. Separately, one host-wide fork-failure episode was observed, not reproduced on
+  demand. Next step for the commit hangs: refuse bursts of
   `clone3` while several heavy tests overlap (the fork-failure sweep covers one commit at a time) to look for the five
   90-second commit hangs of the first partition run (`commit::fewer_lost_races_than_configured_take_no_reservation`,
   `commit::a_termination_signal_during_a_hook_ends_the_commit_and_leaves_nothing`, three `event_path_commit` replays).

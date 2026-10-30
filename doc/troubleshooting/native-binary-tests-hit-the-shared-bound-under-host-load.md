@@ -25,7 +25,9 @@ Per-command wall times came from 25 reruns of each single test; process starts f
   caps, with a probe beside one, never showed a non-commit wrapped command of the `discard::`, `dependent_version::`
   and `controls::` tests above 0.07 s, so the bound stays at 5 s for single Git commands (about 70 times that).
 - `dependent_version` and `controls` tests: at most 0.07 s and 0.05 s per command (173 process starts for the 50
-  commands of `every_control_before_the_subcommand_is_removed`, 3 or 4 per command). No mechanism was found for them.
+  commands of `every_control_before_the_subcommand_is_removed`, 3 or 4 per command). No mechanism was found for them
+  at that time; the section "The two task 66 tests: the cold first start explains them, and they no longer stall"
+  later in this document found it.
 
 ## Cause and fix
 
@@ -251,6 +253,79 @@ Measurements (debug wrapper 21.9 MB, containers from the gate image, 2 GiB, 2 CP
 - Guards, each shown failing once: `a_fixture_wrapper_is_the_built_executable_itself` (same device and inode as the
   built executable, skipped where a hard link of the build cannot be made in the fixture) failed with the copy restored
   (`not the same file as .../target/debug/cli-git-native`); the byte-copy guard failed with `--reflink=never` removed.
+
+## The two task 66 tests: the cold first start explains them, and they no longer stall
+
+Two baselines of the mutation campaign of 2026-10-29 failed with `the command hit the 5-second bound` in
+`dependent_version::literal_pathspecs_check_a_named_manifest_like_plain_mode` and
+`controls::a_path_named_like_a_hatch_is_forwarded_and_a_hatch_is_removed` while the host load average was about 28.
+The failure message did not yet name the command, and the commands measure 3 to 40 ms when run alone.
+Question: do they still stall now that fixtures hard-link the wrapper?
+
+### Method
+
+Two gate images built by `native:test:container` with a stand-in `podman` that skipped the final `run` (scratch,
+`~/temp/agent/t66/`), one per revision: `c3dddf91ac` (the parent of `e76a99bddc`, where each fixture clones the wrapper
+with `cp`) and `1091639e0b` (current main, with the hard link and `warm_wrapper`).
+Both images carried one temporary line in `observe_raw` that printed the wall time and arguments of every bounded
+command (not committed).
+Each run was one container with `--memory=2g --cpus=2 --pids-limit=128` and `--device-read-bps` on both `/dev/dm-0`
+and `/dev/dm-1` (the container storage is `/var/home`, on `dm-1`), running `cargo nextest run --test native_binary`
+for the two tests, or for the whole `dependent_version::` and `controls::` modules.
+Before the test, some runs evicted pages with `dd iflag=nocache count=0`: `wrapper` evicts the built executable,
+`all` also evicts `/usr/bin/git`, `/usr/bin/timeout`, `/usr/bin/sh`, `/usr/bin/env` and the shared libraries.
+No stress tool and no extra load; the host load average was 5.8 when the runs started.
+
+### What each test runs under the bound first
+
+Both tests build their repository with `git` calls that go straight to real Git (`direct`, no `timeout`), so Git and its
+libraries are read before any bounded command.
+The first bounded command of each test is therefore also the first start of the wrapper's file:
+`cli-git check -- package/module/a/package.json` in the `dependent_version` test and
+`reset --no-enforce-worktree --quiet -- --no-enforce-worktree` in the `controls` test.
+
+### Results at the revision before the hard link (positive control)
+
+Per-test outcomes, two tests per run, no eviction:
+- 5 MB/s read cap, 3 runs: all 6 test executions killed at 5000.7 to 5000.8 ms; the killed command was in every case the
+  first bounded command listed above (named by `observe_raw`), nextest times 5.7 to 6.5 s.
+- 2 MB/s read cap, 3 runs: all 6 killed the same way.
+- No cap, 3 runs: all passed; the first bounded command of the 6 fixtures took 153 to 421 ms (median 353 ms), against
+  3.4 to 25.8 ms for every later command. This is the cold first start of a clone, and its size on an uncapped disk is
+  why a loaded host reaches 5 s while a quiet one never shows it.
+
+### Results at current main
+
+Test executions that hit the bound: 0 of 66 in the two-test runs and 0 of 30 in the module runs.
+- 5 MB/s: 5 runs without eviction, 5 with `wrapper`, 5 with `all`; nextest wall time 4.0 to 4.2 s (`none`, `wrapper`)
+  and 5.3 to 5.5 s (`all`), all of it before the first bounded command (the copy-up and read of the 22 MB wrapper, then
+  Git's pages in the unbounded setup).
+- 2 MB/s: 5 runs with `wrapper` (10.3 to 10.5 s) and 5 with `all` (13.3 to 13.8 s); then 3 runs of the two whole
+  modules with `all` (10 tests each, 13.7 to 13.9 s).
+- 1 MB/s with `all`: 5 runs, 26.7 to 28.8 s.
+- No cap: 3 runs, 0.21 to 0.27 s.
+- First bounded command of each fixture, current main (milliseconds): no cap, median 12.6, maximum 13.5; 5 MB/s, median
+  13.1, maximum 26.5; 2 MB/s with `wrapper`, maximum 69; 2 MB/s with `all`, maximum 268; 1 MB/s with `all`, median 144,
+  maximum 281; module runs at 2 MB/s with `all`, maximum 129. The worst is 17 times under the bound.
+- Later commands of the two tests took at most 14.5 ms in every run. In the module runs (214 commands) one later command
+  took 101.8 ms (a `status` under `--no-enforce-final-newline`) and the others at most 16.8 ms.
+
+### Reading
+
+- The two tests are the first bounded start of the wrapper's file in each of their processes, and both stall at the old
+  revision under a read cap at exactly that command, for exactly the reason in "Mechanism found": the clone's pages are
+  not cached. That the two 2026-10-29 failures were this mechanism is consistent with the evidence, not proven: no
+  host trace of those two runs exists, and the cap models slow storage, not the load average of 28.
+- The hard link plus `warm_wrapper` removes it: the wait for a slow disk moves into the fixture setup, which has no
+  bound, and the tests passed at caps down to 1 MB/s with the wrapper evicted.
+- A residual cold read remains at the first bounded command (up to about 280 ms at 1 MB/s, which is roughly 280 KB of
+  pages that the earlier `git init` and `commit` did not touch, probably in Git's own binary or libraries). It was not
+  attributed to a file, because it is 17 times below the bound at 1 MB/s. A stall of 5 s from such reads would need
+  about 5 MB of cold pages at 1 MB/s.
+- Not covered: fsync waits (the cap model does not slow them, see "Disk write and fsync"), memory pressure that evicts
+  pages after the warm read, and the real load of 28. The tests have no sync call, and a stall of the kind that remains
+  possible would name its command in the `observe_raw` failure message.
+- The bound stays at 5 s. Nothing here supports changing it.
 
 ## What would make the commit itself faster
 
