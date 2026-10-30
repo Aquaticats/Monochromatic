@@ -3995,3 +3995,7 @@ This block supersedes "State at 2026-10-29 (night, later)".
   user evidence (per-command time distributions under realistic reclaim, what dominates the time, why speeding up the
   wrapper does not help); the bound may then be raised to at most 10 seconds. Not before the evidence is presented,
   and never above 10 s. Agent `ac6a56aed8916cfec` was told to report such evidence and not to edit the bound itself.
+
+- User condition on the bound (20:50): presenting evidence is not enough. The user must explicitly approve the evidence
+  itself (they judge whether it is good enough) before any change; only then may the bound rise, to at most 10 s. Ask
+  through the question tool with the evidence attached, and treat silence or a vague reply as no approval.
