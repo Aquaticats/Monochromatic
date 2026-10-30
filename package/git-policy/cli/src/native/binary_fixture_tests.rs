@@ -98,19 +98,43 @@ fn shared_extent_count(path: &Path) -> Option<usize> {
     return Some(shared);
 }
 
-/// The fixture's private wrapper copy is a data copy: a clone starts by reading most of the executable from disk,
+/// A byte copy a control makes is a data copy: a clone starts by reading most of the executable from disk,
 /// which stalled the first wrapped command of a test for seconds on a busy disk and hit the 5-second bound.
 #[test]
-fn a_fixture_wrapper_copy_shares_no_storage_with_the_built_executable() {
+fn a_byte_copy_of_the_wrapper_shares_no_storage_with_the_built_executable() {
     let created: Fixture = fixture("copy-storage");
-    match shared_extent_count(created.wrapper.as_path()) {
+    let copy: PathBuf = created.root.join("byte-copy");
+    super::support::copy_executable(Path::new(super::support::WRAPPER), copy.as_path());
+    match shared_extent_count(copy.as_path()) {
         Some(shared) => assert_eq!(
             shared,
             0,
             "{} shares {shared} extents with {}",
-            created.wrapper.display(),
+            copy.display(),
             super::support::WRAPPER
         ),
         None => eprintln!("the filesystem under {} reports no extents; nothing to check", created.root.display()),
     }
+}
+
+/// Every fixture starts the built executable itself, through a hard link, so one set of cached pages serves all
+/// fixtures of all test processes and the cold read of a slow disk is paid once, not once per test.
+/// A fixture on another filesystem (a moved root) gets a copy and the check does not apply.
+#[test]
+fn a_fixture_wrapper_is_the_built_executable_itself() {
+    use std::os::unix::fs::MetadataExt;
+    let created: Fixture = fixture("same-inode");
+    let built = std::fs::metadata(super::support::WRAPPER).expect("built wrapper");
+    let linked = std::fs::metadata(&created.wrapper).expect("fixture wrapper");
+    if built.dev() != linked.dev() {
+        eprintln!("{} is on another filesystem than the build; nothing to check", created.root.display());
+        return;
+    }
+    assert_eq!(
+        (linked.dev(), linked.ino()),
+        (built.dev(), built.ino()),
+        "{} is not the same file as {}",
+        created.wrapper.display(),
+        super::support::WRAPPER
+    );
 }

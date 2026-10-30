@@ -49,11 +49,12 @@ pub struct Observed {
     pub stderr: Vec<u8>,
 }
 
-/// One disposable directory with a `bin/git` link to a private copy of the wrapper.
+/// One disposable directory with a `bin/git` link to the wrapper.
 pub struct Fixture {
     /// Canonical fixture root.
     pub root: PathBuf,
-    /// The private wrapper copy every link and hard link in this fixture points at.
+    /// The wrapper path every link and hard link in this fixture points at:
+    ///  a hard link of the built executable, so no control may write to it.
     pub wrapper: PathBuf,
 }
 
@@ -98,8 +99,42 @@ impl Drop for Fixture {
     }
 }
 
+/// What:
+///  Read the fixture's wrapper once per test process, so its pages are in the page cache before any bounded command
+///  starts it, and the wait for a slow disk happens here and not under the 5-second bound.
+/// Why:
+///  Every fixture's wrapper is a hard link of the built executable, so all fixtures of all test processes share one
+///  set of cached pages. Starting an executable that is not cached reads most of the file in its first fault (a 22 MB
+///  debug build read 16 MiB; `doc/troubleshooting/native-binary-tests-hit-the-shared-bound-under-host-load.md`).
+fn warm_wrapper(linked: &Path) {
+    /// Set once the executable has been read by this process.
+    static WARMED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    WARMED.get_or_init(|| {
+        use std::io::Read;
+        let mut file: std::fs::File = std::fs::File::open(linked).expect("open the fixture wrapper");
+        let mut chunk: Vec<u8> = vec![0; 1 << 20];
+        while file.read(chunk.as_mut_slice()).expect("read the built wrapper") > 0 {}
+    });
+}
+
+/// What:
+///  Give a fixture its wrapper path: a hard link of the built executable, or a data copy where a hard link is
+///  impossible (a fixture root moved to another filesystem with `CLI_GIT_TEST_ROOT`).
+/// Why:
+///  The wrapper never reads its own path except to recognise itself by file identity and to find hook entries by
+///  the name it was started under (`real_git_candidate::same_file`, `main.rs`), and no control writes to it, so a
+///  private copy bought nothing but 22 MB of writes per fixture and a cold first start of a new inode per test.
+fn link_built_wrapper(built: &Path, to: &Path) {
+    if std::fs::hard_link(built, to).is_err() {
+        copy_executable(built, to);
+    }
+    // After the link, not before: on overlay storage a hard link of an image-layer file copies the file up to a
+    // new inode, whose pages are the ones every fixture then shares and the ones a start needs.
+    warm_wrapper(to);
+}
+
 /// Create a fixture:
-///  `<root>/wrapper/cli-git-native` (copy) and `<root>/bin/git` (symbolic link to it).
+///  `<root>/wrapper/cli-git-native` (hard link of the built executable) and `<root>/bin/git` (symbolic link to it).
 pub fn fixture(name: &str) -> Fixture {
     let created: PathBuf = fixture_root().join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
@@ -111,7 +146,7 @@ pub fn fixture(name: &str) -> Fixture {
         std::fs::create_dir(root.join(directory)).expect("fixture directory");
     }
     let wrapper: PathBuf = root.join("wrapper/cli-git-native");
-    copy_executable(Path::new(WRAPPER), wrapper.as_path());
+    link_built_wrapper(Path::new(WRAPPER), wrapper.as_path());
     std::os::unix::fs::symlink(&wrapper, root.join("bin/git")).expect("git-named link");
     return Fixture { root, wrapper };
 }
@@ -427,6 +462,8 @@ pub use fixture_executable::executable;
 ///   A copy made by this process would be open for writing here,
 ///  with the same
 ///       "Text file busy" window as `executable` describes.
+///  Fixtures reach the wrapper through a hard link (`fixture`), so this is for controls that need a second file with
+///  the wrapper's bytes and a different identity.
 ///  The copy is a real data copy (`--reflink=never`): on btrfs, which also backs overlay storage, the default
 ///  `cp` clones the extents, and the clone has no pages in the page cache, so the first start of the copy reads
 ///  most of the executable from disk inside the 5-second bound (a 22 MB debug build read 16 MiB in 4 major faults;
