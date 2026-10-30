@@ -2405,3 +2405,67 @@ in `doc/handover/superlinear-cost-dismissal-gate.md`.
 - Skipped:
   26b911b0dbec (no code files):
   `docs(troubleshooting): record measured wait bound for zig 0.17`
+- Skipped:
+  495cceaf7f3f (no code files):
+  `docs(audit): carry the hook entries and settle every shadow verdict`
+- Skipped:
+  adba0fffa0f9 (no code files):
+  `docs(handover): record the per-commit review pause and the scored landing distribution`
+- Skipped:
+  7ee647e6ffe0 (no code files):
+  `docs(handover): record the stall mechanism, the strip-only profile and the parity runs`
+- Skipped:
+  87a898d65e3b (no code files):
+  `docs(handover): record the hard-link fixtures, the linter scratch fix and the parity runs`
+- Skipped:
+  318d35fd5c1c (no code files):
+  `docs(handover): record the final gate, the mutation results and the parity runs`
+- Skipped:
+  627fa9c44471 (no code files):
+  `chore(git-policy/cli): release 0.4.2: release builds strip symbols to shorten the first start after eviction; fixtures hard-link the wrapper; new tests for the merge isolation, scratch and transaction survivors`
+- Skipped:
+  75daa1c2b9e4 (no model call: the per-commit full-model review is paused
+  since 2026-10-29 on owner cost correction; set SHADOW_REVIEW_ALLOW=1 to run one):
+  `chore(mise): adopt monochromatic-git-policy-cli 0.4.2 and rust nightly-2026-10-30 via toolchain:update`
+- Skipped:
+  f763177525a9 (no code files):
+  `docs(handover): record release 0.4.2, the scanner baseline fixes and the open parity run`
+- Skipped:
+  67533152643c (no code files):
+  `docs(handover): record the cleanup done and the agent worktree cleanup awaiting approval`
+- Skipped:
+  f6bcb4affbcb (no code files):
+  `docs(handover): record the agent worktree cleanup result`
+- Skipped:
+  69aa8b6caa47 (no code files):
+  `docs(handover): record the completed parity runs and the open items`
+- Skipped:
+  1091639e0bb6 (no code files):
+  `docs(handover): record the agents dispatched for the open items`
+- Skipped:
+  2a282df99f74 (no code files):
+  `docs(handover): record the scratch-root layout check results`
+- Skipped:
+  bef7d67c62d0 (no code files):
+  `docs(handover): correct the ide build prerequisite note`
+- Skipped:
+  75944a85e30d (no code files):
+  `docs(handover): record the ide scratch-root and bin test module fixes`
+- Skipped:
+  0d700f5f13b9 (no code files):
+  `docs(handover): note the unexplained auto-push failure and what to capture next time`
+- Skipped:
+  9b6ceb5ad8b2 (no code files):
+  `docs(handover): record the release and shell-argument packages, the conversions and task 66`
+- Skipped:
+  4bc4383e9a04 (no code files):
+  `docs(handover): record the Luna parity run and its pre-registered outcome`
+- Skipped:
+  5592ae4d86c1 (no code files):
+  `docs(handover): record the commit-path profile and the decision against a daemon`
+- Skipped:
+  6ed8348a219a (no code files):
+  `docs(audit): add the standards-review gate truth-check`
+- Skipped:
+  3953e2479edc (no code files):
+  `docs(handover): record the truth-check outcome and hand graduation to the owner`
