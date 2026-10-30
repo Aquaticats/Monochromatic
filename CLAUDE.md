@@ -360,6 +360,15 @@ Flagged choices (veto-open adoptions,
  ask same turn with options;
  never park them in docs.
 
+GXD:
+ Grilling a design:
+ first enumerate every dependency it needs (crates,
+ libraries,
+ tools)
+ and get each one picked,
+ before other branches;
+ the rest of the design builds on those picks.
+
 QCS:
  Under a quality-over-cost guideline,
  options differing only in price aren't user questions:
