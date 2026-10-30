@@ -238,9 +238,11 @@ export async function snapshot({
       import.meta.dirname,
       '../../../..'
     );
+    // The CI scan-scope tests read the workflow's scan step from the repository root, so the snapshot carries it.
     for (const file of [
       'forbidden-strings.append.txt',
-      'clippy.toml'
+      'clippy.toml',
+      '.github/workflows/forbidden-strings.yml'
     ])
       await cp(
         join(
@@ -394,6 +396,7 @@ export async function snapshot({
         'COPY vendor /work/vendor',
         'COPY cargo-config /work/.cargo',
         'COPY forbidden-strings.append.txt clippy.toml /work/',
+        'COPY .github /work/.github',
         'RUN ["mkdir", "--parents", "/home/tester/.cargo"]',
         'RUN ["chown", "--recursive", "1000:1000", "/work", "/home/tester"]',
         'ENV HOME=/home/tester CARGO_HOME=/home/tester/.cargo CARGO_NET_OFFLINE=true CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 RAYON_NUM_THREADS=2',

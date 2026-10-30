@@ -24,6 +24,7 @@ async function currentInputs({
   const pending = [
     'clippy.toml',
     'forbidden-strings.append.txt',
+    '.github/workflows/forbidden-strings.yml',
     ...[
       'Cargo.toml',
       'Cargo.lock',
