@@ -3946,3 +3946,25 @@ This block supersedes "State at 2026-10-29 (night, later)".
   stays open for that.
 - Next: confirmation campaign over `merge_isolation`, `scratch_location` and `auto_push_reconcile` on the final tree,
   after the limits and shared-package branches land (so one build serves them all); wave 5 results.
+
+## Update at 2026-10-29 (night, shared package landed, limits are per task)
+
+- Landed on main: the container limits module (`package/git-policy/cli/bin/container-limits.ts`) with `--memory`,
+  `--cpus` and `--pids-limit` on the campaign tasks (container gate on the landed tree: 2593 tests run, 2593 passed,
+  5 skipped); the `cli.fuzz` compile fixes (four breaks, three from this session's `GitContext` and landing-record
+  fields, one older: `worktree_dirty`, 2026-10-20; `lint:types` clean and 38 of 38 tests passed on the landed tree);
+  and the shared package `package/mutation-test/cli-cargo-mutants` (launcher, slot limiter, 193 unit tests, lint
+  clean) with the inventory and plan in `doc/planning/shared-cargo-mutants-package.md`.
+- User decisions on the plan: migrate forbidden-strings core `test:mutation` to the shared mount-free design and the
+  slot limiter; keep the package name and location; the excluded mutant kinds are one repository-wide constant owned
+  by the shared package (products may add more). Agent `aba63f1400b66332c` executes plan steps 1 to 6 with golden
+  outputs captured from the current scripts first; I then run one scoped campaign per product to prove parity.
+- Rules reworded per the user's "2g and 2 should be settable per task, agents have discretion": `AGENTS.md` RXI and
+  NLG now name 2g and 2 CPUs as defaults; `CLAUDE.md` carries the same two edits (verified identical to `AGENTS.md`
+  after its 49-line preamble; `sync:files` could not run in a throwaway worktree without `node_modules`, so I applied
+  the edit by hand and diffed).
+- Still open: wave 5 results (`owner_lock`, `worktree_copy_lock`, `transaction_git`, `markdown_linter`,
+  `management_arguments`), then the confirmation campaign over `merge_isolation`, `scratch_location` and
+  `auto_push_reconcile` on the final tree; the next release (0.4.1 with the doctor help text, the test fixes and the
+  `unsaved_paths` rename fix; fix `wait-publish.ts` first); cleanup list (worktrees `integrate-7` to `integrate-19`,
+  images `w3*` to `w5*`, `cli-git-gate-limits` unit is finished).

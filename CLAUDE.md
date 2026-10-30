@@ -701,8 +701,10 @@ RXI:
  unbounded loops,
  uncapped fan-outs,
  stress/bench/load):
- run in `podman run --memory=2g --cpus=2 --rm` or `mvm`,
- stating bounds.
+ run in `podman run --memory=<size> --cpus=<count> --rm` or `mvm`,
+ stating bounds;
+ 2g and 2 are the defaults,
+ choose other numbers per task when the work needs them.
 
 NLG:
  Never generate synthetic host load in any session or subagent:
@@ -710,7 +712,7 @@ NLG:
  busy loops,
  `--stress-count`,
  or repeated full test runs;
- cap the test's own container (`--cpus=2`) instead.
+ cap the test's own container (`--cpus`, default 2) instead.
 
 NLD:
  Every subagent brief quotes the synthetic-load ban;
