@@ -259,11 +259,21 @@ The user chose "Let it finish":
 reboot is called safe only after all three probes finish,
 their containers and units stop,
 and the report is committed.
+All three finished and the verdicts are in issue #1818.
 After the reboot:
-read that checkpoint,
-resume or rerun only the unfinished probes,
-record the verdicts in issue #1818,
-then start the first implementation area (tasks 20 to 26).
+follow [`doc/handover/file-enforcer-rust-rewrite.md`](../handover/file-enforcer-rust-rewrite.md),
+whose next action the user set on 2026-10-29:
+look at `oxc-browserslist`,
+then start the implementation areas.
+
+Process lessons the user asked to record (2026-10-29),
+because this grilling left its crates as vet gates after acceptance
+and four vets ran to depth before the user could hand them to a cheaper model:
+grilling enumerates and picks every dependency first (`GXD` in `AGENTS.md`),
+and each broad vet checks in with the user before enumerating candidates
+(`.agents/skills/choosing-technology/SKILL.md`, "Check in before broad discovery").
+The user defined broad:
+"naming or finding candidates from none of 1 your memory or general knowledge 2 my picks 3 repo precedent".
 
 ## Superseded next action (2026-10-29, after confirmation)
 
