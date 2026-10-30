@@ -5,21 +5,18 @@
  `--list <scope>` prints one scope's mutants on the host, and `--coverage` proves that the scopes together
  hold every mutant of the unscoped listing; both read the same scope table the campaigns use.
  */
-import { spawnSync } from 'node:child_process';
-import {
-  mkdir,
-  mkdtemp,
-  writeFile
-} from 'node:fs/promises';
 import { join } from 'node:path';
 import { mkdirSync as makeScratchBase } from 'node:fs';
 
 import {
   campaignCommand,
+  checkScopeCoverage,
   defaultBuildTimeoutSeconds,
-  exclusionArguments,
+  listMutants,
   parseContainerLimitOptions,
   runCampaign,
+  takeMutantRegex,
+  takeShard,
 } from '@monochromatic-dev/mutation-test-cli-cargo-mutants/ts';
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
@@ -228,111 +225,6 @@ const unscoped = {
 /** Verification failures keep the failing operation visible. */
 class VerificationError extends Error {}
 
-/** List one scope's mutant names on the host, exactly as a campaign of that scope would select them. */
-function listMutants(scope) {
-  const args = [
-    'mutants',
-    '--list',
-    '--no-config',
-    ...exclusionArguments([]),
-    ...scope.select
-  ];
-  const result = spawnSync(
-    'cargo',
-    args,
-    {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      maxBuffer: 64 * 1_024
-        * 1_024
-    }
-  );
-  if (result.error)
-    throw new VerificationError(
-      'cargo mutants --list could not start.',
-      { cause: result.error }
-    );
-  if (result.status !== 0)
-    throw new VerificationError(`cargo mutants --list failed (status ${result.status}): ${result.stderr}`);
-  return result.stdout
-    .split('\n')
-    .filter(line => line.length > 0);
-}
-
-/**
- Compare the union of every scope's listing with the unscoped listing, name by name, and keep every listing.
- A mutant outside every scope is never tried by any campaign, so any difference fails.
- */
-async function coverage() {
-  const evidenceRoot = join(
-    process.cwd(),
-    'target',
-    'verification'
-  );
-  await mkdir(
-    evidenceRoot,
-    { recursive: true }
-  );
-  const evidence = await mkdtemp(join(
-    evidenceRoot,
-    'coverage-'
-  ));
-  const all = listMutants(unscoped);
-  await writeFile(
-    join(
-      evidence,
-      'unscoped.txt'
-    ),
-    `${all.join('\n')  }\n`
-  );
-  const union = new Set();
-  const counts = {};
-  for (const [option, scope] of scopes) {
-    const names = listMutants(scope);
-    counts[option] = names.length;
-    await writeFile(
-      join(
-        evidence,
-        `${option.slice(2)}.txt`
-      ),
-      `${names.join('\n')  }\n`
-    );
-    for (const name of names)
-      union.add(name);
-  }
-  const unscopedSet = new Set(all);
-  const outside = all.filter(name => !union.has(name));
-  const unknown = [...union].filter(name => !unscopedSet.has(name));
-  const summary = {
-    unscoped: all.length,
-    unscopedDistinct: unscopedSet.size,
-    union: union.size,
-    perScope: counts,
-    outside,
-    unknown
-  };
-  await writeFile(
-    join(
-      evidence,
-      'summary.json'
-    ),
-    `${JSON.stringify(
-      summary,
-      null,
-      2
-    )  }\n`
-  );
-  console.log(JSON.stringify(
-    summary,
-    null,
-    2
-  ));
-  console.log(`Coverage evidence: ${evidence}`);
-  if ((outside.length > 0) || (unknown.length > 0)
-    || (unscopedSet.size !== all.length))
-    throw new VerificationError(`The scopes do not hold exactly the unscoped mutants: ${outside.length} outside every scope, ${unknown.length} not in the unscoped listing; inspect ${evidence}.`);
-}
-
 /** Build and run the tool over an immutable input image, then retain its complete report. */
 async function campaign({
   scope,
@@ -431,43 +323,43 @@ async function main() {
   if (options[0] === '--coverage') {
     if (options.length !== 1)
       throw new VerificationError('--coverage takes no other option.');
-    await coverage();
+    await checkScopeCoverage({
+      scopes: [...scopes].map(([option, scope]) => [
+        option,
+        scope.select
+      ]),
+      unscopedSelect: unscoped.select,
+      additionalExclusions: [],
+      evidenceRoot: join(
+        process.cwd(),
+        'target',
+        'verification'
+      )
+    });
     return;
   }
   if (options[0] === '--list') {
     if (options.length > 2)
       throw new VerificationError('--list takes at most one scope option.');
-    console.log(listMutants(scopeFor(options[1]))
+    console.log((await listMutants({
+      select: scopeFor(options[1]).select,
+      additionalExclusions: []
+    }))
       .join('\n'));
     return;
   }
-  const shardAt = options.indexOf('--shard');
-  let shard;
-  if (shardAt !== (-1)) {
-    shard = options[shardAt + 1];
-    const parts = /^(\d+)\/(\d+)$/u.exec(shard ?? '');
-    if ((parts === null) || (Number(parts[1]) >= Number(parts[2])))
-      throw new VerificationError(`--shard needs k/n with k from 0 to n - 1, not ${shard}.`);
-    options.splice(
-      shardAt,
-      2
-    );
-  }
-  const examineAt = options.indexOf('--re');
-  let examine;
-  if (examineAt !== (-1)) {
-    examine = options[examineAt + 1];
-    if ((examine === undefined) || (examine.length === 0))
-      throw new VerificationError('--re needs a mutant-name regex.');
-    options.splice(
-      examineAt,
-      2
-    );
-  }
-  if (options.length > 1)
+  const {
+    shard,
+    rest: withoutShard
+  } = takeShard(options);
+  const {
+    examine,
+    rest
+  } = takeMutantRegex(withoutShard);
+  if (rest.length > 1)
     throw new VerificationError(`Only one of ${[...scopes.keys()].join(', ')} is accepted.`);
   await campaign({
-    scope: scopeFor(options[0]),
+    scope: scopeFor(rest[0]),
     shard,
     examine,
     limits

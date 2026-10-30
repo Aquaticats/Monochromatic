@@ -1,22 +1,13 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-
 import { CargoMutantsToolingError } from './error.ts';
+import {
+  type CapturedResult,
+  runCaptured,
+} from './run-captured.ts';
 
 /**
  What a Podman call left behind.
  */
-export type PodmanResult = {
-  readonly status: number;
-  readonly signal: string;
-  readonly stdout: string;
-  readonly stderr: string;
-};
-
-/**
- Signal text reported when the call ended with an exit status and no signal.
- */
-const noSignal = '';
+export type PodmanResult = CapturedResult;
 
 /**
  Run Podman without a shell and wait for it.
@@ -29,7 +20,9 @@ const noSignal = '';
  
  @returns exit status, the signal that ended the call (empty when none), and the captured output (empty when not captured)
  
- @throws CargoMutantsToolingError when the call cannot start, or exits nonzero without `allowFailure`
+ @throws CargoMutantsToolingError when the call exits nonzero without `allowFailure`
+ 
+ @throws Error when Podman cannot be started
  
  @example
  ```ts
@@ -46,66 +39,14 @@ export async function runPodman({
   readonly allowFailure: boolean;
 }): Promise<PodmanResult> {
   /**
-   The running call.
+   What the call left behind.
    */
-  const child = spawn(
-    'podman',
-    [...args],
-    { stdio: capture ? [
-      'ignore',
-      'pipe',
-      'pipe'
-    ] : 'inherit' },
-  );
-  /**
-   Standard output chunks as they arrive.
-   */
-  const outChunks: Buffer[] = [];
-  /**
-   Standard error chunks as they arrive.
-   */
-  const errorChunks: Buffer[] = [];
-  child.stdout
-    ?.on(
-    'data',
-    function collectOut(chunk: Buffer) {
-      outChunks.push(chunk);
-    },
-    );
-  child.stderr
-    ?.on(
-    'data',
-    function collectError(chunk: Buffer) {
-      errorChunks.push(chunk);
-    },
-    );
-  /**
-   Arguments of the close event: the exit code, then the signal.
-   */
-  const closed: readonly unknown[] = await once(
-    child,
-    'close',
-  );
-  /**
-   Exit code and signal of the call.
-   */
-  const [code, signal] = closed;
-  /**
-   Exit status, with a signal counted as a failure.
-   */
-  const status = (typeof code) === 'number' ? code : 1;
-  /**
-   Captured standard error.
-   */
-  const stderr = Buffer.concat(errorChunks)
-    .toString('utf8');
-  if ((!allowFailure) && (status !== 0))
-    throw new CargoMutantsToolingError(`Container command failed: ${args[0]} (status ${status}, signal ${(typeof signal) === 'string' ? signal : 'none'}). ${stderr}`);
-  return {
-    status,
-    signal: (typeof signal) === 'string' ? signal : noSignal,
-    stdout: Buffer.concat(outChunks)
-      .toString('utf8'),
-    stderr,
-  };
+  const result = await runCaptured({
+    program: 'podman',
+    args,
+    capture,
+  });
+  if ((!allowFailure) && (result.status !== 0))
+    throw new CargoMutantsToolingError(`Container command failed: ${args[0]} (status ${result.status}, signal ${result.signal === '' ? 'none' : result.signal}). ${result.stderr}`);
+  return result;
 }
