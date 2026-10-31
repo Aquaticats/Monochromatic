@@ -1,16 +1,19 @@
 //region Artifact version 2 consolidation fault
-// A SETTLEMENT THE STAGE COULD NOT HAVE WRITTEN, named so a caller can match on it. This sits with the other classes of
-// this package that refuse a record no stage of this repository builds (`UnknownArtifactGenerationError`,
-// `ArtifactPreparationMismatchError`, `RoundsNotRecordedError`, `OffRosterModelError`): the fault is in the record
-// handed in, and nothing a reader of the artifact could do repairs it.
+// A SETTLEMENT THE STAGE COULD NOT HAVE WRITTEN, named so a caller can match on it. Among the classes of this package
+// that refuse a record handed in, only `ArtifactPreparationMismatchError` (a ledger that does not describe the
+// preparation it is filed under) names the same kind of fault: a defect in the record itself. The others name
+// something else, and this class does not belong with them: `RoundsNotRecordedError` an earlier shape,
+// `OffRosterModelError` an earlier seating that says nothing bad about the record, and
+// `UnknownArtifactGenerationError` a generation its key table does not cover.
 
 /**
  Reports a settlement that marks the translate lane winner as shipped and names no reason for it.
 
  A NAMED CLASS, NOT `nonNullishOrThrow`, because the error rule asks for a class a caller can match on (a plain
- `Error` is matched only by its text) and because the fault is a record the stage could not have written, which is the
- family `UnknownArtifactGenerationError` and its siblings belong to. `nonNullishOrThrow` would say only that a value
- was absent; this says which slice, which mark, and what the artifact needs the reason for.
+ `Error` is matched only by its text) and because the fault is a defect in the record handed in, a settlement the
+ stage could not have written, as `ArtifactPreparationMismatchError` names for a ledger that does not describe its
+ preparation. `nonNullishOrThrow` would say only that a value was absent; this says which slice, which mark, and what
+ the artifact needs the reason for.
 
  @example
  ```ts

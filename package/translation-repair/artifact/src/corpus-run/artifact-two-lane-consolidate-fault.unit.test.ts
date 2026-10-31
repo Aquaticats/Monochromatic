@@ -19,13 +19,13 @@ import {
 import { TranslateWinnerReasonMissingError, } from '../../dist/final/node/index.mjs';
 
 await describe({
-  name: 'TranslateWinnerReasonMissingError',
+  name: TranslateWinnerReasonMissingError.name,
   children: [
     it({
-      name: 'IS AN ERROR A CALLER MATCHES ON BY CLASS AND BY NAME, and declares its message safe to forward',
+      name: 'IS AN ERROR WHOSE NAME A CALLER MATCHES ON, and declares its message safe to forward',
       fn: async () => {
         const fault = new TranslateWinnerReasonMissingError({ sliceIndex: 42, },);
-        expect(fault instanceof Error,).toBe(true,);
+        expect(Error.isError(fault,),).toBe(true,);
         expect({
           name: fault.name,
           messageNamesOnly: fault.messageNamesOnly,

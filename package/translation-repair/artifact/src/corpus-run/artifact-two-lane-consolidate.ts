@@ -565,8 +565,8 @@ function artifactPolishOf(
 
  @returns What the slice ships
 
- @throws TranslateWinnerReasonMissingError when the settlement marks the translate lane winner as shipped and names
- no reason, which no stage builds. A named class and not `nonNullishOrThrow`: failures are signalled by classes a
+ @throws {@link TranslateWinnerReasonMissingError} when the settlement marks the translate lane winner as shipped and
+ names no reason, which no stage builds. A named class and not `nonNullishOrThrow`: failures are signalled by classes a
  caller can match on, the fault is a record the stage could not have written, and `nonNullishOrThrow` would say only
  that a value was absent
 
@@ -630,8 +630,8 @@ function shippedBy(
 
  @returns Record for one consolidated slice
 
- @throws TranslateWinnerReasonMissingError when the settlement marks the translate lane winner as shipped and names no
- reason (see `shippedBy`)
+ @throws {@link TranslateWinnerReasonMissingError} when the settlement marks the translate lane winner as shipped and
+ names no reason (see `shippedBy`)
 
  @example
  ```ts
