@@ -1,6 +1,11 @@
-//! What:     The program entry point. It looks at the name it was started under: `rg`, `grep` or `find` means shadow
-//!           mode; anything else (`search-shadow`) means the command-line tool.
-//! Why:      One binary serves both roles, so the links created by `search-shadow link` need no second program.
+//! What:
+//! The program entry point.
+//! It looks at the name it was started under:
+//! a shadowed name (`rg` / `grep` / `find` and so on) means shadow mode;
+//! anything else (`search-shadow`) means the command-line tool.
+//! Why:
+//! One binary serves both roles,
+//! so the links created by `search-shadow link` need no second program.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +14,13 @@
 //! process.exit(SHADOWED_NAMES.includes(invokedAs) ? runShim(invokedAs, process.argv.slice(2)) : runCli(process.argv));
 //! ```
 
-/// What:     `use search_shadow::...` imports items from this package's own library crate (`search_shadow`, declared in
-///           `Cargo.toml`). `cli::run_cli` is a function inside the `cli` module.
-/// Why:      `main` only chooses the mode; all logic lives in the library.
+/// What:
+/// `use search_shadow::...` imports items from this package's own library crate
+/// (`search_shadow` is declared in `Cargo.toml`).
+/// `cli::run_cli` is a function inside the `cli` module.
+/// Why:
+/// `main` only chooses the mode;
+/// all logic lives in the library.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,9 +43,12 @@ use std::env;
 /// Imports `Path` to take the file name off argv[0].
 use std::path::Path;
 
-/// What:     `fn main()` is the entry point the operating system calls. It returns nothing; the exit code is set by
-///           `std::process::exit`.
-/// Why:      Every run starts here.
+/// What:
+/// `fn main()` is the entry point the operating system calls.
+/// It returns nothing;
+/// the exit code is set by `std::process::exit`.
+/// Why:
+/// Every run starts here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,7 +56,7 @@ use std::path::Path;
 /// ```
 fn main() {
     // What:     `env::args_os().collect()` gathers every command-line argument as `OsString`s into a `Vec`; the
-    //           annotation names the list type so `collect` knows what to build.
+    // annotation names the list type so `collect` knows what to build.
     // Why:      Search patterns may be invalid UTF-8; `env::args()` would panic on them.
     //
     // In TS you'd write (pseudocode):
@@ -54,7 +66,7 @@ fn main() {
     let all_arguments: Vec<OsString> = env::args_os().collect();
 
     // What:     The name the program was started under: take argv[0], keep only its final path segment, and make it
-    //           text. `unwrap_or_default()` substitutes an empty text if any step has nothing.
+    // text. `unwrap_or_default()` substitutes an empty text if any step has nothing.
     // Why:      A symlink named `rg` makes argv[0] end in `rg`, which selects shadow mode.
     //
     // In TS you'd write (pseudocode):

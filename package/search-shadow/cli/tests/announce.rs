@@ -1,15 +1,15 @@
 //! What:
-//!     End-to-end tests of the version and help announcements:
+//! End-to-end tests of the version and help announcements:
 //! the built `search-shadow` binary is started through a
-//!           symlink named after each shadowed tool,
+//! symlink named after each shadowed tool,
 //! with a fixture executable standing in for the real tool.
 //! Why:
-//!      The announcement runs the real tool as a child and appends text,
+//! The announcement runs the real tool as a child and appends text,
 //! so only a real process shows that the real
-//!           tool's output is byte-identical,
+//! tool's output is byte-identical,
 //! the added text is exactly one line or section,
 //! the exit status passes
-//!           through,
+//! through,
 //! other argument lists are untouched and the refusal policies still come first.
 //!
 //! In TS you'd write (pseudocode):
@@ -67,9 +67,9 @@ const TOOLS: &[(&str, &[&str], &[&str])] = &[
 ];
 
 /// What:
-///     `fn write_script(directory: &Path, name: &str, body: &str)` writes an executable shell script.
+/// `fn write_script(directory: &Path, name: &str, body: &str)` writes an executable shell script.
 /// Why:
-///      The fixture "real" tools are scripts.
+/// The fixture "real" tools are scripts.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -81,16 +81,16 @@ fn write_script(directory: &Path, name: &str, body: &str) {
 }
 
 /// What:
-///     `fn real_body(name: &str) -> String` returns the fixture's script body:
+/// `fn real_body(name: &str) -> String` returns the fixture's script body:
 /// two fixed stdout lines that include
-///           the arguments it got,
+/// the arguments it got,
 /// one stderr line,
 /// and exit status 3.
 /// Why:
-///      Status 3 proves the exit code passes through;
+/// Status 3 proves the exit code passes through;
 /// the stderr line proves stderr is untouched;
 /// the argument echo
-///           proves the arguments arrive.
+/// proves the arguments arrive.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -101,11 +101,11 @@ fn real_body(name: &str) -> String {
 }
 
 /// What:
-///     `fn make_world() -> tempfile::TempDir` builds a scratch directory holding `shadow/` (one symlink per shadowed
-///           name) and `real/` (one fixture script per name),
+/// `fn make_world() -> tempfile::TempDir` builds a scratch directory holding `shadow/` (one symlink per shadowed
+/// name) and `real/` (one fixture script per name),
 /// and returns it.
 /// Why:
-///      Every test starts from the same arrangement.
+/// Every test starts from the same arrangement.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -125,11 +125,11 @@ fn make_world() -> tempfile::TempDir {
 }
 
 /// What:
-///     `fn path_variable(root: &Path) -> String` returns the PATH text:
+/// `fn path_variable(root: &Path) -> String` returns the PATH text:
 /// the shadow directory,
 /// then the real one.
 /// Why:
-///      The shadow must skip its own links and find the fixture.
+/// The shadow must skip its own links and find the fixture.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,11 +140,11 @@ fn path_variable(root: &Path) -> String {
 }
 
 /// What:
-///     `fn run_tool(...) -> Output` runs the shadow link of one tool with the given arguments,
+/// `fn run_tool(...) -> Output` runs the shadow link of one tool with the given arguments,
 /// standard input
-///           attached to nothing and the working directory given.
+/// attached to nothing and the working directory given.
 /// Why:
-///      Standard input must not be a pipe,
+/// Standard input must not be a pipe,
 /// or the `rg` policy would take the run for a piped search.
 ///
 /// In TS you'd write (pseudocode):
@@ -164,10 +164,10 @@ fn run_tool(root: &Path, name: &str, arguments: &[&str], working_directory: &Pat
 }
 
 /// What:
-///     `fn real_stdout(name: &str, arguments: &[&str]) -> String` returns exactly what the fixture prints on
-///           standard output for those arguments.
+/// `fn real_stdout(name: &str, arguments: &[&str]) -> String` returns exactly what the fixture prints on
+/// standard output for those arguments.
 /// Why:
-///      The expected standard output is the real tool's,
+/// The expected standard output is the real tool's,
 /// byte for byte,
 /// plus the added text.
 ///
@@ -186,9 +186,9 @@ fn header(root: &Path, name: &str) -> String {
 }
 
 /// What:
-///     `#[test]` marks the next function as a test case.
+/// `#[test]` marks the next function as a test case.
 /// Why:
-///      The runner finds the tests by it.
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,8 +1,14 @@
-//! What:     The `link` subcommand's work: for every shadowed name whose REAL tool exists on PATH, put a symlink with that name in
-//!           one directory pointing at the `search-shadow` executable; remove a link whose real tool has gone; skip the rest.
-//! Why:      Starting the binary under a tool's name is what switches it into shadow mode. Linking only names that have a real
-//!           tool keeps `command -v ag` honest: a link for a tool that is not installed would make scripts believe it is, then
-//!           fail with "not found" when they run it.
+//! What:
+//! The `link` subcommand's work:
+//! for every shadowed name whose REAL tool exists on PATH,
+//! put a symlink with that name in one directory pointing at the `search-shadow` executable;
+//! remove a link whose real tool has gone;
+//! skip the rest.
+//! Why:
+//! Starting the binary under a tool's name is what switches it into shadow mode.
+//! Linking only names that have a real tool keeps `command -v ag` honest:
+//! a link for a tool that is not installed would make scripts believe it is
+//! and then fail with "not found" when they run it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,11 +16,14 @@
 //! export function linkShadows(directory: string, executable: string, pathVariable: string): LinkReport { ... }
 //! ```
 
-/// Imports the file-system module (create directories, remove files, resolve symlinks).
+/// Imports the file-system module
+/// (create directories / remove files / resolve symlinks).
 use std::fs;
 
-/// What:     `use std::io;` imports the standard input/output module, for `io::Result`.
-/// Why:      The function reports failures with it.
+/// What:
+/// `use std::io;` imports the standard input/output module for `io::Result`.
+/// Why:
+/// The function reports failures with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -22,8 +31,10 @@ use std::fs;
 /// ```
 use std::io;
 
-/// What:     `use std::os::unix::fs::symlink;` imports the function that creates a symbolic link.
-/// Why:      The shadow links are symlinks to one binary.
+/// What:
+/// `use std::os::unix::fs::symlink;` imports the function that creates a symbolic link.
+/// Why:
+/// The shadow links are symlinks to one binary.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,13 +45,20 @@ use std::os::unix::fs::symlink;
 /// Imports `Path` (borrowed) and `PathBuf` (owned) path types.
 use std::path::{Path, PathBuf};
 
+/// Imports the list of names that get a shadow link.
 use crate::constants::SHADOWED_NAMES;
+
+/// Imports the PATH lookup that finds the real tool.
 use crate::real_binary::find_in_path;
 
-/// What:     `pub struct LinkReport { ... }` declares a record with three lists: the links made, the names skipped because no
-///           real tool exists, and the stale links removed. `Vec<PathBuf>` is an owned growable list of owned paths.
-///           `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
-/// Why:      The `link` subcommand prints what happened, and the tests check it.
+/// What:
+/// `pub struct LinkReport { ... }` declares a record with three lists:
+/// the links made,
+/// the names skipped because no real tool exists and the stale links removed.
+/// `Vec<PathBuf>` is an owned growable list of owned paths.
+/// `#[derive(Debug, PartialEq)]` generates printing and `==` for the tests.
+/// Why:
+/// The `link` subcommand prints what happened and the tests check it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -56,10 +74,13 @@ pub struct LinkReport {
     pub removed: Vec<PathBuf>,
 }
 
-/// What:     `pub fn link_shadows(...) -> io::Result<LinkReport>` declares a public function. `io::Result<LinkReport>` is a
-///           `Result` that is either `Ok(report)` or `Err(an I/O error)`.
-/// Why:      `path_variable` is the PATH to search for real tools; the shadow links themselves resolve to `executable` and are
-///           skipped by that search, so running `link` twice gives the same answer.
+/// What:
+/// `pub fn link_shadows(...) -> io::Result<LinkReport>` declares a public function.
+/// `io::Result<LinkReport>` is a `Result` that is either `Ok(report)` or `Err(an I/O error)`.
+/// Why:
+/// `path_variable` is the PATH to search for real tools.
+/// The shadow links themselves resolve to `executable` and are skipped by that search,
+/// so running `link` twice gives the same answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -67,7 +88,7 @@ pub struct LinkReport {
 /// ```
 pub fn link_shadows(directory: &Path, executable: &Path, path_variable: &str) -> io::Result<LinkReport> {
     // What:     `fs::create_dir_all(directory)?;` makes the directory and any missing parents. The trailing `?` means "if this
-    //           returned an error, stop and return that error to my caller; otherwise continue".
+    // returned an error, stop and return that error to my caller; otherwise continue".
     // Why:      The links need somewhere to live.
     // Gotcha:   `?` is an early `return Err(...)`, not an exception: control leaves the function at that line.
     //
