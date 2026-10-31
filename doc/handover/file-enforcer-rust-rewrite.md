@@ -270,7 +270,7 @@ section "Rule kinds linked here").
 The browserslist data lock moved to `browserslist-data.lock.json` at the repository root,
 and the rule names it in its required `lock` field.
 Against a throwaway copy of this repository the Rust tool reports no drift for `rust-catalog.toml`
-and all 26 manifests the TypeScript tool wrote,
+and every manifest the globs match (32 files) as the TypeScript tool wrote them,
 detects and repairs a changed `[workspace.dependencies]` table,
 writes the same `.browserslistrc.resolved.local.json` as npm `browserslist` 4.29.5 on the same `caniuse-lite`,
 and writes byte-identical JetBrains settings files to the retired TypeScript policy in a disposable home.
