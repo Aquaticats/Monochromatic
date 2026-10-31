@@ -43,10 +43,13 @@ const QURE_EXECUTABLE_PREFIX: &str = "qure";
 const QURE_SERVICE_PREFIX: &str = "app-qure@";
 
 /// Slice that carries the toolchain's sync and update runs.
-/// The `app-` prefix makes systemd nest it directly under `app.slice`, where the watcher scans and watches;
-/// a name such as `monochromatic-updates.slice` would sit beside `app.slice` instead and never be seen.
-/// `\x2d` is the escaped literal dash, so the name is one hierarchy level and not `app-monochromatic.slice`.
-/// The TypeScript and Rust toolchain entry points spell the same name when they re-run themselves inside it.
+/// The `app-` prefix makes systemd nest it directly under `app.slice`,
+///  where the watcher scans and watches.
+/// A name such as `monochromatic-updates.slice` would sit beside `app.slice` instead,
+///  and the watcher would never see it.
+/// `\x2d` is the escaped literal dash,
+///  so the name is one hierarchy level and not `app-monochromatic.slice`.
+/// The TypeScript toolchain entry points spell the same name when they re-run themselves inside it.
 pub const TOOLCHAIN_UPDATES_SLICE: &str = "app-monochromatic\\x2dupdates.slice";
 
 /// Roots make process and cgroup discovery testable without real host state.
@@ -114,7 +117,8 @@ pub fn is_qure_service_name(name: &str) -> bool {
 
 /// Reports the slice the toolchain's sync and update runs execute in.
 /// Cgroup programs apply to every descendant cgroup,
-/// so attaching to the slice marks each run scope created below it, with no attach per run.
+///  so attaching to the slice marks each run scope created below it,
+///  with no attach per run.
 pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
     return name == TOOLCHAIN_UPDATES_SLICE;
 }
