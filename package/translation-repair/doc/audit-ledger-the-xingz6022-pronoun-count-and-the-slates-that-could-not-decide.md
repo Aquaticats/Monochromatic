@@ -6,8 +6,9 @@ measure first (Recommended)",
 and the count that followed (B1051),
 the purchase that still paid for slates that could not decide (B1053),
 found while placing the swap of B1050,
-and the two exits of that purchase that still ask a slate,
-with the count of how often real inputs reach them (B1130).
+the two exits of that purchase that still ask a slate,
+with the counts of how often the stage's own recorded inputs reach them (B1130),
+and the named error class for a translate winner marked shipped with no reason (B1131).
 B1050 is filed in
 [Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29][two-ballot-ledger].
 
@@ -243,7 +244,7 @@ Cache versions:
 none moved,
 because no stage output changed.
 
-## B1053: the purchase still pays for writers and a slate that cannot decide over an unendorsed standing nothing overrules
+## B1053: the purchase still pays for writers and a slate that cannot decide over an unendorsed standing
 
 Status:
 recorded on 2026-10-29 (UTC),
@@ -434,12 +435,15 @@ none moved.
   threshold or settlement rule of those stages changed,
   and the change only withholds a purchase.
 
-## B1130: two exits before the B1053 skip still ask a slate, and no pinned or settled slice reaches them
+## B1130: two exits before the B1053 skip ask a slate: 5 slices bought one, none since generation 15
 
 Status:
-recorded on 2026-10-31,
+recorded on 2026-10-31 (UTC) in round w385 and rewritten in round w394 the same day,
 measured keyless with no model call,
 no code changed.
+The first record counted the exits over the deterministic carve and found nothing.
+The re-check of round w385 showed that count was zero by construction,
+and this entry replaces it with counts over the stage's own recorded inputs.
 The owner's rule for the follow-ups of rounds w381 and w383 is "Land on real impact":
 what changes behaviour on real sources is fixed,
 and a gap that only invented inputs show is a stated limit with its measured count.
@@ -450,12 +454,12 @@ The gap:
 and the skip is not applied at either.
 - The blind-floor exit:
   `floorReach` of the original and the archive's page says the floor can compare nothing
-  (`consolidate-slice-buy.ts:251-268` at `d343265b71`),
+  (`consolidate-slice-buy.ts:224-250` at `f0921e81de`),
   so no writer is asked and the settlement keeps the archive (B45).
 - The empty-standing exit:
   the standing text is empty,
   no writer is asked,
-  and the lane texts alone go to the slate judges (`:274-284` at `d343265b71`).
+  and the lane texts alone go to the slate judges (`:252-266` at `f0921e81de`).
 
 On a short bench the empty-standing exit can ask a slate that cannot decide,
 when lane texts are on the offer.
@@ -468,18 +472,139 @@ a front-matter original with no fenced block,
 against 2 over a readable original with the same two lane texts as the positive control.
 So only a direct caller that supplies lane texts can make the blind-floor exit ask a slate.
 
-Measured:
-the scratch script `~/temp/agent/tr-fan/w385-followups/blind-reach.ts` calls `floorReach` as the exit does
+What the first record got wrong:
+it carved each pinned original and archive with `prepareDocumentPair({ sourceText, targetText })`,
+counted `isInsertionChunk` over the slices,
+and found 0 with no archive wording.
+That carve is not the slicing the stage records.
+For `XingZ60` at corpus `a41fc607ea` the carve gives 85 slices and 0 insertions,
+while the stored artifact of the pass `XingZ6022` (`corpus-pass-XingZ6022/artifacts/XingZ60.json`,
+the same corpus sha,
+artifact schema 21) records 118 slices,
+30 of them with `incumbentKind: 'absent'`
+(28 translated by the translate lane alone,
+2 left unfilled).
+The artifact records an alignment of 15 pairs and 45 alignment findings,
+so the stage prepares with more than the two texts;
+why the two slicings differ by 33 slices was not traced.
+So "0 with no archive wording" was zero by construction,
+the set of settled pages could not have shown it,
+and the sentence "no pinned or settled slice reaches them" was false of the empty-standing exit.
+The script is `~/temp/agent/tr-fan/w394-evidence/xing-carve.ts`.
+
+Measured on the stage's own recorded inputs:
+every `artifacts/*.json` under a run folder of `~/temp/agent` (292 artifacts,
+7,159 comparison rows;
+no folder was unreadable,
+and three `issue-authority-cache-*` files are fixtures with no comparison rows).
+The slice key is `sliceIndex`,
+or `chunkIndex` in the artifacts of schema 2 and 3;
+the re-check keyed on `sliceIndex` alone,
+so every row of those artifacts collapsed onto one undefined key.
+Counts and ids only;
+no passage,
+ballot reason or model text was printed.
+- The script is `~/temp/agent/tr-fan/w394-evidence/empty-standing-reach.ts`.
+  Its positive control is `corpus-pass-XingZ6022/artifacts/XingZ60.json`,
+  which must show 118 rows and 30 absent,
+  and it showed 118 and 30.
+- Rows with no archive wording:
+  1,131 of 7,159 (the rest 6,028 have it).
+  980 are in artifacts of schema 14 or before and 151 in artifacts of schema 15 or later.
+- Of the 5,867 slices the consolidation settled,
+  1,068 had no archive wording:
+  949 at schema 14 or before and 119 at schema 15 or later.
+- The standing is rebuilt as the driver builds it
+  (`laneChoiceOf` and `standingTextFor`,
+  `corpus-pass/src/consolidate-driver.ts`):
+  the lane the verdict backs,
+  else the archive wording.
+  `readStandingVerdict` swaps in the archive only when it is not empty,
+  so an empty rebuilt standing is empty at the exit.
+  18 settled slices had an empty standing,
+  every one with no archive wording and every one at schema 14 or before.
+- 5 of the 18 reached the empty-standing exit and bought slate judges.
+  All are schema 14,
+  verdict `settled-neither`,
+  terminal `consolidated`:
+  4 on 2026-09-23 (`XingZ624` slices 88 and 89,
+  `XingZ627` slices 89 and 90)
+  and 1 on 2026-09-24 (`XingZ6010` slice 89),
+  UTC.
+  Each recorded its gate as asked with 4 ballots and 4 usable,
+  and no writer verdict (0 entries):
+  the lane texts alone went to the judges.
+  A short bench records fewer than 2 usable ballots,
+  so none of the 5 was a short bench and the B1053 skip would not have applied to any of them.
+  The script is `~/temp/agent/tr-fan/w394-evidence/five-slates-and-reasons.ts`.
+- The other 13 settled with the terminal `no-standing-text` and a gate not asked:
+  all in `xiept2-anchorfix-2026-08-24/XIEPT2.json`,
+  schema 2,
+  2026-08-24,
+  a decline on an archive with no wording and no lane text offered.
+  No slate was bought.
+
+Why no record of generation 15 or later reaches the empty-standing exit:
+- A slice has no archive wording exactly when `isInsertionChunk(slice.target)`
+  (`artifact-two-lane-verify.ts:184`,
+  `lane-slice-text.ts:457`),
+  and for exactly those the repair lane settles `not-applicable` (`repair-slice-settle.ts:202-212`).
+- Since `5059b141cc` (committed 2026-10-11 at 23:23:15 UTC,
+  artifact generation 15)
+  `soleLaneOf` (`lane-contest/src/corpus-run/artifact-two-lane-contest.ts:300-323`) names the translate lane there,
+  the verdict is `sole-lane` with no roster asked,
+  and `laneChoiceOf` reads that as a win for the translate lane (`consolidate-driver-records.ts:80`),
+  so the standing is the translate lane's text.
+  Before it the roster was asked,
+  and a roster that declined left the archive wording,
+  which is empty,
+  as the standing.
+- The consolidation only settles a slice the contest answered,
+  and `contestEligibleIndexes` answers only a slice whose two lane texts differ.
+  The repair text of a `not-applicable` slice is empty (151 of 151 recorded),
+  so a contested slice with no archive wording has a non-empty translate text,
+  which is the standing.
+- Measured,
+  by `~/temp/agent/tr-fan/w394-evidence/schema-15-absent-shapes.ts`
+  and the table of `empty-standing-reach.ts`:
+  151 rows with no archive wording at schema 15 or later.
+  119 are `repair not-applicable, translate decided` with the translate text present,
+  contested and settled,
+  every verdict `sole-lane`,
+  every standing text present.
+  32 are `repair not-applicable, translate unfilled` with both texts empty,
+  so they are never contested and never settled.
+  The last artifact of schema 14 is dated 2026-10-11 and the first of schema 15 2026-10-12.
+
+The second route to an empty standing,
+checked in the other 14 artifacts that record `no-standing-text`:
+`XIEPT2` is one of the 15 artifacts that record the terminal.
+The other 14 hold 24 such slices,
+every one with archive wording present and a declined contest.
+Their standing was empty by the rule of the day:
+`standingTextFor` returned the empty string for any declined contest until `94c2a92ded`
+(committed 2026-08-28 at 00:58:12 -04:00,
+04:58:12 UTC),
+which made the archive wording the standing of a decline.
+All 15 artifacts are dated 2026-08-22 to 2026-08-27 (schema 2 to 4),
+before that commit,
+so the standing rebuilt for them in this entry is the standing of today's rule,
+which is not empty.
+A decline on archive wording that is present is no route to the exit since `94c2a92ded`;
+a decline on an absent archive was the other route,
+and generation 15 closed it.
+
+Blind-floor reading,
+which stands:
+`~/temp/agent/tr-fan/w385-followups/blind-reach.ts` calls `floorReach` as the exit does
 (original text,
 archive text with an empty page for a slice that has no archive wording,
-and the front-matter syntax for a metadata slice) over the deterministic carve (`prepareDocumentPair`),
-the carve of the earlier counts.
+and the front-matter syntax for a metadata slice) over the deterministic carve.
 - The pinned corpus (`a41fc607ea`,
   the tree clean):
   92 entries,
   1,351 slices,
-  0 where `floorReach` says blind,
-  and 0 with no archive wording (the empty standing's source).
+  0 where `floorReach` says blind.
   The count of 1,259 slices in E4 was taken on 2026-09-27,
   and 1,351 is the carve of B43 (2026-09-30) and of this round.
 - The settled pages:
@@ -487,11 +612,25 @@ the carve of the earlier counts.
   `fixed/people/<id>/page.en.md`),
   each paired with the pinned original of the same id and carved with the shipped page as the target:
   7,636 slices,
-  0 blind,
-  0 with no wording.
+  0 blind.
   The stage reads the archive and not the shipped page,
   so this set is a second reading of the sources and not the stage's own input.
-- Positive controls in the same script:
+- The stage's own recorded inputs:
+  `~/temp/agent/tr-fan/w394-evidence/blind-over-artifacts.ts` calls `floorReach` on the original recorded in the
+  repair delivery and the archive wording of every settled slice:
+  5,867 slices,
+  0 blind.
+  The re-check counted 5,891;
+  the 24 rows of difference are rows of the artifacts of schema 2 and 3,
+  which name the slice `chunkIndex`,
+  matched on one undefined key
+  (inferred from the keys,
+  not traced row by row).
+  The artifacts record no slice syntax,
+  so this script reads each slice as markdown,
+  and the 23 slices whose original opens with a fence were also read as front matter:
+  0 blind.
+- Positive controls in the same scripts:
   an original with an unclosed inline tag (`<div>` before running text) says blind on the original side,
   a front-matter slice whose original has no fenced block says blind,
   and a readable original says comparable.
@@ -506,40 +645,132 @@ the carve of the earlier counts.
   but that it can was not shown.
 - Stored artifacts,
   searched with `rg --count` over `artifacts/*.json` of every run folder under `~/temp/agent`:
-  the finding `consolidate-unfloored` appears in none (no hit anywhere,
-  so no stored artifact is a positive control for it and the carve counts stand as the measure),
-  and the terminal `no-standing-text` appears in 15 artifacts,
-  all of August 2026 runs and none of the passes `XingZ6015` to `XingZ6022` (E4 counts the same 15 and dates them to
-  August).
+  the finding `consolidate-unfloored` appears in none
+  (no hit anywhere,
+  so no stored artifact is a positive control for it and the counts of this entry stand as the measure).
   The search could not enter three unrelated `pgvector-*` folders (permission refused).
 
 The limit:
-neither exit is reached by any pinned or settled slice,
-so the skip is not applied there and no test pins it.
-If an entry is added to the corpus that carves an unreadable original or a slice with no archive wording,
-the empty-standing exit would buy a slate of lane texts on a short bench that can only keep what stands,
+the blind-floor exit is reached by no recorded slice (0 of 5,867).
+The empty-standing exit was reached by 18 recorded slices and bought slate judges at 5,
+all at schema 14 or before,
+and none on a short bench.
+Since generation 15 a slice with no archive wording reaches the consolidation only as a `sole-lane` slice standing on a
+non-empty translate text,
+so no input the stage builds reaches the exit,
+and a skip added there could be exercised by no such input.
+No skip is added,
+and the reason is those two counts (5 benches of 4 usable ballots;
+0 inputs since generation 15),
+not a silence of the owner's answers:
+nothing in them settles that exit.
+If a change lets a slice with no archive wording be contested without a sole lane,
+or lets a contest back a lane whose text is empty,
+the exit is reached again on a bench that may be short,
 and the fix is the B1053 skip at that exit:
 a settlement given no lane texts when fewer slate judges are reachable than a winner needs,
 red test first.
-Nothing in the owner's answers settles that exit,
-so it is stated here as a limit and not changed.
+
+The default of `standingMayShip`:
+the case of round w385 that calls `shipWinnerBeforeSlate` without `standingMayShip` pins its default of `true`
+(`consolidate-settle-unseated.ts:177`).
+Production never uses that default:
+`settleConsolidation` requires the field (`consolidate-settle.ts:516`) and always passes it
+(`consolidate-settle.ts:656`),
+and it is the only production caller.
+The case guards the function for a direct caller and nothing more.
 
 Cache versions:
 none moved,
-because no code or key changed.
+because no code or key changed in this entry.
 Round w385 as a whole moved none either:
 the changes of `bf9471f212` read a value once and throw on a shape no stage builds,
 and the added cases are tests.
+Round w394 moved none either (B1131 changes the class of an error,
+not a record).
 `CONSOLIDATE_CACHE_VERSION` stays 43 and the artifact generation stays 22.
+
+## B1131: a translate winner marked shipped with no reason threw a plain `Error`
+
+Status:
+found by the re-check of round w385 and fixed in round w394 on 2026-10-31 (UTC),
+red case in `ef6127f415`,
+fix in `1c804db3d7`.
+No owner question:
+the error rule asks for a named class,
+and the fault is a record no stage writes.
+
+What was wrong:
+`shippedBy` in `artifact/src/corpus-run/artifact-two-lane-consolidate.ts` threw a plain `Error`
+when a settlement marked the translate lane winner as shipped and named no reason
+(`bf9471f212`,
+2026-10-31 at 05:41:47 UTC).
+The package names a class for a record the stage could not have written
+(`UnknownArtifactGenerationError`,
+`ArtifactPreparationMismatchError`,
+`RoundsNotRecordedError`,
+`OffRosterModelError`),
+and the TSDoc of `shippedBy` argued against `nonNullishOrThrow` as if that were the rule.
+
+What changed:
+- `TranslateWinnerReasonMissingError`
+  (new file `artifact/src/corpus-run/artifact-two-lane-consolidate-fault.ts`,
+  exported from the artifact index)
+  carries the slice index and a sentence written in the class,
+  and declares `messageNamesOnly`.
+  The marked-class inventory of `source-scan/src/message-names-only.unit.test.ts` names it;
+  its one interpolation,
+  `String(sliceIndex,)`,
+  was already in the inventory.
+- `shippedBy` takes the slice index from `describeConsolidateSlice`.
+  The `@throws` of both name the class,
+  and the TSDoc now says why a named class and not `nonNullishOrThrow`:
+  a caller can match on the class,
+  the fault is a record the stage could not have written,
+  and `nonNullishOrThrow` would say only that a value was absent.
+- The case in `artifact-two-lane-consolidate.unit.test.ts` failed against the plain error
+  (name `Error`,
+  no `messageNamesOnly`,
+  no slice index in the message) before the fix and passes after it.
+  The message of the commit of the fix says 2 source files and 1 test file besides the new file;
+  the diff holds 2 source files and 2 test files
+  (`artifact-two-lane-consolidate.unit.test.ts` and the inventory of `message-names-only.unit.test.ts`).
+
+Paths to the throw that were checked,
+and none was found:
+- Two sites in non-test code set the mark,
+  and each sets the reason in the same object literal:
+  `consolidate-tense-swap.ts:328-329` (`present-tense-standing`)
+  and `consolidate-ineligible-standing.ts:475-476` (`refused-standing`).
+- No settlement with the mark is stored or read back:
+  `consolidationWorthResuming` refuses to keep one (`consolidate-persistence.ts:100`),
+  and the cache store refuses to read a value that carries the mark (`consolidate-cache-store.ts:425`).
+  A settlement that carries the mark is therefore built fresh by one of the two sites in the same run.
+- No stored artifact carries the kind:
+  0 of the 292 artifacts have a slice shipping `translate-winner`
+  (`~/temp/agent/tr-fan/w394-evidence/five-slates-and-reasons.ts`),
+  so none lacks a reason.
+- A copy of a settlement (`...settlement`) keeps both fields,
+  and no code removes the reason.
+
+So only a settlement built by hand,
+as the test does,
+reaches the throw.
+
+Cache versions:
+none moved.
+The class changes what an impossible record throws,
+not what a stage stores or reads.
 
 Ids used:
 B1051,
-B1053 and B1130.
+B1053,
+B1130 and B1131.
 B1050 is in
 [Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29][two-ballot-ledger].
 B1052 and B1054 are in
 [Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
-B1055 to B1059 are unused.
+B1055 to B1059 and B1132 to B1139 are unused.
 
 [two-ballot-ledger]: audit-ledger-the-two-ballot-translate-text.md
 [names-ledger]: audit-ledger-found-while-fixing-page-names-headings-and-math.md

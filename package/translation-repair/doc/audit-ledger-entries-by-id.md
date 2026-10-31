@@ -494,15 +494,15 @@ which lists every file of this record.
 - [B1050, the XingZ6022 page told a life that ended in the present at six places, by two paths][b1050-ledger]
 - [B1051, `their` shipped for the person beside a plural subject, as the neutral pronoun rule asks][b1051-ledger]
 - [B1052, `### Part Nine: __` shipped over `### 其九：空白` because both lanes fell back to the archive's `__`][l38]
-- [B1053, the purchase still pays for writers and a slate that cannot decide over an unendorsed standing
-  nothing overrules][b1051-ledger]
+- [B1053, the purchase still pays for writers and a slate that cannot decide over an unendorsed standing][b1051-ledger]
 - [B1054, a `<details>` block that holds a heading is a node of kind `heading`][l38]
 - [B1060, 32 repair chunks closed with the archive after a one-voice checker round, and a later run buys them again](audit-ledger-silent-stages-recorded-as-data.md)
 - [B1061, the plan-energy line of a run's end printed the account's charge and not the run's own meter beside it](audit-ledger-neuralwatt-replies-cut-at-the-default-effort-and-the-energy-estimate.md)
 - [B1062, the 79 straggler cuts of XingZ6022 measured one by one, and how many of them the base can still make](audit-ledger-short-benches-and-the-last-live-seat.md)
 - [B1063, 466 panel decision lines against 412 issues, the 54 being accepted duplicates merged at emission](audit-ledger-two-counts-a-log-read-could-not-reconcile.md)
 - [B1064, 3,690 spend lines against 3,689 stored payloads, the one being an unfinished attempt booked at its bound](audit-ledger-two-counts-a-log-read-could-not-reconcile.md)
-- [B1130, two exits before the B1053 skip still ask a slate, and no pinned or settled slice reaches them][b1051-ledger]
+- [B1130, two exits before the B1053 skip ask a slate: 5 slices bought one, none since generation 15][b1051-ledger]
+- [B1131, a translate winner marked shipped with no reason threw a plain `Error`][b1051-ledger]
 - [D1 to D11, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)
 - [D12, doc conventions and their guards](audit-ledger-doc-conventions-and-their-guards.md)
 - [D13 to D21, docs and comments that disagreed with the code](audit-ledger-docs-against-code.md)

@@ -25,8 +25,10 @@ B1051,
 the ambiguous `their` of the same page,
 B1053,
 the purchase that still paid for slates that could not decide,
-and B1130,
+B1130,
 the two exits of that purchase that still ask a slate on a short bench,
+and B1131,
+the named error class for a translate winner marked shipped with no reason,
 are filed in
 [Audit ledger: the XingZ6022 pronoun count and the slates that could not decide][pronoun-ledger].
 B1052,
@@ -863,7 +865,8 @@ none moved.
 Ids used:
 B1050.
 B1051,
-B1053 and B1130 are in
+B1053,
+B1130 and B1131 are in
 [Audit ledger: the XingZ6022 pronoun count and the slates that could not decide][pronoun-ledger].
 B1052 and B1054 are in
 [Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
