@@ -23,6 +23,15 @@ import {
 const SETTING_REACH = 12;
 
 /**
+ The words that declare a variable, in front of which a name is set and not only used.
+ */
+const DECLARING_WORDS: ReadonlySet<string> = new Set([
+  'const',
+  'let',
+  'var',
+]);
+
+/**
  The three dots that open a spread property.
  */
 const SPREAD_MARK = '...';
@@ -344,6 +353,9 @@ export function roleNamedInLiteral(
     at,
   ): boolean {
     return (token.text === name)
+      && DECLARING_WORDS.has(tokens[at - 1]
+        ?.text
+        ?? '',)
       && (tokens.slice(
         at,
         at + SETTING_REACH,
