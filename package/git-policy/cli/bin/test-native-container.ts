@@ -36,6 +36,11 @@ import {
   vendorLockedDependencies,
 } from './native-scanner-snapshot.ts';
 import {
+  copyStraceSource,
+  straceCopyLines,
+  straceStageLines,
+} from './native-strace-snapshot.ts';
+import {
   NativeVerificationError,
   runCommand,
 } from './native-verification-process.ts';
@@ -218,6 +223,7 @@ await copySourceSnapshot({ context: context.path });
 await vendorLockedDependencies({ context: context.path });
 await vendorLinterDependencies({ context: context.path });
 await copyNextest({ context: context.path });
+await copyStraceSource({ context: context.path });
 await writeFile(
   join(
     context.path,
@@ -226,8 +232,14 @@ await writeFile(
   [
     // The Markdown policy's linter is built from this snapshot in its own stage; only its executable is kept.
     ...linterStageLines({ base }),
+    // The fault-injection controls run the wrapper under `strace`; without it they report and check nothing.
+    ...straceStageLines({
+      base,
+      jobs: parallelJobs(containerLimits),
+    }),
     `FROM ${base}`,
     ...nextestCopyLines(),
+    ...straceCopyLines(),
     ...linterCopyLines(),
     'COPY package /work/package',
     // Some crate archives carry files only their owner may read, so the tester must own the vendored copy.
