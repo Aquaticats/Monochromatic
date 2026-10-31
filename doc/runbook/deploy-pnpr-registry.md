@@ -254,7 +254,8 @@ Only if the registry must be removed.
    because the new image runs as user `pnpr` instead of `node`.
    The old `pnpr-storage` volume held no packages;
    delete it from the application's **Storages** page once the new deployment answers `{}` on `/-/ping`.
-- `config.yaml` changes only through `mise run sync:files`;
+- `config.yaml` changes only through `mise run //package/config/pnpr:generate:config`
+   (file-enforcer does not write it; `check:config` reports a drift);
    committing its regenerated file triggers the Watch paths redeploy.
 
 ## Move to a newer pnpr base
