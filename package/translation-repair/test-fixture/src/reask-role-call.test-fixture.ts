@@ -152,7 +152,30 @@ function namedUnderKey(
   function isKey(property: readonly Token[],): boolean {
     return property[0]
       ?.text
-      === key;
+      === key
+      || isComputedKey(property,);
+  }
+
+  /**
+   Whether a property is written under the key as a computed name, `['role']: ...`.
+
+   @param property - tokens of one property
+
+   @returns True when it opens with a bracket, the key as a string and the closing bracket
+   */
+  function isComputedKey(property: readonly Token[],): boolean {
+    return (property[0]
+      ?.text
+      === '[')
+      && (property[1]
+        ?.kind
+        === 'string')
+      && (property[1]
+        .text
+        === key)
+      && (property[2]
+        ?.text
+        === ']');
   }
 
   /**
@@ -161,10 +184,14 @@ function namedUnderKey(
   const values = properties
     .filter(isKey,)
     .map(function valueOf(property,): string {
-      return (property[1]
+      /**
+       The property with a computed name read as a plain one, its three tokens of brackets and string standing as the key.
+       */
+      const plain = isComputedKey(property,) ? property.slice(2,) : property;
+      return (plain[1]
         ?.text
         === ':')
-        ? property
+        ? plain
           .slice(2,)
           .map(function textOf(token,): string {
             return token.text;
@@ -183,12 +210,28 @@ function namedUnderKey(
    @returns True when it is such a spread
    */
   function mayReplaceValue(property: readonly Token[],): boolean {
-    return isSpread(property,) && (property.every(function isNotBrace(token,): boolean {
-      return token.text !== '{';
-    },)
-      || property.some(function namesKey(token,): boolean {
-        return token.text === key;
-      },));
+    if (!isSpread(property,))
+      return false;
+    /**
+     What the spread spreads, after its three dots.
+     */
+    const after = property.slice(SPREAD_MARK.length,);
+    /**
+     Whether it is an object written in place (`...{ a }`) or a conditional of such (`...(c ? { a } : {})`), whose keys can
+     be read; any other expression (a variable, a call, even a call with an object argument) can carry anything.
+     */
+    const inlineObject = (after[0]
+      ?.text
+      === '{')
+      || ((after[0]
+        ?.text
+        === '(')
+        && after.some(function isQuestion(token,): boolean {
+          return token.text === '?';
+        },));
+    return (!inlineObject) || after.some(function namesKey(token,): boolean {
+      return token.text === key;
+    },);
   }
 
   /**
@@ -198,8 +241,10 @@ function namedUnderKey(
     .slice(properties.findIndex(isKey,) + 1,)
     .some(mayReplaceValue,)
     && (values.length > 0);
+  // A SPREAD ALONE IS NOT NONE (ledger B1150): the role may ride in what it spreads, so a case that expects `none` of such a
+  // call would hold vacuously. It reads as `only a spread`, which a case accepts by name.
   if (values.length === 0)
-    return 'none';
+    return properties.some(mayReplaceValue,) ? 'only a spread' : 'none';
   if (values.length > 1)
     return `duplicate ${key}: ${values.join(', ',)}`;
   return spreadAfter ? `${values[0] ?? ''} then a spread` : values[0] ?? '';

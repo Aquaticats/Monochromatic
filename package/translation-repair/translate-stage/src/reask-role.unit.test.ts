@@ -64,6 +64,21 @@ await describe({
         expect(rolesNamedAtCalls({ source, callee: 'judgeSlateWithRetry', key: 'judging.role', },),).toEqual(['select-judge',],);
       },
     },),
+
+    it({
+      name: 'LEAVES THE ROLE OF A RUN-OFF OR A SECOND JUDGING TO THE JUDGING IT SPREADS (ledger B1150): translate-retry.ts '
+        + 'names no role itself, and a reader that took a call of only a spread for one that names none would hold that '
+        + 'file to nothing',
+      fn: async () => {
+        const source = await readFile(new URL('translate-retry.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeTranslateSlate', },),).toEqual([
+          'not an object literal',
+          'only a spread',
+        ],);
+        expect(rolesNamedAtCalls({ source, callee: 'askJudges', key: 'judging.role', },),).toContain('only a spread',);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeTranslateSlate', },),).not.toContain('wide-judge',);
+      },
+    },),
   ],
 },);
 
