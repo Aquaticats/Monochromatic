@@ -11,7 +11,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! program.command('write'); program.command('check').option('--expected-dir <dir>');
+//! program.command('write').option('--outputs <scope>'); program.command('check').option('--outputs <scope>').option('--expected-dir <dir>');
 //! ```
 
 #![cfg_attr(
@@ -23,8 +23,11 @@
 )]
 
 /// Imports `Parser`,
-/// `Subcommand` from `clap`.
-use clap::{Parser, Subcommand};
+/// `Subcommand`,
+/// `ValueEnum` from `clap`.
+use clap::{Parser, Subcommand, ValueEnum};
+/// Imports `OutputScope` from `monochromatic_file_enforcer::output_scope`.
+use monochromatic_file_enforcer::output_scope::OutputScope;
 /// Imports `PathBuf` from `std::path`.
 use std::path::PathBuf;
 
@@ -60,6 +63,59 @@ pub struct Cli {
 }
 
 /// What:
+///  The words `--outputs` accepts.
+///  A `ValueEnum` is a closed set of words clap parses and lists in its help (TS:
+/// a string literal union).
+/// Why:
+///  A fresh checkout holds every committed output but none of the gitignored ones,
+/// so CI checks `committed` first and `local` after generating;
+/// one single-valued option with a default avoids repeated or delimited forms,
+/// and the unscoped default stays `all`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type OutputsArg = 'all' | 'committed' | 'local';
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+pub enum OutputsArg {
+    /// Every output (the default).
+    #[default]
+    All,
+    /// Outputs that no `.gitignore` rule matches.
+    Committed,
+    /// Outputs that a `.gitignore` rule matches.
+    Local,
+}
+
+/// What:
+///  The engine's scope for a command-line word.
+/// Why:
+///  The command line owns the words and the engine owns the behavior.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function outputScopeOf(arg: OutputsArg): OutputScope
+/// ```
+impl OutputsArg {
+    /// What:
+    ///  Convert to the engine's `OutputScope`.
+    /// Why:
+    ///  The request sent to the server carries the engine's word.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// scope(): OutputScope
+    /// ```
+    pub fn scope(self) -> OutputScope {
+        match self {
+            OutputsArg::All => return OutputScope::All,
+            OutputsArg::Committed => return OutputScope::Committed,
+            OutputsArg::Local => return OutputScope::Local,
+        }
+    }
+}
+
+/// What:
 ///  The subcommands.
 ///  An enum with data is a tagged union (TS:
 /// a discriminated union).
@@ -68,15 +124,30 @@ pub struct Cli {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Command = { kind: 'write' } | { kind: 'check'; expectedDir?: string } | { kind: 'watch' } | { kind: 'explain'; path: string } | { kind: 'user'; command: UserCommand } | { kind: 'serve'; ... };
+/// type Command = { kind: 'write'; outputs: OutputsArg } | { kind: 'check'; outputs: OutputsArg; expectedDir?: string } | { kind: 'watch' } | { kind: 'explain'; path: string } | { kind: 'user'; command: UserCommand } | { kind: 'serve'; ... };
 /// ```
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Regenerate every drifted file.
-    Write,
+    Write {
+        /// Which outputs to regenerate:
+        /// committed ones (no `.gitignore` rule matches),
+        /// local ones (a rule matches),
+        /// or all.
+        #[arg(long, value_enum, default_value_t = OutputsArg::All, value_name = "SCOPE")]
+        outputs: OutputsArg,
+    },
     /// Report drift without writing;
     /// exit 1 when anything differs.
     Check {
+        /// Which outputs to check:
+        /// committed ones (no `.gitignore` rule matches),
+        /// local ones (a rule matches),
+        /// or all.
+        /// Drift in the other outputs is not reported and does not change the exit code.
+        #[arg(long, value_enum, default_value_t = OutputsArg::All, value_name = "SCOPE")]
+        outputs: OutputsArg,
+
         /// Write paired actual/ and expected/ trees here,
         /// for `diff -ru` or `git diff --no-index`.
         #[arg(long, value_name = "DIR")]

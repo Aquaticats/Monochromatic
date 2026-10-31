@@ -215,9 +215,12 @@ pub fn dispatch(cli: &Cli, sink: &mut dyn EventSink) -> i32 {
         Err(error) => return usage_failure(sink, &error),
     };
     match &cli.command {
-        Command::Write => return request(&endpoint, false, "run", run_params("write", &config_path, &[]), sink),
-        Command::Check { expected_dir } => {
-            let mut extra: Vec<(&str, Value)> = Vec::new();
+        Command::Write { outputs } => {
+            let extra = [("outputs", Value::from(outputs.scope().name()))];
+            return request(&endpoint, false, "run", run_params("write", &config_path, &extra), sink);
+        }
+        Command::Check { expected_dir, outputs } => {
+            let mut extra: Vec<(&str, Value)> = vec![("outputs", Value::from(outputs.scope().name()))];
             if let Some(dir) = expected_dir {
                 extra.push(("expectedDir", Value::from(absolute_path(dir).display().to_string())));
             }
