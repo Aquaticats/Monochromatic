@@ -76,26 +76,23 @@ each finished branch is reviewed and merged into `main`):
   and the crate's lint debt is cleared);
   the linter's Dylint driver skip (`package/linter/monochromatic-lint`,
   after the owner-approved toolchain sync and driver warm on 2026-10-30).
-- Finished,
-  merge into `main` blocked:
+- Merged 2026-10-31 through the core-hardening branch:
   branch `worktree-agent-a23c3740c67ba36d9` wires the `rust-catalog`,
   `browserslist`,
   and `jetbrains-harper` rule kinds in the cli crate and moves the browserslist lock to the root.
-  `git merge` refused because the main checkout holds someone else's uncommitted `pnpm-lock.yaml`
-  (catalog specifiers raised to their resolved versions, a subset of the branch's own regenerated lock);
-  monochromatic-c0 was asked on 2026-10-31 whether it is theirs and whether the merge may carry it.
-  Merge after the answer,
-  then rerun the dependency-catalog golden test.
+  `git merge` had refused because the main checkout held an uncommitted `pnpm-lock.yaml` of unknown authorship
+  (13 catalog specifiers raised to their resolved versions);
+  monochromatic-c0 did not answer,
+  and the owner chose "Commit it, then merge",
+  so it is `add4429c97` on its own.
   Its scope deviations to keep in mind:
   `core-rust/src/plan.rs` no longer reports `rule-order` between two composing rules,
   so "rust-catalog after toml-keys" is a config convention;
   `package-licenses` moved after `rust-catalog` in `file-enforcer.config.jsonc`;
   the jetbrains-harper policy constants are hardcoded from the TypeScript tool;
   the browserslist `environment` field selects nothing because sections are refused.
-- Finished,
-  same merge block:
-  branch `worktree-agent-ad604356a8bd46267` hardens the core and already contains the wiring branch,
-  so merging it alone lands both.
+- Merged 2026-10-31:
+  branch `worktree-agent-ad604356a8bd46267` hardens the core and contains the wiring branch.
   It adds `parse_jsonc_with_spans` to `monochromatic-jsonc-edit` without a version bump (0.1.1 is published),
   so jsonc-edit needs a bump and a Trusted Publishing release before file-enforcer publishes.
   Every config decode error now reads `file:line:col: /pointer: message`.
