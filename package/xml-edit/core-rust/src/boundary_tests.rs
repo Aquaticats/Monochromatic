@@ -1,8 +1,16 @@
 //! What:
-//!  Adversarial boundary tests: quotes, entities, CDATA, comments holding markup, attribute escapes,
-//!  newlines, BOM, and very large inputs.
+//!  Adversarial boundary tests:
+//! quotes,
+//! entities,
+//! CDATA,
+//! comments holding markup,
+//! attribute escapes,
+//!  newlines,
+//! BOM,
+//! and very large inputs.
 //! Why:
-//!  Text crossing a syntax boundary must obey the destination grammar, and unbounded input must be handled in
+//!  Text crossing a syntax boundary must obey the destination grammar,
+//! and unbounded input must be handled in
 //!  one linear pass without stack growth.
 //!
 //! In TS you'd write (pseudocode):
@@ -28,7 +36,8 @@ fn quotes_nest_inside_each_other() {
     assert_eq!(document.attribute(document.root(), "w"), Some(">"));
 }
 
-/// Check every predefined entity and numeric reference decodes, and numeric forms keep real control whitespace.
+/// Check every predefined entity and numeric reference decodes,
+/// and numeric forms keep real control whitespace.
 #[test]
 fn references_decode_to_characters() {
     let value: String = decode_attribute_value("&quot;&amp;&lt;&gt;&apos;&#10;&#13;&#9;&#x41;").expect("valid references");
@@ -105,7 +114,8 @@ fn mixed_line_endings_parse() {
     assert_eq!(error.line, 4);
 }
 
-/// Check structure that is deep, wide or attribute-heavy parses in one pass and unclosed input reports its offset.
+/// Check structure that is deep,
+/// wide or attribute-heavy parses in one pass and unclosed input reports its offset.
 #[test]
 fn large_inputs_are_handled_without_recursion() {
     let depth: usize = 20_000;

@@ -1,7 +1,8 @@
 //! What:
 //!  Parser and query tests on JetBrains-shaped documents and on the accepted and rejected grammar.
 //! Why:
-//!  Compilation alone does not show that spans, decoding and well-formedness checks agree with the XML grammar.
+//!  Compilation alone does not show that spans,
+//! decoding and well-formedness checks agree with the XML grammar.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -68,7 +69,9 @@ fn unknown_handles_are_harmless() {
     assert_eq!(document.span(stranger), None);
 }
 
-/// Check text, CDATA and entities decode, and comments stay out of the text.
+/// Check text,
+/// CDATA and entities decode,
+/// and comments stay out of the text.
 #[test]
 fn text_and_cdata_decode() {
     let document: XmlDocument = parsed("<a>x &amp; y<![CDATA[ <b/> ]]><!-- c -->&#65;\r\nz</a>");
@@ -76,7 +79,9 @@ fn text_and_cdata_decode() {
     assert!(document.children(document.root()).is_empty());
 }
 
-/// Check the prolog accepts a declaration, comments and processing instructions, and keeps the BOM flag.
+/// Check the prolog accepts a declaration,
+/// comments and processing instructions,
+/// and keeps the BOM flag.
 #[test]
 fn prolog_and_epilog_are_accepted() {
     let source: &str = "\u{FEFF}<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<!-- c --><?pi data?>\n<a/>\n<!-- end -->\n";
@@ -88,7 +93,8 @@ fn prolog_and_epilog_are_accepted() {
     parsed("<?xml-stylesheet href=\"x\"?><a/>");
 }
 
-/// Check nested elements, namespaced names and both quote styles parse.
+/// Check nested elements,
+/// namespaced names and both quote styles parse.
 #[test]
 fn names_and_quotes_parse() {
     let document: XmlDocument = parsed("<ns:a x:y='1' z=\"it's\"><b-c.d _e=\"\u{e9}\"/></ns:a>");

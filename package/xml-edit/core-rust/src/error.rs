@@ -1,7 +1,9 @@
 //! What:
-//!  The crate's public failure types: a positioned parse rejection and an edit rejection.
+//!  The crate's public failure types:
+//! a positioned parse rejection and an edit rejection.
 //! Why:
-//!  Parsing answers "where is the malformed byte", while editing answers "which request cannot be honored",
+//!  Parsing answers "where is the malformed byte",
+//! while editing answers "which request cannot be honored",
 //!  so each gets its own type instead of one message string callers would have to parse.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,10 +13,14 @@
 //! ```
 
 /// What:
-///  A rejected XML source with the byte offset, line and column where scanning stopped.
+///  A rejected XML source with the byte offset,
+/// line and column where scanning stopped.
 /// Why:
-///  A person fixing a settings file needs a position in the original text, and the line and column are
-///  computed once, when the error is built, so the happy path never pays for them.
+///  A person fixing a settings file needs a position in the original text,
+/// and the line and column are
+///  computed once,
+/// when the error is built,
+/// so the happy path never pays for them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -24,7 +30,9 @@
 pub struct XmlParseError {
     /// Zero-based UTF-8 byte offset into the rejected source.
     pub offset: usize,
-    /// One-based line; CRLF, LF and a bare CR each end one line.
+    /// One-based line;
+    /// CRLF,
+    /// LF and a bare CR each end one line.
     pub line: usize,
     /// One-based column counted in Unicode scalar values from the line start.
     pub column: usize,
@@ -32,11 +40,21 @@ pub struct XmlParseError {
     pub message: String,
 }
 
+/// What:
+/// Add the constructor to the parse error.
+/// Why:
+/// Line and column derivation lives beside the type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class XmlParseError { static at(source: string, offset: number, message: string): XmlParseError }
+/// ```
 impl XmlParseError {
     /// What:
     ///  Build a positioned rejection for `offset` within `source`.
     /// Why:
-    ///  Every scanner and parser rejection funnels through here, so line and column are derived in one place.
+    ///  Every scanner and parser rejection funnels through here,
+    /// so line and column are derived in one place.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -96,14 +114,18 @@ impl XmlParseError {
 /// What:
 ///  Print a parse rejection as `message (line L, column C, byte offset N)`.
 /// Why:
-///  Callers log failures directly, and the position belongs in the same sentence as the reason.
+///  Callers log failures directly,
+/// and the position belongs in the same sentence as the reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// toString(): string { return `${message} (line ${line}, column ${column}, byte offset ${offset})`; }
 /// ```
 impl std::fmt::Display for XmlParseError {
-    /// What: Render the rejection with its position. Why: One shape for every diagnostic.
+    /// What:
+    /// Render the rejection with its position.
+    /// Why:
+    /// One shape for every diagnostic.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -118,7 +140,10 @@ impl std::fmt::Display for XmlParseError {
     }
 }
 
-/// What: Mark the parse rejection as a standard Rust error. Why: Callers can box it or use `?` with it.
+/// What:
+/// Mark the parse rejection as a standard Rust error.
+/// Why:
+/// Callers can box it or use `?` with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,8 +154,11 @@ impl std::error::Error for XmlParseError {}
 /// What:
 ///  Why an edit request was refused.
 /// Why:
-///  Callers react differently to a stale element handle, a missing attribute, text XML cannot carry,
-///  and an edit that would produce invalid XML, so each is its own variant.
+///  Callers react differently to a stale element handle,
+/// a missing attribute,
+/// text XML cannot carry,
+///  and an edit that would produce invalid XML,
+/// so each is its own variant.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -159,32 +187,45 @@ pub enum XmlEditError {
         /// Attribute name that repeats.
         name: String,
     },
-    /// The text holds a character XML 1.0 cannot represent, even as a reference.
+    /// The text holds a character XML 1.0 cannot represent,
+    /// even as a reference.
     InvalidCharacter {
-        /// Where the text was going, such as `attribute value` or `text content`.
+        /// Where the text was going,
+        /// such as `attribute value` or `text content`.
         context: String,
         /// The unrepresentable character.
         character: char,
     },
-    /// The element mixes text with child elements, so one rendering would be a guess.
+    /// The element mixes text with child elements,
+    /// so one rendering would be a guess.
     MixedContent {
         /// Name of the element involved.
         element: String,
     },
     /// The document root cannot be removed.
     CannotRemoveRoot,
-    /// The edit produced XML this crate rejects; the original document is unchanged.
-    RejectedResult(XmlParseError),
+    /// The edit produced XML this crate rejects;
+    /// the original document is unchanged.
+    RejectedResult(
+        /// Why the produced text was rejected.
+        XmlParseError,
+    ),
 }
 
-/// What: Print an edit refusal as one sentence. Why: Callers surface it to a person without matching variants.
+/// What:
+/// Print an edit refusal as one sentence.
+/// Why:
+/// Callers surface it to a person without matching variants.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// toString(): string { /* switch on kind */ }
 /// ```
 impl std::fmt::Display for XmlEditError {
-    /// What: Render the refusal. Why: Each variant names the input that caused it.
+    /// What:
+    /// Render the refusal.
+    /// Why:
+    /// Each variant names the input that caused it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -232,7 +273,10 @@ impl std::fmt::Display for XmlEditError {
     }
 }
 
-/// What: Mark the edit refusal as a standard Rust error. Why: Callers can box it or use `?` with it.
+/// What:
+/// Mark the edit refusal as a standard Rust error.
+/// Why:
+/// Callers can box it or use `?` with it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

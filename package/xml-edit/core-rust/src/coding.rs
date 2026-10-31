@@ -1,8 +1,11 @@
 //! What:
-//!  Entity and character-reference coding for attribute values and text content, in both directions.
+//!  Entity and character-reference coding for attribute values and text content,
+//! in both directions.
 //! Why:
-//!  Reading an attribute must give the text the XML processor would give (references resolved, literal tabs
-//!  and line breaks turned into spaces), and writing one must produce text that reads back unchanged.
+//!  Reading an attribute must give the text the XML processor would give (references resolved,
+//! literal tabs
+//!  and line breaks turned into spaces),
+//! and writing one must produce text that reads back unchanged.
 //!  Each direction is one linear pass over the input.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,11 +14,31 @@
 //! export function encodeAttributeValue(text: string, quote: '"' | "'"): string;
 //! ```
 
+/// What:
+/// Import the legal-character test.
+/// Why:
+/// Both directions reject characters XML 1.0 cannot carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isXmlChar } from './chars';
+/// ```
 use crate::chars::is_xml_char;
+/// What:
+/// Import the edit failure type.
+/// Why:
+/// Encoding refuses unrepresentable characters with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlEditError } from './error';
+/// ```
 use crate::error::XmlEditError;
 
-/// Longest reference body (`#x10FFFF`, with leading zeros) the decoder looks for before giving up.
-/// A fixed bound keeps the search for `;` constant work per `&`, so decoding stays linear.
+/// Longest reference body (`#x10FFFF`,
+/// with leading zeros) the decoder looks for before giving up.
+/// A fixed bound keeps the search for `;` constant work per `&`,
+/// so decoding stays linear.
 const MAX_REFERENCE_BODY: usize = 32;
 
 /// What:
@@ -36,9 +59,11 @@ pub struct CodingError {
 }
 
 /// What:
-///  Resolve the text between `&` and `;` to a character, for the five predefined entities and numeric references.
+///  Resolve the text between `&` and `;` to a character,
+/// for the five predefined entities and numeric references.
 /// Why:
-///  No DTD is supported, so any other name is an undefined entity and the document is malformed.
+///  No DTD is supported,
+/// so any other name is an undefined entity and the document is malformed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,9 +130,11 @@ fn resolve_reference(body: &str) -> Option<char> {
 }
 
 /// What:
-///  Decode raw markup text, resolving references and applying the whitespace rules for the given context.
+///  Decode raw markup text,
+/// resolving references and applying the whitespace rules for the given context.
 /// Why:
-///  Attribute values and text content share every rule except whitespace and `]]>`, so one loop serves both.
+///  Attribute values and text content share every rule except whitespace and `]]>`,
+/// so one loop serves both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -171,7 +198,9 @@ fn decode_content(raw: &str, is_attribute: bool) -> Result<String, CodingError> 
 /// What:
 ///  Decode the raw text between an attribute's quotes into its value.
 /// Why:
-///  XML 1.0 section 3.3.3: a literal tab, line feed or carriage return in a value becomes one space,
+///  XML 1.0 section 3.3.3:
+/// a literal tab,
+/// line feed or carriage return in a value becomes one space,
 ///  while a character reference such as `&#10;` stays the real character.
 ///
 /// In TS you'd write (pseudocode):
@@ -185,7 +214,8 @@ pub fn decode_attribute_value(raw: &str) -> Result<String, CodingError> {
 /// What:
 ///  Decode raw element text into its character data.
 /// Why:
-///  Text keeps its line breaks, but CRLF and bare CR are normalized to LF as XML 1.0 section 2.11 requires.
+///  Text keeps its line breaks,
+/// but CRLF and bare CR are normalized to LF as XML 1.0 section 2.11 requires.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -198,7 +228,11 @@ pub fn decode_text(raw: &str) -> Result<String, CodingError> {
 /// What:
 ///  Encode text for an attribute written with the given quote character.
 /// Why:
-///  `&`, `<`, `>` and the quote are escaped, and tab, line feed and carriage return become numeric references
+///  `&`,
+/// `<`,
+/// `>` and the quote are escaped,
+/// and tab,
+/// line feed and carriage return become numeric references
 ///  because a literal one would read back as a space.
 ///
 /// In TS you'd write (pseudocode):
@@ -236,7 +270,9 @@ pub fn encode_attribute_value(text: &str, quote: char) -> Result<String, XmlEdit
 /// What:
 ///  Encode text for element content.
 /// Why:
-///  `&`, `<` and `>` are escaped (the last so `]]>` never appears), and a carriage return becomes `&#13;`
+///  `&`,
+/// `<` and `>` are escaped (the last so `]]>` never appears),
+/// and a carriage return becomes `&#13;`
 ///  because a literal one would read back as a line feed.
 ///
 /// In TS you'd write (pseudocode):

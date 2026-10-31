@@ -1,5 +1,8 @@
 //! What:
-//!  Character classes from the XML 1.0 (fifth edition) grammar: legal characters, name characters, whitespace.
+//!  Character classes from the XML 1.0 (fifth edition) grammar:
+//! legal characters,
+//! name characters,
+//! whitespace.
 //! Why:
 //!  Well-formedness checking and name validation for new elements both need the same exact classes,
 //!  so they live in one small module with no other logic.
@@ -13,8 +16,12 @@
 /// What:
 ///  True when `character` may appear anywhere in an XML 1.0 document (the `Char` production).
 /// Why:
-///  Control characters other than tab, line feed and carriage return, and U+FFFE and U+FFFF, make a document
-///  malformed even inside a comment, and cannot be written as a character reference either.
+///  Control characters other than tab,
+/// line feed and carriage return,
+/// and U+FFFE and U+FFFF,
+/// make a document
+///  malformed even inside a comment,
+/// and cannot be written as a character reference either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -36,9 +43,14 @@ pub fn is_xml_char(character: char) -> bool {
 }
 
 /// What:
-///  True for the four whitespace bytes XML allows between markup: space, tab, line feed, carriage return.
+///  True for the four whitespace bytes XML allows between markup:
+/// space,
+/// tab,
+/// line feed,
+/// carriage return.
 /// Why:
-///  XML whitespace is narrower than Unicode whitespace, so `char::is_whitespace` would accept malformed input.
+///  XML whitespace is narrower than Unicode whitespace,
+/// so `char::is_whitespace` would accept malformed input.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -51,7 +63,8 @@ pub fn is_xml_space(byte: u8) -> bool {
 /// What:
 ///  True when `character` may start an XML name (the `NameStartChar` production).
 /// Why:
-///  Element and attribute names must start with a letter-like character, underscore or colon.
+///  Element and attribute names must start with a letter-like character,
+/// underscore or colon.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -79,7 +92,9 @@ pub fn is_name_start_char(character: char) -> bool {
 /// What:
 ///  True when `character` may continue an XML name (the `NameChar` production).
 /// Why:
-///  Names also allow digits, hyphen, period and a few combining marks after the first character.
+///  Names also allow digits,
+/// hyphen,
+/// period and a few combining marks after the first character.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -99,7 +114,8 @@ pub fn is_name_char(character: char) -> bool {
 /// What:
 ///  True when `text` is a non-empty XML Name.
 /// Why:
-///  Element and attribute names a caller supplies are written into markup, so they must be proven names
+///  Element and attribute names a caller supplies are written into markup,
+/// so they must be proven names
 ///  before they can break out of a tag.
 ///
 /// In TS you'd write (pseudocode):

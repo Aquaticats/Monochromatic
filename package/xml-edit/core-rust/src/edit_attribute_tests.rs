@@ -1,7 +1,10 @@
 //! What:
-//!  Attribute edit tests, including the byte-for-byte preservation of everything outside the edited value.
+//!  Attribute edit tests,
+//! including the byte-for-byte preservation of everything outside the edited value.
 //! Why:
-//!  Preservation is the crate's reason to exist, so each test compares whole documents, not just the edit site.
+//!  Preservation is the crate's reason to exist,
+//! so each test compares whole documents,
+//! not just the edit site.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,7 +62,9 @@ fn set_attribute_keeps_the_quote_style() {
     assert_eq!(edited.attribute(edited.root(), "x"), Some("it's \"fine\""));
 }
 
-/// Check a missing attribute is appended after the last one, before the closing delimiter, with spacing kept.
+/// Check a missing attribute is appended after the last one,
+/// before the closing delimiter,
+/// with spacing kept.
 #[test]
 fn set_attribute_appends_a_new_attribute() {
     let spaced: XmlDocument = parsed("<a x=\"1\" />");
@@ -84,7 +89,9 @@ fn remove_attribute_takes_its_leading_whitespace() {
     assert_eq!(alone.remove_attribute(alone.root(), "x").expect("edit applies").source(), "<a />");
 }
 
-/// Check edits outside the target keep comments, line endings, BOM and sibling text.
+/// Check edits outside the target keep comments,
+/// line endings,
+/// BOM and sibling text.
 #[test]
 fn edits_preserve_everything_else() {
     let source: &str = "\u{FEFF}<!-- head -->\r\n<a>\r\n  <!-- keep <b x=\"9\"/> -->\r\n  <b x=\"1\"/>\r\n  <c y=\"2\"/>\r\n</a>\r\n<!-- tail -->";

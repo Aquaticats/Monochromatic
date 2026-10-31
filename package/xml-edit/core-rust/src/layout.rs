@@ -1,8 +1,13 @@
 //! What:
-//!  Layout probes over the original source: line ending, indent unit, a line's indentation, and whether
+//!  Layout probes over the original source:
+//! line ending,
+//! indent unit,
+//! a line's indentation,
+//! and whether
 //!  a span owns its line.
 //! Why:
-//!  New elements should look like their neighbours, so edits copy the document's own conventions instead of
+//!  New elements should look like their neighbours,
+//! so edits copy the document's own conventions instead of
 //!  imposing fixed ones.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,6 +15,15 @@
 //! function detectEol(source: string): string; function lineIndent(source: string, offset: number): string;
 //! ```
 
+/// What:
+/// Import the XML whitespace test.
+/// Why:
+/// Blank-tail detection must use XML's narrow whitespace set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isXmlSpace } from './chars';
+/// ```
 use crate::chars::is_xml_space;
 
 /// What:
@@ -119,7 +133,8 @@ pub fn detect_indent_unit(source: &str) -> String {
 ///  Return the offset just past the line break that ends the line holding `offset`'s trailing blank run,
 ///  or `None` when other text follows on that line.
 /// Why:
-///  Removing a whole-line element must also take its line break, but only when nothing else shares the line.
+///  Removing a whole-line element must also take its line break,
+/// but only when nothing else shares the line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

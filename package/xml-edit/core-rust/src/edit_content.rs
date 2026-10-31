@@ -1,7 +1,12 @@
 //! What:
-//!  Element-level edits: replace an element, append a child, remove an element, and set an element's text.
+//!  Element-level edits:
+//! replace an element,
+//! append a child,
+//! remove an element,
+//! and set an element's text.
 //! Why:
-//!  A rule that manages whole `<entry>` blocks needs these beside the attribute edits; each one splices a
+//!  A rule that manages whole `<entry>` blocks needs these beside the attribute edits;
+//! each one splices a
 //!  rendered fragment (or nothing) into exactly the span it owns and re-parses the result.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,17 +14,75 @@
 //! doc.appendChild(map, entry); doc.replaceElement(id, spec); doc.removeElement(id); doc.setText(id, 'x');
 //! ```
 
+/// What:
+/// Import the text encoder.
+/// Why:
+/// `set_text` escapes its input.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { encodeText } from './coding';
+/// ```
 use crate::coding::encode_text;
+/// What:
+/// Import the document and handle types.
+/// Why:
+/// The edits extend the document and take handles.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlDocument, XmlElementId } from './document';
+/// ```
 use crate::document::{XmlDocument, XmlElementId};
+/// What:
+/// Import the edit failure type.
+/// Why:
+/// Every refusal is one of its variants.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlEditError } from './error';
+/// ```
 use crate::error::XmlEditError;
+/// What:
+/// Import the layout probes.
+/// Why:
+/// Inserted text copies line endings and indentation.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { detectEol, lineIndent, startsOwnLine } from './layout';
+/// ```
 use crate::layout::{blank_tail_end, detect_eol, detect_indent_unit, line_indent, line_start, starts_own_line};
+/// What:
+/// Import the emitter and its input type.
+/// Why:
+/// Appended and replacement elements are rendered,
+/// not pasted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { renderElement, type Layout, type XmlElementSpec } from './render';
+/// ```
 use crate::render::{render_element, Layout, XmlElementSpec};
 
+/// What:
+/// Add the element edits to the document.
+/// Why:
+/// They are operations on one parsed document.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class XmlDocument { replaceElement(...): XmlDocument; appendChild(...): XmlDocument }
+/// ```
 impl XmlDocument {
     /// What:
-    ///  Replace a whole element, comments inside it included, with a freshly rendered description.
+    ///  Replace a whole element,
+    /// comments inside it included,
+    /// with a freshly rendered description.
     /// Why:
-    ///  This is the incumbent whole-entry behavior; prefer attribute edits when comments inside must survive.
+    ///  This is the incumbent whole-entry behavior;
+    /// prefer attribute edits when comments inside must survive.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -40,11 +103,14 @@ impl XmlDocument {
     }
 
     /// What:
-    ///  Append a rendered child after the parent's last content, on its own line when the parent is laid out
+    ///  Append a rendered child after the parent's last content,
+    /// on its own line when the parent is laid out
     ///  over several lines.
     /// Why:
-    ///  This is "insert before the last `</map>`": the new child copies its siblings' indentation and the
-    ///  document's line ending, and an empty or self-closing parent is expanded to hold it.
+    ///  This is "insert before the last `</map>`":
+    /// the new child copies its siblings' indentation and the
+    ///  document's line ending,
+    /// and an empty or self-closing parent is expanded to hold it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -88,7 +154,9 @@ impl XmlDocument {
     }
 
     /// What:
-    ///  Remove an element; when it owns its lines, its indentation and line break go with it.
+    ///  Remove an element;
+    /// when it owns its lines,
+    /// its indentation and line break go with it.
     /// Why:
     ///  Leaving a blank indented line behind would make every removal visible as stray whitespace in a diff.
     ///
@@ -112,10 +180,12 @@ impl XmlDocument {
     }
 
     /// What:
-    ///  Replace an element's character data with `text`, escaped.
+    ///  Replace an element's character data with `text`,
+    /// escaped.
     /// Why:
     ///  Text-only elements such as `<name>x</name>` are the other value-bearing shape besides attributes.
-    ///  Elements with children, comments or instructions are refused because replacing their content would
+    ///  Elements with children,
+    /// comments or instructions are refused because replacing their content would
     ///  silently drop them.
     ///
     /// In TS you'd write (pseudocode):

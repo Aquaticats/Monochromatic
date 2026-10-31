@@ -1,7 +1,12 @@
 //! What:
-//!  Element edit tests: append, replace, remove and set text, on JetBrains-shaped and on awkward layouts.
+//!  Element edit tests:
+//! append,
+//! replace,
+//! remove and set text,
+//! on JetBrains-shaped and on awkward layouts.
 //! Why:
-//!  Inserted text must match its neighbours' indentation and line endings, and refusals must leave the
+//!  Inserted text must match its neighbours' indentation and line endings,
+//! and refusals must leave the
 //!  original untouched.
 //!
 //! In TS you'd write (pseudocode):
@@ -17,7 +22,11 @@ fn parsed(source: &str) -> XmlDocument {
     return parse_xml(source).expect("valid XML fixture");
 }
 
-/// Build the scoped entry the consumer appends: entry, value, settings, one option.
+/// Build the scoped entry the consumer appends:
+/// entry,
+/// value,
+/// settings,
+/// one option.
 fn scoped_entry() -> XmlElementSpec {
     let option: XmlElementSpec = XmlElementSpec::named("option")
         .with_attribute("name", "serverName")
@@ -43,7 +52,8 @@ fn append_child_matches_sibling_layout() {
     assert_eq!(parsed(USER_DEFINED_XML).descendants_named(document.root(), "entry").len(), 1);
 }
 
-/// Check appending expands self-closing, empty and inline parents.
+/// Check appending expands self-closing,
+/// empty and inline parents.
 #[test]
 fn append_child_expands_empty_parents() {
     let leaf: XmlElementSpec = XmlElementSpec::named("b").with_attribute("k", "v");
@@ -63,7 +73,8 @@ fn append_child_expands_empty_parents() {
     assert_eq!(inline.append_child(inline.root(), &leaf).expect("edit applies").source(), "<a><c/><b k=\"v\" /></a>");
 }
 
-/// Check CRLF and tab layouts are copied, and a trailing comment does not take the new child's place.
+/// Check CRLF and tab layouts are copied,
+/// and a trailing comment does not take the new child's place.
 #[test]
 fn append_child_copies_line_endings_and_tabs() {
     let leaf: XmlElementSpec = XmlElementSpec::named("b");
@@ -120,7 +131,8 @@ fn replace_element_rebuilds_the_block() {
     assert_eq!(document.replace_element(XmlElementId(99), &scoped_entry()), Err(XmlEditError::UnknownElement));
 }
 
-/// Check removal takes whole lines when it can and only the span otherwise, and never the root.
+/// Check removal takes whole lines when it can and only the span otherwise,
+/// and never the root.
 #[test]
 fn remove_element_cleans_up_its_lines() {
     let document: XmlDocument = parsed("<a>\n  <b/>\n  <c/>\n</a>");
@@ -134,7 +146,9 @@ fn remove_element_cleans_up_its_lines() {
     assert_eq!(document.remove_element(XmlElementId(9)), Err(XmlEditError::UnknownElement));
 }
 
-/// Check text edits on leaf, self-closing and CDATA-holding elements, and their refusals.
+/// Check text edits on leaf,
+/// self-closing and CDATA-holding elements,
+/// and their refusals.
 #[test]
 fn set_text_rewrites_leaf_content() {
     let leaf: XmlDocument = parsed("<a x=\"1\">old</a>");

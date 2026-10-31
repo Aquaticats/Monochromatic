@@ -1,8 +1,12 @@
 //! What:
-//!  Linear scanning of the small XML constructs the parser drives: names, comments, processing instructions,
+//!  Linear scanning of the small XML constructs the parser drives:
+//! names,
+//! comments,
+//! processing instructions,
 //!  CDATA sections and start tags with their attributes.
 //! Why:
-//!  Each construct is scanned once from its opening delimiter to its closing delimiter with `str::find`, so
+//!  Each construct is scanned once from its opening delimiter to its closing delimiter with `str::find`,
+//! so
 //!  malformed input costs one pass and produces a positioned error instead of backtracking.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,17 +14,64 @@
 //! class Scanner { constructor(public source: string, public offset = 0) {} scanName(): Span; scanComment(): Span }
 //! ```
 
+/// What:
+/// Import the standard hash set (like a TS `Set<string>`).
+/// Why:
+/// Duplicate attribute names are caught in one pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seen = new Set<string>();
+/// ```
 use std::collections::HashSet;
 
+/// What:
+/// Import the character classes.
+/// Why:
+/// Names,
+/// whitespace and legal characters follow the XML grammar.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isNameChar, isNameStartChar, isXmlChar, isXmlSpace } from './chars';
+/// ```
 use crate::chars::{is_name_char, is_name_start_char, is_xml_char, is_xml_space};
+/// What:
+/// Import the attribute decoder.
+/// Why:
+/// Values are validated and decoded as they are scanned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { decodeAttributeValue } from './coding';
+/// ```
 use crate::coding::decode_attribute_value;
+/// What:
+/// Import the span and attribute record types.
+/// Why:
+/// The scanner reports where each construct sits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { AttributeData, XmlSpan } from './document';
+/// ```
 use crate::document::{AttributeData, XmlSpan};
+/// What:
+/// Import the parse failure type.
+/// Why:
+/// Every rejection is positioned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlParseError } from './error';
+/// ```
 use crate::error::XmlParseError;
 
 /// What:
 ///  A start tag the scanner has fully read.
 /// Why:
-///  The parser needs the name, the attributes and whether the tag closes itself to decide whether to open a scope.
+///  The parser needs the name,
+/// the attributes and whether the tag closes itself to decide whether to open a scope.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -40,21 +91,36 @@ pub(crate) struct StartTag {
 /// What:
 ///  A cursor over borrowed source text.
 /// Why:
-///  The scanner never copies the source; it only moves an offset and slices what the parser keeps.
+///  The scanner never copies the source;
+/// it only moves an offset and slices what the parser keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class Scanner { source: string; offset: number }
 /// ```
 pub(crate) struct Scanner<'a> {
-    /// Borrowed UTF-8 source (`&str`, not an owned `String`, so nothing is copied).
+    /// Borrowed UTF-8 source (`&str`,
+    /// not an owned `String`,
+    /// so nothing is copied).
     pub source: &'a str,
     /// Offset of the next unread byte.
     pub offset: usize,
 }
 
+/// What:
+/// Add the scanning methods to the cursor.
+/// Why:
+/// Each construct is read by one method from its opener.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Scanner { scanName(): Span; scanComment(): Span; scanStartTag(): StartTag }
+/// ```
 impl<'a> Scanner<'a> {
-    /// What: Build a positioned rejection at `offset`. Why: One call site shape for every scanner error.
+    /// What:
+    /// Build a positioned rejection at `offset`.
+    /// Why:
+    /// One call site shape for every scanner error.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -64,7 +130,10 @@ impl<'a> Scanner<'a> {
         return XmlParseError::at(self.source, offset, message);
     }
 
-    /// What: Report whether the unread text starts with `prefix`. Why: Constructs are told apart by their opener.
+    /// What:
+    /// Report whether the unread text starts with `prefix`.
+    /// Why:
+    /// Constructs are told apart by their opener.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -74,7 +143,11 @@ impl<'a> Scanner<'a> {
         return self.source[self.offset..].starts_with(prefix);
     }
 
-    /// What: Return the byte at the cursor plus `ahead`, or `None` past the end. Why: Lookahead without slicing.
+    /// What:
+    /// Return the byte at the cursor plus `ahead`,
+    /// or `None` past the end.
+    /// Why:
+    /// Lookahead without slicing.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -84,8 +157,11 @@ impl<'a> Scanner<'a> {
         return self.source.as_bytes().get(self.offset + ahead).copied();
     }
 
-    /// What: Advance past XML whitespace and return how many bytes were skipped.
-    /// Why: Tags allow whitespace between parts, and some places require at least one byte of it.
+    /// What:
+    /// Advance past XML whitespace and return how many bytes were skipped.
+    /// Why:
+    /// Tags allow whitespace between parts,
+    /// and some places require at least one byte of it.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -102,8 +178,10 @@ impl<'a> Scanner<'a> {
         return self.offset - start;
     }
 
-    /// What: Read an XML Name at the cursor and return its span.
-    /// Why: Element and attribute names must be exact Names so they can be compared and later written back.
+    /// What:
+    /// Read an XML Name at the cursor and return its span.
+    /// Why:
+    /// Element and attribute names must be exact Names so they can be compared and later written back.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -126,8 +204,12 @@ impl<'a> Scanner<'a> {
         return Ok(XmlSpan { start, end });
     }
 
-    /// What: Check that every character in `start..end` is a legal XML character.
-    /// Why: Comments, CDATA and processing instructions are otherwise opaque, but control bytes still make a
+    /// What:
+    /// Check that every character in `start..end` is a legal XML character.
+    /// Why:
+    /// Comments,
+    /// CDATA and processing instructions are otherwise opaque,
+    /// but control bytes still make a
     ///  document malformed.
     ///
     /// In TS you'd write (pseudocode):
@@ -144,8 +226,12 @@ impl<'a> Scanner<'a> {
         return Ok(());
     }
 
-    /// What: Skip a comment at the cursor (`<!-- ... -->`) and return its span.
-    /// Why: The body is opaque, so markup-looking text inside it is never seen as an element; `--` inside is rejected.
+    /// What:
+    /// Skip a comment at the cursor (`<!-- ... -->`) and return its span.
+    /// Why:
+    /// The body is opaque,
+    /// so markup-looking text inside it is never seen as an element;
+    /// `--` inside is rejected.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -169,8 +255,11 @@ impl<'a> Scanner<'a> {
         return Ok(XmlSpan { start, end: self.offset });
     }
 
-    /// What: Skip a processing instruction at the cursor (`<?target ... ?>`) and return its span.
-    /// Why: The XML declaration is only legal at the very start, so a target spelled `xml` is rejected here.
+    /// What:
+    /// Skip a processing instruction at the cursor (`<?target ... ?>`) and return its span.
+    /// Why:
+    /// The XML declaration is only legal at the very start,
+    /// so a target spelled `xml` is rejected here.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -192,8 +281,11 @@ impl<'a> Scanner<'a> {
         return Ok(XmlSpan { start, end: self.offset });
     }
 
-    /// What: Skip a CDATA section at the cursor and return its content span (without the delimiters).
-    /// Why: The content is literal text, so `<` and `&` inside it are not markup.
+    /// What:
+    /// Skip a CDATA section at the cursor and return its content span (without the delimiters).
+    /// Why:
+    /// The content is literal text,
+    /// so `<` and `&` inside it are not markup.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -211,8 +303,10 @@ impl<'a> Scanner<'a> {
         return Ok((XmlSpan { start, end: self.offset }, XmlSpan { start: content_start, end: content_end }));
     }
 
-    /// What: Read one quoted attribute value at the cursor and return its attribute record.
-    /// Why: The record keeps the value span (inside the quotes) so an edit can replace just the value.
+    /// What:
+    /// Read one quoted attribute value at the cursor and return its attribute record.
+    /// Why:
+    /// The record keeps the value span (inside the quotes) so an edit can replace just the value.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -244,8 +338,11 @@ impl<'a> Scanner<'a> {
         return Ok(AttributeData { name, value, quote, decoded });
     }
 
-    /// What: Read a whole start tag at the cursor (`<name a="1" b='2'>` or `<name />`).
-    /// Why: Attributes must be separated by whitespace and unique, which only the tag as a whole can check.
+    /// What:
+    /// Read a whole start tag at the cursor (`<name a="1" b='2'>` or `<name />`).
+    /// Why:
+    /// Attributes must be separated by whitespace and unique,
+    /// which only the tag as a whole can check.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

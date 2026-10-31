@@ -1,19 +1,46 @@
 //! What:
-//!  Read-only questions about a parsed document: attributes, child and descendant lookup by name, text.
+//!  Read-only questions about a parsed document:
+//! attributes,
+//! child and descendant lookup by name,
+//! text.
 //! Why:
-//!  A rule that edits `<option name="x" value="...">` entries first has to find them; these queries return
-//!  handles and borrowed text, never copies of whole blocks.
+//!  A rule that edits `<option name="x" value="...">` entries first has to find them;
+//! these queries return
+//!  handles and borrowed text,
+//! never copies of whole blocks.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! doc.attribute(id, 'value'); doc.childrenNamed(id, 'option'); doc.findChild(id, 'option', 'name', 'x');
 //! ```
 
+/// What:
+/// Import the document model types.
+/// Why:
+/// Queries read recorded data and extend the document type.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { AttributeData, ElementData, XmlDocument, XmlElementId } from './document';
+/// ```
 use crate::document::{AttributeData, ElementData, XmlDocument, XmlElementId};
 
+/// What:
+/// Add the read-only queries to the document.
+/// Why:
+/// Rules find elements before editing them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class XmlDocument { attribute(...): string | undefined; childrenNamed(...): XmlElementId[] }
+/// ```
 impl XmlDocument {
-    /// What: Return the decoded value of the named attribute, or `None` when absent or the handle is unknown.
-    /// Why: Entities are resolved, so `&quot;` reads as `"` and a caller can parse embedded JSON directly.
+    /// What:
+    /// Return the decoded value of the named attribute,
+    /// or `None` when absent or the handle is unknown.
+    /// Why:
+    /// Entities are resolved,
+    /// so `&quot;` reads as `"` and a caller can parse embedded JSON directly.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -29,8 +56,10 @@ impl XmlDocument {
         return None;
     }
 
-    /// What: Return every attribute as a `(name, decoded value)` pair in source order.
-    /// Why: Callers that copy a block's options need all of them without knowing the names ahead of time.
+    /// What:
+    /// Return every attribute as a `(name, decoded value)` pair in source order.
+    /// Why:
+    /// Callers that copy a block's options need all of them without knowing the names ahead of time.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -47,8 +76,11 @@ impl XmlDocument {
         return pairs;
     }
 
-    /// What: Return the child elements with the given tag name.
-    /// Why: `entry` elements sit directly under `map`, so a direct-child lookup avoids matching nested lookalikes.
+    /// What:
+    /// Return the child elements with the given tag name.
+    /// Why:
+    /// `entry` elements sit directly under `map`,
+    /// so a direct-child lookup avoids matching nested lookalikes.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -64,8 +96,12 @@ impl XmlDocument {
         return found;
     }
 
-    /// What: Return every descendant (not the element itself) with the given tag name, in document order.
-    /// Why: Ids are numbered in pre-order, so a subtree is a contiguous id range and one linear scan finds them.
+    /// What:
+    /// Return every descendant (not the element itself) with the given tag name,
+    /// in document order.
+    /// Why:
+    /// Ids are numbered in pre-order,
+    /// so a subtree is a contiguous id range and one linear scan finds them.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -84,9 +120,11 @@ impl XmlDocument {
         return found;
     }
 
-    /// What: Return the first direct child named `element_name` whose `attribute_name` attribute decodes to
+    /// What:
+    /// Return the first direct child named `element_name` whose `attribute_name` attribute decodes to
     ///  `attribute_value`.
-    /// Why: This is the `<option name="configurationContent" value="..." />` lookup in one call.
+    /// Why:
+    /// This is the `<option name="configurationContent" value="..." />` lookup in one call.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -107,8 +145,12 @@ impl XmlDocument {
         return None;
     }
 
-    /// What: Return the element's direct character data and CDATA, decoded and concatenated.
-    /// Why: A caller rewriting an element's text reads it first; whitespace between child elements is included.
+    /// What:
+    /// Return the element's direct character data and CDATA,
+    /// decoded and concatenated.
+    /// Why:
+    /// A caller rewriting an element's text reads it first;
+    /// whitespace between child elements is included.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -119,8 +161,13 @@ impl XmlDocument {
         return Some(&data.text);
     }
 
-    /// What: Return the recorded attribute (spans, quote character, decoded value) with the given name.
-    /// Why: Edits splice the value span and reuse the quote style, so they need more than the decoded text.
+    /// What:
+    /// Return the recorded attribute (spans,
+    /// quote character,
+    /// decoded value) with the given name.
+    /// Why:
+    /// Edits splice the value span and reuse the quote style,
+    /// so they need more than the decoded text.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

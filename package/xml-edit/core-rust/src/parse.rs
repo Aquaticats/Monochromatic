@@ -1,7 +1,11 @@
 //! What:
-//!  The iterative XML parser: prolog, one element tree built with an explicit stack, then the epilog.
+//!  The iterative XML parser:
+//! prolog,
+//! one element tree built with an explicit stack,
+//! then the epilog.
 //! Why:
-//!  A recursive-descent parser would use call-stack depth proportional to element nesting; an explicit
+//!  A recursive-descent parser would use call-stack depth proportional to element nesting;
+//! an explicit
 //!  `Vec` of open elements keeps the stack constant and the whole parse one linear pass over the source.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,14 +13,62 @@
 //! export function parseXml(source: string): XmlDocument;
 //! ```
 
+/// What:
+/// Import the text decoder.
+/// Why:
+/// Element text is validated and decoded as it is scanned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { decodeText } from './coding';
+/// ```
 use crate::coding::decode_text;
+/// What:
+/// Import the document model types.
+/// Why:
+/// The parser builds them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { ElementData, XmlDocument, XmlElementId, XmlSpan } from './document';
+/// ```
 use crate::document::{ElementData, XmlDocument, XmlElementId, XmlSpan};
+/// What:
+/// Import the whitespace test.
+/// Why:
+/// Whitespace-only text is not content.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isXmlSpace } from './chars';
+/// ```
 use crate::chars::is_xml_space;
+/// What:
+/// Import the parse failure type.
+/// Why:
+/// Every rejection is positioned.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlParseError } from './error';
+/// ```
 use crate::error::XmlParseError;
+/// What:
+/// Import the scanner and its start-tag result.
+/// Why:
+/// The parser drives the scanner construct by construct.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Scanner, type StartTag } from './scan';
+/// ```
 use crate::scan::{Scanner, StartTag};
 
-/// What: Record that a non-element child node ended at `end` inside the element at the top of the stack.
-/// Why: Insertions place new children after the last real content, so each parser branch reports where it stopped.
+/// What:
+/// Record that a non-element child node ended at `end` inside the element at the top of the stack.
+/// Why:
+/// Insertions place new children after the last real content,
+/// so each parser branch reports where it stopped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -26,8 +78,14 @@ fn note_content(elements: &mut [ElementData], parent: usize, end: usize) {
     elements[parent].last_content_end = Some(end);
 }
 
-/// What: Skip the prolog (BOM, declaration, comments, processing instructions) and return the root's offset.
-/// Why: Before the root only those constructs and whitespace are well-formed; a DOCTYPE is out of scope.
+/// What:
+/// Skip the prolog (BOM,
+/// declaration,
+/// comments,
+/// processing instructions) and return the root's offset.
+/// Why:
+/// Before the root only those constructs and whitespace are well-formed;
+/// a DOCTYPE is out of scope.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -55,8 +113,11 @@ fn parse_prolog(scanner: &mut Scanner<'_>) -> Result<(), XmlParseError> {
     }
 }
 
-/// What: Check that only whitespace, comments and processing instructions follow the root element.
-/// Why: A second root element or stray text after the root makes the document malformed.
+/// What:
+/// Check that only whitespace,
+/// comments and processing instructions follow the root element.
+/// Why:
+/// A second root element or stray text after the root makes the document malformed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,8 +138,11 @@ fn parse_epilog(scanner: &mut Scanner<'_>) -> Result<(), XmlParseError> {
     }
 }
 
-/// What: Append a freshly scanned start tag to the arena and link it to its parent.
-/// Why: Ids are the arena indices, so pushing in start-tag order makes every subtree a contiguous id range.
+/// What:
+/// Append a freshly scanned start tag to the arena and link it to its parent.
+/// Why:
+/// Ids are the arena indices,
+/// so pushing in start-tag order makes every subtree a contiguous id range.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -109,8 +173,14 @@ fn open_element(elements: &mut Vec<ElementData>, stack: &[usize], tag: StartTag,
     return id;
 }
 
-/// What: Parse the element tree starting at the root's `<`, using an explicit stack of open element ids.
-/// Why: This is the single pass that checks tag matching, text, comments, CDATA and nesting.
+/// What:
+/// Parse the element tree starting at the root's `<`,
+/// using an explicit stack of open element ids.
+/// Why:
+/// This is the single pass that checks tag matching,
+/// text,
+/// comments,
+/// CDATA and nesting.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -212,10 +282,17 @@ fn parse_tree(scanner: &mut Scanner<'_>) -> Result<Vec<ElementData>, XmlParseErr
 }
 
 /// What:
-///  Parse XML text into a document, or explain exactly where and why it is malformed or out of scope.
+///  Parse XML text into a document,
+/// or explain exactly where and why it is malformed or out of scope.
 /// Why:
-///  This is the only constructor of [`XmlDocument`], so holding one proves the text passed every check:
-///  one root, matching tags, unique attributes, resolvable references, legal characters, no DOCTYPE.
+///  This is the only constructor of [`XmlDocument`],
+/// so holding one proves the text passed every check:
+///  one root,
+/// matching tags,
+/// unique attributes,
+/// resolvable references,
+/// legal characters,
+/// no DOCTYPE.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

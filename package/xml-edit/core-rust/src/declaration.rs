@@ -1,7 +1,9 @@
 //! What:
-//!  Scanning and checking of the optional XML declaration, `<?xml version="1.0" encoding="UTF-8"?>`.
+//!  Scanning and checking of the optional XML declaration,
+//! `<?xml version="1.0" encoding="UTF-8"?>`.
 //! Why:
-//!  The editor reads and writes UTF-8 `&str` text under XML 1.0, so a declaration naming another version or
+//!  The editor reads and writes UTF-8 `&str` text under XML 1.0,
+//! so a declaration naming another version or
 //!  encoding is refused with a diagnostic rather than silently mis-decoded.
 //!
 //! In TS you'd write (pseudocode):
@@ -9,13 +11,50 @@
 //! function scanDeclaration(scanner: Scanner): Span;
 //! ```
 
+/// What:
+/// Import the byte-range type.
+/// Why:
+/// The declaration scanner returns where it sat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlSpan } from './document';
+/// ```
 use crate::document::XmlSpan;
+/// What:
+/// Import the parse failure type.
+/// Why:
+/// Unsupported declarations are refused with a position.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlParseError } from './error';
+/// ```
 use crate::error::XmlParseError;
+/// What:
+/// Import the scanner cursor.
+/// Why:
+/// The declaration methods extend it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Scanner } from './scan';
+/// ```
 use crate::scan::Scanner;
 
+/// What:
+/// Add the declaration methods to the scanner.
+/// Why:
+/// They share its cursor and error helper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Scanner { atDeclaration(): boolean; scanDeclaration(): XmlSpan }
+/// ```
 impl Scanner<'_> {
     /// What:
-    ///  True when the unread text opens an XML declaration: `<?xml` followed by whitespace.
+    ///  True when the unread text opens an XML declaration:
+    /// `<?xml` followed by whitespace.
     /// Why:
     ///  `<?xml-stylesheet ...?>` is an ordinary processing instruction and must not be mistaken for it.
     ///
@@ -33,8 +72,10 @@ impl Scanner<'_> {
         };
     }
 
-    /// What: Read one `name="value"` pseudo-attribute and return the name and value texts.
-    /// Why: Declaration parts look like attributes but follow a fixed order and plain-text values.
+    /// What:
+    /// Read one `name="value"` pseudo-attribute and return the name and value texts.
+    /// Why:
+    /// Declaration parts look like attributes but follow a fixed order and plain-text values.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -64,7 +105,8 @@ impl Scanner<'_> {
     /// What:
     ///  Scan the XML declaration at the cursor and return its span.
     /// Why:
-    ///  Only `version="1.0"`, an optional UTF-8 `encoding` and an optional `standalone="yes|no"` are in scope,
+    ///  Only `version="1.0"`,
+    /// an optional UTF-8 `encoding` and an optional `standalone="yes|no"` are in scope,
     ///  in that order.
     ///
     /// In TS you'd write (pseudocode):

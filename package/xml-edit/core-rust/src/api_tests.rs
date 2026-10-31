@@ -1,7 +1,10 @@
 //! What:
-//!  Public-surface tests for character classes, layout probes, element descriptions and error text.
+//!  Public-surface tests for character classes,
+//! layout probes,
+//! element descriptions and error text.
 //! Why:
-//!  Every exported item needs coverage before the crate can be called complete, including the refusals
+//!  Every exported item needs coverage before the crate can be called complete,
+//! including the refusals
 //!  and the safety net that re-parses each edit result.
 //!
 //! In TS you'd write (pseudocode):
@@ -41,7 +44,10 @@ fn character_classes_follow_the_grammar() {
     }
 }
 
-/// Check the layout probes on LF, CRLF, bare CR, tabs and missing indentation.
+/// Check the layout probes on LF,
+/// CRLF,
+/// bare CR,
+/// tabs and missing indentation.
 #[test]
 fn layout_probes_read_the_source() {
     assert_eq!(detect_eol("a\nb"), "\n");
@@ -102,7 +108,8 @@ fn edit_errors_print_their_cause() {
     assert_eq!(parse.to_string(), "m (line 1, column 2, byte offset 1)");
 }
 
-/// Check the safety net: a splice that would break well-formedness is refused and the original is unchanged.
+/// Check the safety net:
+/// a splice that would break well-formedness is refused and the original is unchanged.
 #[test]
 fn splice_refuses_to_return_malformed_xml() {
     let document = parse_xml("<a x=\"1\"/>").expect("valid");

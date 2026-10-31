@@ -1,8 +1,12 @@
 //! What:
-//!  An end-to-end walk of the edits the file-enforcer JetBrains rule needs, on the synthetic fixtures.
+//!  An end-to-end walk of the edits the file-enforcer JetBrains rule needs,
+//! on the synthetic fixtures.
 //! Why:
-//!  It proves the crate's surface covers the consumer: find the base server, rewrite its option values,
-//!  add a scoped entry to both files, and leave comments and layout alone.
+//!  It proves the crate's surface covers the consumer:
+//! find the base server,
+//! rewrite its option values,
+//!  add a scoped entry to both files,
+//! and leave comments and layout alone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,7 +21,11 @@ fn option(name: &str, value: &str) -> XmlElementSpec {
     return XmlElementSpec::named("option").with_attribute("name", name).with_attribute("value", value);
 }
 
-/// Check the whole policy flow: locate, rewrite attribute values, append scoped entries, stay re-readable.
+/// Check the whole policy flow:
+/// locate,
+/// rewrite attribute values,
+/// append scoped entries,
+/// stay re-readable.
 #[test]
 fn policy_flow_edits_both_files() {
     let commented: String = USER_DEFINED_XML.replace("<map>", "<map>\n        <!-- keep me -->");

@@ -1,8 +1,12 @@
 //! What:
-//!  The emitter: a small element description type and an iterative renderer that writes it as indented XML text.
+//!  The emitter:
+//! a small element description type and an iterative renderer that writes it as indented XML text.
 //! Why:
-//!  New elements are described as data (names, attribute values, child elements or text) and rendered here,
-//!  so callers never concatenate markup and cannot break out of a tag; every name and value is checked and escaped.
+//!  New elements are described as data (names,
+//! attribute values,
+//! child elements or text) and rendered here,
+//!  so callers never concatenate markup and cannot break out of a tag;
+//! every name and value is checked and escaped.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -10,16 +14,56 @@
 //! function renderElement(spec: XmlElementSpec, layout: Layout): string;
 //! ```
 
+/// What:
+/// Import the standard hash set (like a TS `Set<string>`).
+/// Why:
+/// Duplicate attribute names are caught in one pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seen = new Set<string>();
+/// ```
 use std::collections::HashSet;
 
+/// What:
+/// Import the name test.
+/// Why:
+/// Caller-supplied names are proven to be XML Names before being written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { isXmlName } from './chars';
+/// ```
 use crate::chars::is_xml_name;
+/// What:
+/// Import both encoders.
+/// Why:
+/// Attribute values and text are escaped for their destination.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { encodeAttributeValue, encodeText } from './coding';
+/// ```
 use crate::coding::{encode_attribute_value, encode_text};
+/// What:
+/// Import the edit failure type.
+/// Why:
+/// Rendering refuses invalid descriptions with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import type { XmlEditError } from './error';
+/// ```
 use crate::error::XmlEditError;
 
 /// What:
-///  One child of a described element: another element, or a run of text.
+///  One child of a described element:
+/// another element,
+/// or a run of text.
 /// Why:
-///  An element holds either child elements or text, never a mix, so the renderer can lay it out unambiguously.
+///  An element holds either child elements or text,
+/// never a mix,
+/// so the renderer can lay it out unambiguously.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -28,15 +72,27 @@ use crate::error::XmlEditError;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum XmlNodeSpec {
     /// A nested element.
-    Element(XmlElementSpec),
-    /// Character data, escaped when rendered.
-    Text(String),
+    Element(
+        /// The nested element description.
+        XmlElementSpec,
+    ),
+    /// Character data,
+    /// escaped when rendered.
+    Text(
+        /// The unescaped text.
+        String,
+    ),
 }
 
 /// What:
-///  A description of an element to write: tag name, attributes in order, and children.
+///  A description of an element to write:
+/// tag name,
+/// attributes in order,
+/// and children.
 /// Why:
-///  The decision record asks for an emitter beside the parser; this is its input, validated at render time.
+///  The decision record asks for an emitter beside the parser;
+/// this is its input,
+/// validated at render time.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,16 +100,31 @@ pub enum XmlNodeSpec {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct XmlElementSpec {
-    /// Tag name; must be an XML Name.
+    /// Tag name;
+    /// must be an XML Name.
     pub name: String,
-    /// Attribute name and unescaped value pairs, written in this order.
+    /// Attribute name and unescaped value pairs,
+    /// written in this order.
     pub attributes: Vec<(String, String)>,
-    /// Children; an empty list renders as a self-closing tag.
+    /// Children;
+    /// an empty list renders as a self-closing tag.
     pub children: Vec<XmlNodeSpec>,
 }
 
+/// What:
+/// Add the builder methods to the element description.
+/// Why:
+/// Chained calls read like the markup they produce.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class XmlElementSpec { static named(name: string): XmlElementSpec; withAttribute(...): XmlElementSpec }
+/// ```
 impl XmlElementSpec {
-    /// What: Start a description with a tag name and nothing else. Why: Builder methods then add the rest.
+    /// What:
+    /// Start a description with a tag name and nothing else.
+    /// Why:
+    /// Builder methods then add the rest.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -63,7 +134,10 @@ impl XmlElementSpec {
         return XmlElementSpec { name: name.to_string(), attributes: Vec::new(), children: Vec::new() };
     }
 
-    /// What: Return this description with one more attribute. Why: Chaining reads like the markup it produces.
+    /// What:
+    /// Return this description with one more attribute.
+    /// Why:
+    /// Chaining reads like the markup it produces.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -74,7 +148,10 @@ impl XmlElementSpec {
         return self;
     }
 
-    /// What: Return this description with one more child element. Why: Nested options build up in one expression.
+    /// What:
+    /// Return this description with one more child element.
+    /// Why:
+    /// Nested options build up in one expression.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -85,7 +162,10 @@ impl XmlElementSpec {
         return self;
     }
 
-    /// What: Return this description with one more run of text. Why: Leaf elements such as `<name>text</name>`.
+    /// What:
+    /// Return this description with one more run of text.
+    /// Why:
+    /// Leaf elements such as `<name>text</name>`.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -98,7 +178,8 @@ impl XmlElementSpec {
 }
 
 /// What:
-///  Line ending, indentation step and the indentation of the line the element's first line starts on.
+///  Line ending,
+/// indentation step and the indentation of the line the element's first line starts on.
 /// Why:
 ///  Rendering copies the host document's conventions so inserted text blends in.
 ///
@@ -115,8 +196,14 @@ pub(crate) struct Layout<'a> {
     pub base_indent: &'a str,
 }
 
-/// What: Write a start tag (and, for leaves, the whole element) and report whether children still need a scope.
-/// Why: The three layouts (empty, text-only, element children) share name and attribute handling.
+/// What:
+/// Write a start tag (and,
+/// for leaves,
+/// the whole element) and report whether children still need a scope.
+/// Why:
+/// The three layouts (empty,
+/// text-only,
+/// element children) share name and attribute handling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
