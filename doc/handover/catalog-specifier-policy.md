@@ -463,6 +463,49 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
   So a policy in `cli-git` also gives a whole-repository check command and a skip switch without new code.
   That skip switch exists for every policy; the "no skip switch" answer applied to the pnpm wrapper only.
 
+## Clarification round (user answers)
+
+- CI: a job-failing CI step that runs `git cli-git check --all --policy mono/catalog-specifiers`, as recommended.
+  This resolves the earlier ambiguity: a CI step exists and its failure fails the job.
+  Home (a step in `advisory-core.yml`, which skips most pushes under its budget gate and blocks no merge, or a separate always-run
+  workflow) is still to be decided; CI must be able to build or install the cli-git native binary.
+- Rule home: the user chose a shared Rust library crate used by both the cli-git policy and the pnpm wrapper, against my ranking
+  (wrapper calls `git cli-git check` first).
+  Consequences: a new library crate with README and nextest tests; both consumers take it through path-and-version dependencies
+  (the `mpm-shadow` to `monochromatic-jsonc-edit` precedent); the two crates release in step, and cli-git's own
+  `mono/dependent-version-bump` governs the bump order; the wrapper then needs its own manifest enumeration (the `ignore` walk the
+  user chose earlier) and JSON reading, because it no longer calls cli-git.
+- Coordination: the user answered "You figure out amongst yourselves. You have the send message tool."
+  So this session may message the session that owns `package/git-policy/cli` to agree who adds the policy; it does not edit that
+  crate on its own.
+  Peer sessions seen by `ListAgents`: `monochromatic-7a` (idle), `monochromatic-6e` (busy, the file-enforcer rewrite, which holds
+  the merged rules-list feature and cutover config switch for forbidden-strings and git-policy), and a translation session.
+  Which one owns git-policy was not known when the messages were sent; see the log below.
+
+## Draft spec for the cli-git policy and the shared library (not built; for the owning session and the user)
+
+- Policy id `mono/catalog-specifiers`, default severity `error`, no options, listed in `cli-git.config.jsonc`
+  next to `mono/dependent-version-bump`.
+- Scope: every staged or checked `package.json` at any path (the root and `package-paused/` included), read as strict JSON from the
+  candidate bytes the platform provides, never from the worktree.
+- Rule: in `dependencies`, `devDependencies` and `optionalDependencies` a value must be a string equal to `catalog:`, matching
+  `catalog:<name>` with a non-empty name, or exactly `workspace:*`; in `peerDependencies` a value must be `*`, `catalog:` or
+  `catalog:<name>`.
+  Anything else is a finding: digits, ranges, prereleases, `workspace:^`, `link:`, `file:`, git and URL forms.
+  A non-string value, a non-object section or malformed JSON is a finding or a failure, never a pass (the second `pi` review showed
+  a coercion bug where an array `["catalog:team"]` matched).
+  `catalog:<name>` is syntax only: no catalog entry lookup, and catalog entries themselves are not checked.
+- Findings name the file, the section and the dependency, and give the remedy: move the version into the `catalog:` section of
+  `pnpm-workspace.yaml` and write `catalog:`, or use `workspace:*` for a workspace package.
+- Library crate: pure functions over parsed JSON and over bytes, no file or process access; home and name to be chosen under
+  `package/` with the singular-segment rule; consumed by the cli-git policy and the pnpm wrapper.
+- Tests the library needs: a vectors file (specifier, section, verdict), adversarial values (arrays, objects, numbers, null, empty
+  string, `catalog:` with trailing space, `workspace:*.0`, `*` in install sections, peers starting with `*`), malformed JSON, and
+  duplicate keys.
+- Landing order: the `zod` fix (move `zod` into the `pnpm-workspace.yaml` catalog as `>=4.6.7`, switch `cost-dismissal` to
+  `catalog:`) must land before or with the CI step, or the step fails from its first run; the cli-git policy at `error` would also
+  block any commit that touches `cost-dismissal/package.json` until then.
+
 ## Open items
 
 - The user has not confirmed that the shared understanding is complete.
