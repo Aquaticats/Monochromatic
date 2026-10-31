@@ -23,6 +23,14 @@ extends = "lint:types"
 extends = "test:unit"
 depends = ["build"]
 
+[tasks."generate:config"]
+description = "Write config.yaml from the workspace manifests (the pnpr OIDC trust list)"
+run = "node src/generate-config.ts"
+
+[tasks."check:config"]
+description = "Fail with a diagnostic naming every differing package when config.yaml differs from the generator"
+run = "node src/generate-config.ts --check"
+
 [tasks.publish]
 description = "Publish every configured package version missing from pnpr (CI; needs id-token: write or PNPR_PUBLISH_TOKEN)"
 run = "node src/publish-missing-versions.ts"
