@@ -10,9 +10,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import type {
-  ChatTextRequest,
-  ModelClient,
+import {
+  alternateModelsFor,
+  type ChatTextRequest,
+  type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import {
@@ -23,11 +24,13 @@ import {
 import { infoLinesDuring, } from '@monochromatic-dev/translation-repair-typography/ts/console-warn-lines.test-fixture.ts';
 import { MalformedCompletionError, } from '@monochromatic-dev/translation-repair-provider-stream';
 import {
+  createSeatTally,
   CUT_SHORT_RECOVERY_NUDGE,
   modelPromptDigest,
   OFF_SHAPE_RECOVERY_NUDGE,
   promptPayloadStore,
   promptUniqueClient,
+  withheldSeatRefusal,
 } from '../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { SEAT_SYNTHETIC_VISION_WITHHELD, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
@@ -381,6 +384,49 @@ await describe({
         const again = await client.chatJson(seated,);
         expect(again.kind,).toBe('ok',);
         expect(asked,).toHaveLength(2,);
+      },
+    },),
+
+    it({
+      name: 'NEVER RE-ASKS A MODEL THE RUN\'S TALLY WITHHELD (ledger B1162): the tally sits outside this wrapper, so the '
+        + 'refusal it gives its own door is handed in and read at the re-ask too, and the next model of the order is asked',
+      fn: async () => {
+        /**
+         Models a runaway of this seat could be re-asked of, in order.
+         */
+        const { alternates, } = alternateModelsFor({ modelId: REQUEST.modelId, role: 'roster', bench: [], },);
+        const [withheld, next,] = alternates;
+        if ((withheld === undefined) || (next === undefined))
+          throw new Error('the seat has two models to try',);
+        /**
+         Tally that has seen the first model throw on its only ask.
+         */
+        const tally = createSeatTally();
+        tally.record({ modelId: withheld, outcome: 'threw', },);
+        /** Every request that crossed the wrapper, in order. */
+        const asked: ChatTextRequest[] = [];
+        const inner: ModelClient = {
+          chatText: async (request,) => {
+            asked.push(request,);
+            return (asked.length === 1)
+              ? { text: '', finishReason: 'length', servedBy: 'neuralwatt', }
+              : { text: '"windowsill"', servedBy: 'hyper', };
+          },
+          chatJson: async () => {
+            throw new Error('chatJson bypassed by prompt payload reader',);
+          },
+          quotas: async () => {
+            throw new Error('quotas unused by prompt uniqueness fixture',);
+          },
+        };
+        const client = promptUniqueClient({ inner, refuseSeat: withheldSeatRefusal({ tally, minAsks: 1, },), },);
+        const outcome = await client.chatJson(
+          { ...REQUEST, validate: isStringAnswer, reaskSeat: { role: 'roster', bench: [], reask: 'other-model', }, },
+        );
+        expect(asked.map(function modelOf(request,) {
+          return request.modelId;
+        },),).toEqual([REQUEST.modelId, next,],);
+        expect(outcome.kind === 'ok' ? outcome.answeredBy : 'not ok',).toBe(next,);
       },
     },),
 

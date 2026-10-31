@@ -107,6 +107,7 @@ export {
   seatReportLines,
   type SeatTally,
   seatTallyClient,
+  withheldSeatRefusal,
 } from './seat-tally.ts';
 export {
   attemptStageCall,

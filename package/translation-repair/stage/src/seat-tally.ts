@@ -338,6 +338,36 @@ export function createSeatTally(): SeatTally {
 }
 
 /**
+ The refusal a tally gives its own door, as a function a client beneath the tally can call before it asks a model.
+
+ STUB OF THE RED COMMIT: it refuses nothing yet.
+
+ @param tally - counts the withheld seats are read from
+
+ @param minAsks - asks a seat must have been given, all of them thrown, before it is refused
+
+ @returns Function that throws for a withheld model and returns for any other
+
+ @example
+ ```ts
+ const refuse = withheldSeatRefusal({ tally: RUN_SEATS, minAsks: 4, },);
+ ```
+ */
+export function withheldSeatRefusal(
+  {
+    tally,
+    minAsks,
+  }: {
+    readonly tally: SeatTally;
+    readonly minAsks: number;
+  },
+): (refusing: { readonly modelId: RosterModelId; },) => void {
+  return function refuseNothing(): void {
+    void tally.withheld({ minAsks, },);
+  };
+}
+
+/**
  Tally shared by every client the corpus-run factory builds in this process.
 
  @example

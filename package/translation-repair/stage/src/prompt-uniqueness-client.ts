@@ -13,6 +13,7 @@ import {
   type ModelClient,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import { MalformedCompletionError, } from '@monochromatic-dev/translation-repair-provider-stream/ts';
+import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
 import { hashContent, } from '@monochromatic-dev/translation-repair-document-structure/ts';
 import {
   PROMPT_PAYLOAD_MISSING,
@@ -176,6 +177,7 @@ export function promptUniqueClient(
   }: ForeignBorrowed<{
     readonly inner: ModelClient;
     readonly store?: PromptPayloadStore;
+    readonly refuseSeat?: (refusing: { readonly modelId: RosterModelId; },) => void;
   }>,
 ): ModelClient {
   /**

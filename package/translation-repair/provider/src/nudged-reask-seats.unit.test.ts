@@ -269,6 +269,66 @@ await describe({
     },),
 
     it({
+      name: 'MOVES ON TO THE NEXT MODEL WHEN A TRANSPORT ERROR COMES FROM ONE (ledger B1162): the seat is lost only when '
+        + 'every model of the order failed, and not at the first one that threw',
+      fn: async () => {
+        /**
+         Models the seat could be re-asked of, in order.
+         */
+        const bench = [FIRST_SEAT, SECOND_SEAT,];
+        const { alternates, } = alternateModelsFor({ modelId: FIRST_SEAT, role: 'roster', bench, },);
+        const [failing, next,] = alternates;
+        if ((failing === undefined) || (next === undefined))
+          throw new Error('the seat has two models to try',);
+        /**
+         Models asked, in order.
+         */
+        const asked: RosterModelId[] = [];
+        const result = await reaskElsewhereNudged({
+          request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', bench, claims: createReaskClaims(), }, },
+          first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+          ask: async (nudged,) => {
+            asked.push(nudged.modelId,);
+            if (nudged.modelId === failing)
+              throw new Error('the connection to the provider was reset',);
+            return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+          },
+        },);
+        expect(asked,).toEqual([failing, next,],);
+        expect(result.kind === 'ok' ? result.answeredBy : 'not ok',).toBe(next,);
+      },
+    },),
+
+    it({
+      name: 'KEEPS THE RUNAWAY OUTCOME WHEN EVERY MODEL OF THE ORDER THREW A TRANSPORT ERROR, after trying each of them '
+        + 'and then the model itself on another provider (ledger B1162)',
+      fn: async () => {
+        /**
+         Models the seat could be re-asked of, in order.
+         */
+        const bench = [FIRST_SEAT, SECOND_SEAT,];
+        const { alternates, } = alternateModelsFor({ modelId: FIRST_SEAT, role: 'roster', bench, },);
+        /**
+         Models asked, in order.
+         */
+        const asked: RosterModelId[] = [];
+        const result = await warnLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: { ...UNSEATED_REQUEST, reaskSeat: { role: 'roster', bench, claims: createReaskClaims(), }, },
+              first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+              ask: async (nudged,) => {
+                asked.push(nudged.modelId,);
+                throw new Error('the connection to the provider was reset',);
+              },
+            },),
+        },);
+        expect(asked,).toEqual([...alternates, FIRST_SEAT,],);
+        expect(result.result.kind,).toBe('schema-mismatch',);
+      },
+    },),
+
+    it({
       name: 'FALLS BACK TO ITS OWN MODEL WITH THE WARNING FOR THE SECOND SEAT when the first took the one model that was '
         + 'left: the second is the only model left to ask, nudged, on another provider',
       fn: async () => {
