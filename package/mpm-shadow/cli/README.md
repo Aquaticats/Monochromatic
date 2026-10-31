@@ -345,6 +345,10 @@ except where a musl platform now gets the musl build the release offers):
 - `mpm-shadow status`:
   compares the installed tools with the lock.
   Exits 1 on drift.
+- `mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...`:
+  deletes the cargo tool versions no known lock names (see "Cleanup").
+  Plain `mpm-shadow prune` is unchanged:
+  it cleans cargo's registry.
 - `mpm-shadow verify-archive <tool> <file> [--platform <id>]`:
   hashes a downloaded file and compares it with the lock's SHA-256 for that tool and platform.
 - `mpm-shadow bin-paths`:
@@ -361,7 +365,8 @@ and name `mpm-shadow lock` or `mpm-shadow update`.
 - `rustup toolchain install --no-self-update <channel>`,
   then `rustup component add` and `rustup target add`,
   straight from the lock.
-- `cargo binstall --no-confirm --version <locked> <crate>`.
+- `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
+  (see "Cargo tool installs").
 - `pnpm add --global <package>@<locked>`
   and `uv tool install --force <package>==<locked>`,
   or a wheel whose SHA-256 the lock records.
@@ -373,6 +378,132 @@ and name `mpm-shadow lock` or `mpm-shadow update`.
 - mpm is never asked to install or look up a version:
   mpm 8.2.0 ignores a pinned version for cargo and pnpm,
   and reports registry failures only in an `errors` array while exiting 0.
+
+## Cargo tool installs
+
+Each `cargo-binstall` tool installs into a cargo root of its own,
+`<toolchain root>/cargo/<crate>/<version>`:
+
+```text
+# shape of the command sync starts (the paths are examples)
+cargo binstall --no-confirm --root <toolchain root>/cargo/fd-find/10.4.2 --version 10.4.2 fd-find
+```
+
+- Binaries land in `<root>/bin` and cargo's own record in `<root>/.crates.toml`.
+  Nothing is written to `$CARGO_HOME/bin` or `$CARGO_HOME/.crates.toml`;
+  only cargo's registry cache and `binstall.toml` still live below `$CARGO_HOME`.
+- `--root` rather than `--install-path`:
+  cargo-binstall 1.26.1 (the locked version) documents `--install-path` as having no effect on a package built from source,
+  and its source (`crates/binstalk/src/ops/resolve/resolution.rs`) fails with `CargoInstallDoesNotSupportInstallPath`
+  when the build-from-source fallback runs with it.
+  `--root` is passed on to the fallback's `cargo install --root`,
+  so one flag isolates both ways of installing.
+- Tracking stays on (no `--no-track`):
+  the root's `.crates.toml` is the record `status` and `sync` read,
+  and cargo-binstall's own lock then covers two trees installing one version at once.
+- A directory without a record for the crate is an unfinished install and counts as absent.
+  The legacy `$CARGO_HOME/.crates.toml` and `cargo binstall --list` are never read for this route.
+- The `cargo-git` route already installed with `cargo install --git ... --root <tool install dir>` and is unchanged.
+- Third-party crates coexist per version:
+  each tree's `.cache/toolchain-bin` links the version its own lock names.
+- A tool whose crate name starts with `monochromatic-` (the prefix the registry prune already uses for this
+  repository's own crates) is repository-published.
+  The plan and lock carry no second list of them.
+  See the next section.
+
+### Repository-published tools keep only the newest version
+
+Older repository-published tools are never kept once a newer one is installed.
+
+- `sync` never installs a version older than the newest finished one in the toolchain root,
+  and after installing a version it deletes every older one.
+- `<toolchain root>/cargo/<crate>/current` is a link to the newest finished version.
+  Every tree's exposed link goes through it,
+  so deleting an older version never leaves a dangling link,
+  and two trees syncing at once converge on the newest.
+- `status` counts an installed version that is newer than the locked one as satisfied,
+  not drift.
+- A tree whose lock pins an older version than the one that runs is warned,
+  in the same words everywhere:
+
+  ```text
+  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mise run toolchain:update` or merge main
+  ```
+
+  `sync` and `status` print it as `toolchain <verb>: warning: ...` in their report on standard output;
+  `lock`,
+  `update` and `bin-paths` print the same line on standard error
+  (`bin-paths` writes JSON on standard output);
+  the shim path (`mpm`) resolves no tool versions and prints none.
+
+### The launcher
+
+A bare symlink to the binary has nowhere to check the tree's lock,
+so the exposed link of a repository-published tool (`.cache/toolchain-bin/<bin>`)
+and its postinstall links (`.cache/cli-git-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
+
+- The launcher is a hard link of the `mpm-shadow` that ran `sync` (a copy across file systems),
+  with a `<bin>.launch` record beside it naming the tool id,
+  the tree's lock file and the real binary.
+  The kernel resolves a symlink chain to its final file,
+  so a hard link per tree is what lets the running process learn which tree's link started it
+  (`/proc/self/exe`).
+- Started under that path,
+  `mpm-shadow` reads the record and the lock,
+  prints the warning above on standard error when the version behind `current` is newer than the lock pins,
+  then replaces itself with the real binary (`exec`):
+  argv,
+  environment,
+  standard streams,
+  exit code and signals are the real program's own,
+  and standard output is never written.
+  An unreadable lock or record never blocks a run.
+- Measured 2026-10-31 with `hyperfine` 2.0.0,
+  400 runs per arm,
+  `cli-git-native --version`
+  (the git wrapper handing `--version` to git),
+  order bare,
+  launcher,
+  copy of bare,
+  launcher with warning,
+  bare,
+  launcher:
+  median wall time 1.47 ms bare against 2.04 ms to 2.09 ms through the launcher,
+  so the launcher adds about 0.6 ms (about 0.5 million instructions) to a call that takes 1.5 ms.
+  Bare against a bare copy and a repeat of bare differed by at most 0.04 ms.
+
+### Cleanup
+
+`mpm-shadow prune --toolchain [--global] [--dry-run] [--lock <file>]...` deletes what no known lock names.
+It runs only when asked;
+`sync` never deletes another tree's version.
+
+- Known locks are this scope's lock,
+  the `toolchain.lock.json` of every worktree `git worktree list --porcelain` reports,
+  and each file given with `--lock` (a clone that git does not list).
+- A third-party version is kept when any known lock names it;
+  a repository-published crate keeps only its newest finished version,
+  and nothing when no known lock names the crate.
+- It refuses,
+  deleting nothing,
+  when git cannot list the worktrees,
+  when a listed worktree's directory is missing and not marked prunable,
+  or when a known lock exists but cannot be read.
+  A lock in the TypeScript tool's format is read for `tools.<id>.version`,
+  `route` and `packageId` only.
+- A `--lock` is the only way to protect a tree that git does not list.
+
+### Migration from the shared `$CARGO_HOME/bin`
+
+The first `sync` with this layout finds no version directory,
+installs every `cargo-binstall` tool into its own,
+links the tree's exposure and postinstall links to it,
+and leaves `$CARGO_HOME/bin` and `$CARGO_HOME/.crates.toml` exactly as they were:
+trees still on the TypeScript toolchain keep linking the files there.
+`status` reports such a tool as absent until that first `sync`.
+Nothing copies,
+moves or deletes the legacy files;
+removing them is the cutover's decision.
 
 ## Network
 

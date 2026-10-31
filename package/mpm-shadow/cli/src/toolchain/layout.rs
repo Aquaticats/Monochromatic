@@ -25,6 +25,8 @@ use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
 
+/// Imports `cargo_bin_dir_of` from `super::cargo_installs`.
+use super::cargo_installs::cargo_bin_dir_of;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, OsFamily, Route};
 /// Imports what this module uses from `super::scope`.
@@ -235,7 +237,7 @@ pub fn bin_search_dirs(tool: &LockedTool, scope: &Scope, env: &EnvMap, extra_dir
     let install_dir: PathBuf = tool_install_dir(&scope.toolchain_root, &tool.declaration.id, &tool.version);
     let mut dirs: Vec<PathBuf> = Vec::new();
     match tool.declaration.route {
-        Route::CargoBinstall => dirs.push(cargo_bin_dir(env, &scope.home)),
+        Route::CargoBinstall => dirs.push(cargo_bin_dir_of(tool, scope)),
         Route::BinSourced => {
             dirs.push(scope.toolchain_bin_dir.clone());
             dirs.push(scope.home.join(".local").join("bin"));

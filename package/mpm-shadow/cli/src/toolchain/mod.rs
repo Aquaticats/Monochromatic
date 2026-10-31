@@ -64,6 +64,10 @@ pub mod install_bin;
 /// The cargo routes.
 pub mod install_cargo;
 
+/// Where `cargo-binstall` tools live,
+/// and which version of a repository-published one runs.
+pub mod cargo_installs;
+
 /// The routes through pnpm,
 /// uv and go.
 pub mod install_managers;
@@ -74,6 +78,9 @@ pub mod install_rust_android;
 /// Downloads,
 /// extraction and links shared by the installers.
 pub mod install_support;
+
+/// The per-tree launcher for repository-published tools.
+pub mod launcher;
 
 /// Where tools install and how their binaries are found.
 pub mod layout;
@@ -107,6 +114,9 @@ pub mod model_encode;
 /// per route,
 /// and the status report.
 pub mod observe;
+
+/// The cleanup of version directories no lock names.
+pub mod prune_cargo;
 
 /// Readers for the text other tools print,
 /// and the version comparison.
@@ -248,3 +258,19 @@ mod verify_archive_tests;
 /// The unit tests of the shared helpers.
 #[cfg(test)]
 mod util_tests;
+
+/// Test doubles for `cargo binstall --root`.
+#[cfg(test)]
+mod fakes_cargo;
+
+/// The unit tests of the version-keyed cargo installs and the older-lock warnings.
+#[cfg(test)]
+mod cargo_installs_tests;
+
+/// The unit tests of the launcher's decision.
+#[cfg(test)]
+mod launcher_tests;
+
+/// The unit tests of the cleanup of unnamed cargo versions.
+#[cfg(test)]
+mod prune_cargo_tests;

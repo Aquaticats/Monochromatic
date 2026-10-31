@@ -31,6 +31,9 @@ use mpm_shadow::cli::run_cli;
 /// Imports the name the shadow answers to.
 use mpm_shadow::constants::SHADOWED_NAME;
 
+/// Imports the launcher mode.
+use mpm_shadow::toolchain::launcher::{launch_record_of_current_exe, run_launcher};
+
 /// Imports the shadow-mode function.
 use mpm_shadow::shim::run_shim;
 
@@ -62,6 +65,11 @@ fn main() {
     let mut invoked_as: String = String::new();
     if let Some(file_name) = Path::new(&all_arguments[0]).file_name() {
         invoked_as = file_name.to_string_lossy().to_string();
+    }
+
+    // A hard link the toolchain made for a repository-published tool carries a record beside it: run as a launcher.
+    if let Some(record) = launch_record_of_current_exe() {
+        std::process::exit(run_launcher(&record, &all_arguments));
     }
 
     if invoked_as == SHADOWED_NAME {

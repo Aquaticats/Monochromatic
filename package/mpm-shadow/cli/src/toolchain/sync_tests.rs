@@ -6,11 +6,14 @@
 
 use std::fs;
 
+use super::cargo_installs::{current_link, version_directory};
 use super::context::Host;
 use super::error::ErrorKind;
 use super::exposure::{rebuild_exposure, run_postinstall_commands, run_postinstall_links, unresolvable_bins};
 use super::fakes::{FakeHttp, FakeRunner, Rig, write_executable};
+use super::fakes_cargo::finish_install;
 use super::fixtures::{SAMPLE_PLAN, sample_lock, sample_scope_on_disk};
+use super::launcher::{parse_record, record_path};
 use super::layout::tool_install_dir;
 use super::model::{Postinstall, PostinstallRun};
 use super::sync::{format_sync_report, replacement_warning, run_sync, sync_order, sync_tools};
@@ -24,6 +27,11 @@ fn keep_only(rig: &mut Rig, ids: &[&str]) {
             tool.declaration.route = super::model::Route::CargoBinstall;
         }
     }
+}
+
+/// The `bin` directory the repository-published sample tool is searched in (below its `current` link).
+fn shadow_bin_dir(rig: &Rig) -> std::path::PathBuf {
+    return current_link(&rig.scope.toolchain_root, "monochromatic-mpm-shadow").join("bin");
 }
 
 #[test]
@@ -76,14 +84,18 @@ fn sync_installs_what_is_missing_in_order_with_the_locked_versions_and_skips_wha
     let mut rig = Rig::new();
     // Keep the scenario to tools whose installers need nothing else: cargo crates and the Rust toolchain.
     keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
-    rig.runner.answer("cargo binstall --list", "Package  Cargo  Binstall  Source\nfd-find  v1.2.3  v1.2.3  prebuilt\n", 0);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     rig.runner.answer("rustup toolchain list", "stable-x86_64-unknown-linux-gnu\n", 0);
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.unchanged, vec!["cargo:fd-find".to_string()]);
     assert_eq!(report.installed, vec!["rust".to_string(), "cargo-binstall".to_string()]);
     let lines = rig.runner.lines();
     assert!(lines.contains(&"rustup toolchain install --no-self-update nightly-2026-10-30".to_string()), "{lines:?}");
-    assert!(lines.contains(&"cargo binstall --no-confirm --version 1.2.3 cargo-binstall".to_string()), "{lines:?}");
+    let binstall_root = version_directory(&rig.scope.toolchain_root, "cargo-binstall", "1.2.3");
+    assert!(
+        lines.contains(&format!("cargo binstall --no-confirm --root {} --version 1.2.3 cargo-binstall", binstall_root.display())),
+        "{lines:?}"
+    );
     assert!(!lines.iter().any(|line| return line.contains("fd-find") && line.contains("--no-confirm")), "the matching crate is not reinstalled");
     let rust_position = lines.iter().position(|line| return line.starts_with("rustup toolchain install")).expect("rustup ran");
     let binstall_position = lines.iter().position(|line| return line.contains("--no-confirm")).expect("binstall ran");
@@ -94,8 +106,10 @@ fn sync_installs_what_is_missing_in_order_with_the_locked_versions_and_skips_wha
 fn sync_keeps_going_after_a_failure_and_reports_every_failure() {
     let mut rig = Rig::new();
     keep_only(&mut rig, &["cargo-binstall", "cargo:fd-find"]);
-    rig.runner.fail("cargo binstall --no-confirm --version 1.2.3 cargo-binstall", "boom one");
-    rig.runner.fail("cargo binstall --no-confirm --version 1.2.3 fd-find", "boom two");
+    let first_root = version_directory(&rig.scope.toolchain_root, "cargo-binstall", "1.2.3");
+    let second_root = version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3");
+    rig.runner.fail(&format!("cargo binstall --no-confirm --root {}", first_root.display()), "boom one");
+    rig.runner.fail(&format!("cargo binstall --no-confirm --root {}", second_root.display()), "boom two");
     let report = sync_tools(&rig.context(), None);
     assert!(report.installed.is_empty());
     assert_eq!(report.failed.len(), 2);
@@ -110,11 +124,11 @@ fn sync_keeps_going_after_a_failure_and_reports_every_failure() {
 fn a_second_sync_of_a_current_machine_installs_nothing() {
     let mut rig = Rig::new();
     rig.lock.tools.retain(|tool| return tool.declaration.id == "cargo:fd-find");
-    rig.runner.answer("cargo binstall --list", "fd-find  v1.2.3  v1.2.3  prebuilt\n", 0);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     let report = sync_tools(&rig.context(), None);
     assert!(report.installed.is_empty());
     assert_eq!(report.unchanged, vec!["cargo:fd-find".to_string()]);
-    assert_eq!(rig.runner.lines(), vec!["cargo binstall --list".to_string()]);
+    assert!(rig.runner.calls().is_empty(), "the installed version is read from disk");
 }
 
 #[test]
@@ -140,12 +154,13 @@ fn sync_can_be_limited_to_named_tools() {
 #[test]
 fn sync_warns_before_replacing_a_different_installed_version() {
     let mut rig = Rig::new();
-    rig.lock.tools.retain(|tool| return tool.declaration.id == "cargo:fd-find");
-    rig.runner.answer("cargo binstall --list", "fd-find  v0.9.0  v0.9.0  prebuilt\n", 0);
+    rig.lock.tools.retain(|tool| return tool.declaration.id == "pipx:slopo" || tool.declaration.id == "uv");
+    rig.install_binary("uv", "uv");
+    rig.runner.answer("uv tool list", "slopo v0.9.0\n- slopo\n", 0);
     let report = sync_tools(&rig.context(), None);
-    assert_eq!(report.installed, vec!["cargo:fd-find".to_string()]);
+    assert_eq!(report.installed, vec!["pipx:slopo".to_string()]);
     assert_eq!(report.warnings.len(), 1);
-    assert!(format_sync_report(&report).starts_with("toolchain sync: warning: cargo:fd-find is installed at 0.9.0"));
+    assert!(format_sync_report(&report).starts_with("toolchain sync: warning: pipx:slopo is installed at 0.9.0"));
 }
 
 #[test]
@@ -184,13 +199,19 @@ fn rebuilding_the_exposure_directory_twice_is_stable() {
 #[test]
 fn the_postinstall_link_makes_mpm_point_at_mpm_shadow_in_the_declared_directory() {
     let rig = Rig::new();
-    let cargo_bin = rig.scope.home.join(".cargo").join("bin");
-    write_executable(&cargo_bin.join("mpm-shadow"));
+    let bin = shadow_bin_dir(&rig);
+    write_executable(&bin.join("mpm-shadow"));
     let tools = vec![rig.lock.tool("cargo:monochromatic-mpm-shadow").expect("shadow")];
     let created = run_postinstall_links(&rig.context(), &tools).expect("linked");
     assert_eq!(created, vec!["mpm".to_string()]);
     let link = rig.scope.root.join(".cache").join("mpm-shadow-bin").join("mpm");
-    assert_eq!(fs::read_link(&link).expect("a symlink"), cargo_bin.join("mpm-shadow"));
+    assert_eq!(
+        fs::read_link(&link).expect("a symlink"),
+        rig.scope.launcher_dir.join("mpm-shadow"),
+        "a repository-published tool is reached through this tree's launcher, which names the program in its record"
+    );
+    let record = parse_record(&fs::read_to_string(record_path(&rig.scope.launcher_dir.join("mpm-shadow"))).expect("a record")).expect("parses");
+    assert_eq!(record.real, bin.join("mpm-shadow"));
 }
 
 #[test]
@@ -203,8 +224,7 @@ fn a_postinstall_link_is_skipped_when_the_program_is_not_installed() {
 #[test]
 fn a_postinstall_command_runs_from_the_scope_root_with_the_exposure_directory_first_on_path() {
     let mut rig = Rig::new();
-    let cargo_bin = rig.scope.home.join(".cargo").join("bin");
-    write_executable(&cargo_bin.join("mpm-shadow"));
+    write_executable(&shadow_bin_dir(&rig).join("mpm-shadow"));
     rig.lock.tools[7].declaration.options.postinstall =
         Some(Postinstall::Run(PostinstallRun { source_bin: "mpm-shadow".to_string(), args: vec!["link".to_string(), ".cache/x".to_string()] }));
     let tools = vec![rig.lock.tool("cargo:monochromatic-mpm-shadow").expect("shadow")];
@@ -220,7 +240,7 @@ fn a_postinstall_command_runs_from_the_scope_root_with_the_exposure_directory_fi
 #[test]
 fn a_failing_postinstall_command_is_reported_with_its_output() {
     let mut rig = Rig::new();
-    write_executable(&rig.scope.home.join(".cargo").join("bin").join("mpm-shadow"));
+    write_executable(&shadow_bin_dir(&rig).join("mpm-shadow"));
     rig.lock.tools[7].declaration.options.postinstall =
         Some(Postinstall::Run(PostinstallRun { source_bin: "mpm-shadow".to_string(), args: vec!["link".to_string()] }));
     rig.runner.fail("mpm-shadow link", "cannot link");

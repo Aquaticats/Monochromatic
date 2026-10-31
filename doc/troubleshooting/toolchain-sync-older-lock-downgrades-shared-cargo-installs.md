@@ -40,10 +40,11 @@ the wrapper binary had been replaced by an older one.
     ];
     ```
 
-    and the Rust port does the same in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs:41`.
+    and the Rust port did the same in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs` until the structural fix below.
     `cargo binstall --help` (cargo-binstall 1.26.1,
     the locked version) states where that goes:
-    "By default, binaries are installed to the global location `$CARGO_HOME/bin`".
+    "By default,
+    binaries are installed to the global location `$CARGO_HOME/bin`".
 3.  At 23:53:45 to 23:54:08 the translation session's worktree setup script (`finish-setup.ts`) ran a sync in
     `/var/home/user/worktrees/tr-g245`,
     whose `toolchain.lock.json` pins `monochromatic-git-policy-cli` 0.4.0 (main pins 0.4.4).
@@ -190,24 +191,78 @@ The Rust `mpm-shadow` is to enforce the same rule after the cutover, with a laun
   the links are per tree,
   but they all point at the one `~/.cargo/bin` file.
 
-## Structural fix (chosen 2026-10-31, before the file-enforcer cutover)
+## Structural fix
 
-`cargo binstall --help` (1.26.1) offers per-install locations:
-`--install-path <PATH>` ("Install prebuilt binaries in a custom location")
-and `--root <ROOT>` with `--no-track` for a cargo root without metadata.
-Installing each `cargo-binstall`-route tool under a version-keyed directory in the toolchain root
-(for example `<toolchain root>/cargo/<crate>/<version>`)
-and linking each tree's `.cache/toolchain-bin` to its own lock's version would let trees with different locks coexist,
-as the other routes under `/home/user/.local/share/monochromatic-dev/toolchain` already do.
-`mpm-shadow` owns the toolchain after the file-enforcer cutover,
-so the change belongs in `package/mpm-shadow/cli/src/toolchain/install_cargo.rs`;
-the owner chose to make it before the cutover,
-and the decision record `doc/decision/file-enforcer-rust-rewrite.md` ("Toolchain (mpm-shadow)") carries it.
-Tools this repository publishes,
-the git wrapper among them,
-get no per-version copies:
-the owner ruled "No older repo-maintained tools should ever exist when newer is present.",
-so a tree with an older lock runs the newest installed release instead of downgrading it.
+Built in `mpm-shadow` (`package/mpm-shadow/cli`),
+2026-10-31,
+and exercised in a disposable home.
+It is not live for this repository until the cutover makes `mpm-shadow sync` the toolchain installer;
+the TypeScript sync still installs into the shared `$CARGO_HOME/bin`.
+The owner chose this before the cutover,
+and the decision record `doc/decision/file-enforcer-rust-rewrite.md` ("Toolchain (mpm-shadow)") carries it,
+including the owner's rule "No older repo-maintained tools should ever exist when newer is present."
+
+### What was built
+
+- Each `cargo-binstall` tool installs with `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<version> ...`.
+  Binaries land in that root's `bin/`,
+  cargo's record in its `.crates.toml`;
+  `$CARGO_HOME/bin` and `$CARGO_HOME/.crates.toml` are not touched.
+  `status` and `sync` read the version directory's record.
+- `--root` and not `--install-path`,
+  from cargo-binstall 1.26.1's source:
+  with `--install-path` the build-from-source fallback fails with `CargoInstallDoesNotSupportInstallPath`
+  (`crates/binstalk/src/ops/resolve/resolution.rs`),
+  and the help text says the option "has no effect if the package is installed from source";
+  `--root` is passed on as `cargo install --root`,
+  so prebuilt and compiled installs both land in the root.
+- Third-party crates (`cargo-dylint`,
+  `dylint-link`,
+  and so on) coexist per version,
+  each tree linking its lock's version.
+- Crates this repository publishes (names starting with `monochromatic-`,
+  the prefix the registry prune already uses) keep only the newest installed version.
+  A tree whose lock pins an older one runs the newest through `<toolchain root>/cargo/<crate>/current`,
+  and installing a newer one deletes the older ones.
+  The wrapper that broke every checkout on 2026-10-31 is of this kind,
+  so a lock pinning wrapper 0.4.0 can no longer replace 0.4.4.
+- A tree in that state is warned by `sync`,
+  `status`,
+  `lock`,
+  `update` and `bin-paths`,
+  and on every run of the tool,
+  by a per-tree launcher the exposed link goes through (standard error only).
+- `mpm-shadow prune --toolchain` deletes versions no known lock names (every worktree git lists,
+  plus `--lock` files).
+
+### Verified
+
+Live run in a disposable home and toolchain root under `${HOME}/temp/agent/fe-rust/binstall-iso/live`,
+with `CARGO_HOME` also in the scratch,
+after printing the environment and confirming nothing resolved into the real cargo home:
+
+- Two trees with different locks installed `fd-find` 10.3.0 and 10.4.2 side by side;
+  each tree's `.cache/toolchain-bin/fd` linked its own version.
+- Tree B (lock pins wrapper 0.4.0) synced first and installed 0.4.0;
+  tree A (0.4.4) then installed 0.4.4 and deleted 0.4.0,
+  and `current` pointed at 0.4.4.
+  B's next `sync` installed nothing and printed the warning;
+  B's `.cache/cli-git-bin/git` ran the 0.4.4 wrapper and printed the warning on standard error,
+  A's printed none.
+- A crate with no prebuilt archive (`timeout-cli` 0.1.0) compiled through the fallback and landed in its version root;
+  `cargo-home` held only `binstall.toml` and the registry cache.
+- `prune --toolchain` deleted only the `fd-find` version no tree's lock named.
+- The real `~/.cargo/bin` files and `~/.cargo/.crates.toml` kept their ctimes from before the run.
+
+### Not covered
+
+- The migration path from existing `~/.cargo/bin` installs was reasoned,
+  not run on the real home:
+  the first `sync` installs fresh into version roots and leaves the shared files alone.
+- Trees git does not list are invisible to `prune --toolchain`;
+  protect them with `--lock`.
+- The launcher adds about 0.6 ms to a 1.5 ms call (`hyperfine`,
+  400 runs per arm).
 
 ## Upstream filing decision
 

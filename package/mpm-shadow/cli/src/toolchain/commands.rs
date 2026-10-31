@@ -24,6 +24,8 @@ use std::path::PathBuf;
 
 /// Imports what this module uses from `super::bin_paths`.
 use super::bin_paths::{bin_paths_output, render_bin_paths};
+/// Imports `older_lock_warnings` from `super::cargo_installs`.
+use super::cargo_installs::older_lock_warnings;
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports `Host` from `super::context`.
@@ -32,6 +34,10 @@ use super::context::Host;
 use super::http::connect_or_explain;
 /// Imports what this module uses from `super::lock_cmd`.
 use super::lock_cmd::{LockMode, run_lock};
+/// Imports `parse_lock` from `super::lock`.
+use super::lock::parse_lock;
+/// Imports `OsFamily` from `super::model`.
+use super::model::OsFamily;
 /// Imports `read_plan` from `super::plan`.
 use super::plan::read_plan;
 /// Imports `ProcessRunner` from `super::runner`.
@@ -119,6 +125,43 @@ fn report(error: &ToolchainError) -> i32 {
     return error.exit_code();
 }
 
+/// What:
+/// The warning lines a command prints on standard error when this tree's lock pins an older repository-published tool
+/// than the one installed:
+/// `toolchain <verb>: warning: <text>`,
+/// the format `sync` already uses.
+/// Why:
+/// `lock`,
+/// `update` and `bin-paths` have no report of their own to carry them,
+/// and `bin-paths` prints JSON on standard output.
+/// A missing or unreadable lock gives none:
+/// those commands report that themselves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function olderLockWarningLines(verb: string, scope: Scope, family?: OsFamily): string[]
+/// ```
+pub fn older_lock_warning_lines(verb: &str, scope: &Scope, family: Option<OsFamily>) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(&scope.lock_file) else {
+        return Vec::new();
+    };
+    let Ok(parsed) = parse_lock(&text, &scope.lock_file.display().to_string()) else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    for warning in older_lock_warnings(scope, &parsed.lock.tools, family) {
+        lines.push(format!("toolchain {verb}: warning: {warning}"));
+    }
+    return lines;
+}
+
+/// Prints `older_lock_warning_lines` on standard error.
+fn warn_older_locks(verb: &str, scope: &Scope) {
+    for line in older_lock_warning_lines(verb, scope, Host::current().family) {
+        eprintln!("{line}");
+    }
+}
+
 /// The directory the command was started in (the root search starts here).
 fn start_directory() -> PathBuf {
     return match std::env::current_dir() {
@@ -155,6 +198,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             return Some(match run_lock(&scope, mode) {
                 Ok(line) => {
                     print_line(&line);
+                    warn_older_locks("lock", &scope);
                     0
                 }
                 Err(error) => report(&error),
@@ -182,6 +226,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             return Some(match run_update(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check) {
                 Ok(update_report) => {
                     print!("{}", format_update_report(&update_report, check));
+                    warn_older_locks("update", &scope);
                     i32::from(update_report.has_failures() || (check && update_report.has_movement()))
                 }
                 Err(error) => report(&error),
@@ -220,6 +265,7 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
             return Some(match outcome {
                 Ok(document) => {
                     print!("{}", render_bin_paths(&document));
+                    warn_older_locks("bin-paths", &scope);
                     0
                 }
                 Err(error) => report(&error),

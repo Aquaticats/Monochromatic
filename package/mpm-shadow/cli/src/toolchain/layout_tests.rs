@@ -158,7 +158,16 @@ fn each_route_searches_its_own_directories() {
     let env = EnvMap::from_pairs(&[("HOME", "/h")]);
     let scope = repo_scope(Path::new("/w"), &env).expect("a scope");
     let root = scope.toolchain_root.clone();
-    assert_eq!(bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[]), vec![PathBuf::from("/h/.cargo/bin")]);
+    assert_eq!(
+        bin_search_dirs(&sample_tool("cargo:fd-find"), &scope, &env, &[]),
+        vec![root.join("cargo").join("fd-find").join("1.2.3").join("bin")],
+        "a third-party crate is searched in its locked version's own root, never in $CARGO_HOME/bin"
+    );
+    assert_eq!(
+        bin_search_dirs(&sample_tool("cargo:monochromatic-mpm-shadow"), &scope, &env, &[]),
+        vec![root.join("cargo").join("monochromatic-mpm-shadow").join("current").join("bin")],
+        "a repository-published crate is searched through its current link"
+    );
     assert_eq!(bin_search_dirs(&sample_tool("node"), &scope, &env, &[]), vec![root.join("node").join("1.2.3")]);
     let extra = vec![PathBuf::from("/extra")];
     assert_eq!(
@@ -224,5 +233,12 @@ fn find_tool_bin_looks_in_the_route_directories_of_the_scope() {
     let scope = repo_scope(&directory.path().join("work"), &env).expect("a scope");
     assert_eq!(find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]), None);
     write_executable(&home.join(".cargo").join("bin").join("fd"));
-    assert_eq!(find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]), Some(home.join(".cargo").join("bin").join("fd")));
+    assert_eq!(
+        find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]),
+        None,
+        "the shared cargo home is not searched for a cargo-binstall tool"
+    );
+    let own_root = scope.toolchain_root.join("cargo").join("fd-find").join("1.2.3").join("bin").join("fd");
+    write_executable(&own_root);
+    assert_eq!(find_tool_bin(&sample_tool("cargo:fd-find"), "fd", &scope, &env, &[]), Some(own_root));
 }
