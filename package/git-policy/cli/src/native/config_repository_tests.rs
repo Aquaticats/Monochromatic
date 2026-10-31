@@ -87,7 +87,8 @@ fn the_repository_configuration_lists_all_four_optional_policies() {
     }
 }
 
-/// The scanner reads the rules file the repository generates,
+/// The scanner reads the two repository appendixes directly,
+///  the gitignored sensitive one optional,
 ///  without depending on an environment variable,
 ///  and loads the embedded baseline.
 #[test]
@@ -97,10 +98,16 @@ fn the_repository_configuration_sets_rules_file() {
         loaded.config.policies.forbidden_strings,
         ForbiddenStringsOptions {
             builtin_rules: true,
-            rules_files: Some(vec![RulesFileEntry {
-                path: String::from(".cache/forbidden-strings.rules.txt"),
-                optional: false,
-            }]),
+            rules_files: Some(vec![
+                RulesFileEntry {
+                    path: String::from("forbidden-strings.append.txt"),
+                    optional: false,
+                },
+                RulesFileEntry {
+                    path: String::from("forbidden-strings.append.local.txt"),
+                    optional: true,
+                },
+            ]),
         }
     );
 }
