@@ -4525,3 +4525,28 @@ This block supersedes "State at 2026-10-29 (night, later)".
      `package/forbidden-strings/cli.fuzz/Cargo.toml`; wait for crates.io with `wait-publish.ts`.
   3. Then release the wrapper 0.4.3 to 0.4.4 with `native:release`, because the wrapper's published manifest must name
      the published scanner; wait for crates.io again.
+
+## Update at 2026-10-31 (handover from the file-enforcer session)
+
+- The user handed the forbidden-strings and git-policy work to this session (the session `monochromatic-6e`, the Rust
+  file-enforcer rewrite, relayed it; it will not touch either package further). Items it passed on:
+  1. The merge `2ebe1dd93a` (commits `4882f19100` to `e7718fc963`) makes `git-policy/cli` use new public scanner items:
+     `RulesEntry`, `parse_rules_list`, `Scanner::load_entries`, `Scanner::skipped_optional_rules`. The wrapper pins
+     `forbidden-strings = "=0.5.0"`, so it builds from the path but cannot be published against crates.io 0.5.0. A scanner
+     release with them must be published before the next wrapper publish. Verified: the published wrapper 0.4.3 predates
+     the merge (`2ebe1dd93a` is not an ancestor of `79ad3a71ca`; no use of the new items in its `scanner_adapter.rs`).
+  2. The feature: `--rules` and `FORBIDDEN_STRINGS_RULES` take `entry ("," entry)*` with `entry := path ["?"]` (no escapes,
+     no trimming, one trailing `?` marks an optional entry, `name??` is the optional file `name?`; an empty value or entry,
+     a bare `?` or a repeated path exits 2 naming the position). The cache key stays the SHA-256 of the joined text.
+     `rulesFile` in `cli-git.config.jsonc` takes a string (one required file, never split) or a non-empty array of strings
+     and `{"path", "optional"}` objects, resolved against the repository top level; every listed file is excluded from the
+     scan and copied into new worktrees. Record: `doc/planning/file-enforcer-rust-rewrite.md` ("As built (task 23,
+     2026-10-30)", "Cutover dependency") and `doc/decision/file-enforcer-rust-rewrite.md`.
+  3. The config switch is this session's, timing included: replace the generated `.cache/forbidden-strings.rules.txt` with
+     `FORBIDDEN_STRINGS_RULES=forbidden-strings.append.txt,forbidden-strings.append.local.txt?` (root env, today generated
+     into `mise.toml`) and `rulesFile` as an array with `{"path": "forbidden-strings.append.local.txt", "optional": true}`.
+     The file-enforcer session drops its generator in its cutover commit unless told earlier; tell it when the switch is
+     done. Constraint found here: an old wrapper cannot parse a `rulesFile` array, so the switch must wait until a wrapper
+     that reads it (0.4.4 after scanner 0.6.0) is published, the toolchain lock names it, and it is installed as the
+     production `git`. The peer's `toolchain:sync` installed the locked 0.4.2 over 0.4.0; the lock does not yet name 0.4.3.
+     Root config is outside the two packages, so the switch goes to the user first.
