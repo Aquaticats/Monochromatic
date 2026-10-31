@@ -41,6 +41,29 @@ await describe({
         expect(rolesNamedAtCalls({ source: judge, callee: 'selectBestCandidate', },),).toEqual(['role',],);
       },
     },),
+
+    it({
+      name: 'ASKS THE AUTHORS ABOUT THEIR FINDINGS IN THE ROLE OF THE TRANSLATORS and shares with the gather that wrote the '
+        + 'candidates the one record of the models asked, so a model that took a runaway seat there gives no second voice '
+        + 'in the repair',
+      fn: async () => {
+        const source = await readFile(new URL('translate-produce.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'repairInvalidCandidates', },),).toEqual(['translator',],);
+        expect(rolesNamedAtCalls({ source, callee: 'repairInvalidCandidates', key: 'reaskClaims', },),).toEqual([
+          'reaskClaims',
+        ],);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', key: 'reaskClaims', },),).toEqual(['reaskClaims',],);
+        expect(source.split('createReaskClaims(',).length - 1,).toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the translate lane is judged, at the call that hands the judges',
+      fn: async () => {
+        const source = await readFile(new URL('translate-stage-repair.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeSlateWithRetry', key: 'judging.role', },),).toEqual(['wide-judge',],);
+      },
+    },),
   ],
 },);
 
