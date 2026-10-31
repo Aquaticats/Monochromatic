@@ -4577,3 +4577,16 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Told the peer `monochromatic-6e`; it drops the `.cache/forbidden-strings.rules.txt` generator in its cutover commit.
 - Not yet verified: a clean clone or CI without `forbidden-strings.append.local.txt` (the optional entry's skipped path
   is covered by the scanner's tests only).
+
+## Shared install downgrade (2026-10-31)
+
+- At about 23:53 a `toolchain:sync` in the translation worktree `tr-g245` (its lock pinned wrapper 0.4.0) reinstalled
+  0.4.0 into the shared `~/.cargo/bin`, so every git command in the main checkout failed with config-invalid on the
+  `rulesFile` array. Confirmed in `~/.cargo/.crates.toml`. The `monochromatic-6e` session repaired it with the user's
+  approval by running `toolchain:sync` in main (0.4.4 again); the user chose that route over my reinstalling.
+- Open structural hazard, in this package's area: the installs under `~/.cargo/bin` are shared by every worktree, and a
+  tree whose lock pins an older version downgrades them for all trees on its next sync. The translation session's setup
+  script now refuses to sync unless its lock matches main's byte for byte. Nothing in the wrapper or its release guards
+  against this; a lasting fix needs a per-tree install location or a refusal to downgrade, which is an owner decision.
+- Compatibility answer given to that session: 0.4.4 still accepts a single-string `rulesFile` (test
+  `rules_file_takes_a_path_or_an_array_of_entries`), so an older tree's config works under the newer wrapper.
