@@ -95,6 +95,21 @@ pub mod status_cmd;
 /// The `sync` command.
 pub mod sync;
 
+/// The `update` command.
+pub mod update;
+
+/// The GitHub release resolver.
+pub mod update_github;
+
+/// The npm, PyPI and crates.io resolvers.
+pub mod update_registry;
+
+/// The resolver types, fetch helpers and the route switch.
+pub mod update_resolve;
+
+/// The Rust channel and Node.js resolvers.
+pub mod update_rust_node;
+
 /// Test fixtures shared by the toolchain unit tests.
 #[cfg(test)]
 mod fixtures;
@@ -150,3 +165,7 @@ mod install_tests;
 /// The unit tests of `sync`, the exposure directory and the postinstall steps.
 #[cfg(test)]
 mod sync_tests;
+
+/// The unit tests of every resolver and of `update`.
+#[cfg(test)]
+mod update_tests;

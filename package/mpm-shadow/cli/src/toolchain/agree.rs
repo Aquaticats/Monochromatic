@@ -13,7 +13,7 @@
 
 use super::error::ToolchainError;
 use super::lock::{Lock, ParsedLock, lock_digest};
-use super::model::{Declaration, LockedTool};
+use super::model::{Declaration, LockedTool, expand_version};
 use super::plan::Plan;
 
 /// What:     Everything that differs between a plan and a lock.
@@ -188,7 +188,8 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
             result.added.push(declaration.id.clone());
             continue;
         };
-        let (resolution, projection) = changed_fields(declaration, &locked.declaration);
+        let expanded: Declaration = expand_version(declaration, &locked.version);
+        let (resolution, projection) = changed_fields(&expanded, &locked.declaration);
         if !resolution.is_empty() {
             result.resolution_edits.push((declaration.id.clone(), resolution));
         }
@@ -235,7 +236,8 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
                 declaration.id
             )));
         };
-        let (resolution, _) = changed_fields(declaration, &locked.declaration);
+        let expanded: Declaration = expand_version(declaration, &locked.version);
+        let (resolution, _) = changed_fields(&expanded, &locked.declaration);
         if !resolution.is_empty() {
             return Err(ToolchainError::drift(format!(
                 "{} changed in the plan in a way that moves its version or artifacts ({}); \
@@ -245,7 +247,7 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
             )));
         }
         tools.push(LockedTool {
-            declaration: declaration.clone(),
+            declaration: expanded,
             version: locked.version.clone(),
             artifacts: locked.artifacts.clone(),
         });

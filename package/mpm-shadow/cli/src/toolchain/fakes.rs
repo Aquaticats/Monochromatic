@@ -96,7 +96,7 @@ impl Runner for FakeRunner {
 pub(crate) struct FakeHttp {
     requests: RefCell<Vec<String>>,
     bodies: RefCell<Vec<(String, Vec<u8>)>>,
-    failures: RefCell<Vec<(String, String)>>,
+    failures: RefCell<Vec<(String, String, Option<usize>)>>,
 }
 
 impl FakeHttp {
@@ -111,7 +111,12 @@ impl FakeHttp {
 
     /// Fails requests for exactly this URL with this message.
     pub(crate) fn fail(&self, url: &str, message: &str) {
-        self.failures.borrow_mut().push((url.to_string(), message.to_string()));
+        self.failures.borrow_mut().push((url.to_string(), message.to_string(), None));
+    }
+
+    /// Fails the first `times` requests for exactly this URL, then serves it normally.
+    pub(crate) fn fail_first(&self, url: &str, message: &str, times: usize) {
+        self.failures.borrow_mut().push((url.to_string(), message.to_string(), Some(times)));
     }
 
     /// Every URL requested, in order.
@@ -129,9 +134,17 @@ impl FakeHttp {
     }
 
     fn failure_of(&self, url: &str) -> Option<String> {
-        for (failing, message) in self.failures.borrow().iter() {
-            if failing == url {
-                return Some(message.clone());
+        for (failing, message, remaining) in self.failures.borrow_mut().iter_mut() {
+            if failing != url {
+                continue;
+            }
+            match remaining {
+                None => return Some(message.clone()),
+                Some(0) => continue,
+                Some(left) => {
+                    *left -= 1;
+                    return Some(message.clone());
+                }
             }
         }
         return None;

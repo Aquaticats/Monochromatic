@@ -25,6 +25,7 @@ use super::runner::ProcessRunner;
 use super::scope::{EnvMap, Scope, resolve_scope};
 use super::status_cmd::run_status;
 use super::sync::{format_sync_report, run_sync};
+use super::update::{format_update_report, run_update};
 
 /// The `--global` flag every toolchain verb accepts: act on the machine-global plan and lock.
 fn global_flag() -> Arg {
@@ -64,10 +65,19 @@ pub fn subcommands() -> Vec<Command> {
     let sync: Command = Command::new("sync")
         .about("Install every locked tool that is not at its locked version, then rebuild the exposure directory")
         .arg(global_flag());
+    let update: Command = Command::new("update")
+        .about("Resolve every tool of the plan and write toolchain.lock.json (looks versions up on the network)")
+        .arg(
+            Arg::new("check")
+                .long("check")
+                .action(ArgAction::SetTrue)
+                .help("Report what would move without writing the lock or installing anything; exit 1 when something would move"),
+        )
+        .arg(global_flag());
     let status: Command = Command::new("status")
         .about("Compare the installed tools with the lock (read-only; exits 1 on drift or when the plan and lock disagree)")
         .arg(global_flag());
-    return vec![lock, sync, status, bin_paths];
+    return vec![lock, update, sync, status, bin_paths];
 }
 
 /// Prints a success line to standard output.
@@ -130,6 +140,17 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                     );
                     print!("{}", format_sync_report(&sync_report));
                     i32::from(!sync_report.failed.is_empty())
+                }
+                Err(error) => report(&error),
+            });
+        }
+        "update" => {
+            let check: bool = matches.get_flag("check");
+            let http = connect_or_explain();
+            return Some(match run_update(&scope, &env, &ProcessRunner, http.as_ref(), &Host::current(), check) {
+                Ok(update_report) => {
+                    print!("{}", format_update_report(&update_report, check));
+                    i32::from(update_report.has_failures() || (check && update_report.has_movement()))
                 }
                 Err(error) => report(&error),
             });

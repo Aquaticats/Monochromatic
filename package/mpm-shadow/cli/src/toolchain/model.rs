@@ -769,3 +769,31 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
 }
 
 //endregion Encoding
+
+//region Version placeholder
+
+/// The text a plan writes where the tool's resolved version belongs inside a field that must carry it.
+pub const VERSION_PLACEHOLDER: &str = "{version}";
+
+/// What:     A copy of the declaration with `{version}` replaced by `version` in `packageId` and in every `env` value.
+/// Why:      A Rust channel's package id (`nightly-2026-10-30`) and a tool's home variable (`android-sdk/23.0`) equal the
+///           resolved version, which changes on every update. The plan writes `{version}` once, the lock holds the
+///           expanded text, and comparing a plan with a lock expands the plan with the lock's version first, so an
+///           update never makes the two files disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function expandVersion(declaration: Declaration, version: string): Declaration
+/// ```
+pub fn expand_version(declaration: &Declaration, version: &str) -> Declaration {
+    let mut expanded: Declaration = declaration.clone();
+    expanded.package_id = declaration.package_id.as_ref().map(|text| return text.replace(VERSION_PLACEHOLDER, version));
+    expanded.env = declaration
+        .env
+        .iter()
+        .map(|(name, text)| return (name.clone(), text.replace(VERSION_PLACEHOLDER, version)))
+        .collect();
+    return expanded;
+}
+
+//endregion Version placeholder
