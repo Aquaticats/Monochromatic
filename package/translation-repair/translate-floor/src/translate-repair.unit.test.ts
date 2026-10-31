@@ -28,6 +28,7 @@ import { ProviderHttpError, } from '@monochromatic-dev/translation-repair-provid
 import {
   type ChatJsonOutcome,
   type ChatJsonRequest,
+  createReaskClaims,
   messageText,
   type ModelClient,
   type VisionMessage,
@@ -37,7 +38,6 @@ import {
   reuseTwinOrBuy,
   type TwinMemo,
 } from '@monochromatic-dev/translation-repair-stage';
-import { createReaskClaims, } from '@monochromatic-dev/translation-repair-provider';
 import {
   buildTranslateCandidates,
   FloorGroundDisagreementError,
@@ -297,6 +297,8 @@ await describe({
          */
         const refusal = await rejectionOf({
           promise: repairInvalidCandidates({
+            role: 'translator',
+            reaskClaims: createReaskClaims(),
             client: {
               chatText: async () => {
                 throw new Error('chatText unused',);
@@ -388,6 +390,8 @@ await describe({
          The repair, started and left waiting on every re-ask.
          */
         const repair = repairInvalidCandidates({
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
           client: {
             chatText: async () => {
               throw new Error('chatText unused',);
@@ -520,6 +524,8 @@ await describe({
                    What the repair settled, which this case never reaches.
                    */
                   const repaired = await repairInvalidCandidates({
+                    role: 'translator',
+                    reaskClaims: createReaskClaims(),
                     client: {
                       chatText: async () => {
                         throw new Error('chatText unused',);
@@ -648,6 +654,8 @@ await describe({
           SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
         ] as const;
         const repaired = await repairInvalidCandidates({
+          role: 'translator',
+          reaskClaims: createReaskClaims(),
           client: repairClient({
             answer: {
               resolution: 'as-intended',
@@ -1041,6 +1049,8 @@ await describe({
         let raised: unknown;
         try {
           await repairInvalidCandidates({
+            role: 'translator',
+            reaskClaims: createReaskClaims(),
             client: repairClient({
               answer: {
                 resolution: 'revised',
