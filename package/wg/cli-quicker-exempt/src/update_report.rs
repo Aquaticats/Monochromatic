@@ -112,7 +112,7 @@ pub enum Outcome {
     },
 }
 
-/// Classification and wording of outcomes.
+/// Classification of outcomes.
 impl Outcome {
     /// Reports whether the outcome means the policy is not in force for some process.
     pub fn is_failure(&self) -> bool {
