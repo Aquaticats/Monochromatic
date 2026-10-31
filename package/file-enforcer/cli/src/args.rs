@@ -14,6 +14,14 @@
 //! program.command('write'); program.command('check').option('--expected-dir <dir>');
 //! ```
 
+#![cfg_attr(
+    dylint_lib = "monochromatic_lint_closure",
+    expect(
+        avoidable_closure,
+        reason = "clap's derive generates the missing-argument closures in its FromArgMatches implementation with the field type as their span, so no author-written closure exists to refactor"
+    )
+)]
+
 /// Imports `Parser`,
 /// `Subcommand` from `clap`.
 use clap::{Parser, Subcommand};

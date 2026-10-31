@@ -82,7 +82,8 @@ fn ties_and_absence_are_handled() {
 }
 
 /// Allowed fixtures:
-/// an unset, empty or relative `XDG_CONFIG_HOME` leaves the default under the home directory,
+/// an unset,
+/// empty or relative `XDG_CONFIG_HOME` leaves the default under the home directory,
 /// and an absolute one below the home directory names the `JetBrains` directory inside it.
 #[test]
 fn the_configuration_directory_follows_xdg_config_home() {
@@ -99,7 +100,9 @@ fn the_configuration_directory_follows_xdg_config_home() {
 }
 
 /// Rejected fixtures:
-/// an absolute value outside the home directory, or one that climbs out of it, is an error naming the value,
+/// an absolute value outside the home directory,
+/// or one that climbs out of it,
+/// is an error naming the value,
 /// because the view cannot read there and the default must not be edited in its place.
 #[test]
 fn a_configuration_directory_outside_the_home_is_refused() {

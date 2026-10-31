@@ -128,7 +128,8 @@ pub struct JetbrainsHarperRule {
     /// Rule id.
     pub id: String,
     /// The `XDG_CONFIG_HOME` value the IDE's configuration directory is derived from;
-    /// unset, empty and relative values mean `.config` under the home directory.
+    /// unset,
+    /// empty and relative values mean `.config` under the home directory.
     pub xdg_config_home: Option<OsString>,
     /// IDE product prefixes;
     /// the newest installed version wins.
@@ -166,7 +167,11 @@ impl JetbrainsHarperRule {
     /// The ids of the scoped servers,
     /// which are never taken for the base server.
     fn scoped_ids(&self) -> Vec<String> {
-        return self.scoped_servers.iter().map(|server| return server.id.clone()).collect();
+        let mut ids: Vec<String> = Vec::new();
+        for server in &self.scoped_servers {
+            ids.push(server.id.clone());
+        }
+        return ids;
     }
 
     /// What:
@@ -200,7 +205,10 @@ impl JetbrainsHarperRule {
             let message = format!("{}: no language server settings entry for the base server {key}", settings.language_path);
             return Err(Diagnostic::new("harper-xml-invalid", &message).with_path(&settings.language_path).with_rule(&self.id));
         };
-        let existing = option_value(&document, entry, "configurationContent").unwrap_or_else(|| return "{}".to_string());
+        let existing = match option_value(&document, entry, "configurationContent") {
+            Some(text) => text,
+            None => "{}".to_string(),
+        };
         let mut config = parse_object(&existing, "configurationContent", &settings.language_path)?;
         disable_linters(&mut config, &self.disabled_linters);
         union_excludes(&mut config, &self.exclude_patterns);
@@ -210,9 +218,14 @@ impl JetbrainsHarperRule {
     /// The schema text shared by the base and scoped entries.
     fn schema_text(&self, settings: &SettingsFiles, key: &str) -> Result<String, Diagnostic> {
         let document = parse(&settings.language_path, &settings.language_text)?;
-        let existing = find_entry(&document, key)
-            .and_then(|entry| return option_value(&document, entry, "configurationSchemaContent"))
-            .unwrap_or_else(|| return "{\"properties\":{}}".to_string());
+        let schema_text = match find_entry(&document, key) {
+            Some(entry) => option_value(&document, entry, "configurationSchemaContent"),
+            None => None,
+        };
+        let existing = match schema_text {
+            Some(text) => text,
+            None => "{\"properties\":{}}".to_string(),
+        };
         let schema = parse_object(&existing, "configurationSchemaContent", &settings.language_path)?;
         return Ok(format_object(with_schema_defaults(schema)));
     }

@@ -56,7 +56,9 @@ which the server uses.
   the rule reads `<config>/JetBrains/<product>/options` of the newest product matching `productPrefixes`,
   where `<config>` is `XDG_CONFIG_HOME` (read when the binary starts) if it is an absolute path below the home directory,
   and `.config` under the home directory if it is unset,
-  empty or relative (the XDG Base Directory rule; the retired TypeScript tool used any set value as it stood).
+  empty or relative
+  (the XDG Base Directory rule;
+  the retired TypeScript tool used any set value as it stood).
   An absolute value outside the home directory is a `jetbrains-harper-skipped` warning naming it,
   because the view cannot read outside its root.
   It edits `option` values attribute by attribute,
@@ -112,3 +114,27 @@ mise run //package/file-enforcer/cli:test
 The tests run the built binary in scratch worktrees with their own runtime directories,
 and a guard stops any server a
 test leaves.
+
+## Closure lint suppression
+
+The unified linter runs `rust/avoidable-closure` over this crate,
+and the rule accepts no comment directive and no per-line configuration.
+One module carries the rustc `expect` attribute the rule accepts:
+
+- `src/args.rs`:
+  the inner `#![cfg_attr(dylint_lib = "monochromatic_lint_closure", expect(avoidable_closure, reason = "..."))]`
+  covers the six closures that clap's derive generates in `FromArgMatches` for the required fields.
+  Their spans are the field types the author wrote
+  (`String`,
+  `u64`,
+  `PathBuf`,
+  `bool`),
+  so no closure exists in the source to refactor,
+  and the derive output cannot be edited.
+  Configuration cannot replace the attribute:
+  the only lever is a path exemption,
+  which would also exempt the author-written code of the file.
+  The linter's own `src/cli_options.rs` carries the same attribute for the same reason
+  (`package/linter/monochromatic-lint/README.md`,
+  section "Suppression record").
+  A lint that skipped closures inside items marked `#[automatically_derived]` would make the attribute unnecessary.

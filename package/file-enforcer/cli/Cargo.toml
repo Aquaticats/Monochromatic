@@ -73,3 +73,8 @@ clap = ">=4.6.7"
 libc = ">=0.2.191"
 serde_json = ">=1.0.154"
 tempfile = ">=3.27.0"
+
+# Declares the cfg name of `#[cfg_attr(dylint_lib = ..)]` suppressions, enforced by file-enforcer.
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]

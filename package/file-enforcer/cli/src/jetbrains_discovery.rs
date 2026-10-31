@@ -61,11 +61,16 @@ fn below_root(root: &Path, directory: &Path) -> Option<PathBuf> {
 /// What:
 ///  The home-relative path of the `JetBrains` directory for a given `XDG_CONFIG_HOME` value.
 /// Why:
-///  The retired TypeScript tool read `XDG_CONFIG_HOME` when it was set, else `~/.config`.
+///  The retired TypeScript tool read `XDG_CONFIG_HOME` when it was set,
+/// else `~/.config`.
 ///  This follows the XDG Base Directory rule for the value:
-/// an unset, empty or relative value is ignored and `.config` under the home directory is used.
-///  An absolute value must lie below the view root, because the view cannot read outside it;
-/// anything else is an error naming both paths, so the rule warns instead of editing a different directory.
+/// an unset,
+/// empty or relative value is ignored
+/// and `.config` under the home directory is used.
+///  An absolute value must lie below the view root,
+/// because the view cannot read outside it;
+/// anything else is an error naming both paths,
+/// so the rule warns instead of editing a different directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -98,6 +103,11 @@ pub fn jetbrains_config_directory(root: &Path, xdg_config_home: Option<&OsStr>) 
     return Ok(segments.join("/"));
 }
 
+/// Whether a byte is an ASCII digit.
+fn is_ascii_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
 /// What:
 ///  The numeric version of a product directory name,
 /// when it starts with one of the prefixes and the rest is dot-separated decimal digits.
@@ -109,11 +119,18 @@ pub fn jetbrains_config_directory(root: &Path, xdg_config_home: Option<&OsStr>) 
 /// function versionParts(name: string, prefixes: string[]): number[] | undefined
 /// ```
 pub fn version_parts(name: &str, prefixes: &[String]) -> Option<Vec<u64>> {
-    let prefix = prefixes.iter().find(|candidate| return name.starts_with(candidate.as_str()))?;
+    let mut matched: Option<&String> = None;
+    for candidate in prefixes {
+        if name.starts_with(candidate.as_str()) {
+            matched = Some(candidate);
+            break;
+        }
+    }
+    let prefix = matched?;
     let suffix = &name[prefix.len()..];
     let mut parts: Vec<u64> = Vec::new();
     for segment in suffix.split('.') {
-        if segment.is_empty() || !segment.bytes().all(|byte| return byte.is_ascii_digit()) {
+        if segment.is_empty() || !segment.bytes().all(is_ascii_digit_byte) {
             return None;
         }
         parts.push(segment.parse::<u64>().ok()?);
@@ -173,7 +190,8 @@ pub fn latest_options_directory(view: &mut View, config_directory: &str, prefixe
             best = Some((version, name));
         }
     }
-    return Ok(best.map(|(_, name)| return format!("{config_directory}/{name}/options")));
+    let Some((_, name)) = best else { return Ok(None) };
+    return Ok(Some(format!("{config_directory}/{name}/options")));
 }
 
 /// Tests for the discovery helpers.
