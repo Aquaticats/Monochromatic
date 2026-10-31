@@ -139,9 +139,11 @@ function isCase(value: unknown,): value is Case {
  ```
  */
 function isBrowserslist(value: unknown,): value is Browserslist {
-  return ((typeof value) === 'function')
-    && isRecord(value,)
+  if ((typeof value) !== 'function')
+    return false;
+  return ('parseConfig' in value)
     && ((typeof value.parseConfig) === 'function')
+    && ('nodeVersions' in value)
     && isStringList(value.nodeVersions,);
 }
 
@@ -291,6 +293,28 @@ function isStable(version: string,): boolean {
 }
 
 /**
+ Message of a value the package threw.
+
+ `BrowserslistError` sets `prototype = Error.prototype` without calling the `Error` constructor, so it has no
+ internal error slot: `Error.isError` rejects it and string conversion would prefix the message with the class name.
+ The recorded answers are the bare message, which is what the package documents for its own errors.
+
+ @param error - the caught value
+
+ @returns the `message` string when the value has one, otherwise the shared caught-value text
+
+ @example
+ ```ts
+ thrownMessage(new Error('offline'));
+ ```
+ */
+function thrownMessage(error: unknown,): string {
+  if (isRecord(error,) && ((typeof error.message) === 'string'))
+    return error.message;
+  return caughtValueText(error,);
+}
+
+/**
  Ask the real package about one case, following the repository's call path.
 
  @param browserslist - the loaded package function.
@@ -350,7 +374,7 @@ function ask(
       },
     ), };
   } catch (error) {
-    return { error: caughtValueText(error,), };
+    return { error: thrownMessage(error,), };
   }
 }
 

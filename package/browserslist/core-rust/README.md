@@ -197,6 +197,16 @@ in file order.
 - `mise run //package/browserslist/core-rust:test:live` runs the opt-in live test against the real registry and Mozilla.
 - `mise run //package/browserslist/core-rust:conformance:regenerate` rebuilds `fixtures/data` and
   `conformance/expected.json` from the locked data with a bounded `podman` container (`--memory=2g --cpus=2`).
+  The container mounts `bin` and the `caught-value/core` package at `/repo/...` paths,
+  with a symlink for the workspace import,
+  because Node.js strips types only from files outside `node_modules`.
+  The oracle records `BrowserslistError.message` bare;
+  the class sets `prototype = Error.prototype` without an error slot,
+  so `Error.isError` rejects it.
+- `mise run //package/browserslist/core-rust:lint:scripts:oxlint bin/oracle-container.ts bin/regenerate-conformance.ts bin/run-command.ts`
+  and `:lint:scripts:types` check the maintenance scripts;
+  a fresh worktree needs `pnpm install --offline --ignore-scripts` first
+  (`doc/troubleshooting/oxlint-task-fails-in-worktree-without-node-modules.md`).
 
 ## Dependencies
 
