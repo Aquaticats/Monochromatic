@@ -41,6 +41,7 @@ import {
   RUN_SEATS,
   SEAT_WITHHOLD_ASKS,
   seatTallyClient,
+  withheldSeatRefusal,
 } from '@monochromatic-dev/translation-repair-stage/ts';
 import type { ProviderOff, } from './providers-off.ts';
 import { configureProviders, } from './run-providers.ts';
@@ -1226,6 +1227,12 @@ export function runClientWithFloors(
         ...((promptPayloadDir === undefined)
           ? {}
           : { store: promptPayloadStore({ dir: promptPayloadDir, },), }),
+        // THE TALLY'S WITHHOLD REACHES THE ALTERNATES OF A RE-ASK (ledger B1162): the re-ask of a reasoning runaway asks
+        // other models here, beneath the tally, so a model the run withheld would otherwise be asked as an alternate.
+        refuseSeat: withheldSeatRefusal({
+          tally: RUN_SEATS,
+          minAsks: SEAT_WITHHOLD_ASKS,
+        },),
       },),
       tally: RUN_SEATS,
       // A SEAT THAT THREW ON EVERY ASK IS WITHHELD: refused at this door, and

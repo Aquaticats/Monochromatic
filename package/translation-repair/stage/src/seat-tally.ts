@@ -338,15 +338,19 @@ export function createSeatTally(): SeatTally {
 }
 
 /**
- The refusal a tally gives its own door, as a function a client beneath the tally can call before it asks a model.
+ The refusal a tally gives its own door, as a function a client beneath the tally can call before it asks a model, so a
+ model the run withheld is refused wherever it is named and not only at the door (ledger B1162). The tally sits outside
+ the prompt-uniqueness wrapper, whose re-ask of a reasoning runaway asks other models beneath it.
 
- STUB OF THE RED COMMIT: it refuses nothing yet.
+ A refusal is not an ask, so it leaves the counts as they were.
 
  @param tally - counts the withheld seats are read from
 
  @param minAsks - asks a seat must have been given, all of them thrown, before it is refused
 
  @returns Function that throws for a withheld model and returns for any other
+
+ @throws {@link NoProviderForModelError} from the returned function, when the model is withheld
 
  @example
  ```ts
@@ -362,8 +366,39 @@ export function withheldSeatRefusal(
     readonly minAsks: number;
   },
 ): (refusing: { readonly modelId: RosterModelId; },) => void {
-  return function refuseNothing(): void {
-    void tally.withheld({ minAsks, },);
+  return function refuseWithheld({ modelId, }: { readonly modelId: RosterModelId; },): void {
+    /**
+     Counts of every seat the tally has withheld.
+     */
+    const withheldCounts = tally.withheld({ minAsks, },);
+    /**
+     The seat's counts when the tally has withheld it, or none.
+     */
+    const withheldCount = withheldCounts.find(function isThisSeat(count,): boolean {
+      return count.modelId === modelId;
+    },);
+    if (withheldCount === undefined)
+      return;
+    /**
+     The seat's asks, counted and named by the word for the count.
+     */
+    const asks = `${String(withheldCount.asked,)} ${
+      wordForCount({
+        count: withheldCount.asked,
+        one: 'ask',
+        many: 'asks',
+      },)
+    }`;
+    // THE WORDS FOR A SEAT THAT ONLY THREW STAY AS THEY WERE (ledger B711); a seat with asks the round cut with nothing
+    // delivered says both ways its asks failed.
+    throw new NoProviderForModelError({
+      modelId,
+      reason: (withheldCount.silent === 0)
+        ? `the run withheld it after it threw on all ${asks} and does not ask it again`
+        : `the run withheld it after all ${asks} failed (${String(withheldCount.threw,)} threw, ${
+          String(withheldCount.silent,)
+        } ended with nothing delivered) and does not ask it again`,
+    },);
   };
 }
 
@@ -445,50 +480,11 @@ export function seatTallyClient(
 
   /**
    Throws when the tally has withheld the seat, before any provider is asked.
-
-   @param modelId - seat a call names
-
-   @throws {@link NoProviderForModelError} when the seat is withheld
-
-   @example
-   ```ts
-   refuseWithheld({ modelId: request.modelId, },);
-   ```
    */
-  function refuseWithheld({ modelId, }: { readonly modelId: RosterModelId; },): void {
-    /**
-     Counts of every seat the tally has withheld.
-     */
-    const withheldCounts = tally.withheld({ minAsks, },);
-    /**
-     The seat's counts when the tally has withheld it, or none.
-     */
-    const withheldCount = withheldCounts.find(function isThisSeat(count,): boolean {
-      return count.modelId === modelId;
-    },);
-    if (withheldCount === undefined)
-      return;
-    /**
-     The seat's asks, counted and named by the word for the count.
-     */
-    const asks = `${String(withheldCount.asked,)} ${
-      wordForCount({
-        count: withheldCount.asked,
-        one: 'ask',
-        many: 'asks',
-      },)
-    }`;
-    // THE WORDS FOR A SEAT THAT ONLY THREW STAY AS THEY WERE (ledger B711); a seat with asks the round cut with nothing
-    // delivered says both ways its asks failed.
-    throw new NoProviderForModelError({
-      modelId,
-      reason: (withheldCount.silent === 0)
-        ? `the run withheld it after it threw on all ${asks} and does not ask it again`
-        : `the run withheld it after all ${asks} failed (${String(withheldCount.threw,)} threw, ${
-          String(withheldCount.silent,)
-        } ended with nothing delivered) and does not ask it again`,
-    },);
-  }
+  const refuseWithheld = withheldSeatRefusal({
+    tally,
+    minAsks,
+  },);
 
   /**
    Counts a call that threw: as unreachable when the inner client refused the

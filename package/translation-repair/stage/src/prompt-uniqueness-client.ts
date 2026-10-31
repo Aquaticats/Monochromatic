@@ -163,6 +163,10 @@ export function modelPromptDigest(
 
  @param store - optional durable raw-payload checkpoint across invocations
 
+ @param refuseSeat - refusal a client outside this wrapper gives its own door, which the re-ask of a reasoning runaway
+ asks of every other model it names, since that re-ask is made here, beneath that client (ledger B1162); it throws
+ `NoProviderForModelError` for a model the run withheld, and the re-ask goes on to the next model
+
  @returns Client enforcing model-prompt uniqueness by reuse
 
  @example
@@ -174,6 +178,7 @@ export function promptUniqueClient(
   {
     inner,
     store,
+    refuseSeat,
   }: ForeignBorrowed<{
     readonly inner: ModelClient;
     readonly store?: PromptPayloadStore;
@@ -282,7 +287,12 @@ export function promptUniqueClient(
             ...responseFormatSpreadOf({ request, },),
           },),
         },
-        ask: claimedReply,
+        // A MODEL NAMED BY THE RE-ASK MEETS THE RUN'S REFUSAL OF A WITHHELD SEAT (ledger B1162), which the client outside
+        // this wrapper gives only to the first ask.
+        ask: async function askUnlessWithheld(nudged,): Promise<ChatTextReply> {
+          refuseSeat?.({ modelId: nudged.modelId, },);
+          return await claimedReply(nudged,);
+        },
       },);
     },
     quotas: inner.quotas,

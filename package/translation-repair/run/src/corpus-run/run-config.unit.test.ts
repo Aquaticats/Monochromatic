@@ -37,10 +37,14 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import { join, } from 'node:path';
 
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary';
-import { RUN_SEATS, } from '@monochromatic-dev/translation-repair-stage';
+import {
+  RUN_SEATS,
+  SEAT_WITHHOLD_ASKS,
+} from '@monochromatic-dev/translation-repair-stage';
 import { NoProviderForModelError, } from '@monochromatic-dev/translation-repair-markup';
 import { HYPER_MESSAGES_URL, } from '@monochromatic-dev/translation-repair-shared-contract';
 import {
+  alternateModelsFor,
   BEDROCK_CREDIT_USD_VAR,
   BEDROCK_LEDGER_PATH_VAR,
 } from '@monochromatic-dev/translation-repair-provider';
@@ -886,6 +890,69 @@ await describe({
               usable: 0,
               unusable: 1,
             },);
+          },
+        },),
+
+        it({
+          name: 'HANDS THE RUN\'S WITHHOLD TO THE RE-ASK OF A REASONING RUNAWAY (ledger B1162): with every other model of '
+            + 'the role withheld by the tally no provider is asked for one, and without the withhold the same runaway '
+            + 'reaches the provider for them (the control that shows the probe can see the difference)',
+          fn: async () => {
+            /**
+             Models the re-ask could ask in place of the runaway.
+             */
+            const alternatesOfRunaway: readonly string[] = alternateModelsFor({
+              modelId: SHARED_SEAT,
+              role: 'roster',
+              bench: [SHARED_SEAT,],
+            },)
+              .alternates;
+            /**
+             Calls that reached a transport for a model other than the runaway one, when a runaway is asked, given how many
+             asks each other model of the role has failed on the run's tally.
+             */
+            const callsForOthers = async (
+              { failedAsks, }: { readonly failedAsks: number; },
+            ): Promise<number> => {
+              using _fresh = withFreshRunSeats();
+              /**
+               Models every exchange was labelled with, in order.
+               */
+              const labels: string[] = [];
+              for (const modelId of alternatesOfRunaway) {
+                for (let ask = 0; ask < failedAsks; ask += 1)
+                  RUN_SEATS.record({ modelId, outcome: 'threw', },);
+              }
+              await runClientFrom({
+                maxHoldMs: TEST_MAX_HOLD_MS,
+                env: TWO_KEYS,
+                transport: async (exchange,) => {
+                  labels.push(exchange.label,);
+                  return isFirstProviderChat(exchange.url,)
+                    ? { status: ANSWERED, bodyText: 'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\ndata: [DONE]\n\n', }
+                    : { status: REFUSED_OUTRIGHT, bodyText: '{}', };
+                },
+              },).chatJson({
+                modelId: SHARED_SEAT,
+                messages: MESSAGES,
+                signal: new AbortController().signal,
+                responseFormat: { type: 'json_schema', json_schema: { name: 'purr', schema: { type: 'object', }, }, },
+                validate: function isPurr(value: unknown,): value is { readonly purr: string; } {
+                  return ((typeof value) === 'object') && (value !== null) && ('purr' in value);
+                },
+                reaskSeat: { role: 'roster', bench: [SHARED_SEAT,], reask: 'other-model', },
+              },);
+              return labels.filter(function isAnotherModel(label,): boolean {
+                return alternatesOfRunaway.includes(label,);
+              },).length;
+            };
+            /**
+             Calls with nothing withheld, and with every alternate withheld.
+             */
+            const open = await callsForOthers({ failedAsks: 0, },);
+            const closed = await callsForOthers({ failedAsks: SEAT_WITHHOLD_ASKS, },);
+            expect(open > closed,).toBe(true,);
+            expect(closed,).toBe(0,);
           },
         },),
 

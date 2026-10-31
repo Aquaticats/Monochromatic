@@ -251,7 +251,8 @@ export async function reaskElsewhereNudged<ValueT,>(
 
    @returns Model that took it and its reply, or the sentinel where no other model could
 
-   @throws whatever the exchange threw other than a refusal for want of a provider
+   @throws whatever the exchange threw when the caller aborted, and the refusal of every provider dry; any other failure
+   of one model moves the order on to the next
    */
   async function askOtherModels(): Promise<ReaskAnswer | typeof NO_OTHER_MODEL_TOOK_IT> {
     /**
@@ -328,9 +329,20 @@ export async function reaskElsewhereNudged<ValueT,>(
         };
       }
       catch (error) {
-        if (!(error instanceof NoProviderForModelError))
+        // THE CALLER'S ABORT AND EVERY PROVIDER DRY END THE RE-ASK, not the one model: the first stops all work, and the
+        // second ends the run at the owner's instruction (below).
+        if (request.signal.aborted || (error instanceof EveryProviderDryError))
           throw error;
-        ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
+        if (error instanceof NoProviderForModelError) {
+          ol.debug(`${request.modelId}: ${modelId} cannot take the re-ask (${exchangeFailureLogText({ error, },)})`,);
+          continue;
+        }
+        // A TRANSPORT ERROR FROM ONE MODEL IS THAT MODEL'S FAILURE (ledger B1162): the next model of the order is asked,
+        // and the seat is lost only when every model of the order has failed. Rethrown from here, it reached the catch
+        // below, which kept the runaway and never tried a later model.
+        ol.warn(
+          `${request.modelId}: re-asking ${modelId} failed (${exchangeFailureLogText({ error, },)}); trying the next model`,
+        );
       }
     }
     ol.warn(
