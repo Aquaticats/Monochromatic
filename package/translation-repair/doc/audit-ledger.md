@@ -805,12 +805,14 @@ named for that subject and listed here.
   the follow-up that does not ask the same judges the same slate again (B1023),
   the trace of a patch that resolved every accepted issue and lost (B1024),
   artifact generation 22 with the cache versions that did not move (B1025),
-  and the present-tense lines of the `XingZ6022` page with the owner's answer of 2026-10-29 (B1050).
+  and the present-tense lines of the `XingZ6022` page with the owner's answers of 2026-10-29 and 2026-10-31 (B1050).
 - [Audit ledger: the XingZ6022 pronoun count
   and the slates that could not decide](audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md):
   The ambiguous `their` of the `XingZ6022` page,
   with the owner's answer of 2026-10-29 and the count of how many settled pages carry it (B1051),
-  and the purchase that still paid for slates that could not decide (B1053).
+  the purchase that still paid for slates that could not decide (B1053),
+  and the two exits of that purchase that still ask a slate,
+  with the count of how often real inputs reach them (B1130).
 - [Audit ledger: an archive with no body ships an empty page](audit-ledger-an-archive-with-no-body.md):
   An entry whose archive holds no body,
   which was cut into no slice (B1045),

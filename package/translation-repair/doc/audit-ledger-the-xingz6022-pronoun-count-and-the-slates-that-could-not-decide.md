@@ -4,10 +4,12 @@ The owner's answer of 2026-10-29 to the question of the ambiguous `their` on the
 "Keep the rule;
 measure first (Recommended)",
 and the count that followed (B1051),
-and the purchase that still paid for slates that could not decide (B1053),
-found while placing the swap of B1050.
+the purchase that still paid for slates that could not decide (B1053),
+found while placing the swap of B1050,
+and the two exits of that purchase that still ask a slate,
+with the count of how often real inputs reach them (B1130).
 B1050 is filed in
-[Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29](audit-ledger-the-two-ballot-translate-text.md).
+[Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29][two-ballot-ledger].
 
 Part of [Audit ledger](audit-ledger.md),
 which lists every file of this record.
@@ -251,6 +253,7 @@ The owner question was answered on 2026-10-30 (UTC):
 Fixed in `d05477f0c4` (the fix),
 with its red cases in `27dc5a78da`
 and a correction of one comment of the fix in `ad9ec58831`.
+Reworded and extended in round w385 (see "Follow-ups of round w385").
 
 Found while placing the swap of B1050.
 The purchase skips the slate when fewer judges are reachable than a winner needs
@@ -273,11 +276,24 @@ How many calls the 75 slates cost was not counted;
 the 65 calls and 10.679 Wh of B1020 are the figure for the 16 slices with a refused standing,
 not for these.
 
-After B1050 the purchase skipped only the slices where the swap fires.
-Skipping the writers and the slate for every eligible unendorsed standing whose bench is below the floor would change
-what is bought and no outcome,
-by the same ruling,
-and the settlement would be marked and never cached as the other bench-below-floor settlements are.
+After B1050 the purchase skipped the writers and the slate at one kind of slice:
+an eligible unendorsed standing on a short bench where the swap fires.
+Every other eligible unendorsed standing with lane texts on the offer was still bought,
+whatever the bench.
+Skipping the writers and the slate for all of them changes what is bought,
+and it changes an outcome in one case.
+Where a writer answered,
+a one-judge slate could only keep the standing (2026-10-25),
+so the outcome is the same.
+Where every writer was silent over an unendorsed standing,
+the old path threw `TranslationRepairInterruptedError` with the reason `provider-unavailable`
+(the `!standingMayShip` and no-voices condition at `consolidate-slice-buy.ts:439-446` of `0515a3f677`),
+and the skip ships the unendorsed standing instead,
+with the finding `consolidation-standing-unendorsed` recorded.
+That throw stays for a bench that meets the floor or was not counted.
+The owner's answer of 2026-10-30 in this entry accepts that tradeoff,
+and no code was changed for it.
+The settlement is marked and never cached as the other bench-below-floor settlements are.
 
 Owner answer,
 2026-10-30 (UTC),
@@ -327,6 +343,10 @@ It is now read only where its answer is used:
 the bench is short,
 the winner is offered,
 and the standing is eligible.
+Where the swap fires it was still read twice,
+once by the purchase to pick its exit and once by `shipWinnerBeforeSlate`;
+since round w385 the purchase hands its reading to the settlement (`tenseSwap` of `settleConsolidation`),
+which reads the detector itself only when it is given none.
 The settlement is the same in every case;
 what differs is the read.
 `tenseCandidateGroups` is not free of effects,
@@ -352,6 +372,34 @@ The cases run with 7 slate judges seated,
 as the bench of `XingZ6022` held.
 This is stated from the code and the tests,
 not from a replay of the run.
+
+Follow-ups of round w385,
+from the re-check of rounds w381 and w383:
+- The ledger said the skip has no outcome change;
+  the paragraph that opens "After B1050 the purchase skipped" now says exactly what changed,
+  and so does "The order of the reads" for the swap path.
+- The detector is read once on the swap path
+  (`bf9471f212`,
+  red case in `4951378eea`).
+- Four shapes of the skip had no case (`efe2e07a50`),
+  and the no-death cases declared no names (`f9114d0864`).
+  Three go through `buyConsolidationSlice` with 1 of 7 slate judges reachable:
+  a flagged standing whose translate text drew one ballot is skipped and not swapped,
+  a flagged standing over an entry that records no death is skipped and not swapped,
+  and an endorsed eligible standing with lane texts on the offer is still asked.
+  The last shape is unreachable from the driver,
+  because `laneTextsForSlate` returns no lane text for a standing that is both endorsed and eligible,
+  so the case pins the code for a direct caller and nothing more.
+  The fourth case calls `shipWinnerBeforeSlate` without `standingMayShip`,
+  which it reads as endorsing the standing,
+  and ships the translate text only where `standingMayShip` is false.
+  These cases passed on the code as it stood.
+  Each fails against a build with its own guard removed
+  (the default made false,
+  the two-ballot threshold of `translateWinnerOf` lowered to one ballot,
+  the death check of `presentTenseSwapOf` removed,
+  and the skip made unconditional for an eligible standing),
+  and passes again once the guard is restored and the package rebuilt.
 
 Cache versions:
 none moved.
@@ -379,10 +427,107 @@ none moved.
   threshold or settlement rule of those stages changed,
   and the change only withholds a purchase.
 
+## B1130: two exits before the B1053 skip still ask a slate, and no pinned or settled slice reaches them
+
+Status:
+recorded on 2026-10-31,
+measured keyless with no model call,
+no code changed.
+The owner's rule for the follow-ups of rounds w381 and w383 is "Land on real impact":
+what changes behaviour on real sources is fixed,
+and a gap that only invented inputs show is a stated limit with its measured count.
+This entry is that limit.
+
+The gap:
+`buyConsolidationAttempt` has two exits that settle with no writer ahead of the B1053 skip,
+and the skip is not applied at either.
+- The blind-floor exit:
+  `floorReach` of the original and the archive's page says the floor can compare nothing
+  (`consolidate-slice-buy.ts:251-268` at `d343265b71`),
+  so no writer is asked and the settlement keeps the archive (B45).
+- The empty-standing exit:
+  the standing text is empty,
+  no writer is asked,
+  and the lane texts alone go to the slate judges (`:274-284` at `d343265b71`).
+
+On a short bench the empty-standing exit can ask a slate that cannot decide,
+when lane texts are on the offer.
+The blind-floor exit reaches a slate only when lane texts are on the offer too,
+and the driver cannot put any there:
+`laneTextsForSlate` offers a lane text only when `validateTranslatedSlice` answers valid,
+and on ground the floor cannot read it answers a refusal or no verdict.
+A probe over `laneTextsForSlate` (keyless) offered 0 lane texts over an original with an unclosed inline tag and 0 over
+a front-matter original with no fenced block,
+against 2 over a readable original with the same two lane texts as the positive control.
+So only a direct caller that supplies lane texts can make the blind-floor exit ask a slate.
+
+Measured:
+the scratch script `~/temp/agent/tr-fan/w385-followups/blind-reach.ts` calls `floorReach` as the exit does
+(original text,
+archive text with an empty page for a slice that has no archive wording,
+and the front-matter syntax for a metadata slice) over the deterministic carve (`prepareDocumentPair`),
+the carve of the earlier counts.
+- The pinned corpus (`a41fc607ea`,
+  the tree clean):
+  92 entries,
+  1,351 slices,
+  0 where `floorReach` says blind,
+  and 0 with no archive wording (the empty standing's source).
+  The count of 1,259 slices in E4 was taken on 2026-09-27,
+  and 1,351 is the carve of B43 (2026-09-30) and of this round.
+- The settled pages:
+  240 shipped pages of the 239 corpus-pass runs under `~/temp/agent` (runs that hold `attempts.json` and
+  `fixed/people/<id>/page.en.md`),
+  each paired with the pinned original of the same id and carved with the shipped page as the target:
+  7,636 slices,
+  0 blind,
+  0 with no wording.
+  The stage reads the archive and not the shipped page,
+  so this set is a second reading of the sources and not the stage's own input.
+- Positive controls in the same script:
+  an original with an unclosed inline tag (`<div>` before running text) says blind on the original side,
+  a front-matter slice whose original has no fenced block says blind,
+  and a readable original says comparable.
+  The first control tried,
+  a `<div>` line of its own,
+  said comparable because the grammar reads it as a block,
+  and was replaced.
+- Stored artifacts,
+  searched with `rg --count` over `artifacts/*.json` of every run folder under `~/temp/agent`:
+  the finding `consolidate-unfloored` appears in none (no hit anywhere,
+  so no stored artifact is a positive control for it and the carve counts stand as the measure),
+  and the terminal `no-standing-text` appears in 15 artifacts,
+  all of August 2026 runs and none of the passes `XingZ6015` to `XingZ6022` (E4 counts the same 15 and dates them to
+  August).
+  The search could not enter three unrelated `pgvector-*` folders (permission refused).
+
+The limit:
+neither exit is reached by any pinned or settled slice,
+so the skip is not applied there and no test pins it.
+If an entry is added to the corpus that carves an unreadable original or a slice with no archive wording,
+the empty-standing exit would buy a slate of lane texts on a short bench that can only keep what stands,
+and the fix is the B1053 skip at that exit:
+a settlement given no lane texts when fewer slate judges are reachable than a winner needs,
+red test first.
+Nothing in the owner's answers settles that exit,
+so it is stated here as a limit and not changed.
+
+Cache versions:
+none moved,
+because no code or key changed.
+Round w385 as a whole moved none either:
+the changes of `bf9471f212` read a value once and throw on a shape no stage builds,
+and the added cases are tests.
+`CONSOLIDATE_CACHE_VERSION` stays 43 and the artifact generation stays 22.
+
 Ids used:
-B1051 and B1053.
+B1051,
+B1053 and B1130.
 B1050 is in
-[Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29](audit-ledger-the-two-ballot-translate-text.md).
+[Audit ledger: the two-ballot translate text and the lead's adoptions of 2026-10-29][two-ballot-ledger].
 B1052 and B1054 are in
-[Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
+[Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
 B1055 to B1059 are unused.
+
+[two-ballot-ledger]: audit-ledger-the-two-ballot-translate-text.md
+[names-ledger]: audit-ledger-found-while-fixing-page-names-headings-and-math.md

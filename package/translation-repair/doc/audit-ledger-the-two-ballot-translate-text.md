@@ -20,17 +20,19 @@ On slices 67 to 70 the archive carries an invented Metal Gear Solid 2 quotation.
 This file holds B1020 to B1025,
 B1040 and B1050.
 B1050 records how the page of that pass came to tell a life that ended in the present tense at six places,
-and the owner's answer of 2026-10-29 to it.
+and the owner's answers of 2026-10-29 and 2026-10-31 to it.
 B1051,
 the ambiguous `their` of the same page,
-and B1053,
+B1053,
 the purchase that still paid for slates that could not decide,
+and B1130,
+the two exits of that purchase that still ask a slate on a short bench,
 are filed in
-[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide](audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md).
+[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide][pronoun-ledger].
 B1052,
 the heading `Part Nine: __` of the same page,
 and B1054 are filed in
-[Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
+[Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
 
 The owner's answer of 2026-10-29 (question tool),
 choice "Ship the two-ballot text (Recommended)":
@@ -482,6 +484,8 @@ answered on 2026-10-29 (UTC):
 "Swap only where flagged (Recommended)".
 Fixed for group B in `b176e1b2a6` (the red cases) and `763bc7f361` (the swap),
 with the own test of the exit after a slate in `67ce369c99`.
+The owner confirmed the scope of the swap on 2026-10-31 (the second owner answer of this entry),
+and the follow-ups of round w385 are listed under "Follow-ups of round w385".
 
 The defect:
 the page shipped by `XingZ6022` tells the life of a person who has died in the present tense
@@ -585,8 +589,11 @@ because the owner's answer of 2026-10-29 was asked about a refused archive.
 The standing was unendorsed,
 no judge had called it flawed,
 and so none of the rulings of 2026-10-25 reaches it either.
-Whether a two-ballot translate text may replace an unendorsed standing when neither the contest nor the slate can seat
-two judges is the owner question at the end of this entry.
+Whether a two-ballot translate text may replace an unendorsed standing when the final round cannot seat two judges is
+the owner question at the end of this entry.
+The question as put to the owner on 2026-10-29 also named the contest.
+The code reads the final slate only,
+and the owner confirmed that scope on 2026-10-31 (the answer "Swap there too (Recommended)").
 
 Measured on the artifact:
 the standing was eligible and the slate declined at 59 slices (49 archives unchanged,
@@ -635,7 +642,11 @@ Owner question (answered),
 with the options as the lead ranked them:
 - Option 1,
   ship the two-ballot translate text over an unendorsed standing only where the standing carries tense
-  candidates the translate text lacks and neither the contest nor the slate seated two judges (six slices here).
+  candidates the translate text lacks and neither the contest nor the slate seated two judges
+  (six slices here;
+  as put to the owner,
+  and the code reads the final slate only,
+  per the answer of 2026-10-31).
   It fixes the known lines at the smallest scale.
   It lets the aid decide,
   which the ruling of 2026-10-11 forbids,
@@ -669,6 +680,18 @@ In `XingZ6022` that is 6 of the 59 slices in that position (11,
 42,
 43,
 77 and 80).
+
+Owner answer on the scope of the swap,
+2026-10-31,
+question tool,
+"Swap there too (Recommended)":
+the swap reads the final slate only.
+A contest that seated two judges and still refused to endorse the standing does not stop the swap.
+The code stays as it is:
+`presentTenseSwapOf` reads whether the contest endorsed the standing (`standingMayShip`) and the ballots of the
+translate lane's own round,
+and the exits read how many judges the final slate heard or could reach;
+none of them reads whether the contest itself seated two judges.
 
 What the run shows about those six,
 read from the log:
@@ -720,13 +743,32 @@ What changed:
   the cached-decisions rule asks for the `START tip=` lines of the logs begun since the number was set (`fdf3201f3f`,
   14:30 UTC on 2026-10-29),
   and none was begun after it.
-  The newest corpus-pass log,
-  `corpus-pass-XingZ6022.log`,
-  started at 07:49 UTC and was last written at 11:44 UTC,
-  its tip `c6185d4086` is an ancestor of `fdf3201f3f`,
-  and no other top-level log in the agent directory written since holds a `START tip=` line.
-  The search covered the top level of the agent directory only,
-  not each run directory.
+  The newest corpus pass is the run folder `~/temp/agent/corpus-pass-XingZ6022`,
+  created at 07:49:27 UTC on 2026-10-29 and last written at 11:44:09 UTC the same day.
+  It holds `artifacts/XingZ60.json`,
+  `attempts.json`,
+  `fixed/`,
+  `ledger/`,
+  `prompt-payloads/`
+  and `slice-cache/`,
+  and no log.
+  Its artifact names the tip `c6185d4086` once,
+  which is an ancestor of `fdf3201f3f`.
+  The first version of this entry named the log `corpus-pass-XingZ6022.log` as the source of the start time and
+  of the `START tip=` search;
+  rechecked on 2026-10-31,
+  no entry of that name exists in the agent directory,
+  nor any other top-level entry with `XingZ6022` in its name besides the folder.
+  The creation and last-write times above are the folder's,
+  read with `stat`,
+  and the tip is the artifact's.
+  The claim that no other top-level log written since holds a `START tip=` line rests on the search made on
+  2026-10-29,
+  which covered the top level of the agent directory only,
+  not each run directory,
+  and cannot be repeated now.
+  The log lines this entry cites (for example 21222 to 29635) were read from that log on 2026-10-29,
+  and cannot be re-read from the folder either.
 
 What is not changed,
 and the limits:
@@ -762,13 +804,41 @@ Guards shown to fail first:
 the swap after a one-judge slate,
 the swap with no slate bought,
 the purchase that paid three writer calls and ended in an interruption,
-and the unquoted control of the quoted-words case;
-the other four are the controls),
+and the quoted-words case,
+which failed through its unquoted arm:
+the same words without the quotation marks are flagged,
+so the swap had to fire,
+while the quoted arm passes on code with no swap;
+the other four cases passed on the old code),
 `artifact` (two cases failed:
 the reason on the shipped kind,
 and the reader that accepted a winner with none),
 and `page-check` (`tenseSwapDefects` did not exist,
 so its file did not load).
+
+Follow-ups of round w385,
+from the re-check of rounds w381 and w383:
+- `bf9471f212` (red case in `4951378eea`):
+  the purchase reads the detector once on the swap path and hands its reading to the settlement,
+  which read both texts a second time before.
+  The case counts reads of the translate lane's text through `buyConsolidationSlice` and expects 2 (the detector,
+  then the shipment) where the old code made 3.
+  No outcome changes.
+- `bf9471f212`:
+  `describeConsolidateSlice` throws for a settlement marked translate-winner-shipped that names no reason,
+  where it recorded the reason `refused-standing`.
+  Both places that set the mark set the reason with it,
+  and a settlement is never stored,
+  so only an invented settlement reached the fallback.
+  The throw guards a fault in the stage and is not a path of a run.
+- `efe2e07a50` and `f9114d0864`:
+  four new cases of the short-bench skip,
+  and the no-death cases now declare the subject's names,
+  because without the names the detector could not flag the standing and those cases passed with the death check
+  removed.
+  With the death check removed and the package rebuilt,
+  the two no-death cases fail;
+  with it restored they pass.
 
 Cache versions:
 none moved.
@@ -792,8 +862,12 @@ none moved.
 
 Ids used:
 B1050.
-B1051 and B1053 are in
-[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide](audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md).
+B1051,
+B1053 and B1130 are in
+[Audit ledger: the XingZ6022 pronoun count and the slates that could not decide][pronoun-ledger].
 B1052 and B1054 are in
-[Audit ledger: found while fixing, names, headings and math on the page](audit-ledger-found-while-fixing-page-names-headings-and-math.md).
+[Audit ledger: found while fixing, names, headings and math on the page][names-ledger].
 B1055 to B1059 are unused.
+
+[pronoun-ledger]: audit-ledger-the-xingz6022-pronoun-count-and-the-slates-that-could-not-decide.md
+[names-ledger]: audit-ledger-found-while-fixing-page-names-headings-and-math.md
