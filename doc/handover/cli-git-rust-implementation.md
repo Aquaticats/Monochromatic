@@ -4454,3 +4454,32 @@ This block supersedes "State at 2026-10-29 (night, later)".
 - Not mine and left alone: `doc/audit/standards-review-gate-shadow.md` (hook-written), `pnpm-lock.yaml` (modified in
   the main checkout and, by `prepare:pnpm:install`, in the gate worktree; neither is committed by me), the
   `standards-review-shadow-*` units the commit hook starts.
+
+## Update at 2026-10-30 (late: host stall, two sweep findings)
+
+- Host stall at about 22:20: load 149 on 28 CPUs, I/O full stall 22 to 25 percent. After the user had `xinyanchen-mux`
+  and `xinyanchen-polypane-branch@4211` to `@4213` stopped and disabled, load fell to 25 and full stall to 7 percent.
+  Hardware is healthy: NVMe SMART passed, 0 media errors, 3 percent used, 75 unsafe shutdowns; `sda` SMART passed,
+  0 reallocated, 2 CRC errors (cable or connector); no disk errors in `dmesg`. The user allowed passwordless sudo
+  for this session; used read-only (`dmesg`, `smartctl`).
+- Gate six (`strace6.log`) ended 1790 passed, 2 failed of 1792 run, after 524 s. Both failures are unit tests that hung
+  for over 420 s until the test harness's own watchdog aborted them ("the unit-test run exceeded 120s: a test is
+  stuck"): `replay_reverse_apply::tests::strict_reverse_agrees_with_git_apply_on_seeded_cases` and
+  `replay_shared_paths::tests::shared_paths_list_the_paths_both_sides_changed`. Both passed in gates four and five, so
+  this is the stall, not a regression. Open: they spawn real Git once per seeded case, so their cost grows with the
+  spawn count; a batched `git apply` would make them immune to a slow host (rule NHR: a slow disk never excuses a
+  failure). Not started.
+- Open product gap (found by the sweep `fault_limits::a_process_limit_that_stays_exhausted_from_any_start_leaves_a_
+  recoverable_repository`, deterministic in the Git 2.56.0 image at case 49, passes on the host's older Git): after a
+  commit whose later process starts are all refused, the wrapper exits 1 leaving `.git/index.lock` and
+  `.git/index~pid.lock` (`pid <wrapper pid>`; the wrapper's own real index lock). Evidence kept in
+  `~/temp/agent/gate/keep/tmp/native-binary-35-nproc-clone3/` (trace `trace-nproc-clone3-49.txt`, case dir `case-49`).
+  `landing_attempt.rs` releases the lock on every exit except "target advanced, install failed"
+  (`held.for_recovery`), which leaves it for recovery by design. Direct `git add` then refuses (Git's own stale
+  message). The sweep's follow-up add now goes through the wrapper (commit after `9dba5f1452`), and the wrapper's
+  `add` also refuses: `still waiting for .git/index.lock, whose owner PID 905 no longer runs ... (indexLock.unprov...`,
+  exit 2, from `index_writer_coordination.rs` `wait_for_lock` classifying the lock as an unproven owner. So between that
+  failed commit and the next landing, `git add` is stuck, which breaks the never-stuck rule. Next: read
+  `recovery_scan.rs`, `commit_recovery.rs` and `index_writer_coordination.rs` `acquire_landing` to see why recovery did
+  not retire a lock whose journal record exists, then fix and add a permanent test (the sweep is the red test).
+- Units of mine: none running. The kept-fixture container `cli-git-keep` and the images are expendable.
