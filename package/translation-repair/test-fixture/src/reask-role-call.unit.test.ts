@@ -77,6 +77,71 @@ await describe({
     },),
 
     it({
+      name: 'READS A CALL THAT HANDS ONLY A SPREAD AS \'only a spread\' AND NOT AS \'none\' (ledger B1150), since the role may ride '
+        + 'in what it spreads; a conditional spread that names the role counts, and one that names other keys does not',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({ ...args, },);',
+          'await gatherStageVoices({',
+          '  client,',
+          '  ...base,',
+          '},);',
+          'await gatherStageVoices({',
+          '  ...(late ? { role: \'roster\', } : {}),',
+          '},);',
+          'await gatherStageVoices({',
+          '  client,',
+          '  ...((fanOut === undefined) ? {} : { fanOut, }),',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual([
+          'only a spread',
+          'only a spread',
+          'only a spread',
+          'none',
+        ],);
+      },
+    },),
+
+    it({
+      name: 'COUNTS A SPREAD OF A CALL WITH AN OBJECT ARGUMENT as one that can replace the role, since a call can return '
+        + 'anything however small its argument',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({',
+          '  role: \'wide-judge\',',
+          '  ...build({ a: 1, },),',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['wide-judge then a spread',],);
+      },
+    },),
+
+    it({
+      name: 'READS A ROLE WRITTEN AS A COMPUTED KEY, [\'role\']: ..., as the role named',
+      fn: async () => {
+        const source = [
+          'await gatherStageVoices({',
+          '  [\'role\']: \'checker\',',
+          '},);',
+        ].join('\n',);
+        expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['checker',],);
+      },
+    },),
+
+    it({
+      name: 'FINDS THE DECLARATION OF A LITERAL AND NOT AN EARLIER USE OF ITS NAME (the case be93348926 lacked): a name '
+        + 'passed to a call before it is declared does not stand for the declaration',
+      fn: async () => {
+        const source = [
+          'use(judging,);',
+          'const judging = { role: \'late-judge\', };',
+        ].join('\n',);
+        expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
+      },
+    },),
+
+    it({
       name: 'REFUSES A CALLEE THE SOURCE NEVER NAMES, so a test that names the wrong function fails and does not read as '
         + 'a file with no call',
       fn: async () => {
