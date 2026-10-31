@@ -1,0 +1,60 @@
+# No [tools] here: the Rust toolchain (nightly + rust-src + llvm-tools-preview)
+# is managed repo-wide in the root mise.no-env.toml [tools], so every crate
+# shares one channel. mise still applies that toolchain to tasks run in this
+# directory; cargo-fuzz needs the nightly it provides.
+
+[tasks.test]
+description = "cargo nextest run --lib (unit tests for the structured generator and invariants)"
+# Scoped to `--lib`: the library target hosts the generator and invariant unit tests. The
+# fuzz_targets/* bins are libFuzzer harnesses that only link under cargo-fuzz's injected
+# sanitizer-coverage RUSTFLAGS, so a plain `cargo nextest run` over all targets would fail
+# to build them.
+run = "cargo nextest run --lib --release"
+
+[tasks."lint:clippy"]
+description = "Run Clippy over every Rust target with warnings denied"
+run = "cargo clippy --release --all-targets -- -D warnings"
+
+[tasks.list]
+description = "List all fuzz targets"
+run = "cargo fuzz list --fuzz-dir ."
+
+[tasks.build]
+description = "Build all fuzz targets (AddressSanitizer instrumented)"
+# `--target x86_64-unknown-linux-gnu` is load-bearing: cargo-fuzz defaults to
+# `x86_64-unknown-linux-musl` on Linux, but the ASAN flags it sets via RUSTFLAGS conflict
+# with musl's static libc. Forcing gnu picks a target where dynamic libc satisfies the
+# sanitizer. `--sanitizer address` is explicit even though it is cargo-fuzz's default, so a
+# future default change cannot silently drop memory-error detection.
+run = "cargo fuzz build --fuzz-dir . --sanitizer address --target x86_64-unknown-linux-gnu"
+
+[tasks.smoke]
+description = "Run every fuzz target for 30s with the dictionary as a smoke test (AddressSanitizer instrumented). Run it in a resource-bounded container, never on a workstation."
+# `--target` and `--sanitizer` rationale: see build.
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { copyFileSync, existsSync, mkdirSync, readdirSync } = await import('node:fs')
+const targets = execFileSync('cargo', ['fuzz', 'list', '--fuzz-dir', '.'], { encoding: 'utf8' }).split('\\n').map((line) => line.trim()).filter(Boolean)
+for (const target of targets) {
+  console.log(`--- ${target} ---`)
+  // Only one corpus directory is passed to libFuzzer: with two, libFuzzer also writes newly
+  // discovered units into the second one and pollutes the committed seed directory. Seeds are
+  // copied into the gitignored scratch corpus instead, without overwriting discoveries.
+  mkdirSync(`corpus/${target}`, { recursive: true })
+  mkdirSync(`seed/${target}`, { recursive: true })
+  for (const entry of readdirSync(`seed/${target}`)) {
+    const destination = `corpus/${target}/${entry}`
+    if (!existsSync(destination)) copyFileSync(`seed/${target}/${entry}`, destination)
+  }
+  execFileSync('cargo', ['fuzz', 'run', '--fuzz-dir', '.', target, '--sanitizer', 'address', '--target', 'x86_64-unknown-linux-gnu', `corpus/${target}`, '--', '-max_total_time=30', '-rss_limit_mb=2048', '-dict=dictionary/xml-edit.dict'], { stdio: 'inherit' })
+}
+"""
+
+[tasks.run]
+description = "Run or replay one fuzz target. Pass libFuzzer flags (e.g. -max_total_time=30) and/or input paths (a crash artifact or corpus dir) after --."
+usage = """
+arg "target" help="Fuzz target name (e.g. fuzz_parse_roundtrip)"
+arg "[args]" var=#true help="libFuzzer flags (-flag=v) and/or input paths to replay (artifacts/<target>/crash-...)"
+"""
+run = "cargo fuzz run --fuzz-dir . --sanitizer address --target x86_64-unknown-linux-gnu {{ target }} corpus/{{ target }} -- {{ args() }}"

@@ -1,0 +1,8 @@
+# Fuzz corpus files are arbitrary fuzzer-mutated bytes, not text: EOL normalization
+# would silently rewrite a CR/LF-bearing seed (e.g. a `\r\n` literal) and change which
+# input the seed represents. Mark them binary so their bytes are stored verbatim.
+# The commit guard's final-newline policy honors `-text` too, so seeds keep their
+# deliberately missing final newline.
+seed/** -text
+corpus/** -text
+artifacts/** -text
