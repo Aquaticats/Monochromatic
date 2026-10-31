@@ -97,7 +97,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// The lock file name,
-/// relative to the directory the command runs in (the repository root; the Mise tasks pass the path from the package directory explicitly).
+/// relative to the directory the command runs in
+/// (the repository root;
+/// the Mise tasks pass the path from the package directory explicitly).
 pub const DEFAULT_LOCK_PATH: &str = "browserslist-data.lock.json";
 
 /// Build a usage error.
@@ -134,8 +136,10 @@ fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<Stri
 
 /// Read a file as UTF-8 text or report the path.
 fn read_text(path: &Path) -> Outcome<String> {
-    return fs::read_to_string(path)
-        .map_err(|error| return BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() });
+    match fs::read_to_string(path) {
+        Ok(text) => return Ok(text),
+        Err(error) => return Err(BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() }),
+    }
 }
 
 /// Build the data source from `--cache-dir` and `--registry`,

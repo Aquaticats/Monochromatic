@@ -109,6 +109,16 @@ const DEAD_RULES: [DeadRule; 6] = [
     DeadRule::Exact("samsung", "4"),
 ];
 
+/// Whether a dash-joined range such as `10-11` has `version` as one of its parts.
+fn has_part(range: &str, version: &str) -> bool {
+    for part in range.split('-') {
+        if part == version {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// Format `<name> <version>` the way every browserslist result is spelled.
 fn entry(agent: &Agent, version: &str) -> String {
     return format!("{} {}", agent.name, version);
@@ -118,7 +128,13 @@ fn entry(agent: &Agent, version: &str) -> String {
 /// filter the released versions by comparing parsed numbers (NaN compares false).
 fn ray(table: &AgentTable, written: &str, bound: &str, keep: fn(&str, &str) -> bool) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
-    return Ok(agent.released().into_iter().filter(|version| return keep(version, bound)).map(|version| return entry(agent, version)).collect());
+    let mut entries: Vec<String> = Vec::new();
+    for version in agent.released() {
+        if keep(version, bound) {
+            entries.push(entry(agent, version));
+        }
+    }
+    return Ok(entries);
 }
 
 /// `>=` compares the newest member of a joined range against the bound.
@@ -142,7 +158,7 @@ fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
     }
     let mut alias: Option<&str> = None;
     for full in versions.iter().copied() {
-        if full.contains('-') && full.split('-').any(|part| return part == version) {
+        if full.contains('-') && has_part(full, version) {
             alias = Some(full);
         }
     }
@@ -208,7 +224,13 @@ pub fn dead_set(table: &AgentTable) -> Outcome<Vec<String>> {
 /// ```
 pub fn subtract_dead(selected: &[String], table: &AgentTable) -> Outcome<Vec<String>> {
     let dead: HashSet<String> = dead_set(table)?.into_iter().collect();
-    return Ok(selected.iter().filter(|candidate| return !dead.contains(*candidate)).cloned().collect());
+    let mut kept: Vec<String> = Vec::new();
+    for candidate in selected {
+        if !dead.contains(candidate) {
+            kept.push(candidate.clone());
+        }
+    }
+    return Ok(kept);
 }
 
 /// What:

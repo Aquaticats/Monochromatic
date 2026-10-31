@@ -103,10 +103,14 @@ pub struct DataLock {
     pub firefox_esr: String,
 }
 
+/// Whether a byte may appear in a package version placed in a URL path.
+fn is_version_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-' || byte == b'_';
+}
+
 /// A package version must be safe to place in a URL path.
 fn valid_version(version: &str) -> bool {
-    return !version.is_empty()
-        && version.bytes().all(|byte| return byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-' || byte == b'_');
+    return !version.is_empty() && version.bytes().all(is_version_byte);
 }
 
 /// The JSON object for one pinned package.
@@ -158,7 +162,10 @@ impl DataLock {
     /// function parseLock(text: string): DataLock;
     /// ```
     pub fn from_json(text: &str) -> Outcome<Self> {
-        let parsed: Value = serde_json::from_str(text).map_err(|error| return lock_error(&format!("not valid JSON: {error}")))?;
+        let parsed: Value = match serde_json::from_str(text) {
+            Ok(parsed) => parsed,
+            Err(error) => return Err(lock_error(&format!("not valid JSON: {error}"))),
+        };
         let Value::Object(root) = parsed else {
             return Err(lock_error("the top level is not an object"));
         };

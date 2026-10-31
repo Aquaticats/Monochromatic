@@ -71,19 +71,24 @@ use crate::query::Browser;
 pub fn last_version(browser: Browser, data: &BrowserData) -> Outcome<Vec<String>> {
     let agent = data.agents.require(browser.agent_key())?;
     let released = agent.released();
-    return Ok(released.last().map(|version| format!("{} {}", agent.name, version)).into_iter().collect());
+    let mut entries: Vec<String> = Vec::new();
+    if let Some(version) = released.last() {
+        entries.push(format!("{} {}", agent.name, version));
+    }
+    return Ok(entries);
 }
 
 /// Read the major of a Node.js version like `26.13.0` the way `parseInt(version.split('.')[0])` does.
 fn node_major(version: &str) -> Outcome<u64> {
     let first = version.split('.').next().unwrap_or("");
-    return parse_int_prefix(first).ok_or_else(|| {
-        return BrowserslistError::Data {
+    let Some(major) = parse_int_prefix(first) else {
+        return Err(BrowserslistError::Data {
             file: "node-releases data/processed/envs.json".to_string(),
             offset: None,
             message: format!("version {version:?} does not start with a number"),
-        };
-    });
+        });
+    };
+    return Ok(major);
 }
 
 /// What:
@@ -125,7 +130,12 @@ pub fn has_prerelease(version: &str) -> bool {
 /// function lastNodeMajor(data: BrowserData): string[]; // 'node ' + version for each kept stable release
 /// ```
 pub fn last_node_major(data: &BrowserData) -> Outcome<Vec<String>> {
-    let stable: Vec<&String> = data.node_versions.iter().filter(|version| return !has_prerelease(version)).collect();
+    let mut stable: Vec<&String> = Vec::new();
+    for version in &data.node_versions {
+        if !has_prerelease(version) {
+            stable.push(version);
+        }
+    }
     let Some(newest) = stable.last() else {
         return Ok(Vec::new());
     };
@@ -142,7 +152,11 @@ pub fn last_node_major(data: &BrowserData) -> Outcome<Vec<String>> {
         }
         kept.reverse();
     }
-    return Ok(kept.into_iter().map(|version| format!("node {version}")).collect());
+    let mut entries: Vec<String> = Vec::with_capacity(kept.len());
+    for version in kept {
+        entries.push(format!("node {version}"));
+    }
+    return Ok(entries);
 }
 
 /// What:

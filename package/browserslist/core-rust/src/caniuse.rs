@@ -140,14 +140,20 @@ impl AgentTable {
 
     /// Find a browser by its lowercase key.
     pub fn get(&self, name: &str) -> Option<&Agent> {
-        return self.agents.iter().find(|agent| return agent.name == name);
+        for agent in &self.agents {
+            if agent.name == name {
+                return Some(agent);
+            }
+        }
+        return None;
     }
 
     /// Find a browser or fail with browserslist's own `Unknown browser` message.
     pub fn require(&self, written: &str) -> Outcome<&Agent> {
-        return self.get(&written.to_ascii_lowercase()).ok_or_else(|| {
-            return BrowserslistError::Browserslist { message: format!("Unknown browser {written}") };
-        });
+        let Some(agent) = self.get(&written.to_ascii_lowercase()) else {
+            return Err(BrowserslistError::Browserslist { message: format!("Unknown browser {written}") });
+        };
+        return Ok(agent);
     }
 }
 

@@ -124,8 +124,10 @@ so the call works inside or outside an async runtime.
 
 ## Data lock and cache
 
-`browserslist-data.lock.json`, at the repository root so that the file-enforcer `browserslist` rule names it
-as its `lock` path, pins `caniuse-lite` and `node-releases` by version and npm `dist.integrity` (sha-512),
+`browserslist-data.lock.json`,
+at the repository root so that the file-enforcer `browserslist` rule names it
+as its `lock` path,
+pins `caniuse-lite` and `node-releases` by version and npm `dist.integrity` (sha-512),
 and the Firefox ESR value from Mozilla product-details (for example `153.6.0esr`).
 The library only reads the lock;
 it never picks versions.
@@ -163,8 +165,10 @@ The binary `monochromatic-browserslist` has three commands:
   which the conformance harness uses.
 - `resolve --config PATH` prints the rendered resolved JSON for a config file.
 
-Each takes `--lock PATH` (default `browserslist-data.lock.json`, which is the repository-root lock when the command
-runs from the repository root; the Mise tasks pass `../../../browserslist-data.lock.json`),
+Each takes `--lock PATH`
+(default `browserslist-data.lock.json`,
+which is the repository-root lock when the command runs from the repository root;
+the Mise tasks pass `../../../browserslist-data.lock.json`),
 `--cache-dir DIR` and `--registry URL`.
 
 ## Data files read

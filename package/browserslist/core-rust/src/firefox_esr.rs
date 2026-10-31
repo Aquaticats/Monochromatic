@@ -32,9 +32,37 @@ use crate::error::{BrowserslistError, Outcome};
 /// ```
 use crate::js_number::parse_int_prefix;
 
+/// Whether a byte is an ASCII digit.
+fn is_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
 /// Check that a text is a non-empty run of ASCII digits.
 fn is_digits(text: &str) -> bool {
-    return !text.is_empty() && text.bytes().all(|byte| return byte.is_ascii_digit());
+    return !text.is_empty() && text.bytes().all(is_digit_byte);
+}
+
+/// Check that every part is a non-empty run of ASCII digits.
+fn all_digits(parts: &[&str]) -> bool {
+    for part in parts {
+        if !is_digits(part) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// The error for a value that is not shaped `<major>.<minor>.<patch>esr`.
+fn shape_error(raw: &str) -> BrowserslistError {
+    return BrowserslistError::Data {
+        file: "Firefox ESR value".to_string(),
+        offset: None,
+        message: format!(
+            "{raw:?} is not shaped <major>.<minor>.<patch>esr with decimal numbers (for example \"153.6.0esr\"); \
+             Mozilla product-details may have changed its format, so check \
+             https://product-details.mozilla.org/1.0/firefox_versions.json before editing the lock"
+        ),
+    };
 }
 
 /// What:
@@ -49,25 +77,17 @@ fn is_digits(text: &str) -> bool {
 /// function parseEsrMajor(raw: string): number; // throws when raw is not <major>.<minor>.<patch>esr
 /// ```
 pub fn parse_esr_major(raw: &str) -> Outcome<u64> {
-    let failure = || {
-        return BrowserslistError::Data {
-            file: "Firefox ESR value".to_string(),
-            offset: None,
-            message: format!(
-                "{raw:?} is not shaped <major>.<minor>.<patch>esr with decimal numbers (for example \"153.6.0esr\"); \
-                 Mozilla product-details may have changed its format, so check \
-                 https://product-details.mozilla.org/1.0/firefox_versions.json before editing the lock"
-            ),
-        };
-    };
     let Some(numbers) = raw.strip_suffix("esr") else {
-        return Err(failure());
+        return Err(shape_error(raw));
     };
     let parts: Vec<&str> = numbers.split('.').collect();
-    if parts.len() != 3 || !parts.iter().all(|part| return is_digits(part)) {
-        return Err(failure());
+    if parts.len() != 3 || !all_digits(&parts) {
+        return Err(shape_error(raw));
     }
-    return parse_int_prefix(parts[0]).ok_or_else(failure);
+    let Some(major) = parse_int_prefix(parts[0]) else {
+        return Err(shape_error(raw));
+    };
+    return Ok(major);
 }
 
 /// What:

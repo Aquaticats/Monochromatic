@@ -53,13 +53,16 @@ fn envs_error(message: &str) -> BrowserslistError {
 /// function parseNodeVersions(text: string): string[];
 /// ```
 pub fn parse_node_versions(text: &str) -> Outcome<Vec<String>> {
-    let parsed: Value = serde_json::from_str(text).map_err(|error| {
-        return BrowserslistError::Data {
-            file: ENVS_FILE.to_string(),
-            offset: Some(0),
-            message: format!("not valid JSON: {error}"),
-        };
-    })?;
+    let parsed: Value = match serde_json::from_str(text) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            return Err(BrowserslistError::Data {
+                file: ENVS_FILE.to_string(),
+                offset: Some(0),
+                message: format!("not valid JSON: {error}"),
+            });
+        }
+    };
     let Value::Array(records) = parsed else {
         return Err(envs_error("top level is not an array"));
     };
