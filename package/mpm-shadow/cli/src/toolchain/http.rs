@@ -254,7 +254,12 @@ impl HyperClient {
             Err(error) => return Err(format!("cannot load the system's root certificates: {error}")),
         };
         let connector: HttpsConnector<HttpConnector> = builder.https_only().enable_http1().build();
-        let client: TlsClient = Client::builder(TokioExecutor::new()).build(connector);
+        // No connection is kept for reuse:
+        // the runtime above runs only while a call blocks on it,
+        // so a pooled connection that the server closes during a long install step (cargo binstall, rustup, uv)
+        // is never noticed,
+        // and the next request over it fails with `client error (SendRequest)`.
+        let client: TlsClient = Client::builder(TokioExecutor::new()).pool_max_idle_per_host(0).build(connector);
         return Ok(HyperClient {
             runtime,
             client,
