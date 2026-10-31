@@ -221,7 +221,7 @@ fn reads_the_installed_version_from_the_record() {
 
 //region version-keyed install records
 
-/// Writes the record `mpm-shadow sync` leaves for a finished install:
+/// Writes the record `mpm-shadow install` leaves for a finished install:
 /// `<root>/cargo/<crate>/<version>/.crates.toml` naming the crate and version.
 fn finish_version(root: &Path, crate_name: &str, version: &str) {
     let directory: PathBuf = root.join("cargo").join(crate_name).join(version);

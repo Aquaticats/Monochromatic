@@ -1,5 +1,5 @@
 //! What:
-//! `update` and `update --check`:
+//! `update` and `outdated`:
 //! resolve every tool of the plan to a version and artifacts,
 //! then write the
 //!           whole lock (or,
@@ -122,7 +122,7 @@ impl UpdateReport {
         return false;
     }
 
-    /// Whether any tool moved or was added (the condition `update --check` exits 1 for).
+    /// Whether any tool moved or was added (the condition `outdated` exits 1 for).
     pub fn has_movement(&self) -> bool {
         for outcome in &self.outcomes {
             if matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }) {
@@ -195,7 +195,7 @@ fn prerequisites(route: Route) -> &'static [&'static str] {
 }
 
 /// What:
-/// Runs `update` (or `update --check`) over every tool of the plan in a scope.
+/// Runs `update` (or `outdated`) over every tool of the plan in a scope.
 /// Why:
 /// It is `run_update_for` with no names.
 ///
@@ -215,7 +215,7 @@ pub fn run_update(
 }
 
 /// What:
-/// Runs `update` (or `update --check`) in a scope for the tools the `names` patterns select
+/// Runs `update` (or `outdated`) in a scope for the tools the `names` patterns select
 /// (every tool when `names` is empty).
 /// Why:
 /// With `check` set nothing is installed and nothing is written.
@@ -228,7 +228,7 @@ pub fn run_update(
 /// only the selected tools are looked up;
 /// every other row keeps its version and artifacts and takes the plan's current bins,
 /// env and options,
-/// as offline `lock` would give it.
+/// as offline `install --lockfile-only` would give it.
 /// A new tool is therefore resolved alone by naming it,
 /// and a plan entry the lock cannot hold that the names left out is refused before any lookup.
 ///
@@ -257,7 +257,7 @@ pub fn run_update_for(
 /// Runs `update` over files `load` already read,
 /// for the exact tool ids in `only` (every tool when `only` is `None`).
 /// Why:
-/// `sync` resolves the new or re-edited plan entries it finds in the files it just read,
+/// `install` resolves the new or re-edited plan entries it finds in the files it just read,
 /// with the revision check of the publish covering the gap between that read and the write,
 /// and `run_update_for` selects by pattern first.
 /// A plan entry the lock cannot hold that `only` leaves out is refused before any lookup.
@@ -428,7 +428,7 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));
     } else if check {
-        text.push_str(&format!("toolchain update --check: {moved} tools would move; nothing was written or installed\n"));
+        text.push_str(&format!("toolchain outdated: {moved} tools would move; nothing was written or installed\n"));
     } else if report.wrote {
         text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved)\n"));
     } else {

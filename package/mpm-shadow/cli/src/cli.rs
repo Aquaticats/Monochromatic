@@ -105,7 +105,7 @@ pub fn build_command() -> Command {
     // return new Command('mpm-shadow').version(pkg.version).addCommand(prune);
     // ```
     return Command::new("mpm-shadow")
-        .about("Owns the toolchain plan and lock (lock, sync, status, update, bin-paths) and shadows mpm: invoked as mpm it runs the real mpm, then deletes the superseded cached versions of this repository's own crates.")
+        .about("Owns the toolchain plan and lock (install, update, outdated, list, bin) and shadows mpm: invoked as mpm it runs the real mpm, then deletes the superseded cached versions of this repository's own crates.")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(true)
         .arg_required_else_help(true)

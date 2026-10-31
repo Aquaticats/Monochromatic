@@ -1,5 +1,5 @@
 //! What:
-//! `sync`:
+//! `install`:
 //! install every locked tool that is not already at its locked version,
 //! in dependency order,
 //! then make
@@ -7,7 +7,7 @@
 //! rebuild the exposure directory and run the postinstall commands.
 //! Why:
 //! This is the installer.
-//! It reads only the lock (which `sync` first proves agrees with the plan),
+//! It reads only the lock (which `install` first proves agrees with the plan),
 //! probes
 //!           before installing so a second run changes nothing,
 //! and keeps going after one tool fails so the report
@@ -108,7 +108,7 @@ pub fn sync_order(tools: &[LockedTool]) -> Vec<&LockedTool> {
     return ordered;
 }
 
-/// What `sync` did:
+/// What `install` did:
 /// tools already at their version,
 /// tools installed,
 /// tools that failed (with why),
@@ -127,7 +127,7 @@ pub struct SyncReport {
     pub missing_bins: Vec<String>,
     /// Warnings printed before the install that caused them.
     pub warnings: Vec<String>,
-    /// The tools `sync` resolved and locked itself before installing,
+    /// The tools `install` resolved and locked itself before installing,
     /// as tool id and locked version:
     /// the plan entries that were new or whose resolution-affecting fields changed.
     pub resolved: Vec<(String, String)>,
@@ -164,7 +164,7 @@ pub fn replacement_warning(id: &str, observed: &Option<String>, locked: &str) ->
 /// in install order.
 /// Why:
 /// `update` calls it with `only` set to install just the npm and PyPI tools its lookups need;
-/// `sync` calls it
+/// `install` calls it
 ///           with `None`.
 ///
 /// In TS you'd write (pseudocode):
@@ -226,19 +226,19 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
 }
 
 /// What:
-/// The reason a frozen `sync` did not resolve a plan that is ahead of the lock.
+/// The reason a frozen `install` did not resolve a plan that is ahead of the lock.
 /// Why:
-/// The refusal tells the person which switch or environment stopped `sync` from locking the entries itself.
+/// The refusal tells the person which switch or environment stopped `install` from locking the entries itself.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FrozenReason {
-    /// `--frozen-lock` was given.
+    /// `--frozen-lockfile` was given.
     Flag,
     /// A CI environment was detected (the `ci-info` rules pnpm uses).
     Ci,
 }
 
 /// What:
-/// Whether `sync` may resolve plan entries the lock lacks.
+/// Whether `install` may resolve plan entries the lock lacks.
 /// Why:
 /// It mirrors `pnpm install`:
 /// resolve and write the lockfile entries a changed manifest needs when not frozen,
@@ -262,19 +262,19 @@ pub enum LockPolicy {
     ),
 }
 
-/// The refusal for a frozen `sync` whose plan is ahead of the lock:
-/// the usual disagreement message plus why `sync` did not resolve.
+/// The refusal for a frozen `install` whose plan is ahead of the lock:
+/// the usual disagreement message plus why `install` did not resolve.
 fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainError {
     let base: ToolchainError = refusal(verdict);
     let why: &str = match reason {
-        FrozenReason::Flag => "`--frozen-lock` was given",
+        FrozenReason::Flag => "`--frozen-lockfile` was given",
         FrozenReason::Ci => {
             "a CI environment was detected (the CI variable or another marker, by the rules of pnpm and ci-info), \
-             where the lock is frozen; `CI=false` or `--no-frozen-lock` turns that off"
+             where the lock is frozen; `CI=false` or `--no-frozen-lockfile` turns that off"
         }
     };
     return ToolchainError::drift(format!(
-        "{}\nmpm-shadow sync did not resolve them itself because {why}; resolve and commit the lock, then sync again",
+        "{}\nmpm-shadow install did not resolve them itself because {why}; run `mpm-shadow update <ids>` (or `mpm-shadow install --no-frozen-lockfile`), commit the lock, then install again",
         base.message
     ));
 }
@@ -284,7 +284,7 @@ fn frozen_refusal(verdict: &Disagreement, reason: FrozenReason) -> ToolchainErro
 /// and only those,
 /// and writes only their rows.
 /// Why:
-/// This is `mpm-shadow update <those ids>` done by `sync`:
+/// This is `mpm-shadow update <those ids>` done by `install`:
 /// no other row moves,
 /// even when the registries have moved on.
 /// A lookup that fails stops the sync before anything is installed,
@@ -310,14 +310,14 @@ fn resolve_before_installing(
     let report = update_loaded(loaded, scope, env, runner, http, host, false, only.as_ref())?;
     if report.has_failures() {
         let mut message: String = String::from(
-            "mpm-shadow sync could not resolve the plan entries the lock lacks, so it wrote nothing and installed nothing:\n",
+            "mpm-shadow install could not resolve the plan entries the lock lacks, so it wrote nothing and installed nothing:\n",
         );
         for outcome in &report.outcomes {
             if let OutcomeKind::Failed { reason } = &outcome.kind {
                 message.push_str(&format!("  {}: {reason}\n", outcome.id));
             }
         }
-        message.push_str("fix the lookup and run `mpm-shadow sync` again, or run `mpm-shadow update <id>` to see it on its own");
+        message.push_str("fix the lookup and run `mpm-shadow install` again, or run `mpm-shadow update <id>` to see it on its own");
         return Err(ToolchainError::failure(message));
     }
     let mut resolved: Vec<(String, String)> = Vec::new();
@@ -340,9 +340,9 @@ fn resolve_before_installing(
 }
 
 /// What:
-/// Runs `sync` under a lock policy.
+/// Runs `install` under a lock policy.
 /// Why:
-/// A plan that disagrees with the lock only in what `lock` fixes offline,
+/// A plan that disagrees with the lock only in what `install --lockfile-only` fixes offline,
 /// or in the digest,
 /// is refused as before.
 /// A plan that is ahead of the lock (a new entry,
@@ -363,6 +363,37 @@ pub fn run_sync_with(
     host: &Host,
     policy: LockPolicy,
 ) -> Result<SyncReport, ToolchainError> {
+    let resolved: Vec<(String, String)> = prepare_lock(scope, env, runner, http, host, policy)?;
+    let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
+    let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
+    let mut report: SyncReport = sync_tools(&context, None);
+    report.resolved = resolved;
+    return Ok(report);
+}
+
+/// What:
+/// Brings the lock up to date with the plan the way `pnpm install --lockfile-only` does,
+/// without installing anything,
+/// and returns the tool ids and versions it locked.
+/// Why:
+/// `install` runs it before installing,
+/// and `install --lockfile-only` runs it alone.
+/// A frozen policy resolves nothing into an existing lock;
+/// no lock is resolved in full unless `--frozen-lockfile` was given.
+/// Whatever still disagrees afterwards (what offline `install --lockfile-only` fixes) is left to the caller's check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function prepareLock(scope, env, runner, http, host, policy: LockPolicy): [string, string][]
+/// ```
+pub fn prepare_lock(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    policy: LockPolicy,
+) -> Result<Vec<(String, String)>, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let mut resolved: Vec<(String, String)> = Vec::new();
     match &loaded.lock {
@@ -370,8 +401,8 @@ pub fn run_sync_with(
             // pnpm: `--frozen-lockfile` fails when no lockfile is present (ERR_PNPM_NO_LOCKFILE).
             LockPolicy::Frozen(FrozenReason::Flag) => {
                 return Err(ToolchainError::drift(format!(
-                    "{} does not exist and `--frozen-lock` forbids sync from creating it; \
-                     run `mpm-shadow update` to resolve the plan's tools and write it",
+                    "{} does not exist and `--frozen-lockfile` forbids install from creating it; \
+                     run `mpm-shadow install --no-frozen-lockfile`, or `mpm-shadow update`, to resolve the plan's tools and write it",
                     scope.lock_file.display()
                 )));
             }
@@ -393,14 +424,42 @@ pub fn run_sync_with(
             }
         }
     }
-    let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
-    let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
-    let mut report: SyncReport = sync_tools(&context, None);
-    report.resolved = resolved;
-    return Ok(report);
+    return Ok(resolved);
 }
 
-/// Runs `sync` frozen:
+/// What:
+/// Runs `install --lockfile-only` online:
+/// brings the lock up to date and proves it agrees with the plan,
+/// installing nothing.
+/// Why:
+/// This is the way to lock a new plan entry without installing it,
+/// as `pnpm install --lockfile-only` does for a new dependency.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runLockfileOnly(scope, env, runner, http, host, policy: LockPolicy): [string, string][]
+/// ```
+pub fn run_lockfile_only(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    policy: LockPolicy,
+) -> Result<Vec<(String, String)>, ToolchainError> {
+    let resolved: Vec<(String, String)> = prepare_lock(scope, env, runner, http, host, policy)?;
+    load_agreeing(scope)?;
+    return Ok(resolved);
+}
+
+/// The line `install` prints for a tool it locked itself.
+pub fn locked_line(id: &str, version: &str) -> String {
+    return format!(
+        "toolchain install: locked {id} {version} (the plan was ahead of the lock; resolved alone, no other lock row moved)\n"
+    );
+}
+
+/// Runs `install` frozen:
 /// it never resolves and never uses the network to read versions.
 pub fn run_sync(
     scope: &Scope,
@@ -412,30 +471,28 @@ pub fn run_sync(
     return run_sync_with(scope, env, runner, http, host, LockPolicy::Frozen(FrozenReason::Flag));
 }
 
-/// The text `sync` prints for a report (the tools it locked first,
+/// The text `install` prints for a report (the tools it locked first,
 /// then warnings,
 /// the counts and each failure).
 pub fn format_sync_report(report: &SyncReport) -> String {
     let mut text: String = String::new();
     for (id, version) in &report.resolved {
-        text.push_str(&format!(
-            "toolchain sync: locked {id} {version} (the plan was ahead of the lock; resolved alone, no other lock row moved)\n"
-        ));
+        text.push_str(&locked_line(id, version));
     }
     for warning in &report.warnings {
-        text.push_str(&format!("toolchain sync: warning: {warning}\n"));
+        text.push_str(&format!("toolchain install: warning: {warning}\n"));
     }
     text.push_str(&format!(
-        "toolchain sync: {} installed, {} unchanged, {} failed\n",
+        "toolchain install: {} installed, {} unchanged, {} failed\n",
         report.installed.len(),
         report.unchanged.len(),
         report.failed.len()
     ));
     for (id, message) in &report.failed {
-        text.push_str(&format!("toolchain sync: {id} failed: {message}\n"));
+        text.push_str(&format!("toolchain install: {id} failed: {message}\n"));
     }
     if !report.missing_bins.is_empty() {
-        text.push_str(&format!("toolchain sync: unresolved bins: {}\n", report.missing_bins.join(", ")));
+        text.push_str(&format!("toolchain install: unresolved bins: {}\n", report.missing_bins.join(", ")));
     }
     return text;
 }

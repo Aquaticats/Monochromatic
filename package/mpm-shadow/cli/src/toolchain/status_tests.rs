@@ -1,4 +1,4 @@
-//! Unit tests of `status`:
+//! Unit tests of `list`:
 //! it refuses when the plan and lock disagree (starting nothing),
 //! and otherwise reports what a
 //! fake machine holds.
@@ -26,7 +26,7 @@ fn status_refuses_when_the_plan_and_lock_disagree_and_starts_nothing() {
     let runner = FakeRunner::new();
     let error = run_status(&scope, &env, &runner, &linux()).expect_err("the lock is stale");
     assert_eq!(error.kind, ErrorKind::Drift);
-    assert!(error.message.contains("mpm-shadow lock"), "{error}");
+    assert!(error.message.contains("mpm-shadow install --lockfile-only --offline"), "{error}");
     assert!(error.message.contains("cargo:fd-find differs between the plan and the lock in: bins"), "{error}");
     assert!(runner.calls().is_empty(), "nothing is started when the files disagree");
 }
@@ -78,5 +78,5 @@ fn status_reports_in_sync_when_everything_matches() {
     finish_install(&version_directory(&scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
     let report = run_status(&scope, &env, &runner, &linux()).expect("a report");
     assert!(!report.drifted, "{}", report.text);
-    assert!(report.text.ends_with("toolchain status: 1 tools in sync with toolchain.lock.json\n"), "{}", report.text);
+    assert!(report.text.ends_with("toolchain list: 1 tools in sync with toolchain.lock.json\n"), "{}", report.text);
 }

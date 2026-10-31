@@ -214,10 +214,10 @@ fn tree_with_installed(rig: &Rig, locked: &str, installed: &str) {
 }
 
 #[test]
-fn lock_update_and_bin_paths_warn_on_standard_error_with_their_own_verb() {
+fn install_update_outdated_and_bin_warn_on_standard_error_with_their_own_verb() {
     let rig = Rig::new();
     tree_with_installed(&rig, "0.4.0", "0.4.4");
-    for verb in ["lock", "update", "bin-paths"] {
+    for verb in ["install", "update", "outdated", "bin"] {
         let lines = older_lock_warning_lines(verb, &rig.scope, Some(OsFamily::Linux));
         assert_eq!(
             lines,
@@ -232,14 +232,14 @@ fn status_prints_the_warning_and_stays_silent_when_the_lock_and_the_install_matc
     let rig = Rig::new();
     tree_with_installed(&rig, "0.4.0", "0.4.4");
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("status runs");
-    let warning = format!("toolchain status: warning: {}\n", older_lock_message(PUBLISHED, "0.4.0", "0.4.4"));
+    let warning = format!("toolchain list: warning: {}\n", older_lock_message(PUBLISHED, "0.4.0", "0.4.4"));
     assert!(report.text.contains(&warning), "{}", report.text);
 
     let matching = Rig::new();
     tree_with_installed(&matching, "0.4.4", "0.4.4");
     let quiet = run_status(&matching.scope, &matching.env, &matching.runner, &matching.host).expect("status runs");
     assert!(!quiet.text.contains("warning"), "{}", quiet.text);
-    for verb in ["lock", "update", "bin-paths"] {
+    for verb in ["install", "update", "outdated", "bin"] {
         assert!(older_lock_warning_lines(verb, &matching.scope, Some(OsFamily::Linux)).is_empty(), "{verb}");
     }
 }

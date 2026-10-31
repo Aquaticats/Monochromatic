@@ -334,20 +334,29 @@ fn update_command() -> Command {
 }
 
 #[test]
-fn the_grammar_takes_any_number_of_tool_ids_with_check_and_global() {
+fn the_grammar_takes_any_number_of_tool_ids_with_global() {
     let none = update_command().try_get_matches_from(["update"]).expect("no names");
     assert!(none.get_many::<String>("tool").is_none());
     let several = update_command()
-        .try_get_matches_from(["update", "npm:vite", "--check", "pipx:slopo", "--global"])
+        .try_get_matches_from(["update", "npm:vite", "-g", "pipx:slopo"])
         .expect("names around the flags");
     let given: Vec<&String> = several.get_many::<String>("tool").expect("names").collect();
     assert_eq!(given, vec!["npm:vite", "pipx:slopo"]);
-    assert!(several.get_flag("check") && several.get_flag("global"));
+    assert!(several.get_flag("global"), "-g is pnpm's short for --global");
 }
 
 #[test]
-fn the_grammar_rejects_an_unknown_flag() {
+fn the_grammar_rejects_an_unknown_flag_and_the_old_check_switch() {
     assert!(update_command().try_get_matches_from(["update", "--latest"]).is_err());
+    assert!(update_command().try_get_matches_from(["update", "--check"]).is_err(), "outdated is the report");
+}
+
+#[test]
+fn outdated_takes_the_same_names_as_update() {
+    let outdated = subcommands().into_iter().find(|command| return command.get_name() == "outdated").expect("an outdated verb");
+    let matches = outdated.try_get_matches_from(["outdated", "npm:*", "!npm:vite", "--global"]).expect("names and a flag");
+    let given: Vec<&String> = matches.get_many::<String>("tool").expect("names").collect();
+    assert_eq!(given, vec!["npm:*", "!npm:vite"]);
 }
 
 //endregion

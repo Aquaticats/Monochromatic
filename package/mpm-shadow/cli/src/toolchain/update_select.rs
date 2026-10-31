@@ -7,7 +7,7 @@
 //! Why:
 //! `pnpm update <pkg>...` moves only the named dependencies and keeps every other lockfile entry,
 //! and `update <tool>...` mirrors it;
-//! the same selection backs `update --check <tool>...`.
+//! the same selection backs `outdated <tool>...`.
 //! An unknown name is refused (pnpm 12.16.1 silently reports "Already up to date" for it,
 //! which hides a typo) with the valid ids listed.
 //!
@@ -151,7 +151,7 @@ pub fn select_tools(plan: &Plan, patterns: &[String]) -> Result<BTreeSet<String>
 /// or there is no lock file),
 /// or a resolution-affecting edit in the plan.
 /// Why:
-/// Keeping their rows would write a lock that fails `lock --check`,
+/// Keeping their rows would write a lock that fails `install --lockfile-only --frozen-lockfile`,
 /// and resolving them unasked would move what the caller did not name,
 /// so the command refuses and names them.
 ///

@@ -73,7 +73,7 @@ use crate::cargo_home::cargo_home;
 use crate::constants::{EXEC_FAILED_EXIT_CODE, NOT_FOUND_EXIT_CODE, SHADOWED_NAME, SIGNAL_EXIT_CODE_OFFSET};
 /// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
-/// Imports the environment view and the toolchain roots (where `sync` records version-keyed installs).
+/// Imports the environment view and the toolchain roots (where `install` records version-keyed installs).
 use crate::toolchain::scope::{EnvMap, toolchain_roots};
 /// Imports `find_in_path` from `crate::real_binary`.
 use crate::real_binary::find_in_path;

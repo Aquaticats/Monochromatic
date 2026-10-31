@@ -3,7 +3,7 @@
 //! once,
 //! so the revisions recorded for the later publish describe
 //!           exactly the bytes that were parsed;
-//! plus the stricter read `sync` and `status` use,
+//! plus the stricter read `install` and `list` use,
 //! which refuses when the
 //!           plan and lock disagree.
 //! Why:
@@ -90,8 +90,8 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
 }
 
 /// What:
-/// The plan and the lock for a command that acts on installed tools (`sync`,
-/// `status`):
+/// The plan and the lock for a command that acts on installed tools (`install`,
+/// `list`):
 /// both must exist,
 /// the
 ///           digest must match,
@@ -99,7 +99,7 @@ pub fn load(scope: &Scope) -> Result<Loaded, ToolchainError> {
 /// Why:
 /// Installing from a lock that does not describe the plan would install the wrong tools,
 /// so the command
-///           refuses and names `mpm-shadow lock` or `mpm-shadow update`.
+///           refuses and names `mpm-shadow install --lockfile-only --offline` or `mpm-shadow update`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

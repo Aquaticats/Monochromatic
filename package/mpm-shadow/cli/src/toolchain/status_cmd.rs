@@ -1,12 +1,12 @@
 //! What:
-//! The `status` command:
+//! The `list` command:
 //! refuse when the plan and lock disagree,
 //! otherwise compare what is installed with
 //!           the lock,
 //! one line per tool,
 //! and report whether anything drifted.
 //! Why:
-//! `status` is the read-only half of `sync`;
+//! `list` is the read-only half of `install`;
 //! it never installs and never touches the network.
 //!
 //! In TS you'd write (pseudocode):
@@ -46,7 +46,7 @@ pub struct StatusReport {
 }
 
 /// What:
-/// Runs `status` in a scope.
+/// Runs `list` in a scope.
 /// Why:
 /// The runner and host are parameters so tests observe a fake machine;
 /// the network is closed,
@@ -69,7 +69,7 @@ pub fn run_status(scope: &Scope, env: &EnvMap, runner: &dyn Runner, host: &Host)
     }
     let mut text: String = format_status(&observations);
     for warning in older_lock_warnings(scope, &lock.tools, host.family) {
-        text.push_str(&format!("toolchain status: warning: {warning}\n"));
+        text.push_str(&format!("toolchain list: warning: {warning}\n"));
     }
     return Ok(StatusReport { text, drifted });
 }

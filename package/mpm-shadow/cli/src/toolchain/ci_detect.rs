@@ -5,7 +5,7 @@
 //! pnpm decides its default for `--frozen-lockfile` this way
 //! ("pnpm detects a CI environment with the same rules as the ci-info package.
 //! Set `CI=false` to turn detection off", <https://pnpm.io/cli/install>),
-//! and `mpm-shadow sync` follows pnpm:
+//! and `mpm-shadow install` follows pnpm:
 //! frozen in CI,
 //! resolving new plan entries elsewhere.
 //! The rules were read from `index.js` and `vendors.json` of <https://github.com/watson/ci-info> on 2026-10-31.
@@ -105,7 +105,7 @@ fn equals(env: &EnvMap, name: &str, expected: &str) -> bool {
 /// or one of the vendors with a combined rule decides.
 /// Why:
 /// The same answer `ci-info`'s `isCI` gives,
-/// so a machine where pnpm freezes its lockfile is one where `mpm-shadow sync` freezes the lock.
+/// so a machine where pnpm freezes its lockfile is one where `mpm-shadow install` freezes the lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

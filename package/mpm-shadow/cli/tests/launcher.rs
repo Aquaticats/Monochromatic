@@ -213,27 +213,27 @@ fn verb_warning(verb: &str, locked: &str, used: &str) -> String {
 }
 
 #[test]
-fn lock_check_and_bin_paths_warn_on_standard_error_and_status_in_its_report() {
+fn lock_check_and_bin_warn_on_standard_error_and_status_in_its_report() {
     let tree = VerbTree::new("0.0.1", "0.0.2");
-    let lock = tree.run(&["lock", "--check"]);
+    let lock = tree.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(lock.status.code(), Some(0), "{}", String::from_utf8_lossy(&lock.stderr));
     assert!(String::from_utf8_lossy(&lock.stdout).contains("digest verified"));
-    assert_eq!(String::from_utf8_lossy(&lock.stderr), verb_warning("lock", "0.0.1", "0.0.2"));
+    assert_eq!(String::from_utf8_lossy(&lock.stderr), verb_warning("install", "0.0.1", "0.0.2"));
 
-    let paths = tree.run(&["bin-paths"]);
+    let paths = tree.run(&["bin", "--json"]);
     assert_eq!(paths.status.code(), Some(0));
     serde_json::from_slice::<serde_json::Value>(&paths.stdout).expect("standard output stays plain JSON");
-    assert_eq!(String::from_utf8_lossy(&paths.stderr), verb_warning("bin-paths", "0.0.1", "0.0.2"));
+    assert_eq!(String::from_utf8_lossy(&paths.stderr), verb_warning("bin", "0.0.1", "0.0.2"));
 
-    let status = tree.run(&["status"]);
+    let status = tree.run(&["list"]);
     assert_eq!(status.status.code(), Some(0), "an installed-newer repository tool is not drift");
-    assert!(String::from_utf8_lossy(&status.stdout).contains(&verb_warning("status", "0.0.1", "0.0.2")), "{}", String::from_utf8_lossy(&status.stdout));
+    assert!(String::from_utf8_lossy(&status.stdout).contains(&verb_warning("list", "0.0.1", "0.0.2")), "{}", String::from_utf8_lossy(&status.stdout));
 }
 
 #[test]
 fn the_verbs_stay_silent_when_the_lock_and_the_install_match() {
     let tree = VerbTree::new("0.0.2", "0.0.2");
-    for arguments in [&["lock", "--check"][..], &["bin-paths"][..], &["status"][..]] {
+    for arguments in [&["install", "--lockfile-only", "--frozen-lockfile"][..], &["bin", "--json"][..], &["list"][..]] {
         let output = tree.run(arguments);
         assert_eq!(output.status.code(), Some(0), "{arguments:?}");
         assert!(!String::from_utf8_lossy(&output.stderr).contains("warning"), "{arguments:?}");

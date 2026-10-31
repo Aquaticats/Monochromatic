@@ -126,7 +126,7 @@ fn version_names(toolchain_root: &Path, crate_name: &str) -> Vec<String> {
 /// The registry prune keeps the version that is installed;
 /// for these crates that is read from the version-keyed records under `<toolchain root>/cargo/<crate>/`,
 /// not from `$CARGO_HOME/.crates.toml`,
-/// which `sync` no longer writes.
+/// which `install` no longer writes.
 /// A directory without a record for its crate is an unfinished install and is ignored.
 ///
 /// In TS you'd write (pseudocode):
@@ -241,7 +241,7 @@ pub fn cargo_bin_dir_of(tool: &LockedTool, scope: &Scope) -> PathBuf {
 }
 
 /// What:
-/// The installed version of a `cargo-binstall` tool as `status` and `sync` read it:
+/// The installed version of a `cargo-binstall` tool as `list` and `install` read it:
 /// the newest finished version for a repository-published tool,
 /// the locked version when its own directory holds a finished install for any other.
 /// Why:
@@ -264,11 +264,11 @@ pub fn observed_cargo_version(scope: &Scope, tool: &LockedTool) -> Option<String
 /// The sentence that says a tree runs a newer repository-published tool than its lock pins,
 /// with the remedy.
 /// Why:
-/// One text for `sync`,
-/// `status`,
+/// One text for `install`,
+/// `list`,
 /// `update`,
-/// `lock`,
-/// `bin-paths` and every run of the tool,
+/// `install --lockfile-only`,
+/// `bin` and every run of the tool,
 /// so a person searching for it finds all of them.
 ///
 /// In TS you'd write (pseudocode):

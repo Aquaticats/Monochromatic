@@ -2,17 +2,17 @@
 //! The one validator for "do the plan and the lock agree":
 //! it compares the plan's declarations with the
 //!           lock's,
-//! sorts every difference into what offline `lock` may fix and what needs `update`,
+//! sorts every difference into what offline `install --lockfile-only` may fix and what needs `update`,
 //! and checks the
 //!           lock's digest.
 //! Why:
-//! `lock`,
-//! `lock --check`,
-//! `sync`,
-//! `status` and `update` all need the same verdict,
+//! `install --lockfile-only`,
+//! `install --lockfile-only --frozen-lockfile`,
+//! `install`,
+//! `list` and `update` all need the same verdict,
 //! so they share this
 //!           module;
-//! `sync` and `status` refuse on any disagreement and name the command that resolves it.
+//! `install` and `list` refuse on any disagreement and name the command that resolves it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +36,7 @@ use super::plan::Plan;
 /// Each list is a different remedy:
 /// `added` and `resolution_edits` need `update`;
 /// `removed`,
-///           `projection_edits` and `order_differs` are fixed offline by `lock`;
+///           `projection_edits` and `order_differs` are fixed offline by `install --lockfile-only`;
 /// `digest_problem` needs the file
 ///           restored or deleted.
 ///
@@ -132,7 +132,7 @@ impl Disagreement {
 /// split into the ones that
 ///           change which version or artifacts are resolved (`resolution`) and the ones that only shape installs.
 /// Why:
-/// The split is the rule "offline `lock` rejects additions and resolution-affecting edits (pins,
+/// The split is the rule "offline `install --lockfile-only` rejects additions and resolution-affecting edits (pins,
 /// package id,
 ///           route,
 /// artifact selection,
@@ -221,10 +221,10 @@ fn plan_has(plan: &Plan, id: &str) -> bool {
 /// including a digest that does not match
 ///           the lock's contents.
 /// Why:
-/// This is the single verdict behind `lock --check`,
-/// `lock`,
-/// `sync`,
-/// `status` and `update`.
+/// This is the single verdict behind `install --lockfile-only --frozen-lockfile`,
+/// `install --lockfile-only`,
+/// `install`,
+/// `list` and `update`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -290,7 +290,7 @@ pub fn compare(plan: &Plan, parsed: &ParsedLock) -> Disagreement {
 /// with the
 ///           plan's declaration and the version and artifacts the old lock already holds.
 /// Why:
-/// This is offline `lock`.
+/// This is offline `install --lockfile-only`.
 /// It is only defined when nothing needs resolving,
 /// so a tool the lock lacks or a
 ///           resolution-affecting edit is an error that names `update`.
@@ -331,14 +331,14 @@ pub fn project(plan: &Plan, lock: &Lock) -> Result<Lock, ToolchainError> {
 }
 
 /// What:
-/// The error `sync` and `status` return when the plan and lock disagree:
+/// The error `install` and `list` return when the plan and lock disagree:
 /// every difference,
 /// and the command
 ///           that resolves it.
 /// Why:
 /// Acting on a lock that does not describe the plan would install the wrong tools,
 /// so these commands refuse
-///           and say which of `lock` or `update` fixes it.
+///           and say which of `install --lockfile-only` or `update` fixes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -354,7 +354,7 @@ pub fn refusal(disagreement: &Disagreement) -> ToolchainError {
             disagreement.ids_needing_update().join(" ")
         )
     } else {
-        "run `mpm-shadow lock` (it works offline)".to_string()
+        "run `mpm-shadow install --lockfile-only --offline` (it works offline)".to_string()
     };
     let mut message: String = String::from("the toolchain plan and lock disagree:\n");
     for line in disagreement.describe() {

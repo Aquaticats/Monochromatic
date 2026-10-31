@@ -9,7 +9,7 @@
 //! Installers put binaries wherever their package manager decides;
 //! the farm gives every declared name one
 //!           stable place,
-//! and `bin-paths` reports it to the IDE.
+//! and `bin` reports it to the IDE.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

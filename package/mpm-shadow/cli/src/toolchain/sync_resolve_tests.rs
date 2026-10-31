@@ -1,8 +1,8 @@
-//! Unit tests of the CI detection and of `sync` under a lock policy:
+//! Unit tests of the CI detection and of `install` under a lock policy:
 //! a local sync resolves a plan entry the lock lacks (or holds for an older request) and only that entry,
 //! a frozen sync (the flag,
 //! or CI) refuses and names `mpm-shadow update <ids>`,
-//! and what `lock` fixes offline,
+//! and what `install --lockfile-only` fixes offline,
 //! or a hand-edited lock,
 //! is refused as before.
 
@@ -16,7 +16,7 @@ use super::error::ErrorKind;
 use super::fakes::{FakeHttp, FakeRunner};
 use super::lock_cmd::{LockMode, run_lock};
 use super::scope::EnvMap;
-use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_sync, run_sync_with};
+use super::sync::{FrozenReason, LockPolicy, format_sync_report, run_lockfile_only, run_sync, run_sync_with};
 use super::update_named_tests::{VITE_LINE, VITE_URL, WRANGLER_LINE, add_vite, locked_scope, moved_network};
 use super::update_tests::{CRATES_URL, NPM_URL, linux, read_lock, serve_registries};
 
@@ -89,7 +89,7 @@ fn a_local_sync_resolves_a_new_entry_alone_and_keeps_every_other_row_identical()
         assert_eq!(after.tool(id), before.tool(id), "{id} did not move although the registries did");
     }
     run_lock(&scope, LockMode::Check).expect("the written lock passes the gate");
-    assert!(format_sync_report(&report).contains("toolchain sync: locked npm:vite 7.1.0"), "{}", format_sync_report(&report));
+    assert!(format_sync_report(&report).contains("toolchain install: locked npm:vite 7.1.0"), "{}", format_sync_report(&report));
     assert!(!runner.calls().is_empty(), "the install step ran after the lock was written");
 }
 
@@ -105,7 +105,7 @@ fn a_frozen_sync_refuses_a_new_entry_names_update_with_its_id_and_changes_nothin
         assert_eq!(error.kind, ErrorKind::Drift);
         assert!(names_in(&error.message), "{reason:?}: {error}");
         match reason {
-            FrozenReason::Flag => assert!(error.message.contains("`--frozen-lock` was given"), "{error}"),
+            FrozenReason::Flag => assert!(error.message.contains("`--frozen-lockfile` was given"), "{error}"),
             FrozenReason::Ci => assert!(error.message.contains("a CI environment was detected"), "{error}"),
         }
         assert!(http.requests().is_empty() && runner.calls().is_empty(), "nothing is looked up or installed");
@@ -204,7 +204,7 @@ fn what_lock_fixes_offline_is_still_refused_naming_lock_under_either_policy() {
         fs::write(&scope.plan_file, plan.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]")).expect("edit the bins");
         let http = moved_network();
         let error = run_sync_with(&scope, &env, &FakeRunner::new(), &http, &linux(), policy).expect_err("refused");
-        assert!(error.message.contains("`mpm-shadow lock`"), "{policy:?}: {error}");
+        assert!(error.message.contains("`mpm-shadow install --lockfile-only --offline`"), "{policy:?}: {error}");
         assert!(http.requests().is_empty(), "{policy:?}: nothing is looked up for an offline fix");
     }
 }
@@ -260,8 +260,8 @@ fn a_missing_lock_is_refused_when_frozen_by_the_flag() {
     ] {
         let error = result.expect_err("refused");
         assert_eq!(error.kind, ErrorKind::Drift);
-        assert!(error.message.contains("`--frozen-lock` forbids sync from creating it"), "{error}");
-        assert!(error.message.contains("run `mpm-shadow update`"), "{error}");
+        assert!(error.message.contains("`--frozen-lockfile` forbids install from creating it"), "{error}");
+        assert!(error.message.contains("`mpm-shadow install --no-frozen-lockfile`") && error.message.contains("`mpm-shadow update`"), "{error}");
     }
     assert!(!scope.lock_file.exists(), "nothing was written");
     assert!(http.requests().is_empty() && runner.calls().is_empty());
@@ -271,17 +271,56 @@ fn a_missing_lock_is_refused_when_frozen_by_the_flag() {
 
 //region the grammar
 
-fn sync_command() -> Command {
-    return subcommands().into_iter().find(|command| return command.get_name() == "sync").expect("a sync verb");
+fn install_command() -> Command {
+    return subcommands().into_iter().find(|command| return command.get_name() == "install").expect("an install verb");
 }
 
 #[test]
-fn the_sync_grammar_takes_either_frozen_switch_but_not_both() {
-    let plain = sync_command().try_get_matches_from(["sync"]).expect("plain");
-    assert!(!plain.get_flag("frozen-lock") && !plain.get_flag("no-frozen-lock"));
-    assert!(sync_command().try_get_matches_from(["sync", "--frozen-lock"]).expect("frozen").get_flag("frozen-lock"));
-    assert!(sync_command().try_get_matches_from(["sync", "--no-frozen-lock", "--global"]).expect("unfrozen").get_flag("no-frozen-lock"));
-    assert!(sync_command().try_get_matches_from(["sync", "--frozen-lock", "--no-frozen-lock"]).is_err());
+fn the_install_grammar_takes_either_frozen_switch_but_not_both() {
+    let plain = install_command().try_get_matches_from(["install"]).expect("plain");
+    assert!(!plain.get_flag("frozen-lockfile") && !plain.get_flag("no-frozen-lockfile"));
+    assert!(install_command().try_get_matches_from(["install", "--frozen-lockfile"]).expect("frozen").get_flag("frozen-lockfile"));
+    assert!(install_command().try_get_matches_from(["install", "--no-frozen-lockfile", "--global"]).expect("unfrozen").get_flag("no-frozen-lockfile"));
+    assert!(install_command().try_get_matches_from(["install", "--frozen-lockfile", "--no-frozen-lockfile"]).is_err());
+}
+
+#[test]
+fn the_install_grammar_has_pnpms_lockfile_only_offline_and_alias() {
+    let only = install_command().try_get_matches_from(["install", "--lockfile-only", "--offline"]).expect("both");
+    assert!(only.get_flag("lockfile-only") && only.get_flag("offline"));
+    assert!(install_command().try_get_matches_from(["install", "--offline"]).is_err(), "offline needs lockfile-only");
+    assert!(install_command().try_get_matches_from(["install", "--frozen-lock"]).is_err(), "the pre-pnpm spelling is gone");
+    assert_eq!(install_command().get_all_aliases().collect::<Vec<&str>>(), vec!["i"]);
+    assert!(install_command().try_get_matches_from(["install", "-g"]).expect("short global").get_flag("global"));
+    for old in ["sync", "lock", "status", "bin-paths"] {
+        assert!(subcommands().into_iter().all(|command| return command.get_name() != old), "{old} must not be a command");
+    }
+}
+
+#[test]
+fn lockfile_only_resolves_and_writes_the_new_entry_and_installs_nothing() {
+    let (_directory, scope, env) = locked_scope();
+    let before = read_lock(&scope);
+    add_vite(&scope);
+    let http = moved_network();
+    let runner = FakeRunner::new();
+    let resolved = run_lockfile_only(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("locked");
+    assert_eq!(resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
+    assert!(runner.calls().is_empty(), "nothing was installed");
+    let after = read_lock(&scope);
+    for id in ["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"] {
+        assert_eq!(after.tool(id), before.tool(id), "{id} did not move");
+    }
+    run_lock(&scope, LockMode::Check).expect("the written lock passes the gate");
+}
+
+#[test]
+fn lockfile_only_under_a_frozen_policy_refuses_a_plan_that_is_ahead() {
+    let (_directory, scope, env) = locked_scope();
+    add_vite(&scope);
+    let error = run_lockfile_only(&scope, &env, &FakeRunner::new(), &moved_network(), &linux(), LockPolicy::Frozen(FrozenReason::Ci))
+        .expect_err("refused");
+    assert!(names_in(&error.message), "{error}");
 }
 
 //endregion

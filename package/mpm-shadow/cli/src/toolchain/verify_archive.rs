@@ -4,7 +4,7 @@
 //! a new `uv`)
 //! and compare it with the SHA-256 the lock records for a tool on a platform.
 //! Why:
-//! A fresh machine or a container fetches one prebuilt archive with `curl` before any mpm-shadow can run `sync`.
+//! A fresh machine or a container fetches one prebuilt archive with `curl` before any mpm-shadow can run `install`.
 //! This is the Rust-side check of that file against the lock,
 //! so the bootstrap never runs an archive the lock does not vouch for.
 //!

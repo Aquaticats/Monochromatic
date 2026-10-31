@@ -1,15 +1,15 @@
 //! What:
-//! The `lock` command (offline:
+//! The `install --lockfile-only` command (offline:
 //! rewrite the lock's declaration fields from the plan,
 //! keeping every resolved
-//!           version and artifact) and `lock --check` (the toolchain drift gate:
+//!           version and artifact) and `install --lockfile-only --frozen-lockfile` (the toolchain drift gate:
 //! write nothing,
 //! fail on any difference).
 //! Why:
 //! People edit the plan;
-//! `lock` brings the committed lock up to date without the network,
+//! `install --lockfile-only` brings the committed lock up to date without the network,
 //! and CI runs
-//!           `lock --check` beside `file-enforcer check` so a plan edit without a lock refresh,
+//!           `install --lockfile-only --frozen-lockfile` beside `file-enforcer check` so a plan edit without a lock refresh,
 //! or a hand edit of a
 //!           resolved version,
 //! fails the build.
@@ -35,7 +35,7 @@ use super::publish::publish_lock;
 use super::scope::Scope;
 
 /// What:
-/// What `lock` does with the files:
+/// What `install --lockfile-only` does with the files:
 /// only `Check`,
 /// or rewrite (`Write`).
 /// Why:
@@ -49,17 +49,17 @@ use super::scope::Scope;
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LockMode {
-    /// `lock --check`:
+    /// `install --lockfile-only --frozen-lockfile`:
     /// write nothing,
     /// fail on any difference.
     Check,
-    /// `lock`:
+    /// `install --lockfile-only`:
     /// project the plan onto the lock and write it.
     Write,
 }
 
 /// What:
-/// Runs `lock` in one of its modes in one scope and returns the line to print on success.
+/// Runs `install --lockfile-only` in one of its modes in one scope and returns the line to print on success.
 /// Why:
 /// All modes load the same files and use the same validator;
 /// only the last step differs (write or not).

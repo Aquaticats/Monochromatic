@@ -261,7 +261,7 @@ pub fn global_scope(env: &EnvMap) -> Result<Scope, ToolchainError> {
 /// Why:
 /// The registry prune runs as the `mpm` shim,
 /// which knows no scope and no worktree,
-/// yet must read the version-keyed install records of every root `sync` writes to.
+/// yet must read the version-keyed install records of every root `install` writes to.
 /// Both roots come from the environment alone,
 /// so no plan or repository is needed.
 /// An environment with neither `HOME` nor `USERPROFILE` has no roots.

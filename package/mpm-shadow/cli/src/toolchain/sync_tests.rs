@@ -1,4 +1,4 @@
-//! Unit tests of `sync`,
+//! Unit tests of `install`,
 //! the exposure directory and the postinstall steps,
 //! against the fake runner and a disposable
 //! scope:
@@ -73,7 +73,7 @@ fn sync_refuses_when_the_plan_and_lock_disagree_before_starting_anything() {
     let host = Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) };
     let error = run_sync(&scope, &env, &runner, &http, &host).expect_err("the lock is stale");
     assert_eq!(error.kind, ErrorKind::Drift);
-    assert!(error.message.contains("mpm-shadow lock"), "{error}");
+    assert!(error.message.contains("mpm-shadow install --lockfile-only --offline"), "{error}");
     assert!(runner.calls().is_empty());
     assert!(http.requests().is_empty());
     assert!(!scope.toolchain_root.exists(), "nothing was installed");
@@ -117,7 +117,7 @@ fn sync_keeps_going_after_a_failure_and_reports_every_failure() {
     assert!(report.failed[1].1.contains("boom two"));
     let text = format_sync_report(&report);
     assert!(text.contains("0 installed, 0 unchanged, 2 failed"), "{text}");
-    assert!(text.contains("toolchain sync: cargo:fd-find failed: cargo binstall failed for cargo:fd-find: boom two"), "{text}");
+    assert!(text.contains("toolchain install: cargo:fd-find failed: cargo binstall failed for cargo:fd-find: boom two"), "{text}");
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn sync_warns_before_replacing_a_different_installed_version() {
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.installed, vec!["pipx:slopo".to_string()]);
     assert_eq!(report.warnings.len(), 1);
-    assert!(format_sync_report(&report).starts_with("toolchain sync: warning: pipx:slopo is installed at 0.9.0"));
+    assert!(format_sync_report(&report).starts_with("toolchain install: warning: pipx:slopo is installed at 0.9.0"));
 }
 
 #[test]

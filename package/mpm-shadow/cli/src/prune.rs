@@ -11,7 +11,7 @@
 //! The kept version is the installed one when an install record names the crate (that is the version just
 //! provisioned):
 //! the newest of cargo's `<cargo home>/.crates.toml` and the version-keyed records under
-//! `<toolchain root>/cargo/<crate>/` that `mpm-shadow sync` writes;
+//! `<toolchain root>/cargo/<crate>/` that `mpm-shadow install` writes;
 //! otherwise the newest cached version (a library crate such as `monochromatic-jsonc-edit`).
 //!
 //! In TS you'd write (pseudocode):
@@ -130,12 +130,12 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
 ///           declares a public function returning,
 /// for each repository crate,
 /// the newest version recorded as installed in any of
-///           the places `sync` or a plain `cargo install` can put it:
+///           the places `install` or a plain `cargo install` can put it:
 /// the version-keyed records under
 ///           `<toolchain root>/cargo/<crate>/` of every given root,
 /// and cargo's own `<cargo home>/.crates.toml`.
 /// Why:
-/// After the cutover `sync` writes only the version-keyed records,
+/// After the cutover `install` writes only the version-keyed records,
 /// so the `.crates.toml` row goes stale and,
 /// read alone,
 /// would keep an old cached version and delete a newer one.
