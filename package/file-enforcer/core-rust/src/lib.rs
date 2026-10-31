@@ -44,6 +44,9 @@ pub mod real_fs;
 /// The virtual view rules plan against.
 pub mod view;
 
+/// Planned and observed state types of the view.
+pub mod view_types;
+
 /// Glob expansion over the view.
 pub mod view_glob;
 
@@ -94,6 +97,9 @@ pub mod explain;
 
 /// Running one command.
 pub mod run;
+
+/// The last step of `check` and `write`.
+mod run_finish;
 
 /// JSON object construction without the `json!` macro.
 pub mod json_build;

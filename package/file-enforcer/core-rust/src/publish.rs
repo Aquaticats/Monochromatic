@@ -14,7 +14,7 @@ use crate::diagnostic::Diagnostic;
 use crate::drift::{Drift, DriftReason};
 use crate::plan::PlanReport;
 use crate::real_fs::{EntryKind, absolute, ancestors_are_real_directories, kind_of};
-use crate::view::Planned;
+use crate::view_types::Planned;
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};

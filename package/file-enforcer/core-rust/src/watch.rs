@@ -21,12 +21,14 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{RecvTimeoutError, channel};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long the file system must stay quiet before a cycle runs.
 const QUIET_PERIOD: Duration = Duration::from_millis(200);
-/// How often the loop wakes to ping the client and check for shutdown.
+/// How often the loop pings the client and checks for shutdown.
 const TICK: Duration = Duration::from_millis(500);
+/// The longest a burst of events may extend the quiet-period wait.
+const MAX_DEBOUNCE: Duration = Duration::from_secs(2);
 
 /// What:
 ///  The nearest ancestor of a path that exists, or the path itself when it does.
@@ -178,26 +180,31 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
     sink.emit(Event::new("watching", "watch-started", "watching; the first run brings every generated file current"));
     let mut changed: BTreeSet<String> = BTreeSet::new();
     cycle(shared, &mut sink, &base, &changed, &mut paths);
+    let mut last_ping = Instant::now();
     loop {
         let wanted = watch_targets(&root, config_path, &paths);
         sync_watches(&mut watcher, &mut current, &wanted);
         if shared.shutdown.load(Ordering::SeqCst) {
             return;
         }
+        // A closed client is noticed by a failing write, so ping on a clock, not only when the file system is quiet.
+        if last_ping.elapsed() >= TICK {
+            if !sink.ping() {
+                return;
+            }
+            last_ping = Instant::now();
+        }
         changed.clear();
         match receiver.recv_timeout(TICK) {
             Ok(first) => {
                 collect_changed(&root, first, &mut changed);
-                while let Ok(next) = receiver.recv_timeout(QUIET_PERIOD) {
+                let debounce_started = Instant::now();
+                while debounce_started.elapsed() < MAX_DEBOUNCE {
+                    let Ok(next) = receiver.recv_timeout(QUIET_PERIOD) else { break };
                     collect_changed(&root, next, &mut changed);
                 }
             }
-            Err(RecvTimeoutError::Timeout) => {
-                if !sink.ping() {
-                    return;
-                }
-                continue;
-            }
+            Err(RecvTimeoutError::Timeout) => continue,
             Err(RecvTimeoutError::Disconnected) => return,
         }
         if changed.is_empty() {
@@ -218,6 +225,10 @@ pub fn watch_connection(shared: &Shared, mut sink: RpcSink, config_path: &Path) 
 /// ```
 fn collect_changed(root: &Path, received: Result<notify::Event, notify::Error>, changed: &mut BTreeSet<String>) {
     let Ok(event) = received else { return };
+    // Reading a file is an access event; the run itself reads files, so counting accesses would loop forever.
+    if matches!(event.kind, notify::EventKind::Access(_)) {
+        return;
+    }
     for path in event.paths {
         let name = path.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
         if name.contains(STAGING_MARKER) {

@@ -13,7 +13,7 @@ use crate::diagnostic::Diagnostic;
 use crate::event::Event;
 use crate::plan::PlanReport;
 use crate::real_fs::RealState;
-use crate::view::Planned;
+use crate::view_types::Planned;
 use serde_json::Value;
 
 /// What:
