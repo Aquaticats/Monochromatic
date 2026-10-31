@@ -1,6 +1,9 @@
-//! What:     Unit tests of the ripgrep walk policy in `policy.rs`.
-//! Why:      The parser reads another tool's argument grammar, so each flag family needs a case that proves the
-//!           boundary: what is a wide walk, what names a path, what only prints information.
+//! What:
+//! Unit tests of the ripgrep walk policy in `policy.rs`.
+//! Why:
+//! The parser reads another tool's argument grammar,
+//! so each flag family needs a case that proves the boundary:
+//! what is a wide walk and what names a path and what only prints information.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -8,8 +11,10 @@
 //! describe('describeWalk', () => { ... });
 //! ```
 
-/// What:     Imports the functions and the record type under test from this crate.
-/// Why:      The tests call them directly.
+/// What:
+/// Imports the functions and the record type under test from this crate.
+/// Why:
+/// The tests call them directly.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -17,9 +22,11 @@
 /// ```
 use crate::policy::{WalkDescription, describe_walk, rg_refusal};
 
-/// What:     `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an
-///           owned list of `String`s (the shape the policy functions take).
-/// Why:      Test cases read better as short literals.
+/// What:
+/// `fn texts(items: &[&str]) -> Vec<String>` declares a helper turning a borrowed list of text slices into an
+/// owned list of `String`s (the shape the policy functions take).
+/// Why:
+/// Test cases read better as short literals.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,8 +41,10 @@ fn texts(items: &[&str]) -> Vec<String> {
     return owned;
 }
 
-/// What:     `fn walk(...) -> WalkDescription` declares a helper that describes a list of arguments.
-/// Why:      Shortens every case below.
+/// What:
+/// `fn walk(...) -> WalkDescription` declares a helper that describes a list of arguments.
+/// Why:
+/// Shortens every case below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -45,8 +54,10 @@ fn walk(items: &[&str]) -> WalkDescription {
     return describe_walk(&texts(items));
 }
 
-/// What:     `#[test]` marks the next function as a test case.
-/// Why:      The runner finds the tests by it.
+/// What:
+/// `#[test]` marks the next function as a test case.
+/// Why:
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,7 +72,8 @@ fn a_plain_search_is_not_wide_and_names_no_path() {
     );
 }
 
-/// The short `-r` is ripgrep's `--replace`; it must be detected alone, with an attached value, and inside clusters.
+/// The short `-r` is ripgrep's `--replace`.
+/// It must be detected alone and with an attached value and inside clusters.
 #[test]
 fn the_short_r_flag_is_detected_alone_attached_and_in_clusters() {
     assert!(walk(&["-r", "X", "foo"]).short_replace);
@@ -83,7 +95,7 @@ fn lookalikes_of_the_short_r_flag_are_not_flags() {
     assert!(!walk(&["-i", "foo"]).short_replace);
 }
 
-/// The ban applies to rg only and has no escape hatch, repository root or path condition.
+/// The ban applies to rg only and has no escape hatch or repository root or path condition.
 #[test]
 fn refuses_the_short_r_flag_for_rg_everywhere() {
     let message = rg_refusal("rg", &texts(&["-rl", "foo"]), false, false, false, "/anywhere");
@@ -101,7 +113,8 @@ fn refuses_the_short_r_flag_for_rg_everywhere() {
     assert_eq!(rg_refusal("rg", &texts(&["--replace", "X", "foo"]), false, false, false, "/repo"), None);
 }
 
-/// The first positional is the pattern, so only later ones are paths.
+/// The first positional is the pattern,
+/// so only later ones are paths.
 #[test]
 fn the_first_positional_is_the_pattern_and_the_rest_are_paths() {
     assert_eq!(walk(&["foo", "src", "doc"]).path_count, 2);
@@ -128,7 +141,8 @@ fn a_pattern_from_a_flag_makes_every_positional_a_path() {
     assert_eq!(walk(&["--regexp=foo", "src", "doc"]).path_count, 2);
 }
 
-/// With `--files` there is no pattern, so every positional is a path.
+/// With `--files` there is no pattern,
+/// so every positional is a path.
 #[test]
 fn files_mode_has_no_pattern() {
     assert_eq!(walk(&["--files", "--hidden"]).path_count, 0);
@@ -145,7 +159,8 @@ fn a_flags_value_is_not_a_positional() {
     assert_eq!(walk(&["-A", "3", "foo", "src"]).path_count, 1);
 }
 
-/// Everything after `--` is positional, even when it looks like a flag.
+/// Everything after `--` is positional,
+/// even when it looks like a flag.
 #[test]
 fn everything_after_a_double_dash_is_positional() {
     let description = walk(&["--hidden", "--", "--odd-pattern", "src"]);
@@ -153,7 +168,8 @@ fn everything_after_a_double_dash_is_positional() {
     assert_eq!(description.path_count, 1);
 }
 
-/// Help, version and list flags only print, so they have nothing to refuse.
+/// Help and version and list flags only print,
+/// so they have nothing to refuse.
 #[test]
 fn information_flags_are_informational() {
     assert!(walk(&["--help"]).informational);
@@ -163,7 +179,8 @@ fn information_flags_are_informational() {
     assert!(walk(&["--type-list"]).informational);
 }
 
-/// The refusal fires only for the exact combination: rg, wide, no path, repository root, no piped input.
+/// The refusal fires only for the exact combination:
+/// rg and wide and no path and repository root and no piped input.
 #[test]
 fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
     let message = rg_refusal("rg", &texts(&["--hidden", "foo"]), false, true, false, "/repo");
