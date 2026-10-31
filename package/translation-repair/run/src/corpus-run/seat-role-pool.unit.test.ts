@@ -22,11 +22,20 @@ import {
   isDecisionSeat,
   MEASURED_CHECKER_ORDER,
   MODEL_CARDS,
+  reaskPoolOf,
   rolePoolOf,
   type RosterModelId,
+  type SeatRole,
 } from '@monochromatic-dev/translation-repair-shared-contract';
-import { readsImages, } from '@monochromatic-dev/translation-repair-provider';
 import {
+  type BudgetView,
+  NO_PROVIDER,
+  providerServing,
+  reachOf,
+  readsImages,
+} from '@monochromatic-dev/translation-repair-provider';
+import {
+  judgeSeatsFor,
   RUN_CHECKER_ORDER,
   RUN_LATE_JUDGES,
   RUN_MODELS,
@@ -119,6 +128,64 @@ await describe({
         for (const modelId of withoutClaude({ modelIds: RUN_MODELS.refinerModelIds, },)) {
           expect(rolePoolOf({ role: 'refiner', },).includes(modelId,),).toBe(true,);
         }
+      },
+    },),
+
+    it({
+      name: 'NEVER ASKS A MODEL THE RUN WITHHELD FROM A ROLE\'S BENCH, in any reading of the meters (ledger B1143): a model the '
+        + 'run keeps off the seats of a role while Hyper would serve it (Qwen3.8-27B, and Kimi-K3 on the select and slate '
+        + 'seats) is in no re-ask pool of that role, unless no provider would serve it',
+      fn: async () => {
+        /**
+         Every reading of the three meters the holds depend on, the other providers wet but for NeuralWatt, which follows
+         Synthetic as it does in a run.
+         */
+        const readings: readonly BudgetView[] = [false, true,].flatMap(function bySynthetic(synthetic,) {
+          return [false, true,].flatMap(function byHyper(hyper,) {
+            return [false, true,].map(function byOpenRouter(openrouter,): BudgetView {
+              return {
+                neuralwatt: synthetic,
+                synthetic,
+                hyper,
+                bedrock: false,
+                deepseek: false,
+                xiaomi: false,
+                anthropic: false,
+                openrouter,
+              };
+            },);
+          },);
+        },);
+        const findings: string[] = [];
+        for (const dry of readings) {
+          const seats = judgeSeatsFor({ dry, },);
+          /**
+           Each role beside the bench the run lists for it and the bench it derives in this reading.
+           */
+          const benches: readonly (readonly [SeatRole, readonly RosterModelId[], readonly RosterModelId[]])[] = [
+            ['roster', RUN_ROSTER, seats.roster,],
+            ['translator', RUN_TRANSLATORS, seats.translators,],
+            ['writer', RUN_WRITERS, seats.writers,],
+            ['reader', RUN_READER_MODELS, seats.readers,],
+            ['wide-judge', RUN_WIDE_SEATS, seats.wideSeats,],
+            ['late-judge', RUN_LATE_JUDGES, seats.lateJudges,],
+            ['select-judge', RUN_WIDE_SEATS, seats.selectJudges,],
+            ['slate-judge', RUN_LATE_JUDGES, seats.slateJudges,],
+          ];
+          for (const [role, listed, derived,] of benches) {
+            for (const modelId of listed.filter(function withheld(listedId,): boolean {
+              return !derived.includes(listedId,);
+            },)) {
+              if (reaskPoolOf({ role, },).includes(modelId,)
+                && (providerServing({ reach: reachOf({ modelId, },), dry, },) !== NO_PROVIDER)) {
+                findings.push(`${role}: ${modelId} is withheld from the bench but in the re-ask pool (dry ${
+                  JSON.stringify(dry,)
+                })`,);
+              }
+            }
+          }
+        }
+        expect(findings,).toEqual([],);
       },
     },),
 

@@ -277,6 +277,26 @@ await describe({
     },),
 
     it({
+      name: 'NEVER ASKS KIMI-K3 FOR A SELECT OR SLATE SEAT, nor QWEN3.8-27B FOR A SEAT THE RUN WITHHOLDS IT FROM WHILE HYPER SERVES '
+        + 'IT (ledger B1143): with Synthetic dry and Hyper serving Kimi-K3 the run keeps it off the select and slate benches, '
+        + 'and a runaway select or slate judge is not re-asked of it on Hyper',
+      fn: async () => {
+        for (const role of ['select-judge', 'slate-judge',] as const) {
+          const { alternates, leftOut, } = alternateModelsFor({ modelId: 'minimax-m3', role, },);
+          expect(alternates.includes('hf:moonshotai/Kimi-K3',),).toBe(false,);
+          expect(leftOut.find(function isKimi(left,): boolean {
+            return left.modelId === 'hf:moonshotai/Kimi-K3';
+          },)?.why,).toContain('hyper-slow-select',);
+        }
+        expect(alternateModelsFor({ modelId: 'minimax-m3', role: 'wide-judge', },).alternates.includes('hf:moonshotai/Kimi-K3',),)
+          .toBe(true,);
+        for (const role of ['roster', 'translator', 'writer',] as const) {
+          expect(alternateModelsFor({ modelId: 'minimax-m3', role, },).alternates.includes('hf:Qwen/Qwen3.8-27B',),).toBe(false,);
+        }
+      },
+    },),
+
+    it({
       name: 'KEEPS THE SHARE OF RUNAWAYS AS THE ORDER OF EVERY OTHER ROLE, the roles with no recorded standing',
       fn: async () => {
         for (const role of ['roster', 'writer', 'wide-judge', 'checker',] as const) {

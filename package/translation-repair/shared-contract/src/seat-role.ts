@@ -55,6 +55,8 @@ export const SEAT_ROLES = [
   'writer',
   'wide-judge',
   'late-judge',
+  'select-judge',
+  'slate-judge',
   'reader',
   'checker',
   'editor',
@@ -96,6 +98,17 @@ const HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
     'wide-seat-dropped',
   ],
   'late-judge': [
+    'owner-culled',
+    'judge-unmeasured',
+    'late-judge-dropped',
+  ],
+  // THE SELECT SEATS ARE THE WIDE SEATS' BENCH AND THE SLATE SEATS THE LATE JUDGES' (ledger B1143): the same static holds.
+  'select-judge': [
+    'owner-culled',
+    'judge-unmeasured',
+    'wide-seat-dropped',
+  ],
+  'slate-judge': [
     'owner-culled',
     'judge-unmeasured',
     'late-judge-dropped',
@@ -217,6 +230,23 @@ export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly R
         .length
         === 0;
     },);
+}
+
+/**
+ The models a re-ask of a seat in a role may ask: the pool of the role, less the models the run keeps off the seats of
+ that role at the call (ledger B1143).
+
+ @param role - role of the seat that ran away
+
+ @returns Models the re-ask may ask
+
+ @example
+ ```ts
+ const pool = reaskPoolOf({ role: 'select-judge', },);
+ ```
+ */
+export function reaskPoolOf({ role, }: { readonly role: SeatRole; },): readonly RosterModelId[] {
+  return rolePoolOf({ role, },);
 }
 
 //endregion Seat role

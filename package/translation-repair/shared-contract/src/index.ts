@@ -152,6 +152,7 @@ export { MODEL_CARDS, } from './model-cards.ts';
 export {
   holdsKeepingOutOf,
   MEASURED_CHECKER_ORDER,
+  reaskPoolOf,
   rolePoolOf,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
