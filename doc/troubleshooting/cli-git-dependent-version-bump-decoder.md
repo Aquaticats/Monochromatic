@@ -119,11 +119,11 @@ two `git commit` invocations stopped before forwarding with the identical engine
 
 Both invocations named more than one package in one commit:
 
-- the core extraction, spanning `package/agent-harness-shared/search-fetch`,
-  `package/pi-plugin/search-fetch`,
+- the core extraction, spanning `package/search-fetch/core`,
+  `package/search-fetch/pi-plugin`,
   and `pnpm-lock.yaml`
-- the server package, spanning `package/mcp/search-fetch`,
-  `package/pi-plugin/search-fetch/package.json`,
+- the server package, spanning `package/search-fetch/mcp`,
+  `package/search-fetch/pi-plugin/package.json`,
   and `pnpm-lock.yaml`
 
 Verified workaround without any policy escape:

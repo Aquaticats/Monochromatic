@@ -1,5 +1,5 @@
 {
-  "name": "@monochromatic-dev/mcp-search-fetch",
+  "name": "@monochromatic-dev/search-fetch-mcp",
   "description": "MCP server exposing the shared search and fetch tools with truncated responses as resources.",
   "type": "module",
   "private": true,
@@ -8,7 +8,7 @@
     "search-fetch-mcp": "dist/final/node/index.mjs"
   },
   "dependencies": {
-    "@monochromatic-dev/agent-harness-shared-search-fetch": "workspace:*",
+    "@monochromatic-dev/search-fetch-core": "workspace:*",
     "@monochromatic-dev/mcp-stdio": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
@@ -30,6 +30,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/mcp/search-fetch"
+    "directory": "package/search-fetch/mcp"
   }
 }

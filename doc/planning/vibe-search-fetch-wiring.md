@@ -47,7 +47,7 @@ Ranking: skill + one-shot client > keep unwired > bridge shim > direct core CLI.
   (`doc/handover/mcp-stdio-2026-07-28.md`).
 - Direct core CLI:
   a script importing
-  `@monochromatic-dev/agent-harness-shared-search-fetch` executors
+  `@monochromatic-dev/search-fetch-core` executors
   skips MCP framing but costs the same as the one-shot client
   while bypassing the server surface the other hosts share,
   so it is dominated.

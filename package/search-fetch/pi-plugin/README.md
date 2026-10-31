@@ -1,6 +1,6 @@
 # Pi Search Fetch
 
-`@monochromatic-dev/pi-plugin-search-fetch` is a narrow Pi package for web search and page fetch.
+`@monochromatic-dev/search-fetch-pi-plugin` is a narrow Pi package for web search and page fetch.
 It registers only two model-callable tools:
 
 - `web_search`
@@ -270,9 +270,9 @@ the full response is written to a temporary file and the tool result names that 
 Run package-scoped tasks:
 
 ```bash
-mise run //package/pi-plugin/search-fetch:build
-mise run //package/pi-plugin/search-fetch:lint:types
-mise run //package/pi-plugin/search-fetch:lint:oxlint
-mise run //package/pi-plugin/search-fetch:test:unit
-mise run //package/pi-plugin/search-fetch:verify:extension
+mise run //package/search-fetch/pi-plugin:build
+mise run //package/search-fetch/pi-plugin:lint:types
+mise run //package/search-fetch/pi-plugin:lint:oxlint
+mise run //package/search-fetch/pi-plugin:test:unit
+mise run //package/search-fetch/pi-plugin:verify:extension
 ```

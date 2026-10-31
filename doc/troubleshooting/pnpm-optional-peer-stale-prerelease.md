@@ -20,12 +20,12 @@ Two compiler instances therefore coexisted:
 The trigger is a workspace package that depends on `valibot` without declaring `typescript` in its own dependencies.
 In this workspace those were `package/mcp/mvm`,
 `package/pi-plugin/advisor`,
-`package/pi-plugin/search-fetch`,
+`package/search-fetch/pi-plugin`,
 and
  `package/pi-shared/model-selection`.
 The five sibling `valibot` consumers that already declared `typescript: catalog:`
- (`package/agent-harness-shared/search-fetch`,
-`package/mcp/search-fetch`,
+ (`package/search-fetch/core`,
+`package/search-fetch/mcp`,
 `package/mcp/stdio`,
  `package/ssg/aquati.cat`,
 and `package/rss/app`) resolved `valibot@1.5.0(typescript@7.1.0-beta)`
@@ -159,7 +159,7 @@ Failing catalog:
 
 Applied in commit `27b1cf2eec` to `package/mcp/mvm`,
 `package/pi-plugin/advisor`,
-`package/pi-plugin/search-fetch`,
+`package/search-fetch/pi-plugin`,
 and
  `package/pi-shared/model-selection`.
 Each importer then resolves `valibot`'s optional peer from its own dependencies,

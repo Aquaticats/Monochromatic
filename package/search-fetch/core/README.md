@@ -1,4 +1,4 @@
-# @monochromatic-dev/agent-harness-shared-search-fetch
+# @monochromatic-dev/search-fetch-core
 
 Host-neutral search and fetch core:
 provider fallback,
@@ -10,8 +10,8 @@ and guarded valibot to TypeBox conversion.
 ## Why
 
 The same search and fetch behavior serves the pi extension
-(`@monochromatic-dev/pi-plugin-search-fetch`) and the MCP server
-(`@monochromatic-dev/mcp-search-fetch`).
+(`@monochromatic-dev/search-fetch-pi-plugin`) and the MCP server
+(`@monochromatic-dev/search-fetch-mcp`).
 Keeping behavior here makes host differences structural only:
 tool contracts,
 provider routing,
@@ -89,7 +89,7 @@ import {
   executeWebSearchTool,
   loadLinkupConfig,
   webSearchToolSpec,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 ```
 
 ## Tests

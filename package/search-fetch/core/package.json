@@ -1,5 +1,5 @@
 {
-  "name": "@monochromatic-dev/agent-harness-shared-search-fetch",
+  "name": "@monochromatic-dev/search-fetch-core",
   "description": "Host-neutral search and fetch core: provider fallback, global host blocklist, gh URL routing, and shared tool specs.",
   "type": "module",
   "private": true,
@@ -44,6 +44,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/agent-harness-shared/search-fetch"
+    "directory": "package/search-fetch/core"
   }
 }

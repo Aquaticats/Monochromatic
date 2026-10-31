@@ -1,11 +1,11 @@
-# @monochromatic-dev/mcp-search-fetch
+# @monochromatic-dev/search-fetch-mcp
 
 MCP server exposing the shared web_search and web_fetch tools over stdio,
 with truncated responses delivered as resources.
 
 ## Why
 
-The pi extension `@monochromatic-dev/pi-plugin-search-fetch` serves pi hosts.
+The pi extension `@monochromatic-dev/search-fetch-pi-plugin` serves pi hosts.
 This server serves every other MCP host with the identical behavior:
 DeepSeek-first search (maximum results with page content) with Exa and Linkup
 fallback,
@@ -14,7 +14,7 @@ DeepSeek fetch before Linkup and Exa,
 the global host blocklist,
 base64 data-URL image stripping,
 and the same tool names and descriptions.
-Both surfaces delegate to `@monochromatic-dev/agent-harness-shared-search-fetch`,
+Both surfaces delegate to `@monochromatic-dev/search-fetch-core`,
 so behavior has exactly one implementation.
 
 One surface per host:

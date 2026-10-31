@@ -243,7 +243,7 @@ independently testable.
 ### 7. gh-process cancellation
 
 Files:
-`package/agent-harness-shared/search-fetch/src/gh-process.unit.test.ts`.
+`package/search-fetch/core/src/gh-process.unit.test.ts`.
 
 Acceptance:
 assert `caught instanceof Error` and `code === 'ABORT_ERR'`;

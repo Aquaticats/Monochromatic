@@ -1,7 +1,7 @@
 /**
  MCP tool entries over the shared search and fetch core.
 
- The shared specs in \@monochromatic-dev/agent-harness-shared-search-fetch own names,
+ The shared specs in \@monochromatic-dev/search-fetch-core own names,
  descriptions, and valibot parameter schemas; those schemas go to hosts unchanged.
  Truncated results additionally record their full response in the response store and
  carry both a resource URI line and a `resource_link` content block.
@@ -17,7 +17,7 @@ import {
   type LinkupConfig,
   type SearchFetchToolClient,
   type SearchFetchToolResult,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 import {
   defineTool,
   type ToolCallResult,

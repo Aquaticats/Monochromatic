@@ -1726,7 +1726,7 @@ It is discharged by attribution rather than waived,
  and the attribution is measured:
 
 -    The new argument-opacity finding names `providerOrName` in
-      `package/pi-plugin/search-fetch/src/mise.verify-extension.ts`.
+      `package/search-fetch/pi-plugin/src/mise.verify-extension.ts`.
      Commit `032e5ac04`,
       timestamped between the two captures,
       adds that identifier twice to that exact file.
@@ -1908,7 +1908,7 @@ That is the cleanest possible argument for having reverted it rather than repair
 Against `sweep-after-43`,
  the net of every change since,
  the delta is the same two added and one removed already attributed to another session's
- commits in `package/pi-plugin/search-fetch`.
+ commits in `package/search-fetch/pi-plugin`.
 So both halves of this work moved zero workspace findings in total.
 
 One prediction confirmed along the way.
@@ -4948,7 +4948,7 @@ That is the registered signature exactly,
 
 Sampled,
  as the criterion requires.
-`collectIgnoredKeys` in `package/pi-plugin/search-fetch/src/tools.ts`,
+`collectIgnoredKeys` in `package/search-fetch/pi-plugin/src/tools.ts`,
  and the cause is `new Set(supportedKeys,)` where `supportedKeys` is `readonly string[]`.
 
 The rule is working as designed.
@@ -5239,7 +5239,7 @@ The offer came back,
 
 ```text
 added   1: offer=1
-package/pi-plugin/search-fetch/src/tools.ts:468:3  Parameter "{ input, supportedKeys, }" ...
+package/search-fetch/pi-plugin/src/tools.ts:468:3  Parameter "{ input, supportedKeys, }" ...
 ```
 
 Same file,

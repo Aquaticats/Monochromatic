@@ -5,6 +5,13 @@
 > paths and names below this note are historical:
 > `package/cli/open-code-review-issue` is now `package/open-code-review-issue/cli`.
 
+> Moved 2026-10-31 by the search-fetch product move into `package/search-fetch`
+> (`doc/planning/search-fetch-cli.md`);
+> paths and names below this note are historical:
+> `package/pi-plugin/search-fetch` is now `package/search-fetch/pi-plugin`;
+> `@monochromatic-dev/pi-plugin-search-fetch` is now
+> `@monochromatic-dev/search-fetch-pi-plugin`.
+
 ## Current goal
 
 Change the current Pi Linkup package into an Exa-first search and fetch extension:

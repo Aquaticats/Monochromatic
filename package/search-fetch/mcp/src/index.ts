@@ -14,7 +14,7 @@ import {
   loadLinkupConfig,
   type LinkupConfig,
   type SearchFetchClient,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 import {
   createMcpServer,
   serve,
@@ -143,7 +143,7 @@ export type {
 export type {
   LinkupConfig,
   SearchFetchClient,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 
 //endregion Public re-exports
 

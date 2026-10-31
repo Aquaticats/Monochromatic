@@ -12,7 +12,7 @@ Implemented and verified in the same session.
 ## Context
 
 The shared search and fetch core
-(`package/agent-harness-shared/search-fetch`) routed search through Exa fast
+(`package/search-fetch/core`) routed search through Exa fast
 first and Linkup standard fallback,
 and fetch through the `gh` CLI,
 Linkup renderJs,
@@ -197,10 +197,10 @@ Measured with the stored key on 2026-10-18.
 
 ## Verification
 
-- `mise run //package/agent-harness-shared/search-fetch:lint:types` passes.
-- `mise run //package/agent-harness-shared/search-fetch:lint:oxlint` passes with
+- `mise run //package/search-fetch/core:lint:types` passes.
+- `mise run //package/search-fetch/core:lint:oxlint` passes with
   zero warnings and zero errors.
-- `mise run //package/agent-harness-shared/search-fetch:test:unit` passes,
+- `mise run //package/search-fetch/core:test:unit` passes,
   including the new DeepSeek client suite and both fallback-chain suites.
 - MCP server `buildAndTest` passes,
   and a stdio smoke call against the built server at protocol revision

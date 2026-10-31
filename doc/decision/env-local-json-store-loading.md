@@ -228,7 +228,7 @@ bundle.
 ### One-time migration (D12)
 
 `mise run secrets:migrate` runs the migration in
-`package/agent-harness-shared/search-fetch/src/migrate.ts`.
+`package/search-fetch/core/src/migrate.ts`.
 It reads the raw Pi config and legacy file,
 writes both provider values into the
 existing encrypted store through `sops set --value-stdin`,

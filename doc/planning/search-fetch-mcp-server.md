@@ -5,7 +5,7 @@ This records the interview state, measured evidence, and the implementation reco
 
 ## Goal
 
-The user asked to repackage the pi search fetch plugin (`package/pi-plugin/search-fetch`) as an MCP server too,
+The user asked to repackage the pi search fetch plugin (`package/search-fetch/pi-plugin`) as an MCP server too,
 and to grill the plan before any code moves.
 
 ## Settled decisions
@@ -18,8 +18,8 @@ and to grill the plan before any code moves.
   `@monochromatic-dev/mcp-stdio` stays unchanged.
 - Q10: the transform is a dependency-free in-repo subset converter with a fail-loud guard
   and verdict-agreement tests; no third-party converter is adopted.
-- Q6: core lives at `package/agent-harness-shared/search-fetch`,
-  named `@monochromatic-dev/agent-harness-shared-search-fetch`.
+- Q6: core lives at `package/search-fetch/core`,
+  named `@monochromatic-dev/search-fetch-core`.
 - Q7: truncation is ported into a neutral module and proven identical to pi's helpers by behavior tests;
   core imports nothing from pi.
 - Q8: truncated head plus temp path stay, and the full response is additionally delivered as an MCP resource.
@@ -29,7 +29,7 @@ and to grill the plan before any code moves.
 
 Recorded without asking (policy or sibling precedent), each open for veto:
 
-- `package/mcp/search-fetch` named `@monochromatic-dev/mcp-search-fetch`, bin `search-fetch-mcp`,
+- `package/search-fetch/mcp` named `@monochromatic-dev/search-fetch-mcp`, bin `search-fetch-mcp`,
   `#!/usr/bin/env node` first line, `private: true`, `LGPL-3.0-or-later` with `LICENSES/`.
 - stdio transport only, on `@monochromatic-dev/mcp-stdio`; logs to stderr through tagged `module-logger` loggers.
 - `mise.toml` tasks mirroring siblings, tests covering every exported path, package `README.md`.
@@ -136,14 +136,15 @@ Nothing remains open from the confirmed plan.
 ## Implementation
 
 Shaped exactly as the interview recorded,
-with these commits:
+with these commits (scopes updated to the 2026-10-31 names;
+git history keeps the retired subjects, mapped in `doc/planning/search-fetch-cli.md`):
 
 - `feat(agent-harness-shared-truncate)`: pi-parity truncation port with differential tests.
-- `feat(agent-harness-shared-search-fetch)`: pi-free core with shared tool specs,
+- `feat(search-fetch-core)`: pi-free core with shared tool specs,
   guarded valibot to TypeBox converter, shared executors, and the moved behavior suites.
-- `refactor(pi-plugin-search-fetch)`: pi adapter over the shared core.
+- `refactor(search-fetch-pi-plugin)`: pi adapter over the shared core.
 - `feat(mcp-stdio)`: `resources/list` and `resources/read` dispatch with a `ResourceProvider`.
-- `feat(mcp-search-fetch)`: the MCP server bin exposing `web_search` and `web_fetch`.
+- `feat(search-fetch-mcp)`: the MCP server bin exposing `web_search` and `web_fetch`.
 
 Recorded defaults kept:
 resource URI scheme `search-fetch://response/<id>` backed by the same temp file,
@@ -154,10 +155,10 @@ bounded in-memory index of 32 recent responses.
 Unit suites (all green, zero lint findings on every package touched):
 
 - `agent-harness-shared-truncate`: behavior plus pi parity corpus.
-- `agent-harness-shared-search-fetch`: 26 cases across moved suites plus converter,
+- `search-fetch-core`: 26 cases across moved suites plus converter,
   queue, and shared execution.
 - `mcp-stdio`: 20 cases including the resource surface.
-- `mcp-search-fetch`: 6 protocol cases including the truncated-resource round trip.
+- `search-fetch-mcp`: 6 protocol cases including the truncated-resource round trip.
 
 Guard proof (GFP):
 the parity suite was shown to fail against `piTruncateHead` after sabotaging the port's

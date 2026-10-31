@@ -3,7 +3,7 @@
 
  Registers the shared provider-neutral search and fetch tools with pi,
  keeping global host blocklist enforcement and no account-management surfaces.
- Behavior lives in \@monochromatic-dev/agent-harness-shared-search-fetch;
+ Behavior lives in \@monochromatic-dev/search-fetch-core;
  this module only wires pi registration.
 
  @module
@@ -15,7 +15,7 @@ import {
   loadLinkupConfig,
   type LinkupConfig,
   type SearchFetchToolClient,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
@@ -72,7 +72,7 @@ export type RegisterPiLinkupOptions = {
  @example
  ```ts
  // In ~/.pi/agent/settings.json:
- { "packages": ["@monochromatic-dev/pi-plugin-search-fetch"] }
+ { "packages": ["@monochromatic-dev/search-fetch-pi-plugin"] }
  ```
  */
 export default async function piLinkup(pi: ExtensionAPI,): Promise<void> {
@@ -154,7 +154,7 @@ export function registerPiLinkup(options: RegisterPiLinkupOptions,): void {
 export {
   LINKUP_WEB_FETCH_TOOL_NAME,
   LINKUP_WEB_SEARCH_TOOL_NAME,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 export {
   createLinkupTools,
 } from './tools.ts';
@@ -163,7 +163,7 @@ export type {
   LinkupWebFetchInput,
   LinkupWebSearchInput,
   SearchFetchToolClient,
-} from '@monochromatic-dev/agent-harness-shared-search-fetch/ts';
+} from '@monochromatic-dev/search-fetch-core/ts';
 export type {
   CreateLinkupToolsOptions,
   LinkupToolDefinition,

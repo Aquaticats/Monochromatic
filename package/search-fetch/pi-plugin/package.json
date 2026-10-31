@@ -1,5 +1,5 @@
 {
-  "name": "@monochromatic-dev/pi-plugin-search-fetch",
+  "name": "@monochromatic-dev/search-fetch-pi-plugin",
   "description": "Exa-first search and Linkup-first fetch extension for pi with global host blocklist enforcement",
   "type": "module",
   "private": true,
@@ -7,7 +7,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Aquaticat/Monochromatic.git",
-    "directory": "package/pi-plugin/search-fetch"
+    "directory": "package/search-fetch/pi-plugin"
   },
   "exports": {
     ".": {
@@ -36,7 +36,7 @@
     "typebox": "*"
   },
   "dependencies": {
-    "@monochromatic-dev/agent-harness-shared-search-fetch": "workspace:*",
+    "@monochromatic-dev/search-fetch-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "valibot": "catalog:"
   },

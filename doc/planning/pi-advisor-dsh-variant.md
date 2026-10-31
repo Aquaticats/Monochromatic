@@ -87,7 +87,7 @@ export const Config = z.object({ /* Schemastery structural fields */ });
   returning the dispose function.
 
 Precedent correction (manifests win):
-`package/dsh-plugin/search-fetch` in this repo is a configuration-only bundle
+`package/search-fetch/dsh-plugin` in this repo is a configuration-only bundle
 (`cordis.patch.yml` mounting `@deepseek-ai/dsh-mcp-client`, no `src/`, no `apply`).
 The in-process precedent for `apply(ctx, config)` plus `ctx.tools.register`
 is the harness package `@deepseek-ai/dsh-tool-cordis`

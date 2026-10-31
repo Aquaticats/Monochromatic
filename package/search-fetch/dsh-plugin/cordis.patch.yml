@@ -1,9 +1,9 @@
 # Connects the repo's shared search and fetch MCP server to this profile.
 #
-# The server is `@monochromatic-dev/mcp-search-fetch`, built to
-# `package/mcp/search-fetch/dist/final/node/index.mjs`. It exposes `web_search`
+# The server is `@monochromatic-dev/search-fetch-mcp`, built to
+# `package/search-fetch/mcp/dist/final/node/index.mjs`. It exposes `web_search`
 # and `web_fetch` that delegate to
-# `@monochromatic-dev/agent-harness-shared-search-fetch`, the same core the pi
+# `@monochromatic-dev/search-fetch-core`, the same core the pi
 # extension uses, so the behavior has exactly one implementation. The tools
 # mount as `mcp__search-fetch__web_search` and `mcp__search-fetch__web_fetch`.
 #
@@ -28,5 +28,5 @@
         transport: stdio
         command: !!js process.execPath
         args:
-          - !!js process.getBuiltinModule('node:path').resolve(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@monochromatic-dev/dsh-plugin-search-fetch/package.json')), '../../mcp/search-fetch/dist/final/node/index.mjs')
+          - !!js process.getBuiltinModule('node:path').resolve(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@monochromatic-dev/search-fetch-dsh-plugin/package.json')), '../mcp/dist/final/node/index.mjs')
         failOnStartupError: true
