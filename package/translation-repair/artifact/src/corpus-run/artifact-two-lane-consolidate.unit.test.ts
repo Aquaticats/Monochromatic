@@ -215,18 +215,38 @@ await describe({
     },),
 
     it({
-      name: 'REFUSES A TRANSLATE LANE WINNER THAT NAMES NO REASON, since both places that mark a winner shipped set the '
-        + 'reason with the mark, and a guessed reason would put a false one in the record',
+      name: 'REFUSES A TRANSLATE LANE WINNER THAT NAMES NO REASON with a named class a caller can match on, since '
+        + 'both places that mark a winner shipped set the reason with the mark, a guessed reason would put a false '
+        + 'one in the record, and a settlement without one is a record the stage could not have written',
       fn: async () => {
-        expect(() =>
+        /**
+         Failure raised by a settlement that marks the winner shipped and names no reason.
+         */
+        let caught: unknown;
+        try {
           describeConsolidateSlice({
             sliceIndex: 7,
             settlement: {
               ...settledAs({ terminal: 'slate-declined-standing', text: 'The cat naps on the sill.', },),
               translateWinnerShipped: true,
             },
-          },)
-        ).toThrow('names no reason',);
+          },);
+        }
+        catch (error) {
+          caught = error;
+        }
+        expect(caught,).toBeInstanceOf(Error,);
+        expect({
+          name: (caught as Error).name,
+          marked: (caught as { readonly messageNamesOnly?: boolean; }).messageNamesOnly,
+          namesSlice: (caught as Error).message.startsWith('slice 7: ',),
+          namesFault: (caught as Error).message.includes('names no reason',),
+        },).toStrictEqual({
+          name: 'TranslateWinnerReasonMissingError',
+          marked: true,
+          namesSlice: true,
+          namesFault: true,
+        },);
       },
     },),
 
