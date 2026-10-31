@@ -185,6 +185,26 @@ and accepted with this record:
   and reporting registry failures only in an `errors` array;
   asked again,
   the user chose "Registry lookup always".
+- The plan names every tool's origin and the lock is derived (decided 2026-10-30):
+  asked how a brand-new downloaded tool declares its origin,
+  the user wrote "Are we misunderstanding how it should work?
+  This is a problem pnpm doesn't have so we shouldn't have the problem too.",
+  then chose "Origin in the request".
+  Each plan entry keeps a stable id (like a `package.json` key)
+  and its `request` carries origin plus version range (like a `package.json` value or pnpm's `"alias": "npm:real@^1"`),
+  for example `"age": {"request": "github:FiloSottile/age@latest"}` and `"zig": {"request": "zig@0.15.2"}`.
+  No resolver reads a previous lock row;
+  deleting `toolchain.lock.json` and running `update` rebuilds it from the plan alone.
+  `github:<owner>/<repo>` picks each platform's asset by OS and architecture naming,
+  with an optional `asset` hint only for ambiguous repositories;
+  other downloads use named resolvers.
+  The old plan broke this:
+  downloaded tools such as `age` had bare ids and their origin lived only in `plan.artifacts.data.ts`,
+  rows copied from the old `mise.lock`.
+- The converted plan must write `{version}` where a value equals the resolved version
+  (`"packageId": "{version}"` and `"RUSTUP_TOOLCHAIN": "{version}"` for `rust`,
+  `"ANDROID_HOME": "android-sdk/{version}"` for `android-sdk`),
+  or the first `update` moves `version` while those values stay stale.
 - A locked npm or PyPI tool missing from the machine:
   plain `update` syncs the missing tools,
   then retries the lookup once
@@ -365,6 +385,19 @@ and accepted with this record:
     `op_mob <= 12.1`,
     `samsung 4`)
     internally against the locked data rather than a hard-coded result.
+  - Node pre-releases (2026-10-30):
+    `node-releases` 2.0.62 lists `27.0.0-alpha.0.0.0`,
+    and npm `browserslist` 4.29.5 (the newest on npm) then resolves `last 1 node major versions` to only that alpha
+    (measured in a container);
+    no upstream issue exists.
+    First choosing filtering with the note "Isn't filtering pre-releases out common knowledge and conforming to upstream?",
+    then told that upstream does not filter,
+    the user chose "Filter pre-releases anyway" ("filter pre-releases anyway and write a /troubleshooting-doc").
+    Pre-release Node versions are dropped before node queries are evaluated;
+    the conformance test records it as a named exception like Firefox ESR.
+  - Lock location:
+    the user chose "Move it to the repo root",
+    so the lock is `browserslist-data.lock.json` beside `toolchain.lock.json`.
   Evidence that led here:
   `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
 - HTTP client,
