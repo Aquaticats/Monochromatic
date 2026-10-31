@@ -187,6 +187,9 @@ export async function runRestorationJudge(
     responseFormat: RESTORATION_JUDGE_RESPONSE_FORMAT,
     validate: isRestorationJudgeWire,
     stage: 'restoration-judge',
+    // THE RESTORATION JUDGES ARE THE WIDE SEATS (`RECALL_JUDGE_MODEL_IDS`), so a runaway is re-asked of no model the
+    // cards drop from them.
+    role: 'wide-judge',
     l,
     graceMs: stageSettings
       .grace

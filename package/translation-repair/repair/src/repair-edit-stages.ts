@@ -176,6 +176,8 @@ export async function runCheckerStage(
         .length,
     },),
     stage: 'checker',
+    // THE CHECKERS HONOUR THE CULL ALONE (`checkerModelIds`).
+    role: 'checker',
     l,
     graceMs: stageSettings
       .grace

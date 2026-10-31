@@ -195,6 +195,8 @@ export async function runCriticStage(
     responseFormat: CRITIC_RESPONSE_FORMAT,
     validate: isCriticReportWire,
     stage: 'critic',
+    // THE CRITICS ARE THE WIDE SEATS (`criticModelIds`), so a runaway is re-asked of no model the cards drop from them.
+    role: 'wide-judge',
     l,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),
