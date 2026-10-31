@@ -310,6 +310,8 @@ each finished branch is reviewed and merged into `main`):
   mpm-shadow's slice re-exec (for `install`,
   `update`,
   `outdated`) is on `main` but not in the released 0.2.0.
+  (Note 2026-10-31: both re-execs were removed from `main` by the merge `bc49bb812f`;
+  the toolchain no longer knows about the slice.)
   Not done:
   the two auto-saved rejects for the removed worktree `agent-a23c3740c67ba36d9`'s `target/debug` binaries stay
   (harmless now that worktree is gone);
@@ -368,7 +370,7 @@ each finished branch is reviewed and merged into `main`):
   the `bash-output-filter` hooks,
   and a test fixture.
   `wg-quicker down` removes the nft kill switch (`package/wg/cli-quicker/src/tunnel-cleanup.ts`),
-  so a down/up restart leaves seconds unprotected;
+  so a down/up restart leaves the time between the two commands (not measured) unprotected;
   restarting only the exemption watcher has no gap.
   mpm-shadow 0.2.1 is dropped:
   since 0.2.0 mpm-shadow only gained and lost the self-placement,
@@ -384,6 +386,65 @@ each finished branch is reviewed and merged into `main`):
   then `up`,
   accepting the unprotected moment between them),
   once the separate reviewer finishes with no blocking findings.
+  The separate review finished 2026-10-31 with one blocker,
+  so nothing went live and the four wg commits stay unmerged.
+  Its findings,
+  most severe first:
+  1.  Blocker unless the resolver path is inside the tunnel:
+      DNS answers are trusted without bound
+      (no cap per host or in total,
+      one concurrent `ip` spawn per address,
+      additions logged only at debug).
+      `setDns` (`package/wg/cli-quicker/src/tunnel.ts`) points resolution at the tunnel only when the config has `DNS =`;
+      without it the physical link's resolver picks the answers.
+      Sharpest case:
+      an answer naming the tunnel's own DNS server (for example 1.1.1.1) sends all DNS out of the tunnel.
+      The reserved-range list also misses TEST-NET-1/2/3,
+      `192.0.0.0/24`,
+      `198.18.0.0/15`,
+      `::ffff:0:0/96` in hex form,
+      `64:ff9b::/96` and `2002::/16`.
+  2.  The start notice does not say rules carry whole shared CDN addresses.
+  3.  `WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` cross sudo and act as a toggle
+      (`/bin/true` as the companion leaves `up` succeeding with no process watch).
+  4.  The process watch trusts names and paths any same-uid process controls
+      (`exec -a mpm curl`, a binary copied under the toolchain root);
+      a Flatpak or bwrap process without user-bus access might reach the slice this way (not exercised).
+  5.  The toolchain-root rule covers every installed tool (node, bun, pnpm, java, android-sdk, llama.cpp, and more),
+      which the notice does not say.
+  6.  Failures after startup reach no person:
+      the Rust watcher's log is swallowed by `up`,
+      and the TypeScript refresh loop runs detached with its output ignored.
+  7.  A failed adoption is never retried,
+      and a process that exits mid-move is reported as not moved after a 2 s stall.
+  8.  Minor ones:
+      the `setpriv` gid,
+      no start-time recheck for descendants,
+      full scans counted by wakeups rather than time,
+      the loop exiting on an error with no report,
+      EACCES read as vanished,
+      `CStr::from_ptr` on a possibly NULL home,
+      adoption dropping the origin's CPU and memory limits,
+      and the notice still claiming bypass with `Table = off`.
+  Verified clean:
+  netlink length and sender checks,
+  constant `busctl`/`setpriv` arguments with a cleared environment,
+  other users and root excluded,
+  no panics in the new modules,
+  host-rule ownership on `down`.
+  Measured on this machine 2026-10-31:
+  `fr-par-fr1` carries DNS servers (Cloudflare and Quad9,
+  DNS over TLS) with routing domain `~.` and the default route;
+  the Wi-Fi link only owns `lan`;
+  `/etc/resolv.conf` is the `127.0.0.53` stub with `search lan`;
+  `setDns` runs before the first host refresh;
+  so here the answers come through the tunnel,
+  but the tool must also hold for configs without `DNS =`.
+  The wg agent was resumed with every finding except the resolver-trust choice,
+  which is asked of the owner,
+  plus a coordinator suspicion to settle from source:
+  whether Node's `resolve4`/`resolve6` ever applies the `lan` search domain,
+  which the LAN router answers.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
