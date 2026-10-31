@@ -178,3 +178,30 @@ mod edit_attribute_tests;
 /// ```
 #[cfg(test)]
 mod edit_content_tests;
+
+/// What: Adversarial boundary tests. Why: Quotes, entities, CDATA, comments, BOM and size limits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './boundary.test';
+/// ```
+#[cfg(test)]
+mod boundary_tests;
+
+/// What: Public-surface tests for classes, layout, builders and errors. Why: Every export needs coverage.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './api.test';
+/// ```
+#[cfg(test)]
+mod api_tests;
+
+/// What: End-to-end consumer flow on the JetBrains fixtures. Why: Proves the surface fits the real rule.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './consumer.test';
+/// ```
+#[cfg(test)]
+mod consumer_tests;

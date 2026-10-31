@@ -103,10 +103,10 @@ impl XmlDocument {
         if id.0 == 0 {
             return Err(XmlEditError::CannotRemoveRoot);
         }
-        if starts_own_line(&self.source, span.start) {
-            if let Some(tail_end) = blank_tail_end(&self.source, span.end) {
-                return self.splice(line_start(&self.source, span.start), tail_end, "");
-            }
+        if starts_own_line(&self.source, span.start)
+            && let Some(tail_end) = blank_tail_end(&self.source, span.end)
+        {
+            return self.splice(line_start(&self.source, span.start), tail_end, "");
         }
         return self.splice(span.start, span.end, "");
     }

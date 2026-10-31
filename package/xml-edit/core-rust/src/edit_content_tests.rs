@@ -48,15 +48,15 @@ fn append_child_matches_sibling_layout() {
 fn append_child_expands_empty_parents() {
     let leaf: XmlElementSpec = XmlElementSpec::named("b").with_attribute("k", "v");
     let closed: XmlDocument = parsed("<root>\n  <map />\n</root>");
-    let map: XmlElementId = closed.descendants_named(closed.root(), "map")[0];
+    let closed_map: XmlElementId = closed.descendants_named(closed.root(), "map")[0];
     assert_eq!(
-        closed.append_child(map, &leaf).expect("edit applies").source(),
+        closed.append_child(closed_map, &leaf).expect("edit applies").source(),
         "<root>\n  <map>\n    <b k=\"v\" />\n  </map>\n</root>"
     );
     let empty: XmlDocument = parsed("<root>\n  <map></map>\n</root>");
-    let map: XmlElementId = empty.descendants_named(empty.root(), "map")[0];
+    let empty_map: XmlElementId = empty.descendants_named(empty.root(), "map")[0];
     assert_eq!(
-        empty.append_child(map, &leaf).expect("edit applies").source(),
+        empty.append_child(empty_map, &leaf).expect("edit applies").source(),
         "<root>\n  <map>\n    <b k=\"v\" />\n  </map>\n</root>"
     );
     let inline: XmlDocument = parsed("<a><c/></a>");

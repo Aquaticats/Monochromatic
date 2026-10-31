@@ -76,10 +76,9 @@ fn resolve_reference(body: &str) -> Option<char> {
     // ```
     let (digits, radix): (&str, u32) = if let Some(hex) = body.strip_prefix("#x") {
         (hex, 16)
-    } else if let Some(decimal) = body.strip_prefix('#') {
-        (decimal, 10)
     } else {
-        return None;
+        let decimal: &str = body.strip_prefix('#')?;
+        (decimal, 10)
     };
     // What: `u32::from_str_radix` accepts a leading `+`, so the digits are checked first; `.ok()?` turns an
     //  overflow `Err` into `None` and the `?` returns that `None` from this function.
@@ -154,10 +153,10 @@ fn decode_content(raw: &str, is_attribute: bool) -> Result<String, CodingError> 
             output.push(' ');
         } else if character == '\r' {
             // CRLF is one line break; a bare CR is one too.
-            if let Some((_, following)) = characters.peek() {
-                if *following == '\n' {
-                    characters.next();
-                }
+            if let Some((_, following)) = characters.peek()
+                && *following == '\n'
+            {
+                characters.next();
             }
             output.push(if is_attribute { ' ' } else { '\n' });
         } else if !is_attribute && character == '>' && raw[..index].ends_with("]]") {
