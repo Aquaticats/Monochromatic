@@ -4,7 +4,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources
 RUN apt-get update \
- && apt-get install -y --no-install-recommends podman git unzip curl bash build-essential jq tar zstd python3
+ && apt-get install -y --no-install-recommends podman uidmap git unzip curl bash build-essential jq tar zstd python3
 RUN curl https://mise.run/bash | sh
 ENV PATH="/root/.local/bin:$PATH"
 # The plan's tools need two more programs from the image: `tar --zstd` unpacks the `.conda` package of bubblewrap
@@ -15,8 +15,15 @@ ENV UV_PYTHON_PREFERENCE=only-system
 # Performance is acceptable: the canary pulls one small image infrequently.
 RUN printf '[storage]\ndriver = "vfs"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' \
       > /etc/containers/storage.conf
-RUN echo 'root:100000:65536' > /etc/subuid \
- && echo 'root:100000:65536' > /etc/subgid
+# `mise run prepare` builds the Playwright image with podman inside this build (`prepare:playwright`), so podman needs
+# what it needs to run inside a container: `newuidmap` (the uidmap package), a subordinate ID range that lies inside the
+# build container's own ID range (root:100000:65536 lies outside the 65537 IDs a rootless `podman build` gives it, and
+# newuidmap refuses it), and the inner settings the podman-in-podman image uses (host namespaces; a bind of /proc instead
+# of mounting a new one, which a container without CAP_SYS_ADMIN cannot do). Measured with `podman build`, 2026-10-31.
+RUN echo 'root:1:65535' > /etc/subuid \
+ && echo 'root:1:65535' > /etc/subgid
+RUN printf '[containers]\nnetns = "host"\nuserns = "host"\nipcns = "host"\nutsns = "host"\ncgroupns = "host"\ncgroups = "disabled"\nlog_driver = "k8s-file"\nvolumes = ["/proc:/proc"]\ndefault_sysctls = []\n[engine]\ncgroup_manager = "cgroupfs"\nevents_logger = "file"\n' \
+      > /etc/containers/containers.conf
 
 WORKDIR /app
 COPY . .
