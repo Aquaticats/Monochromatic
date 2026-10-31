@@ -1,8 +1,10 @@
 //! What:
 //!  A linear-time parser for exactly the JavaScript literal subset that caniuse-lite's packed data files use.
 //! Why:
-//!  `agents.js`, `browsers.js` and `browserVersions.js` are `module.exports=<literal>;` files,
-//!  not JSON, and running JavaScript to read them is out of the question.
+//!  `agents.js`,
+//! `browsers.js` and `browserVersions.js` are `module.exports=<literal>;` files,
+//!  not JSON,
+//! and running JavaScript to read them is out of the question.
 //!  Anything outside the subset is an error naming the file and byte offset.
 //!
 //! In TS you'd write (pseudocode):
@@ -10,7 +12,26 @@
 //! function parseModuleExports(file: string, source: string): JsValue; // throws on anything outside the subset
 //! ```
 
+/// What:
+///  Import `Outcome, data_error` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Outcome, dataError } from './error';
+/// ```
 use crate::error::{Outcome, data_error};
+/// What:
+///  Import `HashSet` from `std::collections::HashSet`.
+/// Why:
+///  Hash tables give linear-time lookups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HashSet } from 'std/collections';
+/// ```
 use std::collections::HashSet;
 
 /// What:
@@ -29,7 +50,8 @@ const MAX_DEPTH: usize = 8;
 /// What:
 ///  The exact text every packed data file starts with.
 /// Why:
-///  The envelope is part of the subset: a file wrapped any other way is not one this parser vouches for.
+///  The envelope is part of the subset:
+/// a file wrapped any other way is not one this parser vouches for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -38,7 +60,11 @@ const MAX_DEPTH: usize = 8;
 const PREFIX: &str = "module.exports=";
 
 /// What:
-///  A parsed literal: object, array, string, number or `null`.
+///  A parsed literal:
+/// object,
+/// array,
+/// string,
+/// number or `null`.
 ///  Numbers keep their source text because no consumer needs their value.
 /// Why:
 ///  The decoders pick out strings and arrays only;
@@ -51,13 +77,26 @@ const PREFIX: &str = "module.exports=";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsValue {
     /// `{ key: value, ... }` with keys in source order and no duplicates.
-    Object(Vec<(String, JsValue)>),
+    Object(
+        /// The entries in source order.
+        Vec<(String, JsValue)>,
+    ),
     /// `[ value, ... ]`.
-    Array(Vec<JsValue>),
+    Array(
+        /// The items in source order.
+        Vec<JsValue>,
+    ),
     /// A double-quoted string without escapes.
-    Text(String),
-    /// A non-negative integer or plain decimal, as written.
-    Number(String),
+    Text(
+        /// The characters between the quotes.
+        String,
+    ),
+    /// A non-negative integer or plain decimal,
+    /// as written.
+    Number(
+        /// The number exactly as written.
+        String,
+    ),
     /// The `null` keyword.
     Null,
 }
@@ -93,11 +132,24 @@ pub fn object_get<'a>(value: &'a JsValue, key: &str) -> Option<&'a JsValue> {
 /// type Cursor = { file: string; bytes: Uint8Array; offset: number };
 /// ```
 struct Cursor<'a> {
+    /// File name used in diagnostics.
     file: &'a str,
+    /// The source bytes.
     bytes: &'a [u8],
+    /// Index of the next byte to read.
     offset: usize,
 }
 
+/// What:
+///  Methods of `Cursor`;
+/// the `<'a>` ties the cursor to the borrowed source text it reads.
+/// Why:
+///  Each method parses one kind of literal and reports failures at the current byte.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Cursor { peek(): number | undefined; string(): string; value(depth: number): JsValue }
+/// ```
 impl<'a> Cursor<'a> {
     /// Build the error at the current offset.
     fn fail(&self, message: &str) -> crate::error::BrowserslistError {
@@ -118,7 +170,9 @@ impl<'a> Cursor<'a> {
         return Err(self.fail(&format!("expected {what}")));
     }
 
-    /// Parse a double-quoted string: printable ASCII only, no backslash escapes.
+    /// Parse a double-quoted string:
+    /// printable ASCII only,
+    /// no backslash escapes.
     fn string(&mut self) -> Outcome<String> {
         self.expect(b'"', "a double-quoted string")?;
         let start = self.offset;
@@ -139,7 +193,9 @@ impl<'a> Cursor<'a> {
         return Ok(text);
     }
 
-    /// Parse an object key: a double-quoted string, or an identifier that starts with a letter.
+    /// Parse an object key:
+    /// a double-quoted string,
+    /// or an identifier that starts with a letter.
     fn key(&mut self) -> Outcome<String> {
         if self.peek() == Some(b'"') {
             return self.string();
@@ -154,7 +210,8 @@ impl<'a> Cursor<'a> {
         return Ok(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned());
     }
 
-    /// Parse `0` or a digit run without a leading zero, then an optional `.` and one or more digits.
+    /// Parse `0` or a digit run without a leading zero,
+    /// then an optional `.` and one or more digits.
     fn number(&mut self) -> Outcome<JsValue> {
         let start = self.offset;
         if self.peek() == Some(b'0') {
@@ -192,7 +249,8 @@ impl<'a> Cursor<'a> {
         return Err(self.fail("unknown keyword; only null is in the subset"));
     }
 
-    /// Parse any value; `depth` counts the containers already open.
+    /// Parse any value;
+    /// `depth` counts the containers already open.
     fn value(&mut self, depth: usize) -> Outcome<JsValue> {
         match self.peek() {
             Some(b'{') => return self.object(depth + 1),
@@ -204,7 +262,8 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Parse `{ key: value, ... }`, rejecting trailing commas and duplicate keys.
+    /// Parse `{ key: value, ... }`,
+    /// rejecting trailing commas and duplicate keys.
     fn object(&mut self, depth: usize) -> Outcome<JsValue> {
         if depth > MAX_DEPTH {
             return Err(self.fail("containers nest deeper than the subset allows"));
@@ -237,7 +296,8 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Parse `[ value, ... ]`, rejecting trailing commas and holes.
+    /// Parse `[ value, ... ]`,
+    /// rejecting trailing commas and holes.
     fn array(&mut self, depth: usize) -> Outcome<JsValue> {
         if depth > MAX_DEPTH {
             return Err(self.fail("containers nest deeper than the subset allows"));
@@ -267,7 +327,10 @@ impl<'a> Cursor<'a> {
 /// Why:
 ///  This is the single entry point for the three caniuse-lite files.
 /// Gotcha:
-///  The envelope is exact: no space after `=`, a `;`, and exactly one trailing `\n`.
+///  The envelope is exact:
+/// no space after `=`,
+/// a `;`,
+/// and exactly one trailing `\n`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -288,6 +351,17 @@ pub fn parse_module_exports(file: &str, source: &str) -> Outcome<JsValue> {
     return Ok(value);
 }
 
+/// What:
+///  The unit tests of `js_literal.rs`,
+/// kept in the sidecar file `js_literal_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './js_literal.test';
+/// ```
 #[cfg(test)]
 #[path = "js_literal_tests.rs"]
 mod tests;

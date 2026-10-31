@@ -1,7 +1,12 @@
 //! What:
-//!  Tests for in-memory tarball extraction: found, missing, duplicated, linked and corrupt entries.
+//!  Tests for in-memory tarball extraction:
+//! found,
+//! missing,
+//! duplicated,
+//! linked and corrupt entries.
 //! Why:
-//!  Downloaded archives are untrusted until their digest matches, but even a matching archive is read defensively.
+//!  Downloaded archives are untrusted until their digest matches,
+//! but even a matching archive is read defensively.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -11,7 +16,8 @@
 use crate::fixture::{build_symlink_tgz, build_tgz};
 use crate::tarball::extract_files;
 
-/// Wanted files come back in the order requested, ignoring unrelated entries.
+/// Wanted files come back in the order requested,
+/// ignoring unrelated entries.
 #[test]
 fn extracts_in_requested_order() {
     let tgz = build_tgz(&[("package/a.txt", b"A"), ("package/skip.txt", b"S"), ("package/data/b.json", b"BB")]);
@@ -19,7 +25,10 @@ fn extracts_in_requested_order() {
     assert_eq!(files, vec![b"BB".to_vec(), b"A".to_vec()]);
 }
 
-/// Names must match exactly: a prefix, a suffix, or a path elsewhere in the archive does not count.
+/// Names must match exactly:
+/// a prefix,
+/// a suffix,
+/// or a path elsewhere in the archive does not count.
 #[test]
 fn matches_paths_exactly() {
     let tgz = build_tgz(&[("package/a.txt.bak", b"x"), ("other/package/a.txt", b"y"), ("a.txt", b"z")]);
@@ -43,7 +52,9 @@ fn rejects_links() {
     assert!(message.contains("not a regular file"), "{message}");
 }
 
-/// Bytes that are not gzip, and a truncated archive, fail with the tarball named.
+/// Bytes that are not gzip,
+/// and a truncated archive,
+/// fail with the tarball named.
 #[test]
 fn rejects_corrupt_input() {
     assert!(extract_files("pkg", b"not gzip at all", &["x"]).is_err());

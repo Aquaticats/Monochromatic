@@ -1,21 +1,92 @@
 //! What:
-//!  The update step: ask the registry for the newest `caniuse-lite` and `node-releases`, ask Mozilla for the
-//!  current `FIREFOX_ESR`, prove the downloads usable, and build the lock that pins them.
+//!  The update step:
+//! ask the registry for the newest `caniuse-lite` and `node-releases`,
+//! ask Mozilla for the
+//!  current `FIREFOX_ESR`,
+//! prove the downloads usable,
+//! and build the lock that pins them.
 //! Why:
-//!  The library's resolve path never picks versions; only this step does, and only when a person runs the
-//!  update task, so a version bump is always a reviewed lock diff.
+//!  The library's resolve path never picks versions;
+//! only this step does,
+//! and only when a person runs the
+//!  update task,
+//! so a version bump is always a reviewed lock diff.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! async function buildLock(source: DataSource, mozillaUrl: string): Promise<DataLock>;
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `get_bytes` from `crate::fetch::get_bytes`.
+/// Why:
+///  Every download goes through the one bounded GET.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { getBytes } from 'crate/fetch';
+/// ```
 use crate::fetch::get_bytes;
+/// What:
+///  Import `parse_esr_major` from `crate::firefox_esr::parse_esr_major`.
+/// Why:
+///  The ESR value is validated in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseEsrMajor } from 'crate/firefox_esr';
+/// ```
 use crate::firefox_esr::parse_esr_major;
+/// What:
+///  Import `parse_sha512` from `crate::integrity::parse_sha512`.
+/// Why:
+///  Every download is checked against the digest the lock pins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseSha512 } from 'crate/integrity';
+/// ```
 use crate::integrity::parse_sha512;
+/// What:
+///  Import `DataLock, PinnedPackage` from `crate::lock`.
+/// Why:
+///  The lock says which data revisions to use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataLock, PinnedPackage } from './lock';
+/// ```
 use crate::lock::{DataLock, PinnedPackage};
+/// What:
+///  Import `DataSource, load_data` from `crate::source`.
+/// Why:
+///  Pinned data is loaded through the cache.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataSource, loadData } from './source';
+/// ```
 use crate::source::{DataSource, load_data};
+/// What:
+///  Import `Value` from `serde_json::Value`.
+/// Why:
+///  JSON documents are read and written through serde_json.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Value } from 'serde_json';
+/// ```
 use serde_json::Value;
 
 /// Mozilla's product-details document that carries `FIREFOX_ESR`.
@@ -81,7 +152,9 @@ pub fn latest_firefox_esr(mozilla_url: &str) -> Outcome<String> {
 }
 
 /// What:
-///  Build a lock from the newest published data, after downloading, verifying and decoding it.
+///  Build a lock from the newest published data,
+/// after downloading,
+/// verifying and decoding it.
 /// Why:
 ///  The decoded-data check proves the pinned tarballs are usable before the lock is ever written.
 ///
@@ -99,6 +172,17 @@ pub fn build_lock(source: &DataSource, mozilla_url: &str) -> Outcome<DataLock> {
     return Ok(lock);
 }
 
+/// What:
+///  The unit tests of `update.rs`,
+/// kept in the sidecar file `update_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './update.test';
+/// ```
 #[cfg(test)]
 #[path = "update_tests.rs"]
 mod tests;

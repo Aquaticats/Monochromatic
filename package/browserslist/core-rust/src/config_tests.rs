@@ -1,5 +1,8 @@
 //! What:
-//!  Tests for config text splitting: accepted comments and blanks, refused commas, CR and sections.
+//!  Tests for config text splitting:
+//! accepted comments and blanks,
+//! refused commas,
+//! CR and sections.
 //! Why:
 //!  The decision record accepts exactly `#` comments and blank lines and refuses every other `parseConfig` feature.
 //!
@@ -33,7 +36,8 @@ fn empty_inputs_give_no_lines() {
     assert_eq!(parse_config("\n\n").expect("blank"), Vec::<ConfigLine>::new());
 }
 
-/// A comma inside a comment is part of the comment, not a separator.
+/// A comma inside a comment is part of the comment,
+/// not a separator.
 #[test]
 fn comma_in_comment_is_harmless() {
     assert_eq!(parse_config("not dead # a, b\n").expect("parses"), vec![line(1, "not dead")]);
@@ -47,7 +51,9 @@ fn refuses_commas() {
     assert!(message.contains("line 2"), "{message}");
 }
 
-/// CR anywhere is refused, including a lone CR and CRLF, and the message names the line.
+/// CR anywhere is refused,
+/// including a lone CR and CRLF,
+/// and the message names the line.
 #[test]
 fn refuses_carriage_returns() {
     for text in ["not dead\r\n", "a\nb\rc", "\r"] {
@@ -57,7 +63,8 @@ fn refuses_carriage_returns() {
     assert!(parse_config("a\nb\rc").expect_err("cr").to_string().contains("line 2"));
 }
 
-/// Section headers are refused, whatever name or spacing they carry.
+/// Section headers are refused,
+/// whatever name or spacing they carry.
 #[test]
 fn refuses_sections() {
     for text in ["[production]", "  [dev test]  ", "[defaults]", "[x]"] {
@@ -67,13 +74,15 @@ fn refuses_sections() {
     }
 }
 
-/// Bracket text that is not a header (too short, or not bracket-enclosed) is passed on as a query line.
+/// Bracket text that is not a header (too short,
+/// or not bracket-enclosed) is passed on as a query line.
 #[test]
 fn bracket_lookalikes_are_ordinary_lines() {
     assert_eq!(parse_config("[]\nchrome [1]\n[1] x").expect("lines"), vec![line(1, "[]"), line(2, "chrome [1]"), line(3, "[1] x")]);
 }
 
-/// Only spaces and tabs are trimmed: other whitespace stays in the line for the query matcher to refuse.
+/// Only spaces and tabs are trimmed:
+/// other whitespace stays in the line for the query matcher to refuse.
 #[test]
 fn trims_only_spaces_and_tabs() {
     let parsed = parse_config("\u{a0}not dead\u{feff}\n\u{b}\n").expect("parses");

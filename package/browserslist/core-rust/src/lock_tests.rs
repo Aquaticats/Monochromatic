@@ -1,7 +1,9 @@
 //! What:
-//!  Tests for lock parsing, validation and rendering.
+//!  Tests for lock parsing,
+//! validation and rendering.
 //! Why:
-//!  The lock is the trust anchor for every download, so each malformed shape must be refused with a message.
+//!  The lock is the trust anchor for every download,
+//! so each malformed shape must be refused with a message.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -19,7 +21,8 @@ fn lock_text(version: &str, integrity: &str, esr: &str, extra: &str) -> String {
     );
 }
 
-/// A valid lock round-trips through rendering and back, with sorted keys and a final newline.
+/// A valid lock round-trips through rendering and back,
+/// with sorted keys and a final newline.
 #[test]
 fn round_trip() {
     let integrity = integrity_of(b"x");

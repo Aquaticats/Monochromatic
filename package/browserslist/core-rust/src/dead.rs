@@ -1,38 +1,105 @@
 //! What:
-//!  Evaluates browserslist's own `dead` expansion against locked data, and subtracts it for `not dead`.
+//!  Evaluates browserslist's own `dead` expansion against locked data,
+//! and subtracts it for `not dead`.
 //! Why:
-//!  `dead` is six internal queries (`Baidu >= 0`, `ie <= 11`, `ie_mob <= 11`, `bb <= 10`, `op_mob <= 12.1`,
-//!  `samsung 4`), and the decision record wants them evaluated, not replaced by a hard-coded result.
+//!  `dead` is six internal queries (`Baidu >= 0`,
+//! `ie <= 11`,
+//! `ie_mob <= 11`,
+//! `bb <= 10`,
+//! `op_mob <= 12.1`,
+//!  `samsung 4`),
+//! and the decision record wants them evaluated,
+//! not replaced by a hard-coded result.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const dead = resolve(['Baidu >= 0', 'ie <= 11', 'ie_mob <= 11', 'bb <= 10', 'op_mob <= 12.1', 'samsung 4']);
 //! ```
 
+/// What:
+///  Import `Agent, AgentTable` from `crate::caniuse`.
+/// Why:
+///  Version lists come from the decoded caniuse-lite data.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Agent, AgentTable } from './caniuse';
+/// ```
 use crate::caniuse::{Agent, AgentTable};
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `parse_float, parse_latest_float` from `crate::js_number`.
+/// Why:
+///  Version comparison needs JavaScript's number-prefix reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseFloat, parseLatestFloat } from './js_number';
+/// ```
 use crate::js_number::{parse_float, parse_latest_float};
+/// What:
+///  Import `HashSet` from `std::collections::HashSet`.
+/// Why:
+///  Hash tables give linear-time lookups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HashSet } from 'std/collections';
+/// ```
 use std::collections::HashSet;
 
 /// What:
 ///  One of the two internal query forms `dead` uses.
 /// Why:
-///  A closed enum lists exactly the rules browserslist's `dead` list needs, so nothing else can be expressed.
+///  A closed enum lists exactly the rules browserslist's `dead` list needs,
+/// so nothing else can be expressed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type DeadRule = { kind: 'at-least'; browser: string; version: string } | { kind: 'at-most'; browser: string; version: string } | { kind: 'exact'; browser: string; version: string };
 /// ```
 enum DeadRule {
-    /// `<browser> >= <version>`: released versions whose newest member is at least the bound.
-    AtLeast(&'static str, &'static str),
-    /// `<browser> <= <version>`: released versions at most the bound.
-    AtMost(&'static str, &'static str),
-    /// `<browser> <version>`: that single version (with browserslist's alias and `.0` fallbacks).
-    Exact(&'static str, &'static str),
+    /// `<browser> >= <version>`:
+    /// released versions whose newest member is at least the bound.
+    AtLeast(
+        /// The browser name as the dead list spells it.
+        &'static str,
+        /// The lower bound,
+        /// as written.
+        &'static str,
+    ),
+    /// `<browser> <= <version>`:
+    /// released versions at most the bound.
+    AtMost(
+        /// The browser name as the dead list spells it.
+        &'static str,
+        /// The upper bound,
+        /// as written.
+        &'static str,
+    ),
+    /// `<browser> <version>`:
+    /// that single version (with browserslist's alias and `.0` fallbacks).
+    Exact(
+        /// The browser name as the dead list spells it.
+        &'static str,
+        /// The version,
+        /// as written.
+        &'static str,
+    ),
 }
 
-/// browserslist 4.29.5 `index.js:1219-1226`, in order.
+/// browserslist 4.29.5 `index.js:1219-1226`,
+/// in order.
 const DEAD_RULES: [DeadRule; 6] = [
     DeadRule::AtLeast("Baidu", "0"),
     DeadRule::AtMost("ie", "11"),
@@ -47,7 +114,8 @@ fn entry(agent: &Agent, version: &str) -> String {
     return format!("{} {}", agent.name, version);
 }
 
-/// The ray form: filter the released versions by comparing parsed numbers (NaN compares false).
+/// The ray form:
+/// filter the released versions by comparing parsed numbers (NaN compares false).
 fn ray(table: &AgentTable, written: &str, bound: &str, keep: fn(&str, &str) -> bool) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
     return Ok(agent.released().into_iter().filter(|version| return keep(version, bound)).map(|version| return entry(agent, version)).collect());
@@ -63,7 +131,9 @@ fn at_most(version: &str, bound: &str) -> bool {
     return parse_float(version) <= parse_float(bound);
 }
 
-/// browserslist's `resolveVersion` plus `normalizeVersion`: the version itself, a joined range it belongs to,
+/// browserslist's `resolveVersion` plus `normalizeVersion`:
+/// the version itself,
+/// a joined range it belongs to,
 /// or the only version a one-version browser has.
 fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
     let versions = agent.versions();
@@ -85,7 +155,10 @@ fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
     return None;
 }
 
-/// The single-version form: try the version, then browserslist's `.0` variant, else fail like browserslist.
+/// The single-version form:
+/// try the version,
+/// then browserslist's `.0` variant,
+/// else fail like browserslist.
 fn exact(table: &AgentTable, written: &str, version: &str) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
     if let Some(found) = normalize_version(agent, version) {
@@ -123,9 +196,11 @@ pub fn dead_set(table: &AgentTable) -> Outcome<Vec<String>> {
 }
 
 /// What:
-///  Remove from `selected` every string that `dead` selects, keeping the order of the rest.
+///  Remove from `selected` every string that `dead` selects,
+/// keeping the order of the rest.
 /// Why:
-///  This is the `not dead` step: browserslist's `not` filters the accumulator by exact string equality.
+///  This is the `not dead` step:
+/// browserslist's `not` filters the accumulator by exact string equality.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,6 +211,17 @@ pub fn subtract_dead(selected: &[String], table: &AgentTable) -> Outcome<Vec<Str
     return Ok(selected.iter().filter(|candidate| return !dead.contains(*candidate)).cloned().collect());
 }
 
+/// What:
+///  The unit tests of `dead.rs`,
+/// kept in the sidecar file `dead_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './dead.test';
+/// ```
 #[cfg(test)]
 #[path = "dead_tests.rs"]
 mod tests;

@@ -1,6 +1,9 @@
 //! What:
-//!  Turns a lock into decoded `BrowserData`: read the pinned tarballs from the per-user cache,
-//!  fetch exactly the pinned ones that are missing, verify every byte against the lock, and decode the data files.
+//!  Turns a lock into decoded `BrowserData`:
+//! read the pinned tarballs from the per-user cache,
+//!  fetch exactly the pinned ones that are missing,
+//! verify every byte against the lock,
+//! and decode the data files.
 //! Why:
 //!  A fresh machine must produce the same output as a warm one,
 //!  and nothing unpinned is ever fetched or trusted at resolve time.
@@ -10,15 +13,107 @@
 //! async function loadData(lock: DataLock, source: DataSource): Promise<BrowserData>;
 //! ```
 
+/// What:
+///  Import `BrowserData, DataFiles` from `crate::data`.
+/// Why:
+///  Selectors and the loader pass the decoded data around as one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserData, DataFiles } from './data';
+/// ```
 use crate::data::{BrowserData, DataFiles};
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `get_bytes` from `crate::fetch::get_bytes`.
+/// Why:
+///  Every download goes through the one bounded GET.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { getBytes } from 'crate/fetch';
+/// ```
 use crate::fetch::get_bytes;
+/// What:
+///  Import `cache_key, verify` from `crate::integrity`.
+/// Why:
+///  Every download is checked against the digest the lock pins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { cacheKey, verify } from './integrity';
+/// ```
 use crate::integrity::{cache_key, verify};
+/// What:
+///  Import `DataLock, PinnedPackage` from `crate::lock`.
+/// Why:
+///  The lock says which data revisions to use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataLock, PinnedPackage } from './lock';
+/// ```
 use crate::lock::{DataLock, PinnedPackage};
+/// What:
+///  Import `extract_files` from `crate::tarball::extract_files`.
+/// Why:
+///  Data files are read straight out of the npm tarball.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { extractFiles } from 'crate/tarball';
+/// ```
 use crate::tarball::extract_files;
+/// What:
+///  Import `ProjectDirs` from `directories::ProjectDirs`.
+/// Why:
+///  The per-user cache directory comes from the platform's conventions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ProjectDirs } from 'directories';
+/// ```
 use directories::ProjectDirs;
+/// What:
+///  Import `fs` from `std::fs`.
+/// Why:
+///  The code reads and writes files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+///  Import `Path, PathBuf` from `std::path`.
+/// Why:
+///  Paths are typed values,
+/// not strings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
+/// What:
+///  Import `AtomicU64, Ordering` from `std::sync::atomic`.
+/// Why:
+///  The server thread and the test share state safely.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { AtomicU64, Ordering } from 'std/sync/atomic';
+/// ```
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The registry the crate fetches from unless told otherwise.
@@ -33,7 +128,8 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// What:
 ///  Where the cache lives and which registry serves missing tarballs.
 /// Why:
-///  Tests point both at disposable locations; production uses the user cache directory and npm.
+///  Tests point both at disposable locations;
+/// production uses the user cache directory and npm.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -47,9 +143,21 @@ pub struct DataSource {
     pub registry_url: String,
 }
 
+/// What:
+///  Methods of `DataSource`.
+/// Why:
+///  The production source is built here,
+/// away from tests that point it at scratch directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class DataSource { static userDefault(): DataSource }
+/// ```
 impl DataSource {
     /// What:
-    ///  The production source: the platform user cache directory for `monochromatic-browserslist`, and npm.
+    ///  The production source:
+    /// the platform user cache directory for `monochromatic-browserslist`,
+    /// and npm.
     /// Why:
     ///  Callers that have no reason to redirect the cache use this.
     ///
@@ -73,12 +181,14 @@ fn io_error(path: &Path, error: &std::io::Error) -> BrowserslistError {
     return BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() };
 }
 
-/// The tarball URL npm uses for a package version: `<registry>/<name>/-/<name>-<version>.tgz`.
+/// The tarball URL npm uses for a package version:
+/// `<registry>/<name>/-/<name>-<version>.tgz`.
 pub fn tarball_url(registry_url: &str, package: &PinnedPackage) -> String {
     return format!("{registry_url}/{name}/-/{name}-{version}.tgz", name = package.name, version = package.version);
 }
 
-/// Write bytes to `path` through a sibling temporary file and a rename, so readers never see a partial file.
+/// Write bytes to `path` through a sibling temporary file and a rename,
+/// so readers never see a partial file.
 pub fn write_atomically(path: &Path, bytes: &[u8]) -> Outcome<()> {
     let Some(parent) = path.parent() else {
         return Err(BrowserslistError::Io { path: path.display().to_string(), message: "has no parent directory".to_string() });
@@ -91,10 +201,14 @@ pub fn write_atomically(path: &Path, bytes: &[u8]) -> Outcome<()> {
 }
 
 /// What:
-///  The verified tarball bytes of a pinned package: from the cache when the cached file still hashes correctly,
-///  otherwise fetched from the pinned URL, verified, and cached.
+///  The verified tarball bytes of a pinned package:
+/// from the cache when the cached file still hashes correctly,
+///  otherwise fetched from the pinned URL,
+/// verified,
+/// and cached.
 /// Why:
-///  A corrupted or tampered cache entry is replaced, never trusted.
+///  A corrupted or tampered cache entry is replaced,
+/// never trusted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,6 +279,17 @@ pub fn load_data(lock: &DataLock, source: &DataSource) -> Outcome<BrowserData> {
     return decode_tarballs(&caniuse, &node, &lock.firefox_esr);
 }
 
+/// What:
+///  The unit tests of `source.rs`,
+/// kept in the sidecar file `source_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './source.test';
+/// ```
 #[cfg(test)]
 #[path = "source_tests.rs"]
 mod tests;

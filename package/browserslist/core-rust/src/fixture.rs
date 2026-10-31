@@ -1,5 +1,7 @@
 //! What:
-//!  Test-only helpers: the committed data revision under `fixtures/data`, in-memory npm tarballs,
+//!  Test-only helpers:
+//! the committed data revision under `fixtures/data`,
+//! in-memory npm tarballs,
 //!  and a fake registry that serves them over loopback HTTP.
 //! Why:
 //!  Several test modules need the same real revision and the same download plumbing;
@@ -10,6 +12,15 @@
 //! export const fixtureFiles = (firefoxEsr: string): DataFiles => ({ /* the four committed files */ });
 //! ```
 
+/// What:
+///  Import `DataFiles` from `crate::data::DataFiles`.
+/// Why:
+///  Selectors and the loader pass the decoded data around as one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataFiles } from 'crate/data';
+/// ```
 use crate::data::DataFiles;
 
 /// Raw text of the committed caniuse-lite `agents.js`.
@@ -43,7 +54,8 @@ pub fn fixture_files(firefox_esr: &str) -> DataFiles<'_> {
 }
 
 /// What:
-///  One empty scratch directory beside the build output (never under `/tmp`), removed when the guard drops.
+///  One empty scratch directory beside the build output (never under `/tmp`),
+/// removed when the guard drops.
 /// Why:
 ///  Cache and lock tests write files and must not touch real state or the system temporary directory.
 ///
@@ -70,7 +82,8 @@ fn gzip(tar_bytes: &[u8]) -> Vec<u8> {
 }
 
 /// What:
-///  Build a gzip-compressed tar archive in memory from `(path, contents)` pairs, all regular files.
+///  Build a gzip-compressed tar archive in memory from `(path, contents)` pairs,
+/// all regular files.
 /// Why:
 ///  Tests need real npm-shaped tarballs without network access or committed binary blobs.
 ///
@@ -111,7 +124,8 @@ pub fn build_symlink_tgz(path: &str) -> Vec<u8> {
 /// What:
 ///  The tarball of a fake `caniuse-lite` package holding the committed data files.
 /// Why:
-///  Cache, update and API tests download this from the fake registry.
+///  Cache,
+/// update and API tests download this from the fake registry.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -129,7 +143,8 @@ pub fn caniuse_tgz() -> Vec<u8> {
 /// What:
 ///  The tarball of a fake `node-releases` package holding the committed release list.
 /// Why:
-///  Same as `caniuse_tgz`, for the second package.
+///  Same as `caniuse_tgz`,
+/// for the second package.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,7 +182,8 @@ pub fn fixture_lock() -> crate::lock::DataLock {
 /// What:
 ///  A fake registry serving the two fixture tarballs at npm's tarball paths.
 /// Why:
-///  Cache-miss tests fetch from it, and its request log shows whether a fetch happened.
+///  Cache-miss tests fetch from it,
+/// and its request log shows whether a fetch happened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

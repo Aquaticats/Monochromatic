@@ -1,28 +1,120 @@
 //! What:
-//!  One blocking HTTP GET over the approved stack (hyper, hyper-util, tokio, http-body-util, hyper-rustls).
+//!  One blocking HTTP GET over the approved stack (hyper,
+//! hyper-util,
+//! tokio,
+//! http-body-util,
+//! hyper-rustls).
 //! Why:
-//!  The cache fetch and the update command both download a few small files; they share one bounded, checked GET.
-//!  The async runtime is hidden here so callers stay synchronous, as TypeScript's `await fetch` would hide it.
+//!  The cache fetch and the update command both download a few small files;
+//! they share one bounded,
+//! checked GET.
+//!  The async runtime is hidden here so callers stay synchronous,
+//! as TypeScript's `await fetch` would hide it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! async function getBytes(url: string, maxBytes: number): Promise<Uint8Array>;
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `BodyExt, Empty, Limited` from `http_body_util`.
+/// Why:
+///  The response body is collected with a size limit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BodyExt, Empty, Limited } from 'http_body_util';
+/// ```
 use http_body_util::{BodyExt, Empty, Limited};
+/// What:
+///  Import `Request` from `hyper::Request`.
+/// Why:
+///  The HTTP request and URI types come from hyper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Request } from 'hyper';
+/// ```
 use hyper::Request;
+/// What:
+///  Import `Uri` from `hyper::Uri`.
+/// Why:
+///  The HTTP request and URI types come from hyper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Uri } from 'hyper';
+/// ```
 use hyper::Uri;
+/// What:
+///  Import `Bytes` from `hyper::body::Bytes`.
+/// Why:
+///  The HTTP request and URI types come from hyper.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Bytes } from 'hyper/body';
+/// ```
 use hyper::body::Bytes;
+/// What:
+///  Import `HttpsConnectorBuilder` from `hyper_rustls::HttpsConnectorBuilder`.
+/// Why:
+///  The connector adds TLS to the HTTP client.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HttpsConnectorBuilder } from 'hyper_rustls';
+/// ```
 use hyper_rustls::HttpsConnectorBuilder;
+/// What:
+///  Import `Client` from `hyper_util::client::legacy::Client`.
+/// Why:
+///  The legacy client wraps hyper's connection handling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Client } from 'hyper_util/client/legacy';
+/// ```
 use hyper_util::client::legacy::Client;
+/// What:
+///  Import `TokioExecutor` from `hyper_util::rt::TokioExecutor`.
+/// Why:
+///  The legacy client wraps hyper's connection handling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { TokioExecutor } from 'hyper_util/rt';
+/// ```
 use hyper_util::rt::TokioExecutor;
+/// What:
+///  Import `Duration` from `std::time::Duration`.
+/// Why:
+///  Waits and timeouts are bounded durations.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Duration } from 'std/time';
+/// ```
 use std::time::Duration;
 
-/// How long one whole request (connect, headers and body) may take.
+/// How long one whole request (connect,
+/// headers and body) may take.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Hosts for which plain `http` is allowed: this machine only, so tests can use a fake registry.
+/// Hosts for which plain `http` is allowed:
+/// this machine only,
+/// so tests can use a fake registry.
 const LOOPBACK_HOSTS: [&str; 3] = ["127.0.0.1", "localhost", "[::1]"];
 
 /// Build a network error for a URL.
@@ -30,7 +122,8 @@ fn network_error(url: &str, message: &str) -> BrowserslistError {
     return BrowserslistError::Network { url: url.to_string(), message: message.to_string() };
 }
 
-/// Accept `https` URLs, and `http` URLs only for loopback hosts.
+/// Accept `https` URLs,
+/// and `http` URLs only for loopback hosts.
 fn check_url(url: &str) -> Outcome<Uri> {
     let uri: Uri = url.parse().map_err(|error| return network_error(url, &format!("not a valid URL: {error}")))?;
     let host = uri.host().unwrap_or("");
@@ -41,7 +134,11 @@ fn check_url(url: &str) -> Outcome<Uri> {
     }
 }
 
-/// The asynchronous request: one GET, no redirects, a status of exactly 200, and a body of at most `max_bytes`.
+/// The asynchronous request:
+/// one GET,
+/// no redirects,
+/// a status of exactly 200,
+/// and a body of at most `max_bytes`.
 async fn get_once(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
     let connector = HttpsConnectorBuilder::new()
         .with_native_roots()
@@ -82,11 +179,14 @@ fn run_blocking(uri: Uri, max_bytes: usize) -> Result<Vec<u8>, String> {
 }
 
 /// What:
-///  GET `url` and return its body, failing on anything but a 200 answer within `max_bytes`.
+///  GET `url` and return its body,
+/// failing on anything but a 200 answer within `max_bytes`.
 /// Why:
 ///  The single door for every network read in the crate.
 /// Gotcha:
-///  Redirects are not followed: the registry serves tarballs directly, and a redirect would widen what is trusted.
+///  Redirects are not followed:
+/// the registry serves tarballs directly,
+/// and a redirect would widen what is trusted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,6 +205,17 @@ pub fn get_bytes(url: &str, max_bytes: usize) -> Outcome<Vec<u8>> {
     };
 }
 
+/// What:
+///  The unit tests of `fetch.rs`,
+/// kept in the sidecar file `fetch_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './fetch.test';
+/// ```
 #[cfg(test)]
 #[path = "fetch_tests.rs"]
 mod tests;

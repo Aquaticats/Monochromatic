@@ -1,7 +1,9 @@
 //! What:
 //!  Tests for the three positive selectors on synthetic and committed data.
 //! Why:
-//!  The node-major walk has edge cases (empty list, major 0, mixed majors) the real data never reaches.
+//!  The node-major walk has edge cases (empty list,
+//! major 0,
+//! mixed majors) the real data never reaches.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,7 +38,8 @@ fn last_version_skips_reserved_slots() {
     assert_eq!(last_version(Browser::Chrome, &synthetic).expect("selects"), vec!["chrome 2"]);
 }
 
-/// A browser with no released version selects nothing, and a missing browser fails.
+/// A browser with no released version selects nothing,
+/// and a missing browser fails.
 #[test]
 fn last_version_edge_cases() {
     let empty = data(vec![agent("chrome", &[None, None, Some("9")])], &[]);
@@ -65,7 +68,8 @@ fn node_major_keeps_the_newest_major() {
     );
 }
 
-/// An empty list selects nothing; a newest major of 0 selects the whole list.
+/// An empty list selects nothing;
+/// a newest major of 0 selects the whole list.
 #[test]
 fn node_major_edge_cases() {
     assert_eq!(last_node_major(&data(vec![], &[])).expect("selects"), Vec::<String>::new());
@@ -75,7 +79,8 @@ fn node_major_edge_cases() {
     );
 }
 
-/// A version that does not start with a number is a data error, never skipped.
+/// A version that does not start with a number is a data error,
+/// never skipped.
 #[test]
 fn node_major_rejects_unreadable_versions() {
     let message = last_node_major(&data(vec![], &["x.1.0"])).expect_err("rejected").to_string();

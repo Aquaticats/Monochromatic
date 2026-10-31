@@ -1,8 +1,11 @@
 //! What:
 //!  Tests for the bounded GET against a fake loopback server.
 //! Why:
-//!  Status handling, size limits, URL policy and use from inside an async runtime are the behaviors the cache
-//!  and update paths rely on, and none of them may touch the real registry.
+//!  Status handling,
+//! size limits,
+//! URL policy and use from inside an async runtime are the behaviors the cache
+//!  and update paths rely on,
+//! and none of them may touch the real registry.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,7 +24,9 @@ fn returns_the_body() {
     assert_eq!(server.requests(), vec!["/hello".to_string()]);
 }
 
-/// Any other status, including a redirect, is an error that names the status and the URL.
+/// Any other status,
+/// including a redirect,
+/// is an error that names the status and the URL.
 #[test]
 fn rejects_non_200_answers() {
     let server = FakeRegistry::start(vec![("/redirect", 302, Vec::new()), ("/error", 500, b"boom".to_vec())]);
@@ -45,7 +50,10 @@ fn enforces_the_size_limit() {
     assert_eq!(get_bytes(&format!("{}/big", server.url()), 5000).expect("exact limit").len(), 5000);
 }
 
-/// Only https, or http to loopback, is fetched; nothing is sent for the refused URLs.
+/// Only https,
+/// or http to loopback,
+/// is fetched;
+/// nothing is sent for the refused URLs.
 #[test]
 fn applies_the_url_policy() {
     for url in ["http://example.com/x", "ftp://127.0.0.1/x", "file:///etc/passwd", "not a url", "/relative", "http://127.0.0.1.example.com/x"] {

@@ -1,5 +1,7 @@
 //! What:
-//!  Rust ports of the three JavaScript number readers browserslist leans on: `parseInt`, `parseFloat`,
+//!  Rust ports of the three JavaScript number readers browserslist leans on:
+//! `parseInt`,
+//! `parseFloat`,
 //!  and its own `parseLatestFloat`.
 //! Why:
 //!  Version comparisons in browserslist read the longest numeric prefix of a string and ignore the rest,
@@ -12,12 +14,14 @@
 
 /// What:
 ///  JavaScript `parseInt(text)` for non-negative decimal text:
-///  the leading run of ASCII digits, or `None` where JavaScript yields `NaN`.
+///  the leading run of ASCII digits,
+/// or `None` where JavaScript yields `NaN`.
 ///  `u64` (not `u32` or `i64`) holds any digit run browserslist data produces without a sign bit to misuse.
 /// Why:
 ///  Version parts like `4` in `4.4.3` and majors of Node releases are read this way.
 /// Gotcha:
-///  A run too long for `u64` also gives `None`; real data never gets near it.
+///  A run too long for `u64` also gives `None`;
+/// real data never gets near it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,12 +37,17 @@ pub fn parse_int_prefix(text: &str) -> Option<u64> {
 
 /// What:
 ///  JavaScript `parseFloat(text)` for the decimal forms version strings take:
-///  an optional sign, digits with an optional fraction, and an optional exponent;
-///  anything after that prefix is ignored, and no prefix gives `NaN`.
+///  an optional sign,
+/// digits with an optional fraction,
+/// and an optional exponent;
+///  anything after that prefix is ignored,
+/// and no prefix gives `NaN`.
 /// Why:
 ///  Ray queries such as `ie <= 11` compare versions like `5.5` and `15.2-15.3` this way.
 /// Gotcha:
-///  JavaScript also reads the word `Infinity`; no version string starts with it, so it yields `NaN` here.
+///  JavaScript also reads the word `Infinity`;
+/// no version string starts with it,
+/// so it yields `NaN` here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +95,8 @@ pub fn parse_float(text: &str) -> f64 {
 }
 
 /// What:
-///  browserslist's `parseLatestFloat(v)`: `parseFloat(v.split('-')[1] || v)`.
+///  browserslist's `parseLatestFloat(v)`:
+/// `parseFloat(v.split('-')[1] || v)`.
 ///  For a joined range such as `15.2-15.3` it reads the upper end.
 /// Why:
 ///  The `>=` ray form compares against a range's newest member.
@@ -103,6 +113,17 @@ pub fn parse_latest_float(text: &str) -> f64 {
     return parse_float(after_dash);
 }
 
+/// What:
+///  The unit tests of `js_number.rs`,
+/// kept in the sidecar file `js_number_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './js_number.test';
+/// ```
 #[cfg(test)]
 #[path = "js_number_tests.rs"]
 mod tests;

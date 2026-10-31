@@ -1,24 +1,103 @@
 //! What:
-//!  The command-line surface of the `monochromatic-browserslist` binary: `update`, `export` and `resolve`.
+//!  The command-line surface of the `monochromatic-browserslist` binary:
+//! `update`,
+//! `export` and `resolve`.
 //! Why:
-//!  `update` is the only way versions are ever picked (a `mise` task runs it), `export` hands the verified
-//!  tarballs to the conformance harness, and `resolve` lets a person or a script run the exact library call.
+//!  `update` is the only way versions are ever picked (a `mise` task runs it),
+//! `export` hands the verified
+//!  tarballs to the conformance harness,
+//! and `resolve` lets a person or a script run the exact library call.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function run(args: string[]): string; // parses `update | export | resolve` plus --options
 //! ```
 
+/// What:
+///  Import `render_browserslistrc` from `crate::api::render_browserslistrc`.
+/// Why:
+///  The engine-facing entry points live in one module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { renderBrowserslistrc } from 'crate/api';
+/// ```
 use crate::api::render_browserslistrc;
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `DataLock` from `crate::lock::DataLock`.
+/// Why:
+///  The lock says which data revisions to use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataLock } from 'crate/lock';
+/// ```
 use crate::lock::DataLock;
+/// What:
+///  Import `DataSource, pinned_tarball, write_atomically` from `crate::source`.
+/// Why:
+///  Pinned data is loaded through the cache.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { DataSource, pinnedTarball, writeAtomically } from './source';
+/// ```
 use crate::source::{DataSource, pinned_tarball, write_atomically};
+/// What:
+///  Import `MOZILLA_PRODUCT_DETAILS, build_lock` from `crate::update`.
+/// Why:
+///  The update step builds the lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { MOZILLA_PRODUCT_DETAILS, buildLock } from './update';
+/// ```
 use crate::update::{MOZILLA_PRODUCT_DETAILS, build_lock};
+/// What:
+///  Import `HashMap` from `std::collections::HashMap`.
+/// Why:
+///  Hash tables give linear-time lookups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HashMap } from 'std/collections';
+/// ```
 use std::collections::HashMap;
+/// What:
+///  Import `fs` from `std::fs`.
+/// Why:
+///  The code reads and writes files.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fs } from 'std';
+/// ```
 use std::fs;
+/// What:
+///  Import `Path, PathBuf` from `std::path`.
+/// Why:
+///  Paths are typed values,
+/// not strings.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Path, PathBuf } from 'std/path';
+/// ```
 use std::path::{Path, PathBuf};
 
-/// The lock file name, relative to the directory the command runs in (the package directory under `mise`).
+/// The lock file name,
+/// relative to the directory the command runs in (the package directory under `mise`).
 pub const DEFAULT_LOCK_PATH: &str = "browserslist-data.lock.json";
 
 /// Build a usage error.
@@ -33,7 +112,8 @@ fn usage(message: &str) -> BrowserslistError {
     };
 }
 
-/// Split `--name value` pairs into a map, refusing options the command does not take.
+/// Split `--name value` pairs into a map,
+/// refusing options the command does not take.
 fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<String, String>> {
     let mut options: HashMap<String, String> = HashMap::new();
     let mut index = 0;
@@ -58,7 +138,8 @@ fn read_text(path: &Path) -> Outcome<String> {
         .map_err(|error| return BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() });
 }
 
-/// Build the data source from `--cache-dir` and `--registry`, defaulting to the user cache and npm.
+/// Build the data source from `--cache-dir` and `--registry`,
+/// defaulting to the user cache and npm.
 fn source_from(options: &HashMap<String, String>) -> Outcome<DataSource> {
     let mut source = DataSource::user_default()?;
     if let Some(directory) = options.get("cache-dir") {
@@ -70,12 +151,14 @@ fn source_from(options: &HashMap<String, String>) -> Outcome<DataSource> {
     return Ok(source);
 }
 
-/// The lock path from `--lock`, or the default.
+/// The lock path from `--lock`,
+/// or the default.
 fn lock_path(options: &HashMap<String, String>) -> PathBuf {
     return PathBuf::from(options.get("lock").map_or(DEFAULT_LOCK_PATH, String::as_str));
 }
 
-/// `update`: build a lock from the newest data and write it.
+/// `update`:
+/// build a lock from the newest data and write it.
 fn run_update(options: &HashMap<String, String>) -> Outcome<String> {
     let path = lock_path(options);
     let source = source_from(options)?;
@@ -91,7 +174,8 @@ fn run_update(options: &HashMap<String, String>) -> Outcome<String> {
     ));
 }
 
-/// `export`: write the verified pinned tarballs into a directory for the conformance harness.
+/// `export`:
+/// write the verified pinned tarballs into a directory for the conformance harness.
 fn run_export(options: &HashMap<String, String>) -> Outcome<String> {
     let Some(out) = options.get("out") else {
         return Err(usage("export needs --out DIR"));
@@ -105,7 +189,8 @@ fn run_export(options: &HashMap<String, String>) -> Outcome<String> {
     return Ok(format!("exported caniuse-lite {} and node-releases {} to {out}\n", lock.caniuse_lite.version, lock.node_releases.version));
 }
 
-/// `resolve`: print the rendered resolved JSON for a config file.
+/// `resolve`:
+/// print the rendered resolved JSON for a config file.
 fn run_resolve(options: &HashMap<String, String>) -> Outcome<String> {
     let Some(config) = options.get("config") else {
         return Err(usage("resolve needs --config PATH"));
@@ -117,7 +202,8 @@ fn run_resolve(options: &HashMap<String, String>) -> Outcome<String> {
 /// What:
 ///  Run one command and return the text to print on success.
 /// Why:
-///  `main` only prints this or the error, so the whole command surface is testable as a function.
+///  `main` only prints this or the error,
+/// so the whole command surface is testable as a function.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -136,6 +222,17 @@ pub fn run(arguments: &[String]) -> Outcome<String> {
     }
 }
 
+/// What:
+///  The unit tests of `cli.rs`,
+/// kept in the sidecar file `cli_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './cli.test';
+/// ```
 #[cfg(test)]
 #[path = "cli_tests.rs"]
 mod tests;

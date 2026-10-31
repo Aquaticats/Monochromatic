@@ -9,6 +9,15 @@
 //! class BrowserslistError extends Error { kind: 'not-implemented' | 'browserslist' | 'data' | 'lock' | 'network' | 'io' }
 //! ```
 
+/// What:
+///  Import `fmt` from `std::fmt`.
+/// Why:
+///  The error type prints itself as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { fmt } from 'std';
+/// ```
 use std::fmt;
 
 /// What:
@@ -20,7 +29,8 @@ use std::fmt;
 ///  and `Display` turns each into one message that names the input at fault.
 /// Gotcha:
 ///  `NotImplemented` is a deliberate refusal required by the user's decision,
-///  not a bug report: its message always starts with `not implemented`.
+///  not a bug report:
+/// its message always starts with `not implemented`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -33,19 +43,52 @@ use std::fmt;
 pub enum BrowserslistError {
     /// A query form or config feature outside the supported subset;
     /// `subject` names it (and the line when there is one).
-    NotImplemented { subject: String },
+    NotImplemented {
+        /// What is not implemented,
+        /// naming the query or feature.
+        subject: String,
+    },
     /// An error npm browserslist itself raises for a supported form,
     /// worded exactly as browserslist words it.
-    Browserslist { message: String },
+    Browserslist {
+        /// The message,
+        /// worded as npm browserslist words it.
+        message: String,
+    },
     /// A data file (or the lock) that does not parse;
     /// `offset` is the byte offset in `file` when the failure has one.
-    Data { file: String, offset: Option<usize>, message: String },
+    Data {
+        /// The file or document at fault.
+        file: String,
+        /// Byte offset of the failure,
+        /// when it has one.
+        offset: Option<usize>,
+        /// What is wrong.
+        message: String,
+    },
     /// A pinned download whose digest does not match the lock.
-    Integrity { subject: String, expected: String, actual: String },
+    Integrity {
+        /// The package whose download failed.
+        subject: String,
+        /// The integrity the lock pins.
+        expected: String,
+        /// The integrity of the bytes received.
+        actual: String,
+    },
     /// An HTTP request that failed or answered with something unusable.
-    Network { url: String, message: String },
+    Network {
+        /// The URL requested.
+        url: String,
+        /// Why the request failed.
+        message: String,
+    },
     /// A file system operation that failed.
-    Io { path: String, message: String },
+    Io {
+        /// The path involved.
+        path: String,
+        /// The operating system's message.
+        message: String,
+    },
 }
 
 /// What:
@@ -90,6 +133,16 @@ pub fn not_implemented(subject: &str) -> BrowserslistError {
 /// get message(): string { /* switch on kind */ }
 /// ```
 impl fmt::Display for BrowserslistError {
+    /// What:
+    ///  The `Display` method:
+    /// write the message into the formatter.
+    /// Why:
+    ///  `to_string()` and `{}` formatting call it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// get message(): string
+    /// ```
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotImplemented { subject } => {
@@ -134,7 +187,8 @@ impl std::error::Error for BrowserslistError {}
 /// What:
 ///  Shorthand for `Result<T, BrowserslistError>`.
 /// Why:
-///  Every function in the crate returns this, so the signature stays short.
+///  Every function in the crate returns this,
+/// so the signature stays short.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -142,6 +196,17 @@ impl std::error::Error for BrowserslistError {}
 /// ```
 pub type Outcome<T> = Result<T, BrowserslistError>;
 
+/// What:
+///  The unit tests of `error.rs`,
+/// kept in the sidecar file `error_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './error.test';
+/// ```
 #[cfg(test)]
 #[path = "error_tests.rs"]
 mod tests;

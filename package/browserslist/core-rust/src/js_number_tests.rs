@@ -1,7 +1,8 @@
 //! What:
 //!  Tests for the JavaScript number-reader ports against the values JavaScript gives.
 //! Why:
-//!  The expected values were taken from `parseInt` and `parseFloat` semantics, so the ports cannot drift silently.
+//!  The expected values were taken from `parseInt` and `parseFloat` semantics,
+//! so the ports cannot drift silently.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -40,7 +41,8 @@ fn float_prefix_cases() {
     assert_eq!(parse_float("5."), 5.0);
 }
 
-/// Text without a numeric prefix is NaN, which compares false with everything.
+/// Text without a numeric prefix is NaN,
+/// which compares false with everything.
 #[test]
 fn float_nan_cases() {
     for text in ["", "TP", ".", "-", "+.", "e5", "abc"] {
@@ -48,7 +50,8 @@ fn float_nan_cases() {
     }
 }
 
-/// `parseLatestFloat` reads the part after the first dash, falling back to the whole text.
+/// `parseLatestFloat` reads the part after the first dash,
+/// falling back to the whole text.
 #[test]
 fn latest_float_cases() {
     assert_eq!(parse_latest_float("15.2-15.3"), 15.3);

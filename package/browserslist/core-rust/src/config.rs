@@ -1,7 +1,9 @@
 //! What:
-//!  Splits `.browserslistrc` text into query lines, accepting only `#` comments and blank lines.
+//!  Splits `.browserslistrc` text into query lines,
+//! accepting only `#` comments and blank lines.
 //! Why:
-//!  npm browserslist's `parseConfig` also handles commas, sections and CR line endings;
+//!  npm browserslist's `parseConfig` also handles commas,
+//! sections and CR line endings;
 //!  the user's decision accepts only comments and blank lines and refuses the rest with "not implemented".
 //!
 //! In TS you'd write (pseudocode):
@@ -9,12 +11,23 @@
 //! function parseConfig(text: string): { number: number; text: string }[]; // throws NotImplemented
 //! ```
 
+/// What:
+///  Import `Outcome, not_implemented` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Outcome, notImplemented } from './error';
+/// ```
 use crate::error::{Outcome, not_implemented};
 
 /// What:
 ///  One query line with its 1-based line number in the config text.
 /// Why:
-///  Diagnostics name the line, and the line number survives comment and blank-line removal.
+///  Diagnostics name the line,
+/// and the line number survives comment and blank-line removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -29,9 +42,13 @@ pub struct ConfigLine {
 }
 
 /// What:
-///  Whether a trimmed line has the shape of a browserslist section header, `[name]`.
+///  Whether a trimmed line has the shape of a browserslist section header,
+/// `[name]`.
 /// Why:
-///  browserslist's `IS_SECTION` is `^\s*\[(.+)]\s*$`: an opening bracket, at least one character, a closing bracket.
+///  browserslist's `IS_SECTION` is `^\s*\[(.+)]\s*$`:
+/// an opening bracket,
+/// at least one character,
+/// a closing bracket.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -43,13 +60,18 @@ fn is_section_header(trimmed: &str) -> bool {
 
 /// What:
 ///  Turn config text into query lines.
-///  A `#` starts a comment that runs to the end of its line, wherever the `#` is;
+///  A `#` starts a comment that runs to the end of its line,
+/// wherever the `#` is;
 ///  blank lines are dropped;
-///  a carriage return, a comma outside a comment, or a section header is refused as not implemented.
+///  a carriage return,
+/// a comma outside a comment,
+/// or a section header is refused as not implemented.
 /// Why:
 ///  This mirrors the comment rule of `parseConfig` and rejects every other `parseConfig` feature.
 /// Gotcha:
-///  Only spaces and tabs are trimmed, not the full JavaScript whitespace set, so an exotic space makes the
+///  Only spaces and tabs are trimmed,
+/// not the full JavaScript whitespace set,
+/// so an exotic space makes the
 ///  line fail to match any supported query instead of being silently trimmed.
 ///
 /// In TS you'd write (pseudocode):
@@ -86,6 +108,17 @@ pub fn parse_config(text: &str) -> Outcome<Vec<ConfigLine>> {
     return Ok(lines);
 }
 
+/// What:
+///  The unit tests of `config.rs`,
+/// kept in the sidecar file `config_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './config.test';
+/// ```
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;

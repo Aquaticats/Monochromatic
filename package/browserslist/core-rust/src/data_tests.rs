@@ -1,7 +1,8 @@
 //! What:
 //!  Tests for assembling `BrowserData` from the committed fixture revision.
 //! Why:
-//!  Each input file can fail on its own, and the diagnostics must name the file at fault.
+//!  Each input file can fail on its own,
+//! and the diagnostics must name the file at fault.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +21,8 @@ fn assembles_the_committed_revision() {
     assert!(!data.node_versions.is_empty());
 }
 
-/// Each file's failure surfaces, and a bad ESR value fails with its own diagnostic.
+/// Each file's failure surfaces,
+/// and a bad ESR value fails with its own diagnostic.
 #[test]
 fn each_input_can_fail() {
     let mut envs_files = fixture_files("153.6.0esr");

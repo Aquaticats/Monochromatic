@@ -15,7 +15,8 @@ use crate::error::BrowserslistError;
 const BROWSERS: &str = "module.exports={A:\"ie\",B:\"chrome\"};\n";
 /// Version table of the synthetic revision.
 const VERSIONS: &str = "module.exports={A:\"5.5\",B:\"11\",C:\"100\",D:\"101\",E:\"102\",\"0\":\"103\"};\n";
-/// Agents of the synthetic revision: ie has two released slots and three reserved ones.
+/// Agents of the synthetic revision:
+/// ie has two released slots and three reserved ones.
 const AGENTS: &str = "module.exports={A:{C:[\"A\",\"\",\"B\",\"\",\"\",\"\"]},B:{C:[\"C\",\"D\",\"E\",\"0\",\"\",\"\"]}};\n";
 
 /// The decoder maps codes to versions and empty strings to empty slots.
@@ -32,7 +33,8 @@ fn decodes_slots_and_names() {
     assert_eq!(table.get("opera"), None);
 }
 
-/// `released` cuts three raw slots even when they hold versions, and tolerates arrays shorter than three.
+/// `released` cuts three raw slots even when they hold versions,
+/// and tolerates arrays shorter than three.
 #[test]
 fn released_cut_is_positional() {
     let short = Agent { name: "x".to_string(), slots: vec![Some("1".to_string()), None] };
@@ -45,7 +47,8 @@ fn released_cut_is_positional() {
     assert_eq!(full.released(), vec!["1"]);
 }
 
-/// `require` is case-insensitive and fails with browserslist's own wording, echoing the written spelling.
+/// `require` is case-insensitive and fails with browserslist's own wording,
+/// echoing the written spelling.
 #[test]
 fn require_matches_browserslist_wording() {
     let table = AgentTable::new(vec![Agent { name: "chrome".to_string(), slots: Vec::new() }]);
@@ -54,7 +57,8 @@ fn require_matches_browserslist_wording() {
     assert_eq!(error, BrowserslistError::Browserslist { message: "Unknown browser Foo".to_string() });
 }
 
-/// Unknown codes and malformed shapes are errors, never silently dropped.
+/// Unknown codes and malformed shapes are errors,
+/// never silently dropped.
 #[test]
 fn rejects_inconsistent_data() {
     let unknown_version = "module.exports={A:{C:[\"Z\"]}};\n";
@@ -84,7 +88,8 @@ fn literal_errors_name_the_file() {
     assert!(browsers_error.to_string().contains("caniuse-lite data/browsers.js"));
 }
 
-/// The committed real revision decodes, and the facts the spec records hold for it.
+/// The committed real revision decodes,
+/// and the facts the spec records hold for it.
 #[test]
 fn decodes_the_committed_revision() {
     let table = parse_agents(

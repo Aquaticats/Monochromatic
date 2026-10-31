@@ -1,14 +1,26 @@
 //! What:
-//!  The seven query forms this repository's `.browserslistrc` uses, matched by exact text.
+//!  The seven query forms this repository's `.browserslistrc` uses,
+//! matched by exact text.
 //! Why:
 //!  The user's decision supports only the queries in use and refuses every other spelling with
-//!  "not implemented", which also sidesteps every JavaScript-against-Rust whitespace and case difference.
+//!  "not implemented",
+//! which also sidesteps every JavaScript-against-Rust whitespace and case difference.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Query = { kind: 'last-versions'; browser: Browser } | { kind: 'firefox-esr' } | { kind: 'node-major' } | { kind: 'not-dead' };
 //! ```
 
+/// What:
+///  Import `Outcome, not_implemented` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Outcome, notImplemented } from './error';
+/// ```
 use crate::error::{Outcome, not_implemented};
 
 /// What:
@@ -22,16 +34,31 @@ use crate::error::{Outcome, not_implemented};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Browser {
-    /// Desktop Chrome, caniuse key `chrome`.
+    /// Desktop Chrome,
+    /// caniuse key `chrome`.
     Chrome,
-    /// Chrome for Android, browserslist alias `chromeandroid`, caniuse key `and_chr`.
+    /// Chrome for Android,
+    /// browserslist alias `chromeandroid`,
+    /// caniuse key `and_chr`.
     ChromeAndroid,
-    /// The Android system browser, caniuse key `android`.
+    /// The Android system browser,
+    /// caniuse key `android`.
     Android,
-    /// Firefox for Android, browserslist alias `firefoxandroid`, caniuse key `and_ff`.
+    /// Firefox for Android,
+    /// browserslist alias `firefoxandroid`,
+    /// caniuse key `and_ff`.
     FirefoxAndroid,
 }
 
+/// What:
+///  Methods of `Browser`.
+/// Why:
+///  The resolver turns a parsed browser into its caniuse-lite key here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function agentKey(browser: Browser): string
+/// ```
 impl Browser {
     /// The caniuse-lite key browserslist resolves the written name to.
     pub fn agent_key(self) -> &'static str {
@@ -56,7 +83,10 @@ impl Browser {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Query {
     /// `last 1 <browser> versions`.
-    LastVersions(Browser),
+    LastVersions(
+        /// The browser the line names.
+        Browser,
+    ),
     /// `Firefox ESR`.
     FirefoxEsr,
     /// `last 1 node major versions`.
@@ -86,9 +116,12 @@ const SUPPORTED: [(&str, Query); 7] = [
 ];
 
 /// What:
-///  Match a trimmed config line against the supported texts, or fail with a "not implemented" error naming the line.
+///  Match a trimmed config line against the supported texts,
+/// or fail with a "not implemented" error naming the line.
 /// Why:
-///  A near miss (another count, another case, another browser) must be refused,
+///  A near miss (another count,
+/// another case,
+/// another browser) must be refused,
 ///  never approximated as the closest supported form.
 ///
 /// In TS you'd write (pseudocode):
@@ -108,6 +141,17 @@ pub fn parse_query(line_number: usize, text: &str) -> Outcome<Query> {
     )));
 }
 
+/// What:
+///  The unit tests of `query.rs`,
+/// kept in the sidecar file `query_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './query.test';
+/// ```
 #[cfg(test)]
 #[path = "query_tests.rs"]
 mod tests;

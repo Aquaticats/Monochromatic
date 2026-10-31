@@ -1,8 +1,11 @@
 //! What:
 //!  Tests for the command surface against a fake registry and disposable directories.
 //! Why:
-//!  `update` writes the committed lock, `export` feeds the conformance harness, and `resolve` is the engine's
-//!  call as a command; their option handling must refuse typos instead of ignoring them.
+//!  `update` writes the committed lock,
+//! `export` feeds the conformance harness,
+//! and `resolve` is the engine's
+//!  call as a command;
+//! their option handling must refuse typos instead of ignoring them.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +23,8 @@ fn args(items: &[&str]) -> Vec<String> {
     return items.iter().map(|item| return (*item).to_string()).collect();
 }
 
-/// A fake registry ready for `update`: version documents for both packages plus a Mozilla document.
+/// A fake registry ready for `update`:
+/// version documents for both packages plus a Mozilla document.
 fn updating_registry() -> FakeRegistry {
     let registry = fixture_registry();
     let lock = fixture_lock();
@@ -92,7 +96,10 @@ fn resolve_prints_the_rendered_file() {
     assert_eq!(output, "[\n  \"chrome 156\"\n]\n");
 }
 
-/// Missing commands, unknown commands, unknown options, missing values and missing files are all usage or I/O errors.
+/// Missing commands,
+/// unknown commands,
+/// unknown options,
+/// missing values and missing files are all usage or I/O errors.
 #[test]
 fn rejects_bad_invocations() {
     for invocation in [

@@ -1,7 +1,9 @@
 //! What:
-//!  Tests for npm integrity parsing, verification and cache keys.
+//!  Tests for npm integrity parsing,
+//! verification and cache keys.
 //! Why:
-//!  A known SHA-512 vector pins the digest code, and malformed strings must fail instead of weakening the check.
+//!  A known SHA-512 vector pins the digest code,
+//! and malformed strings must fail instead of weakening the check.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +17,8 @@ use crate::integrity::{cache_key, integrity_of, parse_sha512, verify};
 const ABC_INTEGRITY: &str =
     "sha512-3a81oZNherrMQXNJriBBMRLm+k6JqX6iCp7u5ktV05ohkpkqJ0/BqDa6PCOj/uu9RU1EI2Q86A4qmslPpUyknw==";
 
-/// The vector matches, and `integrity_of` reproduces it.
+/// The vector matches,
+/// and `integrity_of` reproduces it.
 #[test]
 fn known_vector() {
     assert_eq!(integrity_of(b"abc"), ABC_INTEGRITY);
@@ -35,7 +38,10 @@ fn mismatch_reports_both_digests() {
     assert_eq!(actual, integrity_of(b"abd"));
 }
 
-/// Other algorithms, bad base64, wrong length, and several entries are all refused.
+/// Other algorithms,
+/// bad base64,
+/// wrong length,
+/// and several entries are all refused.
 #[test]
 fn rejects_malformed_strings() {
     for text in [

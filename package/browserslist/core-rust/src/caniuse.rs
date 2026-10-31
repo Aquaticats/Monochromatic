@@ -10,8 +10,36 @@
 //! function parseAgents(agentsJs: string, browsersJs: string, versionsJs: string): Map<string, Agent>;
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `JsValue, object_get, parse_module_exports` from `crate::js_literal`.
+/// Why:
+///  The packed data files are read with the owned literal parser.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { JsValue, objectGet, parseModuleExports } from './js_literal';
+/// ```
 use crate::js_literal::{JsValue, object_get, parse_module_exports};
+/// What:
+///  Import `HashMap` from `std::collections::HashMap`.
+/// Why:
+///  Hash tables give linear-time lookups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HashMap } from 'std/collections';
+/// ```
 use std::collections::HashMap;
 
 /// Diagnostic name of the agents file.
@@ -34,9 +62,11 @@ const VERSIONS_FILE: &str = "caniuse-lite data/browserVersions.js";
 const UNRELEASED_SLOTS: usize = 3;
 
 /// What:
-///  One browser: its key name and its raw version slots (`None` marks an empty slot).
+///  One browser:
+/// its key name and its raw version slots (`None` marks an empty slot).
 /// Why:
-///  Keeping the raw slots lets `released` cut positionally, exactly as browserslist does.
+///  Keeping the raw slots lets `released` cut positionally,
+/// exactly as browserslist does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -44,19 +74,32 @@ const UNRELEASED_SLOTS: usize = 3;
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Agent {
-    /// The browserslist key, for example `and_chr`.
+    /// The browserslist key,
+    /// for example `and_chr`.
     pub name: String,
     /// Version strings in file order with `None` for empty slots.
     pub slots: Vec<Option<String>>,
 }
 
+/// What:
+///  Methods of `Agent`.
+/// Why:
+///  `versions` and `released` mirror browserslist's `data.versions` and `data.released`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class Agent { versions(): string[]; released(): string[] }
+/// ```
 impl Agent {
-    /// Every non-empty version, including the unreleased ones (browserslist's `data.versions`).
+    /// Every non-empty version,
+    /// including the unreleased ones (browserslist's `data.versions`).
     pub fn versions(&self) -> Vec<&str> {
         return self.slots.iter().flatten().map(String::as_str).collect();
     }
 
-    /// The released versions: the slots minus the last three, then minus empty ones (`data.released`).
+    /// The released versions:
+    /// the slots minus the last three,
+    /// then minus empty ones (`data.released`).
     pub fn released(&self) -> Vec<&str> {
         let cut = self.slots.len().saturating_sub(UNRELEASED_SLOTS);
         return self.slots[..cut].iter().flatten().map(String::as_str).collect();
@@ -64,7 +107,8 @@ impl Agent {
 }
 
 /// What:
-///  All browsers of one caniuse-lite revision, in file order.
+///  All browsers of one caniuse-lite revision,
+/// in file order.
 /// Why:
 ///  Queries look browsers up by their lowercase key.
 ///
@@ -74,9 +118,20 @@ impl Agent {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentTable {
+    /// The browsers in file order.
     agents: Vec<Agent>,
 }
 
+/// What:
+///  Methods of `AgentTable`.
+/// Why:
+///  Queries look browsers up here,
+/// with browserslist's own error for unknown ones.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AgentTable { get(name: string): Agent | undefined; require(written: string): Agent }
+/// ```
 impl AgentTable {
     /// Build a table from agents (used by tests that need a synthetic revision).
     pub fn new(agents: Vec<Agent>) -> Self {
@@ -188,6 +243,17 @@ pub fn parse_agents(agents_js: &str, browsers_js: &str, versions_js: &str) -> Ou
     return Ok(AgentTable { agents });
 }
 
+/// What:
+///  The unit tests of `caniuse.rs`,
+/// kept in the sidecar file `caniuse_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './caniuse.test';
+/// ```
 #[cfg(test)]
 #[path = "caniuse_tests.rs"]
 mod tests;

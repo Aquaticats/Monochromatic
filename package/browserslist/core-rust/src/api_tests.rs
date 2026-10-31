@@ -1,5 +1,9 @@
 //! What:
-//!  Tests for the public entry point: end to end through lock, cache, fake registry, resolution and rendering.
+//!  Tests for the public entry point:
+//! end to end through lock,
+//! cache,
+//! fake registry,
+//! resolution and rendering.
 //! Why:
 //!  These prove the engine-facing call refuses unsupported input before any network use and renders the exact file.
 //!
@@ -15,7 +19,9 @@ use crate::source::DataSource;
 /// The seven repository lines.
 const REPOSITORY_RC: &str = "last 1 Chrome versions\nlast 1 ChromeAndroid versions\nlast 1 Android versions\nFirefox ESR\nlast 1 FirefoxAndroid versions\nlast 1 node major versions\nnot dead\n";
 
-/// Cold-cache resolution fetches once, warm resolution fetches nothing, and both give the same answer.
+/// Cold-cache resolution fetches once,
+/// warm resolution fetches nothing,
+/// and both give the same answer.
 #[test]
 fn end_to_end_with_a_fake_registry() {
     let registry = fixture_registry();

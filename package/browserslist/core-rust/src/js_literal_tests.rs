@@ -1,7 +1,9 @@
 //! What:
-//!  Tests for the packed-JavaScript literal parser: accepted shapes and adversarial rejections.
+//!  Tests for the packed-JavaScript literal parser:
+//! accepted shapes and adversarial rejections.
 //! Why:
-//!  The parser is the trust boundary for downloaded data, so every rejection names a byte offset the tests pin.
+//!  The parser is the trust boundary for downloaded data,
+//! so every rejection names a byte offset the tests pin.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,7 +29,8 @@ fn assert_rejected(body: &str, offset_in_body: usize) {
     assert!(error.to_string().starts_with("agents.js: "), "{error}");
 }
 
-/// The subset's value kinds all parse, with keys in source order.
+/// The subset's value kinds all parse,
+/// with keys in source order.
 #[test]
 fn accepts_the_subset() {
     let value = parse(r#"{A:{"0":0.074518,B:"ms",C:["","I","oB"],D:null,E:"Opera Mini",F:0},Z:[]}"#)
@@ -82,7 +85,8 @@ fn rejects_bad_envelopes() {
     }
 }
 
-/// Trailing commas, holes and duplicate keys are outside the subset.
+/// Trailing commas,
+/// holes and duplicate keys are outside the subset.
 #[test]
 fn rejects_structural_deviations() {
     assert_rejected("[1,]", 3);
@@ -95,7 +99,10 @@ fn rejects_structural_deviations() {
     assert_rejected("{1:2}", 1);
 }
 
-/// Strings with escapes, controls, non-ASCII bytes, or no end are rejected at the offending byte.
+/// Strings with escapes,
+/// controls,
+/// non-ASCII bytes,
+/// or no end are rejected at the offending byte.
 #[test]
 fn rejects_unsafe_strings() {
     assert_rejected(r#""a\nb""#, 2);
@@ -117,7 +124,9 @@ fn rejects_number_deviations() {
     assert_rejected("1x", 1);
 }
 
-/// Keywords other than `null`, and identifiers that merely start with it, are rejected.
+/// Keywords other than `null`,
+/// and identifiers that merely start with it,
+/// are rejected.
 #[test]
 fn rejects_other_keywords() {
     assert_rejected("true", 0);
@@ -127,7 +136,8 @@ fn rejects_other_keywords() {
     assert_rejected("[1,\u{feff}2]", 3);
 }
 
-/// Nesting at the cap parses; one level deeper is rejected before deeper state is built.
+/// Nesting at the cap parses;
+/// one level deeper is rejected before deeper state is built.
 #[test]
 fn bounds_nesting_depth() {
     let at_cap = format!("{}{}", "[".repeat(8), "]".repeat(8));
@@ -143,7 +153,8 @@ fn survives_hostile_depth() {
     assert!(parse(&hostile).is_err());
 }
 
-/// Control: a body the parser must reject is not accepted by `parse` (the helper can fail).
+/// Control:
+/// a body the parser must reject is not accepted by `parse` (the helper can fail).
 #[test]
 fn positive_control_helper_can_fail() {
     assert!(parse("{A:1,}").is_err());

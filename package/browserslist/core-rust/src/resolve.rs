@@ -1,28 +1,114 @@
 //! What:
 //!  Runs the supported queries in file order and post-processes the result like npm browserslist's top-level call.
 //! Why:
-//!  Positive queries append, `not dead` subtracts from everything accumulated so far,
-//!  then duplicates are removed (first kept) and the list is sorted by name ascending, version descending.
+//!  Positive queries append,
+//! `not dead` subtracts from everything accumulated so far,
+//!  then duplicates are removed (first kept) and the list is sorted by name ascending,
+//! version descending.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! function resolveConfigText(text: string, data: BrowserData): string[]; // browserslist(parseConfig(text).defaults)
 //! ```
 
+/// What:
+///  Import `ConfigLine, parse_config` from `crate::config`.
+/// Why:
+///  Config text is split into query lines before anything else runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { ConfigLine, parseConfig } from './config';
+/// ```
 use crate::config::{ConfigLine, parse_config};
+/// What:
+///  Import `BrowserData` from `crate::data::BrowserData`.
+/// Why:
+///  Selectors and the loader pass the decoded data around as one value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserData } from 'crate/data';
+/// ```
 use crate::data::BrowserData;
+/// What:
+///  Import `subtract_dead` from `crate::dead::subtract_dead`.
+/// Why:
+///  `not dead` needs the dead expansion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { subtractDead } from 'crate/dead';
+/// ```
 use crate::dead::subtract_dead;
+/// What:
+///  Import `BrowserslistError, Outcome, not_implemented` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome, notImplemented } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome, not_implemented};
+/// What:
+///  Import `parse_int_prefix` from `crate::js_number::parse_int_prefix`.
+/// Why:
+///  Version comparison needs JavaScript's number-prefix reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseIntPrefix } from 'crate/js_number';
+/// ```
 use crate::js_number::parse_int_prefix;
+/// What:
+///  Import `Query, parse_query` from `crate::query`.
+/// Why:
+///  Config lines are matched against the supported queries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Query, parseQuery } from './query';
+/// ```
 use crate::query::{Query, parse_query};
+/// What:
+///  Import `firefox_esr, last_node_major, last_version` from `crate::select`.
+/// Why:
+///  Each query family has its own selector.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { firefoxEsr, lastNodeMajor, lastVersion } from './select';
+/// ```
 use crate::select::{firefox_esr, last_node_major, last_version};
+/// What:
+///  Import `Ordering` from `std::cmp::Ordering`.
+/// Why:
+///  Sorting compares names,
+/// then versions.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Ordering } from 'std/cmp';
+/// ```
 use std::cmp::Ordering;
+/// What:
+///  Import `HashSet` from `std::collections::HashSet`.
+/// Why:
+///  Hash tables give linear-time lookups.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { HashSet } from 'std/collections';
+/// ```
 use std::collections::HashSet;
 
 /// browserslist's message for a `not` query with nothing before it (`index.js:348-354`).
 const NOT_FIRST_MESSAGE: &str = "Write any browsers query (for instance, `defaults`) before `not dead`";
 
-/// browserslist rewrites a selected `<name> 0` to the browser's first version; no supported query selects one,
+/// browserslist rewrites a selected `<name> 0` to the browser's first version;
+/// no supported query selects one,
 /// so meeting one means the data changed shape and the crate refuses instead of guessing.
 fn refuse_zero_versions(selected: &[String]) -> Outcome<()> {
     for item in selected {
@@ -50,7 +136,8 @@ fn sort_key(item: &str) -> Outcome<(String, [u64; 3])> {
 }
 
 /// What:
-///  Remove duplicates keeping the first of each, then sort by name ascending and version descending (stable).
+///  Remove duplicates keeping the first of each,
+/// then sort by name ascending and version descending (stable).
 /// Why:
 ///  This is the `uniq(...).sort(...)` tail of browserslist's top-level function.
 ///
@@ -105,9 +192,13 @@ pub fn resolve_lines(lines: &[ConfigLine], data: &BrowserData) -> Outcome<Vec<St
 }
 
 /// What:
-///  Resolve `.browserslistrc` text against data: split into lines, run the queries, finalize.
+///  Resolve `.browserslistrc` text against data:
+/// split into lines,
+/// run the queries,
+/// finalize.
 /// Why:
-///  The pure core of the crate's public API; the I/O wrapper only supplies the data.
+///  The pure core of the crate's public API;
+/// the I/O wrapper only supplies the data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,6 +209,17 @@ pub fn resolve_config_text(text: &str, data: &BrowserData) -> Outcome<Vec<String
     return resolve_lines(&lines, data);
 }
 
+/// What:
+///  The unit tests of `resolve.rs`,
+/// kept in the sidecar file `resolve_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './resolve.test';
+/// ```
 #[cfg(test)]
 #[path = "resolve_tests.rs"]
 mod tests;

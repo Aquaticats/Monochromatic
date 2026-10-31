@@ -1,8 +1,11 @@
 //! What:
-//!  Tests for the `dead` expansion and the `not dead` subtraction, on the committed revision and on synthetic data.
+//!  Tests for the `dead` expansion and the `not dead` subtraction,
+//! on the committed revision and on synthetic data.
 //! Why:
-//!  The real selection contains no dead browser, so the subtraction path needs a synthetic vector
-//!  (produced by the real npm package, per the spec) plus a positive control that must differ without it.
+//!  The real selection contains no dead browser,
+//! so the subtraction path needs a synthetic vector
+//!  (produced by the real npm package,
+//! per the spec) plus a positive control that must differ without it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -15,7 +18,8 @@ use crate::dead::{dead_set, subtract_dead};
 use crate::error::BrowserslistError;
 use crate::fixture::fixture_files;
 
-/// Build an agent whose literal versions are all released: three empty reserved slots follow them.
+/// Build an agent whose literal versions are all released:
+/// three empty reserved slots follow them.
 fn agent(name: &str, versions: &[&str]) -> Agent {
     let mut slots: Vec<Option<String>> = versions.iter().map(|version| return Some((*version).to_string())).collect();
     slots.extend([None, None, None]);
@@ -45,7 +49,9 @@ fn expansion_matches_the_spec() {
     assert_eq!(actual, expected);
 }
 
-/// The spec's vector: 14 strings before `not dead`, the three non-dead ones after.
+/// The spec's vector:
+/// 14 strings before `not dead`,
+/// the three non-dead ones after.
 #[test]
 fn subtraction_vector_from_the_spec() {
     let before = owned(&[
@@ -56,7 +62,9 @@ fn subtraction_vector_from_the_spec() {
     assert_eq!(after, owned(&["chrome 156", "op_mob 80", "samsung 30"]));
 }
 
-/// Positive control: without the subtraction the vector keeps all 14, so a harness that skipped it would fail.
+/// Positive control:
+/// without the subtraction the vector keeps all 14,
+/// so a harness that skipped it would fail.
 #[test]
 fn control_fails_when_not_dead_is_skipped() {
     let before = owned(&["chrome 156", "ie 11", "op_mob 80", "samsung 30", "samsung 4"]);
@@ -66,7 +74,8 @@ fn control_fails_when_not_dead_is_skipped() {
     assert_eq!(after, owned(&["chrome 156", "op_mob 80", "samsung 30"]));
 }
 
-/// Nothing outside the dead set is removed, and the order of survivors is kept.
+/// Nothing outside the dead set is removed,
+/// and the order of survivors is kept.
 #[test]
 fn survivors_keep_their_order() {
     let before = owned(&["samsung 30", "chrome 156", "ie 11", "android 4.4", "firefox 153"]);
@@ -74,7 +83,8 @@ fn survivors_keep_their_order() {
     assert_eq!(after, owned(&["samsung 30", "chrome 156", "android 4.4", "firefox 153"]));
 }
 
-/// A missing browser fails with browserslist's `Unknown browser` wording, named as the dead list spells it.
+/// A missing browser fails with browserslist's `Unknown browser` wording,
+/// named as the dead list spells it.
 #[test]
 fn missing_browser_fails() {
     let table = AgentTable::new(vec![agent("ie", &["10", "11"])]);
@@ -94,7 +104,10 @@ fn six_browsers(samsung: Agent) -> AgentTable {
     ]);
 }
 
-/// Ray rules compare numbers: ranges by their newest member for `>=`, TP never matches, bounds are inclusive.
+/// Ray rules compare numbers:
+/// ranges by their newest member for `>=`,
+/// TP never matches,
+/// bounds are inclusive.
 #[test]
 fn ray_comparisons() {
     let table = six_browsers(agent("samsung", &["4", "5"]));
@@ -113,7 +126,12 @@ fn ray_comparisons() {
     assert!(!dead.contains(&"op_mob TP".to_string()));
 }
 
-/// The single-version rule: exact hit, joined-range alias, `.0` variant, one-version fallback, and failure.
+/// The single-version rule:
+/// exact hit,
+/// joined-range alias,
+/// `.0` variant,
+/// one-version fallback,
+/// and failure.
 #[test]
 fn samsung_version_resolution() {
     let exact = dead_set(&six_browsers(agent("samsung", &["4", "5"]))).expect("exact");

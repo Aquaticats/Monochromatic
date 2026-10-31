@@ -10,7 +10,9 @@
 
 use crate::node_releases::parse_node_versions;
 
-/// Versions come back in file order, unsorted and undeduplicated, whatever `lts` holds.
+/// Versions come back in file order,
+/// unsorted and undeduplicated,
+/// whatever `lts` holds.
 #[test]
 fn keeps_file_order() {
     let text = r#"[

@@ -1,7 +1,10 @@
 //! What:
-//!  Tests for query accumulation, `not dead` placement, deduplication and the final sort.
+//!  Tests for query accumulation,
+//! `not dead` placement,
+//! deduplication and the final sort.
 //! Why:
-//!  Ordering and dedup rules are where a port most easily drifts from npm browserslist, and the first-query rule
+//!  Ordering and dedup rules are where a port most easily drifts from npm browserslist,
+//! and the first-query rule
 //!  for `not` is an error path with an exact message.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,7 +17,8 @@ use crate::data::BrowserData;
 use crate::fixture::fixture_files;
 use crate::resolve::{finalize, resolve_config_text};
 
-/// The seven lines of the repository's `.browserslistrc`, with its leading comment.
+/// The seven lines of the repository's `.browserslistrc`,
+/// with its leading comment.
 const REPOSITORY_RC: &str = "# .browserslistrc\nlast 1 Chrome versions\nlast 1 ChromeAndroid versions\nlast 1 Android versions\nFirefox ESR\nlast 1 FirefoxAndroid versions\nlast 1 node major versions\nnot dead\n";
 
 /// Load the committed revision.
@@ -44,7 +48,8 @@ fn finalize_sorts_names_and_versions() {
     );
 }
 
-/// Duplicates keep their first position, and equal sort keys keep their incoming order (stable sort).
+/// Duplicates keep their first position,
+/// and equal sort keys keep their incoming order (stable sort).
 #[test]
 fn finalize_dedupes_and_is_stable() {
     assert_eq!(finalize(&owned(&["b 1", "a 1", "b 1", "a 1"])).expect("sorts"), owned(&["a 1", "b 1"]));
@@ -53,7 +58,8 @@ fn finalize_dedupes_and_is_stable() {
     assert_eq!(finalize(&[]).expect("empty"), Vec::<String>::new());
 }
 
-/// Entries that cannot be sorted like browserslist sorts them are refused, not guessed.
+/// Entries that cannot be sorted like browserslist sorts them are refused,
+/// not guessed.
 #[test]
 fn finalize_refuses_unsortable_entries() {
     assert!(finalize(&owned(&["nospace"])).expect_err("shape").to_string().starts_with("not implemented: "));
@@ -62,7 +68,8 @@ fn finalize_refuses_unsortable_entries() {
     assert!(message.contains("\"TP\""), "{message}");
 }
 
-/// The repository's seven lines resolve to the sorted union, with `not dead` removing nothing.
+/// The repository's seven lines resolve to the sorted union,
+/// with `not dead` removing nothing.
 #[test]
 fn resolves_the_repository_file() {
     let result = resolve_config_text(REPOSITORY_RC, &committed()).expect("resolves");
@@ -74,7 +81,8 @@ fn resolves_the_repository_file() {
     assert!(result.len() > 5);
 }
 
-/// Line order does not change the result, and repeating a line adds nothing.
+/// Line order does not change the result,
+/// and repeating a line adds nothing.
 #[test]
 fn order_and_repetition_do_not_matter() {
     let data = committed();
@@ -87,7 +95,8 @@ fn order_and_repetition_do_not_matter() {
     assert_eq!(forward, reversed);
 }
 
-/// `not dead` first is browserslist's own error; so is it after only blank and comment lines.
+/// `not dead` first is browserslist's own error;
+/// so is it after only blank and comment lines.
 #[test]
 fn not_dead_needs_a_query_before_it() {
     for text in ["not dead", "# c\n\nnot dead\nlast 1 Chrome versions", "not dead\nnot dead"] {
@@ -96,14 +105,16 @@ fn not_dead_needs_a_query_before_it() {
     }
 }
 
-/// Empty and comment-only configs resolve to an empty list, like `browserslist([])`.
+/// Empty and comment-only configs resolve to an empty list,
+/// like `browserslist([])`.
 #[test]
 fn empty_config_resolves_to_nothing() {
     assert_eq!(resolve_config_text("", &committed()).expect("empty"), Vec::<String>::new());
     assert_eq!(resolve_config_text("# only\n", &committed()).expect("empty"), Vec::<String>::new());
 }
 
-/// Each supported line alone resolves, and `not dead` alone fails.
+/// Each supported line alone resolves,
+/// and `not dead` alone fails.
 #[test]
 fn each_line_alone() {
     let data = committed();

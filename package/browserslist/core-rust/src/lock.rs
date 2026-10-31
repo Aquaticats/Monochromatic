@@ -1,5 +1,6 @@
 //! What:
-//!  The committed lock that pins the data revisions: two npm packages by version and sha-512 integrity,
+//!  The committed lock that pins the data revisions:
+//! two npm packages by version and sha-512 integrity,
 //!  and the Firefox ESR value.
 //! Why:
 //!  The decision record keeps the data inputs under version control so a fresh machine produces the same output;
@@ -10,9 +11,46 @@
 //! type DataLock = { 'caniuse-lite': Pinned; 'node-releases': Pinned; firefoxEsr: string };
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `parse_esr_major` from `crate::firefox_esr::parse_esr_major`.
+/// Why:
+///  The ESR value is validated in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseEsrMajor } from 'crate/firefox_esr';
+/// ```
 use crate::firefox_esr::parse_esr_major;
+/// What:
+///  Import `parse_sha512` from `crate::integrity::parse_sha512`.
+/// Why:
+///  Every download is checked against the digest the lock pins.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseSha512 } from 'crate/integrity';
+/// ```
 use crate::integrity::parse_sha512;
+/// What:
+///  Import `Map, Value` from `serde_json`.
+/// Why:
+///  JSON documents are read and written through serde_json.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Map, Value } from 'serde_json';
+/// ```
 use serde_json::{Map, Value};
 
 /// The lock format version this crate reads and writes.
@@ -26,7 +64,8 @@ fn lock_error(message: &str) -> BrowserslistError {
 /// What:
 ///  One pinned npm package.
 /// Why:
-///  Name and version give the tarball URL; the integrity is what the download must hash to.
+///  Name and version give the tarball URL;
+/// the integrity is what the download must hash to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -34,11 +73,13 @@ fn lock_error(message: &str) -> BrowserslistError {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinnedPackage {
-    /// The npm package name, `caniuse-lite` or `node-releases`.
+    /// The npm package name,
+    /// `caniuse-lite` or `node-releases`.
     pub name: String,
     /// The exact published version.
     pub version: String,
-    /// npm's `dist.integrity`, `sha512-<base64>`.
+    /// npm's `dist.integrity`,
+    /// `sha512-<base64>`.
     pub integrity: String,
 }
 
@@ -57,7 +98,8 @@ pub struct DataLock {
     pub caniuse_lite: PinnedPackage,
     /// The node-releases package.
     pub node_releases: PinnedPackage,
-    /// Mozilla's `FIREFOX_ESR` value, for example `153.6.0esr`.
+    /// Mozilla's `FIREFOX_ESR` value,
+    /// for example `153.6.0esr`.
     pub firefox_esr: String,
 }
 
@@ -93,11 +135,23 @@ fn read_package(root: &Map<String, Value>, name: &str) -> Outcome<PinnedPackage>
     return Ok(PinnedPackage { name: name.to_string(), version: version.clone(), integrity: integrity.clone() });
 }
 
+/// What:
+///  Methods of `DataLock`.
+/// Why:
+///  Parsing and rendering the lock text happen here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class DataLock { static fromJson(text: string): DataLock; toJson(): string }
+/// ```
 impl DataLock {
     /// What:
-    ///  Parse and validate lock text; every field is checked, and unknown keys are refused.
+    ///  Parse and validate lock text;
+    /// every field is checked,
+    /// and unknown keys are refused.
     /// Why:
-    ///  A hand-edited or truncated lock must fail loudly here, before any download is attempted.
+    ///  A hand-edited or truncated lock must fail loudly here,
+    /// before any download is attempted.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -128,7 +182,8 @@ impl DataLock {
     /// What:
     ///  Render the lock as pretty JSON with sorted keys and a final newline.
     /// Why:
-    ///  The update command writes this; a stable layout keeps the lock's diff to the changed values.
+    ///  The update command writes this;
+    /// a stable layout keeps the lock's diff to the changed values.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -146,6 +201,17 @@ impl DataLock {
     }
 }
 
+/// What:
+///  The unit tests of `lock.rs`,
+/// kept in the sidecar file `lock_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './lock.test';
+/// ```
 #[cfg(test)]
 #[path = "lock_tests.rs"]
 mod tests;

@@ -1,8 +1,13 @@
 //! What:
 //!  Tests for exact-text query matching and the "not implemented" refusals.
 //! Why:
-//!  The user's rule is that every non-conforming query throws "not implemented", so representative unsupported
-//!  forms (other counts, spellings, browsers, composition, and whole other query families) are pinned here.
+//!  The user's rule is that every non-conforming query throws "not implemented",
+//! so representative unsupported
+//!  forms (other counts,
+//! spellings,
+//! browsers,
+//! composition,
+//! and whole other query families) are pinned here.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +37,8 @@ fn browser_keys() {
     assert_eq!(Browser::FirefoxAndroid.agent_key(), "and_ff");
 }
 
-/// Spellings npm browserslist would accept are still refused, and the message names the query and the line.
+/// Spellings npm browserslist would accept are still refused,
+/// and the message names the query and the line.
 #[test]
 fn refuses_other_spellings_and_forms() {
     for text in [

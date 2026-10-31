@@ -1,8 +1,11 @@
 //! What:
 //!  Tests for the update step against a fake registry and a fake Mozilla document.
 //! Why:
-//!  The newest-version pick, integrity requirement, ESR shape check and decode-before-pin behavior are the
-//!  contract of the update task, and none of it may run against the real network in tests.
+//!  The newest-version pick,
+//! integrity requirement,
+//! ESR shape check and decode-before-pin behavior are the
+//!  contract of the update task,
+//! and none of it may run against the real network in tests.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,7 +40,10 @@ fn updating_registry(caniuse_version: &str) -> FakeRegistry {
     return registry;
 }
 
-/// The update pins the newest versions, their integrities, and the Mozilla ESR, and caches the verified tarballs.
+/// The update pins the newest versions,
+/// their integrities,
+/// and the Mozilla ESR,
+/// and caches the verified tarballs.
 #[test]
 fn builds_a_lock_from_the_newest_data() {
     let registry = updating_registry("1.0.30009999");

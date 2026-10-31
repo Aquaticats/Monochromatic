@@ -1,5 +1,8 @@
 //! What:
-//!  The decoded data one resolve run reads: browser agents, Node.js release versions, and the Firefox ESR major.
+//!  The decoded data one resolve run reads:
+//! browser agents,
+//! Node.js release versions,
+//! and the Firefox ESR major.
 //! Why:
 //!  Resolution is a pure function of the query text plus this value,
 //!  so tests can hand it synthetic or committed data without any network or cache.
@@ -9,13 +12,51 @@
 //! type BrowserData = { agents: AgentTable; nodeVersions: string[]; firefoxEsrMajor: number };
 //! ```
 
+/// What:
+///  Import `AgentTable, parse_agents` from `crate::caniuse`.
+/// Why:
+///  Version lists come from the decoded caniuse-lite data.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { AgentTable, parseAgents } from './caniuse';
+/// ```
 use crate::caniuse::{AgentTable, parse_agents};
+/// What:
+///  Import `Outcome` from `crate::error::Outcome`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Outcome } from 'crate/error';
+/// ```
 use crate::error::Outcome;
+/// What:
+///  Import `parse_esr_major` from `crate::firefox_esr::parse_esr_major`.
+/// Why:
+///  The ESR value is validated in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseEsrMajor } from 'crate/firefox_esr';
+/// ```
 use crate::firefox_esr::parse_esr_major;
+/// What:
+///  Import `parse_node_versions` from `crate::node_releases::parse_node_versions`.
+/// Why:
+///  The Node.js release list comes from node-releases.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseNodeVersions } from 'crate/node_releases';
+/// ```
 use crate::node_releases::parse_node_versions;
 
 /// What:
-///  The four raw data files plus the raw ESR value, borrowed as text.
+///  The four raw data files plus the raw ESR value,
+/// borrowed as text.
 /// Why:
 ///  A single named struct keeps the five same-typed text arguments from being swapped by mistake.
 ///
@@ -33,7 +74,8 @@ pub struct DataFiles<'a> {
     pub browser_versions_js: &'a str,
     /// Text of node-releases `data/processed/envs.json`.
     pub envs_json: &'a str,
-    /// The locked `FIREFOX_ESR` value, for example `153.6.0esr`.
+    /// The locked `FIREFOX_ESR` value,
+    /// for example `153.6.0esr`.
     pub firefox_esr: &'a str,
 }
 
@@ -56,9 +98,19 @@ pub struct BrowserData {
     pub firefox_esr_major: u64,
 }
 
+/// What:
+///  Methods of `BrowserData`.
+/// Why:
+///  Decoding the raw files into data happens in one constructor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class BrowserData { static fromFiles(files: DataFiles): BrowserData }
+/// ```
 impl BrowserData {
     /// What:
-    ///  Decode the raw files into data, failing on the first malformed file.
+    ///  Decode the raw files into data,
+    /// failing on the first malformed file.
     /// Why:
     ///  Lock-pinned downloads and committed fixtures both enter through this one door.
     ///
@@ -74,6 +126,17 @@ impl BrowserData {
     }
 }
 
+/// What:
+///  The unit tests of `data.rs`,
+/// kept in the sidecar file `data_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './data.test';
+/// ```
 #[cfg(test)]
 #[path = "data_tests.rs"]
 mod tests;

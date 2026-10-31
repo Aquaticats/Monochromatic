@@ -1,5 +1,8 @@
 //! What:
-//!  npm `dist.integrity` handling: parse `sha512-<base64>`, verify bytes against it, and derive a file-name-safe key.
+//!  npm `dist.integrity` handling:
+//! parse `sha512-<base64>`,
+//! verify bytes against it,
+//! and derive a file-name-safe key.
 //! Why:
 //!  Every download is trusted only after its SHA-512 digest equals the one pinned in the lock,
 //!  and the cache is keyed by that digest.
@@ -10,9 +13,46 @@
 //! const ok = `sha512-${createHash('sha512').update(bytes).digest('base64')}` === integrity;
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `Engine` from `base64::Engine`.
+/// Why:
+///  npm integrity strings carry their digest in base64.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Engine } from 'base64';
+/// ```
 use base64::Engine;
+/// What:
+///  Import `STANDARD` from `base64::engine::general_purpose::STANDARD`.
+/// Why:
+///  npm integrity strings carry their digest in base64.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { STANDARD } from 'base64/engine/general_purpose';
+/// ```
 use base64::engine::general_purpose::STANDARD;
+/// What:
+///  Import `Digest, Sha512` from `sha2`.
+/// Why:
+///  npm integrity strings are SHA-512 digests.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Digest, Sha512 } from 'sha2';
+/// ```
 use sha2::{Digest, Sha512};
 
 /// The only algorithm prefix the crate accepts.
@@ -33,7 +73,9 @@ fn malformed(integrity: &str, why: &str) -> BrowserslistError {
 /// What:
 ///  Decode a single `sha512-<base64>` integrity string into its 64 digest bytes.
 /// Why:
-///  A lock edited by hand, or a registry answer in another algorithm, fails here instead of weakening the check.
+///  A lock edited by hand,
+/// or a registry answer in another algorithm,
+/// fails here instead of weakening the check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -65,7 +107,8 @@ pub fn integrity_of(bytes: &[u8]) -> String {
 }
 
 /// What:
-///  Succeed only when the bytes hash to the pinned integrity; otherwise report both digests.
+///  Succeed only when the bytes hash to the pinned integrity;
+/// otherwise report both digests.
 /// Why:
 ///  This is the single gate between downloaded or cached bytes and any use of them.
 ///
@@ -87,9 +130,12 @@ pub fn verify(subject: &str, integrity: &str, bytes: &[u8]) -> Outcome<()> {
 }
 
 /// What:
-///  The lowercase hex of the pinned digest, used as the cache file stem.
+///  The lowercase hex of the pinned digest,
+/// used as the cache file stem.
 /// Why:
-///  Base64 contains `/` and `+`, which are unsafe in a file name; hex is not.
+///  Base64 contains `/` and `+`,
+/// which are unsafe in a file name;
+/// hex is not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,6 +146,17 @@ pub fn cache_key(integrity: &str) -> Outcome<String> {
     return Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect());
 }
 
+/// What:
+///  The unit tests of `integrity.rs`,
+/// kept in the sidecar file `integrity_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './integrity.test';
+/// ```
 #[cfg(test)]
 #[path = "integrity_tests.rs"]
 mod tests;

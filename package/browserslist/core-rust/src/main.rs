@@ -1,20 +1,42 @@
 //! What:
-//!  The `monochromatic-browserslist` binary: prints the result of one command, or the error and exit code 1.
+//!  The `monochromatic-browserslist` binary:
+//! prints the result of one command,
+//! or the error and exit code 1.
 //! Why:
-//!  `mise` tasks and the conformance harness call it; all logic lives in the library's `cli::run`.
+//!  `mise` tasks and the conformance harness call it;
+//! all logic lives in the library's `cli::run`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! try { process.stdout.write(run(process.argv.slice(2))); } catch (error) { console.error(String(error)); process.exitCode = 1; }
 //! ```
 
+/// What:
+///  Import `run` from `monochromatic_browserslist::cli::run`.
+/// Why:
+///  The binary calls the library's command runner.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { run } from 'monochromatic_browserslist/cli';
+/// ```
 use monochromatic_browserslist::cli::run;
+/// What:
+///  Import `Write` from `std::io::Write`.
+/// Why:
+///  Byte streams are read and written through these traits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { Write } from 'std/io';
+/// ```
 use std::io::Write;
 
 /// What:
 ///  The program entry point.
 /// Why:
-///  Rust runs `main` first; it prints the command output or the error message and sets the exit status.
+///  Rust runs `main` first;
+/// it prints the command output or the error message and sets the exit status.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -1,7 +1,12 @@
 //! What:
-//!  Tests for the pinned-tarball cache: cold fetch, warm hit, corrupted entries, and tampered downloads.
+//!  Tests for the pinned-tarball cache:
+//! cold fetch,
+//! warm hit,
+//! corrupted entries,
+//! and tampered downloads.
 //! Why:
-//!  The cache must give a fresh machine and a warm one the same bytes, and must never trust unverified ones.
+//!  The cache must give a fresh machine and a warm one the same bytes,
+//! and must never trust unverified ones.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -20,7 +25,8 @@ fn source_for(registry: &FakeRegistry, cache: &std::path::Path) -> DataSource {
     return DataSource { cache_dir: cache.join("cache"), registry_url: registry.url() };
 }
 
-/// A cold cache fetches exactly the two pinned tarballs; a warm cache fetches nothing.
+/// A cold cache fetches exactly the two pinned tarballs;
+/// a warm cache fetches nothing.
 #[test]
 fn cold_then_warm() {
     let registry = fixture_registry();
@@ -43,7 +49,8 @@ fn cold_then_warm() {
     assert!(source.cache_dir.join(format!("{key}.tgz")).is_file());
 }
 
-/// The URL is derived from registry, name and version only.
+/// The URL is derived from registry,
+/// name and version only.
 #[test]
 fn tarball_urls() {
     let lock = fixture_lock();
@@ -68,7 +75,8 @@ fn corrupted_cache_entry_is_refetched() {
     assert_ne!(fs::read(&path).expect("entry"), b"tampered".to_vec());
 }
 
-/// A registry that serves different bytes than the lock pins is rejected, and nothing is cached.
+/// A registry that serves different bytes than the lock pins is rejected,
+/// and nothing is cached.
 #[test]
 fn tampered_download_is_rejected_and_not_cached() {
     let registry = fixture_registry();
@@ -92,7 +100,8 @@ fn missing_tarball_is_a_network_error() {
     assert!(message.contains("caniuse-lite-1.0.30001820.tgz"), "{message}");
 }
 
-/// Verified bytes that are not a usable package fail in the decoder, naming what is missing.
+/// Verified bytes that are not a usable package fail in the decoder,
+/// naming what is missing.
 #[test]
 fn unusable_package_contents_are_reported() {
     let registry = fixture_registry();

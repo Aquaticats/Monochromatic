@@ -1,5 +1,6 @@
 //! What:
-//!  Reads the major version out of Mozilla's `FIREFOX_ESR` value, for example `153.6.0esr` gives 153.
+//!  Reads the major version out of Mozilla's `FIREFOX_ESR` value,
+//! for example `153.6.0esr` gives 153.
 //! Why:
 //!  The decision record pins the ESR major from Mozilla product-details instead of browserslist's constant,
 //!  and a value of any other shape must fail with a diagnostic instead of guessing.
@@ -9,7 +10,26 @@
 //! const major = Number(/^(\d+)\.\d+\.\d+esr$/.exec(raw)?.[1]);
 //! ```
 
+/// What:
+///  Import `BrowserslistError, Outcome` from `crate::error`.
+/// Why:
+///  Failures use the crate's single error type,
+/// so callers match one thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { BrowserslistError, Outcome } from './error';
+/// ```
 use crate::error::{BrowserslistError, Outcome};
+/// What:
+///  Import `parse_int_prefix` from `crate::js_number::parse_int_prefix`.
+/// Why:
+///  Version comparison needs JavaScript's number-prefix reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import { parseIntPrefix } from 'crate/js_number';
+/// ```
 use crate::js_number::parse_int_prefix;
 
 /// Check that a text is a non-empty run of ASCII digits.
@@ -18,9 +38,11 @@ fn is_digits(text: &str) -> bool {
 }
 
 /// What:
-///  Return the major version of a `<major>.<minor>.<patch>esr` value, or a diagnostic naming the bad value.
+///  Return the major version of a `<major>.<minor>.<patch>esr` value,
+/// or a diagnostic naming the bad value.
 /// Why:
-///  The lock and the update command share one check, so a hand-edited lock fails like a bad download does.
+///  The lock and the update command share one check,
+/// so a hand-edited lock fails like a bad download does.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,6 +70,17 @@ pub fn parse_esr_major(raw: &str) -> Outcome<u64> {
     return parse_int_prefix(parts[0]).ok_or_else(failure);
 }
 
+/// What:
+///  The unit tests of `firefox_esr.rs`,
+/// kept in the sidecar file `firefox_esr_tests.rs`.
+/// Why:
+///  The repository keeps Rust tests beside the code they cover,
+/// out of the source file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// import './firefox_esr.test';
+/// ```
 #[cfg(test)]
 #[path = "firefox_esr_tests.rs"]
 mod tests;
