@@ -276,8 +276,8 @@ export async function runRefineStage(
     responseFormat: REFINE_RESPONSE_FORMAT,
     validate: isRefineReportWire,
     stage: 'refiner',
-    // THE REFINERS ARE A HAND-PICKED BENCH OF THE ROSTER ROLE (`refinerModelIds`).
-    role: 'roster',
+    // THE REFINERS ARE A HAND-PICKED BENCH OF THE WRITERS the editor calibration seats in that chair (ledger B1100).
+    role: 'refiner',
     // Retries stop at QUORUM, which on this three-refiner roster is two voices.
     // See the same note in `repair-editor-stage.ts`: waiting for every voice
     // let one degraded model stall every gather that seated it, and the user
@@ -453,13 +453,14 @@ export async function runRefineStage(
     client,
     candidates,
     judgeModelIds,
-    role: judgeRole,
     sourceText,
     ...selectionContext,
     signal,
     perCallTimeoutMs,
     l,
     stageSettings,
+    // LAST, so the context spread above cannot replace the role of the bench the caller seats (ledger B1100).
+    role: judgeRole,
   },);
   /**
    This round's ballots, recorded before any branch so a decline and a

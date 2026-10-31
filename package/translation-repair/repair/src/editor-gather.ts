@@ -192,8 +192,8 @@ export async function gatherEditorProposals(
     responseFormat: EDITOR_RESPONSE_FORMAT,
     validate: isEditorReportWire,
     stage: 'editor',
-    // THE EDITORS ARE A HAND-PICKED BENCH OF THE ROSTER ROLE (`editorModelIds`).
-    role: 'roster',
+    // THE EDITORS ARE A HAND-PICKED BENCH OF THE WRITERS the editor calibration seats in that chair (ledger B1100).
+    role: 'editor',
     // Retries stop at QUORUM, which on this three-editor roster is two voices.
     // This stage waited for every voice from 2026-08-12 until the user removed
     // that option on 2026-08-15: one model degrading for a day made every
