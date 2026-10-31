@@ -148,6 +148,9 @@ pub mod update_resolve;
 /// The Rust channel and Node.js resolvers.
 pub mod update_rust_node;
 
+/// The `verify-archive` command.
+pub mod verify_archive;
+
 /// Test fixtures shared by the toolchain unit tests.
 #[cfg(test)]
 mod fixtures;
@@ -210,3 +213,7 @@ mod sync_tests;
 /// The unit tests of every resolver and of `update`.
 #[cfg(test)]
 mod update_tests;
+
+/// The unit tests of `verify-archive`.
+#[cfg(test)]
+mod verify_archive_tests;

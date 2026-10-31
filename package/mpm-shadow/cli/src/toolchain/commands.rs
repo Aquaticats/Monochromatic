@@ -42,6 +42,9 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
 use super::sync::{format_sync_report, run_sync};
+/// Imports what this module uses from `super::verify_archive`.
+use super::verify_archive::run_verify_archive;
+
 /// Imports what this module uses from `super::update`.
 use super::update::{format_update_report, run_update};
 
@@ -96,10 +99,20 @@ pub fn subcommands() -> Vec<Command> {
                 .help("Report what would move without writing the lock or installing anything; exit 1 when something would move"),
         )
         .arg(global_flag());
+    let verify_archive: Command = Command::new("verify-archive")
+        .about("Check a downloaded archive's SHA-256 against the lock's row for a tool on a platform (the bootstrap check)")
+        .arg(Arg::new("tool").required(true).help("The tool id in the lock, for example cargo:monochromatic-mpm-shadow"))
+        .arg(Arg::new("file").required(true).help("The downloaded file"))
+        .arg(
+            Arg::new("platform")
+                .long("platform")
+                .help("The lock's platform id (default: this machine's, for example linux-x64)"),
+        )
+        .arg(global_flag());
     let status: Command = Command::new("status")
         .about("Compare the installed tools with the lock (read-only; exits 1 on drift or when the plan and lock disagree)")
         .arg(global_flag());
-    return vec![lock, update, sync, status, bin_paths];
+    return vec![lock, update, sync, status, verify_archive, bin_paths];
 }
 
 /// Prints a success line to standard output.
@@ -176,6 +189,21 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                 Ok(update_report) => {
                     print!("{}", format_update_report(&update_report, check));
                     i32::from(update_report.has_failures() || (check && update_report.has_movement()))
+                }
+                Err(error) => report(&error),
+            });
+        }
+        "verify-archive" => {
+            let tool: &str = matches.get_one::<String>("tool").map(String::as_str).unwrap_or("");
+            let file: &str = matches.get_one::<String>("file").map(String::as_str).unwrap_or("");
+            let platform: String = match matches.get_one::<String>("platform") {
+                Some(given) => given.clone(),
+                None => Host::current().platform,
+            };
+            return Some(match run_verify_archive(&scope, &platform, tool, std::path::Path::new(file)) {
+                Ok(line) => {
+                    print_line(&line);
+                    0
                 }
                 Err(error) => report(&error),
             });

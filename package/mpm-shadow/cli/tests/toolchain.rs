@@ -173,7 +173,48 @@ fn help_lists_the_toolchain_verbs() {
     let fixture = Fixture::new();
     let output = fixture.run(&["--help"]);
     let help = text(&output.stdout);
-    for verb in ["lock", "bin-paths", "prune"] {
+    for verb in ["lock", "update", "sync", "status", "verify-archive", "bin-paths", "prune"] {
         assert!(help.contains(verb), "{verb} missing from:\n{help}");
     }
+}
+
+#[test]
+fn sync_and_status_refuse_when_the_plan_and_lock_disagree_and_name_the_remedy() {
+    let fixture = Fixture::new();
+    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    let edited = PLAN.replace("\"bins\": [\"fd\"]", "\"bins\": [\"fd\", \"fdfind\"]");
+    fs::write(fixture.work().join("toolchain.plan.jsonc"), edited).expect("edit the plan");
+    for verb in ["sync", "status"] {
+        let output = fixture.run(&[verb]);
+        assert_eq!(output.status.code(), Some(1), "{verb}: {}", text(&output.stderr));
+        assert!(text(&output.stderr).contains("mpm-shadow lock"), "{verb}: {}", text(&output.stderr));
+        assert!(text(&output.stdout).is_empty(), "{verb} printed nothing before refusing: {}", text(&output.stdout));
+    }
+    assert!(!fixture.directory.path().join("home").join(".local").exists(), "nothing was installed under the home");
+}
+
+#[test]
+fn update_refuses_a_hand_edited_lock_before_any_network_use() {
+    let fixture = Fixture::new();
+    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    let path = fixture.work().join("toolchain.lock.json");
+    let text_before = fs::read_to_string(&path).expect("read");
+    fs::write(&path, text_before.replace("\"version\": \"10.5.0\"", "\"version\": \"1.0.0\"")).expect("hand edit");
+    let output = fixture.run(&["update", "--check"]);
+    assert_eq!(output.status.code(), Some(1), "{}", text(&output.stderr));
+    assert!(text(&output.stderr).contains("edited by hand"), "{}", text(&output.stderr));
+}
+
+#[test]
+fn verify_archive_accepts_the_recorded_hash_and_refuses_anything_else() {
+    let fixture = Fixture::new();
+    assert_eq!(fixture.run(&["lock", "--adopt"]).status.code(), Some(0));
+    let download = fixture.directory.path().join("bin.tar.gz");
+    fs::write(&download, "not the recorded bytes").expect("write the download");
+    let refused = fixture.run(&["verify-archive", "bin", download.to_str().expect("utf-8"), "--platform", "linux-x64"]);
+    assert_eq!(refused.status.code(), Some(1), "{}", text(&refused.stderr));
+    assert!(text(&refused.stderr).contains("SHA-256 mismatch"), "{}", text(&refused.stderr));
+    assert!(text(&refused.stderr).contains("439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791"), "{}", text(&refused.stderr));
+    let unknown = fixture.run(&["verify-archive", "bin", download.to_str().expect("utf-8"), "--platform", "plan9-mips"]);
+    assert_eq!(unknown.status.code(), Some(2));
 }

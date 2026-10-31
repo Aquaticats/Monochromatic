@@ -11,11 +11,11 @@ include = [
   "README.md",
   "LICENSES/*.txt",
 ]
-keywords = ["mpm", "cargo", "cleanup", "shim"]
+keywords = ["mpm", "toolchain", "lockfile", "shim"]
 license = "LGPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/Aquaticats/Monochromatic.git"
-description = "Shadows mpm: runs the real mpm, then deletes the superseded cached versions of this repository's own crates from cargo's registry."
+description = "Owns the toolchain plan and lock (lock, sync, status, update, bin-paths) and shadows mpm: runs the real mpm, then deletes the superseded cached versions of this repository's own crates from cargo's registry."
 
 # The artifact is deliberately not named `mpm`: a `target/*/mpm` or a tool `bin/mpm` on PATH would shadow mpm by accident.
 # The repository's toolchain plan links it as `mpm` in a per-worktree directory after installing it, the way it links
