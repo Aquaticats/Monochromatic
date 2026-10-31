@@ -466,7 +466,8 @@ packageExtensions:
   # this workspace's strict isolation (hoist: false, nodeLinker: isolated) that
   # dynamic import is unresolvable from mitata's own location, so counters never
   # load. Declaring the dependency here makes pnpm link it under mitata so the
-  # import resolves. Consumers are the benchmark packages, for example package/css/core-edit.bench.
+  # import resolves. The only package that listed `@mitata/counters` was the file-enforcer-perf benchmark, retired at the
+  # Rust file-enforcer cutover; the entry stays for a benchmark package that lists it again.
   mitata:
     optionalDependencies:
       '@mitata/counters': 'catalog:'

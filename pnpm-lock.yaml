@@ -159,9 +159,6 @@ catalogs:
     '@mdx-js/mdx':
       specifier: '>=3.1.1'
       version: 3.1.1
-    '@mitata/counters':
-      specifier: '>=0.0.8'
-      version: 0.0.8
     '@msgpack/msgpack':
       specifier: '>=3.1.3'
       version: 3.1.3
@@ -534,9 +531,6 @@ importers:
       '@monochromatic-dev/css-cli':
         specifier: workspace:*
         version: link:package/css/cli
-      '@monochromatic-dev/file-enforcer-core':
-        specifier: workspace:*
-        version: link:package/file-enforcer/core
       '@monochromatic-dev/git-clone-size-cli':
         specifier: workspace:*
         version: link:package/git-clone-size/cli
@@ -2227,67 +2221,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-
-  package/file-enforcer/core:
-    dependencies:
-      '@lezer/common':
-        specifier: 'catalog:'
-        version: 1.5.4
-      '@lezer/xml':
-        specifier: 'catalog:'
-        version: 1.0.6
-      '@monochromatic-dev/caught-value-core':
-        specifier: workspace:*
-        version: link:../../caught-value/core
-      '@monochromatic-dev/dependency-catalog-core-rust':
-        specifier: workspace:*
-        version: link:../../dependency-catalog/core-rust
-      '@monochromatic-dev/fs-path-core':
-        specifier: workspace:*
-        version: link:../../fs-path/core
-      '@monochromatic-dev/logger-core':
-        specifier: workspace:*
-        version: link:../../logger/core
-      '@monochromatic-dev/ownership-marker-foreign-borrowed':
-        specifier: workspace:*
-        version: link:../../ownership-marker/foreign-borrowed
-      '@monochromatic-dev/toml-edit-core':
-        specifier: workspace:*
-        version: link:../../toml-edit/core
-      chokidar:
-        specifier: 'catalog:'
-        version: 6.0.0
-      dot-prop:
-        specifier: 'catalog:'
-        version: 10.2.0
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
-      tiny-readdir-glob:
-        specifier: 'catalog:'
-        version: 2.0.0
-      toml-eslint-parser:
-        specifier: 'catalog:'
-        version: 1.0.3
-    devDependencies:
-      '@monochromatic-dev/config-rolldown':
-        specifier: workspace:*
-        version: link:../../config/rolldown
-      '@monochromatic-dev/config-typescript':
-        specifier: workspace:*
-        version: link:../../config/typescript
-      '@monochromatic-dev/test-harness-core':
-        specifier: workspace:*
-        version: link:../../test-harness/core
-      '@monochromatic-dev/test-harness-core-matrix':
-        specifier: workspace:*
-        version: link:../../test-harness/core-matrix
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      fast-check:
-        specifier: 'catalog:'
-        version: 4.10.2
 
   package/file-manager/variant-electron:
     dependencies:
@@ -4663,33 +4596,11 @@ importers:
 
   package/test-fixture/data-sequence: {}
 
-  package/test-fixture/file-enforcer-perf:
-    dependencies:
-      '@monochromatic-dev/const-core':
-        specifier: workspace:*
-        version: link:../../const/core
-      '@monochromatic-dev/file-enforcer-core':
-        specifier: workspace:*
-        version: link:../../file-enforcer/core
-      '@monochromatic-dev/fs-path-core':
-        specifier: workspace:*
-        version: link:../../fs-path/core
-      '@monochromatic-dev/test-harness-core-matrix':
-        specifier: workspace:*
-        version: link:../../test-harness/core-matrix
-      nano-spawn:
-        specifier: 'catalog:'
-        version: 2.1.0
+  package/test-fixture/effect-subject-toml-edit:
     devDependencies:
-      '@mitata/counters':
-        specifier: 'catalog:'
-        version: 0.0.8
-      '@monochromatic-dev/test-harness-core':
+      '@monochromatic-dev/toml-edit-core':
         specifier: workspace:*
-        version: link:../../test-harness/core
-      mitata:
-        specifier: 'catalog:'
-        version: 1.0.34
+        version: link:../../toml-edit/core
 
   package/test-fixture/oxlint-no-restricted-syntax:
     devDependencies:
@@ -9319,9 +9230,6 @@ packages:
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==, tarball: https://registry.npmjs.org/@mdx-js/mdx/-/mdx-3.1.1.tgz}
 
-  '@mitata/counters@0.0.8':
-    resolution: {integrity: sha512-f11w0Y1ETFlarDP7CePj8Z+y8Gv5Ax4gMxWsEwrqh0kH/YIY030Ezx5SUJeQg0YPTZ2OHKGcLG1oGJbIqHzaJA==, tarball: https://registry.npmjs.org/@mitata/counters/-/counters-0.0.8.tgz}
-
   '@msgpack/msgpack@3.1.3':
     resolution: {integrity: sha512-47XIizs9XZXvuJgoaJUIE2lFoID8ugvc0jzSHP+Ptfk8nTbnR8g788wv48N03Kx0UkAv559HWRQ3yzOgzlRNUA==, tarball: https://registry.npmjs.org/@msgpack/msgpack/-/msgpack-3.1.3.tgz}
     engines: {node: '>= 18'}
@@ -12512,8 +12420,6 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
-
-  '@mitata/counters@0.0.8': {}
 
   '@msgpack/msgpack@3.1.3': {}
 
