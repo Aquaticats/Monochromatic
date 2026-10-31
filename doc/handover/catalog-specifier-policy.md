@@ -224,6 +224,15 @@ Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-
     manifest (or the bypass).
     This differs from the `readPackage` finding that a throwing hook leaves `pnpm add` working.
     The hook's message must therefore name the file, section, dependency and the hand-edit remedy.
+- The hook cannot tell which verb is running.
+  Probe `~/temp/agent/catalog-updateconfig-argv.ts` (fixture hook restored afterwards) logged `process.argv`, `process.execArgv` and
+  the `npm_*` and `PNPM_*` environment keys inside `updateConfig` for `install`, `add` and `run` (the output for `update` and
+  `remove` was not read): `argv` is empty after the script name, no `npm_command` or `PNPM_*` variable exists, and `execArgv` is
+  pnpm's own bootstrap script, identical for every verb.
+  pnpm starts the pnpmfile in a child Node process that talks to it over a JSON protocol on stdout and stdin,
+  so a hook must never write to stdout, and the verb is not passed.
+  Blocking is therefore all or nothing across verbs; selecting repair verbs would need a platform-specific read of the parent
+  process command line, which is unmeasured and would not work on the Windows runners.
 - Landing order: a throwing `updateConfig` makes every pnpm verb except `config get` and `--version` exit 1 while the
   `zod` violation exists, so the `zod` fix and the hook must land in the same commit.
 - Cost: the same scan over the real repo's workspace manifests took a median of 4.9 ms over 15 in-process runs
