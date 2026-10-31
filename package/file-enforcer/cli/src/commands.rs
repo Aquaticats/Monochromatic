@@ -17,6 +17,8 @@
 use crate::args::{Cli, Command, UserCommand};
 /// Imports `resolve_repository` from `crate::discover`.
 use crate::discover::resolve_repository;
+/// Imports `production_registry` from `crate::kinds`.
+use crate::kinds::production_registry;
 /// Imports `ClientOptions`,
 /// `connect` from `monochromatic_file_enforcer::client`.
 use monochromatic_file_enforcer::client::{ClientOptions, connect};
@@ -35,8 +37,6 @@ use monochromatic_file_enforcer::event::EventSink;
 use monochromatic_file_enforcer::json_build::object;
 /// Imports `ServerLaunch` from `monochromatic_file_enforcer::launch`.
 use monochromatic_file_enforcer::launch::ServerLaunch;
-/// Imports `RuleRegistry` from `monochromatic_file_enforcer::registry`.
-use monochromatic_file_enforcer::registry::RuleRegistry;
 /// Imports `EXIT_DRIFT`,
 /// `EXIT_USAGE` from `monochromatic_file_enforcer::run`.
 use monochromatic_file_enforcer::run::{EXIT_DRIFT, EXIT_USAGE};
@@ -264,7 +264,7 @@ fn dispatch_user(cli: &Cli, subcommand: &UserCommand, sink: &mut dyn EventSink) 
 fn run_server(root: &Path, socket: &Path, idle_seconds: u64, user: bool, sink: &mut dyn EventSink) -> i32 {
     let scope = if user { ConfigScope::User } else { ConfigScope::Repository };
     let options = ServerOptions { root: root.to_path_buf(), scope, socket: socket.to_path_buf(), idle: Duration::from_secs(idle_seconds) };
-    match serve(&options, RuleRegistry::with_defaults()) {
+    match serve(&options, production_registry()) {
         Ok(()) => return 0,
         Err(error) => return usage_failure(sink, &error),
     }
