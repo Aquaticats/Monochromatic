@@ -35,7 +35,7 @@ description = "cargo nextest run in debug mode for fast iteration"
 run = "cargo nextest run"
 
 [tasks."test:live"]
-description = "Opt-in live tests: fetch the pinned tarballs from registry.npmjs.org and read Mozilla product-details"
+description = "Opt-in live test: fetch the pinned tarballs from registry.npmjs.org and read Mozilla product-details"
 run = "cargo nextest run --run-ignored only --test live"
 
 [tasks.update]

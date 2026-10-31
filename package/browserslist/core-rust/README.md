@@ -153,7 +153,7 @@ in file order.
   refusals.
   The Firefox ESR entry is compared against the locked Mozilla value,
   not npm's constant.
-- `mise run //package/browserslist/core-rust:test:live` runs the opt-in live tests against the real registry.
+- `mise run //package/browserslist/core-rust:test:live` runs the opt-in live test against the real registry and Mozilla.
 - `mise run //package/browserslist/core-rust:conformance:regenerate` rebuilds `fixtures/data` and
   `conformance/expected.json` from the locked data with a bounded `podman` container (`--memory=2g --cpus=2`).
 

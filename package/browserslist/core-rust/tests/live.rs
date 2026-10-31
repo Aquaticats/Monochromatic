@@ -1,6 +1,6 @@
-// Opt-in live tests against the real npm registry and Mozilla product-details.
+// The one opt-in live test, against the real npm registry and Mozilla product-details.
 //
-// They are ignored by default so the suite stays offline; run them with
+// It is ignored by default so the suite stays offline; run it with
 // `mise run //package/browserslist/core-rust:test:live`.
 //
 // In TS you'd write (pseudocode):
@@ -15,10 +15,11 @@ const LOCK: &str = include_str!("../browserslist-data.lock.json");
 // The generated oracle answers.
 const EXPECTED: &str = include_str!("../conformance/expected.json");
 
-// A fresh cache fetches the pinned tarballs from npm, verifies them against the lock, and gives the npm answer.
+// A fresh cache fetches the pinned tarballs from npm, verifies them against the lock, and gives npm's answer;
+// then the registry and Mozilla still answer in the shapes the update step reads.
 #[test]
-#[ignore = "live network: fetches the pinned tarballs from registry.npmjs.org"]
-fn fresh_cache_resolves_the_repository_file_from_npm() {
+#[ignore = "live network: registry.npmjs.org and product-details.mozilla.org"]
+fn live_registry_and_mozilla() {
     let lock = DataLock::from_json(LOCK).expect("lock parses");
     let scratch = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("scratch directory");
     let source = DataSource { cache_dir: scratch.path().join("cache"), registry_url: NPM_REGISTRY.to_string() };
@@ -32,12 +33,7 @@ fn fresh_cache_resolves_the_repository_file_from_npm() {
         .map(|entry| return entry.as_str().expect("string").to_string())
         .collect();
     assert_eq!(actual, wanted);
-}
 
-// The registry and Mozilla still answer in the shapes the update step reads.
-#[test]
-#[ignore = "live network: reads registry.npmjs.org and product-details.mozilla.org"]
-fn update_inputs_have_the_expected_shape() {
     let package = latest_package(NPM_REGISTRY, "caniuse-lite").expect("registry answers");
     assert_eq!(package.name, "caniuse-lite");
     assert!(package.integrity.starts_with("sha512-"));

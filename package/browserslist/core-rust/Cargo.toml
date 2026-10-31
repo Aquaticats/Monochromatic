@@ -7,7 +7,10 @@ edition = "2024"
 homepage = "https://github.com/Aquaticats/Monochromatic/tree/main/package/browserslist/core-rust"
 include = [
   "src/**/*.rs",
+  "tests/*.rs",
   "fixtures/**",
+  "conformance/*.json",
+  "browserslist-data.lock.json",
   "Cargo.toml",
   "Cargo.lock",
   "README.md",
