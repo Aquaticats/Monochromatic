@@ -68,7 +68,8 @@ type ConsolidationBuyInput = {
   /**
    Slate judges a wet provider would serve right now, absent where the caller
    did not count; fewer than the ballots a winner needs buy no slate for an
-   eligible standing.
+   eligible standing that has no lane text on the offer or that the contest did
+   not endorse (owner, 2026-10-30, "Skip when below floor (Recommended)").
    */
   readonly slateReachable?: number;
   /**
@@ -84,6 +85,27 @@ type ConsolidationBuyInput = {
 };
 // Fresh model work for one consolidation question. Resume, twin reuse, cache
 // eligibility and ordered document aggregation remain driver responsibilities.
+
+/**
+ Whether the tense detector overrules an eligible standing the contest did not endorse in favour of the translate
+ lane's two-ballot text, which reads the texts and so is asked only where the answer is used.
+
+ @param input - what the swap reads, as `presentTenseSwapOf` takes it
+
+ @returns Whether the translate lane's text would ship over the standing
+
+ @example
+ ```ts
+ const fires = tenseSwapFires({ standingEligible: true, standingMayShip: false, standingText, laneTexts, translateWinnerBallots: 2, subject, },);
+ ```
+ */
+function tenseSwapFires(input: Parameters<typeof presentTenseSwapOf>[0],): boolean {
+  /**
+   What the detector made of the standing and the translate text.
+   */
+  const { kind, } = presentTenseSwapOf(input,);
+  return kind === 'swaps';
+}
 
 /**
  Buys and settles one third-rendering slate, or settles without asking
@@ -121,7 +143,8 @@ type ConsolidationBuyInput = {
 
  @param slateReachable - slate judges a wet provider would serve, which an
  eligible standing keeps itself on, unasked, when they are fewer than the
- ballots a winner needs (XingZ6020: 54 slices, 164 calls)
+ ballots a winner needs and the offer holds no lane text or the contest did not endorse the standing (XingZ6020: 54
+ slices, 164 calls; XingZ6022: 75 slices with lane texts on the offer)
 
  @param translateWinnerBallots - ballots that named the translate lane's text in the lane's own round; two or more,
  beside fewer reachable slate judges than a winner needs, ship that text over a refused standing and buy no slate
@@ -268,7 +291,13 @@ async function buyConsolidationAttempt(
   // text is still asked, since its settlement says whether the final round seated two judges after all. Never cached.
   //
   // SO DOES AN ELIGIBLE STANDING THE CONTEST DID NOT ENDORSE where the tense detector flags it and does not flag the
-  // translate text (owner, 2026-10-29, "Swap only where flagged"): the slate could not overrule that swap either.
+  // translate text (owner, 2026-10-29, "Swap only where flagged"): the slate could not overrule that swap either. The
+  // detector is read only once the bench is short and the winner is offered, because nothing else uses its answer.
+  /**
+   Whether fewer slate judges are reachable than the ballots a winner needs, so no slate this purchase could buy would
+   seat two judges.
+   */
+  const benchShort = (slateReachable !== undefined) && unseatedFinalRound({ heard: slateReachable, },);
   /**
    The translate lane's two-ballot text, where the offer holds it.
    */
@@ -277,21 +306,20 @@ async function buyConsolidationAttempt(
     ballots: translateWinnerBallots,
   },);
   /**
-   Whether the tense detector overrules an eligible standing the contest did not endorse, read as the settlement reads
-   it.
+   Whether the translate winner ships here with no slate bought: over a refused standing, or over an unendorsed one the
+   tense detector overrules, read as the settlement reads it.
    */
-  const { kind: tenseSwap, } = presentTenseSwapOf({
-    standingEligible,
-    standingMayShip,
-    standingText,
-    laneTexts,
-    translateWinnerBallots,
-    subject,
-  },);
-  if ((slateReachable !== undefined)
-    && unseatedFinalRound({ heard: slateReachable, },)
+  const winnerShipsUnasked = benchShort
     && (translateWinner.kind === 'offered')
-    && ((!standingEligible) || (tenseSwap === 'swaps'))) {
+    && ((!standingEligible) || tenseSwapFires({
+      standingEligible,
+      standingMayShip,
+      standingText,
+      laneTexts,
+      translateWinnerBallots,
+      subject,
+    },));
+  if (winnerShipsUnasked) {
     /**
      The translate winner shipped on the incumbent-only exit, before the mark.
      */
@@ -320,13 +348,18 @@ async function buyConsolidationAttempt(
   // paid for a slate that settles on the standing it started from (XingZ6020: 54 slices, 164 calls). The settlement
   // is marked and never cached, so a later pass asks the slice again, on whatever bench it then has, only while the
   // entry is unsettled (a pass selects no entry that carries an artifact or a decline record).
+  //
+  // THAT HOLDS WITH LANE TEXTS ON THE OFFER WHEN THE CONTEST DID NOT ENDORSE THE STANDING (owner, 2026-10-30, "Skip when
+  // below floor (Recommended)", B1053): XingZ6022 bought a slate at 75 slices, every round hearing 1 judge of 7, because
+  // the skip waited for an empty offer. The swap above has already taken the slices it fires on. An endorsed standing
+  // with lane texts on the offer is still asked, since the offer is empty for one in practice and nothing was ruled
+  // about it.
   /**
    Whether the slate bench reads below the floor for a standing that may be kept unasked.
    */
-  const benchBelowFloor = (slateReachable !== undefined)
-    && (slateReachable < MIN_SELECTION_BALLOTS)
+  const benchBelowFloor = benchShort
     && standingEligible
-    && (laneTexts.length === 0);
+    && ((laneTexts.length === 0) || (!standingMayShip));
   if (benchBelowFloor) {
     /**
      The noun for the slate judges seated, which the line counts.
@@ -337,6 +370,20 @@ async function buyConsolidationAttempt(
       many: 'judges',
     },);
     /**
+     The clause saying how many lane texts on the offer go to no judge, absent where the offer is empty.
+     */
+    const offerClause = (laneTexts.length === 0)
+      ? []
+      : [
+        `${String(laneTexts.length,)} ${
+          wordForCount({
+            count: laneTexts.length,
+            one: 'lane text',
+            many: 'lane texts',
+          },)
+        } on the offer go unjudged`,
+      ];
+    /**
      The line saying why no slate is bought.
      */
     const skipped = [
@@ -344,13 +391,16 @@ async function buyConsolidationAttempt(
         + `${judgeWord} reachable, below the floor `
         + `of ${String(MIN_SELECTION_BALLOTS,)}`,
       'no slate is bought and the standing is kept',
+      ...offerClause,
     ].join('; ',);
     l.warn(skipped,);
     /**
-     The standing kept on the incumbent-only exit, before the mark.
+     The standing kept on the incumbent-only exit, before the mark. The lane texts are withheld from the settlement
+     because no judge is reachable to hear them, and a settlement that holds some goes on to ask the slate judges.
      */
     const kept = await settleConsolidation({
       ...question,
+      laneTexts: [],
       voices: [],
       validity: [],
       producedFindings: [
