@@ -8,6 +8,7 @@ import type {
   TranslateWinnerReason,
 } from '@monochromatic-dev/translation-repair-consolidate/ts';
 import type { TenseCandidateGroup, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
+import { TranslateWinnerReasonMissingError, } from './artifact-two-lane-consolidate-fault.ts';
 
 //region Artifact version 2 consolidation
 // ONE CONSOLIDATED SLICE AS THE STAGE LEFT IT, written so a later reader can
@@ -556,26 +557,31 @@ function artifactPolishOf(
  difference, and only it separates both from a contest that named neither
  lane and left the settlement's text empty.
 
+ @param sliceIndex - slice the settlement answers, named by the error a mark without a reason raises
+
  @param settlement - what the stage settled
 
  @param incumbentStandsIn - whether the standing was the incumbent standing in
 
  @returns What the slice ships
 
- @throws Error when the settlement marks the translate lane winner as shipped and names no reason, which no stage
- builds; the plain error carries a sentence naming the fault, where `nonNullishOrThrow` would say only that a value
- was absent
+ @throws TranslateWinnerReasonMissingError when the settlement marks the translate lane winner as shipped and names
+ no reason, which no stage builds. A named class and not `nonNullishOrThrow`: failures are signalled by classes a
+ caller can match on, the fault is a record the stage could not have written, and `nonNullishOrThrow` would say only
+ that a value was absent
 
  @example
  ```ts
- const shipped = shippedBy({ settlement, incumbentStandsIn: false, },);
+ const shipped = shippedBy({ sliceIndex: 0, settlement, incumbentStandsIn: false, },);
  ```
  */
 function shippedBy(
   {
+    sliceIndex,
     settlement,
     incumbentStandsIn,
   }: {
+    readonly sliceIndex: number;
     readonly settlement: ConsolidationSettlement;
     readonly incumbentStandsIn: boolean;
   },
@@ -589,13 +595,8 @@ function shippedBy(
     // THE REASON IS NEVER GUESSED: both places that mark a winner shipped set its reason with the mark, and a settlement
     // is never stored (`consolidationWorthResuming`), so none comes from before the reason existed. A guessed reason
     // would put a false one in the record, so a mark with none is a fault in the stage and stops here.
-    if (settlement.translateWinnerReason === undefined) {
-      throw new Error(
-        'the settlement marks the translate lane winner as shipped but names no reason, and the artifact records '
-          + 'why a winner shipped (a standing the rule refused, or an unendorsed standing the tense detector flagged); '
-          + 'the stage sets the reason with the mark, so a settlement without one did not come from the stage',
-      );
-    }
+    if (settlement.translateWinnerReason === undefined)
+      throw new TranslateWinnerReasonMissingError({ sliceIndex, },);
     return {
       kind: 'translate-winner',
       text: settlement.text,
@@ -629,7 +630,8 @@ function shippedBy(
 
  @returns Record for one consolidated slice
 
- @throws Error when the settlement marks the translate lane winner as shipped and names no reason (see `shippedBy`)
+ @throws TranslateWinnerReasonMissingError when the settlement marks the translate lane winner as shipped and names no
+ reason (see `shippedBy`)
 
  @example
  ```ts
@@ -656,6 +658,7 @@ export function describeConsolidateSlice(
     sliceIndex,
     terminal: settlement.terminal,
     shipped: shippedBy({
+      sliceIndex,
       settlement,
       incumbentStandsIn,
     },),

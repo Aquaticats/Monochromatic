@@ -32,6 +32,7 @@ import { hashContent, } from '@monochromatic-dev/translation-repair-document-str
 import {
   describeConsolidateSlice,
   parseConsolidationPolish,
+  TranslateWinnerReasonMissingError,
 } from '../../dist/final/node/index.mjs';
 import {
   SEAT_HYPER_OPENROUTER_VISION_EDITOR,
@@ -235,7 +236,7 @@ await describe({
         catch (error) {
           caught = error;
         }
-        expect(caught,).toBeInstanceOf(Error,);
+        expect(caught,).toBeInstanceOf(TranslateWinnerReasonMissingError,);
         expect({
           name: (caught as Error).name,
           marked: (caught as { readonly messageNamesOnly?: boolean; }).messageNamesOnly,

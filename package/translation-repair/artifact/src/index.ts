@@ -111,6 +111,7 @@ export {
   type ArtifactNaturalnessReviewSeat,
   describeConsolidateSlice,
 } from './corpus-run/artifact-two-lane-consolidate.ts';
+export { TranslateWinnerReasonMissingError, } from './corpus-run/artifact-two-lane-consolidate-fault.ts';
 export {
   ARTIFACT_SCHEMA_VERSION_V17,
   ARTIFACT_SCHEMA_VERSION_V18,
