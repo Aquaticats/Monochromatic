@@ -31,6 +31,15 @@ type Token = {
 const SPREAD_MARK = '...';
 
 /**
+ Tokens that open a property holding an object literal: the key, the colon and the brace.
+ */
+const HOLDER_HEAD = [
+  'key',
+  ':',
+  '{',
+];
+
+/**
  ASCII letters, digits, `_` and `$`; a letter of another script is a word character by its case, in
  {@link isWordCharacter}.
  */
@@ -298,6 +307,59 @@ function propertiesOf({ body, }: { readonly body: readonly Token[]; },): readonl
 }
 
 /**
+ Follows a dotted key into the objects a call passes, down to the properties of the last one.
+
+ @param properties - properties of the call's argument object
+
+ @param path - the segments before the last one in the dotted key
+
+ @returns Properties of the object the path leads to; none where a segment names no object literal
+
+ @example
+ ```ts
+ const inner = propertiesAtPath({ properties, path: ['judging',], },);
+ ```
+ */
+function propertiesAtPath(
+  {
+    properties,
+    path,
+  }: {
+    readonly properties: readonly (readonly Token[])[];
+    readonly path: readonly string[];
+  },
+): readonly (readonly Token[])[] {
+  return path.reduce(
+    function descend(
+      level,
+      segment,
+    ): readonly (readonly Token[])[] {
+    /**
+     The property that holds the next object.
+     */
+      const holder = level.find(function isSegment(property,): boolean {
+        return property[0]
+          ?.text
+          === segment;
+      },);
+      if ((holder?.[1]
+        ?.text
+        !== ':') || (holder[2]
+          ?.text
+          !== '{'))
+        return [];
+      return propertiesOf({
+        body: holder.slice(
+          HOLDER_HEAD.length,
+          -1,
+        ),
+      },);
+    },
+    properties,
+  );
+}
+
+/**
  Reads what one call's argument names under a key.
 
  @param properties - properties of the call's argument object
@@ -393,7 +455,8 @@ function namedUnderKey(
 
  @param callee - function called
 
- @param key - key of the argument object that names the role; `role` unless a stage takes it under another name
+ @param key - key of the argument object that names the role; `role` unless a stage takes it under another name, and
+ dotted (`judging.role`) where it sits inside an object the call passes
 
  @returns One entry per real call, in source order: the value named, the name of the variable passed, `none` where the
  call names none, `<value> then a spread` where a spread after the key can replace it, `duplicate <key>: a, b` where the
@@ -469,12 +532,24 @@ export function rolesNamedAtCalls(
       open: afterName + 1,
       angled: false,
     },);
+    /**
+     Segments of the key, the last of which is the property read.
+     */
+    const segments = key.split('.',);
     named.push(namedUnderKey({
-      properties: propertiesOf({ body: tokens.slice(
-        afterName + 2,
-        afterObject - 1,
-      ), },),
-      key,
+      properties: propertiesAtPath({
+        path: segments.slice(
+          0,
+          -1,
+        ),
+        properties: propertiesOf({
+          body: tokens.slice(
+            afterName + 2,
+            afterObject - 1,
+          ),
+        },),
+      },),
+      key: segments.at(-1,) ?? key,
     },),);
   }
   return named;
