@@ -1,24 +1,11 @@
-import {
-  resolve4,
-  resolve6,
-} from 'node:dns/promises';
-
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
-
 import { normalizeAddress, } from './host-address.ts';
 import { runIpDelete, } from './ip-delete.ts';
 import { run, } from './runner.ts';
 import {
   type BypassProto,
-  BYPASS_PROTOS,
   BYPASS_ROUTE_PROTOCOL,
   type BypassState,
 } from './tunnel-bypass-types.ts';
-
-/**
- Module logger for update-host rules.
- */
-const l = tagged({ tag: 'tunnel-bypass-hosts', },);
 
 /**
  Refreshes an address may be missing from the answers before its rule is removed.
@@ -121,101 +108,6 @@ export type HostSyncReport = {
    */
   readonly nextRefreshSeconds: number;
 };
-
-/**
- Words for the outcome of one lookup.
- 
- @param settled - Settled lookup.
- 
- @returns The rejection reason,
- or `empty` when the answer held no address.
- 
- @example
- ```ts
- describeSettled({ settled });
- ```
- */
-function describeSettled(
-  { settled, }: { readonly settled?: PromiseSettledResult<unknown>; },
-): string {
-  if (settled?.status === 'rejected')
-    return String(settled.reason,);
-  return 'empty';
-}
-
-/**
- Resolves one host through the system resolver path,
- asking for both families and their TTLs.
-
- A host with no AAAA record is normal;
- only a host with no address at all is a failure.
-
- @param host - Host name.
-
- @returns Addresses and a failure text when none resolved.
-
- @example
- ```ts
- await lookupHost({ host: 'crates.io' });
- ```
- */
-export async function lookupHost({ host, }: { readonly host: string; },): Promise<HostLookupResult> {
-  /**
-   IPv4 answers or the reason they failed.
-   */
-  const four = await Promise.allSettled([
-    resolve4(
-      host,
-      { ttl: true, },
-    ),
-  ],);
-  /**
-   IPv6 answers or the reason they failed.
-   */
-  const six = await Promise.allSettled([
-    resolve6(
-      host,
-      { ttl: true, },
-    ),
-  ],);
-  /**
-   Answers of both families.
-   */
-  const addresses: HostAddress[] = [
-    ...(four[0]
-      ?.status
-      === 'fulfilled' ? four[0]
-        .value : []).map(function toFour(answer: {
-          readonly address: string;
-          readonly ttl: number
-        },): HostAddress {
-          return {
-            family: '-4',
-            address: answer.address,
-            ttlSeconds: answer.ttl,
-          };
-        },),
-    ...(six[0]
-      ?.status
-      === 'fulfilled' ? six[0]
-        .value : []).map(function toSix(answer: {
-          readonly address: string;
-          readonly ttl: number
-        },): HostAddress {
-          return {
-            family: '-6',
-            address: answer.address,
-            ttlSeconds: answer.ttl,
-          };
-        },),
-  ];
-  if (addresses.length > 0)
-    return { addresses, };
-  return {
-    addresses,
-    failure: `no address for ${host}: A ${describeSettled({ settled: four[0], },)}; AAAA ${describeSettled({ settled: six[0], },)}`,
-  };
-}
 
 /**
  Reports whether a parsed JSON value is a non-null object.

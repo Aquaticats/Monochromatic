@@ -235,11 +235,17 @@ export async function watchBypassRoutes(
     requested: false,
   };
   /**
+   Aborted when shutdown is requested,
+   which ends the update-host refresh wait at once.
+   */
+  const stopController = new AbortController();
+  /**
    Requests watcher shutdown and terminates active monitor.
    */
   function stopMonitoring(): void {
     fl.debug('received termination signal',);
     lifecycle.requested = true;
+    stopController.abort();
     if ((typeof lifecycle.monitor) !== 'symbol')
       lifecycle.monitor
         .kill('SIGTERM',);
@@ -260,19 +266,11 @@ export async function watchBypassRoutes(
     ownerId: state.ownerId,
   },);
   /**
-   Reports whether shutdown was requested.
-
-   @returns Whether the host refresh loop should end.
-   */
-  function isStopped(): boolean {
-    return lifecycle.requested;
-  }
-  /**
    Update-host rule refresh running beside the route monitor.
    */
   const hostRefresh = runHostRefreshLoop({
     state,
-    isStopped,
+    signal: stopController.signal,
   },);
   while (!lifecycle.requested) {
     try {
