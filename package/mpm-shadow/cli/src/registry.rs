@@ -1,5 +1,7 @@
-//! What:     Lists the cached archives and extracted sources of this repository's own crates in cargo's registry.
-//! Why:      These are the copies a plain `cargo install` leaves behind for every version it ever fetched.
+//! What:
+//! Lists the cached archives and extracted sources of this repository's own crates in cargo's registry.
+//! Why:
+//! These are the copies a plain `cargo install` leaves behind for every version it ever fetched.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -13,12 +15,23 @@ use std::fs;
 /// Imports the borrowed path type and the owned one.
 use std::path::{Path, PathBuf};
 
+/// Imports `CRATE_ARCHIVE_SUFFIX`,
+/// `OWN_CRATE_PREFIX` from `crate::constants`.
 use crate::constants::{CRATE_ARCHIVE_SUFFIX, OWN_CRATE_PREFIX};
+/// Imports `split_entry_name` from `crate::version`.
 use crate::version::split_entry_name;
 
-/// What:     `pub struct RegistryEntry { ... }` declares a record of one cached copy: the crate name, the version and
+/// What:
+/// `pub struct RegistryEntry { ... }` declares a record of one cached copy:
+/// the crate name,
+/// the version and
 ///           the path of the file or directory to delete.
-/// Why:      All three are owned (`String`, `String`, `PathBuf`; siblings `&str`, `&Path`) because the entries are
+/// Why:
+/// All three are owned (`String`,
+/// `String`,
+/// `PathBuf`;
+/// siblings `&str`,
+/// `&Path`) because the entries are
 ///           collected into a list that outlives the directory listing that produced them.
 ///
 /// In TS you'd write (pseudocode):
@@ -35,9 +48,12 @@ pub struct RegistryEntry {
     pub path: PathBuf,
 }
 
-/// What:     `fn child_names(directory: &Path) -> Vec<String>` declares a private function returning the names inside
+/// What:
+/// `fn child_names(directory: &Path) -> Vec<String>` declares a private function returning the names inside
 ///           a directory as an owned list.
-/// Why:      A missing directory is normal (no registry yet) and lists nothing; names are sorted so the output order
+/// Why:
+/// A missing directory is normal (no registry yet) and lists nothing;
+/// names are sorted so the output order
 ///           never depends on the file system.
 ///
 /// In TS you'd write (pseudocode):
@@ -69,9 +85,15 @@ fn child_names(directory: &Path) -> Vec<String> {
     return names;
 }
 
-/// What:     `fn entry_from_name(name: &str, suffix: &str, directory: &Path) -> Option<RegistryEntry>` declares a
-///           private function that turns one directory child into a registry entry, or `None`.
-/// Why:      Both kinds of child go through the same checks: the right suffix, a `<crate>-<version>` shape, and the
+/// What:
+/// `fn entry_from_name(name: &str, suffix: &str, directory: &Path) -> Option<RegistryEntry>` declares a
+///           private function that turns one directory child into a registry entry,
+/// or `None`.
+/// Why:
+/// Both kinds of child go through the same checks:
+/// the right suffix,
+/// a `<crate>-<version>` shape,
+/// and the
 ///           repository's crate prefix.
 ///
 /// In TS you'd write (pseudocode):
@@ -107,9 +129,11 @@ fn entry_from_name(name: &str, suffix: &str, directory: &Path) -> Option<Registr
     });
 }
 
-/// What:     `pub fn list_own_entries(cargo_home: &Path) -> Vec<RegistryEntry>` declares a public function returning
+/// What:
+/// `pub fn list_own_entries(cargo_home: &Path) -> Vec<RegistryEntry>` declares a public function returning
 ///           every own-crate entry found under the registry's `cache` and `src` directories.
-/// Why:      The prune decides what to delete from this full list.
+/// Why:
+/// The prune decides what to delete from this full list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -204,7 +204,11 @@ pub fn manager_native_bin_dirs(scope: &Scope, env: &EnvMap) -> Vec<PathBuf> {
 fn build_tools_version(tool: &LockedTool) -> String {
     if let Some(packages) = &tool.declaration.options.android_packages {
         for package in packages {
-            if let Some(version) = package.strip_prefix("build-tools;").or_else(|| return package.strip_prefix("build-tools/")) {
+            let stripped: Option<&str> = match package.strip_prefix("build-tools;") {
+                Some(version) => Some(version),
+                None => package.strip_prefix("build-tools/"),
+            };
+            if let Some(version) = stripped {
                 return version.to_string();
             }
         }

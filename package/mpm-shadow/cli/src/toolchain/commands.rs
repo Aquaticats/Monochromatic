@@ -121,7 +121,10 @@ fn report(error: &ToolchainError) -> i32 {
 
 /// The directory the command was started in (the root search starts here).
 fn start_directory() -> PathBuf {
-    return std::env::current_dir().unwrap_or_else(|_| return PathBuf::from("."));
+    return match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_) => PathBuf::from("."),
+    };
 }
 
 /// What:
@@ -210,7 +213,10 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         }
         "bin-paths" => {
             // Only the plan is read: the IDE sandbox may run this before any lock exists.
-            let outcome = read_plan(&scope.plan_file).and_then(|plan| return bin_paths_output(&plan, &scope, &env));
+            let outcome = match read_plan(&scope.plan_file) {
+                Ok(plan) => bin_paths_output(&plan, &scope, &env),
+                Err(error) => Err(error),
+            };
             return Some(match outcome {
                 Ok(document) => {
                     print!("{}", render_bin_paths(&document));

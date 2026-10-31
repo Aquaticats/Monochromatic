@@ -20,7 +20,8 @@
 
 //region Request, route and OS family
 
-/// Re-exports the request types, so callers keep importing them from `model`.
+/// Re-exports the request types,
+/// so callers keep importing them from `model`.
 pub use super::request::{Origin, Request};
 
 /// What:
@@ -222,6 +223,17 @@ pub struct Options {
     pub bootstrap: Option<Bootstrap>,
 }
 
+/// The methods of `Options`.
+impl Options {
+    /// Whether the tool is a wheel bootstrap (installed from a verified wheel rather than by name).
+    pub fn is_wheel(&self) -> bool {
+        return match &self.bootstrap {
+            Some(bootstrap) => bootstrap.distribution == "wheel",
+            None => false,
+        };
+    }
+}
+
 //endregion Options
 
 //region Declaration and lock entry
@@ -347,12 +359,14 @@ pub const VERSION_PLACEHOLDER: &str = "{version}";
 /// ```
 pub fn expand_version(declaration: &Declaration, version: &str) -> Declaration {
     let mut expanded: Declaration = declaration.clone();
-    expanded.package_id = declaration.package_id.as_ref().map(|text| return text.replace(VERSION_PLACEHOLDER, version));
-    expanded.env = declaration
-        .env
-        .iter()
-        .map(|(name, text)| return (name.clone(), text.replace(VERSION_PLACEHOLDER, version)))
-        .collect();
+    if let Some(text) = &declaration.package_id {
+        expanded.package_id = Some(text.replace(VERSION_PLACEHOLDER, version));
+    }
+    let mut env: Vec<(String, String)> = Vec::new();
+    for (name, text) in &declaration.env {
+        env.push((name.clone(), text.replace(VERSION_PLACEHOLDER, version)));
+    }
+    expanded.env = env;
     return expanded;
 }
 

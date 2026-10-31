@@ -1,6 +1,7 @@
 //! What:
 //! Three native lookups:
-//! the Rust channel manifests on `static.rust-lang.org` (the nightly date, or a stable channel's version),
+//! the Rust channel manifests on `static.rust-lang.org` (the nightly date,
+//! or a stable channel's version),
 //! the rustup release and its `rustup-init` downloads,
 //! and the Node.js release index and checksum files on `nodejs.org`.
 //! Why:
@@ -29,6 +30,8 @@ use super::context::Context;
 use super::model::{Artifact, is_sha256_hex};
 /// Imports the shared resolver helpers.
 use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, by_name, get_json, get_text, is_arm64, is_musl, text_at};
+/// Imports the shared named helpers.
+use super::util::all_ascii_digits;
 
 /// The value of the first `key = "value"` (or `'value'`) line in a TOML text,
 /// or `None`.
@@ -73,10 +76,12 @@ fn pkg_rust_version(text: &str) -> Option<String> {
 /// The Rust channel's current release:
 /// `nightly-<date>` for the nightly channel,
 /// the version's first word (`1.90.0`) for `stable` or `beta`;
-/// any other range is already an exact release name (`nightly-2026-10-29`, `1.99.0`) and needs no lookup.
+/// any other range is already an exact release name (`nightly-2026-10-29`,
+/// `1.99.0`) and needs no lookup.
 /// Why:
 /// Nightlies install by their dated name,
-/// so the lock holds the date, not a version number.
+/// so the lock holds the date,
+/// not a version number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,7 +144,7 @@ fn is_stable_tag(tag: &str) -> bool {
         return false;
     }
     for part in parts {
-        if part.is_empty() || !part.chars().all(|character| return character.is_ascii_digit()) {
+        if part.is_empty() || !all_ascii_digits(part) {
             return false;
         }
     }

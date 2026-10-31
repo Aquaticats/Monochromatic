@@ -6,7 +6,8 @@
 //! each asked directly over HTTPS for a package's newest version or for the release of a wanted one.
 //! Why:
 //! The decision record fixes npm and PyPI lookups to go to their registries directly,
-//! never through `mpm outdated` (probe 3: mpm drops failed managers with exit 0).
+//! never through `mpm outdated` (probe 3:
+//! mpm drops failed managers with exit 0).
 //! The package name is checked before it is put in a URL,
 //! so a plan entry cannot redirect the lookup.
 //!
@@ -28,21 +29,33 @@ use super::model::{Artifact, Declaration};
 /// Imports the shared resolver helpers.
 use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, by_name, get_json, text_at};
 
+/// Whether a character may appear in a registry package name.
+fn is_name_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || ".-_@/".contains(character);
+}
+
+/// Whether a character is an ASCII digit.
+fn is_digit_character(character: char) -> bool {
+    return character.is_ascii_digit();
+}
+
 /// What:
 /// A package name made safe to put in a registry URL path:
-/// letters, digits and `. _ - @ /` only,
+/// letters,
+/// digits and `. _ - @ /` only,
 /// with `/` (npm scopes) written `%2F`;
 /// anything else is refused.
 /// Why:
-/// A `?`, `#`, space or `..` in a name would change what the request asks for.
+/// A `?`,
+/// `#`,
+/// space or `..` in a name would change what the request asks for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function registryPathName(name: string): string  // throws
 /// ```
 pub fn registry_path_name(name: &str) -> Result<String, ResolveError> {
-    let allowed = |character: char| return character.is_ascii_alphanumeric() || ".-_@/".contains(character);
-    if name.is_empty() || name.contains("..") || !name.chars().all(allowed) {
+    if name.is_empty() || name.contains("..") || !name.chars().all(is_name_character) {
         return Err(ResolveError::Failed(format!("{name:?} is not a package name the registries accept")));
     }
     return Ok(name.replace('/', "%2F"));
@@ -50,7 +63,7 @@ pub fn registry_path_name(name: &str) -> Result<String, ResolveError> {
 
 /// Whether a range names a version (it starts with a digit) rather than a tag or channel.
 fn is_version(range: &str) -> bool {
-    return range.starts_with(|character: char| return character.is_ascii_digit());
+    return range.chars().next().is_some_and(is_digit_character);
 }
 
 /// What:
@@ -107,7 +120,7 @@ pub fn resolve_crate(ctx: &Context, name: &str, wanted: Option<&str>) -> Result<
 /// export function resolvePypi(ctx: Context, declaration: Declaration, name: string, wanted?: string): Resolution
 /// ```
 pub fn resolve_pypi(ctx: &Context, declaration: &Declaration, name: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
-    let is_wheel: bool = declaration.options.bootstrap.as_ref().is_some_and(|bootstrap| return bootstrap.distribution == "wheel");
+    let is_wheel: bool = declaration.options.is_wheel();
     if let Some(version) = wanted
         && !is_wheel
     {

@@ -232,7 +232,10 @@ pub fn observe_all(ctx: &Context, tools: &[LockedTool]) -> Vec<Observation> {
             continue;
         }
         let observed: Option<String> = observe_tool(ctx, tool);
-        let in_sync: bool = observed.as_deref().is_some_and(|version| return version_matches(version, &tool.version));
+        let in_sync: bool = match observed.as_deref() {
+            Some(version) => version_matches(version, &tool.version),
+            None => false,
+        };
         observations.push(Observation { id: tool.declaration.id.clone(), locked: tool.version.clone(), observed, in_sync });
     }
     return observations;
@@ -263,7 +266,12 @@ pub fn format_status(observations: &[Observation]) -> String {
             ));
         }
     }
-    let drifted: usize = observations.iter().filter(|observation| return !observation.in_sync).count();
+    let mut drifted: usize = 0;
+    for observation in observations {
+        if !observation.in_sync {
+            drifted += 1;
+        }
+    }
     if drifted == 0 {
         text.push_str(&format!("toolchain status: {} tools in sync with toolchain.lock.json\n", observations.len()));
     } else {

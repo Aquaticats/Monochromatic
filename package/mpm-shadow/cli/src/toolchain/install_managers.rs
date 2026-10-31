@@ -91,7 +91,7 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
 pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let uv: PathBuf = prerequisite(ctx, "uv")?;
     let uv_text: String = uv.to_string_lossy().to_string();
-    let is_wheel: bool = tool.declaration.options.bootstrap.as_ref().is_some_and(|bootstrap| return bootstrap.distribution == "wheel");
+    let is_wheel: bool = tool.declaration.options.is_wheel();
     if is_wheel {
         let artifact = artifact_for_host(tool, &ctx.host.platform)?;
         let file_name: String = super::install_archive::safe_file_name(&artifact.url);

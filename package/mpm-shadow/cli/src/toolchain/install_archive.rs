@@ -37,6 +37,8 @@ use super::install_support::{
 };
 /// Imports what this module uses from `super::layout`.
 use super::layout::{install_dir_name, tool_install_dir};
+/// Imports the suffix check.
+use super::util::ends_with_any;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 
@@ -110,7 +112,7 @@ pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
     if let Err(error) = fs::create_dir_all(&install_dir) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", install_dir.display())));
     }
-    let is_archive: bool = ARCHIVE_SUFFIXES.iter().any(|suffix| return artifact.url.ends_with(suffix));
+    let is_archive: bool = ends_with_any(&artifact.url, &ARCHIVE_SUFFIXES);
     if is_archive || artifact.url.ends_with(".conda") {
         if artifact.url.ends_with(".conda") {
             extract_conda(ctx, &download_path, &install_dir)?;
@@ -119,7 +121,9 @@ pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
         }
         let mut names: Vec<String> = tool.declaration.bins.clone();
         if let Some(aliases) = &tool.declaration.options.bin_aliases {
-            names.extend(aliases.iter().map(|(alias, _)| return alias.clone()));
+            for (alias, _) in aliases {
+            names.push(alias.clone());
+        }
         }
         restore_exec_bits(&install_dir, &names);
         return Ok(());

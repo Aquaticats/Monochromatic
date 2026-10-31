@@ -36,7 +36,8 @@ fn row<'a>(rows: &'a [(String, Artifact)], platform: &str) -> &'a Artifact {
     panic!("no row for {platform} in {:?}", platforms(rows));
 }
 
-/// A declaration for `github:` tests, with an optional `asset` hint.
+/// A declaration for `github:` tests,
+/// with an optional `asset` hint.
 fn github_declaration(rig: &mut Rig, hint: Option<&str>) -> Declaration {
     rig.lock.tools[2].declaration.options.asset = hint.map(str::to_string);
     return rig.tool("pnpm").declaration;
@@ -381,7 +382,8 @@ fn assets_of(names: &[&str]) -> Vec<serde_json::Value> {
     return release["assets"].as_array().expect("assets").clone();
 }
 
-/// The names `pick_asset` chooses for the four Linux platforms, or `-` for none.
+/// The names `pick_asset` chooses for the four Linux platforms,
+/// or `-` for none.
 fn chosen(names: &[&str], hint: Option<&str>) -> Vec<String> {
     let assets = assets_of(names);
     let mut picked: Vec<String> = Vec::new();

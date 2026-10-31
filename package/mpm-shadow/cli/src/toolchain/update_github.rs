@@ -84,7 +84,11 @@ fn latest_release(ctx: &Context, repo: &str) -> Result<Value, ResolveError> {
     }
     let list_url: String = format!("https://api.github.com/repos/{repo}/releases?per_page=1");
     let list: Value = get_json(ctx, &list_url, &headers)?;
-    return match list.as_array().and_then(|releases| return releases.first()) {
+    let first: Option<&Value> = match list.as_array() {
+        Some(releases) => releases.first(),
+        None => None,
+    };
+    return match first {
         Some(release) => Ok(release.clone()),
         None => Err(ResolveError::Failed(format!("{list_url}: the repository has no releases"))),
     };

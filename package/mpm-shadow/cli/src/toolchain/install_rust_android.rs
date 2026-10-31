@@ -39,7 +39,10 @@ use super::runner::RunRequest;
 
 /// `rustup toolchain install --no-self-update <package id, or the locked version>`.
 pub fn install_rust_toolchain(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
-    let channel: String = tool.declaration.package_id.clone().unwrap_or_else(|| return tool.version.clone());
+    let channel: String = match &tool.declaration.package_id {
+        Some(package_id) => package_id.clone(),
+        None => tool.version.clone(),
+    };
     let request: RunRequest = ctx.request("rustup", &["toolchain", "install", "--no-self-update", &channel]);
     run_checked(ctx, &request, "rustup toolchain install", &tool.declaration.id)?;
     return Ok(());

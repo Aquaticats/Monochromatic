@@ -30,6 +30,8 @@ use super::error::ToolchainError;
 use super::hash::sha256_hex;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, decode_lock_entry, lock_entry_value};
+/// Imports the shared named helpers.
+use super::util::find_tool;
 
 /// The file-format version the lock records in `schemaVersion`.
 pub const LOCK_SCHEMA_VERSION: u64 = 1;
@@ -84,7 +86,7 @@ impl Lock {
     /// The tool with this id,
     /// if the lock holds it.
     pub fn tool(&self, id: &str) -> Option<&LockedTool> {
-        return self.tools.iter().find(|tool| return tool.declaration.id == id);
+        return find_tool(&self.tools, id);
     }
 }
 

@@ -49,6 +49,8 @@ use super::plan::Plan;
 use super::runner::Runner;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
+/// Imports the shared named helpers.
+use super::util::find_tool;
 
 /// The tools installed first,
 /// in this order,
@@ -83,7 +85,7 @@ pub const STAGING_IDS: [&str; 9] = ["bin", "uv", "mpm", "rustup", "rust", "cargo
 pub fn sync_order(tools: &[LockedTool]) -> Vec<&LockedTool> {
     let mut ordered: Vec<&LockedTool> = Vec::new();
     for staging_id in STAGING_IDS {
-        if let Some(found) = tools.iter().find(|tool| return tool.declaration.id == staging_id) {
+        if let Some(found) = find_tool(tools, staging_id) {
             ordered.push(found);
         }
     }
@@ -156,17 +158,28 @@ pub fn replacement_warning(id: &str, observed: &Option<String>, locked: &str) ->
 /// ```
 pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     let mut report: SyncReport = SyncReport::default();
-    let entries: Vec<&LockedTool> = sync_order(ctx.tools)
-        .into_iter()
-        .filter(|tool| return applies_to_family(&tool.declaration.os, ctx.host.family))
-        .filter(|tool| return only.is_none_or(|ids| return ids.contains(&tool.declaration.id)))
-        .collect();
+    let mut entries: Vec<&LockedTool> = Vec::new();
+    for tool in sync_order(ctx.tools) {
+        if !applies_to_family(&tool.declaration.os, ctx.host.family) {
+            continue;
+        }
+        let selected: bool = match only {
+            Some(ids) => ids.contains(&tool.declaration.id),
+            None => true,
+        };
+        if selected {
+            entries.push(tool);
+        }
+    }
     for tool in &entries {
         let observed: Option<String> = observe_tool(ctx, tool);
         if let Some(warning) = replacement_warning(&tool.declaration.id, &observed, &tool.version) {
             report.warnings.push(warning);
         }
-        let current: bool = observed.as_deref().is_some_and(|found| return version_matches(found, &tool.version));
+        let current: bool = match observed.as_deref() {
+            Some(found) => version_matches(found, &tool.version),
+            None => false,
+        };
         if current {
             report.unchanged.push(tool.declaration.id.clone());
             continue;

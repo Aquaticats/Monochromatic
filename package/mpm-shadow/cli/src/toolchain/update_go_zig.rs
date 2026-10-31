@@ -135,7 +135,14 @@ fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     return std::cmp::Ordering::Equal;
 }
 
-/// The newest stable key (not `master`, no `-` suffix) of the Zig download index.
+/// A field of one platform entry of one release in the Zig download index.
+fn zig_field<'a>(index: &'a Value, version: &str, key: &str, field: &str) -> Option<&'a str> {
+    let release: &Value = index.get(version)?;
+    return text_at(release, &[key, field]);
+}
+
+/// The newest stable key (not `master`,
+/// no `-` suffix) of the Zig download index.
 fn newest_zig_version(index: &Value) -> Option<String> {
     let mut newest: Option<&String> = None;
     for key in index.as_object()?.keys() {
@@ -178,8 +185,8 @@ pub fn resolve_zig(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, Re
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
     for platform in LINUX_PLATFORMS {
         let key: &str = if is_arm64(platform) { "aarch64-linux" } else { "x86_64-linux" };
-        let tarball: Option<&str> = index.get(&version).and_then(|release| return text_at(release, &[key, "tarball"]));
-        let shasum: Option<&str> = index.get(&version).and_then(|release| return text_at(release, &[key, "shasum"]));
+        let tarball: Option<&str> = zig_field(&index, &version, key, "tarball");
+        let shasum: Option<&str> = zig_field(&index, &version, key, "shasum");
         let (Some(tarball_url), Some(sha256)) = (tarball, shasum) else {
             return Err(ResolveError::Failed(format!("{url}: Zig {version} lists no {key} tarball")));
         };

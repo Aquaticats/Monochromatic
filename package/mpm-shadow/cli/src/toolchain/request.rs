@@ -4,7 +4,9 @@
 //! the way a `package.json` value (`"npm:real@^1"`) does.
 //! Why:
 //! The lock is derived from the plan alone,
-//! so everything a resolver needs to find a tool (the repository, the registry, the channel) is in the request,
+//! so everything a resolver needs to find a tool (the repository,
+//! the registry,
+//! the channel) is in the request,
 //! and no resolver reads a previous lock row to learn it.
 //!
 //! In TS you'd write (pseudocode):
@@ -14,6 +16,9 @@
 //! export function parseRequest(text: string): Request   // "github:FiloSottile/age@latest"
 //! export function requestText(request: Request): string
 //! ```
+
+/// Imports the shared named helpers.
+use super::util::{all_ascii_digits, starts_with_ascii_digit};
 
 /// The origins written with a prefix:
 /// the text after the prefix names the thing in that origin.
@@ -72,12 +77,15 @@ pub enum Origin {
         String,
     ),
     /// `git:<url>`:
-    /// a git repository, with the revision as the range.
+    /// a git repository,
+    /// with the revision as the range.
     Git(
         /// The clone URL.
         String,
     ),
-    /// A bare name with a resolver of its own (`zig`, `node`, `java:temurin`).
+    /// A bare name with a resolver of its own (`zig`,
+    /// `node`,
+    /// `java:temurin`).
     Named(
         /// The name.
         String,
@@ -89,7 +97,10 @@ pub enum Origin {
 /// the source text before the range separator and the range after it (`latest` when none is written).
 /// Why:
 /// The range is kept as text,
-/// because each origin reads it its own way (an exact version, `latest`, a channel, a Java major line).
+/// because each origin reads it its own way (an exact version,
+/// `latest`,
+/// a channel,
+/// a Java major line).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,9 +108,13 @@ pub enum Origin {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Request {
-    /// The origin text (`github:FiloSottile/age`, `zig`).
+    /// The origin text (`github:FiloSottile/age`,
+    /// `zig`).
     pub source: String,
-    /// The wanted versions (`latest`, `0.15.2`, `nightly`, `21`).
+    /// The wanted versions (`latest`,
+    /// `0.15.2`,
+    /// `nightly`,
+    /// `21`).
     pub range: String,
 }
 
@@ -121,6 +136,7 @@ fn separator_index(text: &str) -> Option<usize> {
     return None;
 }
 
+/// The methods of `Request`.
 impl Request {
     /// What:
     /// Parses `<origin>[@<range>]`.
@@ -150,10 +166,10 @@ impl Request {
                 PREFIXED_ORIGINS.join(" ")
             ));
         }
-        if let Some(prefix) = PREFIXED_ORIGINS.iter().find(|prefix| return source.starts_with(**prefix))
-            && source.len() == prefix.len()
-        {
-            return Err(format!("the origin {source:?} names nothing after {prefix}"));
+        for prefix in PREFIXED_ORIGINS {
+            if source == prefix {
+                return Err(format!("the origin {source:?} names nothing after {prefix}"));
+            }
         }
         return Ok(request);
     }
@@ -210,8 +226,8 @@ impl Request {
         }
         return match self.origin() {
             Origin::Named(name) if name == "rust" => !matches!(self.range.as_str(), "nightly" | "beta" | "stable"),
-            Origin::Named(name) if name == "java:temurin" => !self.range.chars().all(|character| return character.is_ascii_digit()),
-            Origin::Npm(_) => self.range.starts_with(|character: char| return character.is_ascii_digit()),
+            Origin::Named(name) if name == "java:temurin" => !all_ascii_digits(&self.range),
+            Origin::Npm(_) => starts_with_ascii_digit(&self.range),
             _ => true,
         };
     }

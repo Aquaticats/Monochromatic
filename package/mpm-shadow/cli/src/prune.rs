@@ -1,10 +1,16 @@
-//! What:     The prune rule: of every cached copy of this repository's own crates, keep one version per crate and delete
+//! What:
+//! The prune rule:
+//! of every cached copy of this repository's own crates,
+//! keep one version per crate and delete
 //!           the rest.
-//! Why:      mpm 8.2.0 removes no previous version on install or upgrade and has no cleanup for the `cargo` manager, so
+//! Why:
+//! mpm 8.2.0 removes no previous version on install or upgrade and has no cleanup for the `cargo` manager,
+//! so
 //!           the copies a plain `cargo install` leaves behind pile up in cargo's registry.
 //!
 //! The kept version is the installed one when cargo's install record names the crate (that is the version just
-//! provisioned), otherwise the newest cached version (a library crate such as `monochromatic-jsonc-edit`).
+//! provisioned),
+//! otherwise the newest cached version (a library crate such as `monochromatic-jsonc-edit`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,14 +31,24 @@ use std::fs;
 /// Imports the owned and borrowed path types.
 use std::path::{Path, PathBuf};
 
+/// Imports `installed_versions` from `crate::installed`.
 use crate::installed::installed_versions;
+/// Imports `RegistryEntry`,
+/// `list_own_entries` from `crate::registry`.
 use crate::registry::{RegistryEntry, list_own_entries};
+/// Imports `compare_versions` from `crate::version`.
 use crate::version::compare_versions;
 
-/// What:     `fn newest_versions(entries: &[RegistryEntry]) -> BTreeMap<String, String>` declares a private function.
-///           `&[RegistryEntry]` is a borrowed view of a list (siblings: `Vec<RegistryEntry>` owns the list,
+/// What:
+/// `fn newest_versions(entries: &[RegistryEntry]) -> BTreeMap<String, String>` declares a private function.
+///           `&[RegistryEntry]` is a borrowed view of a list (siblings:
+/// `Vec<RegistryEntry>` owns the list,
 ///           `[RegistryEntry; N]` is a fixed-size array).
-/// Why:      It finds, for each crate, the newest version present in the cache. `&[...]` and not `Vec` because the
+/// Why:
+/// It finds,
+/// for each crate,
+/// the newest version present in the cache.
+/// `&[...]` and not `Vec` because the
 ///           function only reads the list.
 ///
 /// In TS you'd write (pseudocode):
@@ -63,10 +79,16 @@ fn newest_versions(entries: &[RegistryEntry]) -> BTreeMap<String, String> {
     return newest;
 }
 
-/// What:     `pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, String>) -> Vec<RegistryEntry>`
-///           declares a public function. It takes the entry list by value (it moves the list in) and the installed
-///           map by borrow, and returns the entries to delete.
-/// Why:      This is the whole rule, kept free of file-system access so the tests can feed it plain lists. `Vec` and
+/// What:
+/// `pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, String>) -> Vec<RegistryEntry>`
+///           declares a public function.
+/// It takes the entry list by value (it moves the list in) and the installed
+///           map by borrow,
+/// and returns the entries to delete.
+/// Why:
+/// This is the whole rule,
+/// kept free of file-system access so the tests can feed it plain lists.
+/// `Vec` and
 ///           not a borrow for `entries` because the stale ones are moved into the result.
 ///
 /// In TS you'd write (pseudocode):
@@ -86,7 +108,10 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
         // ```ts
         // const kept = installed.get(entry.crateName) ?? newest.get(entry.crateName);
         // ```
-        let kept: Option<&String> = installed.get(&entry.crate_name).or_else(|| return newest.get(&entry.crate_name));
+        let kept: Option<&String> = match installed.get(&entry.crate_name) {
+            Some(version) => Some(version),
+            None => newest.get(&entry.crate_name),
+        };
         if let Some(kept_version) = kept
             && *kept_version != entry.version
         {
@@ -96,10 +121,14 @@ pub fn find_stale(entries: Vec<RegistryEntry>, installed: &BTreeMap<String, Stri
     return stale;
 }
 
-/// What:     `pub fn prune_stale_own_crates(cargo_home: &Path) -> Vec<PathBuf>` declares a public function that deletes
+/// What:
+/// `pub fn prune_stale_own_crates(cargo_home: &Path) -> Vec<PathBuf>` declares a public function that deletes
 ///           the stale entries under a cargo home and returns the paths it deleted.
-/// Why:      A deletion that fails is reported on standard error and skipped: a leftover cache entry never affects the
-///           mpm run that just finished, so it must not change its exit code.
+/// Why:
+/// A deletion that fails is reported on standard error and skipped:
+/// a leftover cache entry never affects the
+///           mpm run that just finished,
+/// so it must not change its exit code.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

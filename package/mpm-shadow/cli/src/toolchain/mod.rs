@@ -146,7 +146,8 @@ pub mod update_github;
 /// Choosing the release asset of one platform.
 pub mod update_github_assets;
 
-/// The Go runtime, Go module and Zig resolvers.
+/// The Go runtime,
+/// Go module and Zig resolvers.
 pub mod update_go_zig;
 
 /// The Temurin JDK and AWS CLI resolvers.
@@ -162,6 +163,9 @@ pub mod update_resolve;
 
 /// The Rust channel and Node.js resolvers.
 pub mod update_rust_node;
+
+/// Small named helpers shared by the toolchain modules.
+pub mod util;
 
 /// The `verify-archive` command.
 pub mod verify_archive;
@@ -240,3 +244,7 @@ mod request_tests;
 /// The unit tests of `verify-archive`.
 #[cfg(test)]
 mod verify_archive_tests;
+
+/// The unit tests of the shared helpers.
+#[cfg(test)]
+mod util_tests;

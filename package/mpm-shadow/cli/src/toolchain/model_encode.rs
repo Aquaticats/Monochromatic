@@ -21,7 +21,11 @@ use super::model::{Declaration, LockedTool, Options, Postinstall, Request};
 
 /// A JSON array of texts.
 fn text_array(items: &[String]) -> Value {
-    return Value::Array(items.iter().map(|item| return Value::String(item.clone())).collect());
+    let mut values: Vec<Value> = Vec::new();
+    for item in items {
+        values.push(Value::String(item.clone()));
+    }
+    return Value::Array(values);
 }
 
 /// The options as a JSON object with the fields in the fixed order the lock documents.
@@ -121,7 +125,10 @@ pub fn lock_entry_value(tool: &LockedTool) -> Value {
     }
     map.insert("bins".to_string(), text_array(&declaration.bins));
     if let Some(families) = &declaration.os {
-        let names: Vec<String> = families.iter().map(|family| return family.as_str().to_string()).collect();
+        let mut names: Vec<String> = Vec::new();
+        for family in families {
+            names.push(family.as_str().to_string());
+        }
         map.insert("os".to_string(), text_array(&names));
     }
     let mut env: Map<String, Value> = Map::new();

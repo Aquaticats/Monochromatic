@@ -23,6 +23,8 @@ use super::context::Context;
 use super::model::Artifact;
 /// Imports the shared resolver helpers.
 use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, get_text, hash_download, is_arm64, text_at};
+/// Imports the shared named helpers.
+use super::util::all_ascii_digits;
 
 /// One `cmdline-tools` package of the repository listing:
 /// its revision and the build number in its archive name.
@@ -43,7 +45,7 @@ fn number_in_tag(block: &str, tag: &str) -> Option<u64> {
     let close: String = format!("</{tag}>");
     let after: &str = &block[block.find(&open)? + open.len()..];
     let digits: &str = after[..after.find(&close)?].trim();
-    if digits.is_empty() || !digits.chars().all(|character| return character.is_ascii_digit()) {
+    if digits.is_empty() || !all_ascii_digits(digits) {
         return None;
     }
     return digits.parse().ok();
@@ -132,6 +134,19 @@ pub fn resolve_android(ctx: &Context, wanted: Option<&str>) -> Result<Resolution
     return Ok(Resolution { version, artifacts });
 }
 
+/// The build number of a conda file listing (0 when it carries none).
+fn build_number_of(file: &Value) -> i64 {
+    return match file.get("attrs") {
+        Some(attrs) => attrs.get("build_number").and_then(Value::as_i64).unwrap_or(0),
+        None => 0,
+    };
+}
+
+/// Whether a character may appear in a conda package name.
+fn is_conda_character(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || ".-_".contains(character);
+}
+
 /// The conda file of `version` for `subdir` with the highest build number:
 /// its base name (which includes the subdir) and SHA-256.
 fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'a str, &'a str)> {
@@ -141,7 +156,7 @@ fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'
         if text_at(file, &["version"]) != Some(version) || text_at(file, &["attrs", "subdir"]) != Some(subdir) {
             continue;
         }
-        let build: i64 = file.get("attrs").and_then(|attrs| return attrs.get("build_number")).and_then(Value::as_i64).unwrap_or(0);
+        let build: i64 = build_number_of(file);
         if build > best_build {
             best = Some((text_at(file, &["basename"])?, text_at(file, &["sha256"])?));
             best_build = build;
@@ -153,7 +168,8 @@ fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'
 /// What:
 /// Resolves a conda-forge package:
 /// `latest_version` (or the wanted version) from `https://api.anaconda.org/package/conda-forge/<name>`,
-/// and for each Linux platform the file of that version in its subdir (`linux-64`, `linux-aarch64`).
+/// and for each Linux platform the file of that version in its subdir (`linux-64`,
+/// `linux-aarch64`).
 /// Why:
 /// The listing gives each file's SHA-256,
 /// so nothing is downloaded to hash.
@@ -163,7 +179,7 @@ fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'
 /// export function resolveConda(ctx, declaration, current?, wanted?): Resolution
 /// ```
 pub fn resolve_conda(ctx: &Context, spec: &str, wanted: Option<&str>) -> Result<Resolution, ResolveError> {
-    if spec.is_empty() || !spec.chars().all(|character| return character.is_ascii_alphanumeric() || ".-_".contains(character)) {
+    if spec.is_empty() || !spec.chars().all(is_conda_character) {
         return Err(ResolveError::Failed(format!("{spec:?} is not a conda package name")));
     }
     let url: String = format!("https://api.anaconda.org/package/conda-forge/{spec}");

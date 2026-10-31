@@ -172,7 +172,10 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
     };
     let route_text: String = as_text(route_value, &format!("{path}.route"))?;
     let Some(route) = Route::parse(&route_text) else {
-        let names: Vec<&str> = ROUTE_NAMES.iter().map(|(_, name)| return *name).collect();
+        let mut names: Vec<&str> = Vec::new();
+        for (_, route_name) in ROUTE_NAMES {
+            names.push(route_name);
+        }
         return Err(format!("{path}.route {route_text:?} is not a route; the routes are {}", names.join(", ")));
     };
     let manager: Option<String> = match map.get("manager") {
@@ -268,7 +271,15 @@ fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Arti
 
 /// Whether `text` is 64 lowercase hex characters.
 pub fn is_sha256_hex(text: &str) -> bool {
-    return text.len() == 64 && text.bytes().all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    if text.len() != 64 {
+        return false;
+    }
+    for byte in text.bytes() {
+        if !(byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:

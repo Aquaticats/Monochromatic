@@ -32,6 +32,8 @@ use super::error::ToolchainError;
 use super::hash::sha256_hex;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
+/// Imports the shared named helpers.
+use super::util::file_name_os;
 
 /// What:
 /// The content hash of one file,
@@ -175,7 +177,7 @@ fn moved_files(expected: &Revisions, observed: &Revisions, scope: &Scope) -> Vec
 /// function writeAtomically(target: string, text: string): void
 /// ```
 pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError> {
-    let mut temporary_name = target.file_name().map(|name| return name.to_os_string()).unwrap_or_default();
+    let mut temporary_name = file_name_os(target);
     temporary_name.push(format!(".{}.tmp", std::process::id()));
     let temporary: PathBuf = target.with_file_name(temporary_name);
     if let Err(error) = fs::write(&temporary, text) {

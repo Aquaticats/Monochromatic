@@ -34,6 +34,8 @@ use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
 use super::model::{Artifact, LockedTool};
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
+/// Imports the shared named helpers.
+use super::util::{file_name_os, file_name_text};
 
 /// How many levels below the install directory `restore_exec_bits` looks for the launchers.
 const EXEC_SCAN_MAX_DEPTH: usize = 3;
@@ -110,7 +112,7 @@ pub fn run_checked(ctx: &Context, request: &RunRequest, what: &str, tool_id: &st
 /// export function downloadVerified(ctx: Context, url: string, target: string, sha256: string): string
 /// ```
 pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) -> Result<PathBuf, ToolchainError> {
-    let mut temporary_name = target.file_name().map(|name| return name.to_os_string()).unwrap_or_default();
+    let mut temporary_name = file_name_os(target);
     temporary_name.push(".download");
     let temporary: PathBuf = target.with_file_name(temporary_name);
     let observed: String = match ctx.http.download(url, &temporary, DEFAULT_MAX_DOWNLOAD_BYTES) {
@@ -201,7 +203,7 @@ pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), T
     names.sort();
     let mut payload: Option<PathBuf> = None;
     for path in names {
-        let name: String = path.file_name().map(|file| return file.to_string_lossy().to_string()).unwrap_or_default();
+        let name: String = file_name_text(&path);
         if name.starts_with("pkg-") && name.ends_with(".tar.zst") {
             payload = Some(path);
             break;
@@ -258,10 +260,13 @@ pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
             let Ok(entries) = fs::read_dir(directory) else {
                 continue;
             };
-            let mut paths: Vec<PathBuf> = entries.flatten().map(|entry| return entry.path()).collect();
+            let mut paths: Vec<PathBuf> = Vec::new();
+            for entry in entries.flatten() {
+                paths.push(entry.path());
+            }
             paths.sort();
             for path in paths {
-                let name: String = path.file_name().map(|file| return file.to_string_lossy().to_string()).unwrap_or_default();
+                let name: String = file_name_text(&path);
                 if path.is_dir() {
                     if depth < EXEC_SCAN_MAX_DEPTH {
                         next.push(path);

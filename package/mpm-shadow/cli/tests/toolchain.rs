@@ -54,7 +54,8 @@ impl Fixture {
         return Fixture { directory };
     }
 
-    /// Rewrites the lock in `directory` with its digest, the way `update` would have written it.
+    /// Rewrites the lock in `directory` with its digest,
+    /// the way `update` would have written it.
     fn sign_lock(&self, directory: &Path) {
         let path = directory.join("toolchain.lock.json");
         let parsed = parse_lock(&fs::read_to_string(&path).expect("read the lock"), "lock").expect("the fixture lock parses");

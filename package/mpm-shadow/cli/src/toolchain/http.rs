@@ -305,7 +305,7 @@ impl HyperClient {
                 }
             };
             if response.status().is_redirection() {
-                let Some(location) = response.headers().get(LOCATION).and_then(|value| return value.to_str().ok()) else {
+                let Some(location) = response.headers().get(LOCATION).and_then(header_text) else {
                     return Err(HttpError { url: current.clone(), message: "a redirect without a Location header".to_string() });
                 };
                 current = match resolve_location(&current, location) {
@@ -418,6 +418,12 @@ impl HyperClient {
         }
         return Ok(hex_of_digest(hasher.finalize().as_slice()));
     }
+}
+
+/// A header value as text,
+/// or `None` when it is not visible ASCII.
+fn header_text(value: &HeaderValue) -> Option<&str> {
+    return value.to_str().ok();
 }
 
 /// The host part of a URL (`registry.npmjs.org`),

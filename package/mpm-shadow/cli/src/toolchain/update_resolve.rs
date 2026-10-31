@@ -1,7 +1,8 @@
 //! What:
 //! Finding a tool's version and artifacts:
 //! the shared types and fetch helpers,
-//! and the one switch from a tool's id, request and route to the resolver that answers it.
+//! and the one switch from a tool's id,
+//! request and route to the resolver that answers it.
 //! Why:
 //! Every npm and PyPI version,
 //! first or later,
@@ -75,6 +76,7 @@ pub enum ResolveError {
     ),
 }
 
+/// The methods of `ResolveError`.
 impl ResolveError {
     /// The message to show.
     pub fn message(&self) -> &str {
@@ -114,14 +116,18 @@ pub fn text_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
     for key in path {
         cursor = cursor.get(*key)?;
     }
-    return cursor.as_str().filter(|text| return !text.is_empty());
+    return match cursor.as_str() {
+        Some(text) if !text.is_empty() => Some(text),
+        _ => None,
+    };
 }
 
 /// What:
 /// The SHA-256 of the file behind `url`,
 /// by downloading it to a scratch file and deleting the file afterwards.
 /// Why:
-/// Some sources (the Android archive, the AWS CLI installer) publish no checksum the update can read,
+/// Some sources (the Android archive,
+/// the AWS CLI installer) publish no checksum the update can read,
 /// so the lock records the hash of what the update itself downloaded.
 ///
 /// In TS you'd write (pseudocode):
@@ -140,7 +146,8 @@ pub fn hash_download(ctx: &Context, url: &str) -> Result<String, ResolveError> {
 }
 
 /// The platforms every downloaded tool is recorded for:
-/// Linux on x64 and arm64, glibc and musl (the repository's Linux-only stopgap).
+/// Linux on x64 and arm64,
+/// glibc and musl (the repository's Linux-only stopgap).
 pub const LINUX_PLATFORMS: [&str; 4] = ["linux-arm64", "linux-arm64-musl", "linux-x64", "linux-x64-musl"];
 
 /// Whether a platform id names an ARM 64-bit machine.
@@ -168,9 +175,12 @@ pub fn by_name(version: &str) -> Resolution {
 /// Resolves one tool from its request alone.
 /// Why:
 /// The lock is derived from the plan,
-/// so nothing here reads a previous lock row to learn a repository, a tag shape, an asset or a platform list.
+/// so nothing here reads a previous lock row to learn a repository,
+/// a tag shape,
+/// an asset or a platform list.
 /// The one exception is the shortcut for an exact version:
-/// when the lock already holds that very request, its entry is kept without a lookup.
+/// when the lock already holds that very request,
+/// its entry is kept without a lookup.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

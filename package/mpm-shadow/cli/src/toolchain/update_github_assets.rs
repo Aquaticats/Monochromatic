@@ -1,7 +1,9 @@
 //! What:
 //! Choosing the release asset for one platform by the usual naming convention:
 //! the file name must say Linux and the platform's CPU,
-//! must not be a checksum, signature, installer package or debug build,
+//! must not be a checksum,
+//! signature,
+//! installer package or debug build,
 //! and prefers the platform's C library and the commonest archive format.
 //! Why:
 //! The choice must be the same on every run and must never guess:
@@ -21,6 +23,8 @@ use serde_json::Value;
 use super::update_github::glob_matches;
 /// Imports the shared resolver helpers.
 use super::update_resolve::{ResolveError, is_arm64, is_musl, text_at};
+/// Imports the shared named helpers.
+use super::util::{contains_any, ends_with_any};
 
 /// File-name endings that are never the program:
 /// checksums,
@@ -59,8 +63,8 @@ fn says_cpu(lower: &str, arm64: bool) -> bool {
     let arm_tokens: [&str; 3] = ["aarch64", "arm64", "armv8"];
     let x64_tokens: [&str; 4] = ["x86_64", "amd64", "x64", "x86-64"];
     let (wanted, unwanted): (&[&str], &[&str]) = if arm64 { (&arm_tokens, &x64_tokens) } else { (&x64_tokens, &arm_tokens) };
-    let has_wanted: bool = wanted.iter().any(|token| return lower.contains(token));
-    let has_unwanted: bool = unwanted.iter().any(|token| return lower.contains(token));
+    let has_wanted: bool = contains_any(lower, wanted);
+    let has_unwanted: bool = contains_any(lower, unwanted);
     return has_wanted && !has_unwanted;
 }
 
@@ -86,13 +90,13 @@ fn format_score(lower: &str) -> u32 {
 /// or `None` when the name rules it out.
 fn score(name: &str, platform: &str) -> Option<u32> {
     let lower: String = name.to_ascii_lowercase();
-    if EXCLUDED_ENDINGS.iter().any(|ending| return lower.ends_with(ending)) {
+    if ends_with_any(&lower, &EXCLUDED_ENDINGS) {
         return None;
     }
-    if EXCLUDED_FRAGMENTS.iter().any(|fragment| return lower.contains(fragment)) {
+    if contains_any(&lower, &EXCLUDED_FRAGMENTS) {
         return None;
     }
-    if FOREIGN_FRAGMENTS.iter().any(|fragment| return lower.contains(fragment)) {
+    if contains_any(&lower, &FOREIGN_FRAGMENTS) {
         return None;
     }
     if !says_linux(&lower) || !says_cpu(&lower, is_arm64(platform)) {

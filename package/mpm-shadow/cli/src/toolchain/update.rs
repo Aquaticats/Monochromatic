@@ -46,6 +46,8 @@ use super::runner::Runner;
 use super::scope::{EnvMap, Scope};
 /// Imports `sync_tools` from `super::sync`.
 use super::sync::sync_tools;
+/// Imports the tool lookup.
+use super::util::find_tool;
 /// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, resolve_tool};
 
@@ -104,15 +106,22 @@ pub struct UpdateReport {
 impl UpdateReport {
     /// Whether any lookup failed.
     pub fn has_failures(&self) -> bool {
-        return self.outcomes.iter().any(|outcome| return matches!(outcome.kind, OutcomeKind::Failed { .. }));
+        for outcome in &self.outcomes {
+            if matches!(outcome.kind, OutcomeKind::Failed { .. }) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Whether any tool moved or was added (the condition `update --check` exits 1 for).
     pub fn has_movement(&self) -> bool {
-        return self
-            .outcomes
-            .iter()
-            .any(|outcome| return matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }));
+        for outcome in &self.outcomes {
+            if matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -202,14 +211,17 @@ pub fn run_update(
     let context: Context = Context { scope, env, runner, http, host, tools: &old_tools };
     let mut results: Vec<Resolved> = Vec::new();
     for declaration in &loaded.plan.tools {
-        let current: Option<&LockedTool> = old_tools.iter().find(|tool| return tool.declaration.id == declaration.id);
+        let current: Option<&LockedTool> = find_tool(&old_tools, &declaration.id);
         results.push(resolve_one(&context, declaration, current));
     }
     let mut synced: Vec<String> = Vec::new();
     if !check {
         retry_after_sync(&context, &loaded.plan.tools, &mut results, &mut synced);
     }
-    let outcomes: Vec<Outcome> = results.iter().map(|result| return result.outcome.clone()).collect();
+    let mut outcomes: Vec<Outcome> = Vec::new();
+    for result in &results {
+        outcomes.push(result.outcome.clone());
+    }
     let mut report: UpdateReport = UpdateReport { outcomes, wrote: false, synced };
     if report.has_failures() || check {
         return Ok(report);
@@ -257,7 +269,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     for (index, declaration) in plan.iter().enumerate() {
         let failed: bool = matches!(results[index].outcome.kind, OutcomeKind::Failed { .. });
         let manager_route: bool = matches!(declaration.route, Route::MpmPnpm | Route::MpmUvx);
-        let Some(locked) = context.tools.iter().find(|tool| return tool.declaration.id == declaration.id) else {
+        let Some(locked) = find_tool(context.tools, &declaration.id) else {
             continue;
         };
         if failed && manager_route && observe_tool(context, locked).is_none() {
@@ -270,7 +282,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     let mut ids: Vec<String> = Vec::new();
     for index in &candidates {
         for prerequisite in prerequisites(plan[*index].route) {
-            if !ids.iter().any(|id| return id == prerequisite) {
+            if !ids.contains(&(*prerequisite).to_string()) {
                 ids.push((*prerequisite).to_string());
             }
         }
@@ -283,7 +295,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
             OutcomeKind::Failed { reason } => reason.clone(),
             _ => String::new(),
         };
-        let current: Option<&LockedTool> = context.tools.iter().find(|tool| return tool.declaration.id == plan[index].id);
+        let current: Option<&LockedTool> = find_tool(context.tools, &plan[index].id);
         let mut second: Resolved = resolve_one(context, &plan[index], current);
         if let OutcomeKind::Failed { reason } = &second.outcome.kind {
             second.outcome.kind = OutcomeKind::Failed {
@@ -312,9 +324,15 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
         text.push_str(&line);
         text.push('\n');
     }
-    let count = |predicate: fn(&OutcomeKind) -> bool| return report.outcomes.iter().filter(|outcome| return predicate(&outcome.kind)).count();
-    let moved: usize = count(|kind| return matches!(kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }));
-    let failed: usize = count(|kind| return matches!(kind, OutcomeKind::Failed { .. }));
+    let mut moved: usize = 0;
+    let mut failed: usize = 0;
+    for outcome in &report.outcomes {
+        match outcome.kind {
+            OutcomeKind::Updated { .. } | OutcomeKind::Added { .. } => moved += 1,
+            OutcomeKind::Failed { .. } => failed += 1,
+            _ => {}
+        }
+    }
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));
     } else if check {

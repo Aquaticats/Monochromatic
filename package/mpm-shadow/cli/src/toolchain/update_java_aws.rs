@@ -26,6 +26,15 @@ use super::model::Artifact;
 use super::update_github::{asset_digest, find_asset, release_by_tag};
 /// Imports the shared resolver helpers.
 use super::update_resolve::{LINUX_PLATFORMS, Resolution, ResolveError, get_json, hash_download, is_arm64, is_musl, text_at};
+/// Imports the shared named helpers.
+use super::util::{all_ascii_digits, number_or_zero};
+
+/// The `release_name` of the first record of an Adoptium answer.
+fn first_release_name(records: &Value) -> Option<&str> {
+    let list: &Vec<Value> = records.as_array()?;
+    let first: &Value = list.first()?;
+    return text_at(first, &["release_name"]);
+}
 
 /// The Adoptium asset name of one platform's JDK archive for a major version and a release core (`21.0.13+9`).
 fn jdk_asset_name(major: &str, core: &str, platform: &str) -> String {
@@ -52,10 +61,10 @@ pub fn resolve_java(ctx: &Context, range: &str) -> Result<Resolution, ResolveErr
     if major.is_empty() {
         return Err(ResolveError::Failed(format!("{range:?} is not a Java major version or release (write java:temurin@21)")));
     }
-    let core: String = if range.chars().all(|character| return character.is_ascii_digit()) {
+    let core: String = if all_ascii_digits(range) {
         let url: String = format!("https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture=x64&image_type=jdk&os=linux");
         let records: Value = get_json(ctx, &url, &[])?;
-        let release_name: Option<&str> = records.as_array().and_then(|list| return list.first()).and_then(|first| return text_at(first, &["release_name"]));
+        let release_name: Option<&str> = first_release_name(&records);
         let Some(name) = release_name else {
             return Err(ResolveError::Failed(format!("{url}: Adoptium reports no JDK release")));
         };
@@ -86,7 +95,7 @@ fn is_stable_v2_tag(tag: &str) -> bool {
         return false;
     }
     for part in parts {
-        if part.is_empty() || !part.chars().all(|character| return character.is_ascii_digit()) {
+        if part.is_empty() || !all_ascii_digits(part) {
             return false;
         }
     }
@@ -95,7 +104,7 @@ fn is_stable_v2_tag(tag: &str) -> bool {
 
 /// The three numbers of a tag that passed `is_stable_v2_tag`.
 fn release_numbers(tag: &str) -> (u64, u64, u64) {
-    let mut numbers = tag.split('.').map(|part| return part.parse::<u64>().unwrap_or(0));
+    let mut numbers = tag.split('.').map(number_or_zero);
     return (numbers.next().unwrap_or(0), numbers.next().unwrap_or(0), numbers.next().unwrap_or(0));
 }
 
