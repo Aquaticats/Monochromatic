@@ -116,7 +116,8 @@ fn either_order_with_a_toml_keys_rule_gives_the_same_manifest() {
 }
 
 /// A `toml-keys` rule that reads a manifest and changes nothing does not block a later catalog change:
-/// both compose, so the catalog rule transforms what the key rule left.
+/// both compose,
+/// so the catalog rule transforms what the key rule left.
 #[test]
 fn a_conforming_toml_keys_rule_does_not_block_a_later_catalog_change() {
     let config = r#"{"rules": [

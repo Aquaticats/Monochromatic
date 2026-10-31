@@ -139,7 +139,9 @@ fn check_url(url: &str) -> Outcome<Uri> {
 /// joined by `: `.
 /// Why:
 ///  hyper's client error prints only `client error (Connect)`;
-/// the cause (name resolution, refused connection, TLS alert) is what a person needs to act on.
+/// the cause (name resolution,
+/// refused connection,
+/// TLS alert) is what a person needs to act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
