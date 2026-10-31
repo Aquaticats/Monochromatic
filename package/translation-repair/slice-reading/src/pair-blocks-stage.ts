@@ -220,6 +220,8 @@ export async function pairBlocksWithRoster(
     responseFormat,
     validate: isBlockPairingWire,
     stage: 'block-pairing',
+    // PAIRING IS ASKED OF THE RUN ROSTER (`seats.roster`, the preparation round) and nothing narrower.
+    role: 'roster',
     l: pl,
     // Conditional spread keeps the knob absent instead of undefined.
     ...((fanOut === undefined) ? {} : { fanOut, }),

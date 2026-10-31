@@ -11,6 +11,10 @@ import {
   type LeftOutModel,
   type ModelCaller,
   readsImages,
+  type ReaskClaims,
+  type ReaskSeat,
+  takenFor,
+  takeFor,
 } from '@monochromatic-dev/translation-repair-provider/ts';
 import {
   type ImageReading,
@@ -249,6 +253,9 @@ function isOwedAsk(
  @param benchModelIds - every reader of this picture, whose reading recorded as the cut reader's would count one
  model twice; empty where the caller names none
 
+ @param claims - record of the models asked for the readers of this picture, which they share so that no model is
+ asked for two of them (ledger B1080); absent for a reader that is alone on its picture
+
  @param signal - abort honoured inside the ask
 
  @param perCallTimeoutMs - ceiling on this exchange
@@ -271,6 +278,7 @@ async function reaskCut(
     perspective,
     cutOn,
     benchModelIds,
+    claims,
     signal,
     perCallTimeoutMs,
     l,
@@ -282,6 +290,7 @@ async function reaskCut(
     readonly perspective: ImageReadingPerspective;
     readonly cutOn?: ProviderName;
     readonly benchModelIds: readonly RosterModelId[];
+    readonly claims?: ReaskClaims;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -296,15 +305,27 @@ async function reaskCut(
   },);
 
   /**
-   Models to ask in the order of their runaway shares, and the ones the reader role or the bench leaves out.
+   The seat of this reader: the reader role, the readers of the picture and the record they share.
+   */
+  const seat: ReaskSeat = {
+    role: 'reader',
+    bench: benchModelIds,
+    // Conditional spread keeps the record absent for a reader that is alone on its picture.
+    ...((claims === undefined) ? {} : { claims, }),
+  };
+
+  /**
+   Models to ask in the order of their runaway shares, and the ones the reader role, the bench or an ask for another
+   reader leaves out.
    */
   const {
     alternates,
     leftOut,
   } = alternateModelsFor({
     modelId,
-    role: 'reader',
-    bench: benchModelIds,
+    role: seat.role,
+    bench: seat.bench,
+    askedForOtherSeats: takenFor({ seat, },),
   },);
 
   /**
@@ -331,6 +352,15 @@ async function reaskCut(
       },),
   ];
   for (const other of readers) {
+    // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another cut reader of
+    // this picture may have taken this model since the list was made (ledger B1080).
+    if (!takeFor({
+      seat,
+      modelId: other,
+    },)) {
+      rl.info(`${modelId}: ${other} was asked for another reader of ${assetName} since the list was made`,);
+      continue;
+    }
     rl.info(
       `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
         (cutOn === undefined) ? '' : ` on ${cutOn}`
@@ -411,6 +441,9 @@ async function reaskCut(
  of, since a reading by one of them recorded as this reader's would count one model twice (ledger B1076); empty where
  the caller names none
 
+ @param claims - record of the models asked for the readers of this picture, which the readers share so that no model
+ is asked for two of them (ledger B1080); absent for a reader that is alone on its picture
+
  @param signal - abort honoured between asks as well as inside them, so a
  stopped run does not keep re-asking
 
@@ -435,6 +468,7 @@ export async function readPastRefusal(
     bytes,
     assetName,
     benchModelIds = [],
+    claims,
     signal,
     perCallTimeoutMs,
     l,
@@ -444,6 +478,7 @@ export async function readPastRefusal(
     readonly bytes: Uint8Array;
     readonly assetName: string;
     readonly benchModelIds?: readonly RosterModelId[];
+    readonly claims?: ReaskClaims;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
@@ -509,6 +544,8 @@ export async function readPastRefusal(
         perspective,
         ...((reading.servedBy === undefined) ? {} : { cutOn: reading.servedBy, }),
         benchModelIds,
+        // Conditional spread keeps the record absent for a reader that is alone on its picture.
+        ...((claims === undefined) ? {} : { claims, }),
         signal,
         perCallTimeoutMs,
         l: rl,

@@ -3,7 +3,10 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
-import type { ModelClient, } from '@monochromatic-dev/translation-repair-provider/ts';
+import {
+  createReaskClaims,
+  type ModelClient,
+} from '@monochromatic-dev/translation-repair-provider/ts';
 import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   askDeterministicReader,
@@ -399,6 +402,12 @@ export async function readImagePair(
   }
 
   /**
+   The models asked for the readers of this picture, which the readers share so that two readers cut together are
+   never re-asked of one model (ledger B1080).
+   */
+  const claims = createReaskClaims();
+
+  /**
    How each reader's exchange ended, asked concurrently.
 
    CONCURRENTLY BECAUSE THE LIMITER IS PER MODEL. Different models hold
@@ -418,6 +427,7 @@ export async function readImagePair(
         assetName,
         // EVERY READER OF THIS PICTURE IS THE BENCH: a reading cut empty is re-asked of a model that is none of them.
         benchModelIds: readerModelIds,
+        claims,
         signal,
         perCallTimeoutMs,
         l,

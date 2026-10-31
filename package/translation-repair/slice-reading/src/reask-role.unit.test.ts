@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where the blocks of an archive are paired',
       fn: async () => {
-        const source = await readFile(new URL('./pair-blocks-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('pair-blocks-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'runWindowedRounds', },),).toEqual(['roster',],);
       },
     },),
