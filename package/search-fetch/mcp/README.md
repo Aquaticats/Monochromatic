@@ -55,25 +55,42 @@ OpenCodeReview is such a host.
 ### Generic stdio
 
 `search-fetch-mcp` speaks newline-delimited JSON-RPC 2.0 over stdin and stdout,
-so any MCP client that launches stdio servers can register it:
+so any MCP client that launches stdio servers can register it.
+
+Register the built artifact.
+Nothing in this workspace depends on this package,
+so the bare `search-fetch-mcp` name resolves only where some `node_modules/.bin`
+on `PATH` links it,
+and in a plain checkout it resolves nowhere:
 
 ```jsonc
 {
   "mcpServers": {
     "search-fetch": {
-      "command": "search-fetch-mcp"
+      "command": "node",
+      "args": ["/absolute/path/to/Monochromatic/package/search-fetch/mcp/dist/final/node/index.mjs"]
     }
   }
 }
 ```
 
+Build it first with `mise run //package/search-fetch/mcp:build`.
+Environments that link the package into a `node_modules/.bin` on `PATH`,
+or install it globally,
+may keep the bare `"command": "search-fetch-mcp"` form.
+
 ### open-codereview.ai
 
 OpenCodeReview registers MCP servers under `mcp_servers.<name>` in
-`~/.opencodereview/config.json`:
+`~/.opencodereview/config.json`,
+settable as dotted keys through `ocr config set <key> <value>`.
+The registration that works in a checkout,
+verified on this machine:
 
 ```bash
-ocr config set mcp_servers.search-fetch.command search-fetch-mcp
+ocr config set mcp_servers.search-fetch.command node
+ocr config set mcp_servers.search-fetch.args \
+  '["/absolute/path/to/Monochromatic/package/search-fetch/mcp/dist/final/node/index.mjs"]'
 ```
 
 Optional allowlist restricting the exposed tools:
@@ -81,8 +98,6 @@ Optional allowlist restricting the exposed tools:
 ```bash
 ocr config set mcp_servers.search-fetch.tools '["web_search", "web_fetch"]'
 ```
-
-See <https://open-codereview.ai/docs/mcp> for every configuration field.
 
 ## Configuration
 
