@@ -179,9 +179,37 @@ each finished branch is reviewed and merged into `main`):
   not a tag-pinned `github:` request,
   which AGENTS.md `PIN` forbids for tools this repository publishes);
   the IDE launcher's explicit path is `<worktree>/.cache/toolchain-bin/mpm-shadow`.
-- Queued for an agent after the version-keyed install agent merges
-  (same crate,
-  so not in parallel):
+- Merged 2026-10-31 as `75d2316005`:
+  version-keyed cargo-binstall roots (`--root <toolchain root>/cargo/<crate>/<version>`),
+  newest-only `current` links for `monochromatic-` crates,
+  older-lock warnings on `sync`,
+  `status`,
+  `lock`,
+  `update`,
+  `bin-paths`,
+  and on every run through per-tree launchers (`.cache/toolchain-launchers/`,
+  about +0.57 ms per call),
+  and `mpm-shadow prune --toolchain`;
+  289 tests on `main`.
+  Its open questions:
+  trees git does not list are protected from `prune --toolchain` only by `--lock`
+  (a per-sync consumer registry was not asked for);
+  archive and `cargo-git` version directories also accumulate;
+  no OS lock around the `current` swap.
+- OpenSnitch,
+  2026-10-31:
+  the user's OpenSnitch auto-rejects unanswered prompts and saves `reject-always-simple-<path>` rules,
+  which is how agent worktree builds and old toolchain paths got blocked.
+  At the user's request the rustup rule is now `allow-always-simple-var-home-user-cargo-bin-rustup.json`
+  (its action was already `allow`; only the name said reject).
+- Running:
+  a `package/wg` agent adds OpenSnitch allow rules for toolchain update paths and routes update traffic outside the tunnel
+  ("We control the package/wg/* category. Make our wg auto make update traffics go through clearnet.");
+  it stops before any live change and hands the apply commands to this session.
+- Running:
+  an mpm-shadow agent for the next item and for the registry prune that still reads `$CARGO_HOME/.crates.toml`.
+- Formerly queued,
+  now running:
   `mpm-shadow update <tool>...` and resolving a lock-less plan entry alone,
   without moving other rows
   (decision record,
