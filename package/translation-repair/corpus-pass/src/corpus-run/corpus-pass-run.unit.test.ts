@@ -19,6 +19,7 @@
 import {
   mkdir,
   readdir,
+  readFile,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -807,6 +808,90 @@ await describe({
         ],);
         expect(watched.settled,).toEqual([],);
         expect(watched.clients.length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'KEEPS ITS LINES AS RECORDS in the run folder, the START line and the plan among them, beside the '
+        + 'console, and never lets a sweep take the run\'s older records',
+      fn: async (ctx) => {
+        using printed = relayingConsoleLog({ sinon: ctx.sinon, },);
+        await using clone = await makeCorpusPassClone({ entries: [{
+          id: 'tabby',
+          sourceText: '猫睡觉。\n',
+          targetText: 'The cat naps.\n',
+        },], },);
+        await using runs = await scratchDir({ prefix: 'corpus-pass-run-', },);
+        await using built = await builtPipeline();
+        /**
+         An older day of the same run's records, far outside any retention window.
+         */
+        const oldDay = join(
+          runs.path,
+          'log',
+          '2026-01-01',
+        );
+        await mkdir(
+          oldDay,
+          { recursive: true, },
+        );
+        await writeFile(
+          join(
+            oldDay,
+            '2026-01-01T00-00-00.000Z.00000000-0000-4000-8000-0000000000aa.log.jsonl',
+          ),
+          '{"level":"info","message":"START tip=an-earlier-process","timestamp":1767225600000}\n',
+        );
+
+        await runPass({
+          typed: ['--plan',],
+          clone,
+          runsDir: runs.path,
+          pipelineDir: built.dir,
+          watched: nothingWatched(),
+          overrides: {},
+        },);
+
+        /**
+         Names of everything under the run's log directory.
+         */
+        const names = await readdir(
+          join(
+            runs.path,
+            'log',
+          ),
+          { recursive: true, },
+        );
+        /**
+         Record files this process wrote, which are every one but the older day's.
+         */
+        const written = names.filter(function isThisProcess(name,): boolean {
+          return name.endsWith('.log.jsonl',) && (!name.startsWith('2026-01-01',));
+        },);
+        expect(written.length,).toBe(1,);
+        /**
+         Messages of the records, in order.
+         */
+        const messages = (await readFile(
+          join(
+            runs.path,
+            'log',
+            written[0] ?? 'no record file',
+          ),
+          'utf8',
+        )).split('\n',)
+          .filter(function present(line,): boolean {
+            return line !== '';
+          },)
+          .map(function messageOf(line,): string {
+            return (JSON.parse(line,) as { readonly message: string; }).message;
+          },);
+
+        // THE PASS'S OWN LINES ARE THE RECORDS WITHOUT A TAG: the console printed them, and the run folder holds them.
+        expect(messages.filter(function isOwnLine(message,): boolean {
+          return !message.startsWith('[',);
+        },),).toEqual(printed.lines,);
+        expect(names,).toContain('2026-01-01',);
+        expect(names,).not.toContain('.logger-retention-sweep',);
       },
     },),
     it({
