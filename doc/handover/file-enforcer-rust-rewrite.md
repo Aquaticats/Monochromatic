@@ -147,8 +147,11 @@ Cutover reminders from finished agents:
   and `cli-git.config.jsonc` `rulesFile` is the matching array),
   with wrapper 0.4.4 installed as the production git.
   The cutover commit drops the rules-file generator (the eager compile-rules step) and the seeded local appendix step,
-  and the Rust config must render that new `mise.toml` value,
-  since `file-enforcer.config.jsonc` was written before `ad9fe75d05`.
+  and the root `mise.toml` stops being generated at cutover
+  (decision record,
+  "Consequences":
+  "the root `mise.toml` is no longer generated"),
+  so it simply keeps the `ad9fe75d05` value as a committed file.
 - mpm-shadow at cutover
   (from `package/mpm-shadow/cli/README.md`):
   the converter writes each tool's `request` as `<origin>@<range>`,
