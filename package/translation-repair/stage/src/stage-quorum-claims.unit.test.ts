@@ -21,7 +21,9 @@ import {
   alternateModelsFor,
   type ChatJsonOutcome,
   type ChatJsonRequest,
+  createReaskClaims,
   type ModelClient,
+  type ReaskClaims,
   type ReaskSeat,
 } from '@monochromatic-dev/translation-repair-provider';
 import { gatherStageVoices, } from '../dist/final/node/index.mjs';
@@ -81,6 +83,9 @@ type SeenAsk = {
 
  @param bench - models seated on the question, in roster order
 
+ @param reaskClaims - record of the question that a caller sharing it with a later step hands the gather; absent for a
+ gather that is the whole question
+
  @returns Gather, the asks the client saw and the lines logged
 
  @example
@@ -89,7 +94,13 @@ type SeenAsk = {
  ```
  */
 async function gatherWithRunaways(
-  { bench, }: { readonly bench: readonly RosterModelId[]; },
+  {
+    bench,
+    reaskClaims,
+  }: {
+    readonly bench: readonly RosterModelId[];
+    readonly reaskClaims?: ReaskClaims;
+  },
 ) {
   /**
    Asks the client saw.
@@ -166,6 +177,7 @@ async function gatherWithRunaways(
       graceMs: HANG_STOP_MS,
       fanOut: 'whole-bench',
       role: 'roster',
+      ...((reaskClaims === undefined) ? {} : { reaskClaims, }),
     },),
   };
 }
@@ -188,6 +200,19 @@ await describe({
           expect(ask.reaskSeat?.bench,).toEqual(BENCH,);
           expect(ask.reaskSeat?.claims === first?.reaskSeat?.claims,).toBe(true,);
         }
+      },
+    },),
+
+    it({
+      name: 'CARRIES THE RECORD A CALLER HANDS IT on every ask and takes the models of its re-asks from that record, so '
+        + 'a later step of the same question (the repair of an invalid candidate) shares the models already taken',
+      fn: async () => {
+        const claims = createReaskClaims();
+        const { seen, } = await gatherWithRunaways({ bench: BENCH, reaskClaims: claims, },);
+        for (const ask of seen.slice(0, BENCH.length,)) {
+          expect(ask.reaskSeat?.claims === claims,).toBe(true,);
+        }
+        expect(claims.list().length > 0,).toBe(true,);
       },
     },),
 
