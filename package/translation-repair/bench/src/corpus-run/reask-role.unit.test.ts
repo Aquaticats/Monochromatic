@@ -29,6 +29,24 @@ await describe({
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster',],);
       },
     },),
+
+    it({
+      name: 'NAMES THE ROSTER ROLE where the window trial judges its slate, since it seats the whole roster',
+      fn: async () => {
+        const source = await readFile(new URL('window-trial-slice.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeTranslateSlate', },),).toEqual(['roster',],);
+      },
+    },),
+
+    it({
+      name: 'NAMES NO BENCH WHERE A READER IS MEASURED, so a cut reading is asked of the candidate itself and a rival\'s '
+        + 'reading is never scored as its own',
+      fn: async () => {
+        const source = await readFile(new URL('reader-measure-run.ts', import.meta.url,), 'utf8',);
+        expect(rolesNamedAtCalls({ source, callee: 'readPastRefusal', key: 'benchModelIds', },),).toEqual(['none',],);
+        expect(rolesNamedAtCalls({ source, callee: 'readPastRefusal', key: 'claims', },),).toEqual(['none',],);
+      },
+    },),
   ],
 },);
 
