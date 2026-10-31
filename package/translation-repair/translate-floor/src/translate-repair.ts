@@ -25,10 +25,7 @@ import {
   type DeclaredNamePair,
 } from '@monochromatic-dev/translation-repair-house-rule/ts';
 import type { HeardVoice, } from '@monochromatic-dev/translation-repair-stage/ts';
-import {
-  askAboutFindings,
-  REPAIR_STAGE,
-} from './translate-repair-ask.ts';
+import { askAboutFindings, } from './translate-repair-ask.ts';
 import { requireComparedVerdict, } from './translate-floor-ground.ts';
 import { validateTranslatedSlice, } from './translate-validate.ts';
 import type { TranslateReportWire, } from './translate-wire.ts';

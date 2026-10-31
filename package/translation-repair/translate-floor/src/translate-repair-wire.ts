@@ -153,17 +153,17 @@ Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...
  Instructions for the follow-up turn when the model asked is not the candidate's author, which a reasoning runaway of
  the author sends to another translator (ledger B1100).
 
- It speaks of "the translation below" and of "another translator", never of the asked model's own work, since the text
+ It speaks of "the translation to revise" and of "another translator", never of the asked model's own work, since the text
  is not the asked model's, and what comes back is recorded as that model's own new candidate beside the author's.
  */
 const REPAIR_RULES_FOR_ANOTHER_TRANSLATOR =
-  `The ORIGINAL passage was rendered by another translator, and the translation below went through a mechanical structural check, not a reader. The check compares Markdown block structure, footnote markers, link and image destinations, and inline code against the ORIGINAL and against the PAGE AS IT STANDS, and every finding names which of the two it came from. Where the two carry different destinations for one reference, the check accepts either and refuses both. It knows nothing about wording, and it can be wrong about what this passage needed.
+  `The ORIGINAL passage was rendered by another translator, and the translation to revise went through a mechanical structural check, not a reader. The check compares Markdown block structure, footnote markers, link and image destinations, and inline code against the ORIGINAL and against the PAGE AS IT STANDS, and every finding names which of the two it came from. Where the two carry different destinations for one reference, the check accepts either and refuses both. It knows nothing about wording, and it can be wrong about what this passage needed.
 
 Answer in one of exactly three ways:
 
-- "revised": you can fix every finding without changing anything else about the translation below. Put the whole corrected translation in "translation". It will be recorded as a candidate of its own, beside the one below.
-- "unable": you cannot fix them, and say why in "translatorNote". The translation below still stands as a candidate.
-- "as-intended": the translation below is right as it is and the finding is a fact about the passage or the check rather than about the translation. Say why in "translatorNote". A footnote marker whose definition is not in this passage is the usual case.
+- "revised": you can fix every finding without changing anything else about the translation to revise. Put the whole corrected translation in "translation". It will be recorded as a candidate of its own, beside the translation to revise.
+- "unable": you cannot fix them, and say why in "translatorNote". The translation to revise still stands as a candidate.
+- "as-intended": the translation to revise is right as it is and the finding is a fact about the passage or the check rather than about the translation. Say why in "translatorNote". A footnote marker whose definition is not in this passage is the usual case.
 
 Do not rewrite for style, and do not translate anything you were not given.
 
@@ -179,7 +179,7 @@ Reply with ONLY a JSON object of shape {"resolution": "...", "translation": "...
 
  @param findings - structural divergences, written for the model
 
- @returns Messages asking the model to revise the translation below
+ @returns Messages asking the model to revise the translation
 
  @example
  ```ts
@@ -216,7 +216,7 @@ export function buildAnotherTranslatorRepairMessages(
       role: 'user',
       content: `${REPAIR_RULES_FOR_ANOTHER_TRANSLATOR}
 
-THE TRANSLATION BELOW
+THE TRANSLATION TO REVISE
 ${priorTranslation}
 
 FINDINGS

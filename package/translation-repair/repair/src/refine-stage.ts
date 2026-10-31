@@ -459,7 +459,7 @@ export async function runRefineStage(
     perCallTimeoutMs,
     l,
     stageSettings,
-    // LAST, so the context spread above cannot replace the role of the bench the caller seats (ledger B1100).
+    // LAST, so the context spread cannot replace the role of the bench the caller seats (ledger B1100).
     role: judgeRole,
   },);
   /**

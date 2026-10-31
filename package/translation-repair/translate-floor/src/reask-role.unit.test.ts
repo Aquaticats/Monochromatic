@@ -35,7 +35,7 @@ import { HANG_STOP_MS, } from '@monochromatic-dev/translation-repair-test-fixtur
 //region Translate floor role tests
 
 /**
- A passage whose heading a merged translation loses, so every candidate below fails validation and is asked about.
+ A passage whose heading a merged translation loses, so every candidate here fails validation and is asked about.
  */
 const SOURCE_TEXT = '## 猫猫的一天\n\n它在窗台上打盹。';
 
