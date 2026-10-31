@@ -339,7 +339,9 @@ pub fn run_application_watch(watch: &mut ApplicationWatch<'_>) -> io::Result<()>
         if cgroup_event || last_reconcile.elapsed().as_millis() >= RESCAN_INTERVAL_MS as u128 {
             last_reconcile = std::time::Instant::now();
             if let Err(error) = reconcile(watch) {
-                eprintln!("application exemption rescan failed: {error}");
+                eprintln!(
+                    "wg-quicker-exempt: POLICY NOT IN FORCE: socket marking of application and update cgroups: the rescan failed: {error}"
+                );
             }
         }
         handle_process_events(watch);
