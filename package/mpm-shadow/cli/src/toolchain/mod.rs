@@ -250,6 +250,10 @@ mod update_resolve_tests;
 #[cfg(test)]
 mod update_tests;
 
+/// The unit tests of `update <tool>...`.
+#[cfg(test)]
+mod update_named_tests;
+
 /// The unit tests of the request text.
 #[cfg(test)]
 mod request_tests;
