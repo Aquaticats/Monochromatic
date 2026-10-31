@@ -48,6 +48,8 @@ use super::scope::{EnvMap, Scope, resolve_scope};
 use super::status_cmd::run_status;
 /// Imports what this module uses from `super::sync`.
 use super::sync::{format_sync_report, run_sync};
+/// Imports `relaunch_into_updates_slice` from `super::updates_slice`.
+use super::updates_slice::relaunch_into_updates_slice;
 /// Imports what this module uses from `super::verify_archive`.
 use super::verify_archive::run_verify_archive;
 
@@ -183,6 +185,10 @@ fn start_directory() -> PathBuf {
 /// ```
 pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
     let env: EnvMap = EnvMap::from_process();
+    // `sync` and `update` fetch from the network, so they run inside the clearnet updates slice when one can be used.
+    if matches!(name, "sync" | "update") && let Some(exit_code) = relaunch_into_updates_slice(&env) {
+        return Some(exit_code);
+    }
     let global: bool = matches.get_flag("global");
     let scope: Scope = match resolve_scope(global, &start_directory(), &env) {
         Ok(found) => found,
