@@ -255,13 +255,16 @@ pub fn sync(input: &SyncInput) -> Result<SyncOutput, Error> {
     }
     let prune: bool = document.settings.catalog_prune;
     let prunes: Vec<Vec<String>> = if prune { unused.clone() } else { Vec::new() };
-    let mut catalog_document: DocumentMut = input
-        .catalog_source
-        .parse::<DocumentMut>()
-        .map_err(|error: toml_edit::TomlError| return Error::Toml {
-            path: input.catalog_path.to_string(),
-            message: error.to_string(),
-        })?;
+    let parsed_catalog: Result<DocumentMut, toml_edit::TomlError> = input.catalog_source.parse::<DocumentMut>();
+    let mut catalog_document: DocumentMut = match parsed_catalog {
+        Ok(value) => value,
+        Err(error) => {
+            return Err(Error::Toml {
+                path: input.catalog_path.to_string(),
+                message: error.to_string(),
+            });
+        }
+    };
     edit_catalog(&mut catalog_document, input.catalog_source, &plan, &prunes);
     let mut catalog_changes: Vec<Change> = Vec::new();
     for (name, _) in &plan.additions {

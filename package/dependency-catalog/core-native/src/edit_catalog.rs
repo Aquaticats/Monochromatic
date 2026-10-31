@@ -107,6 +107,16 @@ fn ensure_catalog_table(document: &mut DocumentMut, source_is_empty: bool) {
     document.as_table_mut().insert("catalog", Item::Table(table));
 }
 
+/// Keys of a table in source order,
+/// copied so the table can be changed while they are walked.
+pub fn table_key_names(table: &Table) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for (name, _) in table.iter() {
+        names.push(name.to_string());
+    }
+    return names;
+}
+
 /// What:
 /// `fn insert_sorted(table: &mut Table, name: &str, value: Value)` inserts a new entry before the first
 /// existing entry whose name sorts after it (byte order),
@@ -123,7 +133,7 @@ fn ensure_catalog_table(document: &mut DocumentMut, source_is_empty: bool) {
 /// const following = existing.find((pair) => pair.name > name); // insert before its leading comments, else after the last
 /// ```
 fn insert_sorted(table: &mut Table, name: &str, value: Value) {
-    let names: Vec<String> = table.iter().map(|pair| return pair.0.to_string()).collect();
+    let names: Vec<String> = table_key_names(table);
     let mut entries: Vec<(Key, Item)> = Vec::new();
     for existing in &names {
         if let Some(pair) = table.remove_entry(existing) {
@@ -181,9 +191,17 @@ pub fn edit_catalog(document: &mut DocumentMut, source: &str, plan: &AdoptionPla
 /// Additions in name order,
 /// the order TypeScript merged them at a shared insertion point.
 fn sorted_additions(additions: &[(String, Entry)]) -> Vec<(&str, &Entry)> {
-    let mut sorted: Vec<(&str, &Entry)> = additions.iter().map(|pair| return (pair.0.as_str(), &pair.1)).collect();
-    sorted.sort_by(|left: &(&str, &Entry), right: &(&str, &Entry)| return left.0.cmp(right.0));
+    let mut sorted: Vec<(&str, &Entry)> = Vec::new();
+    for (name, entry) in additions {
+        sorted.push((name.as_str(), entry));
+    }
+    sorted.sort_by(compare_addition_names);
     return sorted;
+}
+
+/// Orders two additions by dependency name in byte order.
+fn compare_addition_names(left: &(&str, &Entry), right: &(&str, &Entry)) -> std::cmp::Ordering {
+    return left.0.cmp(right.0);
 }
 
 /// Removes the entry at `path` (every segment but the last names a table).

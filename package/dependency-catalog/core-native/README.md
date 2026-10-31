@@ -55,7 +55,7 @@ then writes (write mode) or diffs (check mode) what comes back.
   and warns about them otherwise.
 
 ```rust
-// Write mode and check mode in the file-enforcer engine.
+//! Write mode and check mode in the file-enforcer engine.
 let input = SyncInput { catalog_path: "rust-catalog.toml", catalog_source: &catalog, manifests: &manifests };
 let output = sync(&input)?;
 for file in output.drift() {

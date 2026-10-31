@@ -95,6 +95,9 @@ impl CrateInfo {
     }
 }
 
+/// Key path of the named-catalog selections inside a manifest.
+const SELECTION_PATH: [&str; 4] = ["package", "metadata", "rust-catalog", "catalogs"];
+
 /// Directory part of a forward-slash path (`a/b/Cargo.toml` gives `a/b`;
 /// a bare file name gives `.`).
 pub fn posix_dirname(path: &str) -> String {
@@ -105,10 +108,23 @@ pub fn posix_dirname(path: &str) -> String {
     };
 }
 
+/// Reads one string field of the `[package]` table;
+/// empty when the table or the field is missing or not a string.
+fn package_text(package: Option<&dyn TableLike>, key: &str) -> String {
+    let found: Option<&str> = match package {
+        Some(table) => table.get(key).and_then(Item::as_str),
+        None => None,
+    };
+    return found.unwrap_or("").to_string();
+}
+
 /// Reads `[package.metadata.rust-catalog.catalogs]`,
 /// the crate's named-catalog selections.
 fn read_selections(manifest_path: &str, root: &dyn TableLike, issues: &mut Vec<SyncIssue>) -> Vec<(String, String)> {
-    let path: Vec<String> = ["package", "metadata", "rust-catalog", "catalogs"].iter().map(|part: &&str| return (*part).to_string()).collect();
+    let mut path: Vec<String> = Vec::new();
+    for part in SELECTION_PATH {
+        path.push(part.to_string());
+    }
     let mut selections: Vec<(String, String)> = Vec::new();
     let Some(table) = table_at(root, &path) else {
         return selections;
@@ -168,13 +184,6 @@ pub fn read_crate_info(manifest: &ManifestFile, issues: &mut Vec<SyncIssue>) -> 
     };
     let root: &dyn TableLike = document.as_table();
     let package: Option<&dyn TableLike> = root.get("package").and_then(Item::as_table_like);
-    let text_field = |key: &str| -> String {
-        let found: Option<&str> = match package {
-            Some(table) => table.get(key).and_then(Item::as_str),
-            None => None,
-        };
-        return found.unwrap_or("").to_string();
-    };
     if workspace_dependencies_is_hand_written(root) {
         issues.push(SyncIssue {
             file: manifest.path.clone(),
@@ -195,8 +204,8 @@ pub fn read_crate_info(manifest: &ManifestFile, issues: &mut Vec<SyncIssue>) -> 
         }
     }
     let selections: Vec<(String, String)> = read_selections(&manifest.path, root, issues);
-    let package_name: String = text_field("name");
-    let package_version: String = text_field("version");
+    let package_name: String = package_text(package, "name");
+    let package_version: String = package_text(package, "version");
     return Ok(CrateInfo {
         manifest: manifest.clone(),
         crate_dir: posix_dirname(&manifest.path),

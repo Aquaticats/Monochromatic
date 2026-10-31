@@ -22,7 +22,7 @@
 use toml_edit::{DocumentMut, InlineTable, Item, Key, RawString, Table, TableLike, Value};
 
 /// Imports `crate::edit_catalog::{end_position, replace_string}`.
-use crate::edit_catalog::{end_position, replace_string};
+use crate::edit_catalog::{end_position, replace_string, table_key_names};
 /// Imports `crate::quote::quote`.
 use crate::quote::quote;
 /// Imports `crate::render::{GENERATED_TABLE_COMMENT, parse_value, render_generated_value}`.
@@ -96,7 +96,7 @@ fn inherit_inline(table: &toml_edit::InlineTable) -> Value {
 /// later
 /// moved keys are dropped.
 fn inherit_table(table: &mut Table) {
-    let names: Vec<String> = table.iter().map(|pair| return pair.0.to_string()).collect();
+    let names: Vec<String> = table_key_names(table);
     let mut rebuilt: Vec<(Key, Item)> = Vec::new();
     let mut replaced: bool = false;
     for name in &names {
@@ -212,7 +212,10 @@ pub fn set_path_version(item: &mut Item, version: &str) -> bool {
 /// source.slice(0, last.range.end) + ', version = "=0.1.1"' + source.slice(last.range.end)
 /// ```
 fn append_inline_version(inline: &mut InlineTable, wanted_text: &str) {
-    let last_name: Option<String> = inline.iter().last().map(|pair| return pair.0.to_string());
+    let mut last_name: Option<String> = None;
+    for (name, _) in inline.iter() {
+        last_name = Some(name.to_string());
+    }
     let mut last_suffix: Option<RawString> = None;
     if let Some(name) = last_name
         && let Some(last) = inline.get_mut(&name)
@@ -231,10 +234,15 @@ fn append_inline_version(inline: &mut InlineTable, wanted_text: &str) {
     inline.insert_formatted(&key, value);
 }
 
+/// Orders two generated entries by dependency name in byte order.
+fn compare_generated_names(left: &&(String, GeneratedEntry), right: &&(String, GeneratedEntry)) -> std::cmp::Ordering {
+    return left.0.cmp(&right.0);
+}
+
 /// Builds the table of generated entries in name order.
 fn generated_table(entries: &[(String, GeneratedEntry)]) -> Table {
     let mut sorted: Vec<&(String, GeneratedEntry)> = entries.iter().collect();
-    sorted.sort_by(|left: &&(String, GeneratedEntry), right: &&(String, GeneratedEntry)| return left.0.cmp(&right.0));
+    sorted.sort_by(compare_generated_names);
     let mut table: Table = Table::new();
     for (name, generated) in sorted {
         table.insert(name, Item::Value(parse_value(&render_generated_value(generated))));
@@ -253,6 +261,16 @@ fn body_text(table: &Table) -> String {
     let mut document: DocumentMut = DocumentMut::new();
     document.insert("workspace", Item::Table(workspace));
     return document.to_string();
+}
+
+/// A copy of the standard `[workspace.dependencies]` table,
+/// or `None` when it is absent or not a standard table.
+fn existing_generated_table(root: &Table) -> Option<Table> {
+    let workspace: &dyn TableLike = root.get("workspace")?.as_table_like()?;
+    if let Some(Item::Table(table)) = workspace.get("dependencies") {
+        return Some(table.clone());
+    }
+    return None;
 }
 
 /// What the generated-table step did to the manifest.
@@ -285,11 +303,11 @@ pub fn sync_generated_table(document: &mut DocumentMut, entries: &[(String, Gene
     let wanted: Table = generated_table(entries);
     let end: isize = end_position(document);
     let root: &mut Table = document.as_table_mut();
-    let existing: Option<Table> = match root.get("workspace").and_then(Item::as_table_like).and_then(|workspace| return workspace.get("dependencies")) {
-        Some(Item::Table(table)) => Some(table.clone()),
-        _ => None,
+    let existing: Option<Table> = existing_generated_table(root);
+    let workspace_is_table: bool = match root.get("workspace") {
+        None => true,
+        Some(item) => item.as_table().is_some(),
     };
-    let workspace_is_table: bool = root.get("workspace").is_none_or(|item: &Item| return item.as_table().is_some());
     if !workspace_is_table {
         return TableChange::Unchanged;
     }
