@@ -16,6 +16,9 @@ import {
 
 import {
   holdsKeepingOutOf,
+  MEASURED_CHECKER_ORDER,
+  MODEL_CARDS,
+  rolePoolOf,
   ROSTER_MODEL_IDS,
   SEAT_ROLE_HOLDS,
   SEAT_ROLES,
@@ -27,7 +30,7 @@ await describe({
   name: holdsKeepingOutOf.name,
   children: [
     it({
-      name: 'NAMES SEVEN ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
+      name: 'NAMES NINE ROLES, each with the holds it honours, and the roster-wide role honours the two that empty a '
         + 'bench for every role but the checker and the reader',
       fn: async () => {
         expect([...SEAT_ROLES,],).toEqual([
@@ -38,6 +41,8 @@ await describe({
           'late-judge',
           'reader',
           'checker',
+          'editor',
+          'refiner',
         ],);
         expect(SEAT_ROLE_HOLDS.roster,).toEqual(['owner-culled', 'judge-unmeasured',],);
         expect(SEAT_ROLE_HOLDS.checker,).toEqual(['owner-culled',],);
@@ -119,6 +124,53 @@ await describe({
               expect(SEAT_ROLE_HOLDS[role].includes(hold,),).toBe(true,);
             }
           }
+        }
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: rolePoolOf.name,
+  children: [
+    it({
+      name: 'THE CHECKER POOL IS THE MEASURED CHECKER ORDER and no model outside it: the two Gemma sizes the benchmark '
+        + 'measured out of the role, and every roster model it never measured, are not in it',
+      fn: async () => {
+        expect(rolePoolOf({ role: 'checker', },),).toEqual([...MEASURED_CHECKER_ORDER,],);
+        for (const modelId of ['gemma-4-26b-a4b-it', 'google.gemma-4-e2b', 'minimax-m3', 'deepseek-v4.1-flash',] as const) {
+          expect(rolePoolOf({ role: 'checker', },).includes(modelId,),).toBe(false,);
+        }
+      },
+    },),
+
+    it({
+      name: 'THE EDITOR AND THE REFINER POOLS ARE THE WRITERS the editor calibration seats in those chairs: the roster '
+        + 'less the models no producer calibration measured, in roster order',
+      fn: async () => {
+        expect(rolePoolOf({ role: 'editor', },),).toEqual(rolePoolOf({ role: 'writer', },),);
+        expect(rolePoolOf({ role: 'refiner', },),).toEqual(rolePoolOf({ role: 'writer', },),);
+        expect(rolePoolOf({ role: 'editor', },).includes('hf:openai/gpt-oss-120b',),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'A POOL HOLDS EXACTLY THE MODELS NO HOLD OF ITS ROLE KEEPS OUT for every role the cards decide, and the '
+        + 'order of the roster',
+      fn: async () => {
+        for (const role of ['roster', 'translator', 'writer', 'wide-judge', 'late-judge', 'reader', 'editor', 'refiner',] as const) {
+          expect(rolePoolOf({ role, },),).toEqual(
+            ROSTER_MODEL_IDS.filter((modelId,) => holdsKeepingOutOf({ modelId, role, },).length === 0),
+          );
+        }
+      },
+    },),
+
+    it({
+      name: 'THE CHECKER ORDER NAMES ONLY ROSTER MODELS, each with a card',
+      fn: async () => {
+        for (const modelId of MEASURED_CHECKER_ORDER) {
+          expect(MODEL_CARDS[modelId],).toBeDefined();
         }
       },
     },),
