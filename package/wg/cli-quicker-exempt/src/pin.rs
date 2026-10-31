@@ -63,11 +63,14 @@ pub fn acquire_lifecycle_lock() -> io::Result<LifecycleLock> {
     return Ok(LifecycleLock { _file: file });
 }
 
+/// Reports the filesystem path error for an embedded NUL byte.
+fn filesystem_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidInput, "filesystem path contains NUL");
+}
+
 /// Calls `statfs` for a NUL-free filesystem path.
 fn filesystem_type(path: &str) -> io::Result<libc::c_long> {
-    let c_path = std::ffi::CString::new(path).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "filesystem path contains NUL");
-    })?;
+    let c_path = std::ffi::CString::new(path).map_err(filesystem_path_contains_nul)?;
     // SAFETY: zeroed `statfs` is output-only storage initialized by successful syscall.
     let mut info: libc::statfs = unsafe { std::mem::zeroed() };
     // SAFETY: pointers reference a NUL-terminated path and writable output structure.
@@ -108,17 +111,11 @@ fn encoded_pin_key(canonical: &Path) -> io::Result<PathBuf> {
             "cgroup path must be absolute",
         ));
     }
-    let encoded: String = canonical
-        .as_os_str()
-        .as_bytes()
-        .iter()
-        .flat_map(|byte| {
-            return [
-                HEX_DIGITS[(byte >> 4) as usize] as char,
-                HEX_DIGITS[(byte & 0x0f) as usize] as char,
-            ];
-        })
-        .collect();
+    let mut encoded = String::new();
+    for byte in canonical.as_os_str().as_bytes() {
+        encoded.push(HEX_DIGITS[(byte >> 4) as usize] as char);
+        encoded.push(HEX_DIGITS[(byte & 0x0f) as usize] as char);
+    }
     let mut key = PathBuf::new();
     for chunk in encoded.as_bytes().chunks(PIN_KEY_CHUNK_BYTES * 2) {
         let component = std::str::from_utf8(chunk).map_err(io::Error::other)?;
@@ -221,14 +218,20 @@ fn cleanup_stale_staging() -> io::Result<()> {
     return Ok(());
 }
 
+/// Reports the first exchange path error for an embedded NUL byte.
+fn first_exchange_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidInput, "first exchange path contains NUL");
+}
+
+/// Reports the second exchange path error for an embedded NUL byte.
+fn second_exchange_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidInput, "second exchange path contains NUL");
+}
+
 /// Invokes Linux `renameat2(RENAME_EXCHANGE)` for two existing bpffs siblings.
 fn rename_exchange(first: &Path, second: &Path) -> io::Result<()> {
-    let first_c = std::ffi::CString::new(first.as_os_str().as_encoded_bytes()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "first exchange path contains NUL");
-    })?;
-    let second_c = std::ffi::CString::new(second.as_os_str().as_encoded_bytes()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "second exchange path contains NUL");
-    })?;
+    let first_c = std::ffi::CString::new(first.as_os_str().as_encoded_bytes()).map_err(first_exchange_path_contains_nul)?;
+    let second_c = std::ffi::CString::new(second.as_os_str().as_encoded_bytes()).map_err(second_exchange_path_contains_nul)?;
     // SAFETY: both paths are NUL-terminated and `AT_FDCWD` resolves absolute names directly.
     let result = unsafe {
         libc::syscall(
@@ -282,9 +285,9 @@ pub fn commit_staging_for_test(staging_dir: &Path, final_dir: &Path) -> io::Resu
 pub fn attach_cgroup(mark: u32, cgroup_dir: &Path) -> io::Result<usize> {
     ensure_pin_root()?;
     let final_dir = pin_dir_for(cgroup_dir)?;
-    let parent = final_dir.parent().ok_or_else(|| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "pin path lacks parent");
-    })?;
+    let Some(parent) = final_dir.parent() else {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "pin path lacks parent"));
+    };
     std::fs::create_dir_all(parent)?;
     cleanup_stale_staging()?;
     let staging_dir = staging_dir_for();
@@ -301,9 +304,9 @@ pub fn attach_cgroup(mark: u32, cgroup_dir: &Path) -> io::Result<usize> {
     }
     std::fs::create_dir(&staging_dir)?;
     let cgroup = std::fs::File::open(cgroup_dir)?;
-    let staging_text = staging_dir.to_str().ok_or_else(|| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "staging path is not UTF-8");
-    })?;
+    let Some(staging_text) = staging_dir.to_str() else {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "staging path is not UTF-8"));
+    };
     #[cfg(debug_assertions)]
     if std::env::var_os(FORCE_PIN_INVALID_ENV).is_some() {
         let source = io::Error::from_raw_os_error(libc::EINVAL);

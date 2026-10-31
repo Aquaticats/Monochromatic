@@ -52,9 +52,12 @@ use std::process::ExitCode;
 
 /// Parses positive nonzero socket mark accepted by policy-routing contract.
 fn parse_mark(value: &str) -> io::Result<u32> {
-    let mark: u32 = value.parse().map_err(|error| {
-        return io::Error::new(io::ErrorKind::InvalidInput, format!("invalid mark {value}: {error}"));
-    })?;
+    let mark: u32 = match value.parse() {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid mark {value}: {error}")));
+        }
+    };
     if mark == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -66,9 +69,10 @@ fn parse_mark(value: &str) -> io::Result<u32> {
 
 /// Parses numeric user ID selecting app slice to watch.
 fn parse_uid(value: &str) -> io::Result<u32> {
-    return value.parse().map_err(|error| {
-        return io::Error::new(io::ErrorKind::InvalidInput, format!("invalid UID {value}: {error}"));
-    });
+    return match value.parse() {
+        Ok(uid) => Ok(uid),
+        Err(error) => Err(io::Error::new(io::ErrorKind::InvalidInput, format!("invalid UID {value}: {error}"))),
+    };
 }
 
 /// Attaches marker transaction to every listed cgroup while global lock is held.
@@ -101,12 +105,12 @@ fn detach_many(dirs: &[String]) -> io::Result<()> {
     let _lock = pin::acquire_lifecycle_lock()?;
     for dir in dirs {
         let cgroup = Path::new(dir);
-        keeper::detach_keeper(cgroup).map_err(|error| {
-            return io::Error::new(error.kind(), format!("detach fallback {dir}: {error}"));
-        })?;
-        pin::detach_cgroup(cgroup).map_err(|error| {
-            return io::Error::new(error.kind(), format!("detach pins {dir}: {error}"));
-        })?;
+        if let Err(error) = keeper::detach_keeper(cgroup) {
+            return Err(io::Error::new(error.kind(), format!("detach fallback {dir}: {error}")));
+        }
+        if let Err(error) = pin::detach_cgroup(cgroup) {
+            return Err(io::Error::new(error.kind(), format!("detach pins {dir}: {error}")));
+        }
         println!("detached {dir}");
     }
     return Ok(());
@@ -213,9 +217,10 @@ fn main() -> ExitCode {
             Ok(value) => value,
             Err(error) => return finish(Err(error)),
         };
-        let result = pin::acquire_lifecycle_lock().and_then(|_lock| {
-            return application_watch_service::start_application_watch(&args[1], mark, uid);
-        });
+        let result = match pin::acquire_lifecycle_lock() {
+            Ok(_lock) => application_watch_service::start_application_watch(&args[1], mark, uid),
+            Err(error) => Err(error),
+        };
         return finish(result);
     }
     if command == "watch-stop" {
@@ -223,9 +228,10 @@ fn main() -> ExitCode {
             usage();
             return ExitCode::from(2);
         }
-        let result = pin::acquire_lifecycle_lock().and_then(|_lock| {
-            return application_watch_service::stop_application_watch(&args[1]);
-        });
+        let result = match pin::acquire_lifecycle_lock() {
+            Ok(_lock) => application_watch_service::stop_application_watch(&args[1]),
+            Err(error) => Err(error),
+        };
         return finish(result);
     }
     if command == "attach" {
@@ -253,6 +259,7 @@ fn main() -> ExitCode {
     return ExitCode::from(2);
 }
 
-/// Registers the unit-test scratch root, placed in the build directory instead of `/tmp`.
+/// Registers the unit-test scratch root,
+///  placed in the build directory instead of `/tmp`.
 #[cfg(test)]
 mod test_scratch;

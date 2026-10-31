@@ -125,7 +125,12 @@ pub fn is_toolchain_updates_slice_name(name: &str) -> bool {
 
 /// Reports numeric procfs directory name without regular expression parsing.
 fn is_process_id(name: &str) -> bool {
-    return !name.is_empty() && name.bytes().all(|byte| return byte.is_ascii_digit());
+    return !name.is_empty() && name.bytes().all(is_ascii_digit_byte);
+}
+
+/// Reports one ASCII decimal digit byte.
+fn is_ascii_digit_byte(byte: u8) -> bool {
+    return byte.is_ascii_digit();
 }
 
 /// What:

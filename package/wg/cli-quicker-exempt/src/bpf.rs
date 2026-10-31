@@ -213,12 +213,20 @@ fn load_prog(map_fd: &OwnedFd, attach_type: u32) -> io::Result<OwnedFd> {
         expected_attach_type: attach_type,
     };
     // SAFETY: prog_load arm initialized; prog/license/logbuf outlive the call.
-    let fd = unsafe { bpf(BPF_PROG_LOAD, &mut attr) }.map_err(|e| {
-        let log = String::from_utf8_lossy(&logbuf);
-        return io::Error::new(e.kind(), format!("{e}; verifier log: {log}"));
-    })?;
+    let fd = match unsafe { bpf(BPF_PROG_LOAD, &mut attr) } {
+        Ok(fd) => fd,
+        Err(error) => {
+            let log = String::from_utf8_lossy(&logbuf);
+            return Err(io::Error::new(error.kind(), format!("{error}; verifier log: {log}")));
+        }
+    };
     // SAFETY: successful BPF_PROG_LOAD returns a new descriptor owned by this process.
     return Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) });
+}
+
+/// Reports the link pin path error for an embedded NUL byte.
+fn pin_path_contains_nul(_error: std::ffi::NulError) -> io::Error {
+    return io::Error::new(io::ErrorKind::InvalidInput, "pin path contains NUL");
 }
 
 /// Pins a bpf object fd to a path in the bpf filesystem so it survives process exit.
@@ -311,9 +319,7 @@ fn attach_one(
 ) -> io::Result<String> {
     let link_fd = create_link(map_fd, cgroup_fd, hook)?;
     let path = format!("{pin_dir}/{hook_name}");
-    let c_path = std::ffi::CString::new(path.as_str()).map_err(|_| {
-        return io::Error::new(io::ErrorKind::InvalidInput, "pin path contains NUL");
-    })?;
+    let c_path = std::ffi::CString::new(path.as_str()).map_err(pin_path_contains_nul)?;
     pin_obj(&link_fd, &c_path)?;
     return Ok(path);
 }
