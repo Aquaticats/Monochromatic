@@ -445,6 +445,21 @@ each finished branch is reviewed and merged into `main`):
   plus a coordinator suspicion to settle from source:
   whether Node's `resolve4`/`resolve6` ever applies the `lan` search domain,
   which the LAN router answers.
+  Owner's answer 2026-10-31 on resolver trust:
+  "Tunnel DNS only":
+  host rules use only answers from the tunnel's own `DNS =` servers,
+  queried through the tunnel;
+  a config with no `DNS =` gets no host rules and a loud POLICY NOT IN FORCE at every start and refresh,
+  while the process watch and toolchain paths still run.
+  Every option shown included refusing rules for the tunnel's DNS servers and endpoint,
+  a cap with a loud report,
+  and the missing reserved ranges.
+  Sent to the wg agent.
+  Next:
+  review its fixes (separate reviewer again),
+  merge,
+  build both wg packages in `main`,
+  then the full restart the owner chose and the live checks from the agent's first report.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
