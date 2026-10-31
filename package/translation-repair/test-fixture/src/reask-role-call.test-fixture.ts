@@ -1,3 +1,10 @@
+import {
+  afterBracket,
+  propertiesOf,
+  type Token,
+  tokensOf,
+} from './reask-role-tokens.test-fixture.ts';
+
 //region Re-ask role at a call
 // WHICH ROLE A CALL NAMES, READ FROM THE SOURCE TEXT (ledger B1079, B1100). The re-ask of a reasoning runaway leaves out
 // the models its role may not take, so every call of a function that asks a bench names the role of that bench. A
@@ -11,19 +18,9 @@
 // bracket, so the role of a message in a prompt, which sits inside brackets, is no property of the call.
 
 /**
- One piece of source text.
+ How many tokens after a variable's name the equals sign that sets it may stand, past a type annotation.
  */
-type Token = {
-  /**
-   What kind of piece it is: a word or number, a quoted string, or one punctuation character.
-   */
-  readonly kind: 'word' | 'string' | 'punct';
-
-  /**
-   Its text; a string without its quotes.
-   */
-  readonly text: string;
-};
+const SETTING_REACH = 12;
 
 /**
  The three dots that open a spread property.
@@ -38,273 +35,6 @@ const HOLDER_HEAD = [
   ':',
   '{',
 ];
-
-/**
- ASCII letters, digits, `_` and `$`; a letter of another script is a word character by its case, in
- {@link isWordCharacter}.
- */
-const WORD_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$';
-
-/**
- Whether a character can be part of a word.
-
- @param character - one character
-
- @returns True for a letter, a digit, `_` or `$`
-
- @example
- ```ts
- const inWord = isWordCharacter({ character: 'a', },);
- ```
- */
-function isWordCharacter({ character, }: { readonly character: string; },): boolean {
-  return WORD_CHARACTERS.includes(character,) || (character.toLowerCase() !== character.toUpperCase());
-}
-
-/**
- Reads the end of a quoted string or template, past escapes. A template ends at its next unescaped backtick, so a
- backtick inside a `${}` hole ends it early; the call sites this reads hold none.
-
- @param source - whole text
-
- @param start - index of the opening quote
-
- @returns Index one past the closing quote
-
- @example
- ```ts
- const end = endOfQuoted({ source: "'a'", start: 0, },);
- ```
- */
-function endOfQuoted(
-  {
-    source,
-    start,
-  }: {
-    readonly source: string;
-    readonly start: number;
-  },
-): number {
-  /**
-   The quote that closes it.
-   */
-  const quote = source[start] ?? '';
-  for (let at = start + 1; at < source.length; at += 1) {
-    /**
-     Character read.
-     */
-    const character = source[at] ?? '';
-    if (character === '\\')
-      at += 1;
-    else if (character === quote)
-      return at + 1;
-  }
-  return source.length;
-}
-
-/**
- Cuts source text into tokens, dropping comments.
-
- @param source - text of a TypeScript file
-
- @returns Tokens in source order
-
- @example
- ```ts
- const tokens = tokensOf({ source: 'call({ role: 1 },);', },);
- ```
- */
-function tokensOf({ source, }: { readonly source: string; },): readonly Token[] {
-  /**
-   Tokens found so far.
-   */
-  const tokens: Token[] = [];
-  for (let at = 0; at < source.length;) {
-    /**
-     Character read.
-     */
-    const character = source[at] ?? '';
-    if ((character === ' ') || (character === '\n')
-      || (character === '\t')
-      || (character === '\r')) {
-      at += 1;
-    }
-    else if (source.startsWith(
-      '//',
-      at,
-    )) {
-      /**
-       End of the line comment.
-       */
-      const lineEnd = source.indexOf(
-        '\n',
-        at,
-      );
-      at = (lineEnd === (-1)) ? source.length : lineEnd;
-    }
-    else if (source.startsWith(
-      '/*',
-      at,
-    )) {
-      /**
-       End of the block comment.
-       */
-      const blockEnd = source.indexOf(
-        '*/',
-        at + 2,
-      );
-      at = (blockEnd === (-1)) ? source.length : blockEnd + 2;
-    }
-    else if ((character === '\'') || (character === '"')
-      || (character === '`')) {
-      /**
-       Index past the string.
-       */
-      const end = endOfQuoted({
-        source,
-        start: at,
-      },);
-      tokens.push({
-        kind: 'string',
-        text: source.slice(
-          at + 1,
-          end - 1,
-        ),
-      },);
-      at = end;
-    }
-    else if (isWordCharacter({ character, },)) {
-      /**
-       Index past the word.
-       */
-      let end = at;
-      while ((end < source.length) && isWordCharacter({ character: source[end] ?? '', },))
-        end += 1;
-      tokens.push({
-        kind: 'word',
-        text: source.slice(
-          at,
-          end,
-        ),
-      },);
-      at = end;
-    }
-    else {
-      tokens.push({
-        kind: 'punct',
-        text: character,
-      },);
-      at += 1;
-    }
-  }
-  return tokens;
-}
-
-/**
- Index one past the bracket that closes the one at `open`.
-
- @param tokens - all tokens
- 
- @param open - index of an opening `(`, `[`, `{` or `<`
- 
- @param angled - whether `<` and `>` count as brackets, which a type argument list needs and an object does not
- 
- @returns Index one past the matching closer, or the end
-
- @example
- ```ts
- const after = afterBracket({ tokens, open: 3, angled: false, },);
- ```
- */
-function afterBracket(
-  {
-    tokens,
-    open,
-    angled,
-  }: {
-    readonly tokens: readonly Token[];
-    readonly open: number;
-    readonly angled: boolean;
-  },
-): number {
-  return (function scan(): number {
-    /**
-     Nesting depth, counting every kind of bracket as one.
-     */
-    let depth = 0;
-    for (let at = open; at < tokens.length; at += 1) {
-      /**
-       Text of the token, empty for a token that is no punctuation.
-       */
-      const text = (tokens[at]
-        ?.kind
-        === 'punct') ? tokens[at]
-          ?.text
-          ?? '' : '';
-      if ((text === '(') || (text === '[')
-        || (text === '{')
-        || (angled && (text === '<')))
-        depth += 1;
-      if ((text === ')') || (text === ']')
-        || (text === '}')
-        || (angled && (text === '>')))
-        depth -= 1;
-      if (depth === 0)
-        return at + 1;
-    }
-    return tokens.length;
-  })();
-}
-
-/**
- Splits the tokens of an object literal's body into its properties at the commas outside every bracket.
-
- @param body - tokens between the braces
- 
- @returns One list of tokens per property
-
- @example
- ```ts
- const properties = propertiesOf({ body, },);
- ```
- */
-function propertiesOf({ body, }: { readonly body: readonly Token[]; },): readonly (readonly Token[])[] {
-  return (function split(): readonly (readonly Token[])[] {
-    /**
-     Properties closed so far.
-     */
-    const properties: (readonly Token[])[] = [];
-
-    /**
-     Tokens of the property being read.
-     */
-    let current: Token[] = [];
-
-    /**
-     Bracket depth.
-     */
-    let depth = 0;
-    for (const token of body) {
-      if (token.kind === 'punct') {
-        if ((token.text === '(') || (token.text === '[')
-          || (token.text === '{'))
-          depth += 1;
-        if ((token.text === ')') || (token.text === ']')
-          || (token.text === '}'))
-          depth -= 1;
-        if ((token.text === ',') && (depth === 0)) {
-          properties.push(current,);
-          current = [];
-          continue;
-        }
-      }
-      current.push(token,);
-    }
-    if (current.length > 0)
-      properties.push(current,);
-    return properties;
-  })();
-}
 
 /**
  Follows a dotted key into the objects a call passes, down to the properties of the last one.
@@ -360,6 +90,26 @@ function propertiesAtPath(
 }
 
 /**
+ Whether a property is a spread, `...x`.
+
+ @param property - tokens of one property
+
+ @returns True when it opens with three dots
+ */
+function isSpread(property: readonly Token[],): boolean {
+  return property
+    .slice(
+    0,
+    SPREAD_MARK.length,
+    )
+    .map(function textOf(token,): string {
+      return token.text;
+    },)
+    .join('',)
+    === SPREAD_MARK;
+}
+
+/**
  Reads what one call's argument names under a key.
 
  @param properties - properties of the call's argument object
@@ -383,26 +133,6 @@ function namedUnderKey(
     readonly key: string;
   },
 ): string {
-  /**
-   Whether a property is a spread, `...x`.
-
-   @param property - tokens of one property
-
-   @returns True when it opens with three dots
-   */
-  function isSpread(property: readonly Token[],): boolean {
-    return property
-      .slice(
-      0,
-      SPREAD_MARK.length,
-      )
-      .map(function textOf(token,): string {
-        return token.text;
-      },)
-      .join('',)
-      === SPREAD_MARK;
-  }
-
   /**
    Whether a property is written under the key.
 
@@ -553,6 +283,88 @@ export function rolesNamedAtCalls(
     },),);
   }
   return named;
+}
+
+/**
+ Reads the role an object literal kept in a variable names, for an argument object built once and handed to two calls.
+
+ @param source - text of the file that builds the literal
+
+ @param name - name of the variable that holds it
+
+ @param key - key of the literal that names the role
+
+ @returns The value named under the key as {@link rolesNamedAtCalls} reads it, or `no such literal` where no variable of
+ that name is set to an object literal
+
+ @example
+ ```ts
+ expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
+ ```
+ */
+export function roleNamedInLiteral(
+  {
+    source,
+    name,
+    key = 'role',
+  }: {
+    readonly source: string;
+    readonly name: string;
+    readonly key?: string;
+  },
+): string {
+  /**
+   Tokens of the file.
+   */
+  const tokens = tokensOf({ source, },);
+
+  /**
+   Index of the equals sign that sets the variable.
+   */
+  const equals = tokens.findIndex(function isSetting(
+    token,
+    at,
+  ): boolean {
+    return (token.text === name)
+      && (tokens.slice(
+        at,
+        at + SETTING_REACH,
+      )
+        .some(function isEquals(later,): boolean {
+          return later.text === '=';
+        },));
+  },);
+  if (tokens[equals]
+    ?.text
+    !== name)
+    return 'no such literal';
+
+  /**
+   Index of the opening brace after the equals sign.
+   */
+  const open = tokens.findIndex(function isOpening(
+    token,
+    at,
+  ): boolean {
+    return (at > equals) && (token.text === '{');
+  },);
+  /**
+   Index one past the closing brace of the literal.
+   */
+  const after = afterBracket({
+    tokens,
+    open,
+    angled: false,
+  },);
+  return namedUnderKey({
+    properties: propertiesOf({
+      body: tokens.slice(
+        open + 1,
+        after - 1,
+      ),
+    },),
+    key,
+  },);
 }
 
 //endregion Re-ask role at a call
