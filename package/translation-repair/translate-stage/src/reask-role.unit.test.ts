@@ -61,7 +61,7 @@ await describe({
       name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the translate lane is judged, at the call that hands the judges',
       fn: async () => {
         const source = await readFile(new URL('translate-stage-repair.ts', import.meta.url,), 'utf8',);
-        expect(rolesNamedAtCalls({ source, callee: 'judgeSlateWithRetry', key: 'judging.role', },),).toEqual(['wide-judge',],);
+        expect(rolesNamedAtCalls({ source, callee: 'judgeSlateWithRetry', key: 'judging.role', },),).toEqual(['select-judge',],);
       },
     },),
   ],

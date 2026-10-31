@@ -74,6 +74,7 @@ const CLAIMS: readonly {
       'openrouter-dropped',
       'late-judge-dropped',
       'wide-seat-dropped',
+      'hyper-slow',
     ],
   },
   {

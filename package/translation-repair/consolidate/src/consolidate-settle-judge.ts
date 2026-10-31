@@ -417,7 +417,7 @@ export async function judgeConsolidationSlate(
     stageSettings,
     // LAST, so no spread can replace it: THE CONSOLIDATION SLATE IS JUDGED BY THE LATE JUDGES (`seats.slateJudges`),
     // the bench the cards drop two models from.
-    role: 'late-judge',
+    role: 'slate-judge',
   };
   return await requireWithheldSlateDecided({
     judged: challenged

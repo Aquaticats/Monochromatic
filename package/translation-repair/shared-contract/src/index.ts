@@ -151,6 +151,7 @@ export {
 export { MODEL_CARDS, } from './model-cards.ts';
 export {
   holdsKeepingOutOf,
+  reaskHoldsKeepingOutOf,
   MEASURED_CHECKER_ORDER,
   reaskPoolOf,
   rolePoolOf,

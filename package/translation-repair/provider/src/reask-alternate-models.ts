@@ -1,8 +1,8 @@
 import {
-  holdsKeepingOutOf,
+  reaskHoldsKeepingOutOf,
   isDecisionSeat,
   MODEL_CARDS,
-  rolePoolOf,
+  reaskPoolOf,
   ROSTER_MODEL_IDS,
   type RosterModelId,
   type SeatRole,
@@ -137,7 +137,7 @@ function reasonsToLeaveOut(
   /**
    Holds of the candidate's card that the role honours.
    */
-  const holds = holdsKeepingOutOf({
+  const holds = reaskHoldsKeepingOutOf({
     modelId: candidate,
     role,
   },);
@@ -344,7 +344,7 @@ export function alternateModelsFor(
   /**
    Models the role may take, which the candidates must be among.
    */
-  const pool = rolePoolOf({ role, },);
+  const pool = reaskPoolOf({ role, },);
 
   /**
    Each candidate beside the reasons it cannot be asked.

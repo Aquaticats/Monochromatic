@@ -32,10 +32,12 @@ import {
 // here ({@link MEASURED_CHECKER_ORDER}) and which `run-config.ts` takes its `RUN_CHECKER_ORDER` from, so the bench
 // and the re-ask read one list. Every other role's pool is the roster less the models its holds keep out.
 //
-// HOLDS OF A ROUTE ARE NOT HERE: `openrouter-dropped`, `openrouter-withheld`, `synthetic-withheld` and
-// `hyper-slow-select` keep a model off a provider or off the select seats while one provider serves it, which the
-// router and `run-seats.ts` read at the call. A re-ask is routed like a first ask, so they apply to it without a
-// table.
+// HOLDS OF A ROUTE ARE NOT IN THE BENCH TABLE: `openrouter-dropped`, `openrouter-withheld` and `synthetic-withheld` keep a
+// model off a provider, which the router reads at the call; a re-ask is routed like a first ask, so the router refuses
+// them for it too. `hyper-slow` and `hyper-slow-select` are different: only `run-seats.ts` reads them, as a filter of the
+// benches it derives at each phase, and the router does not. They are therefore written below as the holds a re-ask
+// honours at seating time (`ROUTE_TIME_HOLDS_OF_ROLE`), and the pool a re-ask draws from leaves those models out (ledger
+// B1143); a drift test in the run package fails when the pool and a derived bench part in any reading of the meters.
 
 /**
  Every role a re-ask can be asked in, widest first.
@@ -233,12 +235,83 @@ export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly R
 }
 
 /**
+ The holds the run applies when it seats a role that depend on which provider would serve the model, which a re-ask of
+ that role honours as well (ledger B1143), written once per role.
+
+ `hyper-slow` is applied by `run-seats.ts` to every seat it derives from the roster but the editors and refiners, which are
+ hand-picked benches it does not filter; `hyper-slow-select` only to the select and slate seats. The run withholds such a
+ model from a bench while Hyper would serve it and seats it otherwise, so it is either on the bench (and a re-ask leaves
+ the bench out) or withheld (and must not be asked): out of the re-ask pool in both readings. `openrouter-dropped`,
+ `openrouter-withheld` and `synthetic-withheld` need no entry: the router refuses a call to a model on a route those holds
+ close, with `NoProviderForModelError`, and a re-ask moves on to the next model.
+ */
+const ROUTE_TIME_HOLDS_OF_ROLE: Readonly<Record<SeatRole, readonly SeatHold[]>> = {
+  roster: ['hyper-slow',],
+  translator: ['hyper-slow',],
+  writer: ['hyper-slow',],
+  'wide-judge': ['hyper-slow',],
+  'late-judge': ['hyper-slow',],
+  'select-judge': [
+    'hyper-slow',
+    'hyper-slow-select',
+  ],
+  'slate-judge': [
+    'hyper-slow',
+    'hyper-slow-select',
+  ],
+  reader: ['hyper-slow',],
+  checker: ['hyper-slow',],
+  editor: [],
+  refiner: [],
+};
+
+/**
+ The holds of a model's card that keep a re-ask from asking it in a role: those that keep it off the role's bench, then
+ those the run applies at seating time.
+
+ @param modelId - roster model a re-ask might ask
+
+ @param role - role of the seat the re-ask stands in
+
+ @returns Holds the card carries that the role honours, bench holds first; empty where nothing keeps the model out
+
+ @example
+ ```ts
+ const holds = reaskHoldsKeepingOutOf({ modelId: 'hf:moonshotai/Kimi-K3', role: 'select-judge', },);
+ ```
+ */
+export function reaskHoldsKeepingOutOf(
+  {
+    modelId,
+    role,
+  }: {
+    readonly modelId: RosterModelId;
+    readonly role: SeatRole;
+  },
+): readonly SeatHold[] {
+  /**
+   Holds the card carries.
+   */
+  const { holds, } = MODEL_CARDS[modelId];
+  return [
+    ...holdsKeepingOutOf({
+      modelId,
+      role,
+    },),
+    ...ROUTE_TIME_HOLDS_OF_ROLE[role]
+      .filter(function carried(hold,): boolean {
+        return holds.includes(hold,);
+      },),
+  ];
+}
+
+/**
  The models a re-ask of a seat in a role may ask: the pool of the role, less the models the run keeps off the seats of
  that role at the call (ledger B1143).
 
  @param role - role of the seat that ran away
 
- @returns Models the re-ask may ask
+ @returns Models the re-ask may ask, in the order of {@link rolePoolOf}
 
  @example
  ```ts
@@ -246,7 +319,15 @@ export function rolePoolOf({ role, }: { readonly role: SeatRole; },): readonly R
  ```
  */
 export function reaskPoolOf({ role, }: { readonly role: SeatRole; },): readonly RosterModelId[] {
-  return rolePoolOf({ role, },);
+  return rolePoolOf({ role, },)
+    .filter(function notWithheldAtSeating(modelId,): boolean {
+      return reaskHoldsKeepingOutOf({
+        modelId,
+        role,
+      },)
+        .length
+        === 0;
+    },);
 }
 
 //endregion Seat role

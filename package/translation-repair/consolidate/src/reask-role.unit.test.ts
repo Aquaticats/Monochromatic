@@ -67,7 +67,7 @@ await describe({
       name: 'NAMES THE LATE-JUDGE ROLE where the consolidation slate is judged, in the argument object both asks share',
       fn: async () => {
         const source = await readFile(new URL('consolidate-settle-judge.ts', import.meta.url,), 'utf8',);
-        expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('late-judge',);
+        expect(roleNamedInLiteral({ source, name: 'judging', },),).toBe('slate-judge',);
       },
     },),
 
@@ -76,7 +76,7 @@ await describe({
         + 'late judges',
       fn: async () => {
         const source = await readFile(new URL('consolidation-polish-round.ts', import.meta.url,), 'utf8',);
-        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
+        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['select-judge',],);
       },
     },),
   ],

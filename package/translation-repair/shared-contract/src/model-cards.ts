@@ -118,11 +118,13 @@ export const MODEL_CARDS: Readonly<Record<RosterModelId, ModelCard>> = {
     // late rounds (ledger B1030). It keeps the seats that are no judge seat
     // (translator, picture reader, consolidation writer, the roster the
     // pairing and admission rounds ask), where `run-seats.ts` still withholds it
-    // while Hyper would serve it.
+    // while Hyper would serve it: that is the hold `hyper-slow`, which a re-ask of
+    // those seats honours too (ledger B1143).
     holds: [
       'openrouter-dropped',
       'late-judge-dropped',
       'wide-seat-dropped',
+      'hyper-slow',
     ],
   },
   'hf:moonshotai/Kimi-K3': {

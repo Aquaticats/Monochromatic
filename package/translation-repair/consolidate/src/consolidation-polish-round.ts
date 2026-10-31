@@ -309,7 +309,7 @@ export async function runConsolidationPolishRound(
     judgeModelIds: config.judgeModelIds,
     // THE POLISH SLATE IS JUDGED BY THE SELECT JUDGES (`seats.selectJudges`, which `config.judgeModelIds` is), the wide
     // seats, and not by the late judges that judge the gate (ledger B1100).
-    judgeRole: 'wide-judge',
+    judgeRole: 'select-judge',
     sourceText,
     repairedText: baseText,
     envelopes,

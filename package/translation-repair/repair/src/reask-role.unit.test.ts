@@ -101,8 +101,8 @@ await describe({
       name: 'NAMES THE WIDE-JUDGE ROLE where the slate of the editors is judged, at both of its asks',
       fn: async () => {
         expect(await rolesIn({ file: './editor-ensemble.ts', callee: 'selectBestCandidate', },),).toEqual([
-          'wide-judge',
-          'wide-judge',
+          'select-judge',
+          'select-judge',
         ],);
       },
     },),
@@ -112,7 +112,7 @@ await describe({
       fn: async () => {
         expect(await rolesIn({ file: './refine-slice-settle.ts', callee: 'runRefineStage', },),).toEqual(['none',],);
         const source = await readFile(new URL('refine-slice-settle.ts', import.meta.url,), 'utf8',);
-        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['wide-judge',],);
+        expect(rolesNamedAtCalls({ source, callee: 'runRefineStage', key: 'judgeRole', },),).toEqual(['select-judge',],);
       },
     },),
   ],

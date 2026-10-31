@@ -72,7 +72,6 @@ await describe({
           SEAT_SYNTHETIC_VISION_WITHHELD,
           SEAT_HYPER_VISION,
           SEAT_HYPER_ONLY,
-          SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
           SEAT_HYPER_OPENROUTER_VISION_EDITOR,
         ],);
         expect(CENSUS_ORDER_WITHOUT_DEEPSEEK.length,).toBe(11,);
@@ -109,12 +108,11 @@ await describe({
           { modelId: SEAT_SYNTHETIC_VISION_WITHHELD, calls: MIN_PROVIDER_CALLS - 1, runaways: 0, },
           { modelId: SEAT_HYPER_VISION, calls: 1_000, runaways: 5, },
         ] as const;
-        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', readings, },).alternates.slice(0, 4,),)
+        expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', readings, },).alternates.slice(0, 3,),)
           .toEqual([
             SEAT_HYPER_TEXT_BEDROCK,
             SEAT_HYPER_VISION,
             SEAT_HYPER_OPENROUTER_VISION_EDITOR,
-            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
           ],);
       },
     },),
@@ -125,7 +123,7 @@ await describe({
       fn: async () => {
         expect(alternateModelsFor({ modelId: SEAT_HYPER_TEXT_BEDROCK, role: 'roster', },).alternates[0],).toBe(SEAT_BEDROCK_ONLY_TEXT,);
         expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR, role: 'roster', },).alternates.at(-1,),).toBe(
-          SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
+          SEAT_HYPER_ONLY,
         );
         expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', },).alternates.includes(
           SEAT_HYPER_OPENROUTER_UNMEASURED,
@@ -143,7 +141,7 @@ await describe({
            The list for this model.
            */
           const { alternates, leftOut, } = alternateModelsFor({ modelId: ranAway, role: 'roster', },);
-          expect(alternates.length,).toBe(9,);
+          expect(alternates.length,).toBe(8,);
           expect(alternates.some(function onClaudeOrDecides(seat,): boolean {
             return seat.startsWith('claude-',) || (seat === SEAT_OPENROUTER_DECISIONS);
           },),).toBe(false,);
@@ -151,6 +149,8 @@ await describe({
           expect(leftOut.map(function nameOf(left,) {
             return left.modelId;
           },),).toEqual([
+            // Qwen3.8-27B: the run withholds it from the roster seats while Hyper serves it (ledger B1143).
+            SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
             SEAT_SYNTHETIC_TEXT_EVERYWHERE,
             SEAT_BEDROCK_ONLY_VISION_UNSEATED,
             SEAT_OPENROUTER_ONLY_CHECKER,
@@ -180,7 +180,7 @@ await describe({
           },
           {
             modelId: SEAT_SYNTHETIC_VISION_NO_OPENROUTER,
-            why: 'held out of the wide-judge role by wide-seat-dropped',
+            why: 'held out of the wide-judge role by wide-seat-dropped and hyper-slow',
           },
           {
             modelId: SEAT_HYPER_ONLY,
