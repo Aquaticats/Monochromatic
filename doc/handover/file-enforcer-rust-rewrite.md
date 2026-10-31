@@ -388,6 +388,11 @@ each finished branch is reviewed and merged into `main`):
   two drafts (`CWN`,
   `LKF`) were not approved;
   the owner will write the wording from issue #1819.
+  Settled 2026-10-31 through an interview with the owner and landed in `33a7fce914` (closes #1819):
+  `OWK` in "Architecture decisions" covers this failure,
+  and `BRQ` in a new section "Before briefing an agent" covers the second failure and the pin note;
+  record:
+  `doc/planning/agents-md-ownership-and-brief-rules.md`.
 - Second failure the owner named:
   this session turned the owner's remark about severity into a policy (opt-in,
   off by default,
