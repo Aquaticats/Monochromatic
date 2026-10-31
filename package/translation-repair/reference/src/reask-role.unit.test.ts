@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE ROSTER ROLE where cited references are attested, and where the attestation is confirmed',
       fn: async () => {
-        const source = await readFile(new URL('./reference-attest-stage.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('reference-attest-stage.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['roster', 'roster',],);
       },
     },),
