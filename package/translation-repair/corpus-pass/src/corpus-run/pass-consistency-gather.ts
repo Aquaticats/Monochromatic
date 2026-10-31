@@ -239,6 +239,9 @@ export async function gatherThroughCache<WireT, RecordT extends StoredGather,>(
     responseFormat,
     validate,
     stage,
+    // THE CONSISTENCY OF A PAGE IS ASKED OF THE LATE JUDGES (`seats.lateJudges`), the bench the cards drop two models
+    // from.
+    role: 'late-judge',
     l: gl,
     graceMs,
   },);

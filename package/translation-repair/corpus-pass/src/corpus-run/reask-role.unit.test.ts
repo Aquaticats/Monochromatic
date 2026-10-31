@@ -25,7 +25,7 @@ await describe({
     it({
       name: 'NAMES THE LATE-JUDGE ROLE where the consistency of a page is gathered',
       fn: async () => {
-        const source = await readFile(new URL('./pass-consistency-gather.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('pass-consistency-gather.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['late-judge',],);
       },
     },),
