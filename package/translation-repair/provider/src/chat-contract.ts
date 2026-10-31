@@ -292,6 +292,15 @@ export type ReaskSeat = {
    other seat to share a model with.
    */
   readonly claims?: ReaskClaims;
+
+  /**
+   The conversation a model other than the one asked gets in place of the request's own, for a seat whose question
+   speaks to its asker (the follow-up on a model's own candidate says "your translation"), so the model that takes the
+   re-ask of a runaway is told whose text it revises and not that it is its own (ledger B1100). Absent for a seat whose
+   question reads the same to any model, which then asks the plain question. The fall back to the model that ran away
+   keeps the request's own conversation and the nudge.
+   */
+  readonly otherModelMessages?: readonly ChatMessage[];
 };
 
 /**
@@ -442,6 +451,12 @@ export type ChatJsonOutcome<ValueT,> =
      Token usage when reported; thinking tokens included.
      */
     readonly usage?: CompletionUsage;
+
+    /**
+     Model that gave the answer, set only where the re-ask of a reasoning runaway went to another model than the one
+     asked and that model answered usably (ledger B1100); absent when the model asked answered.
+     */
+    readonly answeredBy?: RosterModelId;
   }
     | {
     /**

@@ -307,6 +307,8 @@ export async function reaskElsewhereNudged<ValueT,>(
           reply: await ask({
             ...request,
             modelId,
+            // A SEAT WHOSE QUESTION SPEAKS TO ITS ASKER hands the other model its own conversation (ledger B1100).
+            ...((reaskSeat.otherModelMessages === undefined) ? {} : { messages: reaskSeat.otherModelMessages, }),
           },),
         };
       }
@@ -375,7 +377,11 @@ export async function reaskElsewhereNudged<ValueT,>(
     },);
     if (second.kind === 'ok') {
       rl.info(`${answered.modelId}: ${reply.servedBy ?? 'another provider'} answered usably on the re-ask`,);
-      return second;
+      // The model is named on the answer only where it was not the one asked.
+      return (answered.modelId === request.modelId) ? second : {
+        ...second,
+        answeredBy: answered.modelId,
+      };
     }
     // THE FIRST ANSWER IS RETURNED WHEN BOTH FAIL: it came from the provider
     // the policy preferred, and the caller's own handling is written against

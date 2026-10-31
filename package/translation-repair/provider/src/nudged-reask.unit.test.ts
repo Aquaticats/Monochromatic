@@ -382,7 +382,12 @@ await describe({
             return { text: '{"spot":"radiator"}', servedBy: 'synthetic', };
           },
         },);
-        expect(outcome,).toEqual({ kind: 'ok', value: { spot: 'radiator', }, rawText: '{"spot":"radiator"}', },);
+        expect(outcome,).toEqual({
+          kind: 'ok',
+          value: { spot: 'radiator', },
+          rawText: '{"spot":"radiator"}',
+          answeredBy: SEAT_HYPER_TEXT_BEDROCK,
+        },);
         expect(asks,).toEqual([
           {
             ...RUNAWAY_REQUEST,
