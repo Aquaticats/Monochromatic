@@ -14,6 +14,11 @@ const DEFAULT_DAEMON_CONFIG = '/etc/opensnitchd/default-config.json';
 const DEFAULT_SYSTEM_FIREWALL_CONFIG = '/etc/opensnitchd/system-fw.json';
 
 /**
+ OpenSnitch release default rules directory.
+ */
+const DEFAULT_RULES_DIRECTORY = '/etc/opensnitchd/rules';
+
+/**
  Environment override for custom OpenSnitch daemon config and fixtures.
  */
 export const OPENSNITCH_DAEMON_CONFIG_ENVIRONMENT = 'WG_QUICKER_OPENSNITCH_DAEMON_CONFIG';
@@ -278,4 +283,49 @@ export async function resolveOpenSnitchSystemFirewallPath(
     },);
   }
   return DEFAULT_SYSTEM_FIREWALL_CONFIG;
+}
+
+/**
+ Resolves the directory the daemon loads rule files from.
+
+ The directory is the daemon config's `Rules.Path`,
+ which the daemon reloads on a filesystem `Write` event,
+ falling back to OpenSnitch's release default when the config or the key is absent.
+
+ @returns Absolute rules directory.
+
+ @throws {@link OpenSnitchConfigError} when the daemon config is malformed or names a relative path.
+
+ @example
+ ```ts
+ await resolveOpenSnitchRulesDirectory(); // '/etc/opensnitchd/rules'
+ ```
+ */
+export async function resolveOpenSnitchRulesDirectory(): Promise<string> {
+  /**
+   Effective daemon config path.
+   */
+  const daemonPath = openSnitchDaemonConfigPath();
+  /**
+   Daemon config text or absence sentinel.
+   */
+  const daemonText = await readDaemonConfig({ path: daemonPath, },);
+  if ((typeof daemonText) === 'symbol')
+    return DEFAULT_RULES_DIRECTORY;
+  /**
+   Rules options carrying the watched directory.
+   */
+  const options = parseDaemonConfig({
+    text: daemonText,
+    path: daemonPath,
+  },).Rules;
+  if (isRecord(options,)
+    && ((typeof options.Path) === 'string')
+    && (options.Path !== '')) {
+    return assertAbsolutePath({
+      path: options.Path,
+      source: 'Rules.Path',
+    },);
+  }
+  return DEFAULT_RULES_DIRECTORY;
 }
