@@ -298,6 +298,14 @@ each finished branch is reviewed and merged into `main`):
   mpm-shadow: the update-by-tool agent's branch;
   search-shadow: its own agent;
   git wrapper: reported to monochromatic-7a with the convention.
+  7a's finding:
+  no earlier banner existed to restore
+  (the Rust wrapper has printed byte-identical Git output for `--version` since its first commit `414ab5ff76`,
+  2026-10-05,
+  pinned by `version_is_identical_to_native_git`;
+  the retired TypeScript wrapper handled only `git cli-git --help`),
+  so the "regression" reading is not supported by history;
+  7a's agent implements the convention for the next wrapper release.
   The owner also confirmed mpm-shadow's separate toolchain command set "is fine".
 - Running:
   the cutover switch branch (repoints,
