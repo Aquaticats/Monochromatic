@@ -86,15 +86,16 @@ pub const SCANNER_SELF_MATCH_PATHS: &[&[u8]] = &[
 ];
 
 /// What:
-///  Select the rules file:
-///  the configured `rulesFile`,
-///  else the variable's value,
+///  Select the rules files:
+///  the configured `rulesFile` entries,
+///  else the variable's list,
 ///  else
 ///       the default file,
 ///  each relative to the repository root.
-///  `Option<&str>` is "the
-///       configured name or nothing";
-///  `Option<&OsStr>` is "the variable's value or nothing".
+///  `Option<&[RulesFileEntry]>` is "the
+///       configured entries or nothing";
+///  `Option<&OsStr>` is "the variable's value or nothing";
+///  `Result<..>` fails only for a variable that is not a valid rules list.
 /// Why:
 ///   The user decided on 2026-10-05 that configuration names the file first and the
 ///       variable second.
@@ -109,12 +110,13 @@ pub const SCANNER_SELF_MATCH_PATHS: &[&[u8]] = &[
 ///  and a configured name is relative by
 ///       construction (`config_rules_file.rs`).
 ///  A configured name or a set variable makes
-///       a missing file an error;
+///       a missing file an error unless its entry is optional;
 ///  only the default file may be missing.
+///  The variable is parsed with the scanner's own rules-list parser, so both tools read one grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function rulesSource(rulesFile: string | undefined, variable: string | undefined, repositoryRoot: string): RulesSource;
+/// function rulesSource(rulesFiles: RulesFileEntry[] | undefined, variable: string | undefined, repositoryRoot: string): RulesSource; // throws RulesListError
 /// ```
 pub fn rules_source(
     rules_files: Option<&[RulesFileEntry]>,

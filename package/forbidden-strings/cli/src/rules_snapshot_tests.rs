@@ -184,7 +184,7 @@ fn a_list_of_only_absent_optional_entries_is_empty_and_require_present_names_eve
     let dir = temp_dir("all-absent");
     let snapshot = read_ok(&[absent(&dir, "one.txt"), absent(&dir, "two.txt")]);
     assert!(snapshot.is_empty());
-    let error = snapshot.require_present().err().expect("must fail").to_string();
+    let error = snapshot.require_present().expect_err("must fail").to_string();
     assert!(error.contains("one.txt") && error.contains("two.txt"), "{error}");
     assert!(error.contains("no rules loaded"), "{error}");
 }

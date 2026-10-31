@@ -18,7 +18,7 @@
 use git_policy_cli::config_error::ConfigError;
 use git_policy_cli::config_parse::parse_config;
 use git_policy_cli::config_schema::{
-    CliGitConfig, MarkdownRule, PolicySetting, markdown_rule_name,
+    CliGitConfig, MarkdownRule, PolicySetting, RulesFileEntry, markdown_rule_name,
 };
 use git_policy_cli::diagnostics::{EngineFailureCode, render_engine_failure};
 use git_policy_cli::policy_registry::{POLICY_REGISTRY, PolicyId, Severity, severity_name};
@@ -153,6 +153,67 @@ fn pattern(byte: u8) -> String {
     return format!("{}{}", pieces[usize::from(byte) % pieces.len()], byte);
 }
 
+/// Configured rules-file paths the generator draws from.
+///  A comma and a question mark are ordinary characters in a configured path,
+///  because the configuration is never parsed as a list.
+const RULES_PATHS: [&str; 6] = [
+    "rules.txt",
+    ".cache/forbidden-strings.rules.txt",
+    "shared/a.txt",
+    "local.txt",
+    "odd,name?.txt",
+    "forbidden-strings.append.local.txt",
+];
+
+/// What:
+///  Build a `rulesFile` value and the entries it must parse to.
+///  `kind` 1 is a string,
+///  and the other kinds are arrays of one to three distinct entries whose element forms
+///       (string,
+///  `{"path"}`,
+///  `{"path","optional":true}`,
+///  `{"path","optional":false}`) come from `seed`.
+/// Why:
+///   Every accepted spelling is reached, each with the typed result it must produce.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function generatedRulesFiles(kind: number, seed: number): { value: JsoncValue; files: RulesFileEntry[] };
+/// ```
+fn generated_rules_files(kind: u8, seed: u8) -> (JsoncValue, Vec<RulesFileEntry>) {
+    let start: usize = usize::from(seed) % RULES_PATHS.len();
+    if kind == 1 {
+        return (
+            text(RULES_PATHS[start]),
+            vec![RulesFileEntry {
+                path: String::from(RULES_PATHS[start]),
+                optional: false,
+            }],
+        );
+    }
+    let count: usize = 1 + usize::from(kind) % 3;
+    let mut values: Vec<JsoncValue> = Vec::<JsoncValue>::new();
+    let mut files: Vec<RulesFileEntry> = Vec::<RulesFileEntry>::new();
+    for offset in 0..count {
+        let path: &str = RULES_PATHS[(start + offset) % RULES_PATHS.len()];
+        let form: u8 = (seed / 8).wrapping_add(u8::try_from(offset).unwrap_or(0)) % 4;
+        let optional: bool = form == 2;
+        match form {
+            0 => values.push(text(path)),
+            1 => values.push(JsoncValue::record(vec![entry("path", text(path))])),
+            _ => values.push(JsoncValue::record(vec![
+                entry("path", text(path)),
+                entry("optional", JsoncValue::boolean(optional)),
+            ])),
+        }
+        files.push(RulesFileEntry {
+            path: String::from(path),
+            optional,
+        });
+    }
+    return (JsoncValue::array(values), files);
+}
+
 /// What:
 ///  Build a valid configuration document and its expected settings from fuzz bytes.
 /// Why:
@@ -196,6 +257,14 @@ pub fn generated_config(data: &[u8]) -> GeneratedConfig {
                 let enabled: bool = (choice / 16) % 2 == 1;
                 expected.policies.forbidden_strings.builtin_rules = enabled;
                 options.push(entry("builtinRules", JsoncValue::boolean(enabled)));
+            }
+            // The top three bits pick the `rulesFile` shape: absent, a string, or an array.
+            let shape: u8 = choice / 32;
+            if shape > 0 {
+                let (value, files): (JsoncValue, Vec<RulesFileEntry>) =
+                    generated_rules_files(shape, byte_at(data, 11));
+                expected.policies.forbidden_strings.rules_files = Some(files);
+                options.push(entry("rulesFile", value));
             }
         } else {
             if (choice / 8) % 2 == 1 {
@@ -302,10 +371,22 @@ pub fn canonical_document(config: &CliGitConfig) -> JsoncValue {
             config.policies.setting(descriptor.id).severity,
         ));
         if descriptor.id == PolicyId::ForbiddenStrings {
-            let options: JsoncValue = JsoncValue::record(vec![entry(
+            let mut members: Vec<JsoncEntry> = vec![entry(
                 "builtinRules",
                 JsoncValue::boolean(config.policies.forbidden_strings.builtin_rules),
-            )]);
+            )];
+            // Every configured file is stated as an object, whichever form it was written in.
+            if let Some(files) = &config.policies.forbidden_strings.rules_files {
+                let mut states: Vec<JsoncValue> = Vec::<JsoncValue>::new();
+                for file in files {
+                    states.push(JsoncValue::record(vec![
+                        entry("path", text(file.path.as_str())),
+                        entry("optional", JsoncValue::boolean(file.optional)),
+                    ]));
+                }
+                members.push(entry("rulesFile", JsoncValue::array(states)));
+            }
+            let options: JsoncValue = JsoncValue::record(members);
             policies.push(entry(
                 descriptor.name,
                 JsoncValue::array(vec![word, options]),

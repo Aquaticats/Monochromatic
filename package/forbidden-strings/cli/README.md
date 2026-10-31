@@ -292,7 +292,10 @@ path  := one or more characters, none of them ","
   meant before lists existed.
   The only values whose meaning changed are those containing a `,` or ending in `?`.
 - Relative entries resolve against the working directory, like the single path always did.
-  The monorepo anchors each entry with mise's `{{config_root}}`.
+  The monorepo anchors each entry with mise's `{{config_root}}`
+  (for example `{{config_root}}/a.txt,{{config_root}}/b.txt?`),
+  so a checkout whose absolute path contains a comma cannot use the list form;
+  rename the directory or give the files as relative entries.
 - A path that is not valid UTF-8 can only be given through a single-entry `FORBIDDEN_STRINGS_RULES` in an embedding
   host; the command line and `std::env::var` carry UTF-8 only.
 
