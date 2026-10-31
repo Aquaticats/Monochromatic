@@ -340,6 +340,27 @@ Findings that bear on any design, including B (the reviewer's claims, not indepe
 - The bad feeling is not evidence for or against Rust; a structural reading is that the design grew from specifier enforcement
   into a prerequisite for most pnpm work while bootstrap, recovery and CI execution stayed unspecified.
 
+## Precedent and inputs for option B (read, not built)
+
+- `package/mpm-shadow/cli` (`Cargo.toml`, `src/real_binary.rs`, `src/shim.rs`, README):
+  the mode is chosen by the name the binary is started under, forwarded arguments are never given to clap
+  (clap owns only the shadow's own commands), the real tool is found by a PATH search that skips every candidate resolving to the
+  shadow itself, the child inherits the standard streams, and the exit status is passed through (`128` plus the signal on a signal).
+  It is Unix-only: `real_binary.rs` imports `std::os::unix::fs::PermissionsExt` and splits `PATH` on `:`;
+  its release archives are Linux only (x86_64 and aarch64).
+  Its dependencies for the shadow work are `clap` and `serde_json` (with `preserve_order`); the rest serve its other jobs.
+  Per-crate pins come from `rust-catalog.toml` through file-enforcer, not by hand.
+- The Rust catalog (`rust-catalog.toml`) holds `clap`, `serde`, `serde_json`, `anyhow`, `globset`, `ignore`, `libc`, `toml`,
+  `tracing`; it holds no YAML crate.
+  Adding a crate is governed by `doc/decision/rust-dependency-catalog.md`.
+- The re-run scan finds 256 tracked `package.json` files (it found 248 earlier, so the count moved) and still exactly one
+  violation, `zod` in `cost-dismissal`; no tracked `package.json5`, `package.yaml` or `package.yml` exists, so those pnpm manifest
+  formats are a known limit, not a current gap.
+- CI: the baseline workflows (`.github/workflows/current-baseline.yml`, `.depot/workflows/current-baseline.yml`) and
+  `npm-release.yml` run on Linux runners; macOS and Windows runners appear only in Rust build and test workflows
+  (`cargo-publish.yml`, `music-player-release.yml`, `fs-id.yml`, `readonly-semantic-bridge.yml`).
+  Whether those non-Linux jobs run `pnpm install` was not checked.
+
 ## Open items
 
 - The user has not confirmed that the shared understanding is complete, and has not yet been asked the design questions that
