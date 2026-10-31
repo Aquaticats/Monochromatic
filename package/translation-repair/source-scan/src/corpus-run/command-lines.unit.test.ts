@@ -555,6 +555,77 @@ await describe({
       },
     },),
     it({
+      name: 'ENDS an invocation at a shell control operator or redirection outside quotes, so the flags of the '
+        + 'command after it are not the runner\'s, ledger B1122',
+      fn: async () => {
+        /**
+         What follows a runner and ends its flags: a pipe, an or, an and, a separator, a redirection of output
+         or input, and a redirection of the error stream into the output.
+         */
+        const operators = ['|', '||', '&&', ';', '>', '2>&1', '<',] as const;
+
+        // A flag the runner reads, then an operator, then a flag it does not: nothing is found.
+        expect(undeclaredFlagsIn({
+          path: 'doc/cat.md',
+          text: operators.map(function afterRunner(operator,): string {
+            return `    mise run corpus-pass -- --plan ${operator} rg --count 'Z] START '`;
+          },).join('\n',),
+        },),).toEqual({
+          undeclared: [],
+          invocations: operators.length,
+        },);
+
+        // A line continued into a pipe: the next line is not read as the runner's.
+        expect(undeclaredFlagsIn({
+          path: 'doc/cat.md',
+          text: [
+            '    mise run corpus-pass -- --plan \\',
+            '      | rg --fixed-strings \'Z] START \'',
+          ].join('\n',),
+        },),).toEqual({
+          undeclared: [],
+          invocations: 1,
+        },);
+
+        // A flag the runner does not read before the operator is still found, and none after it.
+        expect(undeclaredFlagsIn({
+          path: 'doc/cat.md',
+          text: operators.map(function beforeOperator(operator,): string {
+            return `    mise run corpus-pass -- --olny Tabby_01 ${operator} rg --count 'Z] START '`;
+          },).join('\n',),
+        },),).toEqual({
+          undeclared: operators.map(function found(_operator, index,): string {
+            return `doc/cat.md:${String(index + 1,)} corpus-pass --olny`;
+          },),
+          invocations: operators.length,
+        },);
+      },
+    },),
+    it({
+      name: 'READS PAST an operator inside quotes or escaped, which is an argument and not the end of the '
+        + 'invocation, ledger B1122',
+      fn: async () => {
+        expect(undeclaredFlagsIn({
+          path: 'doc/cat.md',
+          text: [
+            'mise run corpus-pass -- "a | b" --olny Tabby_01',
+            'mise run corpus-pass -- \'a ; b > c\' --olny Tabby_01',
+            'mise run corpus-pass -- "a \\" | b" --olny Tabby_01',
+            'mise run corpus-pass -- a\\|b --olny Tabby_01',
+            'mise run corpus-pass -- "a | b" | rg --count c',
+          ].join('\n',),
+        },),).toEqual({
+          undeclared: [
+            'doc/cat.md:1 corpus-pass --olny',
+            'doc/cat.md:2 corpus-pass --olny',
+            'doc/cat.md:3 corpus-pass --olny',
+            'doc/cat.md:4 corpus-pass --olny',
+          ],
+          invocations: 5,
+        },);
+      },
+    },),
+    it({
       name: 'INVOKES each runner in the living docs only with flags it reads, so a doc cannot hand a reader a '
         + 'command the runner refuses',
       fn: async () => {
