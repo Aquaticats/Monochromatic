@@ -1,8 +1,4 @@
-# Generated from mise.no-env.toml by file-enforcer.
 # harper:ignore
-
-# mise.toml is generated from mise.no-env.toml by file-enforcer (file-enforcer.config.ts, generateMiseToml).
-# Edit mise.no-env.toml and run file-enforcer; never hand-edit mise.toml.
 
 # mise configuration - replaces proto and moon
 # https://mise.jdx.dev/configuration.html
@@ -57,7 +53,7 @@ task.disable_spec_from_run_scripts = true
 [hooks]
 # Runs at first `cd` before any tool is installed, so it must be cross-platform
 # and depend only on mise itself (the one guaranteed prerequisite). It delegates
-# to the `bootstrap` task, a thin alias of `toolchain:sync`, which installs the
+# to the `bootstrap` task, a thin alias of `toolchain:install`, which installs the
 # versions toolchain.lock.json records (lock-constrained, the `pnpm install`
 # model). Hooks require a string body, so the array `run` (which mise sequences
 # and fails fast on) lives on the task.
@@ -322,7 +318,7 @@ const { existsSync, readdirSync, statSync } = await import('node:fs')
 const { join, resolve } = await import('node:path')
 const { execFileSync } = await import('node:child_process')
 const configRoot = process.env.MISE_CONFIG_ROOT ?? process.cwd()
-const monorepoRoot = process.env.MISE_MONOREPO_ROOT ?? (existsSync(join(configRoot, 'mise.no-env.toml')) ? configRoot : resolve(configRoot, '..', '..', '..'))
+const monorepoRoot = process.env.MISE_MONOREPO_ROOT ?? (existsSync(join(configRoot, 'toolchain.plan.jsonc')) ? configRoot : resolve(configRoot, '..', '..', '..'))
 const runWorkspaceNode = (packagePath, entryName, entryArgs) => {
   const packageRoot = join(monorepoRoot, packagePath)
   const built = join(packageRoot, 'dist', 'final', 'node', `${entryName}.mjs`)
@@ -624,29 +620,41 @@ run = "slopo embed"
 [tasks."slopo:analyze"]
 run = "slopo analyze"
 
-[tasks."toolchain:sync"]
-description = "Converge every tool to the versions toolchain.lock.json records (lock-constrained installs, the pnpm-install model)"
-run = "node package/file-enforcer/core/src/toolchain/sync.ts"
+[tasks."toolchain:install"]
+description = "Converge every tool to the versions toolchain.lock.json records (mpm-shadow install: lock-constrained, the pnpm-install model; frozen under CI)"
+run = "mpm-shadow install"
 
-[tasks."toolchain:status"]
+[tasks."toolchain:list"]
 description = "Print observed versus locked tool versions and exit non-zero on drift"
-run = "node package/file-enforcer/core/src/toolchain/status.ts"
+run = "mpm-shadow list"
 
 [tasks."toolchain:update"]
-description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model); --check reports without writing"
-run = "node package/file-enforcer/core/src/toolchain/update.ts"
+description = "Re-resolve floating and channel versions into toolchain.lock.json (the pnpm-update model)"
+run = "mpm-shadow update"
 
-[tasks."toolchain:sync:global"]
+[tasks."toolchain:outdated"]
+description = "Report which tools toolchain:update would move, writing and installing nothing; exits non-zero when any would move"
+run = "mpm-shadow outdated"
+
+[tasks."toolchain:lock:check"]
+description = "Offline gate: fail when toolchain.plan.jsonc and toolchain.lock.json disagree or the lock's digest does not match (CI, beside file-enforcer check)"
+run = "mpm-shadow install --lockfile-only --frozen-lockfile"
+
+[tasks."toolchain:install:global"]
 description = "Converge the machine-global tools to the versions its toolchain.lock.json records (doc/planning/mpm-global-toolchain-migration.md)"
-run = "node package/file-enforcer/core/src/toolchain/sync.ts --global"
+run = "mpm-shadow install --global"
 
-[tasks."toolchain:status:global"]
+[tasks."toolchain:list:global"]
 description = "Print observed versus locked versions of the machine-global tools and exit non-zero on drift"
-run = "node package/file-enforcer/core/src/toolchain/status.ts --global"
+run = "mpm-shadow list --global"
 
 [tasks."toolchain:update:global"]
-description = "Re-resolve the machine-global tools into their toolchain.lock.json; --check reports without writing"
-run = "node package/file-enforcer/core/src/toolchain/update.ts --global"
+description = "Re-resolve the machine-global tools into their toolchain.lock.json"
+run = "mpm-shadow update --global"
+
+[tasks."toolchain:outdated:global"]
+description = "Report which machine-global tools toolchain:update:global would move, writing and installing nothing"
+run = "mpm-shadow outdated --global"
 
 #endregion Utility Tasks
 
@@ -1032,15 +1040,15 @@ run = ["mise run format", "mise run build", "mise run test"]
 
 #region Preparation Tasks
 
-# Thin alias of `toolchain:sync`, kept so existing callers keep working (the
+# Thin alias of `toolchain:install`, kept so existing callers keep working (the
 # commented-out `enter` hook below, docs, and muscle memory). Invoked on a fresh
 # clone with no manual step: it installs the versions toolchain.lock.json records
 # (lock-constrained, the `pnpm install` model), and re-resolving versions is a
 # separate update action. The array `run` sequences and fails fast on the first
 # entry with no shell-specific chaining, so it works under both `sh` and `cmd`.
 [tasks.bootstrap]
-description = "Alias of toolchain:sync: converge every tool to the versions toolchain.lock.json records (runs on directory entry)"
-run = ["mise run toolchain:sync"]
+description = "Alias of toolchain:install: converge every tool to the versions toolchain.lock.json records (runs on directory entry)"
+run = ["mise run toolchain:install"]
 
 [tasks.prepare]
 description = "Prepare environment: pnpm install, then fan out the prepare:* children (file sync, Playwright container, Android SDK, etc.). EXPENSIVE on a fresh clone: it auto-runs prepare:android (~2.9 GB Android SDK + NDK) and prepare:playwright (a podman image build) for every developer regardless of which packages they touch; this cost is intended and tolerated. Each child is idempotent, so reruns are cheap."
@@ -1082,7 +1090,7 @@ run = "pnpm approve-builds sharp"
 
 [tasks."prepare:pnpm:others:files"]
 description = "Sync file-enforcer managed files"
-run = "node file-enforcer.config.ts"
+run = "file-enforcer write"
 
 [tasks."shadow-review"]
 description = "Standards-review gate shadow run on the landed commit: appends to doc/audit/standards-review-gate-shadow.md and never blocks or fails a landing"
@@ -1100,9 +1108,9 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'depends', ['--sources', 'sh
 """
 
 # Android SDK components and the rustup Android targets for
-# package/music-player/android-app come from `toolchain:sync` (the `android-sdk`
+# package/music-player/android-app come from `toolchain:install` (the `android-sdk`
 # route and the rust tool's `rustTargets` row of toolchain.lock.json). This task
-# stays as a thin alias of `toolchain:sync` so existing callers (the `prepare`
+# stays as a thin alias of `toolchain:install` so existing callers (the `prepare`
 # umbrella, the release workflow, package error messages) keep working. A depth-2
 # `prepare:*` task, so the `prepare` umbrella auto-runs it after a fresh clone.
 # EXPENSIVE on a fresh machine: ~2.9 GB of Android SDK + NDK (the NDK alone is
@@ -1110,8 +1118,8 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'depends', ['--sources', 'sh
 # Android ones; this cost is intended and tolerated. Idempotent: a fast no-op
 # once provisioned.
 [tasks."prepare:android"]
-description = "Alias of toolchain:sync: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)"
-run = ["mise run toolchain:sync"]
+description = "Alias of toolchain:install: install the Android SDK components and rustup Android targets package/music-player/android-app needs (EXPENSIVE on a fresh machine, ~2.9 GB; idempotent once provisioned)"
+run = ["mise run toolchain:install"]
 
 [tasks.prepareAndBuild]
 description = "Complete setup: prepare environment and build all artifacts"
@@ -1149,12 +1157,16 @@ run = "caddy run --config Caddyfile --adapter caddyfile"
 
 [tasks."sync:files"]
 alias = "file-enforcer"
-description = "Sync derived files (CLAUDE.md, oxlint config, etc.) via file-enforcer"
-run = "node package/file-enforcer/core/src/cli.ts"
+description = "Regenerate every derived file (CLAUDE.md, LICENSE, Cargo.toml keys, etc.) via file-enforcer"
+run = "file-enforcer write"
+
+[tasks."check:files"]
+description = "Report drift in derived files without writing (exits non-zero on drift); CI checks committed outputs first, see .github/workflows/advisory-core.yml"
+run = "file-enforcer check"
 
 [tasks."watch:sync:files"]
 description = "Watch source files and re-sync on changes"
-run = "node package/file-enforcer/core/src/cli.ts --watch"
+run = "file-enforcer watch"
 
 #endregion File Enforcer
 
@@ -1318,127 +1330,3 @@ buildPublishPlan();
 """
 
 #endregion Changesets
-
-[env]
-# Secrets live in the age-encrypted .env.local.json (sops backend), gitignored
-# via the *.local.* pattern and decrypted at runtime by mise's built-in rops
-# using the identity at ~/.config/mise/age.txt. Encrypted-only: no plaintext env
-# slot survives, so a secret can never re-enter an unencrypted, backed-up file.
-# Optional file - mise silently ignores it when missing.
-# https://mise.jdx.dev/environments/secrets/sops.html
-_.file = [{ path = ".env.local.json", redact = true }]
-
-# The first entry is the gitignored per-worktree directory .cache/search-shadow-bin that
-# holds the rg link to the installed search shadow (the postinstall of the
-# cargo:monochromatic-search-shadow tool in the toolchain plan). It has to come first:
-# the next entry holds the locked ripgrep, which would otherwise win and the shadow would
-# never run. The second is the gitignored per-worktree toolchain exposure directory
-# .cache/toolchain-bin, one link per tool toolchain.lock.json declares, so tasks
-# resolve the locked tools before any ambient or global one. The third is the
-# gitignored per-worktree directory .cache/cli-git-bin that holds the git link to the
-# installed Git policy wrapper (the postinstall of the cargo:monochromatic-git-policy-cli
-# tool in the toolchain plan).
-# The rest are workspace bin dirs, globbed from what is installed on disk rather than
-# read from workspace metadata. So this list changes with install state: a fresh
-# clone, a pruned package, or a pnpm install that adds a dependency all move it.
-# That is expected, and the regenerated list is committed as file-enforcer
-# writes it. Do not revert it as drift and do not hand-edit it; the source is
-# file-enforcer.config.ts. Issue #335 tracks deriving it from workspace metadata
-# instead, which would make it stable across environments.
-_.path = [
-  ".cache/search-shadow-bin",
-  ".cache/mpm-shadow-bin",
-  ".cache/toolchain-bin",
-  ".cache/cli-git-bin",
-  "node_modules/.bin",
-  "package/agent-harness-shared/advisor/node_modules/.bin",
-  "package/agent-harness-shared/model-selection/node_modules/.bin",
-  "package/agent-harness-shared/search-fetch/node_modules/.bin",
-  "package/agent-harness-shared/truncate/node_modules/.bin",
-  "package/claude-code-plugin/bash-output-filter/node_modules/.bin",
-  "package/claude-code-plugin/claude-spawn/node_modules/.bin",
-  "package/claude-code-plugin/correction-reminder/node_modules/.bin",
-  "package/claude-code-plugin/guardrail/node_modules/.bin",
-  "package/claude-code-plugin/prompt-time/node_modules/.bin",
-  "package/claude-code-plugin/session-start-housekeeping/node_modules/.bin",
-  "package/claude-code-plugin/stop-reminder/node_modules/.bin",
-  "package/claude-code-plugin/terminal-title/node_modules/.bin",
-  "package/config/pnpr/node_modules/.bin",
-  "package/crate-release/cli/node_modules/.bin",
-  "package/css/core-edit.bench/node_modules/.bin",
-  "package/dependency-catalog/core-pnpm/node_modules/.bin",
-  "package/deps-update/cli/node_modules/.bin",
-  "package/done/variant-postcss/node_modules/.bin",
-  "package/dsh-plugin/advisor/node_modules/.bin",
-  "package/dsh-plugin/neuralwatt/node_modules/.bin",
-  "package/electron-infra/app-counter/node_modules/.bin",
-  "package/electron-infra/core/node_modules/.bin",
-  "package/env-local-json/core/node_modules/.bin",
-  "package/file-enforcer/core/node_modules/.bin",
-  "package/file-manager/variant-electron/node_modules/.bin",
-  "package/forbidden-strings/cli.fuzz/node_modules/.bin",
-  "package/forbidden-strings/cli/node_modules/.bin",
-  "package/forbidden-strings/core/node_modules/.bin",
-  "package/git-policy/cli/node_modules/.bin",
-  "package/kwin/key-helper/node_modules/.bin",
-  "package/linter/monochromatic-lint.fuzz/node_modules/.bin",
-  "package/linter/monochromatic-lint/node_modules/.bin",
-  "package/llm/token-count/node_modules/.bin",
-  "package/mcp/mvm/node_modules/.bin",
-  "package/mutation-test/cli-unused-export/node_modules/.bin",
-  "package/mutation-test/cli/node_modules/.bin",
-  "package/pi-plugin/advisor/node_modules/.bin",
-  "package/pi-plugin/agent-settled-notification/node_modules/.bin",
-  "package/pi-plugin/ask-user-question/node_modules/.bin",
-  "package/pi-plugin/auto-mode/node_modules/.bin",
-  "package/pi-plugin/bash-poke/node_modules/.bin",
-  "package/pi-plugin/cost-dismissal/node_modules/.bin",
-  "package/pi-plugin/current-time-context/node_modules/.bin",
-  "package/pi-plugin/goal/node_modules/.bin",
-  "package/pi-plugin/guardrail/node_modules/.bin",
-  "package/pi-plugin/model-retirement/node_modules/.bin",
-  "package/pi-plugin/openai-fast/node_modules/.bin",
-  "package/pi-plugin/search-fetch/node_modules/.bin",
-  "package/pi-plugin/spawn/node_modules/.bin",
-  "package/pi-plugin/statusline/node_modules/.bin",
-  "package/pi-plugin/terminal-title/node_modules/.bin",
-  "package/pi-plugin/thinking-default/node_modules/.bin",
-  "package/pi-shared/model-review/node_modules/.bin",
-  "package/pnpm-override/stub-throwing/node_modules/.bin",
-  "package/ssg/aquati.cat/node_modules/.bin",
-  "package/test-fixture/file-enforcer-perf/node_modules/.bin",
-  "package/translation-repair/document-structure/node_modules/.bin",
-  "package/translation-repair/insertion/node_modules/.bin",
-  "package/translation-repair/slice-reading/node_modules/.bin",
-  "package/typeface/aquaticat/node_modules/.bin",
-  "package/upstream-fork/conf.fuzz/node_modules/.bin",
-  "package/upstream-fork/conf/node_modules/.bin",
-  "package/wc/app/node_modules/.bin",
-]
-
-# Enables Slint's experimental builtins (e.g. FlexboxLayout) in slint-lsp when it
-# is launched through mise (e.g. the JetBrains plugin's external LSP set to run
-# "mise exec -- slint-lsp"). slint-lsp exposes no CLI flag for this; the compiler
-# reads this env var at runtime (internal/compiler/lib.rs) and the LSP relies on
-# that path (tools/lsp/main.rs). The two desktop-app packages already set it for
-# their builds; setting it at the repo root also covers the editor LSP whose cwd
-# is the monorepo root. mise [env] is directory-activated, so it only reaches the
-# LSP process when mise launches it.
-SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
-
-# Emits Slint element debug info (ids, source positions) into compiled UIs at
-# build time. Required for the ElementHandle/MCP introspection APIs
-# (find_elements_by_id, get_element_tree) the desktop-app test harnesses rely
-# on; without it those calls panic at runtime (see
-# doc/handover/slint-app-testing.md, doc/troubleshooting/slint-embedded-mcp-server.md).
-# Setting it at the repo root covers every cargo/slint invocation mise
-# launches, not just the packages that previously set it per-task.
-SLINT_EMIT_DEBUG_INFO = "1"
-
-# Points the forbidden-strings scanner (and the cli-git forbidden-strings
-# policy adapter, which reads the same variable) at the two committed and
-# gitignored appendixes directly, as a comma-separated list; the trailing
-# question mark makes the gitignored sensitive appendix optional, so a clean
-# clone or CI scans with the shared one alone. {{config_root}} makes each path
-# absolute so scans started from any subdirectory resolve the same files.
-FORBIDDEN_STRINGS_RULES = "{{config_root}}/forbidden-strings.append.txt,{{config_root}}/forbidden-strings.append.local.txt?"

@@ -1,0 +1,59 @@
+# The root mise environment. Hand-written and committed: nothing generates it. Mise reads every file in
+# .config/mise/conf.d/ in name order beside the root mise.toml. The gitignored 10-bin.local.toml sorts before this file;
+# file-enforcer writes it (rule `mise-bin-list` in file-enforcer.config.jsonc) and it lists the package bin directories
+# pnpm created, so this file keeps only the entries whose position in PATH matters or that exist on every clone.
+[env]
+# Secrets live in the age-encrypted .env.local.json (sops backend), gitignored
+# via the *.local.* pattern and decrypted at runtime by mise's built-in rops
+# using the identity at ~/.config/mise/age.txt. Encrypted-only: no plaintext env
+# slot survives, so a secret can never re-enter an unencrypted, backed-up file.
+# Optional file - mise silently ignores it when missing.
+# https://mise.jdx.dev/environments/secrets/sops.html
+_.file = [{ path = ".env.local.json", redact = true }]
+
+# The first entry is the gitignored per-worktree directory .cache/search-shadow-bin that
+# holds the rg link to the installed search shadow (the postinstall of the
+# cargo:monochromatic-search-shadow tool in the toolchain plan). It has to come first:
+# the next entry holds the locked ripgrep, which would otherwise win and the shadow would
+# never run. The second is the gitignored per-worktree directory .cache/mpm-shadow-bin
+# that holds the mpm link to the installed mpm shadow. The third is the gitignored
+# per-worktree toolchain exposure directory .cache/toolchain-bin, one link per tool
+# toolchain.lock.json declares, so tasks resolve the locked tools before any ambient or
+# global one. The fourth is the gitignored per-worktree directory .cache/cli-git-bin that
+# holds the git link to the installed Git policy wrapper (the postinstall of the
+# cargo:monochromatic-git-policy-cli tool in the toolchain plan). The last is the root
+# workspace bin directory. The package bin directories come from 10-bin.local.toml.
+_.path = [
+  ".cache/search-shadow-bin",
+  ".cache/mpm-shadow-bin",
+  ".cache/toolchain-bin",
+  ".cache/cli-git-bin",
+  "node_modules/.bin",
+]
+
+# Enables Slint's experimental builtins (e.g. FlexboxLayout) in slint-lsp when it
+# is launched through mise (e.g. the JetBrains plugin's external LSP set to run
+# "mise exec -- slint-lsp"). slint-lsp exposes no CLI flag for this; the compiler
+# reads this env var at runtime (internal/compiler/lib.rs) and the LSP relies on
+# that path (tools/lsp/main.rs). The two desktop-app packages already set it for
+# their builds; setting it at the repo root also covers the editor LSP whose cwd
+# is the monorepo root. mise [env] is directory-activated, so it only reaches the
+# LSP process when mise launches it.
+SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
+
+# Emits Slint element debug info (ids, source positions) into compiled UIs at
+# build time. Required for the ElementHandle/MCP introspection APIs
+# (find_elements_by_id, get_element_tree) the desktop-app test harnesses rely
+# on; without it those calls panic at runtime (see
+# doc/handover/slint-app-testing.md, doc/troubleshooting/slint-embedded-mcp-server.md).
+# Setting it at the repo root covers every cargo/slint invocation mise
+# launches, not just the packages that previously set it per-task.
+SLINT_EMIT_DEBUG_INFO = "1"
+
+# Points the forbidden-strings scanner (and the cli-git forbidden-strings
+# policy adapter, which reads the same variable) at the two committed and
+# gitignored appendixes directly, as a comma-separated list; the trailing
+# question mark makes the gitignored sensitive appendix optional, so a clean
+# clone or CI scans with the shared one alone. {{config_root}} makes each path
+# absolute so scans started from any subdirectory resolve the same files.
+FORBIDDEN_STRINGS_RULES = "{{config_root}}/forbidden-strings.append.txt,{{config_root}}/forbidden-strings.append.local.txt?"
