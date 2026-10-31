@@ -351,9 +351,9 @@ async function buyConsolidationAttempt(
   //
   // THAT HOLDS WITH LANE TEXTS ON THE OFFER WHEN THE CONTEST DID NOT ENDORSE THE STANDING (owner, 2026-10-30, "Skip when
   // below floor (Recommended)", B1053): XingZ6022 bought a slate at 75 slices, every round hearing 1 judge of 7, because
-  // the skip waited for an empty offer. The swap above has already taken the slices it fires on. An endorsed standing
-  // with lane texts on the offer is still asked, since the offer is empty for one in practice and nothing was ruled
-  // about it.
+  // the skip waited for an empty offer. The `winnerShipsUnasked` exit has already taken the slices the swap fires on.
+  // An endorsed standing with lane texts on the offer is still asked, since the offer is empty for one in practice and
+  // nothing was ruled about it.
   /**
    Whether the slate bench reads below the floor for a standing that may be kept unasked.
    */
