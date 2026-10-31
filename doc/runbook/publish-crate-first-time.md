@@ -465,6 +465,296 @@ as measured:
   and did not compile. That command needs `cargo-binstall` on PATH; the repository provisions it into
   `.cache/toolchain-bin`, and without it cargo answers `no such command: binstall`.
 
+## The five file-enforcer crates 0.1.0
+
+Status:
+TODO,
+owner action needed
+([`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md), `Cutover`:
+the switch waits for every crate to be published and fetched by a clean container).
+
+The Rust file-enforcer is five new crates.
+crates.io answered 404 for all five on 2026-10-31,
+so each needs a first version published once with a personal API token,
+exactly as `monochromatic-mpm-shadow` was.
+`Setup`, `Steps` and `Restore` of this runbook apply with the substitutions under each crate heading;
+this section gives the order and the shared owner steps.
+
+Everything in this section was prepared on the branch `worktree-agent-acdb2be076c846e2c`,
+and nothing was published,
+no token was created,
+`cargo login` was not run,
+and no Trusted Publishing configuration exists yet.
+
+### Publish order
+
+The order follows the dependency pins,
+which are exact (`=`) path versions that file-enforcer's `Cargo.toml` sync writes:
+
+1. `monochromatic-jsonc-edit` 0.1.2.
+   `monochromatic-file-enforcer` calls `parse_jsonc_with_spans`,
+   which 0.1.1 (the version on crates.io) does not have.
+   0.1.2 is an additive release,
+   which the 0.1 series treats as a patch bump,
+   so 0.1.1 users keep compiling.
+   This crate already uses Trusted Publishing,
+   so its release is a workflow run and needs no owner token.
+2. `monochromatic-xml-edit` 0.1.0,
+   `monochromatic-dependency-catalog` 0.1.0 and `monochromatic-browserslist` 0.1.0,
+   in any order,
+   because none of them depends on another first-party crate.
+3. `monochromatic-file-enforcer` 0.1.0,
+   which pins `monochromatic-jsonc-edit` to `=0.1.2`.
+4. `monochromatic-file-enforcer-cli` 0.1.0,
+   which pins `monochromatic-file-enforcer`,
+   `monochromatic-dependency-catalog`,
+   `monochromatic-browserslist` and `monochromatic-xml-edit` to `=0.1.0`.
+
+The workflow jobs chain in the same order with `needs:`,
+so a run that publishes several of them never starts a crate before the crates it depends on.
+A prerequisite that was skipped because its own version did not change counts as satisfied;
+a failed one blocks the dependent.
+
+`monochromatic-mpm-shadow`,
+`monochromatic-lint` and `monochromatic-git-policy-cli` also pin `monochromatic-jsonc-edit`,
+and now pin `=0.1.2`.
+Their jobs are not chained to `je-publish-crate`,
+so 0.1.2 must be on crates.io before any of them publishes a new version.
+
+### Owner steps in order
+
+1. Release `monochromatic-jsonc-edit` 0.1.2 before anything else,
+   from the branch,
+   because `monochromatic-file-enforcer` cannot be packaged or published until 0.1.2 is on the registry:
+
+   ```bash
+   gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-jsonc-edit -f dry-run=false
+   ```
+
+   Expected outcome:
+   `je-publish-crate` authenticates through Trusted Publishing and uploads 0.1.2,
+   and `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/monochromatic-jsonc-edit` lists `0.1.2`.
+   A dispatch from a branch works because the workflow file exists on the default branch;
+   Trusted Publishing matches the repository and workflow file name,
+   not the branch.
+   Merging the bump to `main` instead also publishes it,
+   but merge last (step 7),
+   so a merge that carries all five new crates before their publishers exist fails at authentication.
+2. Create one token at <https://crates.io/settings/tokens> named `monochromatic-file-enforcer-bootstrap`,
+   with the shortest expiry and the scopes `publish-new`,
+   `publish-update` and `trusted-publishing`
+   (the last one lets the agent create the five publishers through the API, as for `monochromatic-mpm-shadow`).
+   Run `cargo login` at the repository root and paste the token.
+   Do not paste it into the agent conversation.
+3. Prove each package before uploading,
+   in the order under `Publish order`:
+
+   ```bash
+   mise run //package/xml-edit/core-rust:publish:dry-run
+   mise run //package/dependency-catalog/core-native:publish:dry-run
+   mise run //package/browserslist/core-rust:publish:dry-run
+   ```
+
+   Expected outcome for each:
+   `Packaged N files`,
+   `Verifying`,
+   then `warning: aborting upload due to dry run`,
+   and no `403`.
+   The `ignoring test` and `ignoring example` warnings are expected:
+   the tests and the example read repository files that no `.crate` holds.
+4. Publish the three independent crates with `mise run //package/<path>:publish`
+   for `xml-edit/core-rust`,
+   `dependency-catalog/core-native` and `browserslist/core-rust`.
+   Cargo waits until each crate is available.
+5. Dry-run and publish `monochromatic-file-enforcer`,
+   then `monochromatic-file-enforcer-cli`:
+
+   ```bash
+   mise run //package/file-enforcer/core-rust:publish:dry-run
+   mise run //package/file-enforcer/core-rust:publish
+   mise run //package/file-enforcer/cli:publish:dry-run
+   mise run //package/file-enforcer/cli:publish
+   ```
+
+   These dry runs resolve the pinned crates from crates.io,
+   so they only pass after steps 1 and 4.
+   Before then the core answers
+   ``failed to select a version for the requirement `monochromatic-jsonc-edit = "=0.1.2"` ``
+   and the cli answers
+   ``no matching package named `monochromatic-browserslist` found``.
+6. Tell the agent the five crates are published and the token is logged in.
+   The agent creates the five Trusted Publishing configurations through the API,
+   one `POST https://crates.io/api/v1/trusted_publishing/github_configs` per crate with the body
+   `{"github_config": {"crate": "<name>", "repository_owner": "Aquaticats", "repository_name": "Monochromatic",
+   "workflow_filename": "cargo-publish.yml", "environment": null}}`,
+   reads the token from the credential file in-process,
+   prints only statuses,
+   and lists them back with `GET ...?crate=<name>`.
+   The owner is `Aquaticats` (id 343218767),
+   not `Aquaticat`
+   (the correction recorded in the `monochromatic-search-shadow` section).
+   The dashboard route in steps 12 to 16 of `Steps` does the same one crate at a time.
+7. Revoke the token at <https://crates.io/settings/tokens>,
+   then run `cargo logout`.
+8. Merge the branch to `main`.
+   The pushed range adds the five new `Cargo.toml` files to `main`,
+   so every `*-detect` job reads that as a version bump and runs the publish job:
+   each authenticates through Trusted Publishing and logs `already on crates.io; skipping publish.`,
+   and the `fec-*` jobs build the two Linux archives and create the immutable release
+   `monochromatic-file-enforcer-cli-v0.1.0`.
+   Dispatch a dry run first from the branch if you want to see the archives before they become permanent:
+
+   ```bash
+   gh workflow run cargo-publish.yml --ref worktree-agent-acdb2be076c846e2c -f crate=monochromatic-file-enforcer-cli -f dry-run=true
+   ```
+
+### What to check
+
+1. Every crate answers on the registry:
+   `curl -sS -A 'publish-check' https://crates.io/api/v1/crates/<name>` contains `"max_stable_version":"0.1.0"`
+   (`0.1.2` for `monochromatic-jsonc-edit`) and `"license":"LGPL-3.0-or-later"`.
+2. A clean container resolves the cli from the registry:
+   `cargo install --version 0.1.0 --root <disposable directory> monochromatic-file-enforcer-cli`
+   in a podman container capped `--cpus=2 --memory=2g`,
+   then `file-enforcer --version` prints one JSON line whose `message` is `file-enforcer 0.1.0`.
+3. `gh release view monochromatic-file-enforcer-cli-v0.1.0 --json assets --jq '.assets[].name'` lists the two archives
+   and `monochromatic-file-enforcer-cli-0.1.0-sha256sums.txt`.
+4. Discovery works without compiling:
+   `cargo binstall --dry-run --no-confirm --disable-strategies compile,quick-install monochromatic-file-enforcer-cli@0.1.0`
+   in a disposable directory ends with `has been downloaded from github.com`.
+5. The cutover comparison against the TypeScript tool still has to run after this;
+   publication is only one of its prerequisites.
+
+### What was proven before publication
+
+Measured on 2026-10-31 with the nightly `cargo 1.101.0-nightly (3960fa69b 2026-10-12)`,
+from a clean worktree at the commit that holds the package metadata changes:
+
+- `cargo publish --dry-run` through the package's mise task,
+  with verification by compile,
+  passed for `monochromatic-xml-edit` (`Packaged 27 files, 199.3KiB (52.5KiB compressed)`),
+  `monochromatic-dependency-catalog` (`Packaged 43 files, 278.0KiB (70.4KiB compressed)`)
+  and `monochromatic-browserslist` (`Packaged 57 files, 390.6KiB (94.6KiB compressed)`);
+  `cargo package` passed for `monochromatic-jsonc-edit` 0.1.2 (`Packaged 33 files, 344.4KiB (84.3KiB compressed)`).
+- The core and the cli cannot resolve unpublished pins from crates.io,
+  so a plain `cargo publish --dry-run` fails for them,
+  even with `--no-verify`,
+  with the two errors quoted in step 5 of `Owner steps in order`.
+  With a scratch-only override in the command line
+  (`--config 'patch.crates-io.<crate>.path="<worktree path>"'` for each unpublished dependency),
+  `cargo publish --dry-run` passed for `monochromatic-file-enforcer` (`Packaged 61 files, 507.7KiB (130.6KiB compressed)`)
+  and `monochromatic-file-enforcer-cli` (`Packaged 29 files, 233.4KiB (60.8KiB compressed)`),
+  verifying by compile.
+  No file in the repository carries that override.
+- All six `.crate` files were unpacked into separate empty directories and built in one podman container
+  capped `--cpus=2 --memory=2g`,
+  with the cli and the core resolving their first-party dependencies to the sibling unpacked directories
+  through `--config patch.crates-io`.
+  Every build finished,
+  an unpatched build of `monochromatic-xml-edit` served as the toolchain control,
+  and the built `file-enforcer --version` printed
+  `{"schemaVersion":1,"sequence":0,"type":"version","code":"version","message":"file-enforcer 0.1.0"}`.
+  Because the unpacked directories are what gets uploaded,
+  a file missing from an `include` list would have failed there.
+- No `.crate` contains a path dependency,
+  and the `Cargo.toml` of each carries `license`, `description`, `repository`, `readme`, `keywords` and `categories`;
+  `LICENSES/LGPL-3.0-or-later.txt` and `LICENSES/GPL-3.0-or-later.txt` ship in all five.
+
+Not proven:
+that crates.io's index resolves the exact pins after the upload
+(only the real publish shows it),
+that the tests inside a `.crate` run
+(the tests and fixtures that read repository-root files are left out on purpose,
+and `src/` unit tests of the core and the cli that read repository files would fail outside the repository),
+that the release jobs run on GitHub's runners
+(`fec-build-binary` was never executed; its smoke-run comparison was only checked against the printed JSON line),
+and that `mpm`'s `cargo:` resolver installs the cli,
+which needs the published release.
+
+### monochromatic-xml-edit 0.1.0
+
+Status:
+TODO
+
+Crate `monochromatic-xml-edit`,
+version `0.1.0`,
+path `package/xml-edit/core-rust`,
+license `LGPL-3.0-or-later`,
+workflow jobs `xe-detect` and `xe-publish-crate`.
+Token name in step 3 of `Steps`:
+`monochromatic-file-enforcer-bootstrap` (one token covers the five crates).
+No dependencies.
+
+### monochromatic-dependency-catalog 0.1.0
+
+Status:
+TODO
+
+Crate `monochromatic-dependency-catalog`,
+version `0.1.0`,
+path `package/dependency-catalog/core-native`,
+license `LGPL-3.0-or-later`,
+workflow jobs `dc-detect` and `dc-publish-crate`.
+The only dependency is `toml_edit`.
+`mise run //package/dependency-catalog/core-native:test` includes the golden fixed-point test over the repository's
+`rust-catalog.toml` and passed with 100 tests after the `monochromatic-jsonc-edit` pin moved to `=0.1.2`.
+
+### monochromatic-browserslist 0.1.0
+
+Status:
+TODO
+
+Crate `monochromatic-browserslist`,
+version `0.1.0`,
+path `package/browserslist/core-rust`,
+license `LGPL-3.0-or-later`,
+workflow jobs `bl-detect` and `bl-publish-crate`.
+The package leaves `tests/` and `conformance/` out,
+because the tests read `browserslist-data.lock.json` from the repository root,
+and keeps `fixtures/**`,
+which `src/fixture.rs` embeds at compile time.
+The crate also ships the `monochromatic-browserslist` binary;
+it has no release archives.
+
+### monochromatic-file-enforcer 0.1.0
+
+Status:
+TODO
+
+Crate `monochromatic-file-enforcer`,
+version `0.1.0`,
+path `package/file-enforcer/core-rust`,
+license `LGPL-3.0-or-later`,
+workflow jobs `fe-detect` and `fe-publish-crate`
+(chained after `je-publish-crate`).
+Depends on `monochromatic-jsonc-edit` `=0.1.2`.
+The package ships `fixtures/*.jsonc` for the schema test and leaves out `examples/write-schema.rs`.
+
+### monochromatic-file-enforcer-cli 0.1.0
+
+Status:
+TODO
+
+Crate `monochromatic-file-enforcer-cli`,
+version `0.1.0`,
+binary `file-enforcer`,
+path `package/file-enforcer/cli`,
+license `LGPL-3.0-or-later`,
+workflow jobs `fec-detect`, `fec-publish-crate`, `fec-release-state`, `fec-build-binary` and `fec-create-release`
+(the publish job is chained after the other four crates' publish jobs).
+Depends on `monochromatic-file-enforcer`,
+`monochromatic-dependency-catalog`,
+`monochromatic-browserslist` and `monochromatic-xml-edit`,
+each `=0.1.0`.
+Its `[package.metadata.binstall]` table matches the `monochromatic-mpm-shadow` one,
+so releases are tagged `monochromatic-file-enforcer-cli-v<version>`,
+the archives are `monochromatic-file-enforcer-cli-<version>-<target>.tar.gz`
+(Linux x86_64 and aarch64, glibc of Ubuntu 24.04),
+and `cargo binstall monochromatic-file-enforcer-cli` finds them,
+which is the route mpm's `cargo:` resolver takes.
+The release profile has no LTO setting (unlike `monochromatic-mpm-shadow`),
+so the archive binary is an ordinary release build.
+
 ## monochromatic-nested-wayland-session releases after the first publication
 
 Status:
