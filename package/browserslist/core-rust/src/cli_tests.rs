@@ -17,7 +17,7 @@ use std::fs;
 
 /// Turn literals into the owned argument list `run` takes.
 fn args(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| (*item).to_string()).collect();
+    return items.iter().map(|item| return (*item).to_string()).collect();
 }
 
 /// A fake registry ready for `update`: version documents for both packages plus a Mozilla document.
@@ -34,7 +34,7 @@ fn updating_registry() -> FakeRegistry {
         format!("{{\"version\":\"2.0.61\",\"dist\":{{\"integrity\":\"{}\"}}}}", lock.node_releases.integrity).into_bytes(),
     );
     registry.set_route("/mozilla.json", 200, b"{\"FIREFOX_ESR\":\"153.6.0esr\"}".to_vec());
-    assert_eq!(caniuse_tgz().is_empty(), false);
+    assert!(!caniuse_tgz().is_empty());
     return registry;
 }
 
@@ -51,7 +51,7 @@ fn update_writes_the_lock() {
         "--registry", &registry.url(), "--mozilla", &mozilla,
     ]))
     .expect("updates");
-    assert_eq!(output.contains("caniuse-lite 1.0.30001820, node-releases 2.0.61, Firefox ESR 153.6.0esr"), true, "{output}");
+    assert!(output.contains("caniuse-lite 1.0.30001820, node-releases 2.0.61, Firefox ESR 153.6.0esr"), "{output}");
     let lock = DataLock::from_json(&fs::read_to_string(&lock_file).expect("lock written")).expect("lock parses");
     assert_eq!(lock, fixture_lock());
 }
@@ -71,7 +71,7 @@ fn export_writes_the_tarballs() {
     ]))
     .expect("exports");
     assert_eq!(fs::read(out.join("caniuse-lite-1.0.30001820.tgz")).expect("caniuse"), caniuse_tgz());
-    assert_eq!(out.join("node-releases-2.0.61.tgz").is_file(), true);
+    assert!(out.join("node-releases-2.0.61.tgz").is_file());
 }
 
 /// `resolve` prints the rendered file for a config path.
@@ -106,10 +106,10 @@ fn rejects_bad_invocations() {
         args(&["resolve", "--out", "x"]),
     ] {
         let message = run(&invocation).expect_err("rejected").to_string();
-        assert_eq!(message.starts_with("command line: "), true, "{invocation:?}: {message}");
+        assert!(message.starts_with("command line: "), "{invocation:?}: {message}");
     }
     let directory = scratch();
     let missing = directory.path().join("missing.json");
     let message = run(&args(&["export", "--out", "x", "--lock", missing.to_str().expect("utf8")])).expect_err("no lock").to_string();
-    assert_eq!(message.contains("missing.json"), true, "{message}");
+    assert!(message.contains("missing.json"), "{message}");
 }

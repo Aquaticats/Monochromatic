@@ -72,8 +72,8 @@ fn refuses_other_spellings_and_forms() {
         " ",
     ] {
         let message = parse_query(9, text).expect_err("refused").to_string();
-        assert_eq!(message.starts_with("not implemented: "), true, "{text:?}: {message}");
-        assert_eq!(message.contains(&format!("{text:?}")), true, "{text:?}: {message}");
-        assert_eq!(message.contains("line 9"), true, "{text:?}: {message}");
+        assert!(message.starts_with("not implemented: "), "{text:?}: {message}");
+        assert!(message.contains(&format!("{text:?}")), "{text:?}: {message}");
+        assert!(message.contains("line 9"), "{text:?}: {message}");
     }
 }

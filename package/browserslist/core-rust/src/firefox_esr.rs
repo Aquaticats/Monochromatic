@@ -14,7 +14,7 @@ use crate::js_number::parse_int_prefix;
 
 /// Check that a text is a non-empty run of ASCII digits.
 fn is_digits(text: &str) -> bool {
-    return !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit());
+    return !text.is_empty() && text.bytes().all(|byte| return byte.is_ascii_digit());
 }
 
 /// What:
@@ -42,7 +42,7 @@ pub fn parse_esr_major(raw: &str) -> Outcome<u64> {
         return Err(failure());
     };
     let parts: Vec<&str> = numbers.split('.').collect();
-    if parts.len() != 3 || !parts.iter().all(|part| is_digits(part)) {
+    if parts.len() != 3 || !parts.iter().all(|part| return is_digits(part)) {
         return Err(failure());
     }
     return parse_int_prefix(parts[0]).ok_or_else(failure);

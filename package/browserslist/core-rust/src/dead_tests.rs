@@ -17,14 +17,14 @@ use crate::fixture::fixture_files;
 
 /// Build an agent whose literal versions are all released: three empty reserved slots follow them.
 fn agent(name: &str, versions: &[&str]) -> Agent {
-    let mut slots: Vec<Option<String>> = versions.iter().map(|version| Some((*version).to_string())).collect();
+    let mut slots: Vec<Option<String>> = versions.iter().map(|version| return Some((*version).to_string())).collect();
     slots.extend([None, None, None]);
     return Agent { name: name.to_string(), slots };
 }
 
 /// Build owned strings from literals.
 fn owned(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| (*item).to_string()).collect();
+    return items.iter().map(|item| return (*item).to_string()).collect();
 }
 
 /// Load the committed revision.
@@ -99,18 +99,18 @@ fn six_browsers(samsung: Agent) -> AgentTable {
 fn ray_comparisons() {
     let table = six_browsers(agent("samsung", &["4", "5"]));
     let dead = dead_set(&table).expect("expands");
-    assert_eq!(dead.contains(&"baidu 1.5".to_string()), true);
-    assert_eq!(dead.contains(&"baidu 2-3".to_string()), true);
-    assert_eq!(dead.contains(&"baidu x".to_string()), false);
-    assert_eq!(dead.contains(&"ie 9".to_string()), true);
-    assert_eq!(dead.contains(&"ie 12".to_string()), false);
-    assert_eq!(dead.contains(&"ie 11.5".to_string()), false);
-    assert_eq!(dead.contains(&"bb 10".to_string()), true);
-    assert_eq!(dead.contains(&"bb 11".to_string()), false);
-    assert_eq!(dead.contains(&"op_mob 11-12.1".to_string()), true);
-    assert_eq!(dead.contains(&"op_mob 12.1".to_string()), true);
-    assert_eq!(dead.contains(&"op_mob 13".to_string()), false);
-    assert_eq!(dead.contains(&"op_mob TP".to_string()), false);
+    assert!(dead.contains(&"baidu 1.5".to_string()));
+    assert!(dead.contains(&"baidu 2-3".to_string()));
+    assert!(!dead.contains(&"baidu x".to_string()));
+    assert!(dead.contains(&"ie 9".to_string()));
+    assert!(!dead.contains(&"ie 12".to_string()));
+    assert!(!dead.contains(&"ie 11.5".to_string()));
+    assert!(dead.contains(&"bb 10".to_string()));
+    assert!(!dead.contains(&"bb 11".to_string()));
+    assert!(dead.contains(&"op_mob 11-12.1".to_string()));
+    assert!(dead.contains(&"op_mob 12.1".to_string()));
+    assert!(!dead.contains(&"op_mob 13".to_string()));
+    assert!(!dead.contains(&"op_mob TP".to_string()));
 }
 
 /// The single-version rule: exact hit, joined-range alias, `.0` variant, one-version fallback, and failure.

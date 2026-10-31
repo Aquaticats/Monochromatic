@@ -32,7 +32,7 @@ fn matches_paths_exactly() {
 fn rejects_duplicates() {
     let tgz = build_tgz(&[("package/a.txt", b"1"), ("package/a.txt", b"2")]);
     let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("duplicate").to_string();
-    assert_eq!(message.contains("appears more than once"), true, "{message}");
+    assert!(message.contains("appears more than once"), "{message}");
 }
 
 /// A wanted path that is a symbolic link is refused rather than followed.
@@ -40,17 +40,17 @@ fn rejects_duplicates() {
 fn rejects_links() {
     let tgz = build_symlink_tgz("package/a.txt");
     let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("link").to_string();
-    assert_eq!(message.contains("not a regular file"), true, "{message}");
+    assert!(message.contains("not a regular file"), "{message}");
 }
 
 /// Bytes that are not gzip, and a truncated archive, fail with the tarball named.
 #[test]
 fn rejects_corrupt_input() {
-    assert_eq!(extract_files("pkg", b"not gzip at all", &["x"]).is_err(), true);
+    assert!(extract_files("pkg", b"not gzip at all", &["x"]).is_err());
     let mut tgz = build_tgz(&[("package/a.txt", &[7_u8; 4096])]);
     tgz.truncate(tgz.len() / 2);
     let message = extract_files("pkg", &tgz, &["package/a.txt"]).expect_err("truncated").to_string();
-    assert_eq!(message.starts_with("pkg tarball: "), true, "{message}");
+    assert!(message.starts_with("pkg tarball: "), "{message}");
 }
 
 /// An empty request over a valid archive succeeds with nothing.

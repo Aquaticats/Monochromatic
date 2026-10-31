@@ -50,10 +50,10 @@ fn refusals_touch_no_network() {
     let source = DataSource { cache_dir: directory.path().join("cache"), registry_url: registry.url() };
     for text in ["last 2 Chrome versions\n", "defaults\n", "[production]\nnot dead\n", "a, b\n", "not dead\r\n", "Firefox ESR\nsupports es6\n"] {
         let message = resolve_browserslistrc(text, &fixture_lock(), &source).expect_err("refused").to_string();
-        assert_eq!(message.starts_with("not implemented: "), true, "{text:?}: {message}");
+        assert!(message.starts_with("not implemented: "), "{text:?}: {message}");
     }
     assert_eq!(registry.requests().len(), 0);
-    assert_eq!(source.cache_dir.exists(), false);
+    assert!(!source.cache_dir.exists());
 }
 
 /// A first-position `not dead` is browserslist's own error (after the data loads).

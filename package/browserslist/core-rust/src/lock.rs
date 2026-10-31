@@ -13,7 +13,7 @@
 use crate::error::{BrowserslistError, Outcome};
 use crate::firefox_esr::parse_esr_major;
 use crate::integrity::parse_sha512;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 
 /// The lock format version this crate reads and writes.
 const LOCK_VERSION: u64 = 1;
@@ -64,7 +64,15 @@ pub struct DataLock {
 /// A package version must be safe to place in a URL path.
 fn valid_version(version: &str) -> bool {
     return !version.is_empty()
-        && version.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-' || byte == b'_');
+        && version.bytes().all(|byte| return byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-' || byte == b'_');
+}
+
+/// The JSON object for one pinned package.
+fn package_value(package: &PinnedPackage) -> Value {
+    let mut entry: Map<String, Value> = Map::new();
+    entry.insert("version".to_string(), Value::from(package.version.clone()));
+    entry.insert("integrity".to_string(), Value::from(package.integrity.clone()));
+    return Value::Object(entry);
 }
 
 /// Read one pinned package out of the lock object.
@@ -96,14 +104,14 @@ impl DataLock {
     /// function parseLock(text: string): DataLock;
     /// ```
     pub fn from_json(text: &str) -> Outcome<Self> {
-        let parsed: Value = serde_json::from_str(text).map_err(|error| lock_error(&format!("not valid JSON: {error}")))?;
+        let parsed: Value = serde_json::from_str(text).map_err(|error| return lock_error(&format!("not valid JSON: {error}")))?;
         let Value::Object(root) = parsed else {
             return Err(lock_error("the top level is not an object"));
         };
         if root.len() != 4 {
             return Err(lock_error("expected exactly lockVersion, caniuse-lite, node-releases and firefoxEsr"));
         }
-        if root.get("lockVersion") != Some(&json!(LOCK_VERSION)) {
+        if root.get("lockVersion").and_then(Value::as_u64) != Some(LOCK_VERSION) {
             return Err(lock_error(&format!("lockVersion must be {LOCK_VERSION}")));
         }
         let Some(Value::String(firefox_esr)) = root.get("firefoxEsr") else {
@@ -127,13 +135,12 @@ impl DataLock {
     /// function lockToJson(lock: DataLock): string;
     /// ```
     pub fn to_json(&self) -> String {
-        let document = json!({
-            "lockVersion": LOCK_VERSION,
-            "caniuse-lite": { "version": self.caniuse_lite.version, "integrity": self.caniuse_lite.integrity },
-            "node-releases": { "version": self.node_releases.version, "integrity": self.node_releases.integrity },
-            "firefoxEsr": self.firefox_esr,
-        });
-        let mut text = serde_json::to_string_pretty(&document).expect("a JSON value always serializes");
+        let mut document: Map<String, Value> = Map::new();
+        document.insert("lockVersion".to_string(), Value::from(LOCK_VERSION));
+        document.insert("caniuse-lite".to_string(), package_value(&self.caniuse_lite));
+        document.insert("node-releases".to_string(), package_value(&self.node_releases));
+        document.insert("firefoxEsr".to_string(), Value::from(self.firefox_esr.clone()));
+        let mut text = serde_json::to_string_pretty(&Value::Object(document)).expect("a JSON value always serializes");
         text.push('\n');
         return text;
     }

@@ -54,9 +54,9 @@ pub fn fixture_files(firefox_esr: &str) -> DataFiles<'_> {
 pub fn scratch() -> tempfile::TempDir {
     let build_dir: Option<std::path::PathBuf> = std::env::current_exe()
         .ok()
-        .and_then(|executable| executable.ancestors().nth(3).map(std::path::Path::to_path_buf));
+        .and_then(|executable| return executable.ancestors().nth(3).map(std::path::Path::to_path_buf));
     let root: std::path::PathBuf = build_dir
-        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
+        .unwrap_or_else(|| return std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
         .join("test-scratch");
     std::fs::create_dir_all(&root).expect("make the scratch root");
     return tempfile::tempdir_in(root).expect("make a scratch directory");

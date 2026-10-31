@@ -20,12 +20,11 @@ fn parse(body: &str) -> Result<JsValue, BrowserslistError> {
 fn assert_rejected(body: &str, offset_in_body: usize) {
     let error = parse(body).expect_err("body must be rejected");
     let expected_offset = "module.exports=".len() + offset_in_body;
-    assert_eq!(
+    assert!(
         error.to_string().contains(&format!("byte offset {expected_offset}")),
-        true,
         "{body:?} gave {error}"
     );
-    assert_eq!(error.to_string().starts_with("agents.js: "), true, "{error}");
+    assert!(error.to_string().starts_with("agents.js: "), "{error}");
 }
 
 /// The subset's value kinds all parse, with keys in source order.
@@ -68,7 +67,7 @@ fn accepts_empty_containers() {
 #[test]
 fn rejects_bad_envelopes() {
     let missing_prefix = parse_module_exports("browsers.js", "exports={}\n").expect_err("prefix");
-    assert_eq!(missing_prefix.to_string().contains("byte offset 0"), true);
+    assert!(missing_prefix.to_string().contains("byte offset 0"));
     for (source, offset) in [
         ("module.exports= {};\n", 15),
         ("module.exports={}\n", 17),
@@ -79,7 +78,7 @@ fn rejects_bad_envelopes() {
         ("module.exports=", 15),
     ] {
         let error = parse_module_exports("agents.js", source).expect_err("envelope");
-        assert_eq!(error.to_string().contains(&format!("byte offset {offset}")), true, "{source:?} gave {error}");
+        assert!(error.to_string().contains(&format!("byte offset {offset}")), "{source:?} gave {error}");
     }
 }
 
@@ -132,7 +131,7 @@ fn rejects_other_keywords() {
 #[test]
 fn bounds_nesting_depth() {
     let at_cap = format!("{}{}", "[".repeat(8), "]".repeat(8));
-    assert_eq!(parse(&at_cap).is_ok(), true);
+    assert!(parse(&at_cap).is_ok());
     let over_cap = format!("{}{}", "[".repeat(9), "]".repeat(9));
     assert_rejected(&over_cap, 8);
 }
@@ -141,12 +140,12 @@ fn bounds_nesting_depth() {
 #[test]
 fn survives_hostile_depth() {
     let hostile = "[".repeat(200_000);
-    assert_eq!(parse(&hostile).is_err(), true);
+    assert!(parse(&hostile).is_err());
 }
 
 /// Control: a body the parser must reject is not accepted by `parse` (the helper can fail).
 #[test]
 fn positive_control_helper_can_fail() {
-    assert_eq!(parse("{A:1,}").is_err(), true);
-    assert_eq!(parse("{A:1}").is_ok(), true);
+    assert!(parse("{A:1,}").is_err());
+    assert!(parse("{A:1}").is_ok());
 }

@@ -28,10 +28,10 @@ fn round_trip() {
     assert_eq!(lock.node_releases.name, "node-releases");
     assert_eq!(lock.firefox_esr, "153.6.0esr");
     let text = lock.to_json();
-    assert_eq!(text.ends_with("}\n"), true);
-    assert_eq!(text.find("\"caniuse-lite\"") < text.find("\"firefoxEsr\""), true);
-    assert_eq!(text.find("\"firefoxEsr\"") < text.find("\"lockVersion\""), true);
-    assert_eq!(text.find("\"lockVersion\"") < text.find("\"node-releases\""), true);
+    assert!(text.ends_with("}\n"));
+    assert!(text.find("\"caniuse-lite\"") < text.find("\"firefoxEsr\""));
+    assert!(text.find("\"firefoxEsr\"") < text.find("\"lockVersion\""));
+    assert!(text.find("\"lockVersion\"") < text.find("\"node-releases\""));
     assert_eq!(DataLock::from_json(&text).expect("re-parses"), lock);
 }
 
@@ -57,6 +57,6 @@ fn refuses_malformed_locks() {
     cases.push(("{\"lockVersion\":1}".to_string(), "exactly"));
     for (text, wanted) in cases {
         let message = DataLock::from_json(&text).expect_err("refused").to_string();
-        assert_eq!(message.contains(wanted), true, "{text}: {message}");
+        assert!(message.contains(wanted), "{text}: {message}");
     }
 }

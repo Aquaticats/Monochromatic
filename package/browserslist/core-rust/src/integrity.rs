@@ -43,7 +43,7 @@ pub fn parse_sha512(integrity: &str) -> Outcome<Vec<u8>> {
     let Some(encoded) = integrity.strip_prefix(PREFIX) else {
         return Err(malformed(integrity, "it does not start with sha512-"));
     };
-    let decoded = STANDARD.decode(encoded).map_err(|error| malformed(integrity, &error.to_string()))?;
+    let decoded = STANDARD.decode(encoded).map_err(|error| return malformed(integrity, &error.to_string()))?;
     if decoded.len() != DIGEST_LENGTH {
         return Err(malformed(integrity, "the digest is not 64 bytes long"));
     }

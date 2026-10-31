@@ -24,7 +24,7 @@ fn committed() -> BrowserData {
 
 /// Build owned strings from literals.
 fn owned(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| (*item).to_string()).collect();
+    return items.iter().map(|item| return (*item).to_string()).collect();
 }
 
 /// Names sort ascending bytewise (so `_` sorts before letters) and versions descending by number.
@@ -56,10 +56,10 @@ fn finalize_dedupes_and_is_stable() {
 /// Entries that cannot be sorted like browserslist sorts them are refused, not guessed.
 #[test]
 fn finalize_refuses_unsortable_entries() {
-    assert_eq!(finalize(&owned(&["nospace"])).expect_err("shape").to_string().starts_with("not implemented: "), true);
+    assert!(finalize(&owned(&["nospace"])).expect_err("shape").to_string().starts_with("not implemented: "));
     let message = finalize(&owned(&["safari TP"])).expect_err("non-numeric").to_string();
-    assert_eq!(message.starts_with("not implemented: "), true, "{message}");
-    assert_eq!(message.contains("\"TP\""), true, "{message}");
+    assert!(message.starts_with("not implemented: "), "{message}");
+    assert!(message.contains("\"TP\""), "{message}");
 }
 
 /// The repository's seven lines resolve to the sorted union, with `not dead` removing nothing.
@@ -70,8 +70,8 @@ fn resolves_the_repository_file() {
         result.iter().take(5).map(String::as_str).collect::<Vec<&str>>(),
         vec!["and_chr 156", "and_ff 159", "android 156", "chrome 156", "firefox 153"]
     );
-    assert_eq!(result.iter().skip(5).all(|entry| entry.starts_with("node 26.")), true);
-    assert_eq!(result.len() > 5, true);
+    assert!(result.iter().skip(5).all(|entry| return entry.starts_with("node 26.")));
+    assert!(result.len() > 5);
 }
 
 /// Line order does not change the result, and repeating a line adds nothing.
@@ -109,7 +109,7 @@ fn each_line_alone() {
     let data = committed();
     assert_eq!(resolve_config_text("last 1 Chrome versions", &data).expect("chrome"), owned(&["chrome 156"]));
     assert_eq!(resolve_config_text("Firefox ESR", &data).expect("esr"), owned(&["firefox 153"]));
-    assert_eq!(resolve_config_text("not dead", &data).is_err(), true);
+    assert!(resolve_config_text("not dead", &data).is_err());
 }
 
 /// Unsupported queries and config features fail before anything is selected.
@@ -117,7 +117,7 @@ fn each_line_alone() {
 fn refusals_propagate() {
     for text in ["last 2 Chrome versions", "defaults", "a, b", "[x]", "not dead\r\n"] {
         let message = resolve_config_text(text, &committed()).expect_err("refused").to_string();
-        assert_eq!(message.starts_with("not implemented: "), true, "{text:?}: {message}");
+        assert!(message.starts_with("not implemented: "), "{text:?}: {message}");
     }
 }
 
@@ -130,7 +130,7 @@ fn zero_version_is_refused() {
         firefox_esr_major: 1,
     };
     let message = resolve_config_text("last 1 Chrome versions", &data).expect_err("refused").to_string();
-    assert_eq!(message.starts_with("not implemented: "), true, "{message}");
+    assert!(message.starts_with("not implemented: "), "{message}");
 }
 
 /// A missing browser in the data is browserslist's `Unknown browser` error.

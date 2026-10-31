@@ -18,14 +18,14 @@ use crate::select::{firefox_esr, last_node_major, last_version};
 fn data(agents: Vec<Agent>, node_versions: &[&str]) -> BrowserData {
     return BrowserData {
         agents: AgentTable::new(agents),
-        node_versions: node_versions.iter().map(|version| (*version).to_string()).collect(),
+        node_versions: node_versions.iter().map(|version| return (*version).to_string()).collect(),
         firefox_esr_major: 7,
     };
 }
 
 /// Build an agent whose last three slots are reserved.
 fn agent(name: &str, slots: &[Option<&str>]) -> Agent {
-    return Agent { name: name.to_string(), slots: slots.iter().map(|slot| slot.map(str::to_string)).collect() };
+    return Agent { name: name.to_string(), slots: slots.iter().map(|slot| return slot.map(str::to_string)).collect() };
 }
 
 /// The newest released version is the last non-empty slot before the three reserved ones.
@@ -79,9 +79,9 @@ fn node_major_edge_cases() {
 #[test]
 fn node_major_rejects_unreadable_versions() {
     let message = last_node_major(&data(vec![], &["x.1.0"])).expect_err("rejected").to_string();
-    assert_eq!(message.contains("does not start with a number"), true, "{message}");
-    let message = last_node_major(&data(vec![], &["1.0.0", "bad", "2.0.0"])).expect_err("rejected").to_string();
-    assert_eq!(message.contains("\"bad\""), true, "{message}");
+    assert!(message.contains("does not start with a number"), "{message}");
+    let bad_message = last_node_major(&data(vec![], &["1.0.0", "bad", "2.0.0"])).expect_err("rejected").to_string();
+    assert!(bad_message.contains("\"bad\""), "{bad_message}");
 }
 
 /// ESR is the locked major.
@@ -100,5 +100,5 @@ fn committed_revision_values() {
     assert_eq!(last_version(Browser::FirefoxAndroid, &real).expect("and_ff"), vec!["and_ff 159"]);
     let node = last_node_major(&real).expect("node");
     assert_eq!(node.first().map(String::as_str), Some("node 26.0.0"));
-    assert_eq!(node.iter().all(|entry| entry.starts_with("node 26.")), true);
+    assert!(node.iter().all(|entry| return entry.starts_with("node 26.")));
 }

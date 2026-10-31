@@ -50,7 +50,7 @@ fn entry(agent: &Agent, version: &str) -> String {
 /// The ray form: filter the released versions by comparing parsed numbers (NaN compares false).
 fn ray(table: &AgentTable, written: &str, bound: &str, keep: fn(&str, &str) -> bool) -> Outcome<Vec<String>> {
     let agent = table.require(written)?;
-    return Ok(agent.released().into_iter().filter(|version| keep(version, bound)).map(|version| entry(agent, version)).collect());
+    return Ok(agent.released().into_iter().filter(|version| return keep(version, bound)).map(|version| return entry(agent, version)).collect());
 }
 
 /// `>=` compares the newest member of a joined range against the bound.
@@ -72,7 +72,7 @@ fn normalize_version(agent: &Agent, version: &str) -> Option<String> {
     }
     let mut alias: Option<&str> = None;
     for full in versions.iter().copied() {
-        if full.contains('-') && full.split('-').any(|part| part == version) {
+        if full.contains('-') && full.split('-').any(|part| return part == version) {
             alias = Some(full);
         }
     }
@@ -133,7 +133,7 @@ pub fn dead_set(table: &AgentTable) -> Outcome<Vec<String>> {
 /// ```
 pub fn subtract_dead(selected: &[String], table: &AgentTable) -> Outcome<Vec<String>> {
     let dead: HashSet<String> = dead_set(table)?.into_iter().collect();
-    return Ok(selected.iter().filter(|candidate| !dead.contains(*candidate)).cloned().collect());
+    return Ok(selected.iter().filter(|candidate| return !dead.contains(*candidate)).cloned().collect());
 }
 
 #[cfg(test)]

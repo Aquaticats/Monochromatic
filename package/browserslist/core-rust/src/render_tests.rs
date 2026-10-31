@@ -12,7 +12,7 @@ use crate::render::render_resolved_json;
 
 /// Build owned strings from literals.
 fn owned(items: &[&str]) -> Vec<String> {
-    return items.iter().map(|item| (*item).to_string()).collect();
+    return items.iter().map(|item| return (*item).to_string()).collect();
 }
 
 /// An empty list is `[]` plus a newline, like `JSON.stringify([], null, 2)`.

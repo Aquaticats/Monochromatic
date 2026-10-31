@@ -55,7 +55,7 @@ fn parse_options(arguments: &[String], allowed: &[&str]) -> Outcome<HashMap<Stri
 /// Read a file as UTF-8 text or report the path.
 fn read_text(path: &Path) -> Outcome<String> {
     return fs::read_to_string(path)
-        .map_err(|error| BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() });
+        .map_err(|error| return BrowserslistError::Io { path: path.display().to_string(), message: error.to_string() });
 }
 
 /// Build the data source from `--cache-dir` and `--registry`, defaulting to the user cache and npm.

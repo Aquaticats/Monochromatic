@@ -41,11 +41,11 @@ pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<
     let decoder = GzDecoder::new(tgz).take(MAX_ARCHIVE_BYTES);
     let mut archive = Archive::new(decoder);
     let mut found: Vec<Option<Vec<u8>>> = vec![None; wanted.len()];
-    let entries = archive.entries().map_err(|error| failure(subject, &format!("unreadable archive: {error}")))?;
+    let entries = archive.entries().map_err(|error| return failure(subject, &format!("unreadable archive: {error}")))?;
     for entry_result in entries {
-        let mut entry = entry_result.map_err(|error| failure(subject, &format!("unreadable archive entry: {error}")))?;
-        let path = entry.path().map_err(|error| failure(subject, &format!("unreadable entry path: {error}")))?.to_string_lossy().into_owned();
-        let Some(position) = wanted.iter().position(|candidate| *candidate == path) else {
+        let mut entry = entry_result.map_err(|error| return failure(subject, &format!("unreadable archive entry: {error}")))?;
+        let path = entry.path().map_err(|error| return failure(subject, &format!("unreadable entry path: {error}")))?.to_string_lossy().into_owned();
+        let Some(position) = wanted.iter().position(|candidate| return *candidate == path) else {
             continue;
         };
         if !entry.header().entry_type().is_file() {
@@ -58,7 +58,7 @@ pub fn extract_files(subject: &str, tgz: &[u8], wanted: &[&str]) -> Outcome<Vec<
             return Err(failure(subject, &format!("{path} is larger than {MAX_FILE_BYTES} bytes")));
         }
         let mut contents: Vec<u8> = Vec::new();
-        entry.read_to_end(&mut contents).map_err(|error| failure(subject, &format!("{path}: {error}")))?;
+        entry.read_to_end(&mut contents).map_err(|error| return failure(subject, &format!("{path}: {error}")))?;
         found[position] = Some(contents);
     }
     let mut files: Vec<Vec<u8>> = Vec::with_capacity(wanted.len());

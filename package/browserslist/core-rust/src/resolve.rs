@@ -67,9 +67,9 @@ pub fn finalize(selected: &[String]) -> Outcome<Vec<String>> {
         }
     }
     keyed.sort_by(|left, right| -> Ordering {
-        return left.0.0.cmp(&right.0.0).then_with(|| right.0.1.cmp(&left.0.1));
+        return left.0.0.cmp(&right.0.0).then_with(|| return right.0.1.cmp(&left.0.1));
     });
-    return Ok(keyed.into_iter().map(|(_, item)| item).collect());
+    return Ok(keyed.into_iter().map(|(_, item)| return item).collect());
 }
 
 /// What:

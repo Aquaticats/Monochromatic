@@ -32,7 +32,7 @@ fn rejects_non_200_answers() {
             panic!("expected a network error");
         };
         assert_eq!(reported, url);
-        assert_eq!(message.contains("not 200"), true, "{message}");
+        assert!(message.contains("not 200"), "{message}");
     }
 }
 
@@ -41,7 +41,7 @@ fn rejects_non_200_answers() {
 fn enforces_the_size_limit() {
     let server = FakeRegistry::start(vec![("/big", 200, vec![1_u8; 5000])]);
     let message = get_bytes(&format!("{}/big", server.url()), 100).expect_err("too big").to_string();
-    assert_eq!(message.contains("within 100 bytes"), true, "{message}");
+    assert!(message.contains("within 100 bytes"), "{message}");
     assert_eq!(get_bytes(&format!("{}/big", server.url()), 5000).expect("exact limit").len(), 5000);
 }
 
@@ -50,7 +50,7 @@ fn enforces_the_size_limit() {
 fn applies_the_url_policy() {
     for url in ["http://example.com/x", "ftp://127.0.0.1/x", "file:///etc/passwd", "not a url", "/relative", "http://127.0.0.1.example.com/x"] {
         let message = get_bytes(url, 10).expect_err("refused").to_string();
-        assert_eq!(message.starts_with(&format!("request to {url} failed: ")), true, "{message}");
+        assert!(message.starts_with(&format!("request to {url} failed: ")), "{message}");
     }
 }
 
@@ -58,7 +58,7 @@ fn applies_the_url_policy() {
 #[test]
 fn reports_connection_failures() {
     let error = get_bytes("http://127.0.0.1:1/x", 10).expect_err("connection refused");
-    assert_eq!(matches!(error, BrowserslistError::Network { .. }), true);
+    assert!(matches!(error, BrowserslistError::Network { .. }));
 }
 
 /// The call also works from inside a running async runtime (it uses its own thread).

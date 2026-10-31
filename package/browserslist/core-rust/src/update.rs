@@ -32,7 +32,7 @@ fn answer_error(url: &str, message: &str) -> BrowserslistError {
 /// Fetch a URL and parse its body as a JSON object.
 fn get_json_object(url: &str) -> Outcome<serde_json::Map<String, Value>> {
     let bytes = get_bytes(url, MAX_METADATA_BYTES)?;
-    let parsed: Value = serde_json::from_slice(&bytes).map_err(|error| answer_error(url, &format!("not valid JSON: {error}")))?;
+    let parsed: Value = serde_json::from_slice(&bytes).map_err(|error| return answer_error(url, &format!("not valid JSON: {error}")))?;
     let Value::Object(object) = parsed else {
         return Err(answer_error(url, "the top level is not an object"));
     };
@@ -54,7 +54,7 @@ pub fn latest_package(registry_url: &str, name: &str) -> Outcome<PinnedPackage> 
     let Some(Value::String(version)) = document.get("version") else {
         return Err(answer_error(&url, "no string \"version\" field"));
     };
-    let found_integrity = document.get("dist").and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
+    let found_integrity = document.get("dist").and_then(|dist| return dist.get("integrity")).and_then(Value::as_str);
     let Some(integrity) = found_integrity else {
         return Err(answer_error(&url, "no \"dist.integrity\" string; a sha512 integrity is required"));
     };

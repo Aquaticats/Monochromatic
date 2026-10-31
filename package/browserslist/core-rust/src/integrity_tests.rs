@@ -49,8 +49,8 @@ fn rejects_malformed_strings() {
         &ABC_INTEGRITY.to_uppercase(),
     ] {
         let message = parse_sha512(text).expect_err("rejected").to_string();
-        assert_eq!(message.contains("sha512-<base64>"), true, "{text:?}: {message}");
-        assert_eq!(verify("pkg", text, b"abc").is_err(), true, "{text:?}");
+        assert!(message.contains("sha512-<base64>"), "{text:?}: {message}");
+        assert!(verify("pkg", text, b"abc").is_err(), "{text:?}");
     }
 }
 
@@ -59,8 +59,8 @@ fn rejects_malformed_strings() {
 fn cache_keys() {
     let key = cache_key(ABC_INTEGRITY).expect("key");
     assert_eq!(key.len(), 128);
-    assert_eq!(key.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)), true);
-    assert_eq!(key.starts_with("ddaf35a193617aba"), true);
+    assert!(key.bytes().all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)));
+    assert!(key.starts_with("ddaf35a193617aba"));
     assert_ne!(key, cache_key(&integrity_of(b"abd")).expect("key"));
-    assert_eq!(cache_key("nope").is_err(), true);
+    assert!(cache_key("nope").is_err());
 }

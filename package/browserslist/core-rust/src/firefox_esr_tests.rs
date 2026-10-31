@@ -26,7 +26,7 @@ fn rejects_other_shapes() {
         "153..0esr", "-1.6.0esr", "153.6.0esr\n", "99999999999999999999999.0.0esr", "153.6.0b3",
     ] {
         let message = parse_esr_major(raw).expect_err("rejected").to_string();
-        assert_eq!(message.contains("<major>.<minor>.<patch>esr"), true, "{raw:?}: {message}");
-        assert_eq!(message.contains(&format!("{raw:?}")), true, "{raw:?}: {message}");
+        assert!(message.contains("<major>.<minor>.<patch>esr"), "{raw:?}: {message}");
+        assert!(message.contains(&format!("{raw:?}")), "{raw:?}: {message}");
     }
 }

@@ -59,29 +59,29 @@ fn require_matches_browserslist_wording() {
 fn rejects_inconsistent_data() {
     let unknown_version = "module.exports={A:{C:[\"Z\"]}};\n";
     let message = parse_agents(unknown_version, BROWSERS, VERSIONS).expect_err("unknown version code").to_string();
-    assert_eq!(message.contains("version code Z"), true, "{message}");
+    assert!(message.contains("version code Z"), "{message}");
     let unknown_browser = "module.exports={Q:{C:[]}};\n";
-    let message = parse_agents(unknown_browser, BROWSERS, VERSIONS).expect_err("unknown browser code").to_string();
-    assert_eq!(message.contains("browser code Q"), true, "{message}");
+    let browser_message = parse_agents(unknown_browser, BROWSERS, VERSIONS).expect_err("unknown browser code").to_string();
+    assert!(browser_message.contains("browser code Q"), "{browser_message}");
     for agents in [
         "module.exports={A:{}};\n",
         "module.exports={A:{C:[1]}};\n",
         "module.exports=[];\n",
     ] {
-        assert_eq!(parse_agents(agents, BROWSERS, VERSIONS).is_err(), true, "{agents}");
+        assert!(parse_agents(agents, BROWSERS, VERSIONS).is_err(), "{agents}");
     }
-    assert_eq!(parse_agents(AGENTS, "module.exports={A:1};\n", VERSIONS).is_err(), true);
-    assert_eq!(parse_agents(AGENTS, "module.exports=1;\n", VERSIONS).is_err(), true);
-    assert_eq!(parse_agents(AGENTS, BROWSERS, "module.exports=[];\n").is_err(), true);
+    assert!(parse_agents(AGENTS, "module.exports={A:1};\n", VERSIONS).is_err());
+    assert!(parse_agents(AGENTS, "module.exports=1;\n", VERSIONS).is_err());
+    assert!(parse_agents(AGENTS, BROWSERS, "module.exports=[];\n").is_err());
 }
 
 /// A parse failure inside a file names that file.
 #[test]
 fn literal_errors_name_the_file() {
     let error = parse_agents("module.exports={A:1,};\n", BROWSERS, VERSIONS).expect_err("trailing comma");
-    assert_eq!(error.to_string().contains("caniuse-lite data/agents.js"), true);
-    let error = parse_agents(AGENTS, "oops", VERSIONS).expect_err("bad browsers file");
-    assert_eq!(error.to_string().contains("caniuse-lite data/browsers.js"), true);
+    assert!(error.to_string().contains("caniuse-lite data/agents.js"));
+    let browsers_error = parse_agents(AGENTS, "oops", VERSIONS).expect_err("bad browsers file");
+    assert!(browsers_error.to_string().contains("caniuse-lite data/browsers.js"));
 }
 
 /// The committed real revision decodes, and the facts the spec records hold for it.

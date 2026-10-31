@@ -85,7 +85,7 @@ impl AgentTable {
 
     /// Find a browser by its lowercase key.
     pub fn get(&self, name: &str) -> Option<&Agent> {
-        return self.agents.iter().find(|agent| agent.name == name);
+        return self.agents.iter().find(|agent| return agent.name == name);
     }
 
     /// Find a browser or fail with browserslist's own `Unknown browser` message.

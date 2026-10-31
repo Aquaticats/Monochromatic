@@ -49,7 +49,7 @@ fn builds_a_lock_from_the_newest_data() {
     assert_eq!(lock.caniuse_lite.integrity, integrity_of(&caniuse_tgz()));
     assert_eq!(lock.node_releases.integrity, integrity_of(&node_releases_tgz()));
     assert_eq!(lock.firefox_esr, "153.6.0esr");
-    assert_eq!(registry.requests().contains(&"/caniuse-lite/-/caniuse-lite-1.0.30009999.tgz".to_string()), true);
+    assert!(registry.requests().contains(&"/caniuse-lite/-/caniuse-lite-1.0.30009999.tgz".to_string()));
 }
 
 /// A tarball that does not hash to the registry's integrity stops the update.
@@ -60,7 +60,7 @@ fn tampered_tarball_stops_the_update() {
     let directory = scratch();
     let source = DataSource { cache_dir: directory.path().join("cache"), registry_url: registry.url() };
     let error = build_lock(&source, &format!("{}/mozilla.json", registry.url())).expect_err("rejected");
-    assert_eq!(matches!(error, BrowserslistError::Integrity { .. }), true, "{error}");
+    assert!(matches!(error, BrowserslistError::Integrity { .. }), "{error}");
 }
 
 /// A bad ESR shape stops the update with the format diagnostic.
@@ -71,7 +71,7 @@ fn bad_esr_shape_stops_the_update() {
     let directory = scratch();
     let source = DataSource { cache_dir: directory.path().join("cache"), registry_url: registry.url() };
     let message = build_lock(&source, &format!("{}/mozilla.json", registry.url())).expect_err("rejected").to_string();
-    assert_eq!(message.contains("<major>.<minor>.<patch>esr"), true, "{message}");
+    assert!(message.contains("<major>.<minor>.<patch>esr"), "{message}");
 }
 
 /// Malformed registry and Mozilla answers are each refused with the URL named.
@@ -88,11 +88,11 @@ fn malformed_answers_are_refused() {
     ]);
     for name in ["p", "q", "r", "s", "t"] {
         let message = latest_package(&registry.url(), name).expect_err("refused").to_string();
-        assert_eq!(message.contains(&format!("/{name}/latest")) || message.contains("sha512"), true, "{name}: {message}");
+        assert!(message.contains(&format!("/{name}/latest")) || message.contains("sha512"), "{name}: {message}");
     }
     for path in ["/m1", "/m2"] {
         let message = latest_firefox_esr(&format!("{}{path}", registry.url())).expect_err("refused").to_string();
-        assert_eq!(message.contains("FIREFOX_ESR"), true, "{path}: {message}");
+        assert!(message.contains("FIREFOX_ESR"), "{path}: {message}");
     }
-    assert_eq!(latest_package(&registry.url(), "p").is_err(), true);
+    assert!(latest_package(&registry.url(), "p").is_err());
 }

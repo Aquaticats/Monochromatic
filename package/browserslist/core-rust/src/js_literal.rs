@@ -145,10 +145,10 @@ impl<'a> Cursor<'a> {
             return self.string();
         }
         let start = self.offset;
-        if !self.peek().is_some_and(|byte| byte.is_ascii_alphabetic()) {
+        if !self.peek().is_some_and(|byte| return byte.is_ascii_alphabetic()) {
             return Err(self.fail("expected an object key"));
         }
-        while self.peek().is_some_and(|byte| byte.is_ascii_alphanumeric()) {
+        while self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric()) {
             self.offset += 1;
         }
         return Ok(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned());
@@ -160,21 +160,21 @@ impl<'a> Cursor<'a> {
         if self.peek() == Some(b'0') {
             self.offset += 1;
         } else {
-            while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
+            while self.peek().is_some_and(|byte| return byte.is_ascii_digit()) {
                 self.offset += 1;
             }
         }
         if self.peek() == Some(b'.') {
             self.offset += 1;
             let digits_start = self.offset;
-            while self.peek().is_some_and(|byte| byte.is_ascii_digit()) {
+            while self.peek().is_some_and(|byte| return byte.is_ascii_digit()) {
                 self.offset += 1;
             }
             if self.offset == digits_start {
                 return Err(self.fail("a decimal point must be followed by digits"));
             }
         }
-        if self.peek().is_some_and(|byte| byte.is_ascii_alphanumeric() || byte == b'.') {
+        if self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric() || byte == b'.') {
             return Err(self.fail("number followed by a byte outside the subset"));
         }
         return Ok(JsValue::Number(String::from_utf8_lossy(&self.bytes[start..self.offset]).into_owned()));
@@ -184,7 +184,7 @@ impl<'a> Cursor<'a> {
     fn null(&mut self) -> Outcome<JsValue> {
         if self.bytes[self.offset..].starts_with(b"null") {
             self.offset += 4;
-            if self.peek().is_some_and(|byte| byte.is_ascii_alphanumeric()) {
+            if self.peek().is_some_and(|byte| return byte.is_ascii_alphanumeric()) {
                 return Err(self.fail("identifier continues after null"));
             }
             return Ok(JsValue::Null);

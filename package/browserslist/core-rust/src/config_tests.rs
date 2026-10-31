@@ -43,8 +43,8 @@ fn comma_in_comment_is_harmless() {
 #[test]
 fn refuses_commas() {
     let message = parse_config("Firefox ESR\nlast 1 Chrome versions, not dead\n").expect_err("comma").to_string();
-    assert_eq!(message.starts_with("not implemented: commas"), true, "{message}");
-    assert_eq!(message.contains("line 2"), true, "{message}");
+    assert!(message.starts_with("not implemented: commas"), "{message}");
+    assert!(message.contains("line 2"), "{message}");
 }
 
 /// CR anywhere is refused, including a lone CR and CRLF, and the message names the line.
@@ -52,9 +52,9 @@ fn refuses_commas() {
 fn refuses_carriage_returns() {
     for text in ["not dead\r\n", "a\nb\rc", "\r"] {
         let message = parse_config(text).expect_err("cr").to_string();
-        assert_eq!(message.starts_with("not implemented: CR line endings"), true, "{text:?}: {message}");
+        assert!(message.starts_with("not implemented: CR line endings"), "{text:?}: {message}");
     }
-    assert_eq!(parse_config("a\nb\rc").expect_err("cr").to_string().contains("line 2"), true);
+    assert!(parse_config("a\nb\rc").expect_err("cr").to_string().contains("line 2"));
 }
 
 /// Section headers are refused, whatever name or spacing they carry.
@@ -62,8 +62,8 @@ fn refuses_carriage_returns() {
 fn refuses_sections() {
     for text in ["[production]", "  [dev test]  ", "[defaults]", "[x]"] {
         let message = parse_config(&format!("not dead\n{text}\n")).expect_err("section").to_string();
-        assert_eq!(message.starts_with("not implemented: config sections"), true, "{text:?}: {message}");
-        assert_eq!(message.contains("line 2"), true, "{message}");
+        assert!(message.starts_with("not implemented: config sections"), "{text:?}: {message}");
+        assert!(message.contains("line 2"), "{message}");
     }
 }
 

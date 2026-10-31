@@ -40,7 +40,7 @@ fn cold_then_warm() {
     assert_eq!(cold, warm);
     assert_eq!(cold.firefox_esr_major, 153);
     let key = cache_key(&lock.caniuse_lite.integrity).expect("key");
-    assert_eq!(source.cache_dir.join(format!("{key}.tgz")).is_file(), true);
+    assert!(source.cache_dir.join(format!("{key}.tgz")).is_file());
 }
 
 /// The URL is derived from registry, name and version only.
@@ -77,8 +77,8 @@ fn tampered_download_is_rejected_and_not_cached() {
     let source = source_for(&registry, directory.path());
     let lock = fixture_lock();
     let error = pinned_tarball(&lock.caniuse_lite, &source).expect_err("rejected");
-    assert_eq!(matches!(error, BrowserslistError::Integrity { .. }), true, "{error}");
-    let cached = fs::read_dir(&source.cache_dir).map(|entries| entries.count()).unwrap_or(0);
+    assert!(matches!(error, BrowserslistError::Integrity { .. }), "{error}");
+    let cached = fs::read_dir(&source.cache_dir).map(|entries| return entries.count()).unwrap_or(0);
     assert_eq!(cached, 0);
 }
 
@@ -89,7 +89,7 @@ fn missing_tarball_is_a_network_error() {
     let directory = scratch();
     let source = source_for(&registry, directory.path());
     let message = load_data(&fixture_lock(), &source).expect_err("404").to_string();
-    assert_eq!(message.contains("caniuse-lite-1.0.30001820.tgz"), true, "{message}");
+    assert!(message.contains("caniuse-lite-1.0.30001820.tgz"), "{message}");
 }
 
 /// Verified bytes that are not a usable package fail in the decoder, naming what is missing.
@@ -103,7 +103,7 @@ fn unusable_package_contents_are_reported() {
     lock.caniuse_lite.integrity = crate::integrity::integrity_of(&junk);
     registry.set_route("/caniuse-lite/-/caniuse-lite-1.0.30001820.tgz", 200, junk);
     let message = load_data(&lock, &source).expect_err("missing files").to_string();
-    assert_eq!(message.contains("package/data/agents.js is missing"), true, "{message}");
+    assert!(message.contains("package/data/agents.js is missing"), "{message}");
 }
 
 /// Atomic writes create parent directories and replace existing files.
@@ -123,5 +123,5 @@ fn atomic_write_replaces_files() {
 fn user_default_source() {
     let source = DataSource::user_default().expect("home directory exists in tests");
     assert_eq!(source.registry_url, "https://registry.npmjs.org");
-    assert_eq!(source.cache_dir.to_string_lossy().contains("browserslist"), true);
+    assert!(source.cache_dir.to_string_lossy().contains("browserslist"));
 }

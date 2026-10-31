@@ -44,7 +44,7 @@ fn float_prefix_cases() {
 #[test]
 fn float_nan_cases() {
     for text in ["", "TP", ".", "-", "+.", "e5", "abc"] {
-        assert_eq!(parse_float(text).is_nan(), true, "{text:?}");
+        assert!(parse_float(text).is_nan(), "{text:?}");
     }
 }
 
@@ -56,5 +56,5 @@ fn latest_float_cases() {
     assert_eq!(parse_latest_float("10-12"), 12.0);
     assert_eq!(parse_latest_float("13.52"), 13.52);
     assert_eq!(parse_latest_float("9-"), 9.0);
-    assert_eq!(parse_latest_float("TP").is_nan(), true);
+    assert!(parse_latest_float("TP").is_nan());
 }

@@ -32,7 +32,7 @@ fn network_error(url: &str, message: &str) -> BrowserslistError {
 
 /// Accept `https` URLs, and `http` URLs only for loopback hosts.
 fn check_url(url: &str) -> Outcome<Uri> {
-    let uri: Uri = url.parse().map_err(|error| network_error(url, &format!("not a valid URL: {error}")))?;
+    let uri: Uri = url.parse().map_err(|error| return network_error(url, &format!("not a valid URL: {error}")))?;
     let host = uri.host().unwrap_or("");
     match uri.scheme_str() {
         Some("https") => return Ok(uri),
@@ -96,7 +96,7 @@ pub fn get_bytes(url: &str, max_bytes: usize) -> Outcome<Vec<u8>> {
     let uri = check_url(url)?;
     tracing::debug!(url, max_bytes, "GET");
     let outcome = std::thread::scope(|scope| {
-        return scope.spawn(|| run_blocking(uri, max_bytes)).join();
+        return scope.spawn(|| return run_blocking(uri, max_bytes)).join();
     });
     return match outcome {
         Ok(Ok(bytes)) => Ok(bytes),

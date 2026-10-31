@@ -42,7 +42,7 @@ fn read_path(stream: &mut TcpStream) -> Option<String> {
     stream.set_read_timeout(Some(Duration::from_secs(2))).ok()?;
     let mut head: Vec<u8> = Vec::new();
     let mut chunk = [0_u8; 1024];
-    while !head.windows(4).any(|window| window == b"\r\n\r\n") {
+    while !head.windows(4).any(|window| return window == b"\r\n\r\n") {
         let count = stream.read(&mut chunk).ok()?;
         if count == 0 {
             return None;
@@ -75,7 +75,7 @@ impl FakeRegistry {
         listener.set_nonblocking(true).expect("nonblocking listener");
         let address = format!("http://{}", listener.local_addr().expect("local address"));
         let table: HashMap<String, Route> =
-            routes.into_iter().map(|(path, status, body)| (path.to_string(), (status, body))).collect();
+            routes.into_iter().map(|(path, status, body)| return (path.to_string(), (status, body))).collect();
         let routes_shared = Arc::new(Mutex::new(table));
         let requests_shared = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
