@@ -135,6 +135,7 @@ async function runRound(
     client: scriptedJudges({ ballots, },),
     candidates: CANDIDATES,
     judgeModelIds: JUDGES,
+    role: 'wide-judge',
     fanOut: 'whole-bench',
     task: 'Pick one.',
     criteria: ['Faithful.',],

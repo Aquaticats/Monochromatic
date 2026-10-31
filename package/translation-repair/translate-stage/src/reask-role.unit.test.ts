@@ -26,7 +26,7 @@ await describe({
     it({
       name: 'NAMES THE TRANSLATOR ROLE where the translators are asked to write',
       fn: async () => {
-        const source = await readFile(new URL('./translate-produce.ts', import.meta.url,), 'utf8',);
+        const source = await readFile(new URL('translate-produce.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source, callee: 'gatherStageVoices', },),).toEqual(['translator',],);
       },
     },),
@@ -35,9 +35,9 @@ await describe({
       name: 'ASKS THE JUDGES OF A SLATE IN THE ROLE THEIR CALLER SEATS THEM IN, not in one fixed here: the translate '
         + 'lane seats the wide judges and the consolidation slate the late judges',
       fn: async () => {
-        const select = await readFile(new URL('./candidate-select.ts', import.meta.url,), 'utf8',);
+        const select = await readFile(new URL('candidate-select.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source: select, callee: 'gatherStageVoices', },),).toEqual(['role',],);
-        const judge = await readFile(new URL('./translate-judge.ts', import.meta.url,), 'utf8',);
+        const judge = await readFile(new URL('translate-judge.ts', import.meta.url,), 'utf8',);
         expect(rolesNamedAtCalls({ source: judge, callee: 'selectBestCandidate', },),).toEqual(['role',],);
       },
     },),

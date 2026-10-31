@@ -36,7 +36,10 @@ import {
   gatherStageVoices,
   type StageSettings,
 } from '@monochromatic-dev/translation-repair-stage/ts';
-import type { RosterModelId, } from '@monochromatic-dev/translation-repair-shared-contract/ts';
+import type {
+  RosterModelId,
+  SeatRole,
+} from '@monochromatic-dev/translation-repair-shared-contract/ts';
 
 //region Candidate selection stage
 // Shared by every stage that generates text rather than verdicts: the ensemble
@@ -83,6 +86,9 @@ import type { RosterModelId, } from '@monochromatic-dev/translation-repair-share
 
  @param judgeModelIds - whole roster, producers included
 
+ @param role - role the judges stand in, which their caller seats them in (the wide judges in the repair and translate
+ lanes, the late judges in the consolidation slate, the roster in the archive review), with no default (ledger B1079)
+
  @param task - one sentence naming what candidates attempt
 
  @param criteria - ordered decision rules, most important first
@@ -121,6 +127,7 @@ export async function decideBestCandidate<ValueT,>(
     client,
     candidates,
     judgeModelIds,
+    role,
     task,
     criteria,
     evidence,
@@ -135,6 +142,7 @@ export async function decideBestCandidate<ValueT,>(
     readonly client: ModelClient;
     readonly candidates: readonly Candidate<ValueT>[];
     readonly judgeModelIds: readonly RosterModelId[];
+    readonly role: SeatRole;
     readonly task: string;
     readonly criteria: readonly string[];
     readonly evidence: readonly SelectEvidence[];
@@ -237,6 +245,7 @@ export async function decideBestCandidate<ValueT,>(
       ...((sourceText === undefined) ? {} : { sourceText, }),
     },),
     stage: 'select',
+    role,
     l,
     fanOut: selectionFanOut({
       judgeCount: judges.length,

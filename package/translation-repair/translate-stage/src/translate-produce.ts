@@ -229,6 +229,9 @@ export async function produceTranslateSlate(
     responseFormat: TRANSLATE_RESPONSE_FORMAT,
     validate: isTranslateReportWire,
     stage: 'translate',
+    // THE TRANSLATORS ARE ASKED IN THE TRANSLATOR ROLE (`seats.translators`), so a runaway is re-asked of no model the
+    // cards drop from it.
+    role: 'translator',
     // A WRITER ROUND: every voice the window cuts is one fewer rendering on
     // the slate, so it waits under the writer window, built in since 2026-09-06
     // (`writer-grace-override.ts`).

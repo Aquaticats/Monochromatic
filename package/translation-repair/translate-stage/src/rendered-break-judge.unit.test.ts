@@ -85,6 +85,7 @@ await describe({
           client,
           produced,
           judgeModelIds: [SEAT_SYNTHETIC_TEXT_EVERYWHERE, SEAT_SYNTHETIC_VISION_NO_OPENROUTER,],
+          role: 'wide-judge',
           sourceText: '> 猫醒了。  \n> 鸟唱了。',
           incumbentText: '',
           incumbentKind: 'absent',

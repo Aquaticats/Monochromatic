@@ -396,6 +396,7 @@ export async function judgedOver(
           findings: [],
         },
         judgeModelIds: JUDGES,
+        role: 'wide-judge',
         sourceText: SOURCE,
         incumbentText: ARCHIVE,
         incumbentKind: 'absent',
