@@ -264,6 +264,23 @@ each finished branch is reviewed and merged into `main`):
   which also adds the README rule "pnpm answers first"
   (the owner wants that rule in package docs, not AGENTS.md);
   the wg agent.
+- mpm-shadow pnpm-style `sync` built on branch `worktree-agent-a32535bbf12b77b95` (328 tests):
+  resolves new or re-edited entries alone,
+  frozen under `--frozen-lock` or a CI environment detected the way pnpm does (a port of ci-info's `isCI`, `CI=false` turns it off),
+  `--no-frozen-lock` kept (pnpm's `--no-frozen-lockfile`).
+  Settled by "pnpm answers first" without asking:
+  `sync` with no lock creates it, frozen refuses;
+  the same agent fixes the two line-break lint errors from `7c7ca78478`.
+  Merge,
+  then bump and release mpm-shadow,
+  before the switch branch regenerates the repository lock.
+- Running:
+  the cutover switch branch (repoints,
+  `20-env.toml`,
+  repository plan conversion,
+  deletion of `package/file-enforcer/core`,
+  the TypeScript comparison,
+  a clean-container check of the published cli).
 - Session preference 2026-10-31,
   user:
   "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
