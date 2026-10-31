@@ -537,7 +537,7 @@ function otherReadersOf(
  @param client - provider client
 
  @param modelId - reader asked, the same one every time, since the refusal is
- this model's roll rather than a fact about the picture
+ this model's own refusal rather than a fact about the picture
 
  @param bytes - picture as it sits in the corpus
 
@@ -680,8 +680,8 @@ export async function readPastRefusal(
       } = reasked);
       continue;
     }
-    // A REFUSAL IS THE ROLL OF THE MODEL THAT GAVE IT (ledger B1100): after a cut reading was asked of another model,
-    // that model's refusal is asked of that model again, and the log names it.
+    // A REFUSAL IS A FACT ABOUT THE MODEL THAT GAVE IT, NOT ABOUT THE PICTURE (ledger B1100, B1152): after a cut reading
+    // was asked of another model, that model's refusal is asked of that model again, and the log names it.
     rl.info(
       `${askedModelId} declined ${assetName}, asking again (${String(ask,)} of ${String(REFUSAL_ASK_LIMIT,)})`,
     );
