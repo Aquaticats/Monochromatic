@@ -273,7 +273,7 @@ A failure after startup is therefore delivered three ways:
   the watcher's standard error;
 - the system journal,
   under the identifier `wg-quicker-exempt`,
-  at warning level (`journalctl -t wg-quicker-exempt`);
+  at error level (`journalctl --identifier=wg-quicker-exempt`);
 - a desktop notification to the watched user through `org.freedesktop.Notifications`,
   sent with `busctl` as that user,
   limited to one notification per distinct failure every ten minutes

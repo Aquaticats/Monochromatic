@@ -3,7 +3,7 @@
 //! and that a failing channel is named.
 
 /// Reporter under test.
-use crate::runtime_report::{notification_arguments, ReportChannel, RuntimeReporter};
+use crate::runtime_report::{notification_arguments, ReportChannel, RuntimeReporter, JOURNAL_PRIORITY};
 /// Shared recording between the test and the channels.
 use std::cell::RefCell;
 /// Shared recording between the test and the channels.
@@ -98,4 +98,13 @@ fn the_notification_arguments_follow_the_notify_signature() {
     assert_eq!(arguments[5], "Notify");
     assert_eq!(arguments[6], "susssasa{sv}i");
     assert_eq!(arguments[7..], ["wg-quicker-exempt", "0", "dialog-warning", "summary text", "body text", "0", "0", "0"]);
+}
+
+/// Failures reach the journal at error level,
+/// the owner's choice,
+/// and not at warning level.
+#[test]
+fn journal_lines_are_sent_at_error_level() {
+    assert_eq!(JOURNAL_PRIORITY, libc::LOG_ERR);
+    assert_ne!(JOURNAL_PRIORITY, libc::LOG_WARNING);
 }

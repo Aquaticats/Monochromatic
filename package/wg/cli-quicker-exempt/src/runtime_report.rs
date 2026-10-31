@@ -23,6 +23,11 @@ pub const NOTIFICATION_INTERVAL: Duration = Duration::from_secs(600);
 /// Distinct failures remembered for the rate limit before expired ones are dropped.
 const MAX_REMEMBERED_FAILURES: usize = 256;
 
+/// Priority of every journal line:
+/// error level,
+/// as the owner chose for failures after startup.
+pub const JOURNAL_PRIORITY: libc::c_int = libc::LOG_ERR;
+
 /// Identifier written before each journal line.
 const SYSLOG_IDENT: &std::ffi::CStr = c"wg-quicker-exempt";
 
@@ -63,7 +68,7 @@ impl ReportChannel for JournalChannel {
         return "journal";
     }
 
-    /// Sends the line at warning level under the identifier `wg-quicker-exempt`.
+    /// Sends the line at error level under the identifier `wg-quicker-exempt`.
     fn deliver(&self, line: &str) -> Result<(), String> {
         let text = match std::ffi::CString::new(line.replace('\0', " ")) {
             Ok(text) => text,
@@ -74,7 +79,7 @@ impl ReportChannel for JournalChannel {
         // and the argument is a NUL-terminated string alive for the call.
         unsafe {
             libc::openlog(SYSLOG_IDENT.as_ptr(), libc::LOG_PID, libc::LOG_DAEMON);
-            libc::syslog(libc::LOG_WARNING, c"%s".as_ptr(), text.as_ptr());
+            libc::syslog(JOURNAL_PRIORITY, c"%s".as_ptr(), text.as_ptr());
         }
         return Ok(());
     }
