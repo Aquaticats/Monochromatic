@@ -357,6 +357,12 @@ BRQ:
   on `worktree-agent-a6f97f5da6f22de4d`,
   not by `AGENTS.md`.
 
-## Open
+## Landed
 
-- The user's confirmation of the final text and implementation plan.
+The user confirmed the final text and plan on 2026-10-31 and chose to implement without a replay test.
+`33a7fce914` added both rules to `AGENTS.md`,
+regenerated `CLAUDE.md` (the sync wrote no other file),
+and added the two rationale entries to `doc/philosophy/agents.md`;
+its `Closes #1819` closed the issue on push.
+`CWN` and `LKF` are reserved as entry `local-046` in the gitignored local appendix.
+The handover bullet that said the user would write the wording now points here.
