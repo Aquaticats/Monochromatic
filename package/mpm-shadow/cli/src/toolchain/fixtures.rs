@@ -29,29 +29,29 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
   "tools": {
     // The downloader the bin-sourced route needs first.
     "bin": {
-      "request": { "pinned": "0.29.4" },
+      "request": "github:marcosnils/bin@0.29.4",
       "route": "archive",
       "bins": ["bin"],
     },
     "uv": {
-      "request": { "track": "latest" },
+      "request": "github:astral-sh/uv@latest",
       "route": "archive",
       "bins": ["uv", "uvx"],
     },
     "pnpm": {
-      "request": { "track": "latest" },
+      "request": "github:pnpm/pnpm@latest",
       "route": "bin-sourced",
       "bins": ["pnpm", "pn"],
       "options": { "binAliases": { "pn": "pnpm" } },
     },
     "node": {
-      "request": { "track": "latest" },
+      "request": "node@latest",
       "route": "archive",
       "bins": ["node", "npm", "npx"],
     },
     /* The rust toolchain: a channel, with components and targets. */
     "rust": {
-      "request": { "channel": "nightly" },
+      "request": "rust@nightly",
       "route": "rustup-toolchain",
       "manager": "rustup",
       "packageId": "nightly-2026-10-30",
@@ -63,19 +63,19 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
       },
     },
     "cargo-binstall": {
-      "request": { "track": "latest" },
+      "request": "github:cargo-bins/cargo-binstall@latest",
       "route": "bin-sourced",
       "bins": ["cargo-binstall"],
     },
     "cargo:fd-find": {
-      "request": { "track": "latest" },
+      "request": "cargo:fd-find@latest",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "fd-find",
       "bins": ["fd"],
     },
     "cargo:monochromatic-mpm-shadow": {
-      "request": { "track": "latest" },
+      "request": "cargo:monochromatic-mpm-shadow@latest",
       "route": "cargo-binstall",
       "manager": "cargo",
       "packageId": "monochromatic-mpm-shadow",
@@ -89,7 +89,7 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
       },
     },
     "npm:wrangler": {
-      "request": { "track": "latest" },
+      "request": "npm:wrangler@latest",
       "route": "mpm-pnpm",
       "manager": "pnpm",
       "packageId": "wrangler",
@@ -97,14 +97,14 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
       "options": { "allowBuilds": ["esbuild"] },
     },
     "pipx:slopo": {
-      "request": { "track": "latest" },
+      "request": "pipx:slopo@latest",
       "route": "mpm-uvx",
       "manager": "uvx",
       "packageId": "slopo",
       "bins": ["slopo"],
     },
     "android-sdk": {
-      "request": { "track": "latest" },
+      "request": "android-sdk@latest",
       "route": "android-sdk",
       "bins": ["adb", "sdkmanager"],
       "env": { "ANDROID_HOME": "android-sdk/23.0" },

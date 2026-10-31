@@ -28,25 +28,14 @@ use super::model::{
 };
 
 
-/// The request object at `path`.
+/// The request text at `path`:
+/// `<origin>@<range>`.
 fn decode_request(value: &Value, path: &str) -> DecodeResult<Request> {
-    let map = as_object(value, path)?;
-    if map.len() != 1 {
-        return Err(format!("{path} must hold exactly one of track, pinned or channel"));
-    }
-    if let Some(track) = map.get("track") {
-        if track.as_str() == Some("latest") {
-            return Ok(Request::Latest);
-        }
-        return Err(format!("{path}.track must be \"latest\""));
-    }
-    if let Some(pinned) = map.get("pinned") {
-        return Ok(Request::Pinned(as_nonempty_text(pinned, &format!("{path}.pinned"))?));
-    }
-    if let Some(channel) = map.get("channel") {
-        return Ok(Request::Channel(as_nonempty_text(channel, &format!("{path}.channel"))?));
-    }
-    return Err(format!("{path} must hold exactly one of track, pinned or channel"));
+    let text: String = as_nonempty_text(value, path)?;
+    return match Request::parse(&text) {
+        Ok(request) => Ok(request),
+        Err(message) => Err(format!("{path}: {message}")),
+    };
 }
 
 /// The postinstall object at `path`.
@@ -111,8 +100,7 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
             "rustComponents",
             "rustTargets",
             "cargoFeatures",
-            "cargoGit",
-            "assetPattern",
+            "asset",
             "allowBuilds",
             "androidPackages",
             "postinstall",
@@ -131,17 +119,8 @@ fn decode_options(value: &Value, path: &str) -> DecodeResult<Options> {
     if let Some(list) = map.get("cargoFeatures") {
         options.cargo_features = Some(as_text_list(list, &format!("{path}.cargoFeatures"))?);
     }
-    if let Some(git) = map.get("cargoGit") {
-        let git_path: String = format!("{path}.cargoGit");
-        let git_map = as_object(git, &git_path)?;
-        reject_unknown_keys(git_map, &["url"], &git_path)?;
-        let Some(url) = git_map.get("url") else {
-            return Err(format!("{git_path}.url is required"));
-        };
-        options.cargo_git_url = Some(as_nonempty_text(url, &format!("{git_path}.url"))?);
-    }
-    if let Some(pattern) = map.get("assetPattern") {
-        options.asset_pattern = Some(as_nonempty_text(pattern, &format!("{path}.assetPattern"))?);
+    if let Some(pattern) = map.get("asset") {
+        options.asset = Some(as_nonempty_text(pattern, &format!("{path}.asset"))?);
     }
     if let Some(list) = map.get("allowBuilds") {
         options.allow_builds = Some(as_text_list(list, &format!("{path}.allowBuilds"))?);
@@ -193,7 +172,10 @@ fn decode_declaration_fields(id: &str, map: &Map<String, Value>, path: &str) -> 
     };
     let route_text: String = as_text(route_value, &format!("{path}.route"))?;
     let Some(route) = Route::parse(&route_text) else {
-        let names: Vec<&str> = ROUTE_NAMES.iter().map(|(_, name)| return *name).collect();
+        let mut names: Vec<&str> = Vec::new();
+        for (_, route_name) in ROUTE_NAMES {
+            names.push(route_name);
+        }
         return Err(format!("{path}.route {route_text:?} is not a route; the routes are {}", names.join(", ")));
     };
     let manager: Option<String> = match map.get("manager") {
@@ -289,7 +271,15 @@ fn decode_artifacts(value: &Value, path: &str) -> DecodeResult<Vec<(String, Arti
 
 /// Whether `text` is 64 lowercase hex characters.
 pub fn is_sha256_hex(text: &str) -> bool {
-    return text.len() == 64 && text.bytes().all(|byte| return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+    if text.len() != 64 {
+        return false;
+    }
+    for byte in text.bytes() {
+        if !(byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:

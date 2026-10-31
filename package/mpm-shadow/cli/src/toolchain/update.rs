@@ -46,6 +46,8 @@ use super::runner::Runner;
 use super::scope::{EnvMap, Scope};
 /// Imports `sync_tools` from `super::sync`.
 use super::sync::sync_tools;
+/// Imports the tool lookup.
+use super::util::find_tool;
 /// Imports what this module uses from `super::update_resolve`.
 use super::update_resolve::{Resolution, ResolveError, resolve_tool};
 
@@ -69,13 +71,6 @@ pub enum OutcomeKind {
     },
     /// The tool is pinned and the lock already holds that pin.
     Pinned,
-    /// No resolver exists for the tool yet;
-    /// its lock entry is kept as it is.
-    Skipped {
-        /// Why,
-        /// naming the tool and route.
-        reason: String,
-    },
     /// The lookup failed;
     /// nothing is written.
     Failed {
@@ -111,15 +106,22 @@ pub struct UpdateReport {
 impl UpdateReport {
     /// Whether any lookup failed.
     pub fn has_failures(&self) -> bool {
-        return self.outcomes.iter().any(|outcome| return matches!(outcome.kind, OutcomeKind::Failed { .. }));
+        for outcome in &self.outcomes {
+            if matches!(outcome.kind, OutcomeKind::Failed { .. }) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// Whether any tool moved or was added (the condition `update --check` exits 1 for).
     pub fn has_movement(&self) -> bool {
-        return self
-            .outcomes
-            .iter()
-            .any(|outcome| return matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }));
+        for outcome in &self.outcomes {
+            if matches!(outcome.kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -130,19 +132,6 @@ struct Resolved {
     /// What to lock,
     /// when there is something.
     resolution: Option<Resolution>,
-}
-
-/// Whether the plan's declaration and the lock's differ in a field that decides what is resolved.
-fn resolution_changed(declaration: &Declaration, locked: &LockedTool) -> bool {
-    let expanded: Declaration = expand_version(declaration, &locked.version);
-    return expanded.request != locked.declaration.request
-        || expanded.route != locked.declaration.route
-        || expanded.manager != locked.declaration.manager
-        || expanded.package_id != locked.declaration.package_id
-        || expanded.os != locked.declaration.os
-        || expanded.options.asset_pattern != locked.declaration.options.asset_pattern
-        || expanded.options.cargo_git_url != locked.declaration.options.cargo_git_url
-        || expanded.options.bootstrap != locked.declaration.options.bootstrap;
 }
 
 /// What:
@@ -166,20 +155,11 @@ fn resolve_one(ctx: &Context, declaration: &Declaration, current: Option<&Locked
             let kind: OutcomeKind = match current {
                 None => OutcomeKind::Added { version: resolution.version.clone() },
                 Some(locked) if locked.version == resolution.version && locked.artifacts == resolution.artifacts => {
-                    if matches!(declaration.request, super::model::Request::Pinned(_)) { OutcomeKind::Pinned } else { OutcomeKind::Unchanged }
+                    if declaration.request.is_exact() { OutcomeKind::Pinned } else { OutcomeKind::Unchanged }
                 }
                 Some(locked) => OutcomeKind::Updated { old_version: locked.version.clone(), new_version: resolution.version.clone() },
             };
             return Resolved { outcome: Outcome { id, kind }, resolution: Some(resolution) };
-        }
-        Err(ResolveError::NotImplemented(reason)) => {
-            if let Some(locked) = current
-                && !resolution_changed(declaration, locked)
-            {
-                let kept: Resolution = Resolution { version: locked.version.clone(), artifacts: locked.artifacts.clone() };
-                return Resolved { outcome: Outcome { id, kind: OutcomeKind::Skipped { reason } }, resolution: Some(kept) };
-            }
-            return Resolved { outcome: Outcome { id, kind: OutcomeKind::Failed { reason } }, resolution: None };
         }
         Err(ResolveError::Failed(reason)) => {
             return Resolved { outcome: Outcome { id, kind: OutcomeKind::Failed { reason } }, resolution: None };
@@ -231,14 +211,17 @@ pub fn run_update(
     let context: Context = Context { scope, env, runner, http, host, tools: &old_tools };
     let mut results: Vec<Resolved> = Vec::new();
     for declaration in &loaded.plan.tools {
-        let current: Option<&LockedTool> = old_tools.iter().find(|tool| return tool.declaration.id == declaration.id);
+        let current: Option<&LockedTool> = find_tool(&old_tools, &declaration.id);
         results.push(resolve_one(&context, declaration, current));
     }
     let mut synced: Vec<String> = Vec::new();
     if !check {
         retry_after_sync(&context, &loaded.plan.tools, &mut results, &mut synced);
     }
-    let outcomes: Vec<Outcome> = results.iter().map(|result| return result.outcome.clone()).collect();
+    let mut outcomes: Vec<Outcome> = Vec::new();
+    for result in &results {
+        outcomes.push(result.outcome.clone());
+    }
     let mut report: UpdateReport = UpdateReport { outcomes, wrote: false, synced };
     if report.has_failures() || check {
         return Ok(report);
@@ -286,7 +269,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     for (index, declaration) in plan.iter().enumerate() {
         let failed: bool = matches!(results[index].outcome.kind, OutcomeKind::Failed { .. });
         let manager_route: bool = matches!(declaration.route, Route::MpmPnpm | Route::MpmUvx);
-        let Some(locked) = context.tools.iter().find(|tool| return tool.declaration.id == declaration.id) else {
+        let Some(locked) = find_tool(context.tools, &declaration.id) else {
             continue;
         };
         if failed && manager_route && observe_tool(context, locked).is_none() {
@@ -299,7 +282,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     let mut ids: Vec<String> = Vec::new();
     for index in &candidates {
         for prerequisite in prerequisites(plan[*index].route) {
-            if !ids.iter().any(|id| return id == prerequisite) {
+            if !ids.contains(&(*prerequisite).to_string()) {
                 ids.push((*prerequisite).to_string());
             }
         }
@@ -312,7 +295,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
             OutcomeKind::Failed { reason } => reason.clone(),
             _ => String::new(),
         };
-        let current: Option<&LockedTool> = context.tools.iter().find(|tool| return tool.declaration.id == plan[index].id);
+        let current: Option<&LockedTool> = find_tool(context.tools, &plan[index].id);
         let mut second: Resolved = resolve_one(context, &plan[index], current);
         if let OutcomeKind::Failed { reason } = &second.outcome.kind {
             second.outcome.kind = OutcomeKind::Failed {
@@ -336,24 +319,28 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
             OutcomeKind::Pinned => format!("pinned    {}", outcome.id),
             OutcomeKind::Updated { old_version, new_version } => format!("updated   {}  {old_version} -> {new_version}", outcome.id),
             OutcomeKind::Added { version } => format!("added     {}  {version}", outcome.id),
-            OutcomeKind::Skipped { reason } => format!("skipped   {}  {reason}", outcome.id),
             OutcomeKind::Failed { reason } => format!("failed    {}  {reason}", outcome.id),
         };
         text.push_str(&line);
         text.push('\n');
     }
-    let count = |predicate: fn(&OutcomeKind) -> bool| return report.outcomes.iter().filter(|outcome| return predicate(&outcome.kind)).count();
-    let moved: usize = count(|kind| return matches!(kind, OutcomeKind::Updated { .. } | OutcomeKind::Added { .. }));
-    let skipped: usize = count(|kind| return matches!(kind, OutcomeKind::Skipped { .. }));
-    let failed: usize = count(|kind| return matches!(kind, OutcomeKind::Failed { .. }));
+    let mut moved: usize = 0;
+    let mut failed: usize = 0;
+    for outcome in &report.outcomes {
+        match outcome.kind {
+            OutcomeKind::Updated { .. } | OutcomeKind::Added { .. } => moved += 1,
+            OutcomeKind::Failed { .. } => failed += 1,
+            _ => {}
+        }
+    }
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));
     } else if check {
-        text.push_str(&format!("toolchain update --check: {moved} tools would move, {skipped} skipped; nothing was written or installed\n"));
+        text.push_str(&format!("toolchain update --check: {moved} tools would move; nothing was written or installed\n"));
     } else if report.wrote {
-        text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved, {skipped} skipped)\n"));
+        text.push_str(&format!("toolchain update: wrote toolchain.lock.json ({moved} tools moved)\n"));
     } else {
-        text.push_str(&format!("toolchain update: toolchain.lock.json is already current ({skipped} skipped)\n"));
+        text.push_str(&format!("toolchain update: toolchain.lock.json is already current\n"));
     }
     return text;
 }

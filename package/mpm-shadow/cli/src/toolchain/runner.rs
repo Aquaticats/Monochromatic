@@ -36,6 +36,15 @@ use super::layout::manager_native_bin_dirs;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope};
 
+/// The arguments as owned texts.
+fn texts(arguments: &[&str]) -> Vec<String> {
+    let mut owned: Vec<String> = Vec::new();
+    for argument in arguments {
+        owned.push((*argument).to_string());
+    }
+    return owned;
+}
+
 /// What:
 /// One program start:
 /// the program (a name looked up on `PATH`,
@@ -73,7 +82,7 @@ impl RunRequest {
     pub fn new(command: &str, args: &[&str]) -> RunRequest {
         return RunRequest {
             command: command.to_string(),
-            args: args.iter().map(|argument| return (*argument).to_string()).collect(),
+            args: texts(args),
             env: None,
             cwd: None,
         };

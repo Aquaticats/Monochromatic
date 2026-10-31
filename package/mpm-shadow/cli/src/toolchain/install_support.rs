@@ -34,6 +34,8 @@ use super::http::DEFAULT_MAX_DOWNLOAD_BYTES;
 use super::model::{Artifact, LockedTool};
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
+/// Imports the shared named helpers.
+use super::util::{file_name_os, file_name_text};
 
 /// How many levels below the install directory `restore_exec_bits` looks for the launchers.
 const EXEC_SCAN_MAX_DEPTH: usize = 3;
@@ -110,7 +112,7 @@ pub fn run_checked(ctx: &Context, request: &RunRequest, what: &str, tool_id: &st
 /// export function downloadVerified(ctx: Context, url: string, target: string, sha256: string): string
 /// ```
 pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) -> Result<PathBuf, ToolchainError> {
-    let mut temporary_name = target.file_name().map(|name| return name.to_os_string()).unwrap_or_default();
+    let mut temporary_name = file_name_os(target);
     temporary_name.push(".download");
     let temporary: PathBuf = target.with_file_name(temporary_name);
     let observed: String = match ctx.http.download(url, &temporary, DEFAULT_MAX_DOWNLOAD_BYTES) {
@@ -166,6 +168,61 @@ pub fn extract_archive(ctx: &Context, archive: &Path, into: &Path) -> Result<(),
     return Ok(());
 }
 
+/// What:
+/// Unpacks a `.conda` package into `into`.
+/// A `.conda` file is a zip holding `info-*.tar.zst` and `pkg-*.tar.zst`;
+/// the payload is the `pkg-` archive,
+/// so `unzip` opens the outer file into a staging directory and `tar --zstd` unpacks the payload.
+/// Why:
+/// The TypeScript sync copied the `.conda` file as if it were the program,
+/// which installed nothing usable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function extractConda(ctx: Context, archive: string, into: string): void
+/// ```
+pub fn extract_conda(ctx: &Context, archive: &Path, into: &Path) -> Result<(), ToolchainError> {
+    let staging: PathBuf = into.join(".conda-staging");
+    // Best effort: a staging directory left by a killed run is cleared; absence is the normal case.
+    let _ = fs::remove_dir_all(&staging);
+    if let Err(error) = fs::create_dir_all(&staging) {
+        return Err(ToolchainError::failure(format!("cannot create {}: {error}", staging.display())));
+    }
+    let archive_text: String = archive.to_string_lossy().to_string();
+    let staging_text: String = staging.to_string_lossy().to_string();
+    let opened: RunOutcome = ctx.run(&RunRequest::new("unzip", &["-q", "-o", &archive_text, "-d", &staging_text]).with_env(ctx.path_env()));
+    if !opened.succeeded() {
+        return Err(ToolchainError::failure(format!("unzip failed for {archive_text}: {}", opened.failure_text())));
+    }
+    let mut names: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&staging) {
+        for entry in entries.flatten() {
+            names.push(entry.path());
+        }
+    }
+    names.sort();
+    let mut payload: Option<PathBuf> = None;
+    for path in names {
+        let name: String = file_name_text(&path);
+        if name.starts_with("pkg-") && name.ends_with(".tar.zst") {
+            payload = Some(path);
+            break;
+        }
+    }
+    let Some(payload_path) = payload else {
+        return Err(ToolchainError::failure(format!("{archive_text} holds no pkg-*.tar.zst payload")));
+    };
+    let payload_text: String = payload_path.to_string_lossy().to_string();
+    let into_text: String = into.to_string_lossy().to_string();
+    let unpacked: RunOutcome = ctx.run(&RunRequest::new("tar", &["--extract", "--zstd", "--file", &payload_text, "--directory", &into_text]).with_env(ctx.path_env()));
+    // Best effort: the staging directory only held the outer archive's members.
+    let _ = fs::remove_dir_all(&staging);
+    if !unpacked.succeeded() {
+        return Err(ToolchainError::failure(format!("tar --zstd failed for {payload_text}: {}", unpacked.failure_text())));
+    }
+    return Ok(());
+}
+
 /// Marks a file executable (mode 0755 on Unix;
 /// nothing to do elsewhere).
 pub fn make_executable(path: &Path) -> Result<(), ToolchainError> {
@@ -203,10 +260,13 @@ pub fn restore_exec_bits(root: &Path, names: &[String]) -> Vec<String> {
             let Ok(entries) = fs::read_dir(directory) else {
                 continue;
             };
-            let mut paths: Vec<PathBuf> = entries.flatten().map(|entry| return entry.path()).collect();
+            let mut paths: Vec<PathBuf> = Vec::new();
+            for entry in entries.flatten() {
+                paths.push(entry.path());
+            }
             paths.sort();
             for path in paths {
-                let name: String = path.file_name().map(|file| return file.to_string_lossy().to_string()).unwrap_or_default();
+                let name: String = file_name_text(&path);
                 if path.is_dir() {
                     if depth < EXEC_SCAN_MAX_DEPTH {
                         next.push(path);

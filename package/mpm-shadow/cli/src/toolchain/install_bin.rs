@@ -41,6 +41,14 @@ use super::runner::{RunOutcome, RunRequest};
 /// The prefix of every artifact URL this route accepts.
 const GITHUB_PREFIX: &str = "https://github.com/";
 
+/// The error for an artifact URL that is not a GitHub release download.
+fn release_refusal(artifact_url: &str) -> ToolchainError {
+    return ToolchainError::failure(format!(
+        "cannot derive a release-tag URL from {artifact_url}: bin-sourced artifacts must be \
+         https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>"
+    ));
+}
+
 /// What:
 /// The release page URL (`https://github.com/<owner>/<repo>/releases/tag/<tag>`) for a locked asset URL of
 ///           the form `https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>`.
@@ -53,22 +61,16 @@ const GITHUB_PREFIX: &str = "https://github.com/";
 /// export function releaseTagUrl(artifactUrl: string): string  // throws ReleaseTagUrlError
 /// ```
 pub fn release_tag_url(artifact_url: &str) -> Result<String, ToolchainError> {
-    let refusal = || {
-        return ToolchainError::failure(format!(
-            "cannot derive a release-tag URL from {artifact_url}: bin-sourced artifacts must be \
-             https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>"
-        ));
-    };
     let Some(rest) = artifact_url.strip_prefix(GITHUB_PREFIX) else {
-        return Err(refusal());
+        return Err(release_refusal(artifact_url));
     };
     let segments: Vec<&str> = rest.split('/').collect();
     if segments.len() < 6 || segments[2] != "releases" || segments[3] != "download" {
-        return Err(refusal());
+        return Err(release_refusal(artifact_url));
     }
     let (owner, repo, tag) = (segments[0], segments[1], segments[4]);
     if owner.is_empty() || repo.is_empty() || tag.is_empty() {
-        return Err(refusal());
+        return Err(release_refusal(artifact_url));
     }
     return Ok(format!("{GITHUB_PREFIX}{owner}/{repo}/releases/tag/{}", percent_decode(tag)));
 }
@@ -168,6 +170,18 @@ fn name_attempts(asset: &str, name: &str) -> Vec<Vec<String>> {
     ];
 }
 
+/// Whether `name` is one of the alias names
+/// (so it is linked,
+/// not downloaded).
+fn is_alias(aliases: &[(String, String)], name: &str) -> bool {
+    for (alias, _) in aliases {
+        if alias == name {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// What:
 /// Installs one bin-sourced tool:
 /// for each declared bin that is not an alias,
@@ -202,7 +216,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
         env.insert("GITHUB_TOKEN".to_string(), token);
     }
     for name in &tool.declaration.bins {
-        if aliases.iter().any(|(alias, _)| return alias == name) {
+        if is_alias(&aliases, name) {
             continue;
         }
         let mut last: Option<RunOutcome> = None;

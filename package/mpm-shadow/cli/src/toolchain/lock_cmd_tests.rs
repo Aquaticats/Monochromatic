@@ -96,7 +96,7 @@ fn lock_refuses_a_new_tool_names_update_and_leaves_the_lock_untouched() {
     let (_directory, scope, _env) = sample_scope_on_disk();
     let edited = SAMPLE_PLAN.replace(
         "    \"pipx:slopo\"",
-        "    \"cargo:new-thing\": { \"request\": { \"track\": \"latest\" }, \"route\": \"cargo-binstall\", \"packageId\": \"new-thing\", \"bins\": [\"new-thing\"] },\n    \"pipx:slopo\"",
+        "    \"cargo:new-thing\": { \"request\": \"cargo:new-thing@latest\", \"route\": \"cargo-binstall\", \"packageId\": \"new-thing\", \"bins\": [\"new-thing\"] },\n    \"pipx:slopo\"",
     );
     fs::write(&scope.plan_file, edited).expect("edit the plan");
     let before = fs::read_to_string(&scope.lock_file).expect("read");
@@ -109,7 +109,7 @@ fn lock_refuses_a_new_tool_names_update_and_leaves_the_lock_untouched() {
 #[test]
 fn lock_refuses_a_changed_pin_without_touching_the_lock() {
     let (_directory, scope, _env) = sample_scope_on_disk();
-    let edited = SAMPLE_PLAN.replace("{ \"pinned\": \"0.29.4\" }", "{ \"pinned\": \"0.30.0\" }");
+    let edited = SAMPLE_PLAN.replace("github:marcosnils/bin@0.29.4", "github:marcosnils/bin@0.30.0");
     fs::write(&scope.plan_file, edited).expect("edit the plan");
     let before = fs::read_to_string(&scope.lock_file).expect("read");
     let error = run_lock(&scope, LockMode::Write).expect_err("a pin change needs the network");
@@ -125,30 +125,16 @@ fn lock_on_a_current_lock_writes_nothing() {
 }
 
 #[test]
-fn a_lock_without_a_digest_needs_adopt_and_adopt_adds_it() {
+fn a_lock_without_a_digest_is_refused_and_the_remedy_is_to_rebuild_it() {
     let (_directory, scope, _env) = sample_scope_on_disk();
     let mut value: Value = serde_json::from_str(&fs::read_to_string(&scope.lock_file).expect("read")).expect("JSON");
     value.as_object_mut().expect("object").remove("digest");
     fs::write(&scope.lock_file, serde_json::to_string_pretty(&value).expect("render")).expect("write the digest-less lock");
-
-    let refused = run_lock(&scope, LockMode::Write).expect_err("a digest-less lock is not adopted silently");
-    assert!(refused.message.contains("no digest"), "{refused}");
-    assert!(run_lock(&scope, LockMode::Check).is_err());
-
-    run_lock(&scope, LockMode::Adopt).expect("adopt adds the digest");
-    run_lock(&scope, LockMode::Check).expect("the adopted lock passes");
-    let again = run_lock(&scope, LockMode::Adopt).expect_err("a lock with a digest is not adopted again");
-    assert_eq!(again.kind, ErrorKind::Config);
-}
-
-#[test]
-fn adopt_still_refuses_a_lock_that_disagrees_with_the_plan() {
-    let (_directory, scope, _env) = sample_scope_on_disk();
-    let mut value: Value = serde_json::from_str(&fs::read_to_string(&scope.lock_file).expect("read")).expect("JSON");
-    value.as_object_mut().expect("object").remove("digest");
-    fs::write(&scope.lock_file, serde_json::to_string_pretty(&value).expect("render")).expect("write");
-    fs::write(&scope.plan_file, SAMPLE_PLAN.replace("{ \"pinned\": \"0.29.4\" }", "{ \"pinned\": \"0.30.0\" }")).expect("edit");
-    assert!(run_lock(&scope, LockMode::Adopt).is_err());
+    for mode in [LockMode::Write, LockMode::Check] {
+        let refused = run_lock(&scope, mode).expect_err("a lock nobody signed is not accepted");
+        assert!(refused.message.contains("no digest"), "{refused}");
+        assert!(refused.message.contains("delete it and run `mpm-shadow update`"), "{refused}");
+    }
 }
 
 #[test]

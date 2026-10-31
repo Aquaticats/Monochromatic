@@ -76,13 +76,6 @@ pub fn subcommands() -> Vec<Command> {
                 .action(ArgAction::SetTrue)
                 .help("Write nothing; exit 1 when the plan and the lock disagree or the lock's digest does not match"),
         )
-        .arg(
-            Arg::new("adopt")
-                .long("adopt")
-                .action(ArgAction::SetTrue)
-                .conflicts_with("check")
-                .help("Accept a lock that has no digest yet (the first conversion of an older lock) and add the digest"),
-        )
         .arg(global_flag());
     let bin_paths: Command = Command::new("bin-paths")
         .about("Print the toolchain's program directories and exposed binaries as JSON (read-only, offline)")
@@ -128,7 +121,10 @@ fn report(error: &ToolchainError) -> i32 {
 
 /// The directory the command was started in (the root search starts here).
 fn start_directory() -> PathBuf {
-    return std::env::current_dir().unwrap_or_else(|_| return PathBuf::from("."));
+    return match std::env::current_dir() {
+        Ok(directory) => directory,
+        Err(_) => PathBuf::from("."),
+    };
 }
 
 /// What:
@@ -153,8 +149,6 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         "lock" => {
             let mode: LockMode = if matches.get_flag("check") {
                 LockMode::Check
-            } else if matches.get_flag("adopt") {
-                LockMode::Adopt
             } else {
                 LockMode::Write
             };
@@ -219,7 +213,10 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
         }
         "bin-paths" => {
             // Only the plan is read: the IDE sandbox may run this before any lock exists.
-            let outcome = read_plan(&scope.plan_file).and_then(|plan| return bin_paths_output(&plan, &scope, &env));
+            let outcome = match read_plan(&scope.plan_file) {
+                Ok(plan) => bin_paths_output(&plan, &scope, &env),
+                Err(error) => Err(error),
+            };
             return Some(match outcome {
                 Ok(document) => {
                     print!("{}", render_bin_paths(&document));

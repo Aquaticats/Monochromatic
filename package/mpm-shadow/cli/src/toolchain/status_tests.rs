@@ -69,7 +69,7 @@ fn status_reports_in_sync_when_everything_matches() {
     let (_directory, scope, env) = sample_scope_on_disk();
     let mut lock = sample_lock();
     lock.tools.retain(|tool| return tool.declaration.id == "cargo:fd-find");
-    let plan_text = "{ \"schemaVersion\": 1, \"tools\": { \"cargo:fd-find\": { \"request\": { \"track\": \"latest\" }, \"route\": \"cargo-binstall\", \"manager\": \"cargo\", \"packageId\": \"fd-find\", \"bins\": [\"fd\"] } } }";
+    let plan_text = "{ \"schemaVersion\": 1, \"tools\": { \"cargo:fd-find\": { \"request\": \"cargo:fd-find@latest\", \"route\": \"cargo-binstall\", \"manager\": \"cargo\", \"packageId\": \"fd-find\", \"bins\": [\"fd\"] } } }";
     fs::write(&scope.plan_file, plan_text).expect("write the plan");
     fs::write(&scope.lock_file, render_lock(&lock)).expect("write the lock");
     let runner = FakeRunner::new();

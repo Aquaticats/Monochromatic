@@ -1,7 +1,13 @@
-//! What:     The `mpm-shadow` command itself (the non-shadow mode): `--help`, `--version` and the `prune` subcommand,
+//! What:
+//! The `mpm-shadow` command itself (the non-shadow mode):
+//! `--help`,
+//! `--version` and the `prune` subcommand,
 //!           with the grammar owned by `clap`.
-//! Why:      A person can run the prune by hand, for example to clear copies that were left before the shadow was
-//!           installed. The builder API is used instead of derive macros so every line is an ordinary method call.
+//! Why:
+//! A person can run the prune by hand,
+//! for example to clear copies that were left before the shadow was
+//!           installed.
+//! The builder API is used instead of derive macros so every line is an ordinary method call.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -9,9 +15,13 @@
 //! program.name('mpm-shadow').command('prune');
 //! ```
 
-/// What:     `use clap::Command;` imports the type that describes a command line, from the `clap` crate (a third-party
-///           library, like an npm package).
-/// Why:      We describe the grammar with it below.
+/// What:
+/// `use clap::Command;` imports the type that describes a command line,
+/// from the `clap` crate (a third-party
+///           library,
+/// like an npm package).
+/// Why:
+/// We describe the grammar with it below.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -19,17 +29,23 @@
 /// ```
 use clap::Command;
 
-/// Imports the process-environment module (CARGO_HOME, HOME).
+/// Imports the process-environment module (CARGO_HOME,
+/// HOME).
 use std::env;
 
+/// Imports `cargo_home` from `crate::cargo_home`.
 use crate::cargo_home::cargo_home;
+/// Imports `USAGE_EXIT_CODE` from `crate::constants`.
 use crate::constants::USAGE_EXIT_CODE;
+/// Imports `prune_stale_own_crates` from `crate::prune`.
 use crate::prune::prune_stale_own_crates;
 /// Imports the toolchain verbs' grammar and dispatch.
 use crate::toolchain::commands::{dispatch, subcommands as toolchain_subcommands};
 
-/// What:     `pub fn build_command() -> Command` declares a public function returning the grammar description.
-/// Why:      Both the real run and the tests need the grammar.
+/// What:
+/// `pub fn build_command() -> Command` declares a public function returning the grammar description.
+/// Why:
+/// Both the real run and the tests need the grammar.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -64,9 +80,11 @@ pub fn build_command() -> Command {
         .subcommands(toolchain_subcommands());
 }
 
-/// What:     `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
+/// What:
+/// `pub fn run_cli(arguments: Vec<String>) -> i32` declares a public function taking the command-line texts
 ///           and returning the exit code.
-/// Why:      `main.rs` calls it for every start that is not under the name `mpm`.
+/// Why:
+/// `main.rs` calls it for every start that is not under the name `mpm`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -97,8 +115,11 @@ pub fn run_cli(arguments: Vec<String>) -> i32 {
     return USAGE_EXIT_CODE;
 }
 
-/// What:     `fn prune_now() -> i32` declares a private function returning the exit code.
-/// Why:      It holds the `prune` subcommand's work, so `run_cli` stays flat.
+/// What:
+/// `fn prune_now() -> i32` declares a private function returning the exit code.
+/// Why:
+/// It holds the `prune` subcommand's work,
+/// so `run_cli` stays flat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

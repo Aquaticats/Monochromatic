@@ -131,7 +131,7 @@ fn a_tool_dropped_from_the_plan_is_fixed_offline() {
 #[test]
 fn a_changed_pin_is_a_resolution_edit_and_offline_lock_refuses_it() {
     let mut lock = sample_lock();
-    lock.tools[0].declaration.request = Request::Pinned("0.1.0".to_string());
+    lock.tools[0].declaration.request = Request::parse("github:marcosnils/bin@0.1.0").expect("parses");
     let parsed = parse_lock(&render_lock(&lock), "toolchain.lock.json").expect("parses");
     let verdict = compare(&sample_plan(), &parsed);
     assert_eq!(verdict.resolution_edits.len(), 1);
@@ -150,8 +150,7 @@ fn every_resolution_affecting_field_is_rejected_offline() {
         ("packageId", |lock| lock.tools[6].declaration.package_id = Some("other".to_string())),
         ("manager", |lock| lock.tools[6].declaration.manager = Some("other".to_string())),
         ("os", |lock| lock.tools[7].declaration.os = None),
-        ("options.assetPattern", |lock| lock.tools[1].declaration.options.asset_pattern = Some("*.tgz".to_string())),
-        ("options.cargoGit", |lock| lock.tools[1].declaration.options.cargo_git_url = Some("https://x.invalid".to_string())),
+        ("options.asset", |lock| lock.tools[1].declaration.options.asset = Some("*.tgz".to_string())),
     ];
     for (field, edit) in edits {
         let mut lock = sample_lock();
@@ -235,18 +234,4 @@ fn an_unknown_lock_field_and_a_bad_hash_are_config_errors_naming_the_path() {
 
     let truncated = parse_lock("{", "toolchain.lock.json").expect_err("not JSON");
     assert!(truncated.message.contains("is not valid JSON"), "{truncated}");
-}
-
-#[test]
-fn the_repository_lock_parses_and_renders_back_to_the_same_tools() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../toolchain.lock.json");
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return;
-    };
-    let parsed = parse_lock(&text, "toolchain.lock.json").expect("the repository lock decodes");
-    assert!(parsed.lock.tools.len() > 50);
-    assert!(parsed.recorded_digest.is_none(), "the TypeScript lock carries no digest");
-    let original: Value = serde_json::from_str(&text).expect("JSON");
-    let rendered: Value = serde_json::from_str(&render_lock(&parsed.lock)).expect("JSON");
-    assert_eq!(original["tools"], rendered["tools"]);
 }
