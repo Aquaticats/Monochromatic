@@ -3,7 +3,10 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  rendersAsNothing,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { wholeOpening, } from '@monochromatic-dev/translation-repair-markup/ts';
 import {
   EmptyImageAssetError,
@@ -437,7 +440,7 @@ export async function readImageAsset(
     ...((otherThan === undefined) ? {} : { otherThan, }),
   },);
 
-  if (reply.text === '') {
+  if (rendersAsNothing({ text: reply.text, },)) {
     // CUT BY THE LENGTH LIMIT IS MARKED, because it is the one empty reply
     // that varies between asks: a reasoning model spent its whole completion
     // cap thinking (XingZ6016, 2026-10-21: 18316 completion tokens, 0 content

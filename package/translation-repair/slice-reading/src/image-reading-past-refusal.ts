@@ -111,6 +111,13 @@ import type {
 // go, `NoProviderForModelError`, and the ask is then made without the hint). That
 // ask takes the next reading responsibility, because the uniqueness wrapper
 // hashes the prompt and would otherwise replay the empty reply it stored.
+//
+// A CALLER THAT NAMES NO BENCH ASKS THE READER ITSELF AND NO OTHER MODEL (ledger B1100). The measurement of one reader
+// (`reader-measure-run.ts` in the bench package) calls this with no bench and no record, and a rival's reading scored as
+// the candidate's would measure the rival. Only the readers of a picture (`readImagePair`) name a bench.
+//
+// A REFUSAL AFTER A CUT IS THE REFUSAL OF THE MODEL THAT GAVE IT (ledger B1100). The reading the cut re-ask brought
+// back may itself decline; the loop then asks that model again, as it asks any model that declines, and logs it by name.
 
 /**
  Clause the screen reports for a reading that declined to transcribe.
@@ -230,10 +237,25 @@ function isOwedAsk(
 }
 
 /**
+ What a re-ask of a cut reading brought back, and the model that gave it.
+ */
+type CutReask = {
+  /**
+   Reading the re-ask produced.
+   */
+  readonly reading: ImageReading;
+
+  /**
+   Model that gave it, which a refusal in it is then the refusal of.
+   */
+  readonly askedModelId: RosterModelId;
+};
+
+/**
  Asks again after a reply the completion limit cut, which is a reasoning runaway (ledger B1074): of another model that
  reads pictures, in the order of the cap census's runaway shares, with the picture asked as the first ask asked it;
- where none can take it, of the reader itself, on another provider that serves it when one is wet and on the same
- provider otherwise.
+ where none can take it, or the caller names no bench, of the reader itself, on another provider that serves it when
+ one is wet and on the same provider otherwise.
 
  @param client - provider client
 
@@ -251,7 +273,8 @@ function isOwedAsk(
  for a client that routes nowhere, which then gets no hint
 
  @param benchModelIds - every reader of this picture, whose reading recorded as the cut reader's would count one
- model twice; empty where the caller names none
+ model twice; absent where the caller names none, which asks the reader itself and no other model, as a measurement of
+ one model does (ledger B1100)
 
  @param claims - record of the models asked for the readers of this picture, which they share so that no model is
  asked for two of them (ledger B1080); absent for a reader that is alone on its picture
@@ -262,11 +285,11 @@ function isOwedAsk(
 
  @param l - logger
 
- @returns Reading of the re-ask
+ @returns Reading of the re-ask and the model that gave it
 
  @example
  ```ts
- const reading = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', benchModelIds, signal, perCallTimeoutMs, l, },);
+ const { reading, } = await reaskCut({ client, modelId, bytes, assetName, perspective, cutOn: 'neuralwatt', benchModelIds, signal, perCallTimeoutMs, l, },);
  ```
  */
 async function reaskCut(
@@ -289,13 +312,13 @@ async function reaskCut(
     readonly assetName: string;
     readonly perspective: ImageReadingPerspective;
     readonly cutOn?: ProviderName;
-    readonly benchModelIds: readonly RosterModelId[];
+    readonly benchModelIds?: readonly RosterModelId[];
     readonly claims?: ReaskClaims;
     readonly signal: AbortSignal;
     readonly perCallTimeoutMs: number;
     readonly l: Logger;
   },
-): Promise<ImageReading> {
+): Promise<CutReask> {
   /**
    Logger pre-tagged with this function's name.
    */
@@ -304,6 +327,153 @@ async function reaskCut(
     l,
   },);
 
+  /**
+   How the cut is told in every line: the picture, and the provider when the client said.
+   */
+  const cutText = `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
+    (cutOn === undefined) ? '' : ` on ${cutOn}`
+  })`;
+  if (benchModelIds === undefined) {
+    // NO BENCH, NO OTHER MODEL: a caller that names the readers of the picture can be sure an answer recorded as this
+    // reader's is no second voice of one of them; a caller that names none (the measurement of one model, which must
+    // score that model's own reading) asks the reader itself (ledger B1100).
+    rl.info(`${cutText}; the caller names no readers of the picture, so no other model is asked`,);
+  }
+  else {
+    /**
+     The other models this picture may be asked of, the seat the asks are claimed on and the ones left out with why.
+     */
+    const {
+      readers,
+      seat,
+      leftOut,
+    } = otherReadersOf({
+      modelId,
+      benchModelIds,
+      ...((claims === undefined) ? {} : { claims, }),
+    },);
+
+    /**
+     The models to ask in turn, in the words of the log.
+     */
+    const toAsk = (readers.length === 0) ? 'none' : readers.join(', ',);
+
+    // EACH MODEL LEFT OUT AND WHY IS WRITTEN ONCE, BEFORE THE FIRST ASK, and also where the list is empty, so the line
+    // of an ask that a model without a provider repeats never carries it again (ledger B1100).
+    rl.info(`${cutText}; left out: ${describeLeftOut({ leftOut, },)}; to ask in turn: ${toAsk}`,);
+    for (const other of readers) {
+      // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another cut reader of
+      // this picture may have taken this model since the list was made (ledger B1080).
+      if (!takeFor({
+        seat,
+        modelId: other,
+      },)) {
+        rl.info(`${modelId}: ${other} was asked for another reader of ${assetName} since the list was made`,);
+        continue;
+      }
+      rl.info(`${modelId}: re-asking ${other} instead, plain question`,);
+      try {
+        return {
+          askedModelId: other,
+          /* oxlint-disable-next-line no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
+          reading: await readImageAsset({
+            client,
+            modelId: other,
+            bytes,
+            assetName,
+            perspective: IMAGE_READING_PERSPECTIVES[0],
+            signal,
+            perCallTimeoutMs,
+            l,
+          },),
+        };
+      }
+      catch (error) {
+        // Only the router's "nowhere to ask" moves on to the next model; a stop, or a transport failure, keeps its own handling.
+        if (!(error instanceof NoProviderForModelError))
+          throw error;
+        rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
+      }
+    }
+    rl.warn(
+      `${modelId}: no other model could take the re-ask of ${assetName} (${String(readers.length,)} tried); `
+        + `asking ${modelId} again${(cutOn === undefined) ? '' : ' on another provider that serves it'}`,
+    );
+  }
+  if (cutOn !== undefined) {
+    try {
+      return {
+        askedModelId: modelId,
+        reading: await readImageAsset({
+          client,
+          modelId,
+          bytes,
+          assetName,
+          perspective,
+          otherThan: cutOn,
+          signal,
+          perCallTimeoutMs,
+          l,
+        },),
+      };
+    }
+    catch (error) {
+      // Only the router's "nowhere else" is answered by the same provider; a
+      // stop, a refusal on the other provider's budget that threw something
+      // else, or a transport failure keeps its own handling.
+      if (!(error instanceof NoProviderForModelError))
+        throw error;
+      rl.info(`${modelId}: no other provider serves ${assetName}, asking ${cutOn} again`,);
+    }
+  }
+  return {
+    askedModelId: modelId,
+    reading: await readImageAsset({
+      client,
+      modelId,
+      bytes,
+      assetName,
+      perspective,
+      signal,
+      perCallTimeoutMs,
+      l,
+    },),
+  };
+}
+
+/**
+ The models a cut picture reading may be re-asked of, in order, with the seat they are drawn for and every model left
+ out with why.
+
+ @param modelId - reader whose reply was cut
+
+ @param benchModelIds - every reader of this picture
+
+ @param claims - record of the models asked for the readers of this picture; absent for a reader alone on its picture
+
+ @returns Models that read pictures in the order of their runaway shares, the seat the asks are claimed on, and the
+ models left out: those the reader role or the bench keeps out, those that read no picture and those asked already
+
+ @example
+ ```ts
+ const others = otherReadersOf({ modelId, benchModelIds, },);
+ ```
+ */
+function otherReadersOf(
+  {
+    modelId,
+    benchModelIds,
+    claims,
+  }: {
+    readonly modelId: RosterModelId;
+    readonly benchModelIds: readonly RosterModelId[];
+    readonly claims?: ReaskClaims;
+  },
+): {
+  readonly readers: readonly RosterModelId[];
+  readonly seat: ReaskSeat;
+  readonly leftOut: readonly LeftOutModel[];
+} {
   /**
    The seat of this reader: the reader role, the readers of the picture and the record they share.
    */
@@ -334,95 +504,23 @@ async function reaskCut(
   const readers = alternates.filter(function readsPictures(alternate,): boolean {
     return readsImages({ modelId: alternate, },);
   },);
-
-  /**
-   Every model left out with why: the ones the role or the bench keeps out, and the ones that read no picture.
-   */
-  const allLeftOut: readonly LeftOutModel[] = [
-    ...leftOut,
-    ...alternates
-      .filter(function readsNoPicture(alternate,): boolean {
-        return !readers.includes(alternate,);
-      },)
-      .map(function withReason(alternate,): LeftOutModel {
-        return {
-          modelId: alternate,
-          why: 'reads no picture',
-        };
-      },),
-  ];
-  for (const other of readers) {
-    // TAKEN BEFORE THE ASK, in the same step as the check (`reask-claims.ts` in the provider): another cut reader of
-    // this picture may have taken this model since the list was made (ledger B1080).
-    if (!takeFor({
-      seat,
-      modelId: other,
-    },)) {
-      rl.info(`${modelId}: ${other} was asked for another reader of ${assetName} since the list was made`,);
-      continue;
-    }
-    rl.info(
-      `${modelId} was cut by the completion limit on ${assetName} (finish reason length${
-        (cutOn === undefined) ? '' : ` on ${cutOn}`
-      }); re-asking ${other} instead, plain question; left out: ${describeLeftOut({ leftOut: allLeftOut, },)}`,
-    );
-    try {
-      /* oxlint-disable-next-line no-await-in-loop -- one model at a time: the next is asked only when this one had no provider with budget */
-      return await readImageAsset({
-        client,
-        modelId: other,
-        bytes,
-        assetName,
-        perspective: IMAGE_READING_PERSPECTIVES[0],
-        signal,
-        perCallTimeoutMs,
-        l,
-      },);
-    }
-    catch (error) {
-      // Only the router's "nowhere to ask" moves on to the next model; a stop, or a transport failure, keeps its own handling.
-      if (!(error instanceof NoProviderForModelError))
-        throw error;
-      rl.debug(`${modelId}: ${other} cannot take the re-ask of ${assetName}, no provider serves it with budget`,);
-    }
-  }
-  rl.warn(
-    `${modelId}: no other model could take the re-ask of ${assetName} (${String(readers.length,)} tried); `
-      + `asking ${modelId} again${(cutOn === undefined) ? '' : ' on another provider that serves it'}`,
-  );
-  if (cutOn !== undefined) {
-    try {
-      return await readImageAsset({
-        client,
-        modelId,
-        bytes,
-        assetName,
-        perspective,
-        otherThan: cutOn,
-        signal,
-        perCallTimeoutMs,
-        l,
-      },);
-    }
-    catch (error) {
-      // Only the router's "nowhere else" is answered by the same provider; a
-      // stop, a refusal on the other provider's budget that threw something
-      // else, or a transport failure keeps its own handling.
-      if (!(error instanceof NoProviderForModelError))
-        throw error;
-      rl.info(`${modelId}: no other provider serves ${assetName}, asking ${cutOn} again`,);
-    }
-  }
-  return await readImageAsset({
-    client,
-    modelId,
-    bytes,
-    assetName,
-    perspective,
-    signal,
-    perCallTimeoutMs,
-    l,
-  },);
+  return {
+    readers,
+    seat,
+    leftOut: [
+      ...leftOut,
+      ...alternates
+        .filter(function readsNoPicture(alternate,): boolean {
+          return !readers.includes(alternate,);
+        },)
+        .map(function withReason(alternate,): LeftOutModel {
+          return {
+            modelId: alternate,
+            why: 'reads no picture',
+          };
+        },),
+    ],
+  };
 }
 
 /**
@@ -438,8 +536,9 @@ async function reaskCut(
  @param assetName - file name, for the log line and the content part
 
  @param benchModelIds - every reader of this picture, left out of the models a reply the length limit cut is re-asked
- of, since a reading by one of them recorded as this reader's would count one model twice (ledger B1076); empty where
- the caller names none
+ of, since a reading by one of them recorded as this reader's would count one model twice (ledger B1076); absent where
+ the caller names none, and then a reply the length limit cut is asked of the reader itself and of no other model, which
+ is what a measurement of one model needs (ledger B1100)
 
  @param claims - record of the models asked for the readers of this picture, which the readers share so that no model
  is asked for two of them (ledger B1080); absent for a reader that is alone on its picture
@@ -467,7 +566,7 @@ export async function readPastRefusal(
     modelId,
     bytes,
     assetName,
-    benchModelIds = [],
+    benchModelIds,
     claims,
     signal,
     perCallTimeoutMs,
@@ -511,6 +610,12 @@ export async function readPastRefusal(
    */
   let cutReasked = false;
 
+  /**
+   Model that gave the latest reading, which a refusal in it is the refusal of: the reader, until a cut reading is
+   asked of another model.
+   */
+  let askedModelId: RosterModelId = modelId;
+
   for (
     let ask = 2;
     (ask <= REFUSAL_ASK_LIMIT) && isOwedAsk({
@@ -535,30 +640,40 @@ export async function readPastRefusal(
     );
     if ((reading.kind === 'unavailable') && (reading.cutByLength === true)) {
       cutReasked = true;
-      /* oxlint-disable-next-line no-await-in-loop -- re-asks are sequential by design: the second ask exists only when the first was cut */
-      reading = await reaskCut({
+      /* oxlint-disable no-await-in-loop -- re-asks are sequential by design: the second ask exists only when the first was cut */
+      /**
+       The re-ask's reading and the model that gave it.
+       */
+      const reasked = await reaskCut({
         client,
         modelId,
         bytes,
         assetName,
         perspective,
         ...((reading.servedBy === undefined) ? {} : { cutOn: reading.servedBy, }),
-        benchModelIds,
-        // Conditional spread keeps the record absent for a reader that is alone on its picture.
+        // Conditional spreads keep the bench and the record absent where the caller names none.
+        ...((benchModelIds === undefined) ? {} : { benchModelIds, }),
         ...((claims === undefined) ? {} : { claims, }),
         signal,
         perCallTimeoutMs,
         l: rl,
       },);
+      /* oxlint-enable no-await-in-loop */
+      ({
+        reading,
+        askedModelId,
+      } = reasked);
       continue;
     }
+    // A REFUSAL IS THE ROLL OF THE MODEL THAT GAVE IT (ledger B1100): after a cut reading was asked of another model,
+    // that model's refusal is asked of that model again, and the log names it.
     rl.info(
-      `${modelId} declined ${assetName}, asking again (${String(ask,)} of ${String(REFUSAL_ASK_LIMIT,)})`,
+      `${askedModelId} declined ${assetName}, asking again (${String(ask,)} of ${String(REFUSAL_ASK_LIMIT,)})`,
     );
     /* oxlint-disable-next-line no-await-in-loop -- re-asks are sequential by design: each later perspective exists only when the prior answer was refusal-shaped */
     reading = await readImageAsset({
       client,
-      modelId,
+      modelId: askedModelId,
       bytes,
       assetName,
       perspective,
