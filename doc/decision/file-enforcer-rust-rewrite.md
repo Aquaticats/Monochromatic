@@ -118,7 +118,8 @@ and accepted with this record:
   profiles,
   Dylint check-cfg),
   and `rust-catalog.toml` plus `[workspace.dependencies]` through a new dependency-catalog Rust library.
-- `.browserslistrc.resolved.local.json` through `browserslist-rs`.
+- `.browserslistrc.resolved.local.json` through an in-repo implementation of the queries in use
+  (changed 2026-10-30 from `browserslist-rs`; see "Consequences").
 - `.config/mise/conf.d/10-bin.local.toml` (gitignored):
   the existing non-empty `package/*/*/node_modules/.bin` directories.
 - Mode only:
@@ -287,6 +288,28 @@ and accepted with this record:
   not `monochromatic-jsonc-edit`;
   the user approved it:
   "I'm approving serde_json as is."
+- Browserslist,
+  changed 2026-10-30:
+  the user wrote "Change of plans,
+  for browserslist,
+  we retrieve the data and write something conforming to the original browserslist ourselves,
+  only supporting the queries we use now,
+  throw on everything non-conforming with \"not implemented\"."
+  This supersedes the `browserslist-rs` approval:
+  it does not enter `rust-catalog.toml`.
+  The implementation conforms to npm `browserslist` for the seven lines of `.browserslistrc`
+  (`last 1 Chrome versions`,
+  `last 1 ChromeAndroid versions`,
+  `last 1 Android versions`,
+  `Firefox ESR`,
+  `last 1 FirefoxAndroid versions`,
+  `last 1 node major versions`,
+  `not dead`)
+  and fails with "not implemented" on every other query form and config feature.
+  The specification is `doc/research/browserslist-subset-semantics.md`;
+  the data source and the Firefox ESR source are open questions to the user.
+  Evidence that led here:
+  `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.
 - Follow-ups:
   process rules in issue #1817.
 
@@ -309,3 +332,15 @@ and accepted with this record:
   the prototype showed it fails on a machine without file-enforcer and that the files mislead installs.
 - Replacing `CLAUDE.md` with an `@AGENTS.md` import or the skill copies with symlinks:
   closed-source tool behavior is not a contract.
+- `browserslist-rs` 0.21.2 and `oxc-browserslist` (5.0.1 and unreleased main),
+  2026-10-30,
+  measured on the real `.browserslistrc` against npm `browserslist` 4.29.5:
+  both hard-code Firefox ESR as 140 where npm gives 153,
+  and both ship older data
+  (chrome 151,
+  151,
+  and 154 on main,
+  against 156).
+  oxc refreshes data on main daily but its 5.0.2 release PR has been open since 2026-08-13.
+  Details:
+  `doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`.

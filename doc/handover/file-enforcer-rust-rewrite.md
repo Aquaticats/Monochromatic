@@ -28,7 +28,51 @@ Implementation is tracked in issue #1818.
   and extractions) stays under `${HOME}/temp/agent/`.
 - No code exists yet.
 
-## Next action:
+## Update 2026-10-30:
+in-repo browserslist and parallel implementation
+
+The oxc look is done
+([`doc/research/file-enforcer-rust-rewrite-oxc-browserslist.md`](../research/file-enforcer-rust-rewrite-oxc-browserslist.md)),
+and the user replaced both crates:
+"Change of plans,
+for browserslist,
+we retrieve the data and write something conforming to the original browserslist ourselves,
+only supporting the queries we use now,
+throw on everything non-conforming with \"not implemented\"."
+The decision record carries the change.
+The user also said "Don't serialize aggressively paralleling work.",
+so implementation areas now run as parallel worktree agents (limit five at once),
+sharing the brief `${HOME}/temp/agent/fe-rust/brief-common.md`.
+
+Running:
+
+- XML edit crate (task 26).
+- dependency-catalog Rust library (task 21).
+- forbidden-strings and git-policy rules list with `?` (task 23).
+- pnpr owns `config.yaml` (task 24).
+- browserslist subset specification,
+  writing `doc/research/browserslist-subset-semantics.md` (docs only).
+
+Queued for the next free agent slot,
+with briefs saved at `${HOME}/temp/agent/fe-rust/brief-task-20.md` and `brief-task-22.md`:
+
+- file-enforcer `core-rust` and `cli` (task 20),
+  with browserslist,
+  dependency catalog,
+  and JetBrains XML behind rule-kind seams.
+- mpm-shadow (task 22),
+  with the npm and PyPI registry lookups behind a seam until an HTTP client is chosen.
+
+Waiting on the user:
+the browserslist data source,
+the Firefox ESR source,
+the HTTP client crate,
+and the JSON Schema validator crate for the schema golden test.
+After those:
+the in-repo browserslist crate (task 28),
+then the cutover (task 25).
+
+## Superseded next action:
 look at oxc-browserslist
 
 The user said the next step is to look at `oxc-browserslist`,
