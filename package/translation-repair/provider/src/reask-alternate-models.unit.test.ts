@@ -14,10 +14,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { MIN_PROVIDER_CALLS, } from '@monochromatic-dev/translation-repair-shared-contract';
+import * as providerExports from '../dist/final/node/index.mjs';
 import {
   alternateModelsFor,
   describeLeftOut,
-  MIN_CALLS_TO_MEASURE,
   RUNAWAY_READINGS,
 } from '../dist/final/node/index.mjs';
 import {
@@ -82,10 +83,12 @@ await describe({
       name: 'STATES EACH READING THE ORDER RESTS ON: calls since the caps and the ones that ran to the cap with no '
         + 'content, for the twelve chat models the census seated, none of them under the calls that can be measured',
       fn: async () => {
-        expect(MIN_CALLS_TO_MEASURE,).toBe(100,);
+        // ONE FLOOR, the completion-cap rule's own: the provider package states no second constant for it.
+        expect('MIN_CALLS_TO_MEASURE' in providerExports,).toBe(false,);
+        expect(MIN_PROVIDER_CALLS,).toBe(100,);
         expect(RUNAWAY_READINGS.length,).toBe(12,);
         for (const reading of RUNAWAY_READINGS) {
-          expect(reading.calls >= MIN_CALLS_TO_MEASURE,).toBe(true,);
+          expect(reading.calls >= MIN_PROVIDER_CALLS,).toBe(true,);
           expect(reading.runaways <= reading.calls,).toBe(true,);
         }
         expect(RUNAWAY_READINGS.find(function isDeepseek(reading,) {
@@ -103,7 +106,7 @@ await describe({
          */
         const readings = [
           { modelId: SEAT_HYPER_TEXT_BEDROCK, calls: 1_000, runaways: 0, },
-          { modelId: SEAT_SYNTHETIC_VISION_WITHHELD, calls: MIN_CALLS_TO_MEASURE - 1, runaways: 0, },
+          { modelId: SEAT_SYNTHETIC_VISION_WITHHELD, calls: MIN_PROVIDER_CALLS - 1, runaways: 0, },
           { modelId: SEAT_HYPER_VISION, calls: 1_000, runaways: 5, },
         ] as const;
         expect(alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'roster', readings, },).alternates.slice(0, 4,),)
@@ -185,7 +188,7 @@ await describe({
           },
         ],);
 
-        const checker = alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'checker', },);
+        const checker = alternateModelsFor({ modelId: SEAT_OPENROUTER_ONLY, role: 'checker', },);
         expect(checker.alternates.includes(SEAT_OPENROUTER_ONLY_CHECKER,),).toBe(true,);
         expect(checker.alternates.includes(SEAT_BEDROCK_ONLY_VISION_UNSEATED,),).toBe(true,);
         expect(checker.alternates.includes(SEAT_SYNTHETIC_TEXT_EVERYWHERE,),).toBe(false,);
@@ -193,6 +196,49 @@ await describe({
         const translator = alternateModelsFor({ modelId: SEAT_HYPER_OPENROUTER_UNMEASURED, role: 'translator', },);
         expect(translator.alternates.includes(SEAT_OPENROUTER_ONLY,),).toBe(false,);
         expect(translator.alternates.includes(SEAT_HYPER_OPENROUTER_VISION_EDITOR,),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'ASKS A CHECKER ONLY OF A MODEL THE CHECKER BENCHMARK MEASURED IN: the measured order less the runaway, the '
+        + 'Claude route and the bench, and every other roster model is left out with why, the two Gemma sizes the '
+        + 'benchmark measured out of the role among them',
+      fn: async () => {
+        const { alternates, leftOut, } = alternateModelsFor({
+          modelId: SEAT_OPENROUTER_ONLY_CHECKER,
+          role: 'checker',
+          bench: [SEAT_OPENROUTER_ONLY_CHECKER, SEAT_SYNTHETIC_VISION_WITHHELD, 'claude-haiku-5-5',],
+        },);
+        expect(alternates,).toEqual([SEAT_BEDROCK_ONLY_VISION_UNSEATED, SEAT_OPENROUTER_ONLY,],);
+        expect(leftOut.find(function isGemma(left,): boolean {
+          return left.modelId === SEAT_HYPER_TEXT_BEDROCK;
+        },),).toEqual({
+          modelId: SEAT_HYPER_TEXT_BEDROCK,
+          why: 'not on the measured list of the checker role',
+        },);
+        expect(leftOut.find(function isKimi(left,): boolean {
+          return left.modelId === SEAT_SYNTHETIC_VISION_WITHHELD;
+        },),).toEqual({
+          modelId: SEAT_SYNTHETIC_VISION_WITHHELD,
+          why: 'seated on the bench of this question',
+        },);
+      },
+    },),
+
+    it({
+      name: 'ASKS AN EDITOR OR A REFINER OF THE WRITERS THE EDITOR CALIBRATION SEATS, not of a model that hold keeps out of '
+        + 'writing, and never of a model on the bench of the question',
+      fn: async () => {
+        for (const role of ['editor', 'refiner',] as const) {
+          const { alternates, } = alternateModelsFor({
+            modelId: SEAT_HYPER_OPENROUTER_VISION_EDITOR,
+            role,
+            bench: [SEAT_HYPER_OPENROUTER_VISION_EDITOR, SEAT_HYPER_ONLY, SEAT_HYPER_OPENROUTER_UNMEASURED,],
+          },);
+          expect(alternates.includes(SEAT_SYNTHETIC_TEXT_EVERYWHERE,),).toBe(false,);
+          expect(alternates.includes(SEAT_HYPER_ONLY,),).toBe(false,);
+          expect(alternates.includes(SEAT_HYPER_TEXT_BEDROCK,),).toBe(true,);
+        }
       },
     },),
 

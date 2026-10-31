@@ -565,10 +565,12 @@ await describe({
         },);
         expect(logged,).toEqual([
           `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: reasoning runaway `
-            + `on neuralwatt (a length stop with no content); re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question; `
-            + `left out: ${SEAT_SYNTHETIC_TEXT_EVERYWHERE} (held out of the roster role by owner-culled), `
-            + `${SEAT_BEDROCK_ONLY_VISION_UNSEATED} (held out of the roster role by judge-unmeasured), `
-            + `${SEAT_OPENROUTER_ONLY_CHECKER} (held out of the roster role by judge-unmeasured)`,
+            + `on neuralwatt (a length stop with no content); left out: ${SEAT_SYNTHETIC_TEXT_EVERYWHERE} (held out of the `
+            + `roster role by owner-culled), ${SEAT_BEDROCK_ONLY_VISION_UNSEATED} (held out of the roster role by `
+            + `judge-unmeasured), ${SEAT_OPENROUTER_ONLY_CHECKER} (held out of the roster role by judge-unmeasured); to ask `
+            + `in turn: ${triedForDeepseek().join(', ',)}`,
+          `[translation-repair] [reaskElsewhereNudged] [askOtherModels] ${SEAT_HYPER_OPENROUTER_UNMEASURED}: re-asking `
+            + `${SEAT_HYPER_TEXT_BEDROCK} instead, plain question`,
           `[translation-repair] [reaskElsewhereNudged] ${SEAT_HYPER_TEXT_BEDROCK}: synthetic answered usably on the re-ask`,
         ],);
       },
@@ -669,7 +671,58 @@ await describe({
         expect(askedOf,).toEqual([SEAT_OPENROUTER_ONLY,],);
         expect(logged[0],).toContain(`${SEAT_HYPER_TEXT_BEDROCK} (seated on the bench of this question)`,);
         expect(logged[0],).toContain(`${SEAT_BEDROCK_ONLY_TEXT} (seated on the bench of this question)`,);
-        expect(logged[0],).toContain(`re-asking ${SEAT_OPENROUTER_ONLY} instead, plain question`,);
+        expect(logged[1],).toContain(`re-asking ${SEAT_OPENROUTER_ONLY} instead, plain question`,);
+      },
+    },),
+
+    it({
+      name: 'LOGS EACH MODEL LEFT OUT AND WHY ONCE, BEFORE THE FIRST ASK, so a model that has no provider with budget moves '
+        + 'the loop on without the left-out line being written again',
+      fn: async () => {
+        /**
+         Lines of the info log of a re-ask whose first model cannot be served and whose second can.
+         */
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: RUNAWAY_REQUEST,
+              first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+              ask: async (nudged,) => {
+                if (nudged.modelId === SEAT_HYPER_TEXT_BEDROCK)
+                  throw new NoProviderForModelError({ modelId: nudged.modelId, reason: 'fixture', },);
+                return { text: '{"spot":"radiator"}', servedBy: 'hyper', };
+              },
+            },),
+        },);
+        expect(logged.filter(function namesLeftOut(line,): boolean {
+          return line.includes('left out:',);
+        },).length,).toBe(1,);
+        expect(logged[0]?.includes('left out:',),).toBe(true,);
+        expect(logged[0]?.includes('re-asking',),).toBe(false,);
+        expect(logged.filter(function asksOne(line,): boolean {
+          return line.includes('re-asking',);
+        },).length,).toBe(2,);
+      },
+    },),
+
+    it({
+      name: 'LOGS EACH MODEL LEFT OUT AND WHY ALSO WHERE NO MODEL IS LEFT TO ASK, ahead of the warning of the fall back, '
+        + 'and says that none is to be asked',
+      fn: async () => {
+        /**
+         Lines of the info log and of the warnings of a re-ask whose bench holds every model that could take it.
+         */
+        const { logged, } = await infoLinesDuring({
+          run: async () =>
+            reaskElsewhereNudged({
+              request: { ...RUNAWAY_REQUEST, reaskSeat: { role: 'roster', bench: triedForDeepseek(), }, },
+              first: { reply: RUNAWAY_REPLY, outcome: RUNAWAY, },
+              ask: async () => ({ text: '{"spot":"radiator"}', servedBy: 'hyper', }),
+            },),
+        },);
+        expect(logged[0],).toContain('left out:',);
+        expect(logged[0],).toContain(`${SEAT_HYPER_TEXT_BEDROCK} (seated on the bench of this question)`,);
+        expect(logged[0],).toContain('to ask in turn: none',);
       },
     },),
 
