@@ -62,6 +62,10 @@ gtk4 = ">=0.11.4"
 helix-core = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-loader = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
 helix-lsp = { git = "https://github.com/helix-editor/helix", rev = "ba40e547426b0f9896c8bdc699a4ab11f2b37dbc" }
+http-body-util = ">=0.1.5"
+hyper = ">=1.12.0"
+hyper-rustls = ">=0.27.10"
+hyper-util = ">=0.1.21"
 i-slint-backend-winit = ">=1.18.1"
 icu_provider = ">=2.3.1"
 ignore = ">=0.4.33"
