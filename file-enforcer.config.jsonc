@@ -1,0 +1,207 @@
+// file-enforcer.config.jsonc
+// Rules run in this order; a rule may read what an earlier rule planned. Design: doc/decision/file-enforcer-rust-rewrite.md.
+// Regenerate with `file-enforcer write`, check with `file-enforcer check`. The schema is derived from the Rust types:
+// package/file-enforcer/core-rust (`mise run //package/file-enforcer/core-rust:schema:write`).
+{
+  "$schema": "./file-enforcer.schema.json",
+  "rules": [
+    // CLAUDE.md must literally contain AGENTS.md (Claude Code's @include is unreliable): a Claude-only preamble, then AGENTS.md.
+    {
+      "kind": "concat",
+      "id": "claude-md",
+      "output": "CLAUDE.md",
+      "parts": [
+        { "file": ".config/file-enforcer/claude-preamble.md" },
+        "\n",
+        { "file": "AGENTS.md" },
+      ],
+    },
+    // GitHub detects the project license from a root file; it is the canonical REUSE text.
+    {
+      "kind": "concat",
+      "id": "license",
+      "output": "LICENSE",
+      "parts": [{ "file": "LICENSES/LGPL-3.0-or-later.txt" }],
+    },
+    // Every package carries the license texts its manifest needs. LGPL-3.0-or-later is an additional-permissions layer
+    // over GPL-3.0-or-later, so it needs both. Only the three ids under "texts" are ever pruned.
+    {
+      "kind": "package-licenses",
+      "id": "package-licenses",
+      "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
+      "directory": "LICENSES",
+      "texts": {
+        "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt",
+        "GPL-3.0-or-later": "LICENSES/GPL-3.0-or-later.txt",
+        "LGPL-3.0-or-later": "LICENSES/LGPL-3.0-or-later.txt",
+      },
+      "requires": [
+        { "contains": "LGPL-3.0-or-later", "texts": ["GPL-3.0-or-later", "LGPL-3.0-or-later"] },
+        { "contains": "GPL-3.0-or-later", "texts": ["GPL-3.0-or-later"] },
+        { "contains": "CC-BY-SA-4.0", "texts": ["CC-BY-SA-4.0"] },
+      ],
+    },
+    // Skill copies for tools that read .claude/skills and .factory/skills; the targets are owned outright.
+    { "kind": "mirror", "id": "skills-claude", "from": ".agents/skills", "to": ".claude/skills" },
+    { "kind": "mirror", "id": "skills-factory", "from": ".agents/skills", "to": ".factory/skills" },
+    // The local forbidden-strings appendix is sensitive: owner-only when present, never created by this tool.
+    { "kind": "mode-only", "id": "forbidden-strings-local-mode", "path": "forbidden-strings.append.local.txt", "mode": "0600" },
+    // Per-crate Cargo.toml keys. A key is set only where the crate already has its table or key.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-base",
+      "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
+      "edits": [
+        { "guard": ["package"], "path": ["package", "edition"], "value": "2024" },
+        { "guard": ["package", "license"], "path": ["package", "license"], "value": "LGPL-3.0-or-later" },
+        { "guard": ["package", "publish"], "path": ["package", "publish"], "value": false },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "disallowed_methods"], "value": "deny" },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "implicit_return"], "value": "deny" },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "needless_return"], "value": "allow" },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_reuse"], "value": "deny" },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_same"], "value": "deny" },
+        { "guard": ["lints", "clippy"], "path": ["lints", "clippy", "shadow_unrelated"], "value": "deny" },
+        {
+          "guard": ["package", "repository"],
+          "path": ["package", "repository"],
+          "value": "https://github.com/Aquaticats/Monochromatic.git",
+        },
+        { "guard": ["package", "repository"], "path": ["package", "readme"], "value": "README.md" },
+        {
+          "guard": ["package", "repository"],
+          "path": ["package", "homepage"],
+          "value": { "concat": ["https://github.com/Aquaticats/Monochromatic/tree/main/", { "var": "dir" }] },
+        },
+      ],
+      "blocks": [
+        { "absentPath": ["lints", "clippy"], "text": { "file": ".config/file-enforcer/cargo-lints.toml" } },
+        { "absentPath": ["workspace"], "text": { "file": ".config/file-enforcer/cargo-workspace.toml" } },
+      ],
+    },
+    // Crates that carry Dylint suppression attributes declare the dylint_lib cfg name.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-dylint",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/ide/app", "package/linter/monochromatic-lint"],
+      "edits": [
+        {
+          "guard": ["lints", "rust", "unexpected_cfgs"],
+          "path": ["lints", "rust", "unexpected_cfgs", "check-cfg"],
+          "value": ["cfg(dylint_lib, values(any()))"],
+        },
+      ],
+      "blocks": [
+        { "absentPath": ["lints", "rust", "unexpected_cfgs"], "text": { "file": ".config/file-enforcer/cargo-dylint.toml" } },
+      ],
+    },
+    // Release profiles by crate directory. Scanner: full optimization plus fail-closed panic and overflow behavior.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-scanner",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/forbidden-strings/cli", "package/forbidden-strings/core"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "opt-level"], "value": 3 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "unwind" },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "overflow-checks"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": true },
+      ],
+      "blocks": [],
+    },
+    // Overflow-checked: full optimization with overflow checks but the default panic strategy.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-overflow",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/nested-wayland-session/cli"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "opt-level"], "value": 3 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "overflow-checks"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": true },
+      ],
+      "blocks": [],
+    },
+    // Linter: full optimization, stripped, without panic or overflow overrides.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-linter",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/linter/monochromatic-lint"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "opt-level"], "value": 3 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": true },
+      ],
+      "blocks": [],
+    },
+    // Bench: full optimization, unstripped so symbolized profiles stay usable.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-bench",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/forbidden-strings/core.bench", "package/music-player/truepeak-core.bench"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": true },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "opt-level"], "value": 3 },
+      ],
+      "blocks": [],
+    },
+    // Music player: symbol strip plus fat LTO in one codegen unit, for the smallest binary at the shipped opt-level.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-music",
+      "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
+      "onlyDirs": ["package/music-player/desktop-app", "package/music-player/android-app/rust"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "strip"], "value": "symbols" },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "lto"], "value": "fat" },
+        { "guard": ["profile", "release"], "path": ["profile", "release", "codegen-units"], "value": 1 },
+      ],
+      "blocks": [],
+    },
+    // Fuzz: unwinding panics in release and dev so libFuzzer captures crashes.
+    {
+      "kind": "toml-keys",
+      "id": "cargo-profile-fuzz",
+      "manifests": ["package/*/*/Cargo.toml"],
+      "onlyDirs": ["package/forbidden-strings/core.fuzz", "package/forbidden-strings/cli.fuzz"],
+      "edits": [
+        { "guard": ["profile", "release"], "path": ["profile", "release", "panic"], "value": "unwind" },
+        { "guard": ["profile", "dev"], "path": ["profile", "dev", "panic"], "value": "unwind" },
+      ],
+      "blocks": [],
+    },
+    // Not linked yet: the dependency-catalog Rust library renders rust-catalog.toml into every [workspace.dependencies].
+    // Until it is linked this rule warns (kind-not-wired) and plans nothing. It must stay after the toml-keys rules.
+    {
+      "kind": "rust-catalog",
+      "id": "rust-catalog",
+      "catalog": "rust-catalog.toml",
+      "manifests": ["package/*/*/Cargo.toml", "package/*/*/*/Cargo.toml"],
+    },
+    // Not linked yet: the in-repo browserslist crate resolves the production queries once, so rolldown reads a file.
+    {
+      "kind": "browserslist",
+      "id": "browserslist-targets",
+      "source": ".browserslistrc",
+      "output": ".browserslistrc.resolved.local.json",
+      "environment": "production",
+    },
+    // The package bin directories pnpm created, for Mise's PATH. Gitignored; it sorts before the committed
+    // 20-env.toml so its entries land later in PATH than the cache bin directories.
+    {
+      "kind": "mise-path-list",
+      "id": "mise-bin-list",
+      "output": ".config/mise/conf.d/10-bin.local.toml",
+      "directories": ["package/*/*/node_modules/.bin"],
+      "header": "# Generated by file-enforcer; do not edit. Gitignored (*.local.*).\n# The existing non-empty package/*/*/node_modules/.bin directories, sorted.\n# This file sorts before 20-env.toml, so its entries land later in PATH than the cache bins.\n",
+    },
+  ],
+}
