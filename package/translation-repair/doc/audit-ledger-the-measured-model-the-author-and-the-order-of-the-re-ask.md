@@ -582,11 +582,14 @@ for the lead and the owner.
   the claims test,
   and the consistency cache version with its key),
   and the first oxlint runs found findings in twelve packages.
-  The whole source-scan suite ran once at the end;
-  it found four modules with no test of their own,
+  The whole source-scan suite ran twice at the end,
+  because the first run found four modules with no test of their own,
   five unreached constants,
-  a blankness test and a function example,
-  which the last commits of the round clear.
+  a blankness test,
+  a function example,
+  ten leading articles,
+  a locale ordering and a duplicated client;
+  the second run is green.
 - Slips in this round's commit messages:
   `5b97f0b90a` says 19 launches and 28 calls where the scan reads 20 files and about 25 calls;
   `9484424f35` says 7 failing cases where 6 failed;
@@ -595,6 +598,7 @@ for the lead and the owner.
   has 416;
   `92b8756112` says "1 new,
   3 changed" for 3 files in all;
+  `1a92b7502e` says 9 TSDoc lines where 10 lost their article;
   `2cf8691409` says the drift tests read source,
   which the lint rule forbids and `7749a15d76` reverts (B1151);
   `594d9d1262` carries stray backslash-escaped quotes;
