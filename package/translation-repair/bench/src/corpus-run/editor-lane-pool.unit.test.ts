@@ -20,11 +20,11 @@ import {
 import {
   MODEL_CARDS,
   rolePoolOf,
-} from '@monochromatic-dev/translation-repair-shared-contract/ts';
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   EDITOR_LANE_EDITORS,
   EDITOR_LANE_REFINERS,
-} from './editor-calibrate-lane.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Editor lane pool tests
 

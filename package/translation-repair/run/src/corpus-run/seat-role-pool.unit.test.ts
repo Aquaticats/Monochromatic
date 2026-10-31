@@ -26,17 +26,18 @@ import {
   rolePoolOf,
   type RosterModelId,
   type SeatRole,
-} from '@monochromatic-dev/translation-repair-shared-contract/ts';
+} from '@monochromatic-dev/translation-repair-shared-contract';
 import {
   type BudgetView,
   NO_PROVIDER,
   providerServing,
   reachOf,
   readsImages,
-} from '@monochromatic-dev/translation-repair-provider/ts';
-// READ FROM SOURCE, NOT FROM THE BUILD (ledger B1151): `test:unit` does not build first, and a drift test that reads a stale
-// build says nothing about the benches the source derives today.
+} from '@monochromatic-dev/translation-repair-provider';
+// READ FROM THE BUILD, AS THE LINT RULE `test-import/require-eventual-artifact` REQUIRES (ledger B1151): `test:unit` does not
+// build first, so this case reads the benches of the last build; `buildAndTest` builds and then tests.
 import {
+  judgeSeatsFor,
   RUN_CHECKER_ORDER,
   RUN_LATE_JUDGES,
   RUN_MODELS,
@@ -45,8 +46,7 @@ import {
   RUN_TRANSLATORS,
   RUN_WIDE_SEATS,
   RUN_WRITERS,
-} from './run-config.ts';
-import { judgeSeatsFor, } from './run-seats.ts';
+} from '../../dist/final/node/index.mjs';
 
 //region Seat role pool tests
 
