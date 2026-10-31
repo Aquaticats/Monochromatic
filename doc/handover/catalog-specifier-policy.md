@@ -18,7 +18,8 @@ No code has been changed yet; the user has not confirmed the shared understandin
   The comment in `.pnpmfile.mjs` saying direct workspace dependencies are not read via `readPackage` is stale and must be corrected.
 - The hook can import a `.ts` file (`./check.ts` was imported and called in a fixture).
 - The hook runs on frozen installs, in CI, and on any install after a manifest edit.
-  It does not run on a plain no-op `pnpm install` that prints "Already up to date" (`optimisticRepeatInstall`).
+  `readPackage` does not run on a plain no-op `pnpm install` that prints "Already up to date" (`optimisticRepeatInstall`).
+  Correction after the reboot: the `updateConfig` hook does run there, and on every other verb; see "Research after the reboot".
 - Workspace manifests and `file:` dependency manifests both reach the hook without a `dist` key,
   so a `dist` filter would police `file:` dependencies; the hook must use a workspace-name set built from `package/*/*`.
 - `syncpack` 15.3.3 can express the policy only with workarounds and passes named catalogs.
@@ -81,6 +82,7 @@ which finds the real tool on `PATH`, runs it as a child with arguments untouched
 A `pnpm` shadow could run the specifier check before pnpm starts,
 which would cover the no-op install that the `readPackage` hook cannot reach.
 That is an inference from the shadow design, not a measurement.
+Correction: the `updateConfig` hook reaches the no-op install too, so this was not a shadow-only advantage.
 The user delegated the timing and reach decisions, so these are agent recommendations, open to veto.
 
 ## Independent review findings
@@ -163,6 +165,68 @@ Nothing here is picked yet beyond the first item.
 - Deferred by the user: hook timing, and whether the whole policy moves into the Rust wrapper.
 - Nothing was implemented. Throwaway fixtures, probe scripts and the `pi` prompt and output remain in `~/temp/agent`.
 - Commits made by this session trigger `standards-review-shadow-*` systemd units; they were left to finish.
+
+## Research after the reboot
+
+The user said the earlier research was clearly insufficient and asked for more before any further question.
+Everything here was measured in throwaway fixtures under `~/temp/agent` unless marked otherwise.
+
+### The `updateConfig` hook reaches every verb, which corrects the no-op claim
+
+Probe `~/temp/agent/catalog-hook-matrix.ts` (fixture `hook-matrix-GFm9KN`), pnpm 12.16.1, one hook-logging `.pnpmfile.mjs`:
+
+- `updateConfig` fired on: fresh install, no-op install, frozen install, `add`, `update`, `prune`, `run`, `exec`, `list`,
+  `why`, `outdated`, `fetch`.
+- It did not fire on `config get` and `--version`.
+- `readPackage` fired only on fresh, frozen, `add`, `update`, `prune` and `fetch`; `preResolution` on fresh, frozen, `add`,
+  `update`, `prune`; `afterAllResolved` on fresh, `add`, `update`.
+- `updateConfig` receives the config object with `dir` and `workspaceDir`, and no manifests.
+  A hook can still read manifests itself, because it is ordinary Node code.
+- So the earlier statement that no hook reaches the no-op install was wrong for `updateConfig`.
+  `doc/troubleshooting/pnpm-prune-before-install.md` already documented `updateConfig` as the earliest hook;
+  I had not read it before writing the handover.
+
+### An `updateConfig` check enforces the policy on every verb
+
+Probe `~/temp/agent/catalog-updateconfig-probe.ts` (fixture `updateconfig-probe-6VGCn8`): an `updateConfig` hook using only
+`node:fs` and `node:path` hand-parses the `packages:` key of `pnpm-workspace.yaml`, expands the `*` globs, reads each
+`package.json` and throws on any policy violation.
+
+- Clean workspace: install and no-op install exit 0.
+- With `"is-number": "^7.0.0"` planted in `pkg/a`: no-op install, frozen install, `run`, `exec`, `list` and a `run` from the
+  `pkg/a` subdirectory all exit 1.
+  The message reaches the user: `running updateConfig hook ... Error: specifier policy: pkg/a/package.json dependencies is-number=^7.0.0`.
+  It is hard-wrapped by pnpm at terminal width, so a grep for the full phrase on one line misses it.
+- After repairing the manifest, the no-op install exits 0 again (the positive control moves in both directions).
+- `pnpm install --ignore-pnpmfile` exits 0 with the violation present: the one bypass found.
+  `config get` and `--version` are unaffected, so the repair path through pnpm itself is not blocked.
+  No file in the repo uses `--ignore-pnpmfile` or `ignorePnpmfile`.
+- Cost: the same scan over the real repo's workspace manifests took a median of 4.9 ms over 15 in-process runs
+  (minimum 4.4, maximum 9.0 on the first), and it found the one real violation, `zod` in `cost-dismissal`.
+  This is the scan alone, not pnpm's own startup.
+- Limits: the hand-written glob expansion supports only `*` segments; the real workspace uses `package/*/*`, which it handled.
+  A `!` negation pattern or `**` in the workspace file would need handling.
+
+### CI facts that bear on a PATH shadow
+
+- Both CI systems install pnpm through the `task-cli-setup` action and run `task-run prepare:pnpm`
+  (`.github/workflows/current-baseline.yml`, `.depot/workflows/current-baseline.yml`).
+  CI pins pnpm 12.14.0 while the local toolchain is 12.16.1.
+  Whether the `updateConfig` results above hold on 12.14.0 is being probed in a container; recorded below when it lands.
+- The action puts node, pnpm and the task CLI on `PATH` (`.github/actions/task-cli-setup/action.yml`) and nothing about a
+  shadow directory.
+  The mpm shadow reaches callers because the toolchain plan links it into a gitignored directory first on `PATH`
+  (`doc/decision/mpm-toolchain-adoption.md`); a pnpm shadow would need the same link, and CI would need a built Rust binary
+  for each runner OS (the workflows include Windows steps).
+- The Rust dependency catalog has `clap`, `serde` and `serde_json` but no YAML crate (`rust-catalog.toml`),
+  so a Rust checker must hand-parse `packages:` too or add a crate.
+
+### What this changes
+
+Reach is no longer an argument for the Rust shadow over a hook: an `updateConfig` hook covers the no-op install and every
+other verb on any caller, with `--ignore-pnpmfile` as the only bypass found, while a shadow covers only callers that resolve
+it first.
+The shadow's remaining case is language unity and one owner for the rule, not coverage.
 
 ## Open items
 
