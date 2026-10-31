@@ -460,6 +460,97 @@ each finished branch is reviewed and merged into `main`):
   merge,
   build both wg packages in `main`,
   then the full restart the owner chose and the live checks from the agent's first report.
+  Two items were this session's own inferences,
+  so under the new `BRQ` they were asked rather than briefed;
+  owner's answers 2026-10-31:
+  runtime failures "Notification + journal" (journal at error level plus a rate-limited desktop notification),
+  and moved processes "Keep origin caps" (the new scope copies the origin unit's CPU and memory limits).
+  The wg agent had built both as separate commits (`4295964a4d` and `023bf20581`;
+  `01baa1f667` and `085e7acf48`),
+  so both stay.
+  wg fixes reported 2026-10-31,
+  tip `0174850d6d`:
+  host answers come only from systemd-resolved's varlink `ResolveRecord` on the tunnel link
+  (keeps that link's DNS over TLS;
+  Node's resolver is no longer used);
+  caps 64 per host and 384 in total with a loud cut report
+  (measured 132 answers,
+  92 distinct,
+  at most 24 for `registry.npmjs.org`);
+  the tunnel's DNS servers and endpoint are protected
+  (a late fix reads the second line `resolvectl dns` wraps onto when piped);
+  `WG_QUICKER_EXEMPT_COMMAND` and `WG_QUICKER_EXEMPT_UID` removed,
+  with a class test over every environment access form;
+  the process watch matches the executable file name only,
+  and skips and reports processes in another pid namespace
+  (a `bwrap --unshare-pid` probe showed the old argv0 match could be forged from a sandbox);
+  failed moves retry with backoff;
+  startup failures are relayed into `up`.
+  Not exercised:
+  the root paths,
+  notification and journal delivery end to end.
+  Open from the agent:
+  `WG_QUICKER_CALLER_PATH` still crosses sudo and,
+  on a packaged install with no sibling build or secure-path binary,
+  lets the caller's PATH choose the watcher binary,
+  the same class as the removed overrides;
+  sent back to the agent as following the owner's "shouldn't have a toggle".
+- mpm-shadow 0.2.1 branch `mpm-shadow-0-2-1` (worktree `.claude/worktrees/mpm-shadow-0-2-1`,
+  cut from `main` at `4998b72f2c`,
+  tip `98541bde6c`,
+  pushed as a branch,
+  no tag):
+  `options.tagPrefix` for `github:` requests (`eb202865fc`),
+  the pooled-connection fix with `doc/troubleshooting/mpm-shadow-download-fails-with-sendrequest-after-a-long-install-step.md` (`30f1019822`),
+  the archive route now covered by the newest-only rule (`current` link,
+  older versions and their archives deleted,
+  older-lock warnings on `install`,
+  `list`,
+  `update`,
+  `outdated`,
+  `bin` and every launcher run,
+  `prune --toolchain`),
+  and a self-upgrade fix (the launcher is copied through `/proc/self/exe`) (`9a81e783f5`),
+  then the bump (`98541bde6c`).
+  369 tests passed;
+  an end-to-end run in a disposable home upgraded 0.1.1 to 0.2.0 and left only `current -> 0.2.0`.
+  Merging the bump into `main` starts the release,
+  so it waits for a separate review and the owner's approval.
+- Dockerfile on the switch branch (tip `e792cbaa10`):
+  the pre-branch Dockerfile (`048459c73d`) failed earlier,
+  at the TypeScript sync (20 of 63 tools,
+  no rustup or cargo);
+  the branch installs all 64 tools,
+  then fails at `mise run prepare` in `prepare:playwright`,
+  a nested `podman build` that an unprivileged image build refuses
+  (measured five ways:
+  missing `newuidmap`,
+  subuid range outside the build's IDs,
+  `devpts` mount,
+  chroot cgroup remount,
+  `/proc` remount).
+  The agent's options,
+  ranked A > C > D > B:
+  A replaces `RUN mise run prepare` with `mise run prepare:pnpm`;
+  C builds the Playwright image at container start;
+  D publishes it to a registry;
+  B a privileged build.
+  Asked of the owner.
+  Also measured:
+  inside the image the tree's own `mpm-shadow` link is the lock's 0.2.0,
+  which cannot read `tagPrefix`,
+  so the final build needs the released 0.2.1 in the lock.
+- Order from here:
+  separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
+  owner's approval;
+  merge and release 0.2.1;
+  the switch agent regenerates the lock with the released 0.2.1,
+  merges `main`,
+  and runs one final Dockerfile build without the verification overlay;
+  separate review of the switch branch;
+  merge;
+  `mise run toolchain:install` in `main`;
+  the global plan conversion.
 - AGENTS.md rule for concerns leaking out of their owning component:
   two drafts (`CWN`,
   `LKF`) were not approved;
