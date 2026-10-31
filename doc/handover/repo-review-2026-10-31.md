@@ -81,8 +81,11 @@ ST3 are complete or in final remainders; manifest and mise completed.
 
 ## Central runs
 
-- `mise run lint` completed (exit 1); log `lint-full.log`. Triage into a per-package digest is
-  still pending; distribute diagnostics to owning children.
+- `mise run lint` completed (exit 1); log `lint-full.log`. Digest done: `lint-digest.txt`
+  (1523 diagnostics across 54 packages). Top clusters: `corpus-run` family 949 (408 TS2305),
+  `package/config/rolldown` 13 TS2305, `test-import` 175+ sites (already covered by issue
+  #1651), `prefer-readonly-parameter-type` clusters. Distribution to owning children still
+  pending; mass TS2305/TS7006 clusters are design signals, not auto-filed findings.
 - `mise run test:unit` running capped as `rr-central-tests`; log `test-unit-full.log` (all
   `[PASS]` at last check). Completion check still pending.
 - Dedupe index: 1846 tracker issues in `issues-all.jsonl` (refreshed after batch 1). Refresh
@@ -119,7 +122,9 @@ Scripts in `${HOME}/temp/agent/repo-review-2026-10-31/`:
 - Batch 1 (filed): 58 new issues `#1824`-`#1881`, 9 comments (`#1701` twice, `#1751`, `#1687`,
   `#1684`, `#1552`, `#1643`, `#1412` twice), plus preflight `#1823`. All 68 in `filed-log.jsonl`.
   Spot-check passed: all auto-comments same-root-cause, auto-news distinct.
-- Batch 2 (running): `decisions-batch2-final.jsonl` = 763 decisions (703 auto-new + 69
+- Batch 2 (running, background `rr-file-batch2`, log `file-batch2.log`): progress 215 of 763
+  filings in `filed-log.jsonl` at last check (through issue #2028), 0 errors, ~2.7 filings per
+  minute; several hours remain. `decisions-batch2-final.jsonl` = 763 decisions (703 auto-new + 69
   auto-comment from the classifier, minus 8 excluded + 1 deduped). Excluded from auto:
   the figma-kiwi binary-reader family (`pkg-figma-kiwi-001/004/016/021`,
   `w2-typeface-figma-22/24/25/29`) because an existing issue covers the family (manual review
@@ -127,8 +132,11 @@ Scripts in `${HOME}/temp/agent/repo-review-2026-10-31/`:
   Filing runs as background process `rr-file-batch2`, log `file-batch2.log`.
 - Manual queue: 518 entries (238 ambiguous Jaccard 0.2 to 0.45; 280 with verifier problems:
   quote mismatches, missing path:line refs, out-of-bounds lines; repair evidence before
-  filing). Not started. Plan: review in batches via `peek.ts`; consider delegating first-pass
-  adjudication to a freed child, orchestrator spot-checks then files.
+  filing). Not started. Entry shape confirmed by raw read: `id`, `kind` (`ambiguous`), `title`,
+  `scored_candidates` with number/state/jaccard; `peek.ts` prints blank lines for these entries
+  (they lack the `claim` field `peek.ts` prints), so inspect with `sed` or `head` on the raw
+  file. Plan: review in batches; consider delegating first-pass adjudication to a freed child,
+  orchestrator spot-checks then files.
 - Pipeline state: 51 real findings files, about 1290 findings, all verified through wave 12
   except the newest slices; plans and decisions current as of batch 2 launch.
 
@@ -141,13 +149,16 @@ are findings so far in that child's file):
   position 81, `src/io/staleness-types.ts`. Prior: 57.
 - `ci-depot` -> ssg/aquati.cat. Prior: 48 (wc/app done: README Lines claim contradicts code).
 - `docs-core` -> mpm-shadow/cli. Prior: 42 (resharp 06-04 + 06-11 docs fully read).
-- `docs-decisions` -> rss/app. Prior: 34.
+- `docs-decisions` -> git-policy/cli slice 1 (metadata plus src in sorted path order, ~60%).
+  Prior: 52 (rss/app and codex-plugin/bash-limit done; bash-limit: `verify` reads only the
+  parent cgroup's controls, child limits unchecked).
 - `docs-ops` -> claude-code-plugin family, first package. Prior: 35 (error-handling concern
   done: 509 throw sites without @throws; mixed-signaling and no-class clusters).
-- `docs-planning-audit` -> done/app remainders (client/component, remaining client modules,
-  unit-test body, four long docs). Prior: 111 (FTS5 index blocker on the tracked seed DB).
-- `docs-skills` -> electron-infra family, first package. Prior: 36 (env-local-json/core done:
-  container job ENOENT on mise; buildAndTest repo-root-relative paths, both blockers).
+- `docs-planning-audit` -> done/app: the 12 `*-styles.ts` files line-by-line (four long docs
+  done: FTS5 virtual-table claims vs Turso `USING fts` reality; settings status contradiction;
+  429 claim vs HTTP 200). Prior: 133.
+- `docs-skills` -> electron-infra/core (app-counter done: logger-core root import instead of
+  `/ts`; duplicated state-path literal; title literal at three sites). Prior: 45.
 - `docs-philosophy` -> claude-cpu-cap family, first package. Prior: 24 (TSDoc concern done:
   629 delegation wrappers, 966 @param restatements).
 - `pkg-dom` -> agent-harness-shared family, first package. Prior: 34 (logging concern done;
@@ -159,31 +170,39 @@ are findings so far in that child's file):
   #1334/#1253 verdict: same category, distinct clusters).
 - `pkg-figma-to-penpot` -> CXL spawn-test remainders (advisor, openai-fast, remaining spawn
   files). Prior: 42 (mvm-mcp stderr discard; testing-practices buildless omission).
-- `pkg-observable` -> tech-monorepo-manager-vet final 4 files. Prior: 27.
+- `pkg-observable` -> tech-monorepo-manager-vet discovery-github.md lines 215-2113 (398 entry
+  bodies, the 343-entry excluded-but-close section, taxonomy terms). Prior: 28 (chunk files
+  done; `${AUDIT}` unexpanded-literal blocker in build-mirror.mjs).
 - `pkg-shell-argument` -> done/variant-postcss remainders (component, docs, styles). Prior: 53
   (timer overwrite, prompt injection, blockedBy self-cycle).
 - `pkg-throws` -> cloudflare-worker/rand. Prior: 23 (open-code-review-issue/cli complete).
 - `sysd-source-trace` -> terminal/app. Prior: 0 for this file (systemd work done and committed).
 - `w2-async-b1` -> hall-monitor family, first package. Prior: 33 (async concern done: css
   parser and toml-edit walkers unbounded recursion; scanner v3 covered all blind spots).
-- `w2-async-b2` -> mutation-test/cli src/host plus runtime files (9 unit tests next). Prior:
-  25 (spawn failures classify as failed; regex mutator class-literal mislabel).
+- `w2-async-b2` -> mutation-test/cli-cargo-mutants (cli unit tests done: exported `selectTests`
+  holds the 030/031 defects with zero unit tests; ground truth was 7 files, not the briefed 9).
+  Prior: 40.
 - `w2-dom-a` -> doc/planning t-z continuation from the-third-rendering-runs-6-and-7-read.md.
   Prior: 44.
 - `w2-fs-a` -> doc/planning em-dash.md (6965 lines, alone). Prior: 27.
-- `w2-fs-b` -> doc/planning a-d files 20-25. Prior: 40.
+- `w2-fs-b` -> doc/planning a-d: cli-git-rust-behavior-ledger.md lines 3101-4653, then files
+  23-76. Prior: 43 (starvation default contradiction, 2 vs 1; root changeset task runs
+  deleted bump:dependents).
 - `w2-i18n` -> doodle-widget/app. Prior: 41 (kotlin package done: publish coordinates 404).
 - `w2-logger-fuzz` -> doc/troubleshooting 2026-05-14-repo-assessment.md plus README.md, then
   its slice is complete. Prior: 27.
 - `w2-logger-src` -> doc/troubleshooting next 8 from android-trash-request-outcome-boundary.md.
   Prior: 40 (676 remain in worklist).
-- `w2-logger-tests` -> oxlint-plugin package 1 remainders (5 test files then rule modules);
-  prefer-readonly-parameter-type package 2 after. Prior: 42 (all 24 no-disable guards bypassable
-  via eslint-disable-next-line, runtime-proven).
+- `w2-logger-tests` -> oxlint-plugin rule modules (arrow-function-params through
+  no-low-information-symbol-description and siblings); prefer-readonly-parameter-type package 2
+  after. Prior: 46 (ClassBody walk skips member decorators, so the autofix rewrites behavior;
+  spread-bridge `.then(success, failure)` helper; no-useless-spread double-space fix pinned).
 - `w2-th-core` -> syllable-break-demo/app. Prior: 43 (doc/audit i-p done).
 - `w2-th-diag-expect` -> forbidden-strings/cli finish, then cli.fuzz, core, core.bench,
   core.fuzz. Prior: 57.
-- `w2-th-matrix-sandbox` -> doc/planning pi-auto-mode next 4 files. Prior: 48.
+- `w2-th-matrix-sandbox` -> doc/planning pi-auto-mode: governing-domain-closure plus next 3
+  files. Prior: 56 (effect contract cites ten extension sources deleted by a3955898f1; three-call
+  ceiling contradicts the axioms' 2026-10-15 replacement; deadline raised to 15s, doc says 5s).
 - `w2-throw-async-a` -> monorepo-task/core-exec. Prior: 47 (cli done: dead typed helpers
   mirrored by untyped prelude twins; fanout unbounded).
 - `w2-typeface-figma` -> doc/audit q-z positions 14+ (deferred
@@ -200,13 +219,14 @@ transcript.
    ~3), `desktop-app` (361, split 2), `android-app` (354, split 2), `asset`, `truepeak-core`
    plus bench, `desktop-e2e`.
 3. Plugins: remaining `agent-harness-shared/*`, `claude-code-plugin/*`, `pi-plugin/*`,
-   `dsh-plugin/*`, `codex-plugin/bash-limit`, `search-fetch/*` (core has concurrent edits),
+   `dsh-plugin/*`, `search-fetch/*` (core has concurrent edits),
    remaining `electron-infra/*`, `claude-cpu-cap` remainder, remaining `hall-monitor`,
-   remaining `mcp/stdio` slices if the budget cuts it.
+   remaining `mcp/stdio` slices if the budget cuts it. Done this wave: `codex-plugin/bash-limit`.
 4. Linter tooling: `monochromatic-lint` slices 3-4, `oxlint-plugin` package 2,
    `forbidden-strings` (4 remaining packages), `monorepo-task` remainder, `file-enforcer/core`
    slices 2-3 plus `cli`, `mutation-test` (3 remaining packages).
-5. Rust: `git-policy/cli` (1030, split 3-4) plus fuzz, `file-enforcer/core-rust`,
+5. Rust: `git-policy/cli` (1030, split 3-4; slice 1 in flight with `docs-decisions`),
+   plus fuzz, `file-enforcer/core-rust`,
    `browserslist/core-rust`, `jsonc-edit/core-rust` plus fuzz, `xml-edit/core-rust` plus fuzz,
    `dependency-catalog/*`, `wg/core-allowedips`, `linter/rust`, `learning/rust`,
    `ownership-marker/foreign-borrowed`, `search-shadow/cli`, `crate-release/cli`, `mvm/cli`,
@@ -238,9 +258,10 @@ flight". `doc/audit/standards-review-gate-shadow.md` is deferred in the audit q-
 
 ## Next actions
 
-1. Watch `rr-file-batch2` (background filing of 763 decisions; log `file-batch2.log`). On
-   completion: read the tail counts, refresh `issues-all.jsonl` (expect ~2500), spot-check a
-   sample of new issue numbers, commit this handover (v7).
+1. Watch `rr-file-batch2` (background filing of 763 decisions; log `file-batch2.log`; 215
+   filed, 0 errors at last check). On completion: read the tail counts, refresh
+   `issues-all.jsonl` (expect ~2500), spot-check a sample of new issue numbers, commit this
+   handover (v8 committed at the 215-filing mark; the next commit is v9).
 2. Re-run the pipeline for findings grown during batch 2 (verify, dedupe, draft, classify,
    intra-dupes), then file batch 3 the same way.
 3. Work the 518-entry manual queue (evidence repair first, then ambiguous adjudication).
