@@ -424,6 +424,29 @@ the real-pnpm search skips every candidate resolving to the shadow itself; depen
   suite, since no TypeScript implementation is planned); the `zod` landing order (the `check` step and the `zod` fix must land
   together or the new CI step fails from its first run); PATH linking through the toolchain plan.
 
+## Two gaps found after the behavior round (my research gaps, found by reading)
+
+- The CI step chosen above runs rarely on the push path.
+  `advisory-core.yml` has a `gate` job and the `core` job runs only when `needs.gate.outputs.allowed == 'true'`.
+  Pushes are admitted under budgets of 2 per minute, 4 per hour and 8 per day (counted from `gh run list`); pull requests and
+  manual dispatch are always admitted.
+  Commits on `main` per day over the last eight days were 436, 382, 722, 73, 5, 26, 1049, 268 and 2 (local commit counts; auto-push
+  means many reach the remote), so on a normal day most pushes are not admitted and a check inside `core` would not run for them.
+- I never examined the repository's own commit-time policy engine as a home for this check, although `package/git-policy/cli`
+  (`cli-git`, the shadowing `git`) is where this repository enforces manifest invariants today:
+  - `doc/decision/cli-git-policies-platform.md`: the wrapper enforces policies with severity `off`, `warn` or `error`, fails closed
+    when an enabled policy cannot complete, reads candidate bytes of staged files, and treats CI as the authoritative layer that must
+    stay independent of the local wrapper ("Local enforcement remains best-effort fast feedback; CI remains authoritative").
+  - `package/git-policy/cli/README.md`, "Policies": the wrapper ships a fixed set of policies and no others; the config keys
+    `plugins` and `trust` are refused, so a new policy means a native Rust policy inside that crate
+    (`src/native/policy_registry.rs` and siblings), listed in `cli-git.config.jsonc` where the four optional ones are listed.
+    `mono/dependent-version-bump` already reads package manifests at commit time and blocks at `error`.
+  - A `mono/catalog-specifiers` policy would reject a commit whose staged `package.json` bytes violate the rule, at the point where a
+    violation lands, with no directory walk and no PATH-order dependency beyond the git shadow every commit already uses.
+    Costs: it is another session's active crate (versions 0.4.x, release ordering, and a toolchain sync from another worktree
+    reinstalled an older `cli-git-native` into the shared `~/.cargo/bin` today and broke every git command until reinstalled);
+    it acts only at commit time, so a local `pnpm install` stays silent without the wrapper's warning.
+
 ## Open items
 
 - The user has not confirmed that the shared understanding is complete.
