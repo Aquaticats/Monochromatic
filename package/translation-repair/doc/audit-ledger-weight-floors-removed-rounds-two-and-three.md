@@ -17,7 +17,7 @@ The rulings are quoted in
 and referenced from
 [shipping and the archive](design-commitments-shipping-and-the-archive.md).
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md),
 which lists every file of this record.
 
 ## B907: the checker count of three became two (round 2)

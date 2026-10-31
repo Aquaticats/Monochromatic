@@ -16,7 +16,7 @@ remove every weight floor so that two ballots decide,
 one judge alone never decides,
 and a self-vote counts as an answering judge.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md),
 which lists every file of this record.
 
 ## Round 4 at a glance

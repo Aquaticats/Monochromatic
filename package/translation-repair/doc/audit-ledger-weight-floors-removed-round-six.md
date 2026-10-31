@@ -16,7 +16,7 @@ and the nits).
 Ids B920 and B921 belong to main's DeepSeek pricing entries,
 so this round continues at B927.
 
-Part of [Audit ledger](audit-ledger.md),
+Part of [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md),
 which lists every file of this record.
 
 ## Round 6 at a glance

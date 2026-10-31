@@ -216,6 +216,8 @@ Filed in:
 - [Audit ledger: the pass's lifecycle line stamps (B961 to B964)](audit-ledger-lifecycle-line-stamps-round-two.md)
 - [Audit ledger: the cap census and the Xiaomi cap](audit-ledger-the-cap-census-and-the-xiaomi-cap.md)
 - [Audit ledger: reasoning runaways and the re-ask of another model](audit-ledger-reasoning-runaways-and-the-re-ask-of-another-model.md)
+- [Audit ledger: the reach of the re-ask and the repair of another model](audit-ledger-the-reach-of-the-re-ask-and-the-repair-of-another-model.md)
+- [Audit ledger: the weight floors removed](audit-ledger-weight-floors-removed.md)
 - [Audit ledger: NeuralWatt's day start is never waited for](audit-ledger-neuralwatt-day-start-never-waited-for.md)
 - [Audit ledger: the environment handed to child processes](audit-ledger-child-process-environment.md)
 - [Audit ledger: failures under a caller's stop](audit-ledger-failures-under-a-callers-stop.md)
