@@ -82,9 +82,10 @@ each finished branch is reviewed and merged into `main`):
   and `jetbrains-harper` rule kinds in the cli crate and moves the browserslist lock to the root.
   `git merge` had refused because the main checkout held an uncommitted `pnpm-lock.yaml` of unknown authorship
   (13 catalog specifiers raised to their resolved versions);
-  monochromatic-c0 did not answer,
-  and the owner chose "Commit it, then merge",
+  the owner chose "Commit it, then merge",
   so it is `add4429c97` on its own.
+  monochromatic-c0 answered afterwards that the change was not theirs
+  (it was already modified when that session started).
   Its scope deviations to keep in mind:
   `core-rust/src/plan.rs` no longer reports `rule-order` between two composing rules,
   so "rust-catalog after toml-keys" is a config convention;
