@@ -112,14 +112,31 @@ the update-host list is enforced by `wg-quicker`'s route watcher
   `update` and `outdated` with or without `-g`,
   the `mpm` shadow,
   and `node` running the toolchain `sync.ts` or `update.ts`.
+  A process matches by the file name of its resolved executable (`mise`,
+  `mpm-shadow`,
+  `mpm`,
+  `node`)
+  together with its command-line words.
+  The first command-line word alone never matches,
+  because `exec -a mpm /usr/bin/curl` sets it freely;
+  it counts only for `mpm-shadow` started as `mpm`.
   Tests check the list against the generated `mise.toml` and the `mpm-shadow` command grammar,
   and fail when a fetching task or verb is missing.
+  The names `toolchain:install` and `toolchain:outdated` with their `:global` forms are the spellings after the
+  toolchain cutover;
+  they are on the list before `mise.toml` has them,
+  and the test fails the day one of them appears,
+  so the pending list shrinks with the cutover.
 - The toolchain paths:
   An executable under the watched user's `.local/share/monochromatic-dev/toolchain/` or `toolchain-global/`
   is moved the same way.
   The home comes from the system user database for the watched uid,
   in the spelling the user database gives and its resolved spelling.
   A custom `XDG_DATA_HOME` is not seen by the root watcher.
+  The roots cover every program the toolchain installed,
+  so every script and dev server run by the toolchain's node leaves the tunnel too,
+  not only updates;
+  the start notice lists what is installed now.
 
 The slice is marked by the same cgroup programs as the application cgroups,
 and a cgroup program applies to every descendant cgroup,
@@ -151,10 +168,12 @@ checked with a C program against the target kernel headers
 exec data at 16).
 Only datagrams from netlink port 0,
 the kernel,
-are trusted.
+are trusted;
+a test sends a valid exec event from another local netlink socket and shows it is dropped.
 Delivery is lossy when the watcher falls behind:
 an overrun is reported and every process is rescanned,
-and a full scan also runs every two seconds as the backstop.
+and a full scan also runs every two seconds of wall time as the backstop,
+whatever the number of loop wakeups.
 
 ### Moving a process
 
@@ -170,11 +189,32 @@ which it would not garbage-collect and whose pid-to-unit map would go stale.
 The manager creates a scope per adoption and removes it when the processes exit.
 The `busctl` client is used instead of hand-written D-Bus wire code in a root process.
 
-The matched process moves together with its live descendants of the same user.
-The pid start time is checked again before the request,
-so a reused pid is not moved.
+The matched process moves together with its live descendants of the same user that sit in the same cgroup.
+A descendant a user placed in another cgroup on purpose stays there.
+Every pid of the group,
+the matched one included,
+has its start time checked again right before the request,
+so a reused pid is not moved,
+and a matched process that was replaced stops the move.
+The group id handed to `setpriv` is the watched user's,
+not the matched process's.
 After the manager accepts the job,
-the watcher waits up to two seconds until `/proc/<pid>/cgroup` names the slice.
+the watcher waits up to one second until `/proc/<pid>/cgroup` names the slice,
+and it notices at once when the process exited meanwhile,
+which is not a failure.
+
+A move that fails is tried again after one second,
+then two,
+then four,
+up to a minute between attempts,
+and each failure is reported with its attempt number.
+One pass spends at most three failed attempts and postpones the rest.
+The `busctl` client is killed after three seconds,
+and a timeout pauses all moves for thirty seconds,
+so a hung manager cannot stall the watcher for long.
+A process of the watched user that the watcher may not inspect is reported once,
+and is not mistaken for one that exited.
+A process in another pid namespace (a container or a sandbox) is reported and left alone.
 
 The manager can only move processes inside its own subtree,
 `user@<uid>.service`.
@@ -188,12 +228,22 @@ and the report says so by name.
 The watcher prints the policy notice when it starts,
 into its log,
 and `watch-start` prints it too.
+The notice names the update entry points,
+everything the toolchain installed (with the names installed now),
+what can imitate a match,
+what is not covered,
+and that with `Table = off` there is no bypass rule.
+Every `wg-quicker-exempt: POLICY NOT IN FORCE` line the new watcher writes to its log while starting
+is also printed by `watch-start`,
+so `wg-quicker up` shows a policy that failed to start.
 A line that starts with `wg-quicker-exempt: POLICY NOT IN FORCE` names the process-watch policy and what failed:
 the slice cannot be created,
 the process-event subscription failed (entry points are then found only by the periodic scan),
 events were dropped,
 reading events failed,
-a matched process is outside the user manager's subtree,
+the list of processes cannot be read,
+a process cannot be inspected,
+a matched process is outside the user manager's subtree or in another pid namespace,
 or the adoption failed.
 A failing BPF attach or socket-marking rescan is reported under the socket-marking policy.
 No failure invents a fallback route.
@@ -203,9 +253,19 @@ No failure invents a fallback route.
 `mise run //package/wg/cli-quicker-exempt:test:unit` runs matcher,
 policy,
 adoption and connector tests on fake procfs trees and byte fixtures.
+Each guard has a test that fails without it:
+the netlink sender check,
+the overrun path,
+the start-time recheck,
+the cleared environment and `PATH` of the client,
+the kill of a hung client,
+the descendant filters,
+the retry and backoff,
+the pass budget,
+and the executable-name matching.
 Two ignored tests need a live kernel and user manager:
 the first starts a child and receives its exec event,
-the second adopts a sleeping child into a throwaway slice through the real manager.
+the second adopts a sleeping child into a throwaway slice through the real manager (it took 32 ms on the machine of the review).
 Run them with `cargo nextest run --run-ignored only`.
 Neither needs root on a kernel that allows the connector to unprivileged users.
 Root's use of `setpriv` is not covered by a test,
