@@ -1,10 +1,10 @@
 //! What:
-//!     Unit tests of the version and help announcements in `announce.rs`:
+//! Unit tests of the version and help announcements in `announce.rs`:
 //! which argument lists count as a request,
-//!           and the exact added text.
+//! and the exact added text.
 //! Why:
-//!      The flag table is the part most likely to be wrong (`-h` means help for one tool and "human-readable" for
-//!           another),
+//! The flag table is the part most likely to be wrong (`-h` means help for one tool and "human-readable" for
+//! another),
 //! so each tool's spelling is written out here independently of the table itself.
 //!
 //! In TS you'd write (pseudocode):
@@ -28,10 +28,10 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 
 /// What:
-///     `fn texts(items: &[&str]) -> Vec<OsString>` declares a helper turning borrowed texts into owned
-///           operating-system texts.
+/// `fn texts(items: &[&str]) -> Vec<OsString>` declares a helper turning borrowed texts into owned
+/// operating-system texts.
 /// Why:
-///      `announcement_for` takes arguments in the shape the process API gives them.
+/// `announcement_for` takes arguments in the shape the process API gives them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -46,9 +46,9 @@ fn texts(items: &[&str]) -> Vec<OsString> {
 }
 
 /// What:
-///     `#[test]` marks the next function as a test case.
+/// `#[test]` marks the next function as a test case.
 /// Why:
-///      The runner finds the tests by it.
+/// The runner finds the tests by it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
