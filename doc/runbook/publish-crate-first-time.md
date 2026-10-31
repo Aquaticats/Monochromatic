@@ -464,6 +464,10 @@ as measured:
   in a disposable cargo home installed a binary whose SHA-256 equals the archive's binary, so binstall used the release
   and did not compile. That command needs `cargo-binstall` on PATH; the repository provisions it into
   `.cache/toolchain-bin`, and without it cargo answers `no such command: binstall`.
+  Moved at the Rust file-enforcer cutover (2026-10-31): `mpm.managers.toml` is deleted, so that command no longer
+  exists. The equivalent is `cargo binstall --no-confirm --root <dir> --version <version> monochromatic-mpm-shadow`,
+  which `mpm-shadow install` runs for every cargo-binstall tool (`package/mpm-shadow/cli/README.md`,
+  "Cargo tool installs"); a fresh machine takes the archive row of the `mpm-shadow` tool in `toolchain.lock.json`.
 
 ## The five file-enforcer crates 0.1.0
 

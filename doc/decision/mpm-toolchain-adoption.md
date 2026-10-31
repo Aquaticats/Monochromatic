@@ -15,7 +15,9 @@ not file-enforcer,
 writes and checks `toolchain.lock.json` and runs sync,
 status,
 and update.
-The sections "Ownership split" and "Tool plan and generated artifacts" describe the state before this amendment.
+The sections "Ownership split" and "Tool plan and generated artifacts" describe the state before this amendment;
+each now carries an amendment note,
+done at the Rust file-enforcer cutover (2026-10-31).
 
 ## Decision
 
@@ -105,6 +107,7 @@ This is the "MPM plus focused native providers" composition the vet recommended,
 - The restore manifest in `mpm`'s own TOML dump format
  (`mpm.packages.toml`,
  generated from the typed tool plan).
+ Superseded: the manifest and `mpm.managers.toml` are deleted, and `mpm-shadow` installs every locked tool itself.
 - Machine inventory (`mpm installed`),
  outdated detection (`mpm outdated`),
  upgrade coordination (`mpm upgrade`),
@@ -212,7 +215,16 @@ The maintainer's "no pinning" wording is recorded as:
 
 ## Tool plan and generated artifacts
 
-`file-enforcer` owns the typed toolchain policy
+Amended at the cutover:
+ `mpm-shadow`, not file-enforcer, owns the toolchain policy and the lock.
+ People edit `toolchain.plan.jsonc` (repository root; the machine-global one sits beside the global lock);
+ `mpm-shadow update` is the only writer of `toolchain.lock.json`,
+ `mpm-shadow install --lockfile-only --frozen-lockfile` is the offline drift gate,
+ and `mpm.packages.toml` and `mpm.managers.toml` are deleted
+ (`file-enforcer-rust-rewrite.md`, "Toolchain (mpm-shadow)"; `package/mpm-shadow/cli/README.md`).
+ The TypeScript description that follows is the state before the cutover.
+
+`file-enforcer` owned the typed toolchain policy
  (the `doc/planning/mise-removal-coverage.md` file-enforcer provisioning row),
  in `package/file-enforcer/core/src/toolchain/`:
 
@@ -234,8 +246,9 @@ The maintainer's "no pinning" wording is recorded as:
  where a definition can express the pin
  (`doc/troubleshooting/mpm-manager-extensibility.md`).
 
-The sync entry point is `toolchain:sync`
- (with `bootstrap` and `prepare:android` kept as thin aliases so existing callers keep working).
+The sync entry point was `toolchain:sync`
+ (with `bootstrap` and `prepare:android` kept as thin aliases so existing callers keep working);
+ it is now `toolchain:install`, which runs `mpm-shadow install`.
 
 ## Migration
 
@@ -255,6 +268,8 @@ The sync entry point is `toolchain:sync`
  regenerate `mise.toml` with file-enforcer,
  retire `mise.lock`,
  and repoint the `bootstrap` task.
+ (Historical: since the Rust file-enforcer cutover `mise.no-env.toml` is the hand-written `mise.toml`
+ and nothing generates it.)
 5. Repoint CI version reads
  (`task-cli-setup` inputs and the `mise.lock` scrapers in release workflows)
  at `toolchain.lock.json`.
@@ -277,7 +292,9 @@ The maintainer extended this decision to the machine-global toolchain
 
 - The typed plan,
  `toolchain.lock.json`,
- and the mpm manifests live machine-locally in
+ and the mpm manifests live machine-locally
+ (since the cutover: `toolchain.plan.jsonc` and `toolchain.lock.json`, no manifests; the owner converts the global plan)
+ in
  `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/`,
  so no personal inventory is committed here.
  The repository still owns the tooling:
@@ -340,7 +357,7 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  mpm 8.2.0 has no cleanup for `cargo` (its `cleanup` exists for `pnpm` and `uv` only)
  and removes no previous version on install or upgrade,
  so a plain `mpm restore` or `mpm upgrade` leaves these copies behind.
- The repo's manager definitions in `mpm.managers.toml` accept `cleanup_cache`,
+ The repo's manager definitions in `mpm.managers.toml` (deleted at the cutover) accepted `cleanup_cache`,
  but mpm runs it only on an explicit `mpm cleanup`,
  never after an install or upgrade.
 - Tradeoff:
@@ -360,6 +377,10 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  `mpm.managers.toml` carries the pinned extension manager `cargo-binstall-monochromatic-mpm-shadow`,
  and `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
  installs the release archive's binary through `cargo binstall`.
+ Moved at the cutover (2026-10-31): the plan entry is now `mpm-shadow`, a release archive pinned in
+ `toolchain.plan.jsonc` so the lock records its SHA-256 for the bootstrap;
+ `.config/mise/conf.d/20-env.toml` holds the `PATH` entries;
+ `mpm.managers.toml` and the extension install command are gone (`mpm-shadow install` runs `cargo binstall` itself).
 
 ## Exit and rollback
 
