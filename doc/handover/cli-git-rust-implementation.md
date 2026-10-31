@@ -4565,3 +4565,15 @@ This block supersedes "State at 2026-10-29 (night, later)".
   AskUserQuestion. Steps after approval: `toolchain:update` so the lock names 0.4.4 and 0.6.0, `toolchain:sync` so
   0.4.4 is the production `git`, then the `FORBIDDEN_STRINGS_RULES` and `rulesFile` array edit, then tell the peer
   session `monochromatic-6e` so it drops its rules-file generator.
+
+## Config switch done (2026-10-31)
+
+- Lock: `toolchain:update` (unavoidably moving rust nightly-2026-10-31, cargo-dylint and dylint-link 6.3.2, superhtml
+  0.7.1 and socket 1.12.2 along, the tool has no per-tool filter; the user chose the full update) committed in
+  `013f724a57`. `toolchain:sync` then installed wrapper 0.4.4 as the production `git` (checked in `~/.cargo/.crates.toml`).
+- Switch: `ad9fe75d05` set `FORBIDDEN_STRINGS_RULES` (source `file-enforcer.config.ts`, generated into `mise.toml`) to the
+  two appendixes with the local one optional, and `cli-git.config.jsonc` `rulesFile` to the array form. That commit went
+  through the new wrapper and passed, which shows the array form parses and scans.
+- Told the peer `monochromatic-6e`; it drops the `.cache/forbidden-strings.rules.txt` generator in its cutover commit.
+- Not yet verified: a clean clone or CI without `forbidden-strings.append.local.txt` (the optional entry's skipped path
+  is covered by the scanner's tests only).
