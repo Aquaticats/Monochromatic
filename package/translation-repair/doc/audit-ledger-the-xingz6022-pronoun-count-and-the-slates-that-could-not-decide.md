@@ -245,9 +245,12 @@ because no stage output changed.
 
 Status:
 recorded on 2026-10-29 (UTC),
-measured from the log of `XingZ6022` and read from the code,
-open,
-not changed.
+measured from the log of `XingZ6022` and read from the code.
+The owner question was answered on 2026-10-30 (UTC):
+"Skip when below floor (Recommended)".
+Fixed in `d05477f0c4` (the fix),
+with its red cases in `27dc5a78da`
+and a correction of one comment of the fix in `ad9ec58831`.
 
 Found while placing the swap of B1050.
 The purchase skips the slate when fewer judges are reachable than a winner needs
@@ -270,16 +273,111 @@ How many calls the 75 slates cost was not counted;
 the 65 calls and 10.679 Wh of B1020 are the figure for the 16 slices with a refused standing,
 not for these.
 
-After B1050 the purchase skips only the slices where the swap fires.
+After B1050 the purchase skipped only the slices where the swap fires.
 Skipping the writers and the slate for every eligible unendorsed standing whose bench is below the floor would change
 what is bought and no outcome,
 by the same ruling,
 and the settlement would be marked and never cached as the other bench-below-floor settlements are.
-It is left to the lead.
+
+Owner answer,
+2026-10-30 (UTC),
+question tool,
+"Skip when below floor (Recommended)":
+skip writers and slate for an eligible standing the contest did not endorse
+whenever fewer judges are reachable than a winner needs.
+The settlement is marked and never cached,
+as the other bench-below-floor settlements are.
+Where the B1050 swap fires
+(the tense detector flags the standing and not the two-ballot translate text)
+it still swaps,
+and the skip covers the rest.
+The basis is that one judge alone never decides (2026-10-25),
+so such a slate can only keep the standing.
+
+What changed,
+in `consolidate/src/consolidate-slice-buy.ts`:
+- `benchBelowFloor` now holds for an eligible standing whose offer is empty
+  or whose standing the contest did not endorse,
+  where it held for an empty offer only.
+  An endorsed eligible standing with lane texts on the offer is still asked.
+  The driver never builds that shape,
+  because `laneTextsForSlate` returns no lane text for a standing that is both endorsed and eligible,
+  so nothing was ruled about it and nothing was changed there.
+- The settlement of the skip is given no lane texts.
+  `settleConsolidation` takes the exit for a slate with nothing valid on it only when the offer is empty,
+  so a settlement that held the lane texts would have gone on to ask the slate judges with no writer heard.
+  The swap is read first and keeps the lane texts,
+  so it ships as before.
+- The log line is unchanged for an empty offer.
+  With lane texts it adds a last clause,
+  `2 lane texts on the offer go unjudged`,
+  to the same line.
+  The line names the slice,
+  the reachable count (`1 of 7 slate judges reachable`)
+  and the needed count (`below the floor of 2`).
+
+The order of the reads (the open note of round w381):
+`presentTenseSwapOf` ran before the `slateReachable` check,
+at every purchase with an eligible standing the contest did not endorse,
+an entry that records a death and a translate text on the offer with two ballots,
+whatever the bench.
+Its result was used only when the bench was short and the winner was offered,
+so the parse of both texts was unused at every purchase on a bench that met the floor.
+It is now read only where its answer is used:
+the bench is short,
+the winner is offered,
+and the standing is eligible.
+The settlement is the same in every case;
+what differs is the read.
+`tenseCandidateGroups` is not free of effects,
+since it writes a warning when the shared slice grammar refuses a text
+and rethrows any other error,
+so a purchase on a healthy bench no longer writes that warning for a read nobody used,
+and no longer meets an error from it.
+`shipWinnerBeforeSlate` and `swapAfterUnseatedSlate` read the detector where their results decide,
+and are unchanged.
+
+Guards shown to fail first:
+`consolidate/src/consolidate-bench-floor-lane-offer.unit.test.ts`
+(three of six cases failed on the old code:
+the two-lane offer and the repair-text-only offer,
+each of which made 12 calls and ended in an interruption instead of buying nothing,
+and the skip line,
+which the old code did not write;
+the other three are the controls:
+the swap still ships,
+a bench that meets the floor or was not counted still buys,
+and the empty-offer skip is unchanged).
+The cases run with 7 slate judges seated,
+as the bench of `XingZ6022` held.
+This is stated from the code and the tests,
+not from a replay of the run.
 
 Cache versions:
-none moved,
-because nothing was changed.
+none moved.
+- `CONSOLIDATE_CACHE_VERSION` (43) stays.
+  The skipped settlement carries `benchBelowFloor`,
+  which `consolidationWorthResuming` refuses,
+  so it is never stored.
+  A slate bought on a bench of one judge for an unendorsed eligible standing could not end in a consolidation,
+  and polish returns not-run for such a standing,
+  so none of those was stored either.
+  A record written before was written on a bench that met the floor,
+  and the key does not hold the bench,
+  so it is read before any purchase and is still right.
+- The artifact generation (22) stays,
+  and no key was added or changed.
+  The skipped slice is recorded with the existing `benchBelowFloor` mark on the consolidation slice,
+  terminal `incumbent-only`,
+  no verdicts and no gate,
+  which `parseBenchFloorMark` already reads.
+- The versions of the translate stage,
+  the lane contest,
+  the consistency round and the page titles stay:
+  no sheet,
+  floor,
+  threshold or settlement rule of those stages changed,
+  and the change only withholds a purchase.
 
 Ids used:
 B1051 and B1053.
