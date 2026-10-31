@@ -264,6 +264,17 @@ each finished branch is reviewed and merged into `main`):
   which also adds the README rule "pnpm answers first"
   (the owner wants that rule in package docs, not AGENTS.md);
   the wg agent.
+- Session preference 2026-10-31,
+  user:
+  "For this session: Tell me your estimation of time until cutover whenever your estimation or confidence changes."
+  Last estimate given:
+  3 to 6 hours at about 45% confidence (after publication),
+  a judgement from today's agent run times (14 to 47 minutes each),
+  not a measured rate.
+- Fixed 2026-10-31:
+  `fec-create-release` was skipped in run `41171845290`
+  because its implicit `success()` sees the skipped library publish jobs upstream of `fec-publish-crate`;
+  it now uses `!cancelled()` with explicit results.
 - Lesson 2026-10-31 (this session):
   run every step this session can run itself instead of handing it to the owner;
   the owner pointed out that `cargo logout` was such a step.
