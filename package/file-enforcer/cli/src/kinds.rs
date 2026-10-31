@@ -35,6 +35,6 @@ pub fn production_registry() -> RuleRegistry {
     let mut registry = RuleRegistry::with_defaults();
     registry.register("rust-catalog", Box::new(RustCatalogBuilder));
     registry.register("browserslist", Box::new(BrowserslistBuilder::production()));
-    registry.register("jetbrains-harper", Box::new(JetbrainsHarperBuilder));
+    registry.register("jetbrains-harper", Box::new(JetbrainsHarperBuilder::from_environment()));
     return registry;
 }

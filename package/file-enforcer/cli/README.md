@@ -53,8 +53,12 @@ which the server uses.
 - `jetbrains-harper` (per-user config only):
   `monochromatic-xml-edit` and `serde_json`.
   The view root is the home directory;
-  the rule reads `.config/JetBrains/<product>/options` of the newest product matching `productPrefixes`
-  (`XDG_CONFIG_HOME` is not consulted).
+  the rule reads `<config>/JetBrains/<product>/options` of the newest product matching `productPrefixes`,
+  where `<config>` is `XDG_CONFIG_HOME` (read when the binary starts) if it is an absolute path below the home directory,
+  and `.config` under the home directory if it is unset,
+  empty or relative (the XDG Base Directory rule; the retired TypeScript tool used any set value as it stood).
+  An absolute value outside the home directory is a `jetbrains-harper-skipped` warning naming it,
+  because the view cannot read outside its root.
   It edits `option` values attribute by attribute,
   so comments inside managed entries survive,
   and it skips with a `jetbrains-harper-skipped` warning when the IDE,

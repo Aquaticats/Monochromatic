@@ -18,11 +18,11 @@
 //! function jetbrainsHarperRule(settings: HarperPolicy): Rule
 //! ```
 
-/// Imports `CONFIG_DIRECTORY`,
-/// `LANGUAGE_FILE`,
+/// Imports `LANGUAGE_FILE`,
 /// `USER_FILE`,
+/// `jetbrains_config_directory`,
 /// `latest_options_directory` from `crate::jetbrains_discovery`.
-use crate::jetbrains_discovery::{CONFIG_DIRECTORY, LANGUAGE_FILE, USER_FILE, latest_options_directory};
+use crate::jetbrains_discovery::{LANGUAGE_FILE, USER_FILE, jetbrains_config_directory, latest_options_directory};
 /// Imports the JSON helpers from `crate::harper_json`.
 use crate::harper_json::{disable_linters, format_object, parse_object, scoped_config, union_excludes, with_schema_defaults};
 /// Imports the XML helpers from `crate::harper_xml`.
@@ -45,6 +45,8 @@ use monochromatic_file_enforcer::view::View;
 /// Imports `Map`,
 /// `Value` from `serde_json`.
 use serde_json::{Map, Value};
+/// Imports `OsString` from `std::ffi`.
+use std::ffi::OsString;
 
 /// The options the scoped servers copy from the base server,
 /// in output order.
@@ -63,12 +65,27 @@ const COPIED_OPTIONS: [&str; 7] = [
 /// Why:
 ///  Registered under the kind `jetbrains-harper`,
 /// replacing the placeholder that warns `kind-not-wired`.
+///  It carries the `XDG_CONFIG_HOME` value the rules it builds use,
+/// so tests choose the value instead of reading the process environment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class JetbrainsHarperBuilder implements RuleBuilder {}
+/// class JetbrainsHarperBuilder implements RuleBuilder { constructor(readonly xdgConfigHome: string | undefined) {} }
 /// ```
-pub struct JetbrainsHarperBuilder;
+pub struct JetbrainsHarperBuilder {
+    /// The `XDG_CONFIG_HOME` value to honour;
+    /// nothing means the variable is unset.
+    pub xdg_config_home: Option<OsString>,
+}
+
+/// The `impl JetbrainsHarperBuilder` block.
+impl JetbrainsHarperBuilder {
+    /// A builder that honours the `XDG_CONFIG_HOME` the process was started with,
+    /// as the retired TypeScript tool did.
+    pub fn from_environment() -> JetbrainsHarperBuilder {
+        return JetbrainsHarperBuilder { xdg_config_home: std::env::var_os("XDG_CONFIG_HOME") };
+    }
+}
 
 /// The `impl RuleBuilder for JetbrainsHarperBuilder` block.
 impl RuleBuilder for JetbrainsHarperBuilder {
@@ -79,6 +96,7 @@ impl RuleBuilder for JetbrainsHarperBuilder {
             RuleConfig::JetbrainsHarper { id, product_prefixes, disabled_linters, exclude_patterns, scoped_servers } => {
                 return Ok(Box::new(JetbrainsHarperRule {
                     id: id.clone(),
+                    xdg_config_home: self.xdg_config_home.clone(),
                     product_prefixes: product_prefixes.clone(),
                     disabled_linters: disabled_linters.clone(),
                     exclude_patterns: exclude_patterns.clone(),
@@ -109,6 +127,9 @@ impl RuleBuilder for JetbrainsHarperBuilder {
 pub struct JetbrainsHarperRule {
     /// Rule id.
     pub id: String,
+    /// The `XDG_CONFIG_HOME` value the IDE's configuration directory is derived from;
+    /// unset, empty and relative values mean `.config` under the home directory.
+    pub xdg_config_home: Option<OsString>,
     /// IDE product prefixes;
     /// the newest installed version wins.
     pub product_prefixes: Vec<String>,
@@ -262,8 +283,12 @@ impl Rule for JetbrainsHarperRule {
     /// plan(view: View): RulePlan
     /// ```
     fn plan(&self, view: &mut View) -> Result<RulePlan, Diagnostic> {
-        let Some(options_directory) = latest_options_directory(view, &self.product_prefixes)? else {
-            let reason = format!("no installed product under {CONFIG_DIRECTORY} starts with {:?}", self.product_prefixes);
+        let config_directory = match jetbrains_config_directory(view.root(), self.xdg_config_home.as_deref()) {
+            Ok(directory) => directory,
+            Err(reason) => return Ok(self.skip(&reason)),
+        };
+        let Some(options_directory) = latest_options_directory(view, &config_directory, &self.product_prefixes)? else {
+            let reason = format!("no installed product under {config_directory} starts with {:?}", self.product_prefixes);
             return Ok(self.skip(&reason));
         };
         let Some(settings) = self.read_settings(view, &options_directory)? else {
