@@ -85,6 +85,34 @@ export function nodeListOf({ value, }: { readonly value: unknown; },): readonly 
 }
 
 /**
+ The calls in a file's nodes of a function under any of the names the file binds it to.
+
+ @param nodes - every node of the file
+
+ @param names - names the file calls the function by
+
+ @returns Call expressions whose callee is a bare name among them
+
+ @example
+ ```ts
+ const calls = callsNamed({ nodes, names: localNamesOf({ nodes, imported: 'tagged', }), });
+ ```
+ */
+export function callsNamed(
+  {
+    nodes,
+    names,
+  }: {
+    readonly nodes: readonly TreeNode[];
+    readonly names: ReadonlySet<string>;
+  },
+): readonly TreeNode[] {
+  return nodes.filter(function isCallByName(node,): boolean {
+    return (node.type === 'CallExpression') && names.has(identifierName({ node: node.callee, },),);
+  },);
+}
+
+/**
  Names a file binds a function to: its own name, the local names of an import of it, and the names of const aliases.
 
  @param nodes - every node of the file
@@ -354,8 +382,9 @@ export function unwrappedEntryLoggersIn({ file, }: { readonly file: SourceText; 
   /**
    Calls of `tagged` in the file.
    */
-  const calls = nodes.filter(function isTaggedCall(node,): boolean {
-    return (node.type === 'CallExpression') && taggedNames.has(identifierName({ node: node.callee, },),);
+  const calls = callsNamed({
+    nodes,
+    names: taggedNames,
   },);
   /**
    Calls of `tagged` that build a logger for an entry and stand without the wrapper.

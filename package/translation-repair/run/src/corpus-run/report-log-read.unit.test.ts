@@ -343,13 +343,14 @@ await describe({
               ],
             ];
             for (const [paths, second,] of overlaps) {
+              /* oxlint-disable no-await-in-loop -- one pair after the other, so a failing pair is the one named */
               /**
                What the check threw for this pair.
                */
-              // oxlint-disable-next-line no-await-in-loop -- one pair after the other, so a failing pair is the one named
               const refusal = await rejectionOf(async function namesOneRunTwice(): Promise<unknown> {
                 return await refuseRepeatedLogs({ paths, },);
               },);
+              /* oxlint-enable no-await-in-loop */
 
               expect(refusal,).toBeInstanceOf(StatedRefusalError,);
               expect(String(refusal,),).toBe(

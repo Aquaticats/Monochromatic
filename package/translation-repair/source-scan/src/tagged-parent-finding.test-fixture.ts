@@ -1,4 +1,5 @@
 import {
+  callsNamed,
   localNamesOf,
   nodeListOf,
   TAGGED,
@@ -70,10 +71,10 @@ export function taggedWithoutParentIn({ file, }: { readonly file: SourceText; },
     nodes,
     imported: TAGGED,
   },);
-  return nodes
-    .filter(function isTaggedCall(node,): boolean {
-      return (node.type === 'CallExpression') && taggedNames.has(identifierName({ node: node.callee, },),);
-    },)
+  return callsNamed({
+    nodes,
+    names: taggedNames,
+  },)
     .filter(function hasNoParent(call,): boolean {
       /**
        Properties of every options object the call is given.

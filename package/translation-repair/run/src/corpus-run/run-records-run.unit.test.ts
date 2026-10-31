@@ -87,7 +87,7 @@ async function writtenRun({ dir, }: { readonly dir: string; },): Promise<string>
 
  @param typed - arguments after the command
 
- @returns The lines the command printed
+ @returns Lines the command printed
 
  @example
  ```ts

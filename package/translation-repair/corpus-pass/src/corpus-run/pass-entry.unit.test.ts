@@ -1709,6 +1709,59 @@ function footnoteLabelsOf(
   };
 }
 
+/**
+ Settles one entry inside the attempt every case here settles for, with a scripted client.
+
+ @param entry - entry to settle
+
+ @param served - model schemas reached, which the case reads
+
+ @param dirs - directories the case made
+
+ @example
+ ```ts
+ await settledUnderAttempt({ entry: ENTRY, served, dirs, },);
+ ```
+ */
+async function settledUnderAttempt(
+  {
+    entry,
+    served,
+    dirs,
+  }: {
+    readonly entry: typeof ENTRY;
+    readonly served: string[];
+    readonly dirs: Awaited<ReturnType<typeof throwawayDirs>>;
+  },
+): Promise<void> {
+  await inEntryLogContext({
+    entry: entry.id,
+    generation: DIGEST,
+    attempt: ATTEMPT,
+    run: async function settlesEntry(): Promise<void> {
+      await settleEntry({
+        attempt: ATTEMPT,
+        wallClock: fixedWallClock,
+        client: entryClient({ served, },),
+        entry,
+        artifactsDir: dirs.artifactsDir,
+        publishDir: dirs.publishDir,
+        declinedDir: dirs.declinedDir,
+        sliceCacheDir: dirs.sliceCacheDir,
+        tip: 'a'.repeat(40,),
+        pipelineDigest: DIGEST,
+        pin: ENTRY_PIN,
+        outsideReads: NO_OUTSIDE_READS,
+        pictureSources: NO_PICTURE_SOURCES,
+        hardCapMs: HANG_STOP_MS,
+        baseSignal: new AbortController().signal,
+        overlap: PASS_FALLBACK_OVERLAP,
+        stageSettings: SCRIPTED_STAGE_SETTINGS,
+      },);
+    },
+  },);
+}
+
 await describe({
   name: settleEntry.name,
   // Environment dial is process-wide, so matched arms and every other case in
@@ -3079,57 +3132,15 @@ await describe({
           sinon: ctx.sinon,
           entryId: ENTRY.id,
           run: async () => {
-            await inEntryLogContext({
-              entry: ENTRY.id,
-              generation: DIGEST,
-              attempt: ATTEMPT,
-              run: async () => {
-                await settleEntry({
-                  attempt: ATTEMPT,
-                  wallClock: fixedWallClock,
-                  client: entryClient({ served, },),
-                  entry: ENTRY,
-                  artifactsDir: dirs.artifactsDir,
-                  publishDir: dirs.publishDir,
-                  declinedDir: dirs.declinedDir,
-                  sliceCacheDir: dirs.sliceCacheDir,
-                  tip: 'a'.repeat(40,),
-                  pipelineDigest: DIGEST,
-                  pin: ENTRY_PIN,
-                  outsideReads: NO_OUTSIDE_READS,
-                  pictureSources: NO_PICTURE_SOURCES,
-                  hardCapMs: HANG_STOP_MS,
-                  baseSignal: new AbortController().signal,
-                  overlap: PASS_FALLBACK_OVERLAP,
-                  stageSettings: SCRIPTED_STAGE_SETTINGS,
-                },);
-              },
+            await settledUnderAttempt({
+              entry: ENTRY,
+              served,
+              dirs,
             },);
-            await inEntryLogContext({
-              entry: ownEnglish.id,
-              generation: DIGEST,
-              attempt: ATTEMPT,
-              run: async () => {
-                await settleEntry({
-                  attempt: ATTEMPT,
-                  wallClock: fixedWallClock,
-                  client: entryClient({ served, },),
-                  entry: ownEnglish,
-                  artifactsDir: dirs.artifactsDir,
-                  publishDir: dirs.publishDir,
-                  declinedDir: dirs.declinedDir,
-                  sliceCacheDir: dirs.sliceCacheDir,
-                  tip: 'a'.repeat(40,),
-                  pipelineDigest: DIGEST,
-                  pin: ENTRY_PIN,
-                  outsideReads: NO_OUTSIDE_READS,
-                  pictureSources: NO_PICTURE_SOURCES,
-                  hardCapMs: HANG_STOP_MS,
-                  baseSignal: new AbortController().signal,
-                  overlap: PASS_FALLBACK_OVERLAP,
-                  stageSettings: SCRIPTED_STAGE_SETTINGS,
-                },);
-              },
+            await settledUnderAttempt({
+              entry: ownEnglish,
+              served,
+              dirs,
             },);
           },
         },);

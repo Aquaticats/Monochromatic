@@ -213,7 +213,7 @@ export async function openRunLog(
 /**
  What a file sink's verification answered, within a bound.
 
- @param verifying - the sink's verification, started
+ @param verifying - sink's verification, started
 
  @param verifyWithinMs - longest to wait for it
 

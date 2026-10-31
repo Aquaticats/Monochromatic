@@ -215,7 +215,7 @@ export type ClosingReport = {
 
  @param seats - tally to render
 
- @returns The end reports, then the seat report
+ @returns End reports, then the seat report
 
  @example
  ```ts

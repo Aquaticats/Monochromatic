@@ -150,7 +150,7 @@ export async function spawnKeyless(
 /**
  Text a child of {@link runUntilSignalled} writes to stdout when it is ready for its signal, which the fixture waits for.
  */
-export const SIGNALLED_READY_TEXT = 'ready';
+const SIGNALLED_READY_TEXT = 'ready';
 
 /**
  What a child that was sent a signal wrote and how it ended.

@@ -60,7 +60,7 @@ import { RUN_PICTURE_SOURCES, } from './pass-visual-evidence.ts';
 
  @param line - pass's command line, read whole by `reportingRefusals`
 
- @param closing - the lines the command prints when the pass returns, which the pass records before its log closes
+ @param closing - lines the command prints when the pass returns, which the pass records before its log closes
 
  @example
  ```ts

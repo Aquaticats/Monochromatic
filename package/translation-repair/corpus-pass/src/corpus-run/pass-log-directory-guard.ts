@@ -92,12 +92,14 @@ export async function refuseLogDirectoryInRunFolder(
     return;
 
   /**
-   Where the run folder and the logger's directory really are.
+   Where the run folder really is.
    */
-  const [folder, directory,] = await Promise.all([
-    realOrSpelled({ path: resolve(runsDir,), },),
-    realOrSpelled({ path: resolve(named,), },),
-  ],);
+  const folder = await realOrSpelled({ path: resolve(runsDir,), },);
+
+  /**
+   Where the logger's directory really is.
+   */
+  const directory = await realOrSpelled({ path: resolve(named,), },);
   /**
    The logger's directory seen from the run folder.
    */

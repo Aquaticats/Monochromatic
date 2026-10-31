@@ -47,7 +47,7 @@ import {
 
  @param error - what the read raised
 
- @returns The refusal to throw: the one the read raised when it is a stated refusal, else a stated refusal naming the
+ @returns Refusal to throw: the one the read raised when it is a stated refusal, else a stated refusal naming the
  path and the failure's name
 
  @example
@@ -115,7 +115,7 @@ export async function readLogTexts(
 
  @param verbose - whether to include the debug and trace records, which the console showed only for a verbose run
 
- @returns The lines of each one's records, in the order named
+ @returns Lines of each one's records, in the order named
 
  @throws {@link StatedRefusalError} as {@link readLogTexts} does
 
@@ -157,7 +157,7 @@ export async function* streamLogLines(
 
  @param paths - run folders or record files named on the command line, which the refusal repeats
 
- @returns The lines of each one's records, in the order named
+ @returns Lines of each one's records, in the order named
 
  @throws {@link StatedRefusalError} as {@link readLogTexts} does
 
@@ -208,7 +208,7 @@ async function recordFilesNamed({ path, }: { readonly path: string; },): Promise
 
  @param file - record file a named log holds
 
- @param path - the log that holds it, which the refusal names
+ @param path - log that holds it, which the refusal names
 
  @returns Its real path
 
@@ -280,20 +280,22 @@ export async function refuseRepeatedLogs({ paths, }: { readonly paths: readonly 
   const reachedBy = new Map<string, string>();
 
   for (const path of paths) {
+    /* oxlint-disable no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one */
     /**
      Record files under the path, as `readLogTexts` would find them.
      */
-    // oxlint-disable-next-line no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one
     const files = await recordFilesNamed({ path, },);
+    /* oxlint-enable no-await-in-loop */
     for (const file of files) {
+      /* oxlint-disable no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one */
       /**
        The file itself, past every link and every spelling of its directory.
        */
-      // oxlint-disable-next-line no-await-in-loop -- in the order named, so the refusal names the first log that overlaps an earlier one
       const real = await realFileOf({
         file,
         path,
       },);
+      /* oxlint-enable no-await-in-loop */
       /**
        The log that reached this file first.
        */

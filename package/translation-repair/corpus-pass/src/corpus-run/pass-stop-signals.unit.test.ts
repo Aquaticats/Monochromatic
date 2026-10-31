@@ -26,7 +26,10 @@ import {
   installRunLog,
   openRunLog,
 } from '@monochromatic-dev/translation-repair-typography';
-import { runUntilSignalled, } from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
+import {
+  runUntilSignalled,
+  type SignalledRun,
+} from '@monochromatic-dev/translation-repair-adjudication/ts/child-environment.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 import { handlingStopSignals, } from '../../dist/final/node/index.mjs';
 
@@ -216,7 +219,7 @@ await describe({
           // oxlint-disable-next-line no-await-in-loop -- one child after the other, each with its own folder
           await using scratch = await scratchDir({ prefix: 'pass-stop-signals-', },);
           // oxlint-disable-next-line no-await-in-loop -- the case reads this child's end before it starts the next
-          const done = await runUntilSignalled({
+          const done: SignalledRun = await runUntilSignalled({
             file: process.execPath,
             args: [CHILD_PROGRAM, scratch.path,],
             signal,

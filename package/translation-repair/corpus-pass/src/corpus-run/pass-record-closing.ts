@@ -10,7 +10,7 @@ import { recordRunLine, } from '@monochromatic-dev/translation-repair-typography
 /**
  Records the closing lines of the run in the installed run log when the scope ends, and prints nothing.
 
- @param closing - the lines the command says at its end, absent where nothing prints them
+ @param closing - lines the command says at its end, absent where nothing prints them
 
  @returns Async disposable recording the lines on dispose, so it is declared after the run log and disposed before it
 
