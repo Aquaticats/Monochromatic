@@ -160,20 +160,20 @@ export const ARTIFACTS: Readonly<Record<string, ToolArtifacts>> = {
   },
   'cargo-binstall': {
     'linux-arm64': {
-      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-gnu.tgz',
-      sha256: '5e1413cda21a619b9eb66477c9a78904aadc70e724855d2b3572209ed12f67c3',
+      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-aarch64-unknown-linux-gnu.tgz',
+      sha256: '027438af19e7d9d90accabbb047101c8636c40253f760e92e84cf2f90feddad3',
     },
     'linux-arm64-musl': {
-      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-aarch64-unknown-linux-musl.tgz',
-      sha256: '243dbea9976495f0a5640f856283b5b3d934113381c9a1fba347c9e4b1fea142',
+      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-aarch64-unknown-linux-musl.tgz',
+      sha256: 'a235250cd684af9bf1e3a1e4c216b1d36e6c553553d5d789744f27689d81c2d6',
     },
     'linux-x64': {
-      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-gnu.tgz',
-      sha256: '97d3fe139df2eb0947e9db09c129e4381847440a4622d2a94fc38ce4bd52f378',
+      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-gnu.tgz',
+      sha256: '4f28eba175325f67f7c4bb8ae8686914d2d88fead279c0b8c4d3125264d7a512',
     },
     'linux-x64-musl': {
-      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.1/cargo-binstall-x86_64-unknown-linux-musl.tgz',
-      sha256: '43d379fef8cb450961a14ff113e7bce7b5e1e52db709c776d186f928d8a20a40',
+      url: 'https://github.com/cargo-bins/cargo-binstall/releases/download/v1.26.2/cargo-binstall-x86_64-unknown-linux-musl.tgz',
+      sha256: '9e0e064f189a9abb9f8df5fb93c3c810ef5cc19e7212d998c7a64c9e4d3527d5',
     },
   },
   'cargo:apple-codesign': {},

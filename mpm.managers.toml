@@ -106,34 +106,34 @@ args = ["binstall", "--no-confirm", "--version", "0.4.0", "{package_id}"]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli]
-name = "cargo-binstall monochromatic-git-policy-cli 0.4.4"
+name = "cargo-binstall monochromatic-git-policy-cli 0.4.5"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.4.4", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.4.5", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-git-policy-cli.operations.remove]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-search-shadow]
-name = "cargo-binstall monochromatic-search-shadow 0.2.0"
+name = "cargo-binstall monochromatic-search-shadow 0.2.1"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-search-shadow.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.2.0", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.2.1", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-search-shadow.operations.remove]
 args = ["uninstall", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-mpm-shadow]
-name = "cargo-binstall monochromatic-mpm-shadow 0.1.1"
+name = "cargo-binstall monochromatic-mpm-shadow 0.2.0"
 platforms = ["linux"]
 cli_names = ["cargo"]
 
 [mpm.overrides.cargo-binstall-monochromatic-mpm-shadow.operations.install]
-args = ["binstall", "--no-confirm", "--version", "0.1.1", "{package_id}"]
+args = ["binstall", "--no-confirm", "--version", "0.2.0", "{package_id}"]
 
 [mpm.overrides.cargo-binstall-monochromatic-mpm-shadow.operations.remove]
 args = ["uninstall", "{package_id}"]

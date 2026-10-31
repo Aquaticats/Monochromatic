@@ -247,7 +247,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo-binstall',
     request: { track: 'latest' },
-    version: '1.26.1',
+    version: '1.26.2',
     route: 'bin-sourced',
     bins: ['cargo-binstall'],
     options: {},
@@ -331,7 +331,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-git-policy-cli',
     request: { track: 'latest' },
-    version: '0.4.4',
+    version: '0.4.5',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-git-policy-cli',
@@ -358,7 +358,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-search-shadow',
     request: { track: 'latest' },
-    version: '0.2.0',
+    version: '0.2.1',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-search-shadow',
@@ -387,7 +387,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'cargo:monochromatic-mpm-shadow',
     request: { track: 'latest' },
-    version: '0.1.1',
+    version: '0.2.0',
     route: 'cargo-binstall',
     manager: 'cargo',
     packageId: 'monochromatic-mpm-shadow',
@@ -913,7 +913,7 @@ export const TOOLS: readonly ToolPlanEntry[] = [
   {
     id: 'pipx:slopo',
     request: { track: 'latest' },
-    version: '0.9.0',
+    version: '0.9.1',
     route: 'mpm-uvx',
     manager: 'uvx',
     packageId: 'slopo',
