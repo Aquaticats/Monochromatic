@@ -38,7 +38,7 @@ import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/
 
  @example
  ```ts
- await touch({ path: join(root, 'tabby', 'nap.log',), },);
+ await touch({ path: join(root, 'tabby', 'nap.log.jsonl',), },);
  ```
  */
 async function touch({ path, }: { readonly path: string; },): Promise<void> {
@@ -139,14 +139,14 @@ await describe({
         await touch({
           path: join(
             scratch.path,
-            'nap.log',
+            'nap.log.jsonl',
           ),
         },);
         await touch({
           path: join(
             scratch.path,
             'tabby',
-            'purr.log',
+            'purr.log.jsonl',
           ),
         },);
         await touch({
@@ -170,12 +170,12 @@ await describe({
           logs: [
             join(
               scratch.path,
-              'nap.log',
+              'nap.log.jsonl',
             ),
             join(
               scratch.path,
               'tabby',
-              'purr.log',
+              'purr.log.jsonl',
             ),
           ],
           unreadable: 0,
@@ -193,7 +193,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         const notes = join(
           scratch.path,
@@ -224,7 +224,7 @@ await describe({
          */
         const kept = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         await touch({ path: kept, },);
         for (const skipped of [SLICE_CACHE_DIR, ARTIFACTS_DIR, 'node_modules', PROMPT_PAYLOADS_DIR,]) {
@@ -233,7 +233,7 @@ await describe({
             path: join(
               scratch.path,
               skipped,
-              'hidden.log',
+              'hidden.log.jsonl',
             ),
           },);
           /* oxlint-enable no-await-in-loop */
@@ -260,7 +260,7 @@ await describe({
           'a',
           'b',
           'c',
-          'reached.log',
+          'reached.log.jsonl',
         );
         await touch({ path: reached, },);
         await touch({
@@ -270,7 +270,7 @@ await describe({
             'b',
             'c',
             'd',
-            'beyond.log',
+            'beyond.log.jsonl',
           ),
         },);
 
@@ -292,7 +292,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         await touch({ path: log, },);
 
@@ -303,7 +303,7 @@ await describe({
             join(
               scratch.path,
               '.',
-              'nap.log',
+              'nap.log.jsonl',
             ),
           ],
         },),).toEqual({
@@ -338,7 +338,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         await touch({ path: log, },);
         const missing = join(
@@ -375,7 +375,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         await touch({ path: log, },);
         await using sealed = await sealDirectories({
@@ -419,7 +419,7 @@ await describe({
          */
         const log = join(
           scratch.path,
-          'nap.log',
+          'nap.log.jsonl',
         );
         await touch({ path: log, },);
         await mkdir(join(
@@ -472,7 +472,7 @@ await describe({
          */
         const broken = join(
           scratch.path,
-          'broken.log',
+          'broken.log.jsonl',
         );
         await symlink(
           join(
@@ -535,7 +535,7 @@ await describe({
         await touch({
           path: join(
             elsewhere.path,
-            'purr.log',
+            'purr.log.jsonl',
           ),
         },);
         await symlink(
@@ -551,7 +551,7 @@ await describe({
             join(
               scratch.path,
               'tabby',
-              'purr.log',
+              'purr.log.jsonl',
             ),
           ],
           unreadable: 0,

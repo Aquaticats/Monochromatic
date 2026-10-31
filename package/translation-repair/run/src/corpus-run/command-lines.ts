@@ -112,10 +112,10 @@ const NO_ARGUMENTS: CommandLineSpec<never, never, never> = {
 };
 
 /**
- Positions of a report that reads one or more logs.
+ Positions of a report that reads the records of one or more runs: a run folder, or one record file of it.
  */
 const LOG_FILES: PositionalSpec = {
-  names: ['log file',],
+  names: ['run folder or log file',],
   least: 1,
   rest: true,
 };
@@ -341,7 +341,7 @@ export const COMMAND_LINES: CommandLines = {
   'slice-cost-report': {
     ...NO_ARGUMENTS,
     positionals: {
-      names: ['log file',],
+      names: ['run folder or log file',],
       least: 1,
       rest: false,
     },

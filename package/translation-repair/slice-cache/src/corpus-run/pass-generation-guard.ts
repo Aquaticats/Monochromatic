@@ -1,5 +1,8 @@
 import { textsInCodePointOrder, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { wordForCount, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  printRunLine,
+  wordForCount,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { StatedRefusalError, } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   abbreviate,
@@ -358,8 +361,8 @@ export function assertBuildGenerationResumable(
     return;
 
   if (driftAllowed) {
-    console.log(
-      `POOL resuming across ${
+    printRunLine({
+      line: `POOL resuming across ${
         String(foreign.length,)
       } foreign ${
         wordForCount({
@@ -370,7 +373,7 @@ export function assertBuildGenerationResumable(
       } because ${
         ALLOW_DRIFT_VAR
       }=${ALLOW_DRIFT_VALUE}; a rate over this directory must name a required commit`,
-    );
+    },);
     return;
   }
 

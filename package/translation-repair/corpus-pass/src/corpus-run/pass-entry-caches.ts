@@ -11,6 +11,7 @@ import {
   openTranslateSliceCache,
   tallyErrorText,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass entry caches
 // The four stores one entry opens before its lanes run, opened together, split out of
@@ -149,14 +150,14 @@ export async function retireSettledEntryCache(
     // success line and every reader counting statuses saw one entry as both.
     // What is left behind is a stale cache directory, which costs disk and
     // nothing else: the next run skips the entry on its artifact.
-    console.log(
-      `CLEANUP ${entryId} ${
+    printRunLine({
+      line: `CLEANUP ${entryId} ${
         lifecycleStamp({
           attempt,
           wallClock,
         },)
       } cache=retained error=${tallyErrorText({ error, },)}`,
-    );
+    },);
   }
 }
 

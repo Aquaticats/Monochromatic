@@ -4,7 +4,10 @@ import {
   lifecycleClockStamp,
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
-import { inEntryLogContext, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  inEntryLogContext,
+  printRunLine,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   type AttemptMap,
   attemptsOf,
@@ -49,7 +52,7 @@ function announceDryStop(
   },
 ): void {
   for (const note of dryStop.takeStopNotes())
-    console.log(`${note} ${lifecycleClockStamp({ wallClock, },)}`,);
+    printRunLine({ line: `${note} ${lifecycleClockStamp({ wallClock, },)}`, },);
 }
 
 /**

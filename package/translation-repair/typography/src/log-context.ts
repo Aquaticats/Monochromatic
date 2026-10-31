@@ -5,6 +5,8 @@ import {
   tagged,
 } from '@monochromatic-dev/logger-core/ts';
 
+import { runLogger, } from './run-log.ts';
+
 //region Log context
 // WHICH ENTRY, ATTEMPT, LANE AND SLICE A LINE BELONGS TO, carried by the async
 // call rather than threaded through every stage (ledger A11, B960).
@@ -536,7 +538,12 @@ export function sliceTagged({ l, }: { readonly l: Logger; },): Logger {
 export function contextRoot({ tag, }: { readonly tag: string; },): Logger {
   return sliceTagged({
     l: prefixing({
-      l: tagged({ tag, },),
+      // WRITES THROUGH THE RUN LOG A PASS INSTALLED (`run-log.ts`), chosen at each call, and through the default logger
+      // while none is.
+      l: tagged({
+        tag,
+        l: runLogger,
+      },),
       prefixOf: entryPrefix,
     },),
   },);

@@ -104,8 +104,8 @@ await describe({
         /**
          What the report threw.
          */
-        const refusal = await rejectionOf(async function reportsEmpty(): Promise<void> {
-          await reportSliceCost({ line: lineOf({ command: 'slice-cost-report', typed: [empty,], },), },);
+        const refusal = await rejectionOf({
+          promise: reportSliceCost({ line: lineOf({ command: 'slice-cost-report', typed: [empty,], },), },),
         },);
 
         expect(refusal,).toBeInstanceOf(StatedRefusalError,);

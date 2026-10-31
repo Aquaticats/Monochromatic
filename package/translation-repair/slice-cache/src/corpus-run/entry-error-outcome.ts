@@ -24,6 +24,7 @@ import {
   wallClockNow,
 } from '@monochromatic-dev/translation-repair-markup/ts';
 import { TranslationRepairInterruptedError, } from '@monochromatic-dev/translation-repair-translate-stage/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 import { VisualEvidenceInterruptedError, } from './visual-evidence-completeness.ts';
 import type { EntryOutcome, } from './pass-entry-contract.ts';
 import { tallyErrorText, } from './tally-error-text.ts';
@@ -172,24 +173,24 @@ export function tallyCaughtEntry(
   // as carried-evidence-lost with nothing in the log saying which region.
   if (error instanceof TranslationRepairInterruptedError) {
     for (const finding of error.findings)
-      console.log(
-        `INTERRUPTED ${entryId} ${
+      printRunLine({
+        line: `INTERRUPTED ${entryId} ${
           lifecycleStamp({
             attempt,
             wallClock,
           },)
         }: ${finding}`,
-      );
+      },);
   }
-  console.log(
-    `TALLY ${entryId} status=${classified.status} ${
+  printRunLine({
+    line: `TALLY ${entryId} status=${classified.status} ${
       lifecycleStamp({
         attempt,
         wallClock,
       },)
     } ms=${String(durationMs,)} aborted=${String(aborted,)} `
       + `error=${message}`,
-  );
+  },);
   return classified.outcome;
 }
 

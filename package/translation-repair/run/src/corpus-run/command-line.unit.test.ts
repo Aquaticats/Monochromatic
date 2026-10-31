@@ -194,8 +194,8 @@ await describe({
             },);
           },
         },),).toBe(
-          'this command takes nothing after <log file>, and was given "ginger.log". '
-            + 'Usage: slice-cost-report <log file>',
+          'this command takes nothing after <run folder or log file>, and was given "ginger.log". '
+            + 'Usage: slice-cost-report <run folder or log file>',
         );
         expect(statedRefusalMessage({
           read: function readsHalfAnAsk(): unknown {
@@ -240,7 +240,8 @@ await describe({
             },
           },),
         ],).toEqual([
-          '--paln is not a flag this command reads. Usage: meter-report <log file> [<log file> ...]',
+          '--paln is not a flag this command reads. Usage: meter-report <run folder or log file> '
+            + '[<run folder or log file> ...]',
           '--paln is not a flag this command reads. Usage: coverage-census [--baseline <census.json>] '
             + '[--source <src/file.ts> ...] [<unit test file> ...]',
           '--paln is not a flag this command reads. Usage: roster-bench [<slices>]',

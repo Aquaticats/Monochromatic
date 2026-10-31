@@ -48,19 +48,19 @@ await describe({
       concurrency: 1,
       children: [
         it({
-          name: 'READS every named log whole, in the order named',
+          name: 'READS every named record file whole, a line to a line and each closed by a line feed, in the order named',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
             /**
-             Two logs, named in the reverse of their file names' order.
+             Two record files, named in the reverse of their file names' order.
              */
             const first = join(
               scratch.path,
-              'b.log',
+              'b.log.jsonl',
             );
             const second = join(
               scratch.path,
-              'a.log',
+              'a.log.jsonl',
             );
             await writeFile(
               first,
@@ -78,7 +78,7 @@ await describe({
               ],
             },),).toEqual([
               'purr\nnap\n',
-              'stretch',
+              'stretch\n',
             ],);
           },
         },),
@@ -99,7 +99,7 @@ await describe({
              */
             const missing = join(
               scratch.path,
-              'missing.log',
+              'missing.log.jsonl',
             );
 
             /**
@@ -112,18 +112,18 @@ await describe({
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
               `StatedRefusalError: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-                + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+                + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.',
             );
             expect(Error.isError(refusal,) && Error.isError(refusal.cause,),).toBe(true,);
           },
         },),
 
         it({
-          name: 'REFUSES a path that is a directory with the code the filesystem gave',
+          name: 'REFUSES a directory that holds no record file, in words of its own and not with a filesystem code',
           fn: async () => {
             await using scratch = await scratchDir({ prefix: 'report-log-read-', },);
             /**
-             Directory named where a log belongs.
+             Empty directory named where a run folder belongs.
              */
             const directory = join(
               scratch.path,
@@ -139,8 +139,8 @@ await describe({
             },);
 
             expect(String(refusal,),).toBe(
-              `StatedRefusalError: the log ${directory} could not be read (EISDIR), so nothing was counted. `
-                + 'Name a log a pass, probe or calibration wrote, by a path that exists.',
+              `StatedRefusalError: ${directory} holds no record file (log/<day>/*.log.jsonl), so there is nothing to count. `
+                + 'Name the run folder of a pass that ran, or one of its record files. Nothing was counted.',
             );
           },
         },),

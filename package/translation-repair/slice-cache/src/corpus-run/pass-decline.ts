@@ -18,6 +18,7 @@ import {
   archiveOriginalReadingOf,
 } from '@monochromatic-dev/translation-repair-corpus-source/ts';
 import {
+  printRunLine,
   rethrowUnlessMissingPath,
   sliceTagged,
 } from '@monochromatic-dev/translation-repair-typography/ts';
@@ -225,14 +226,14 @@ export async function recordEntryDecline(
     `ARCHIVE ORIGINAL entry=${entry.id}: the archive's note says the whole page is the author's own `
       + `English (${note}), so the pipeline declines to repair it and the archive stands`,
   );
-  console.log(
-    `TALLY ${entry.id} status=DECLINED ${
+  printRunLine({
+    line: `TALLY ${entry.id} status=DECLINED ${
       lifecycleStamp({
         attempt,
         wallClock,
       },)
     } reason=archive-original ms=${String(monotonicMs() - startedAt,)}`,
-  );
+  },);
   return { kind: 'declined', };
 }
 

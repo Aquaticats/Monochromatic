@@ -9,7 +9,10 @@
  @module
  */
 
-import { writeFile, } from 'node:fs/promises';
+import {
+  mkdir,
+  writeFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 
 import {
@@ -93,7 +96,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'pass.log',
+              'pass.log.jsonl',
             );
             await writeFile(
               path,
@@ -117,7 +120,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'pass.log',
+              'pass.log.jsonl',
             );
             await writeFile(
               path,
@@ -141,7 +144,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'pass.log',
+              'pass.log.jsonl',
             );
             await writeFile(
               path,
@@ -166,7 +169,7 @@ await describe({
 
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
-              'StatedRefusalError: name a log file, not an empty argument: slice-cost-report <log file>',
+              'StatedRefusalError: name a run folder, not an empty argument: slice-cost-report <run folder or log file>',
             );
           },
         },),
@@ -180,7 +183,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'no-such-pass.log',
+              'no-such-pass.log.jsonl',
             );
 
             /**
@@ -192,7 +195,8 @@ await describe({
 
             expect(refusal,).toBeInstanceOf(StatedRefusalError,);
             expect(String(refusal,),).toBe(
-              `StatedRefusalError: ${path} is not there; name a pass log that exists: slice-cost-report <log file>`,
+              `StatedRefusalError: ${path} is not there; name a run folder or log file that exists: `
+                + 'slice-cost-report <run folder or log file>',
             );
           },
         },),
@@ -202,14 +206,23 @@ await describe({
             await using scratch = await scratchDir({ prefix: 'slice-cost-report-run-', },);
 
             /**
+             A directory carrying the name of a record file.
+             */
+            const path = join(
+              scratch.path,
+              'nap.log.jsonl',
+            );
+            await mkdir(path,);
+
+            /**
              What the report rejected with.
              */
             const failure = await rejectionOf({
-              promise: reportSliceCost({ line: lineOf({ command: 'slice-cost-report', typed: [scratch.path,], },), },),
+              promise: reportSliceCost({ line: lineOf({ command: 'slice-cost-report', typed: [path,], },), },),
             },);
 
             expect(failure instanceof StatedRefusalError,).toBe(false,);
-            expect(String(failure,),).toBe(`Error: EISDIR: illegal operation on a directory, read '${scratch.path}'`,);
+            expect(String(failure,),).toBe(`Error: EISDIR: illegal operation on a directory, read '${path}'`,);
           },
         },),
       ],
@@ -230,7 +243,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'pass.log',
+              'pass.log.jsonl',
             );
             await writeFile(
               path,
@@ -264,7 +277,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'pass.log',
+              'pass.log.jsonl',
             );
             await writeFile(
               path,
@@ -298,7 +311,7 @@ await describe({
              */
             const path = join(
               scratch.path,
-              'no-such-pass.log',
+              'no-such-pass.log.jsonl',
             );
 
             /**
@@ -313,7 +326,8 @@ await describe({
 
             expect(run.stdout,).toBe('',);
             expect(run.stderr,).toBe(
-              `slice-cost-report: ${path} is not there; name a pass log that exists: slice-cost-report <log file>\n`,
+              `slice-cost-report: ${path} is not there; name a run folder or log file that exists: `
+                + 'slice-cost-report <run folder or log file>\n',
             );
             expect(run.code,).toBe(REFUSED_AS_STATED,);
           },
@@ -335,7 +349,8 @@ await describe({
 
             expect(run.stdout,).toBe('',);
             expect(run.stderr,).toBe(
-              'slice-cost-report: this command needs <log file>. Usage: slice-cost-report <log file>\n',
+              'slice-cost-report: this command needs <run folder or log file>. '
+                + 'Usage: slice-cost-report <run folder or log file>\n',
             );
             expect(run.code,).toBe(REFUSED_AS_STATED,);
           },
@@ -357,7 +372,8 @@ await describe({
 
             expect(run.stdout,).toBe('',);
             expect(run.stderr,).toBe(
-              'slice-cost-report: --tabby is not a flag this command reads. Usage: slice-cost-report <log file>\n',
+              'slice-cost-report: --tabby is not a flag this command reads. '
+                + 'Usage: slice-cost-report <run folder or log file>\n',
             );
             expect(run.code,).toBe(REFUSED_AS_STATED,);
           },

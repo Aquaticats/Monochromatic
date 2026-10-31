@@ -235,6 +235,11 @@ const HELD_READS: Readonly<Record<string, {
     calls: 1,
     why: EPOCH_MILLISECONDS,
   },
+  'glossary/corpus-run/run-log-read.ts#renderRunLogLine: new Date': {
+    calls: 1,
+    why: 'renders the epoch milliseconds a record holds, which parseRunLogRecord took as a whole number inside the range '
+      + 'a date holds; no text is read',
+  },
   'run/corpus-run/meter-sample-read.ts#stampOf: Date.parse': {
     calls: 1,
     why: LOG_STAMP,

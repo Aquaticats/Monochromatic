@@ -60,6 +60,13 @@ export {
   readingOf,
 } from './corpus-run/directory-listing.ts';
 export { textSettingOf, } from './corpus-run/env-text-setting.ts';
+export {
+  parseRunLogRecord,
+  readRunLogText,
+  renderRunLogLine,
+  type RunLogRecord,
+  runLogFilesUnder,
+} from './corpus-run/run-log-read.ts';
 export { resolveGit, } from './corpus-run/git-command.ts';
 export {
   assertPipelineDigest,

@@ -51,7 +51,7 @@ const COMMANDS: readonly GuardedCommand[] = [
        */
       const log = join(
         directory,
-        'run.log',
+        'run.log.jsonl',
       );
       await writeFile(
         log,

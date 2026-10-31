@@ -8,6 +8,7 @@ import {
   spendCeilingNote,
   spendCeilingReached,
 } from '@monochromatic-dev/translation-repair-run/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Stop before the next entry
 // THE TWO REASONS A PASS STARTS NO FURTHER ENTRY, asked by the attempt queue
@@ -56,9 +57,11 @@ export function stopBeforeNextEntry(
   },
 ): boolean {
   if (elapsedMs >= softBudgetMs) {
-    console.log(
-      `SOFT budget reached after ${String(elapsedMs,)}ms; not starting new entries ${lifecycleClockStamp({ wallClock, },)}`,
-    );
+    printRunLine({
+      line: `SOFT budget reached after ${String(elapsedMs,)}ms; not starting new entries ${
+        lifecycleClockStamp({ wallClock, },)
+      }`,
+    },);
     return true;
   }
 
@@ -72,15 +75,15 @@ export function stopBeforeNextEntry(
       spentUsd,
       ceilingUsd,
     },)) {
-      console.log(
-        `${
+      printRunLine({
+        line: `${
           spendCeilingNote({
             provider,
             spentUsd,
             ceilingUsd,
           },)
         } ${lifecycleClockStamp({ wallClock, },)}`,
-      );
+      },);
       return true;
     }
   }

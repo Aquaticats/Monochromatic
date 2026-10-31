@@ -18,6 +18,7 @@ import {
   type PublishDefect,
   publishFixedPage,
 } from '@monochromatic-dev/translation-repair-page-check/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass entry persistence
 // Publication precedes artifact persistence so artifact remains done sentinel:
@@ -153,13 +154,15 @@ export function printSettledLines(
     }>;
   },
 ): void {
-  console.log(tally,);
-  console.log(destinationsLine({
-    entryId,
-    destinations: published.destinations,
-    attempt,
-    wallClock,
-  },),);
+  printRunLine({ line: tally, },);
+  printRunLine({
+    line: destinationsLine({
+      entryId,
+      destinations: published.destinations,
+      attempt,
+      wallClock,
+    },),
+  },);
   /**
    Defects line, empty for a clean page.
    */
@@ -171,7 +174,7 @@ export function printSettledLines(
   },);
   // A PAGE THAT SHIPPED WITH DEFECTS says so beside its tally, for a grep.
   if (defects !== '')
-    console.log(defects,);
+    printRunLine({ line: defects, },);
 }
 
 //endregion Pass entry persistence

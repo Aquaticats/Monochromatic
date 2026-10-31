@@ -37,6 +37,15 @@ export {
 } from './log-context.ts';
 export { loneSurrogateIndex, } from './lone-surrogate.ts';
 export {
+  installRunLog,
+  openRunLog,
+  printRunLine,
+  RUN_LOG_DIRECTORY,
+  RUN_LOG_SUFFIX,
+  type RunLog,
+  runLogger,
+} from './run-log.ts';
+export {
   isMissingPathError,
   rethrowUnlessMissingPath,
 } from './missing-path-error.ts';

@@ -9,6 +9,7 @@ import {
   type CommandLineOf,
   readOnlyIds,
 } from '@monochromatic-dev/translation-repair-run/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 import {
   passIncompleteLine,
   passOnlyLines,
@@ -83,7 +84,7 @@ export async function selectPendingEntries(
   const onlyIds = readOnlyIds({ line, },);
 
   for (const onlyLine of passOnlyLines({ onlyIds, },))
-    console.log(onlyLine,);
+    printRunLine({ line: onlyLine, },);
 
   /**
    Complete unsettled pairs, already-settled sizes (ordering needs these:
@@ -112,10 +113,12 @@ export async function selectPendingEntries(
     pin,
   },);
   for (const gap of incomplete)
-    console.log(passIncompleteLine({
-      gap,
-      wallClock,
-    },),);
+    printRunLine({
+      line: passIncompleteLine({
+        gap,
+        wallClock,
+      },),
+    },);
 
   /**
    Ids with cached slices from an earlier aborted run. These resume first so

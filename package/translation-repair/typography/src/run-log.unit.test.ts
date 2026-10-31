@@ -1,6 +1,6 @@
 /**
- Tests for the log a run keeps: where a pass's records go, that no retention sweep can ever delete them, and how a
- reader finds and renders them.
+ Tests for the log a run keeps: where a pass's records go and that no retention sweep can ever delete them. How a
+ reader finds and renders them is `glossary/src/corpus-run/run-log-read.unit.test.ts`.
 
  A RUN'S RECORDS ARE ITS EVIDENCE. The file sink is given the run folder and told never to sweep; the case that holds
  that is paired with a control that gives the same folder the sink's own default bounds and loses the old day, so the
@@ -33,11 +33,7 @@ import {
   installRunLog,
   openRunLog,
   printRunLine,
-  readRunLogText,
-  renderRunLogLine,
   RUN_LOG_SUFFIX,
-  RunLogUnreadableError,
-  runLogFilesUnder,
 } from '../dist/final/node/index.mjs';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
 
@@ -161,9 +157,9 @@ await describe({
             l.info('after',);
             await log.flush();
 
-            expect(await recordsUnder({ runDir: scratch.path, },),).toMatchObject([
-              { message: '[purr] while installed', },
-            ],);
+            expect((await recordsUnder({ runDir: scratch.path, },)).map(function messageOf(record,): unknown {
+              return (record as { readonly message: unknown; }).message;
+            },),).toEqual(['[purr] while installed',],);
           },
         },),
 
@@ -224,10 +220,12 @@ await describe({
               oldKept,
               'utf8',
             ),).toContain('old evidence',);
-            expect(await readdir(join(
-              kept.path,
-              'log',
-            ),),).not.toContain('.logger-retention-sweep',);
+            expect(
+              await readdir(join(
+                kept.path,
+                'log',
+              ),),
+            ).not.toContain('.logger-retention-sweep',);
 
             await using swept = await scratchDir({ prefix: 'run-log-swept-', },);
             /**
@@ -316,7 +314,13 @@ await describe({
             await log.flush();
 
             expect(printed.args,).toEqual([['START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815 pending=2',],],);
-            expect(await recordsUnder({ runDir: scratch.path, },),).toMatchObject([
+            expect((await recordsUnder({ runDir: scratch.path, },)).map(function levelAndMessage(record,): unknown {
+              const { level, message, } = record as { readonly level: unknown; readonly message: unknown; };
+              return {
+                level,
+                message,
+              };
+            },),).toEqual([
               {
                 level: 'info',
                 message: 'START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815 pending=2',
@@ -341,171 +345,5 @@ await describe({
       ],
     },),
 
-    describe({
-      name: renderRunLogLine.name,
-      concurrency: 1,
-      children: [
-        it({
-          name: 'RENDERS A RECORD as the console sink prints it',
-          fn: async () => {
-            expect(renderRunLogLine({
-              line: '{"level":"warn","message":"[purr] nap","timestamp":1788256800000}',
-            },),).toBe('[warn] [2026-09-01T10:00:00.000Z] [purr] nap',);
-          },
-        },),
-
-        it({
-          name: 'HANDS ON AS IT STANDS every line that is not exactly a record: cut off, not JSON, not an object, '
-            + 'a missing, extra or mistyped field, a level the logger lacks, a timestamp no date holds',
-          fn: async () => {
-            for (const line of [
-              '{"level":"info","message":"cut off",',
-              'a bare line',
-              '"a string"',
-              '[1,2]',
-              '{"level":"info","message":"no stamp"}',
-              '{"level":"info","message":"extra","timestamp":0,"entry":"Tabby"}',
-              '{"level":"loud","message":"level","timestamp":0}',
-              '{"level":"info","message":3,"timestamp":0}',
-              '{"level":"info","message":"fraction","timestamp":0.5}',
-              '{"level":"info","message":"far","timestamp":9e15}',
-            ]) {
-              expect(renderRunLogLine({ line, },),).toBe(line,);
-            }
-          },
-        },),
-      ],
-    },),
-
-    describe({
-      name: runLogFilesUnder.name,
-      concurrency: 1,
-      children: [
-        it({
-          name: 'FINDS THE FILES under a run folder, its log directory or a day directory in name order, and takes a '
-            + 'named record file as it is',
-          fn: async () => {
-            await using scratch = await scratchDir({ prefix: 'run-log-', },);
-            /**
-             Two day directories of one log directory, with a stray file the sink never wrote.
-             */
-            const log = join(
-              scratch.path,
-              'log',
-            );
-            await mkdir(
-              join(
-                log,
-                '2026-10-02',
-              ),
-              { recursive: true, },
-            );
-            await mkdir(
-              join(
-                log,
-                '2026-10-01',
-              ),
-              { recursive: true, },
-            );
-            await writeFile(
-              join(
-                log,
-                '2026-10-02',
-                'b.log.jsonl',
-              ),
-              '',
-            );
-            await writeFile(
-              join(
-                log,
-                '2026-10-01',
-                'a.log.jsonl',
-              ),
-              '',
-            );
-            await writeFile(
-              join(
-                log,
-                '2026-10-01',
-                'a.log',
-              ),
-              '',
-            );
-
-            /**
-             The two record files, in name order.
-             */
-            const both = [
-              join(
-                log,
-                '2026-10-01',
-                'a.log.jsonl',
-              ),
-              join(
-                log,
-                '2026-10-02',
-                'b.log.jsonl',
-              ),
-            ];
-            expect(await runLogFilesUnder({ path: scratch.path, },),).toEqual(both,);
-            expect(await runLogFilesUnder({ path: log, },),).toEqual(both,);
-            expect(await runLogFilesUnder({ path: join(log, '2026-10-02',), },),).toEqual([both[1],],);
-            expect(await runLogFilesUnder({ path: both[0] ?? '', },),).toEqual([both[0],],);
-          },
-        },),
-
-        it({
-          name: 'REFUSES a directory with no record file and a path that is neither a directory nor a record file',
-          fn: async () => {
-            await using scratch = await scratchDir({ prefix: 'run-log-', },);
-            await expect(runLogFilesUnder({ path: scratch.path, },),).rejects.toBeInstanceOf(
-              RunLogUnreadableError,
-            );
-            await expect(runLogFilesUnder({ path: join(scratch.path, 'nowhere.log',), },),).rejects.toBeInstanceOf(
-              RunLogUnreadableError,
-            );
-          },
-        },),
-      ],
-    },),
-
-    describe({
-      name: readRunLogText.name,
-      concurrency: 1,
-      children: [
-        it({
-          name: 'READS THE RECORDS A RUN KEPT as the lines of console text, one per record',
-          fn: async (ctx) => {
-            ctx.sinon.stub(
-              console,
-              'info',
-            );
-            await using scratch = await scratchDir({ prefix: 'run-log-', },);
-            {
-              await using log = await openRunLog({ runDir: scratch.path, },);
-              using _installed = installRunLog({ log, },);
-              contextRoot({ tag: 'purr', },).info('one',);
-              contextRoot({ tag: 'purr', },).warn('two',);
-              await log.flush();
-            }
-
-            /**
-             Text read back.
-             */
-            const text = await readRunLogText({ path: scratch.path, },);
-            /**
-             Lines of the text, the closing line feed leaving an empty piece.
-             */
-            const pieces = text.split('\n',);
-            expect(pieces.length,).toBe(3,);
-            expect(pieces[0]?.startsWith('[info] [',),).toBe(true,);
-            expect(pieces[0]?.endsWith('Z] [purr] one',),).toBe(true,);
-            expect(pieces[1]?.startsWith('[warn] [',),).toBe(true,);
-            expect(pieces[1]?.endsWith('Z] [purr] two',),).toBe(true,);
-            expect(pieces[2],).toBe('',);
-          },
-        },),
-      ],
-    },),
   ],
 },);

@@ -63,11 +63,11 @@ await describe({
          */
         const rounds = join(
           scratch.path,
-          'rounds.log',
+          'rounds.log.jsonl',
         );
         const calls = join(
           scratch.path,
-          'calls.log',
+          'calls.log.jsonl',
         );
         await writeFile(
           rounds,
@@ -136,7 +136,7 @@ await describe({
          */
         const old = join(
           scratch.path,
-          'old.log',
+          'old.log.jsonl',
         );
         await writeFile(
           old,
@@ -176,7 +176,7 @@ await describe({
          */
         const closed = join(
           scratch.path,
-          'closed.log',
+          'closed.log.jsonl',
         );
         await writeFile(
           closed,
@@ -221,7 +221,7 @@ await describe({
          */
         const missing = join(
           scratch.path,
-          'missing.log',
+          'missing.log.jsonl',
         );
 
         /**
@@ -238,7 +238,7 @@ await describe({
           code: REFUSED_AS_STATED,
           stdout: '',
           stderr: `run-timing-report: the log ${missing} could not be read (ENOENT), so nothing was counted. `
-            + 'Name a log a pass, probe or calibration wrote, by a path that exists.\n',
+            + 'Name a run folder a pass wrote, or one of its .log.jsonl record files, by a path that exists.\n',
         },);
       },
     },),
@@ -252,7 +252,7 @@ await describe({
          */
         const twice = join(
           scratch.path,
-          'twice.log',
+          'twice.log.jsonl',
         );
         await writeFile(
           twice,
@@ -299,8 +299,8 @@ await describe({
         expect(run,).toEqual({
           code: REFUSED_AS_STATED,
           stdout: '',
-          stderr: 'run-timing-report: this command needs <log file>. '
-            + 'Usage: run-timing-report <log file> [<log file> ...]\n',
+          stderr: 'run-timing-report: this command needs <run folder or log file>. '
+            + 'Usage: run-timing-report <run folder or log file> [<run folder or log file> ...]\n',
         },);
       },
     },),

@@ -1,16 +1,14 @@
 /**
- Tests for which logs the cap census counts: a log is a pass run when a line
- among its first two thousand opens `START tip=` followed by a commit id a
+ Tests for which logs the cap census counts: a log is a pass run when a record
+ among its first two thousand lines has a message that opens `START tip=` followed by a commit id a
  repository could give, and only then are its calls read.
 
- Every log is written into a scratch directory, from invented, cat-themed
- lines.
+ Every log is a record file written into a scratch directory, from invented, cat-themed
+ lines. A START line is written as the record a pass makes of it (`printRunLine`), and a line that is no record stands
+ for a foreign one.
 
  @module
  */
-
-import { writeFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
 
 import {
   describe,
@@ -22,6 +20,7 @@ import { MODEL_CARDS, } from '@monochromatic-dev/translation-repair-shared-contr
 import { capCensusPassRunReading, } from '../../dist/final/node/index.mjs';
 import { SEAT_HYPER_OPENROUTER_UNMEASURED, } from '@monochromatic-dev/translation-repair-test-fixture/ts/roster-seats.test-fixture.ts';
 import { scratchDir, } from '@monochromatic-dev/translation-repair-test-fixture/ts/scratch-dir.test-fixture.ts';
+import { writeLog as writeRecordLog, } from '@monochromatic-dev/translation-repair-test-fixture/ts/corpus-run/report-log-write.test-fixture.ts';
 import {
   spendLine,
   streamLine,
@@ -112,7 +111,16 @@ const CALL_READING = {
 };
 
 /**
- Writes a log of the given lines into a scratch directory.
+ Instant a pass's START record is stamped with in these cases.
+ */
+const START_STAMP = '2026-09-28T09:59:00.000Z';
+
+/**
+ Writes a record file of the given lines into a scratch directory.
+
+ A line that opens `START tip=` is written as the record a pass makes of its START line, the way the console prints it
+ (`[info] [stamp] START ...`); a line in the console's form is written as the record the logger writes for it, and any
+ other line as a foreign line.
 
  @param directory - scratch directory
  @param lines - log's lines
@@ -136,19 +144,13 @@ async function writeLog(
     readonly name?: string;
   },
 ): Promise<string> {
-  /**
-   Where the log goes.
-   */
-  const path = join(
-    directory,
+  return await writeRecordLog({
+    dir: directory,
     name,
-  );
-  await writeFile(
-    path,
-    lines.join('\n',),
-    'utf8',
-  );
-  return path;
+    lines: lines.map(function asRecordLine(line,): string {
+      return line.startsWith('START tip=',) ? `[info] [${START_STAMP}] ${line}` : line;
+    },),
+  },);
 }
 
 await describe({
@@ -378,7 +380,7 @@ await describe({
           return await capCensusPassRunReading({
             path: await writeLog({
               directory: scratch.path,
-              name: `tip-${String(index,)}.log`,
+              name: `tip-${String(index,)}.log.jsonl`,
               lines: [
                 REAL_START.replace(
                   REAL_TIP,
@@ -402,20 +404,29 @@ await describe({
         await using scratch = await scratchDir({ prefix: 'cap-census-pass-run-', },);
 
         /**
-         A START line padded to the given number of bytes.
+         Bytes of a record file's line that holds no message.
+         */
+        const recordOverhead = JSON.stringify({
+          level: 'info',
+          message: '',
+          timestamp: Date.parse(START_STAMP,),
+        },).length;
 
-         @param bytes - bytes the line holds
+        /**
+         A START line padded so that the record made of it holds the given number of bytes.
+
+         @param bytes - bytes the record's line holds
 
          @returns Line
          */
         function startLineOf({ bytes, }: { readonly bytes: number; },): string {
-          return `${REAL_START} ${'x'.repeat(bytes - Buffer.byteLength(REAL_START,) - 1,)}`;
+          return `${REAL_START} ${'x'.repeat(bytes - recordOverhead - REAL_START.length - 1,)}`;
         }
 
         expect(await capCensusPassRunReading({
           path: await writeLog({
             directory: scratch.path,
-            name: 'at-the-bound.log',
+            name: 'at-the-bound.log.jsonl',
             lines: [
               startLineOf({ bytes: LINE_BYTES, },),
               ...CALL_LINES,
@@ -425,7 +436,7 @@ await describe({
         expect(await capCensusPassRunReading({
           path: await writeLog({
             directory: scratch.path,
-            name: 'past-the-bound.log',
+            name: 'past-the-bound.log.jsonl',
             lines: [
               startLineOf({ bytes: LINE_BYTES + 1, },),
               ...CALL_LINES,
@@ -444,7 +455,7 @@ await describe({
           path: await writeLog({
             directory: scratch.path,
             lines: [
-              // The line and its break hold five bytes less than a block, so START begins five bytes before its end.
+              // The line and its break hold five bytes less than a block, so the START record begins five bytes before its end.
               'a'.repeat(BLOCK_BYTES - 6,),
               REAL_START,
               ...CALL_LINES,

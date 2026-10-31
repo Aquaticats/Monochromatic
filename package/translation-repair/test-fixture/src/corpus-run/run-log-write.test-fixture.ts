@@ -6,10 +6,7 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
-import {
-  createLogger,
-  type Level,
-} from '@monochromatic-dev/logger-core/ts';
+import { createLogger, } from '@monochromatic-dev/logger-core/ts';
 import {
   createFileSink,
   NO_LOG_RETENTION_SWEEP,
@@ -17,6 +14,7 @@ import {
 import type { DisposableSandbox, } from '@monochromatic-dev/test-harness-core/ts';
 
 import { scratchDir, } from '../scratch-dir.test-fixture.ts';
+import { parseConsoleLine, } from './console-line-parse.test-fixture.ts';
 
 //region Run log write
 // WRITES A RUN'S RECORDS THE WAY A RUN DOES: through the shared logger and its file sink, into the folder a pass keeps
@@ -28,14 +26,10 @@ import { scratchDir, } from '../scratch-dir.test-fixture.ts';
 // never write) stands for a foreign or damaged line and is written into the file as it is, in its place.
 
 /**
- A line in the form the console sink prints.
- */
-const CONSOLE_LINE = /^\[(trace|debug|info|warn|error|fatal)\] \[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\] (.*)$/u;
-
-/**
  Builds the lines of a record file from lines stated as the console prints them.
 
  @param sinon - calling case's own sandbox (`ctx.sinon`), whose stub of `Date.now` gives each record its instant
+
  @param lines - lines the file holds, in order
 
  @returns Lines of the file: a record the logger wrote for each console-form line, the other lines as they stand
@@ -54,7 +48,13 @@ async function recordFileLines(
     readonly lines: readonly string[];
   },
 ): Promise<readonly string[]> {
+  /**
+   Directory the logger writes into, removed with what it holds when this returns.
+   */
   await using scratch = await scratchDir({ prefix: 'run-log-build-', },);
+  /**
+   Logger over the file sink alone, with the retention a run's own has: none.
+   */
   const { logger, } = createLogger({
     sinks: [createFileSink({
       directory: scratch.path,
@@ -67,13 +67,9 @@ async function recordFileLines(
     /**
      Parts of the line when it is in the console's form.
      */
-    const parts = CONSOLE_LINE.exec(line,);
-    if (parts === null)
+    const parts = parseConsoleLine({ line, },);
+    if (parts === 'not-console-form')
       continue;
-    /**
-     Pieces of the match, present whenever it matched.
-     */
-    const [, level = '', stamp = '', message = '',] = parts;
     /**
      Stub giving the record the instant its line names.
      */
@@ -81,12 +77,16 @@ async function recordFileLines(
       Date,
       'now',
     )
-      .returns(Date.parse(stamp,),);
-    try {
-      logger[level as Level](message,);
-    } finally {
-      now.restore();
-    }
+      .returns(parts.at,);
+    /**
+     Puts the clock back as this record is logged.
+     */
+    using _restoring = {
+      [Symbol.dispose](): void {
+        now.restore();
+      },
+    };
+    logger[parts.level](parts.message,);
   }
   await logger.flush();
 
@@ -124,7 +124,7 @@ async function recordFileLines(
    */
   const records = [...written,];
   return lines.map(function placed(line,): string {
-    return (CONSOLE_LINE.test(line,) ? records.shift() : undefined) ?? line;
+    return (parseConsoleLine({ line, },) === 'not-console-form') ? line : (records.shift() ?? line);
   },);
 }
 
@@ -132,7 +132,9 @@ async function recordFileLines(
  Writes a record file of the given lines at an exact path.
 
  @param sinon - calling case's own sandbox (`ctx.sinon`)
+
  @param path - file to write, whose name ends `.log.jsonl`
+
  @param lines - lines it holds, as the console prints them
 
  @returns Path of the file
@@ -155,7 +157,10 @@ export async function writeRecordFile(
 ): Promise<string> {
   await writeFile(
     path,
-    `${(await recordFileLines({ sinon, lines, },)).join('\n',)}\n`,
+    `${(await recordFileLines({
+      sinon,
+      lines,
+    },)).join('\n',)}\n`,
   );
   return path;
 }
@@ -164,9 +169,13 @@ export async function writeRecordFile(
  Writes a run folder the way a pass leaves one: the records under `log/<UTC day>/`.
 
  @param sinon - calling case's own sandbox (`ctx.sinon`)
+
  @param dir - directory the run folder is made in
+
  @param name - run folder's name
+
  @param day - UTC day directory the file sits in
+
  @param lines - lines the one file holds, as the console prints them
 
  @returns Path of the run folder

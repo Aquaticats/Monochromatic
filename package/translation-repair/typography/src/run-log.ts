@@ -1,0 +1,250 @@
+import { join, } from 'node:path';
+
+import {
+  createLogger,
+  logger as defaultLogger,
+  type Logger,
+  type Level,
+  sinks,
+} from '@monochromatic-dev/logger-core/ts';
+import {
+  createFileSink,
+  NO_LOG_RETENTION_SWEEP,
+} from '@monochromatic-dev/logger-core/ts/node.ts';
+
+//region Run log
+// WHERE A RUN'S RECORDS GO. A corpus pass writes the records of everything it does through the shared logger's file sink
+// into its own run folder, so the run's evidence lives with the run and no reader depends on someone capturing the
+// console (the owner's answer of 2026-10-31: a `*.log` capture means the logger was not used as designed).
+//
+// THE FILE SINK IS BUILT HERE, NEVER LEFT TO THE ENVIRONMENT. The environment route (`MONOCHROMATIC_LOG_DIRECTORY`)
+// cannot hold what a run needs: its retention bounds accept only finite numbers (there is no way to turn the sweep
+// off), a sweep writes a stamp file into the directory it sweeps, and a default sweep expires whole day directories
+// older than 14 days, which are the run's evidence. A sink given `NO_LOG_RETENTION_SWEEP` and an explicit directory
+// never sweeps, and it ignores `MONOCHROMATIC_LOG_FILE=off` here (the environment handed to it is empty), because a
+// run that quietly records nothing is worse than one that records.
+//
+// THE FOLDER A RUN KEEPS: `<run folder>/log/<UTC day>/<timestamp>.<uuid>.log.jsonl`, one file per process that opened
+// the run log, never rotated, one JSON object per line holding exactly `level`, `message` and `timestamp`. The day
+// directory is the sink's own and cannot be turned off.
+
+/**
+ Name of the directory under a run folder that holds the run's records.
+ */
+export const RUN_LOG_DIRECTORY = 'log';
+
+/**
+ Name ending every file the run log writes: the file sink's own, `{timestamp}.{uuid}.log.jsonl`.
+ */
+export const RUN_LOG_SUFFIX = '.log.jsonl';
+
+/**
+ One run's open log: the logger that shows its lines to a person and records them, the logger that only records, and
+ whether the records are really being kept.
+
+ @example
+ ```ts
+ await using log = await openRunLog({ runDir, },);
+ ```
+ */
+export type RunLog = AsyncDisposable & {
+  /**
+   Directory the sink writes its day directories into.
+   */
+  readonly directory: string;
+
+  /**
+   Whether the destination proved writable, so records are being kept; a run that needs its evidence refuses when not.
+   */
+  readonly recording: boolean;
+
+  /**
+   Logger that shows each line on the console and records it.
+   */
+  readonly logger: Logger;
+
+  /**
+   Logger that only records, for a line the process also prints itself.
+   */
+  readonly recordOnly: Logger;
+
+  /**
+   Settles every record written so far.
+   */
+  readonly flush: () => Promise<void>;
+};
+
+/**
+ Run log installed for the process, which the context roots write through.
+ */
+const installed: { current?: RunLog; } = {};
+
+/**
+ Opens the log of one run.
+
+ @param runDir - run folder the records live in
+
+ @returns Open log, which flushes when disposed
+
+ @example
+ ```ts
+ await using log = await openRunLog({ runDir: '/runs/corpus-pass-tabby', },);
+ ```
+ */
+export async function openRunLog({ runDir, }: { readonly runDir: string; },): Promise<RunLog> {
+  /**
+   Directory under the run folder the sink writes into.
+   */
+  const directory = join(
+    runDir,
+    RUN_LOG_DIRECTORY,
+  );
+
+  /**
+   The one sink both loggers write through, so every record of the process lands in one file in arrival order.
+   */
+  const fileSink = createFileSink({
+    directory,
+    retention: NO_LOG_RETENTION_SWEEP,
+    environment: {},
+  },);
+
+  /**
+   Whether the destination is writable, asked before any record so a run can refuse to start without its evidence.
+   */
+  const recording = await fileSink.verify();
+
+  /**
+   Logger that shows and records.
+   */
+  const { logger, } = createLogger({
+    sinks: [
+      sinks.createConsoleSink(),
+      fileSink,
+    ],
+  },);
+
+  /**
+   Logger that records alone; absent a sink it would refuse every line, so an unwritable run log gets the console
+   logger's silence instead.
+   */
+  const { logger: recordOnly, } = createLogger({
+    sinks: [
+      recording ? fileSink : sinks.createNoopSink(),
+    ],
+  },);
+
+  /**
+   Settles both loggers.
+   */
+  async function flush(): Promise<void> {
+    await logger.flush();
+    await recordOnly.flush();
+  }
+
+  return {
+    directory,
+    recording,
+    logger,
+    recordOnly,
+    flush,
+    async [Symbol.asyncDispose](): Promise<void> {
+      await flush();
+    },
+  };
+}
+
+/**
+ Installs a run log for the process: every context root writes through it from now on, and the lines passes print are
+ recorded in it.
+
+ @param log - open run log
+
+ @returns Disposable putting back whatever was installed before
+
+ @example
+ ```ts
+ using _installed = installRunLog({ log, },);
+ ```
+ */
+export function installRunLog({ log, }: { readonly log: RunLog; },): Disposable {
+  /**
+   Run log standing before this one.
+   */
+  const before = installed.current;
+  installed.current = log;
+  return {
+    [Symbol.dispose](): void {
+      if (before === undefined)
+        delete installed.current;
+      else
+        installed.current = before;
+    },
+  };
+}
+
+/**
+ Builds one level method that writes through whichever logger stands at the moment of the call.
+
+ @param level - severity the method logs at
+
+ @returns Forwarding level method
+
+ @example
+ ```ts
+ const info = forwardingLevel({ level: 'info', },);
+ ```
+ */
+function forwardingLevel({ level, }: { readonly level: Level; },): (message: string,) => void {
+  return function logAtLevel(message: string,): void {
+    (installed.current
+      ?.logger
+      ?? defaultLogger)[level](message,);
+  };
+}
+
+/**
+ Logger that forwards every call to the installed run log's logger, or to the default logger while none is installed.
+
+ THE CHOICE IS MADE AT THE CALL, not where the root is built: roots are built when their module loads, long before a pass
+ has a run folder to install.
+ */
+export const runLogger: Logger = {
+  debug: forwardingLevel({ level: 'debug', },),
+  error: forwardingLevel({ level: 'error', },),
+  fatal: forwardingLevel({ level: 'fatal', },),
+  info: forwardingLevel({ level: 'info', },),
+  trace: forwardingLevel({ level: 'trace', },),
+  warn: forwardingLevel({ level: 'warn', },),
+  async flush(): Promise<void> {
+    await (installed.current
+      ?.logger
+      ?? defaultLogger).flush();
+  },
+};
+
+/**
+ Prints a line the way a process prints it and records it in the installed run log, when one is installed.
+
+ A PASS'S OWN LINES (`START`, `TALLY`, `DONE`) stay on the console exactly as they were; the record is made beside them
+ and carries the line whole as its message, so a reader finds them in the run folder without anyone capturing the
+ console.
+
+ @param line - line to print and record
+
+ @example
+ ```ts
+ printRunLine({ line: 'START tip=2a336603bf5d1f0a8c7e94b1d62e0a3f77c9d815', },);
+ ```
+ */
+export function printRunLine({ line, }: { readonly line: string; },): void {
+  console.log(line,);
+  if (installed.current
+    ?.recording
+    === true)
+    installed.current
+      .recordOnly
+      .info(line,);
+}
+
+//endregion Run log

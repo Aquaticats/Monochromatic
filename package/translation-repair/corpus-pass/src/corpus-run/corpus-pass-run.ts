@@ -1,10 +1,16 @@
 import { wallClockNow, } from '@monochromatic-dev/translation-repair-markup/ts';
-import { contextRoot, } from '@monochromatic-dev/translation-repair-typography/ts';
+import {
+  contextRoot,
+  installRunLog,
+  openRunLog,
+  printRunLine,
+} from '@monochromatic-dev/translation-repair-typography/ts';
 import { CLAUDE_SCHEMA_PRODUCERS, } from '../claude-schema-producers.ts';
 import {
   declinedEntryIds,
   digestPipeline,
   readAttemptMap,
+  StatedRefusalError,
 } from '@monochromatic-dev/translation-repair-glossary/ts';
 import {
   HARD_CAP_MINUTES,
@@ -112,6 +118,25 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
    */
   await using _lock = await lockRunsDir({ runsDir, },);
 
+  // THE RUN'S RECORDS, opened once the lock is held so a pass another pass refuses leaves nothing behind, and before
+  // anything is printed or logged: everything the pass logs from here on, and the lines it prints, are recorded in
+  // `<runsDir>/log/<day>/*.log.jsonl` through the shared logger's file sink (`typography/src/run-log.ts`), which no
+  // retention sweep ever touches. A run that cannot record itself does not start: its evidence is the point.
+  /**
+   The run's log, flushed when the pass returns or throws, before the lock is let go.
+   */
+  await using runLog = await openRunLog({ runDir: runsDir, },);
+  if (!runLog.recording)
+    throw new StatedRefusalError({
+      says: `the pass cannot write its records to ${runLog.directory}, so it would leave no record of itself and has `
+        + 'not started. Make that directory writable, or name another runs directory with TRANSLATION_REPAIR_RUNS_DIR, '
+        + 'then start the pass again.',
+    },);
+  /**
+   Install of that log for every context root, put back when the pass returns.
+   */
+  using _recording = installRunLog({ log: runLog, },);
+
   /**
    Every path this pass reads and writes under its runs dir; the artifacts
    directory and the published tree are created now so a pass that settles
@@ -182,7 +207,10 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     wallClock: passClock,
   },);
 
-  console.log(passStartLine({
+  /**
+   The line the pass opens its run with, which a census tells a pass's records by.
+   */
+  const startLine = passStartLine({
     facts: {
       tip,
       pipelineDigest,
@@ -195,7 +223,8 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
       claudeCallMs: RUN_CALL_CONFIG.claudeCallTimeoutMs,
     },
     wallClock: passClock,
-  },),);
+  },);
+  printRunLine({ line: startLine, },);
 
   for (const launchLine of passLaunchLines({
     hardCapMs,
@@ -207,7 +236,7 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     writerNote: input.writerNote,
     pinSetting,
   },))
-    console.log(launchLine,);
+    printRunLine({ line: launchLine, },);
 
   /**
    Providers validation or performance arm explicitly requires wet.
@@ -221,12 +250,12 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   },);
 
   for (const requiredLine of passRequiredLines({ providers: requiredProviders, },))
-    console.log(requiredLine,);
+    printRunLine({ line: requiredLine, },);
 
   // SAID AT EVERY LAUNCH, whether or not its key is in the environment: the client this run builds reads an off
   // provider's key as unset, so no call goes to it, and the line is where the run says so.
   for (const offLine of passProvidersOffLines({ off: PROVIDERS_LEFT_OFF, },))
-    console.log(offLine,);
+    printRunLine({ line: offLine, },);
 
   /**
    Gate ending the pass when the router finds every provider dry (`pass-dry-stop.ts`); the pass never waits for
@@ -243,14 +272,16 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
   },), },);
 
   if (line.switched('plan',)) {
-    console.log(passPlanLine({
-      tip,
-      pipelineDigest,
-      pendingIds: pending.map(function toPlanId(entry,): string {
-        return entry.id;
+    printRunLine({
+      line: passPlanLine({
+        tip,
+        pipelineDigest,
+        pendingIds: pending.map(function toPlanId(entry,): string {
+          return entry.id;
+        },),
+        previewCount: PLAN_PREVIEW_COUNT,
       },),
-      previewCount: PLAN_PREVIEW_COUNT,
-    },),);
+    },);
     return;
   }
 
@@ -337,15 +368,17 @@ export async function runCorpusPassOver(input: CorpusPassInput,): Promise<void> 
     artifactsDir,
     declinedDir,
   },);
-  console.log(passDoneLine({
-    processed,
-    pending: pending.length,
-    pairs,
-    settledIds,
-    declinedIds,
-    elapsedMs: now() - start,
-    wallClock: passClock,
-  },),);
+  printRunLine({
+    line: passDoneLine({
+      processed,
+      pending: pending.length,
+      pairs,
+      settledIds,
+      declinedIds,
+      elapsedMs: now() - start,
+      wallClock: passClock,
+    },),
+  },);
 }
 
 //endregion Corpus pass run

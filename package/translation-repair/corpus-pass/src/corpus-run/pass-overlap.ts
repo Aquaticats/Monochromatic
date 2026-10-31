@@ -6,6 +6,7 @@ import {
   type OverlapSetting,
   readOverlapSetting,
 } from '@monochromatic-dev/translation-repair-slice-cache/ts';
+import { printRunLine, } from '@monochromatic-dev/translation-repair-typography/ts';
 
 //region Pass overlap
 // Corpus pass keeps four slices in flight since the four matched pairs of
@@ -82,14 +83,14 @@ export function entryOverlap(
     readonly wallClock?: () => Date;
   },
 ): number {
-  console.log(
-    `OVERLAP ${entryId} ${
+  printRunLine({
+    line: `OVERLAP ${entryId} ${
       lifecycleStamp({
         attempt,
         wallClock,
       },)
     } value=${String(setting.overlap,)} source=${setting.source}`,
-  );
+  },);
   return setting.overlap;
 }
 
