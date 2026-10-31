@@ -204,10 +204,12 @@ await describe({
         },).map(function summary(ask,) {
           return [ask.modelId, ask.contents,];
         },),).toEqual([[SEAT_HYPER_TEXT_BEDROCK, ['meow',],],],);
+        // THE VOICE NAMES THE MODEL THAT ANSWERED and, apart, the seat it answered for (ledger B1142): weight, half
+        // weight, the check of a model on the text it wrote, the tallies and the records read the first.
         expect(gather.voices.map(function summary(voice,): string {
-          return `${voice.modelId} wrote by ${voice.value.meow}`;
+          return `${voice.modelId}${(voice.seat === undefined) ? '' : ` for ${voice.seat}`} wrote by ${voice.value.meow}`;
         },).toSorted(),).toEqual([
-          `${SEAT_HYPER_OPENROUTER_UNMEASURED} wrote by ${SEAT_HYPER_TEXT_BEDROCK}`,
+          `${SEAT_HYPER_TEXT_BEDROCK} for ${SEAT_HYPER_OPENROUTER_UNMEASURED} wrote by ${SEAT_HYPER_TEXT_BEDROCK}`,
           `${SEAT_HYPER_OPENROUTER_VISION_EDITOR} wrote by ${SEAT_HYPER_OPENROUTER_VISION_EDITOR}`,
           `${SEAT_SYNTHETIC_VISION_NO_OPENROUTER} wrote by ${SEAT_SYNTHETIC_VISION_NO_OPENROUTER}`,
         ].toSorted(),);

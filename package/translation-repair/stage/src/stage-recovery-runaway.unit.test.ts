@@ -161,6 +161,7 @@ type RunawayRun = {
     readonly modelId: RosterModelId;
     readonly heard: boolean;
     readonly wroteBy?: string;
+    readonly answeredBy?: RosterModelId;
   }[];
 
   /**
@@ -240,9 +241,13 @@ async function recoverRunaway(
           .heard,
         ...(outcome.voice
           .heard
-          ? { wroteBy: outcome.voice
-            .value
-            .meow, }
+          ? {
+            wroteBy: outcome.voice
+              .value
+              .meow,
+            // Conditional spread keeps the model absent where the seat's own model answered.
+            ...((outcome.voice.answeredBy === undefined) ? {} : { answeredBy: outcome.voice.answeredBy, }),
+          }
           : {}),
       };
     },),
@@ -270,7 +275,10 @@ await describe({
         expect(run.seen.map(function ask(seen,) {
           return [seen.modelId, seen.contents,];
         },),).toEqual([[SEAT_HYPER_TEXT_BEDROCK, [STAGE_PROMPT,],],],);
-        expect(run.outcomes,).toEqual([{ modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_HYPER_TEXT_BEDROCK, },],);
+        // THE VOICE NAMES THE MODEL THAT WROTE IT (ledger B1142), apart from the seat the outcome stands under.
+        expect(run.outcomes,).toEqual([
+          { modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_HYPER_TEXT_BEDROCK, answeredBy: SEAT_HYPER_TEXT_BEDROCK, },
+        ],);
       },
     },),
 
@@ -303,7 +311,9 @@ await describe({
         expect(run.seen.map(function modelOf(seen,) {
           return seen.modelId;
         },),).toEqual([SEAT_HYPER_TEXT_BEDROCK, SEAT_BEDROCK_ONLY_TEXT,],);
-        expect(run.outcomes,).toEqual([{ modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_BEDROCK_ONLY_TEXT, },],);
+        expect(run.outcomes,).toEqual([
+          { modelId: RUNAWAY_SEAT, heard: true, wroteBy: SEAT_BEDROCK_ONLY_TEXT, answeredBy: SEAT_BEDROCK_ONLY_TEXT, },
+        ],);
       },
     },),
 
