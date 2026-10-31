@@ -69,6 +69,11 @@ const READER: RosterModelId = SEAT_SYNTHETIC_VISION_WITHHELD;
 const READING = '走失猫咪 Mittens，虎斑，请电 555 0134。';
 
 /**
+ What a model that declines to read answers, in the words the screen reads as a refusal.
+ */
+const REFUSAL = 'I cannot read the image.';
+
+/**
  Reply the completion cap ended while the model was still reasoning.
  */
 const CUT: ChatTextReply = {
@@ -257,7 +262,7 @@ async function readOnce(
     signal: AbortSignal.timeout(HANG_STOP_MS,),
     perCallTimeoutMs: HANG_STOP_MS,
     l,
-    ...((benchModelIds === undefined) ? {} : { benchModelIds, }),
+    benchModelIds: benchModelIds ?? [READER,],
   },);
 }
 
@@ -429,10 +434,107 @@ await describe({
 
         expect(said.some(function names(line,): boolean {
           return line.includes('noticeboard.webp',) && line.includes('finish reason length on neuralwatt',)
-            && line.includes(`re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question`,)
             && line.includes(`${SEAT_HYPER_VISION} (seated on the bench of this question)`,)
-            && line.includes(`${SEAT_HYPER_OPENROUTER_UNMEASURED} (held out of the reader role by reader-unmeasured)`,);
+            && line.includes(`${SEAT_HYPER_OPENROUTER_UNMEASURED} (held out of the reader role by reader-unmeasured)`,)
+            && line.includes(`to ask in turn: ${SEAT_HYPER_TEXT_BEDROCK}`,);
         },),).toBe(true,);
+        expect(said.some(function asks(line,): boolean {
+          return line.includes(`re-asking ${SEAT_HYPER_TEXT_BEDROCK} instead, plain question`,);
+        },),).toBe(true,);
+      },
+    },),
+
+    it({
+      name: 'ASKS ONLY THE READER ITSELF WHEN THE CALLER NAMES NO BENCH, as a measurement of one model does: a reading '
+        + 'by a rival model is never scored as the candidate\'s',
+      fn: async () => {
+        const { client, seen, } = scriptedClient({ scripts: { [READER]: [CUT, { text: READING, },], }, },);
+        const reading = await readPastRefusal({
+          client,
+          modelId: READER,
+          bytes: new Uint8Array(64,),
+          assetName: 'noticeboard.webp',
+          signal: AbortSignal.timeout(HANG_STOP_MS,),
+          perCallTimeoutMs: HANG_STOP_MS,
+          l: tagged({ tag: 'cut-empty-test', },),
+        },);
+
+        expect(reading.kind,).toBe('read',);
+        expect(seen.map(function modelOf(asked,) {
+          return asked.modelId;
+        },),).toEqual([READER, READER,],);
+      },
+    },),
+
+    it({
+      name: 'ASKS THE MODEL THAT DECLINED, NOT THE CUT READER, when the reading of the other model is a refusal, and '
+        + 'names the model that declined in the log',
+      fn: async () => {
+        /**
+         Every line written.
+         */
+        const said: string[] = [];
+        const { client, seen, } = scriptedClient({
+          scripts: { [READER]: [CUT,], [SEAT_HYPER_TEXT_BEDROCK]: [{ text: REFUSAL, }, { text: READING, },], },
+        },);
+        const reading = await readOnce({ client, l: keepingLogger({ said, },), },);
+
+        expect(reading.kind,).toBe('read',);
+        expect(seen.map(function modelOf(asked,) {
+          return asked.modelId;
+        },),).toEqual([READER, SEAT_HYPER_TEXT_BEDROCK, SEAT_HYPER_TEXT_BEDROCK,],);
+        expect(said.some(function namesDecliner(line,): boolean {
+          return line.includes(`${SEAT_HYPER_TEXT_BEDROCK} declined noticeboard.webp`,);
+        },),).toBe(true,);
+        expect(said.some(function namesCutReader(line,): boolean {
+          return line.includes(`${READER} declined`,);
+        },),).toBe(false,);
+      },
+    },),
+
+    it({
+      name: 'TREATS A CUT REPLY OF WHITESPACE ALONE AS A RUNAWAY, as the chat path does, and asks another model',
+      fn: async () => {
+        const { client, seen, } = scriptedClient({
+          scripts: { [READER]: [{ text: ' \n\t ', finishReason: 'length', servedBy: 'neuralwatt', },], },
+        },);
+        await readOnce({ client, l: tagged({ tag: 'cut-empty-test', },), },);
+
+        expect(seen.map(function modelOf(asked,) {
+          return asked.modelId;
+        },),).toEqual([READER, SEAT_HYPER_TEXT_BEDROCK,],);
+      },
+    },),
+
+    it({
+      name: 'WRITES THE MODELS LEFT OUT ONCE, BEFORE THE FIRST RE-ASK, so a model without a provider moves the loop on '
+        + 'without the line being written again, and writes it also where no model is left to ask',
+      fn: async () => {
+        /**
+         Lines of a case in which the first model has no provider.
+         */
+        const moved: string[] = [];
+        const first = scriptedClient({
+          scripts: { [READER]: [CUT,], [SEAT_HYPER_TEXT_BEDROCK]: ['no-provider',], },
+        },);
+        await readOnce({ client: first.client, l: keepingLogger({ said: moved, },), },);
+        expect(moved.filter(function namesLeftOut(line,): boolean {
+          return line.includes('left out:',);
+        },).length,).toBe(1,);
+
+        /**
+         Lines of a case whose bench holds every model that could take the re-ask.
+         */
+        const none: string[] = [];
+        const second = scriptedClient({ scripts: { [READER]: [CUT, { text: READING, },], }, },);
+        await readOnce({
+          client: second.client,
+          l: keepingLogger({ said: none, },),
+          benchModelIds: [READER, ...READING_ALTERNATES,],
+        },);
+        expect(none.filter(function namesLeftOutAndNone(line,): boolean {
+          return line.includes('left out:',) && line.includes('to ask in turn: none',);
+        },).length,).toBe(1,);
       },
     },),
 
