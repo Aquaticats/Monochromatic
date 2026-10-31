@@ -274,7 +274,12 @@ and accepted with this record:
   `lock --check` becomes `install --lockfile-only --frozen-lockfile`,
   `update --check` becomes `outdated`,
   `bin-paths` becomes `bin`,
-  `status` becomes `list` (pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  `status` becomes `list` (alias `ls`; pnpm leaves its drift exit code open, so it stays nonzero on drift),
+  `bin --json` prints the IDE launcher document,
+  `install` also takes the alias `i`,
+  and with no lock `install` resolves and writes it unless `--frozen-lockfile` is given
+  (pnpm 12.16.1 measured: `CI=true pnpm install` writes a missing lockfile,
+  `--frozen-lockfile` fails with `ERR_PNPM_NO_LOCKFILE`),
   and the mise tasks follow (`toolchain:install`,
   `toolchain:list`,
   and their `:global` forms).

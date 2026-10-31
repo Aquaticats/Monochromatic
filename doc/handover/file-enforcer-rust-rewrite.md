@@ -287,6 +287,18 @@ each finished branch is reviewed and merged into `main`):
   `e570fd802d`,
   run `41172650724` green,
   the release has both Linux archives and the checksums file.
+- Shadows identify themselves (owner chose "All three shadows", 2026-10-31):
+  invoked under the shadowed name,
+  a top-level `--version` prints the real tool's output then `<shadow crate> <version>, shadowing <tool> at <real path>`
+  (the `hub` precedent),
+  and a top-level `--help` appends a short shadow section;
+  subcommand help passes through.
+  The owner noticed `mpm --version`/`--help` never mention the shadow,
+  and reports the git wrapper's silence as a regression introduced some time ago.
+  mpm-shadow: the update-by-tool agent's branch;
+  search-shadow: its own agent;
+  git wrapper: reported to monochromatic-7a with the convention.
+  The owner also confirmed mpm-shadow's separate toolchain command set "is fine".
 - Running:
   the cutover switch branch (repoints,
   `20-env.toml`,
