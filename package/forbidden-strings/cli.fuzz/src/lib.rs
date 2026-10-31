@@ -28,3 +28,13 @@
 // export * from "./generators";
 // ```
 pub mod generators;
+
+// What:     `pub mod rules_list;` registers the rules-list oracle and its token generator.
+// Why:      The `fuzz_rules_list` target and the lib unit tests share it, so the grammar's properties are
+//           both fuzzed and executed with controls.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// export * from "./rules-list";
+// ```
+pub mod rules_list;
