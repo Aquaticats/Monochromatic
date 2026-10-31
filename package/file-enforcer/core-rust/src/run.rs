@@ -153,7 +153,9 @@ fn emit_warnings(sink: &mut dyn EventSink, report: &PlanReport) {
 /// function resultEvent(command: string, clean: boolean, counts: Record<string, number>): Event
 /// ```
 fn result_event(command: &str, clean: bool, counts: &[(&str, usize)]) -> Event {
-    let (code, message) = if clean {
+    let (code, message) = if command == "write" {
+        ("write-done".to_string(), "write: every generated file is now up to date".to_string())
+    } else if clean {
         (format!("{command}-clean"), format!("{command}: every generated file is up to date"))
     } else {
         (format!("{command}-drift"), format!("{command}: generated files differ from their rules"))

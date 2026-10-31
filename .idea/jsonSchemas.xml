@@ -3,6 +3,30 @@
   <component name='JsonSchemaMappingsProjectConfiguration'>
     <state>
       <map>
+        <entry key='file-enforcer'>
+          <value>
+            <SchemaInfo>
+              <option
+                name='name'
+                value='file-enforcer'
+              />
+              <option
+                name='relativePathToSchema'
+                value='file-enforcer.schema.json'
+              />
+              <option name='patterns'>
+                <list>
+                  <Item>
+                    <option
+                      name='path'
+                      value='file-enforcer.config.jsonc'
+                    />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
         <entry key='mise'>
           <value>
             <SchemaInfo>

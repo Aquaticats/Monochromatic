@@ -3,6 +3,7 @@
 //! Why:
 //!  Each package's manifest license expression decides which texts must ship in its artifact; texts the tool owns
 //!  (the keys of `texts`) that are no longer required are removed, and any other file in the directory is left alone.
+//!  A manifest with no license expression is not managed at all.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -96,9 +97,10 @@ impl Rule for PackageLicensesRule {
         for pattern in &self.manifests {
             for manifest in expand_glob(view, pattern, EntryKind::File)? {
                 let package_dir = manifest.rsplit_once('/').map(|pair| return pair.0.to_string()).unwrap_or_default();
-                let wanted = required.entry(package_dir).or_default();
                 let text = view.read_text(&manifest)?.unwrap_or_default();
+                // A manifest without a license expression is not managed: its texts are neither added nor pruned.
                 if let Some(expression) = license_of(&manifest, &text)? {
+                    let wanted = required.entry(package_dir).or_default();
                     for requirement in &self.requires {
                         if expression.contains(&requirement.contains) {
                             for license in &requirement.texts {
