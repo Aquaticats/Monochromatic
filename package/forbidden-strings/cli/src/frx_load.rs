@@ -4,8 +4,9 @@
 //! compiler instead of the resharp/`regex` pipeline.
 //!  Two sources feed a scan:
 //!
-//! - the resolved runtime rules file (the `forbidden-strings.local.txt` precedence
-//!   chain),
+//! - the resolved runtime rules list (`--rules`, then `FORBIDDEN_STRINGS_RULES`,
+//!   then `forbidden-strings.local.txt`; one or more comma-separated files, see
+//!   `crate::rules_list`), joined into one text and
 //!    loaded through the validated per-user runtime cache with text fallback;
 //!    and
 //! - the builtin baseline,

@@ -128,3 +128,20 @@ fn tail_format_duplicate_name_fails_closed_end_to_end() {
         .expect_err("duplicate name through public entry");
     assert_eq!(err, LoadError::DuplicateName { first_line: 1, line: 3 });
 }
+
+#[test]
+fn source_format_matches_the_autodetection_parse_rules_uses() {
+    use super::{source_format, strip_source_bom, SourceFormat};
+    assert_eq!(source_format(""), SourceFormat::Empty);
+    assert_eq!(source_format("# only a comment\n\n   \n"), SourceFormat::Empty);
+    assert_eq!(source_format("# header\n==> qqq-a <==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Tail);
+    assert_eq!(source_format("AAAA_LONG_ENOUGH\n"), SourceFormat::Legacy);
+    // The decision is made on the first significant line, so a later header does not make a legacy source tail.
+    assert_eq!(source_format("AAAA_LONG_ENOUGH\n==> qqq-a <==\n"), SourceFormat::Legacy);
+    // A near-header is not a strict header, so it does not select the tail path either.
+    assert_eq!(source_format("==>qqq-a<==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Legacy);
+    // A BOM is stripped before the decision, exactly as parse_rules strips it.
+    assert_eq!(source_format("\u{feff}==> qqq-a <==\nAAAA_LONG_ENOUGH\n"), SourceFormat::Tail);
+    assert_eq!(strip_source_bom("\u{feff}abc"), "abc");
+    assert_eq!(strip_source_bom("abc"), "abc");
+}
