@@ -210,6 +210,37 @@ fn plan_and_diff(root: &Path, rules: &[Box<dyn Rule>], revalidate: bool) -> Resu
 /// function run(request: RunRequest, registry: RuleRegistry, sink: EventSink): number
 /// ```
 pub fn run(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink) -> i32 {
+    let mut paths = WatchPaths::default();
+    return run_detailed(request, registry, sink, &mut paths);
+}
+
+/// What:
+///  The repo-relative paths a run depended on: files read or planned, and directories listed.
+/// Why:
+///  `watch` watches exactly these, so its set cannot be narrower than what the run read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WatchPaths = { files: string[]; directories: string[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct WatchPaths {
+    /// Files read, planned or observed (absent ones included).
+    pub files: Vec<String>,
+    /// Directories listed (absent ones included).
+    pub directories: Vec<String>,
+}
+
+/// What:
+///  Run one request, also reporting the paths the run depended on.
+/// Why:
+///  The server's `watch` calls this to learn what to watch after each cycle.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runDetailed(request: RunRequest, registry: RuleRegistry, sink: EventSink, paths: WatchPaths): number
+/// ```
+pub fn run_detailed(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSink, paths: &mut WatchPaths) -> i32 {
     let rules = match load_rules(request, registry, sink) {
         Ok(rules) => rules,
         Err(code) => return code,
@@ -222,6 +253,9 @@ pub fn run(request: &RunRequest, registry: &RuleRegistry, sink: &mut dyn EventSi
             return EXIT_DRIFT;
         }
     };
+    let (read_files, read_directories) = report.view.read_paths();
+    paths.files = read_files;
+    paths.directories = read_directories;
     emit_warnings(sink, &report);
     if !report.errors.is_empty() {
         emit_errors(sink, &report.errors);

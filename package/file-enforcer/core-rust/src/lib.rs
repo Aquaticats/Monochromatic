@@ -95,6 +95,36 @@ pub mod explain;
 /// Running one command.
 pub mod run;
 
+/// JSON object construction without the `json!` macro.
+pub mod json_build;
+
+/// JSON-RPC message lines.
+pub mod rpc_protocol;
+
+/// Runtime directory and socket naming.
+pub mod runtime_dir;
+
+/// Build and worktree identities for the handshake.
+pub mod identity;
+
+/// Per-worktree and per-user endpoints.
+pub mod endpoint;
+
+/// Server startup lock and spawn.
+pub mod launch;
+
+/// The server.
+pub mod server;
+
+/// One server connection.
+pub mod server_connection;
+
+/// Server-side watch.
+pub mod watch;
+
+/// The client.
+pub mod client;
+
 #[cfg(test)]
 mod test_support;
 
@@ -109,3 +139,11 @@ mod kinds_tests;
 #[cfg(test)]
 #[path = "run_tests.rs"]
 mod run_tests;
+
+#[cfg(test)]
+#[path = "schema_tests.rs"]
+mod schema_tests;
+
+#[cfg(test)]
+#[path = "server_tests.rs"]
+mod server_tests;
