@@ -540,6 +540,34 @@ each finished branch is reviewed and merged into `main`):
   inside the image the tree's own `mpm-shadow` link is the lock's 0.2.0,
   which cannot read `tagPrefix`,
   so the final build needs the released 0.2.1 in the lock.
+- Owner's answers 2026-10-31 (question tool):
+  the Dockerfile's Playwright step:
+  "Publish to a registry",
+  with GitHub Container Registry (`ghcr.io/aquaticats/monochromatic-playwright`,
+  pushed by a GitHub Actions job with the workflow's `GITHUB_TOKEN`),
+  "Public" (no login),
+  "Tag by content hash" (`sha256(playwright.Dockerfile)[:16]`;
+  CI pushes when that file changes;
+  `prepare:playwright` pulls the same tag),
+  and "Fall back to local build" when the pull fails.
+  mpm-shadow 0.2.1:
+  "Approve after clean review"
+  (if the separate review finds no blockers and any should-fix items are fixed and re-checked,
+  merge and let the release run,
+  then verify the published binary).
+  Sent to the switch agent:
+  the publish workflow on its own branch `playwright-image-publish` from `main` first,
+  the pull-then-fallback `prepare:playwright` on the switch branch,
+  a measurement that `podman pull` works inside the unprivileged image build,
+  and GitHub's docs on a new package's default visibility.
+- From monochromatic-7a 2026-10-31:
+  git wrapper 0.4.5 is published and installed as the production git
+  (`git --version` appends `monochromatic-git-policy-cli 0.4.5, shadowing git at /usr/bin/git`),
+  locked in `75ea3adee5`,
+  which also moved mpm-shadow to 0.2.0,
+  search-shadow to 0.2.1,
+  binstall and slopo;
+  a worktree with an older lock downgrades the shared installs on its next sync.
 - Order from here:
   separate reviews of the wg fixes and of `mpm-shadow-0-2-1`;
   owner's approval;
