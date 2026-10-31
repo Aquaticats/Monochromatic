@@ -48,7 +48,7 @@ use tempfile::TempDir;
 /// ```ts
 /// function shortRuntimeDir(): TempDir
 /// ```
-fn short_runtime_dir() -> TempDir {
+pub(crate) fn short_runtime_dir() -> TempDir {
     let home = std::env::var("HOME").expect("HOME is set");
     let base = Path::new(&home).join("temp/agent/file-enforcer-test");
     std::fs::create_dir_all(&base).expect("the runtime base is creatable");
@@ -56,17 +56,22 @@ fn short_runtime_dir() -> TempDir {
 }
 
 /// A running in-process server and what it needs to be stopped.
-struct TestServer {
+pub(crate) struct TestServer {
     handle: Option<JoinHandle<()>>,
-    socket: PathBuf,
+    pub(crate) socket: PathBuf,
     root: PathBuf,
 }
 
 impl TestServer {
-    /// Start a server thread for `root` with the given idle time and wait for its socket.
-    fn start(root: &Path, runtime: &Path, idle: Duration) -> TestServer {
+    /// Start a repository-scope server thread for `root` with the given idle time and wait for its socket.
+    pub(crate) fn start(root: &Path, runtime: &Path, idle: Duration) -> TestServer {
+        return TestServer::start_scoped(root, runtime, idle, ConfigScope::Repository);
+    }
+
+    /// Start a server thread for `root` in the given config scope (the per-user server uses `ConfigScope::User`).
+    pub(crate) fn start_scoped(root: &Path, runtime: &Path, idle: Duration, scope: ConfigScope) -> TestServer {
         let socket = runtime.join("test.sock");
-        let options = ServerOptions { root: root.to_path_buf(), scope: ConfigScope::Repository, socket: socket.clone(), idle };
+        let options = ServerOptions { root: root.to_path_buf(), scope, socket: socket.clone(), idle };
         let handle = std::thread::spawn(move || {
             let _ = serve(&options, RuleRegistry::with_defaults());
         });
@@ -78,7 +83,7 @@ impl TestServer {
     }
 
     /// Client options that reach this server and never start another.
-    fn client(&self) -> ClientOptions {
+    pub(crate) fn client(&self) -> ClientOptions {
         let launch = ServerLaunch { program: PathBuf::from("/bin/false"), args: Vec::new() };
         return ClientOptions { root: self.root.clone(), socket: self.socket.clone(), launch, deadline: Duration::from_secs(5) };
     }

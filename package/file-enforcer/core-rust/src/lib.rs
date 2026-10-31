@@ -183,3 +183,8 @@ mod schema_tests;
 #[cfg(test)]
 #[path = "server_tests.rs"]
 mod server_tests;
+
+/// Tests for `watch` and for a server that hangs up mid-request.
+#[cfg(test)]
+#[path = "server_watch_tests.rs"]
+mod server_watch_tests;
